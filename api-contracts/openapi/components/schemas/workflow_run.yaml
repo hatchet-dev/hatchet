@@ -1,0 +1,193 @@
+WorkflowRun:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowVersionId:
+      type: string
+    workflowVersion:
+      $ref: "./_index.yaml#/WorkflowVersion"
+    status:
+      $ref: "#/WorkflowRunStatus"
+    jobRuns:
+      type: array
+      items:
+        $ref: "#/JobRun"
+    triggeredBy:
+      $ref: "#/WorkflowRunTriggeredBy"
+    input:
+      type: object
+      additionalProperties: true
+    error:
+      type: string
+    startedAt:
+      type: string
+      format: date-time
+    finishedAt:
+      type: string
+      format: date-time
+  required:
+    - metadata
+    - tenantId
+    - workflowVersionId
+    - status
+    - triggeredBy
+
+WorkflowRunList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/WorkflowRun"
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+
+StepRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - PENDING_ASSIGNMENT
+    - ASSIGNED
+    - RUNNING
+    - SUCCEEDED
+    - FAILED
+    - CANCELLED
+
+JobRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - SUCCEEDED
+    - FAILED
+    - CANCELLED
+
+WorkflowRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - SUCCEEDED
+    - FAILED
+    - CANCELLED
+
+WorkflowRunTriggeredBy:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    parentId:
+      type: string
+    eventId:
+      type: string
+    event:
+      $ref: "./_index.yaml#/Event"
+    cronParentId:
+      type: string
+    cronSchedule:
+      type: string
+  required:
+    - metadata
+    - parentId
+
+JobRun:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowRunId:
+      type: string
+    jobId:
+      type: string
+    job:
+      $ref: "./_index.yaml#/Job"
+    tickerId:
+      type: string
+    stepRuns:
+      type: array
+      items:
+        $ref: "#/StepRun"
+    status:
+      $ref: "#/JobRunStatus"
+    result:
+      type: object
+    startedAt:
+      type: string
+      format: date-time
+    finishedAt:
+      type: string
+      format: date-time
+    timeoutAt:
+      type: string
+      format: date-time
+    cancelledAt:
+      type: string
+      format: date-time
+    cancelledReason:
+      type: string
+    cancelledError:
+      type: string
+  required:
+    - metadata
+    - tenantId
+    - workflowRunId
+    - jobId
+    - status
+
+StepRun:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    jobRunId:
+      type: string
+    stepId:
+      type: string
+    step:
+      $ref: "./_index.yaml#/Step"
+    nextId:
+      type: string
+    prevId:
+      type: string
+    workerId:
+      type: string
+    status:
+      $ref: "#/StepRunStatus"
+    input:
+      type: object
+    requeueAfter:
+      type: string
+      format: date-time
+    result:
+      type: object
+    error:
+      type: string
+    startedAt:
+      type: string
+      format: date-time
+    finishedAt:
+      type: string
+      format: date-time
+    timeoutAt:
+      type: string
+      format: date-time
+    cancelledAt:
+      type: string
+      format: date-time
+    cancelledReason:
+      type: string
+    cancelledError:
+      type: string
+  required:
+    - metadata
+    - tenantId
+    - jobRunId
+    - stepId
+    - status

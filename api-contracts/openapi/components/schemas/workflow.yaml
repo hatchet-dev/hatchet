@@ -1,0 +1,201 @@
+Workflow:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    name:
+      type: string
+      description: The name of the workflow.
+    description:
+      type: string
+      description: The description of the workflow.
+    versions:
+      type: array
+      items:
+        $ref: "#/WorkflowVersionMeta"
+    tags:
+      type: array
+      items:
+        $ref: "#/WorkflowTag"
+      description: The tags of the workflow.
+    lastRun:
+      $ref: "./_index.yaml#/WorkflowRun"
+    jobs:
+      type: array
+      items:
+        $ref: "#/Job"
+      description: The jobs of the workflow.
+  required:
+    - metadata
+    - name
+  type: object
+
+WorkflowTag:
+  type: object
+  properties:
+    name:
+      type: string
+      description: The name of the workflow.
+    color:
+      type: string
+      description: The description of the workflow.
+  required:
+    - name
+    - color
+
+WorkflowList:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    rows:
+      type: array
+      items:
+        $ref: "#/Workflow"
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+
+WorkflowVersionMeta:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    version:
+      type: string
+      description: The version of the workflow.
+    order:
+      type: integer
+      format: int32
+    workflowId:
+      type: string
+    workflow:
+      $ref: "#/Workflow"
+  required:
+    - metadata
+    - version
+    - order
+    - workflowId
+
+WorkflowVersion:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    version:
+      type: string
+      description: The version of the workflow.
+    order:
+      type: integer
+      format: int32
+    workflowId:
+      type: string
+    workflow:
+      $ref: "#/Workflow"
+    triggers:
+      $ref: "#/WorkflowTriggers"
+    jobs:
+      type: array
+      items:
+        $ref: "#/Job"
+  required:
+    - metadata
+    - version
+    - order
+    - workflowId
+
+WorkflowVersionDefinition:
+  type: object
+  properties:
+    rawDefinition:
+      type: string
+      description: The raw YAML definition of the workflow.
+  required:
+    - rawDefinition
+
+WorkflowTriggers:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    workflow_version_id:
+      type: string
+    tenant_id:
+      type: string
+    events:
+      type: array
+      items:
+        $ref: "#/WorkflowTriggerEventRef"
+    crons:
+      type: array
+      items:
+        $ref: "#/WorkflowTriggerCronRef"
+
+WorkflowTriggerEventRef:
+  type: object
+  properties:
+    parent_id:
+      type: string
+    event_key:
+      type: string
+
+WorkflowTriggerCronRef:
+  type: object
+  properties:
+    parent_id:
+      type: string
+    cron:
+      type: string
+
+Job:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    versionId:
+      type: string
+    name:
+      type: string
+    description:
+      type: string
+      description: The description of the job.
+    steps:
+      type: array
+      items:
+        $ref: "#/Step"
+    timeout:
+      type: string
+      description: The timeout of the job.
+  required:
+    - metadata
+    - tenantId
+    - versionId
+    - name
+    - steps
+
+Step:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    readableId:
+      type: string
+      description: The readable id of the step.
+    tenantId:
+      type: string
+    jobId:
+      type: string
+    action:
+      type: string
+    timeout:
+      type: string
+      description: The timeout of the step.
+    nextId:
+      type: string
+  required:
+    - metadata
+    - readableId
+    - tenantId
+    - jobId
+    - action
+    - nextId

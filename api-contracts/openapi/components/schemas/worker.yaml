@@ -1,0 +1,35 @@
+Worker:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    name:
+      type: string
+      description: The name of the worker.
+    lastHeartbeatAt:
+      type: string
+      description: The time this worker last sent a heartbeat.
+      format: date-time
+      example: 2022-12-13T15:06:48.888358-05:00
+    actions:
+      type: array
+      description: The actions this worker can perform.
+      items:
+        type: string
+    recentStepRuns:
+      type: array
+      description: The recent step runs for this worker.
+      items:
+        $ref: "./_index.yaml#/StepRun"
+  required:
+    - metadata
+    - name
+  type: object
+
+WorkerList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/Worker"
+      type: array

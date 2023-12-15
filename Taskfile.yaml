@@ -1,0 +1,68 @@
+version: "3"
+
+tasks:
+  write-default-env:
+    cmds:
+      - sh ./hack/dev/write-default-env.sh
+  set-etc-hosts:
+    cmds:
+      - sudo sh ./hack/dev/manage-hosts.sh add 127.0.0.1 app.dev.hatchet-tools.com
+  prisma-migrate:
+    cmds:
+      - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev
+  seed-dev:
+    cmds:
+      - sh ./hack/dev/run-npx-with-env.sh prisma db push --force-reset
+      - sh ./hack/dev/run-go-with-env.sh run ./cmd/seed
+  start-dev:
+    deps:
+      - task: start-api
+      - task: start-engine
+      - task: start-frontend
+      - task: prisma-studio
+  start-api:
+    cmds:
+      - sh ./hack/dev/start-api.sh
+  start-engine:
+    cmds:
+      - sh ./hack/dev/start-engine.sh
+  start-frontend:
+    cmds:
+      - sh ./hack/dev/start-frontend.sh
+  generate:
+    cmds:
+      - task: generate-api
+      - task: generate-prisma
+      - task: generate-proto
+      - task: generate-sqlc
+  generate-api:
+    cmds:
+      - task: generate-api-server
+      - task: generate-api-client
+  generate-certs:
+    cmds:
+      - sh ./hack/dev/generate-temporal-certs.sh ./hack/dev/certs
+  generate-api-server:
+    cmds:
+      - sh ./hack/oas/generate-server.sh
+    silent: true
+  generate-api-client:
+    cmds:
+      - sh ./hack/oas/generate-client.sh
+    silent: true
+  generate-prisma:
+    cmds:
+      - go run github.com/steebchen/prisma-client-go generate
+  generate-proto:
+    cmds:
+      - sh ./hack/dev/proto.sh
+  generate-sqlc:
+    cmds:
+      - npx prisma migrate diff --from-empty --to-schema-datasource prisma/schema.prisma --script > internal/repository/prisma/dbsqlc/schema.sql
+      - sqlc generate --file internal/repository/prisma/dbsqlc/sqlc.yaml
+  kill-query-engines:
+    cmds:
+      - ps -A | grep 'prisma-query-engine-darwin-arm64' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
+  prisma-studio:
+    cmds:
+      - sh ./hack/dev/run-npx-with-env.sh prisma studio

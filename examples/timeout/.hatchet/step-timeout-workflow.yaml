@@ -1,0 +1,11 @@
+name: "test-step-timeout"
+version: v0.1.0
+triggers:
+  events:
+    - user:create
+jobs:
+  timeout-job:
+    steps:
+      - id: timeout
+        action: timeout:timeout
+        timeout: 5s

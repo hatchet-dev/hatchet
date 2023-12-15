@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts";
+
+import "google/protobuf/timestamp.proto";
+
+service Dispatcher {
+    rpc Register(WorkerRegisterRequest) returns (WorkerRegisterResponse) {}
+
+    rpc Listen(WorkerListenRequest) returns (stream AssignedAction) {}
+
+    rpc SendActionEvent(ActionEvent) returns (ActionEventResponse) {}
+
+    rpc Unsubscribe(WorkerUnsubscribeRequest) returns (WorkerUnsubscribeResponse) {}
+}
+
+message WorkerRegisterRequest {
+    // the tenant id
+    string tenantId = 1;
+
+    // the name of the worker
+    string workerName = 2;
+
+    // a list of actions that this worker can run
+    repeated string actions = 3;
+}
+
+message WorkerRegisterResponse {
+    // the tenant id
+    string tenantId = 1;
+
+    // the id of the worker
+    string workerId = 2;
+
+    // the name of the worker
+    string workerName = 3;
+}
+
+enum ActionType {
+    START_STEP_RUN = 0;
+    CANCEL_STEP_RUN = 1;
+}
+
+message AssignedAction {
+    // the tenant id
+    string tenantId = 1;
+
+    // the job id
+    string jobId = 2;
+
+    // the job name
+    string jobName = 3;
+
+    // the job run id
+    string jobRunId = 4;
+
+    // the step id
+    string stepId = 5;
+
+    // the step run id
+    string stepRunId = 6;
+
+    // the action id
+    string actionId = 7;
+
+    // the action type
+    ActionType actionType = 8;
+
+    // the action payload
+    string actionPayload = 9;
+}
+
+message WorkerListenRequest {
+    // the tenant id
+    string tenantId = 1;
+
+    // the id of the worker
+    string workerId = 2;
+}
+
+message WorkerUnsubscribeRequest {
+    // the tenant id to unsubscribe from
+    string tenantId = 1;
+
+    // the id of the worker
+    string workerId = 2;
+}
+
+message WorkerUnsubscribeResponse {
+    // the tenant id to unsubscribe from
+    string tenantId = 1;
+
+    // the id of the worker
+    string workerId = 2;
+}
+
+enum ActionEventType {
+    STEP_EVENT_TYPE_UNKNOWN = 0;
+    STEP_EVENT_TYPE_STARTED = 1;
+    STEP_EVENT_TYPE_COMPLETED = 2;
+    STEP_EVENT_TYPE_FAILED = 3;
+}
+
+message ActionEvent {
+    // the tenant id
+    string tenantId = 1;
+
+    // the id of the worker
+    string workerId = 2;
+
+    // the id of the job
+    string jobId = 3;
+
+    // the job run id
+    string jobRunId = 4;
+
+    // the id of the step
+    string stepId = 5;
+
+    // the step run id
+    string stepRunId = 6;
+
+    // the action id
+    string actionId = 7;
+
+    google.protobuf.Timestamp eventTimestamp = 8;
+
+    // the step event type
+    ActionEventType eventType = 9;
+
+    // the event payload
+    string eventPayload = 10;
+}
+
+message ActionEventResponse {
+    // the tenant id
+    string tenantId = 1;
+
+    // the id of the worker
+    string workerId = 2;
+}

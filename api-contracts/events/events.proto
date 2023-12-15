@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts";
+
+import "google/protobuf/timestamp.proto";
+
+service EventsService {
+    rpc Push(PushEventRequest) returns (Event) {}
+
+    rpc List(ListEventRequest) returns (ListEventResponse) {}
+
+    rpc ReplaySingleEvent(ReplayEventRequest) returns (Event) {}
+}
+
+message Event {
+    // the tenant id
+    string tenantId = 1;
+
+    // the id of the event
+    string eventId = 2;
+
+    // the key for the event
+    string key = 3;
+
+    // the payload for the event
+    string payload = 4;
+
+    // when the event was generated
+    google.protobuf.Timestamp eventTimestamp = 5;
+}
+
+message PushEventRequest {
+    // the tenant id
+    string tenantId = 1;
+
+    // the key for the event
+    string key = 2;
+
+    // the payload for the event
+    string payload = 3;
+
+    // when the event was generated
+    google.protobuf.Timestamp eventTimestamp = 4;
+}
+
+message ListEventRequest {
+    // (required) the tenant id
+    string tenantId = 1;
+
+    // (optional) the number of events to skip
+    int32 offset = 2; 
+
+    // (optional) the key for the event
+    string key = 3;
+}
+
+message ListEventResponse {
+    // the events
+    repeated Event events = 1;
+}
+
+message ReplayEventRequest {
+    // the tenant id
+    string tenantId = 1;
+
+    // the event id to replay
+    string eventId = 2;
+}

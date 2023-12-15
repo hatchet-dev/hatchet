@@ -1,0 +1,144 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/admin/contracts";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto"; // For optional fields
+
+// WorkflowService represents a set of RPCs for managing workflows.
+service WorkflowService {
+    rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
+    rpc PutWorkflow(PutWorkflowRequest) returns (WorkflowVersion);
+    rpc GetWorkflowByName(GetWorkflowByNameRequest) returns (Workflow);
+    rpc ListWorkflowsForEvent(ListWorkflowsForEventRequest) returns (ListWorkflowsResponse);
+    rpc DeleteWorkflow(DeleteWorkflowRequest) returns (Workflow);
+}
+
+message PutWorkflowRequest {
+    string tenant_id = 1;
+    CreateWorkflowVersionOpts opts = 2;
+}
+
+// CreateWorkflowVersionOpts represents options to create a workflow version.
+message CreateWorkflowVersionOpts {
+    string name = 1; // (required) the workflow name
+    string description = 2; // (optional) the workflow description
+    string version = 3; // (required) the workflow version
+    repeated string event_triggers = 4; // (optional) event triggers for the workflow
+    repeated string cron_triggers = 5; // (optional) cron triggers for the workflow
+    repeated CreateWorkflowJobOpts jobs = 6; // (required) the workflow jobs
+}
+  
+// CreateWorkflowJobOpts represents options to create a workflow job.
+message CreateWorkflowJobOpts {
+    string name = 1; // (required) the job name
+    string description = 2; // (optional) the job description
+    string timeout = 3; // (optional) the job timeout
+    repeated CreateWorkflowStepOpts steps = 4; // (required) the job steps
+}
+  
+// CreateWorkflowStepOpts represents options to create a workflow step.
+message CreateWorkflowStepOpts {
+    string readable_id = 1; // (required) the step name
+    string action = 2; // (required) the step action id
+    string timeout = 3; // (optional) the step timeout
+    string inputs = 4; // (optional) the step inputs, assuming string representation of JSON
+}
+  
+// ListWorkflowsRequest is the request for ListWorkflows.
+message ListWorkflowsRequest {
+    string tenant_id = 1;
+}
+  
+// ListWorkflowsResponse is the response for ListWorkflows.
+message ListWorkflowsResponse {
+    repeated Workflow workflows = 1;
+}
+  
+// ListWorkflowsForEventRequest is the request for ListWorkflowsForEvent.
+message ListWorkflowsForEventRequest {
+    string tenant_id = 1;
+    string event_key = 2;
+}
+  
+// Workflow represents the Workflow model.
+message Workflow {
+    string id = 1;
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+    string tenant_id = 5;
+    string name = 6;
+    google.protobuf.StringValue description = 7; // Optional
+    repeated WorkflowVersion versions = 8;
+}
+  
+// WorkflowVersion represents the WorkflowVersion model.
+message WorkflowVersion {
+    string id = 1;
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+    string version = 5;
+    int32 order = 6;
+    string workflow_id = 7;
+    WorkflowTriggers triggers = 8;
+    repeated Job jobs = 9;
+}
+  
+// WorkflowTriggers represents the WorkflowTriggers model.
+message WorkflowTriggers {
+    string id = 1;
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+    string workflow_version_id = 5;
+    string tenant_id = 6;
+    repeated WorkflowTriggerEventRef events = 7;
+    repeated WorkflowTriggerCronRef crons = 8;
+}
+  
+// WorkflowTriggerEventRef represents the WorkflowTriggerEventRef model.
+message WorkflowTriggerEventRef {
+    string parent_id = 1;
+    string event_key = 2;
+}
+  
+// WorkflowTriggerCronRef represents the WorkflowTriggerCronRef model.
+message WorkflowTriggerCronRef {
+    string parent_id = 1;
+    string cron = 2;
+}
+  
+// Job represents the Job model.
+message Job {
+    string id = 1;
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+    string tenant_id = 5;
+    string workflow_version_id = 6;
+    string name = 7;
+    google.protobuf.StringValue description = 8; // Optional
+    repeated Step steps = 9;
+    google.protobuf.StringValue timeout = 10; // Optional
+}
+  
+// Step represents the Step model.
+message Step {
+    string id = 1;
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+    google.protobuf.StringValue readable_id = 5; // Optional
+    string tenant_id = 6;
+    string job_id = 7;
+    string action = 8;
+    google.protobuf.StringValue timeout = 9; // Optional
+    string next_id = 10; // Optional
+}
+  
+message DeleteWorkflowRequest {
+    string tenant_id = 1;
+    string workflow_id = 2;
+}
+
+message GetWorkflowByNameRequest {
+    string tenant_id = 1;
+    string name = 2;
+}

@@ -1,0 +1,88 @@
+APIErrors:
+  $ref: "./metadata.yaml#/APIErrors"
+APIError:
+  $ref: "./metadata.yaml#/APIError"
+PaginationResponse:
+  $ref: "./metadata.yaml#/PaginationResponse"
+APIResourceMeta:
+  $ref: "./metadata.yaml#/APIResourceMeta"
+User:
+  $ref: "./user.yaml#/User"
+UserTenantPublic:
+  $ref: "./user.yaml#/UserTenantPublic"
+UserLoginRequest:
+  $ref: "./user.yaml#/UserLoginRequest"
+UserRegisterRequest:
+  $ref: "./user.yaml#/UserRegisterRequest"
+UserTenantMembershipsList:
+  $ref: "./user.yaml#/UserTenantMembershipsList"
+Tenant:
+  $ref: "./tenant.yaml#/Tenant"
+TenantMember:
+  $ref: "./tenant.yaml#/TenantMember"
+TenantMemberRole:
+  $ref: "./tenant.yaml#/TenantMemberRole"
+TenantList:
+  $ref: "./tenant.yaml#/TenantList"
+CreateTenantRequest:
+  $ref: "./tenant.yaml#/CreateTenantRequest"
+Event:
+  $ref: "./event.yaml#/Event"
+EventData:
+  $ref: "./event.yaml#/EventData"
+EventWorkflowRunSummary:
+  $ref: "./event.yaml#/EventWorkflowRunSummary"
+EventOrderByField:
+  $ref: "./event.yaml#/EventOrderByField"
+EventOrderByDirection:
+  $ref: "./event.yaml#/EventOrderByDirection"
+EventKeyList:
+  $ref: "./event.yaml#/EventKeyList"
+EventKey:
+  $ref: "./event.yaml#/EventKey"
+EventList:
+  $ref: "./event.yaml#/EventList"
+ReplayEventRequest:
+  $ref: "./event.yaml#/ReplayEventRequest"
+Workflow:
+  $ref: "./workflow.yaml#/Workflow"
+WorkflowVersionMeta:
+  $ref: "./workflow.yaml#/WorkflowVersionMeta"
+WorkflowVersion:
+  $ref: "./workflow.yaml#/WorkflowVersion"
+WorkflowVersionDefinition:
+  $ref: "./workflow.yaml#/WorkflowVersionDefinition"
+WorkflowTag:
+  $ref: "./workflow.yaml#/WorkflowTag"
+WorkflowList:
+  $ref: "./workflow.yaml#/WorkflowList"
+WorkflowTriggers:
+  $ref: "./workflow.yaml#/WorkflowTriggers"
+WorkflowTriggerEventRef:
+  $ref: "./workflow.yaml#/WorkflowTriggerEventRef"
+WorkflowTriggerCronRef:
+  $ref: "./workflow.yaml#/WorkflowTriggerCronRef"
+Job:
+  $ref: "./workflow.yaml#/Job"
+Step:
+  $ref: "./workflow.yaml#/Step"
+WorkflowRun:
+  $ref: "./workflow_run.yaml#/WorkflowRun"
+WorkflowRunList:
+  $ref: "./workflow_run.yaml#/WorkflowRunList"
+WorkflowRunStatus:
+  $ref: "./workflow_run.yaml#/WorkflowRunStatus"
+JobRunStatus:
+  $ref: "./workflow_run.yaml#/JobRunStatus"
+StepRunStatus:
+  $ref: "./workflow_run.yaml#/StepRunStatus"
+JobRun:
+  $ref: "./workflow_run.yaml#/JobRun"
+WorkflowRunTriggeredBy:
+  $ref: "./workflow_run.yaml#/WorkflowRunTriggeredBy"
+StepRun:
+  $ref: "./workflow_run.yaml#/StepRun"
+WorkerList:
+  $ref: "./worker.yaml#/WorkerList"
+Worker:
+  $ref: "./worker.yaml#/Worker"

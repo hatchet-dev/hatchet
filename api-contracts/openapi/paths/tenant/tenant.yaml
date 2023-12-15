@@ -1,0 +1,34 @@
+tenants:
+  post:
+    x-resources: []
+    description: Creates a new tenant
+    operationId: tenant:create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/CreateTenantRequest"
+      description: The tenant to create
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Tenant"
+        description: Successfully created the tenant
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Create tenant
+    tags:
+      - Tenant

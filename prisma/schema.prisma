@@ -1,0 +1,662 @@
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+generator go {
+    provider = "go run github.com/steebchen/prisma-client-go"
+    output   = "../internal/repository/prisma/db"
+}
+
+model User {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the user's email address
+    email String @unique
+
+    // whether the user's email address has been verified
+    emailVerified Boolean @default(false)
+
+    // The hashed user's password. This is placed in a separate table so that it isn't returned by default. 
+    password UserPassword?
+
+    // the user's name
+    name String?
+
+    // the user sessions
+    sessions UserSession[]
+
+    memberships TenantMember[]
+}
+
+model UserPassword {
+    hash String
+
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    userId String @unique @db.Uuid
+}
+
+model UserSession {
+    // base fields
+    id        String   @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime @default(now())
+    updatedAt DateTime @default(now()) @updatedAt
+
+    // the linked user. The user can be empty if the session is created but not authenticated.
+    user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    userId String? @db.Uuid
+
+    // arbitrary session data
+    data Json?
+
+    // the expiry time of the session
+    expiresAt DateTime
+}
+
+// Tenant represents a unique tenant in the database. Each tenant-scoped resource should have the tenant as
+// an identifier, which makes tenant isolation easier.
+model Tenant {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    name String
+    slug String @unique
+
+    events              Event[]
+    workflows           Workflow[]
+    jobs                Job[]
+    steps               Step[]
+    triggers            WorkflowTriggers[]
+    workflowRuns        WorkflowRun[]
+    workflowRunTriggers WorkflowRunTriggeredBy[]
+    jobRuns             JobRun[]
+    jobRunLookupDatas   JobRunLookupData[]
+    stepRuns            StepRun[]
+    workers             Worker[]
+    members             TenantMember[]
+    workflowTags        WorkflowTag[]
+    actions             Action[]
+}
+
+enum TenantMemberRole {
+    OWNER
+    ADMIN
+    MEMBER
+}
+
+model TenantMember {
+    // base fields
+    id        String   @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime @default(now())
+    updatedAt DateTime @default(now()) @updatedAt
+
+    // the parent tenant
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the linked user
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    userId String @db.Uuid
+
+    // the member's role
+    role TenantMemberRole
+
+    // members are unique per tenant
+    @@unique([tenantId, userId])
+}
+
+// Event represents an event in the database. 
+model Event {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the event key
+    key String
+
+    // the parent tenant
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the event which was replayed
+    replayedFrom   Event?  @relation("EventReplay", fields: [replayedFromId], references: [id])
+    replayedFromId String? @db.Uuid
+
+    // the events which were replayed
+    replays Event[] @relation("EventReplay")
+
+    // data stored in the event
+    data Json?
+
+    // the workflow runs that were triggered by this event
+    workflowRuns WorkflowRunTriggeredBy[]
+}
+
+model WorkflowTag {
+    // base fields
+    id        String   @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime @default(now())
+    updatedAt DateTime @default(now()) @updatedAt
+
+    // the parent workflow
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the tag name
+    name String
+
+    // the tag color
+    color String @default("#93C5FD") // a nice indigo
+
+    // the workflows this tag is linked to
+    workflows Workflow[]
+
+    // tags are unique per tenant
+    @@unique([tenantId, name])
+}
+
+model Workflow {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the parent tenant
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the workflow name
+    name String
+
+    // the workflow description
+    description String?
+
+    // tracked versions of the workflow
+    versions WorkflowVersion[]
+
+    // the tags for this workflow
+    tags WorkflowTag[]
+
+    // workflow names are unique per tenant
+    @@unique([tenantId, name])
+}
+
+model WorkflowVersion {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    version String
+    order   Int    @default(autoincrement()) @db.SmallInt
+
+    // the parent workflow
+    workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    workflowId String   @db.Uuid
+
+    // the declared triggers for the job
+    triggers WorkflowTriggers?
+
+    // the declared jobs 
+    jobs Job[]
+
+    // all runs for the workflow
+    runs WorkflowRun[]
+
+    // versions are unique per workflow
+    @@unique([workflowId, version])
+}
+
+model WorkflowTriggers {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the parent workflow
+    workflow          WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    workflowVersionId String          @unique @db.Uuid
+
+    // the parent tenant
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // events that trigger this workflow
+    events WorkflowTriggerEventRef[]
+
+    crons WorkflowTriggerCronRef[]
+}
+
+model WorkflowTriggerEventRef {
+    // the parent workflow
+    parent   WorkflowTriggers @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    parentId String           @db.Uuid
+
+    // the event key
+    eventKey String
+
+    // event references must be unique per workflow
+    @@unique([parentId, eventKey])
+}
+
+model WorkflowTriggerCronRef {
+    // the parent workflow
+    parent   WorkflowTriggers @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    parentId String           @db.Uuid
+
+    // the cron expression
+    cron String
+
+    // the assigned ticker
+    ticker   Ticker? @relation(fields: [tickerId], references: [id])
+    tickerId String? @db.Uuid
+
+    triggered WorkflowRunTriggeredBy[]
+
+    // cron references must be unique per workflow
+    @@unique([parentId, cron])
+}
+
+model Job {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the parent tenant
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the parent workflow
+    workflow          WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    workflowVersionId String          @db.Uuid
+
+    // the job name
+    name String
+
+    // the job description
+    description String?
+
+    // the declared steps
+    steps Step[]
+
+    // a timeout value for the job
+    timeout String?
+
+    // any runs for this job
+    runs JobRun[]
+
+    // jobs names are unique per workflow
+    @@unique([workflowVersionId, name])
+}
+
+model Action {
+    // base fields
+    id String @id
+
+    // the action description
+    description String?
+
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the action's steps
+    steps Step[]
+
+    // the action's workers
+    workers Worker[]
+
+    // actions are unique per tenant
+    @@unique([tenantId, id])
+}
+
+model Step {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // a readable id for the step
+    readableId String?
+
+    // the parent tenant
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the parent job
+    job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    jobId String @db.Uuid
+
+    // an action id for the step
+    action   Action @relation(fields: [actionId, tenantId], references: [id, tenantId])
+    actionId String
+
+    timeout String?
+
+    // the declared step inputs. these will not be populated if they use go tmpl syntax
+    inputs Json?
+
+    // the next step in the job
+    next   Step?   @relation("StepOrder", fields: [nextId], references: [id])
+    nextId String? @unique @db.Uuid // next ids are globally unique because workflows are immutable once written
+
+    // the previous step in the job
+    prev Step? @relation("StepOrder")
+
+    // a list of runs for this step
+    stepRuns StepRun[]
+
+    // readable ids are unique per job
+    @@unique([jobId, readableId])
+}
+
+enum WorkflowRunStatus {
+    PENDING
+    RUNNING
+    SUCCEEDED
+    FAILED
+}
+
+model WorkflowRun {
+    // base fields
+    id        String    @id @default(uuid())
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the parent tenant
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the parent workflow
+    workflowVersion   WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    workflowVersionId String          @db.Uuid
+
+    status WorkflowRunStatus @default(PENDING)
+
+    jobRuns JobRun[]
+
+    triggeredBy WorkflowRunTriggeredBy?
+
+    input Json?
+
+    // the run error
+    error String?
+
+    // the run started at
+    startedAt DateTime?
+
+    // the run finished at
+    finishedAt DateTime?
+
+    // workflow run ids are unique per tenant
+    @@unique([tenantId, id])
+}
+
+model WorkflowRunTriggeredBy {
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the tenant (needed for unique constraint)
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the parent workflow run
+    parent   WorkflowRun @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    parentId String      @unique
+
+    // the parent event
+    event   Event?  @relation(fields: [eventId], references: [id])
+    eventId String? @db.Uuid
+
+    // the cron reference that triggered this workflow
+    cron         WorkflowTriggerCronRef? @relation(fields: [cronParentId, cronSchedule], references: [parentId, cron])
+    cronParentId String?                 @db.Uuid
+    cronSchedule String?
+
+    @@unique([tenantId, parentId])
+}
+
+enum JobRunStatus {
+    PENDING
+    RUNNING
+    SUCCEEDED
+    FAILED
+    CANCELLED
+}
+
+model JobRun {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the parent tenant
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the parent workflow run
+    workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    workflowRunId String
+
+    // the parent job
+    job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    jobId String @db.Uuid
+
+    // the assigned ticker
+    ticker   Ticker? @relation(fields: [tickerId], references: [id])
+    tickerId String? @db.Uuid
+
+    stepRuns StepRun[]
+
+    // the run status
+    status JobRunStatus @default(PENDING)
+
+    lookupData JobRunLookupData?
+
+    // the run result
+    result Json?
+
+    // the run started at
+    startedAt DateTime?
+
+    // the run finished at
+    finishedAt DateTime?
+
+    // the run timeout at
+    timeoutAt DateTime?
+
+    // the run cancelled at
+    cancelledAt DateTime?
+
+    // the reason for why the run was cancelled
+    cancelledReason String?
+
+    // errors while cancelling the run
+    cancelledError String?
+}
+
+model JobRunLookupData {
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the parent job run
+    jobRun   JobRun @relation(fields: [jobRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    jobRunId String @unique @db.Uuid
+
+    // the tenant id
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    data Json?
+
+    // additional field so we can look up by both job run id and tenant id
+    @@unique([jobRunId, tenantId])
+}
+
+enum StepRunStatus {
+    // pending states
+    PENDING
+    PENDING_ASSIGNMENT // A run is in a pending assignment state if it is waiting for a worker to be assigned to it
+    ASSIGNED
+
+    // running states
+    RUNNING
+
+    // final states
+    SUCCEEDED
+    FAILED
+    CANCELLED
+}
+
+model StepRun {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the parent tenant
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the parent job run
+    jobRun   JobRun @relation(fields: [jobRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    jobRunId String @db.Uuid
+
+    // the parent step
+    step   Step   @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    stepId String @db.Uuid
+
+    // the next step in the job
+    next   StepRun? @relation("StepRunOrder", fields: [nextId], references: [id])
+    nextId String?  @unique @db.Uuid // next ids are globally unique because workflows are immutable once written
+
+    // the previous step in the job
+    prev StepRun? @relation("StepRunOrder")
+
+    order Int @default(autoincrement()) @db.SmallInt
+
+    // the worker assigned to this job
+    worker   Worker? @relation(fields: [workerId], references: [id])
+    workerId String? @db.Uuid
+
+    // the assigned ticker
+    ticker   Ticker? @relation(fields: [tickerId], references: [id])
+    tickerId String? @db.Uuid
+
+    // the run status
+    status StepRunStatus @default(PENDING)
+
+    input Json?
+
+    // when the step should be requeued
+    requeueAfter DateTime?
+
+    // the run result
+    result Json?
+
+    // the run error
+    error String?
+
+    // the run started at
+    startedAt DateTime?
+
+    // the run finished at
+    finishedAt DateTime?
+
+    // the run timeout at
+    timeoutAt DateTime?
+
+    // the run cancelled at
+    cancelledAt DateTime?
+
+    // the reason for why the run was cancelled
+    cancelledReason String?
+
+    // errors while cancelling the run
+    cancelledError String?
+}
+
+model Dispatcher {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the last heartbeat time
+    lastHeartbeatAt DateTime?
+
+    // a list of workers connected to this dispatcher
+    workers Worker[]
+}
+
+model Ticker {
+    // base fields
+    id        String   @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime @default(now())
+    updatedAt DateTime @default(now()) @updatedAt
+
+    // the last heartbeat time
+    lastHeartbeatAt DateTime?
+
+    jobRuns  JobRun[]
+    stepRuns StepRun[]
+    crons    WorkflowTriggerCronRef[]
+}
+
+enum WorkerStatus {
+    ACTIVE
+    INACTIVE
+}
+
+model Worker {
+    // base fields
+    id        String    @id @unique @default(uuid()) @db.Uuid
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now()) @updatedAt
+    deletedAt DateTime?
+
+    // the parent tenant
+    tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    tenantId String @db.Uuid
+
+    // the last heartbeat time
+    lastHeartbeatAt DateTime?
+
+    // the worker name
+    name String
+
+    // the worker's status
+    status WorkerStatus @default(ACTIVE)
+
+    // the dispatcher the worker is connected to
+    dispatcher   Dispatcher @relation(fields: [dispatcherId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    dispatcherId String     @db.Uuid
+
+    // the actions this worker can run
+    actions Action[]
+
+    // the jobs the worker has run
+    stepRuns StepRun[]
+}

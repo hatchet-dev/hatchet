@@ -1,0 +1,68 @@
+Tenant:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    name:
+      type: string
+      description: The name of the tenant.
+    slug:
+      type: string
+      description: The slug of the tenant.
+  required:
+    - metadata
+    - name
+    - slug
+  type: object
+
+CreateTenantRequest:
+  properties:
+    name:
+      type: string
+      description: The name of the tenant.
+      x-oapi-codegen-extra-tags:
+        validate: "required"
+    slug:
+      type: string
+      description: The slug of the tenant.
+      x-oapi-codegen-extra-tags:
+        validate: "required,hatchetName"
+  required:
+    - name
+    - slug
+  type: object
+
+TenantMember:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    user:
+      $ref: "./_index.yaml#/UserTenantPublic"
+      description: The user associated with this tenant member.
+    role:
+      $ref: "#/TenantMemberRole"
+      description: The role of the user in the tenant.      
+    tenant:
+      $ref: "#/Tenant"
+      description: The tenant associated with this tenant member.
+  required:
+    - metadata
+    - user
+    - role
+  type: object
+
+TenantMemberRole:
+  enum:
+    - "OWNER"
+    - "ADMIN"
+    - "MEMBER"
+  type: string
+
+TenantList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/Tenant"
+      type: array
+      x-go-name: Rows

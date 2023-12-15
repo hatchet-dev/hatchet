@@ -1,0 +1,77 @@
+APIError:
+  type: object
+  properties:
+    code:
+      type: integer
+      description: a custom Hatchet error code
+      format: uint64
+      example: 1400
+    field:
+      type: string
+      description: the field that this error is associated with, if applicable
+      example: name
+    description:
+      type: string
+      description: a description for this error
+      example: A descriptive error message
+    docs_link:
+      type: string
+      description: "a link to the documentation for this error, if it exists"
+      example: github.com/hatchet-dev/hatchet
+  required:
+    - description
+APIErrors:
+  type: object
+  properties:
+    errors:
+      type: array
+      items:
+        $ref: "#/APIError"
+  required:
+    - errors
+APIResourceMeta:
+  type: object
+  properties:
+    id:
+      type: string
+      description: "the id of this resource, in UUID format"
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    createdAt:
+      type: string
+      description: the time that this resource was created
+      format: date-time
+      example: 2022-12-13T15:06:48.888358-05:00
+    updatedAt:
+      type: string
+      description: the time that this resource was last updated
+      format: date-time
+      example: 2022-12-13T15:06:48.888358-05:00
+  required:
+    - id
+    - createdAt
+    - updatedAt
+PaginationResponse:
+  type: object
+  properties:
+    current_page:
+      type: integer
+      description: the current page
+      format: int64
+      example: 2
+    next_page:
+      type: integer
+      description: the next page
+      format: int64
+      example: 3
+    num_pages:
+      type: integer
+      description: the total number of pages for listing
+      format: int64
+      example: 10
+  example:
+    next_page: 3
+    num_pages: 10
+    current_page: 2

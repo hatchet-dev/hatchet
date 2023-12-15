@@ -1,0 +1,93 @@
+Event:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    key:
+      type: string
+      description: The key for the event.
+    tenant:
+      $ref: "./_index.yaml#/Tenant"
+      description: The tenant associated with this event.
+    tenantId:
+      type: string
+      description: The ID of the tenant associated with this event.
+    workflowRunSummary:
+      $ref: "#/EventWorkflowRunSummary"
+      description: The workflow run summary for this event.
+  required:
+    - metadata
+    - key
+    - tenantId
+
+EventData:
+  properties:
+    data:
+      type: string
+      description: The data for the event (JSON bytes).
+  required:
+    - data
+
+ReplayEventRequest:
+  properties:
+    eventIds:
+      type: array
+      items:
+        type: string
+        example: bb214807-246e-43a5-a25d-41761d1cff9e
+        minLength: 36
+        maxLength: 36
+        format: uuid
+  required:
+    - eventIds
+
+EventWorkflowRunSummary:
+  properties:
+    pending:
+      type: integer
+      format: int64
+      description: The number of pending runs.
+    running:
+      type: integer
+      format: int64
+      description: The number of running runs.
+    succeeded:
+      type: integer
+      format: int64
+      description: The number of succeeded runs.
+    failed:
+      type: integer
+      format: int64
+      description: The number of failed runs.
+
+EventKeyList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/EventKey"
+      type: array
+
+EventKey:
+  type: string
+  description: The key for the event.
+
+EventList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/Event"
+      type: array
+
+EventOrderByField:
+  type: string
+  enum:
+    - createdAt
+
+EventOrderByDirection:
+  type: string
+  enum:
+    - asc
+    - desc
