@@ -80,20 +80,21 @@ By default, Hatchet searches for workflows in the `.hatchet` folder relative to 
 
 There are two main sections of a workflow file:
 
-**Triggers (using `on`)**
+**`triggers`**
 
 This section specifies what triggers a workflow. This can be events or a crontab-like schedule. For example, the following are valid triggers:
 
 ```yaml
-on:
-  - eventkey1
-  - eventkey2
+triggers:
+  events:
+    - event_key_1
+    - event_key_2
 ```
 
 ```yaml
-on:
-  cron:
-    schedule: "*/15 * * * *"
+triggers:
+  crons:
+    - "* * * * *"
 ```
 
 **Jobs**
