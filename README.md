@@ -47,16 +47,15 @@ jobs:
 
 In your codebase, you would then create a worker which could perform the following actions:
 
-the following integrations (see [Writing an integration](#writing-an-integration)):
+- `sandbox:create` responsible for creating/tearing down a sandbox environment
+- `postmark:email-from-template` for sending an email from a template
+- `newsletter:add-user` for adding a user to a newsletter campaign
 
-- A `sandbox` integration responsible for creating/tearing down a sandbox environment
-- A `postmark` integration for sending an email from a template
-- A `newsletter` integration for adding a user to a newsletter campaign
-
-Ultimately, the goal of Hatchet workflows are that you don't need to write these integrations yourself -- creating a robust set of prebuilt integrations is one of the goals of the project.
+Ultimately, the goal of Hatchet workflows are that you don't need to write these actions yourself -- creating a robust set of prebuilt integrations is one of the goals of the project.
 
 ### Why is this useful?
 
+- When deploying a workflow engine or task queue, one of the first breaking points is requiring a robust event architecture for monitoring and replaying events. Hatchet provides this out of the box, allowing you to replay your events and retrigger your workflows.
 - No need to build all of your plumbing logic (action 1 -> event 1 -> action 2 -> event 2). Just define your jobs and steps and write your business logic. This is particularly useful the more complex your workflows become.
 - Using prebuilt integrations with a standard interface makes building auxiliary services like notification systems, billing, backups, and auditing much easier. **Please file an issue if you'd like to see an integration supported.** The following are on the roadmap:
   - Email providers: Sendgrid, Postmark, AWS SES
@@ -71,18 +70,13 @@ Ultimately, the goal of Hatchet workflows are that you don't need to write these
 
 For a set of end-to-end examples, see the [examples](./examples) directory.
 
-### Prerequisites
-
-- Go 1.21 installed
-- Taskfile installed (instructions [here](https://taskfile.dev/installation/))
-
 ### Starting Hatchet
 
-We are working on making it easier to start a Hatchet server. For now, see the [contributing guide](./CONTRIBUTING.md) for getting started.
+We are working on making it easier to start a Hatchet server. For now, see the [contributing guide](./CONTRIBUTING.md) for starting the Hatchet engine.
 
 ### Writing a Workflow
 
-By default, Hatchet searches for workflows in the `.hatchet` folder relative to the directory you run your application in. However, you can configure this using `worker.WithWorkflowFiles` and the exported `fileutils` package (`fileutils.ReadAllValidFilesInDir`).
+By default, Hatchet searches for workflows in the `.hatchet` folder relative to the directory you run your application in.
 
 There are two main sections of a workflow file:
 
@@ -102,16 +96,6 @@ on:
     schedule: "*/15 * * * *"
 ```
 
-There are also a set of keywords `random_15_min`, `random_hourly`, `random_daily` for cron-like schedules. Upon creation of these schedules, a random minute is picked in the given interval - for example, `random_hourly` might result in a schedule `49 * * * *` (the 49th minute of every hour). After creation, these schedules will **not** be updated with a new random schedule.
-
-```yaml
-on:
-  cron:
-    schedule: "random_hourly"
-```
-
-The point of this is to avoid burstiness if all jobs have the exact same schedule (i.e. runs at the 0th minute of every hour), you may start to run out of memory on your workers.
-
 **Jobs**
 
 After defining your triggers, you define a list of jobs to run based on the triggers. **Jobs run in parallel.** Jobs contain the following fields:
@@ -120,8 +104,6 @@ After defining your triggers, you define a list of jobs to run based on the trig
 # ...
 jobs:
   my-awesome-job:
-    # (optional) A queue name
-    queue: internal
     # (optional) A timeout value for the entire job
     timeout: 60s
     # (required) A set of steps for the job; see below
