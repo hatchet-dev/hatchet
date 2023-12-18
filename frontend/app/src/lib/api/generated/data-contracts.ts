@@ -381,6 +381,7 @@ export interface JobRun {
   metadata: APIResourceMeta;
   tenantId: string;
   workflowRunId: string;
+  workflowRun?: WorkflowRun;
   jobId: string;
   job?: Job;
   tickerId?: string;
@@ -412,13 +413,15 @@ export interface StepRun {
   metadata: APIResourceMeta;
   tenantId: string;
   jobRunId: string;
+  jobRun?: JobRun;
   stepId: string;
   step?: Step;
   nextId?: string;
   prevId?: string;
   workerId?: string;
+  input?: string;
+  output?: string;
   status: StepRunStatus;
-  input?: object;
   /** @format date-time */
   requeueAfter?: string;
   result?: object;

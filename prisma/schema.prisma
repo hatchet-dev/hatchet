@@ -567,13 +567,14 @@ model StepRun {
     // the run status
     status StepRunStatus @default(PENDING)
 
+    // the run input
     input Json?
+
+    // the run output
+    output Json?
 
     // when the step should be requeued
     requeueAfter DateTime?
-
-    // the run result
-    result Json?
 
     // the run error
     error String?

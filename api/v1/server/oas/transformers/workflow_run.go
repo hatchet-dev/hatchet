@@ -1,10 +1,12 @@
 package transformers
 
 import (
+	"encoding/json"
 	"sort"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
@@ -68,10 +70,11 @@ func ToWorkflowRun(run *db.WorkflowRunModel) (*gen.WorkflowRun, error) {
 
 func ToJobRun(jobRun *db.JobRunModel) (*gen.JobRun, error) {
 	res := &gen.JobRun{
-		Metadata: *toAPIMetadata(jobRun.ID, jobRun.CreatedAt, jobRun.UpdatedAt),
-		Status:   gen.JobRunStatus(jobRun.Status),
-		JobId:    jobRun.JobID,
-		TenantId: jobRun.TenantID,
+		Metadata:      *toAPIMetadata(jobRun.ID, jobRun.CreatedAt, jobRun.UpdatedAt),
+		Status:        gen.JobRunStatus(jobRun.Status),
+		JobId:         jobRun.JobID,
+		TenantId:      jobRun.TenantID,
+		WorkflowRunId: jobRun.WorkflowRunID,
 	}
 
 	if startedAt, ok := jobRun.StartedAt(); ok && !startedAt.IsZero() {
@@ -108,25 +111,44 @@ func ToJobRun(jobRun *db.JobRunModel) (*gen.JobRun, error) {
 		}
 	}
 
-	orderedStepRuns := jobRun.StepRuns()
+	if jobRun.RelationsJobRun.WorkflowRun != nil {
+		var err error
+		workflowRun := jobRun.WorkflowRun()
+		res.WorkflowRun, err = ToWorkflowRun(workflowRun)
 
-	sort.SliceStable(orderedStepRuns, func(i, j int) bool {
-		return orderedStepRuns[i].Order < orderedStepRuns[j].Order
-	})
-
-	stepRuns := make([]gen.StepRun, 0)
-
-	for _, stepRun := range orderedStepRuns {
-		stepRunCp := stepRun
-		stepRuns = append(stepRuns, *ToStepRun(&stepRunCp))
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	res.StepRuns = &stepRuns
+	if stepRuns := jobRun.RelationsJobRun.StepRuns; stepRuns != nil {
+
+		orderedStepRuns := stepRuns
+
+		sort.SliceStable(orderedStepRuns, func(i, j int) bool {
+			return orderedStepRuns[i].Order < orderedStepRuns[j].Order
+		})
+
+		stepRuns := make([]gen.StepRun, 0)
+
+		for _, stepRun := range orderedStepRuns {
+			stepRunCp := stepRun
+			genStepRun, err := ToStepRun(&stepRunCp)
+
+			if err != nil {
+				return nil, err
+			}
+
+			stepRuns = append(stepRuns, *genStepRun)
+		}
+
+		res.StepRuns = &stepRuns
+	}
 
 	return res, nil
 }
 
-func ToStepRun(stepRun *db.StepRunModel) *gen.StepRun {
+func ToStepRun(stepRun *db.StepRunModel) (*gen.StepRun, error) {
 	res := &gen.StepRun{
 		Metadata: *toAPIMetadata(stepRun.ID, stepRun.CreatedAt, stepRun.UpdatedAt),
 		Status:   gen.StepRunStatus(stepRun.Status),
@@ -173,7 +195,25 @@ func ToStepRun(stepRun *db.StepRunModel) *gen.StepRun {
 		res.Step = ToStep(step)
 	}
 
-	return res
+	if inputData, ok := stepRun.Input(); ok {
+		res.Input = repository.StringPtr(string(json.RawMessage(inputData)))
+	}
+
+	if outputData, ok := stepRun.Output(); ok {
+		res.Output = repository.StringPtr(string(json.RawMessage(outputData)))
+	}
+
+	if jobRun := stepRun.RelationsStepRun.JobRun; jobRun != nil {
+		var err error
+
+		res.JobRun, err = ToJobRun(jobRun)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return res, nil
 }
 
 func ToWorkflowRunTriggeredBy(triggeredBy *db.WorkflowRunTriggeredByModel) *gen.WorkflowRunTriggeredBy {
@@ -183,7 +223,12 @@ func ToWorkflowRunTriggeredBy(triggeredBy *db.WorkflowRunTriggeredByModel) *gen.
 	}
 
 	if event, ok := triggeredBy.Event(); ok {
+		res.EventId = &event.ID
 		res.Event = ToEvent(event)
+	}
+
+	if cron, ok := triggeredBy.Cron(); ok {
+		res.CronSchedule = &cron.Cron
 	}
 
 	return res

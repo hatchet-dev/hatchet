@@ -2,7 +2,6 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableColumnHeader } from "../../../../components/molecules/data-table/data-table-column-header";
-import { DataTableRowActions } from "../../../../components/molecules/data-table/data-table-row-actions";
 import { columns as workflowRunsColumns } from "../../workflow-runs/components/workflow-runs-columns";
 import { Event, queries } from "@/lib/api";
 import { relativeDate } from "@/lib/utils";
@@ -55,15 +54,17 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Event" />
       ),
       cell: ({ row }) => (
-        <Button
-          className="w-[80px] cursor-pointer"
-          variant="link"
-          onClick={() => {
-            onRowClick?.(row.original);
-          }}
-        >
-          {row.getValue("key")}
-        </Button>
+        <div className="w-full">
+          <Button
+            className="w-fit cursor-pointer pl-0"
+            variant="link"
+            onClick={() => {
+              onRowClick?.(row.original);
+            }}
+          >
+            {row.getValue("key")}
+          </Button>
+        </div>
       ),
       enableSorting: false,
       enableHiding: false,
@@ -90,13 +91,14 @@ export const columns = ({
         return <WorkflowRunSummary event={row.original} />;
       },
     },
-    {
-      id: "actions",
-      cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
-    },
+    // {
+    //   id: "actions",
+    //   cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
+    // },
   ];
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 function WorkflowRunSummary({ event }: { event: Event }) {
   const [tenant] = useAtom(currTenantAtom);
   invariant(tenant);
@@ -178,7 +180,10 @@ function WorkflowRunSummary({ event }: { event: Event }) {
               {numFailed} Failed
             </Badge>
           </PopoverTrigger>
-          <PopoverContent className="min-w-fit p-0 bg-background border-none z-40">
+          <PopoverContent
+            className="min-w-fit p-0 bg-background border-none z-40"
+            align="end"
+          >
             {hoverCardContent}
           </PopoverContent>
         </Popover>
@@ -201,7 +206,10 @@ function WorkflowRunSummary({ event }: { event: Event }) {
               {numSucceeded} Succeeded
             </Badge>
           </PopoverTrigger>
-          <PopoverContent className="min-w-fit p-0 bg-background border-none z-40">
+          <PopoverContent
+            className="min-w-fit p-0 bg-background border-none z-40"
+            align="end"
+          >
             {hoverCardContent}
           </PopoverContent>
         </Popover>
@@ -224,7 +232,10 @@ function WorkflowRunSummary({ event }: { event: Event }) {
               {numRunning} Running
             </Badge>
           </PopoverTrigger>
-          <PopoverContent className="min-w-fit p-0 bg-background border-none z-40">
+          <PopoverContent
+            className="min-w-fit p-0 bg-background border-none z-40"
+            align="end"
+          >
             {hoverCardContent}
           </PopoverContent>
         </Popover>

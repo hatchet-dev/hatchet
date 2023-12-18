@@ -261,7 +261,10 @@ func defaultWorkflowRunPopulator() []db.WorkflowRunRelationWith {
 		db.WorkflowRun.WorkflowVersion.Fetch().With(
 			db.WorkflowVersion.Workflow.Fetch(),
 		),
-		db.WorkflowRun.TriggeredBy.Fetch(),
+		db.WorkflowRun.TriggeredBy.Fetch().With(
+			db.WorkflowRunTriggeredBy.Event.Fetch(),
+			db.WorkflowRunTriggeredBy.Cron.Fetch(),
+		),
 		db.WorkflowRun.JobRuns.Fetch().With(
 			db.JobRun.Job.Fetch().With(
 				db.Job.Steps.Fetch(),

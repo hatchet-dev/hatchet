@@ -331,8 +331,8 @@ type StepRun struct {
 	TickerId        pgtype.UUID      `json:"tickerId"`
 	Status          StepRunStatus    `json:"status"`
 	Input           []byte           `json:"input"`
+	Output          []byte           `json:"output"`
 	RequeueAfter    pgtype.Timestamp `json:"requeueAfter"`
-	Result          []byte           `json:"result"`
 	Error           pgtype.Text      `json:"error"`
 	StartedAt       pgtype.Timestamp `json:"startedAt"`
 	FinishedAt      pgtype.Timestamp `json:"finishedAt"`

@@ -1,7 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableColumnHeader } from "../../../../components/molecules/data-table/data-table-column-header";
-import { DataTableRowActions } from "../../../../components/molecules/data-table/data-table-row-actions";
 import { WorkflowRun } from "@/lib/api";
 import { relativeDate } from "@/lib/utils";
 import { Link } from "react-router-dom";
@@ -121,8 +120,8 @@ export const columns: ColumnDef<WorkflowRun>[] = [
     enableSorting: false,
     enableHiding: false,
   },
-  {
-    id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
-  },
+  // {
+  //   id: "actions",
+  //   cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
+  // },
 ];

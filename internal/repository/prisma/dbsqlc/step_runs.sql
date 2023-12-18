@@ -7,6 +7,7 @@ SET
     "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt"),
     "status" = COALESCE(sqlc.narg('status'), "status"),
     "input" = COALESCE(sqlc.narg('input')::jsonb, "input"),
+    "output" = COALESCE(sqlc.narg('output')::jsonb, "output"),
     "error" = COALESCE(sqlc.narg('error')::text, "error"),
     "cancelledAt" = COALESCE(sqlc.narg('cancelledAt')::timestamp, "cancelledAt"),
     "cancelledReason" = COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")

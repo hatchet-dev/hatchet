@@ -30,13 +30,15 @@ import {
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar, ToolbarFilters } from "./data-table-toolbar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 export interface IDGetter {
   metadata: {
     id: string;
   };
-  isGroupingRow?: boolean;
-  getGroupingRow?: () => JSX.Element;
+  getRow?: () => JSX.Element;
+  onClick?: () => void;
+  isExpandable?: boolean;
 }
 
 interface DataTableProps<TData extends IDGetter, TValue> {
@@ -133,12 +135,19 @@ export function DataTable<TData extends IDGetter, TValue>({
   });
 
   const getTableRow = (row: Row<TData>) => {
-    if (row.original.getGroupingRow) {
-      return row.original.getGroupingRow();
+    if (row.original.getRow) {
+      return row.original.getRow();
     }
 
     return (
-      <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+      <TableRow
+        key={row.id}
+        data-state={row.getIsSelected() && "selected"}
+        className={cn(
+          row.original.isExpandable && "cursor-pointer hover:bg-muted"
+        )}
+        onClick={row.original.onClick}
+      >
         {row.getVisibleCells().map((cell) => (
           <TableCell key={cell.id}>
             {flexRender(cell.column.columnDef.cell, cell.getContext())}

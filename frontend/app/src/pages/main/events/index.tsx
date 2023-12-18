@@ -43,7 +43,7 @@ export default function Events() {
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold leading-tight tracking-tight text-foreground">
+        <h2 className="text-2xl font-bold leading-tight text-foreground">
           Events
         </h2>
         <Separator className="my-4" />
@@ -263,12 +263,12 @@ function ExpandedEventContent({ event }: { event: Event }) {
         </DialogDescription>
       </DialogHeader>
 
-      <h3 className="text-lg font-bold leading-tight tracking-tight text-foreground">
+      <h3 className="text-lg font-bold leading-tight text-foreground">
         Event Data
       </h3>
       <Separator />
       <EventDataSection event={event} />
-      <h3 className="text-lg font-bold leading-tight tracking-tight text-foreground">
+      <h3 className="text-lg font-bold leading-tight text-foreground">
         Workflow Runs
       </h3>
       <Separator />

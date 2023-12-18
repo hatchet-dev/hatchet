@@ -4,7 +4,13 @@ import { capitalize } from "@/lib/utils";
 
 type RunStatus = `${StepRunStatus | WorkflowRunStatus | JobRunStatus}`;
 
-export function RunStatus({ status }: { status: RunStatus }) {
+export function RunStatus({
+  status,
+  reason,
+}: {
+  status: RunStatus;
+  reason?: string;
+}) {
   let variant: "inProgress" | "successful" | "failed" = "inProgress";
   let text = "Running";
 
@@ -17,6 +23,11 @@ export function RunStatus({ status }: { status: RunStatus }) {
     case "CANCELLED":
       variant = "failed";
       text = "Failed";
+
+      if (reason === "TIMED_OUT") {
+        text = "Timed out";
+      }
+
       break;
     default:
       break;

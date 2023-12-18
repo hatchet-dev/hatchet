@@ -41,6 +41,8 @@ type UpdateStepRunOpts struct {
 	Error *string
 
 	Input *types.JSON
+
+	Output *types.JSON
 }
 
 func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {

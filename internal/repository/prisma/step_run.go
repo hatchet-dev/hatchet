@@ -163,6 +163,10 @@ func (j *stepRunRepository) UpdateStepRun(tenantId, stepRunId string, opts *repo
 		updateParams.Input = []byte(json.RawMessage(*opts.Input))
 	}
 
+	if opts.Output != nil {
+		updateParams.Output = []byte(json.RawMessage(*opts.Output))
+	}
+
 	if opts.Error != nil {
 		updateParams.Error = sqlchelpers.TextFromStr(*opts.Error)
 	}
