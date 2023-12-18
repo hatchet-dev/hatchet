@@ -1,0 +1,58 @@
+openapi: 3.1.0
+servers:
+  - url: ""
+info:
+  version: 1.0.0
+  title: Hatchet API
+  description: The Hatchet API
+security:
+  - bearerAuth: []
+  - cookieAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: hatchet
+  schemas:
+    $ref: "./components/schemas/_index.yaml"
+paths:
+  /api/v1/users/login:
+    $ref: "./paths/user/user.yaml#/login"
+  /api/v1/users/current:
+    $ref: "./paths/user/user.yaml#/current"
+  /api/v1/users/register:
+    $ref: "./paths/user/user.yaml#/register"
+  /api/v1/users/logout:
+    $ref: "./paths/user/user.yaml#/logout"
+  /api/v1/users/memberships:
+    $ref: "./paths/user/user.yaml#/memberships"
+  /api/v1/tenants:
+    $ref: "./paths/tenant/tenant.yaml#/tenants"
+  /api/v1/tenants/{tenant}/events:
+    $ref: "./paths/event/event.yaml#/withTenant"
+  /api/v1/tenants/{tenant}/events/replay:
+    $ref: "./paths/event/event.yaml#/replayEvents"
+  /api/v1/events/{event}/data:
+    $ref: "./paths/event/event.yaml#/eventData"
+  /api/v1/tenants/{tenant}/events/keys:
+    $ref: "./paths/event/event.yaml#/keys"
+  /api/v1/tenants/{tenant}/workflows:
+    $ref: "./paths/workflow/workflow.yaml#/withTenant"
+  /api/v1/workflows/{workflow}:
+    $ref: "./paths/workflow/workflow.yaml#/withWorkflow"
+  /api/v1/workflows/{workflow}/versions:
+    $ref: "./paths/workflow/workflow.yaml#/workflowVersion"
+  /api/v1/workflows/{workflow}/versions/definition:
+    $ref: "./paths/workflow/workflow.yaml#/workflowVersionDefinition"
+  /api/v1/tenants/{tenant}/workflows/runs:
+    $ref: "./paths/workflow/workflow.yaml#/workflowRuns"
+  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}:
+    $ref: "./paths/workflow/workflow.yaml#/workflowRun"
+  /api/v1/tenants/{tenant}/worker:
+    $ref: "./paths/worker/worker.yaml#/withTenant"
+  /api/v1/workers/{worker}:
+    $ref: "./paths/worker/worker.yaml#/withWorker"

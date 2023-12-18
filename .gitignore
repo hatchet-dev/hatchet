@@ -16,7 +16,6 @@ staging.sh
 *.crt
 *.key
 bin
-openapi.yaml
 .idea
 dump.rdb
 .srl
