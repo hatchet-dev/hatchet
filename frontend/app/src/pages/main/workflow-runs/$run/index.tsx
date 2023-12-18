@@ -188,7 +188,6 @@ function getJobRunRow({
       <TableCell colSpan={1}>
         <div>{relativeDate(jobRun.finishedAt)}</div>
       </TableCell>
-      {/* <TableCell colSpan={columns.length - 4} /> */}
     </TableRow>
   );
 }
@@ -208,16 +207,6 @@ function getExpandedStepRunRow({
         <StepInputSection stepRun={stepRun} />
         <StepOutputSection stepRun={stepRun} />
       </TableCell>
-      {/* <TableCell colSpan={1}>
-        <RunStatus status={stepRun.status} />
-      </TableCell>
-      <TableCell colSpan={1}>
-        <div>{relativeDate(stepRun.startedAt)}</div>
-      </TableCell>
-      <TableCell colSpan={1}>
-        <div>{relativeDate(stepRun.finishedAt)}</div>
-      </TableCell>
-      <TableCell colSpan={columns.length - 4} /> */}
     </TableRow>
   );
 }
