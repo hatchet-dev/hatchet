@@ -10,10 +10,7 @@
 - The following additional devtools:
   - `protoc`: `brew install protobuf`
   - `sqlc`: `brew install sqlc`
-  - `deepmap/oapi-codegen`: `go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@latest`
-  - `swagger-cli`: `npm list -g @apidevtools/swagger-cli || npm install -g @apidevtools/swagger-cli`
-  - `nodemon`: `npm list -g nodemon || npm install -g nodemon`
-  - `turbo`: `npm list -g turbo || npm i -g turbo`
+  - `caddy` and `nss`: `brew install caddy nss`
 
 ### Setup
 
