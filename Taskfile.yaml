@@ -58,7 +58,7 @@ tasks:
       - sh ./hack/dev/proto.sh
   generate-sqlc:
     cmds:
-      - npx prisma migrate diff --from-empty --to-schema-datasource prisma/schema.prisma --script > internal/repository/prisma/dbsqlc/schema.sql
+      - npx --yes prisma migrate diff --from-empty --to-schema-datasource prisma/schema.prisma --script > internal/repository/prisma/dbsqlc/schema.sql
       - sqlc generate --file internal/repository/prisma/dbsqlc/sqlc.yaml
   kill-query-engines:
     cmds:
