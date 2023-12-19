@@ -1,4 +1,4 @@
-import { DataTable } from '../../../components/molecules/data-table/data-table';
+import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
 import { columns } from './components/workflow-runs-columns';
 import { Separator } from '@/components/ui/separator';
 import { useMemo, useState } from 'react';
@@ -11,8 +11,8 @@ import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { useAtom } from 'jotai';
 import { currTenantAtom } from '@/lib/atoms';
-import { Icons } from '@/components/ui/icons';
 import { queries } from '@/lib/api';
+import { Loading } from '@/components/ui/loading.tsx';
 
 export default function WorkflowRuns() {
   return (
@@ -56,11 +56,7 @@ function WorkflowRunsTable() {
   });
 
   if (listWorkflowRunsQuery.isLoading) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (

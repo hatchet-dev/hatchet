@@ -7,7 +7,7 @@ import {
 import api from '@/lib/api';
 import queryClient from '@/query-client';
 import { useContextFromParent } from '@/lib/outlet';
-import { Icons } from '@/components/ui/icons';
+import { Loading } from '@/components/ui/loading.tsx';
 
 const authMiddleware = async (currentUrl: string) => {
   try {
@@ -69,11 +69,7 @@ export default function Auth() {
   });
 
   if (!user || !memberships) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   return <Outlet context={ctx} />;

@@ -2,11 +2,10 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Icons } from '@/components/ui/icons';
-
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Spinner } from '@/components/ui/loading.tsx';
 
 const schema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters long'),
@@ -96,9 +95,7 @@ export function UserRegisterForm({
             )}
           </div>
           <Button disabled={props.isLoading}>
-            {props.isLoading && (
-              <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-            )}
+            {props.isLoading && <Spinner />}
             Create Account
           </Button>
         </div>

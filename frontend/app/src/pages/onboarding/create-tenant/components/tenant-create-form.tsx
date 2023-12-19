@@ -2,8 +2,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Icons } from '@/components/ui/icons';
-
+import { Spinner } from '@/components/ui/loading.tsx';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -127,9 +126,7 @@ export function TenantCreateForm({
             )}
           </div>
           <Button disabled={props.isLoading || !isSlugSuffixed}>
-            {props.isLoading && (
-              <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-            )}
+            {props.isLoading && <Spinner />}
             Create
           </Button>
         </div>
