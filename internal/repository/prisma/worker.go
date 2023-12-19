@@ -43,6 +43,9 @@ func (w *workerRepository) ListRecentWorkerStepRuns(tenantId, workerId string) (
 	).With(
 		db.StepRun.Next.Fetch(),
 		db.StepRun.Prev.Fetch(),
+		db.StepRun.JobRun.Fetch().With(
+			db.JobRun.WorkflowRun.Fetch(),
+		),
 		db.StepRun.Step.Fetch().With(
 			db.Step.Job.Fetch().With(
 				db.Job.Workflow.Fetch(),

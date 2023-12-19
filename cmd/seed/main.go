@@ -80,15 +80,15 @@ func main() {
 
 	// seed example workflows
 	firstInput, _ := datautils.ToJSONType(map[string]interface{}{
-		"message": "Username is {{ .username }}",
+		"message": "Username is {{ .input.username }}",
 	})
 
 	secondInput, _ := datautils.ToJSONType(map[string]interface{}{
-		"message": "Above message is: {{ .steps.echo1.outputs.message }}",
+		"message": "Above message is: {{ .steps.echo1.message }}",
 	})
 
 	thirdInput, _ := datautils.ToJSONType(map[string]interface{}{
-		"message": "Above message is: {{ .steps.echo2.outputs.message }}",
+		"message": "Above message is: {{ .steps.echo1.message }}",
 	})
 
 	_, err = dc.Repository.Workflow().CreateNewWorkflow(tenant.ID, &repository.CreateWorkflowVersionOpts{

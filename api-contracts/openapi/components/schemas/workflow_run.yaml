@@ -102,6 +102,8 @@ JobRun:
       type: string
     workflowRunId:
       type: string
+    workflowRun:
+      $ref: "#/WorkflowRun"
     jobId:
       type: string
     job:
@@ -148,6 +150,8 @@ StepRun:
       type: string
     jobRunId:
       type: string
+    jobRun:
+      $ref: "#/JobRun"
     stepId:
       type: string
     step:
@@ -158,10 +162,12 @@ StepRun:
       type: string
     workerId:
       type: string
+    input:
+      type: string
+    output:
+      type: string
     status:
       $ref: "#/StepRunStatus"
-    input:
-      type: object
     requeueAfter:
       type: string
       format: date-time

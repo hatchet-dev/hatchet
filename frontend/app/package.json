@@ -44,6 +44,8 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "cmdk": "^0.2.0",
+    "cron-parser": "^4.9.0",
+    "cronstrue": "^2.47.0",
     "jotai": "^2.6.0",
     "prism-react-renderer": "^2.3.0",
     "qs": "^6.11.2",

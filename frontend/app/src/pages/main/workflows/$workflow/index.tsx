@@ -61,7 +61,7 @@ export default function ExpandedWorkflow() {
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
             <Square3Stack3DIcon className="h-6 w-6 text-foreground mt-1" />
-            <h2 className="text-2xl font-bold leading-tight tracking-tight text-foreground">
+            <h2 className="text-2xl font-bold leading-tight text-foreground">
               {workflow.name}
             </h2>
             <Badge className="text-sm mt-1" variant="outline">
@@ -85,12 +85,12 @@ export default function ExpandedWorkflow() {
         )}
         <div className="flex flex-row justify-start items-center mt-4"></div>
         <Separator className="my-4" />
-        <h3 className="text-xl font-bold leading-tight tracking-tight text-foreground">
+        <h3 className="text-xl font-bold leading-tight text-foreground">
           Workflow Definition
         </h3>
         <Separator className="my-4" />
         <WorkflowDefinition />
-        <h3 className="text-xl font-bold leading-tight tracking-tight text-foreground mt-8">
+        <h3 className="text-xl font-bold leading-tight text-foreground mt-8">
           Recent Runs
         </h3>
         <Separator className="my-4" />

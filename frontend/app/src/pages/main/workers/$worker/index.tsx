@@ -39,7 +39,7 @@ export default function ExpandedWorkflowRun() {
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
-            <h2 className="text-2xl font-bold leading-tight tracking-tight text-foreground">
+            <h2 className="text-2xl font-bold leading-tight text-foreground">
               {worker.name}
             </h2>
             <div className="text-sm text-gray-500">
@@ -48,7 +48,7 @@ export default function ExpandedWorkflowRun() {
           </div>
         </div>
         <Separator className="my-4" />
-        <h3 className="text-xl font-bold leading-tight tracking-tight text-foreground mb-4">
+        <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Recent Step Runs
         </h3>
         <DataTable
@@ -57,7 +57,7 @@ export default function ExpandedWorkflowRun() {
           filters={[]}
         />
         <Separator className="my-4" />
-        <h3 className="text-xl font-bold leading-tight tracking-tight text-foreground mb-4">
+        <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Worker Actions
         </h3>
         <div className="flex-wrap flex flex-row gap-4">

@@ -19,7 +19,13 @@ func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequest
 	respStepRuns := make([]gen.StepRun, len(stepRuns))
 
 	for i := range stepRuns {
-		respStepRuns[i] = *transformers.ToStepRun(&stepRuns[i])
+		genStepRun, err := transformers.ToStepRun(&stepRuns[i])
+
+		if err != nil {
+			return nil, err
+		}
+
+		respStepRuns[i] = *genStepRun
 	}
 
 	workerResp := *transformers.ToWorker(worker)

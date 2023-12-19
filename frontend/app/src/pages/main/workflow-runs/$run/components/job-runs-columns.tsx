@@ -1,25 +1,22 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "@/components/molecules/data-table/data-table-column-header";
-import { DataTableRowActions } from "@/components/molecules/data-table/data-table-row-actions";
 import { JobRun, StepRun } from "@/lib/api";
 import { relativeDate } from "@/lib/utils";
-import { Link } from "react-router-dom";
 import { RunStatus } from "../../components/run-statuses";
 
 type JobRunRow = {
   kind: "job";
-  metadata: {
-    id: string;
-  };
-  isGroupingRow: boolean;
-  getGroupingRow: () => JSX.Element;
 } & JobRun;
 
 type StepRunRow = {
   kind: "step";
+  onClick?: () => void;
 } & StepRun;
 
-export type JobRunColumns = JobRunRow | StepRunRow;
+export type JobRunColumns = (JobRunRow | StepRunRow) & {
+  isExpandable?: boolean;
+  getRow?: () => JSX.Element;
+};
 
 export const columns: ColumnDef<JobRunColumns>[] = [
   {
@@ -30,11 +27,9 @@ export const columns: ColumnDef<JobRunColumns>[] = [
         return <></>;
       }
       return (
-        <Link to={"/workflow-runs/" + row.original.metadata.id}>
-          <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap ml-6">
-            {row.original.step?.readableId}
-          </div>
-        </Link>
+        <div className="min-w-fit whitespace-nowrap ml-6">
+          {row.original.step?.readableId}
+        </div>
       );
     },
     enableSorting: false,
@@ -45,7 +40,15 @@ export const columns: ColumnDef<JobRunColumns>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
-    cell: ({ row }) => <RunStatus status={row.original.status} />,
+    cell: ({ row }) => {
+      let reason;
+
+      if (row.original.kind == "step") {
+        reason = row.original.cancelledReason;
+      }
+
+      return <RunStatus status={row.original.status} reason={reason} />;
+    },
     enableSorting: false,
     enableHiding: false,
   },
@@ -75,8 +78,8 @@ export const columns: ColumnDef<JobRunColumns>[] = [
     enableSorting: false,
     enableHiding: false,
   },
-  {
-    id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
-  },
+  // {
+  //   id: "actions",
+  //   cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
+  // },
 ];

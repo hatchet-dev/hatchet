@@ -2,8 +2,10 @@ package jobscontroller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -13,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/rs/zerolog"
+	"github.com/steebchen/prisma-client-go/runtime/types"
 )
 
 type JobsController interface {
@@ -624,9 +627,20 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
+	var stepOutput string
+
+	stepOutput, err = strconv.Unquote(payload.StepOutputData)
+
+	if err != nil {
+		stepOutput = payload.StepOutputData
+	}
+
+	outputJSON := types.JSON(json.RawMessage(stepOutput))
+
 	stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
 		FinishedAt: &finishedAt,
 		Status:     repository.StepRunStatusPtr(db.StepRunStatusSUCCEEDED),
+		Output:     &outputJSON,
 	})
 
 	if err != nil {
