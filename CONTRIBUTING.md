@@ -9,7 +9,6 @@
 - [`Taskfile`](https://taskfile.dev/installation/)
 - The following additional devtools:
   - `protoc`: `brew install protobuf`
-  - `sqlc`: `brew install sqlc`
   - `caddy` and `nss`: `brew install caddy nss`
 
 ### Setup
