@@ -22,10 +22,14 @@ export function RunStatus({
     case "FAILED":
     case "CANCELLED":
       variant = "failed";
-      text = "Failed";
+      text = "Cancelled";
 
-      if (reason === "TIMED_OUT") {
-        text = "Timed out";
+      switch (reason) {
+        case "TIMED_OUT":
+          text = "Timed out";
+          break;
+        default:
+          break;
       }
 
       break;
@@ -35,28 +39,3 @@ export function RunStatus({
 
   return <Badge variant={variant}>{capitalize(text)}</Badge>;
 }
-
-// {numFailed > 0 && (
-//     <Badge
-//       variant="secondary"
-//       className="rounded-sm px-1 font-normal text-red-400 bg-red-500/20 ring-red-500/30"
-//     >
-//       {numFailed} Failed
-//     </Badge>
-//   )}
-//   {numSucceeded > 0 && (
-//     <Badge
-//       variant="secondary"
-//       className="rounded-sm px-1 font-normal text-green-400 bg-green-500/20 ring-green-500/30"
-//     >
-//       {numSucceeded} Succeeded
-//     </Badge>
-//   )}
-//   {numRunning > 0 && (
-//     <Badge
-//       variant="secondary"
-//       className="rounded-sm px-1 font-normal text-yellow-400 bg-yellow-500/20 ring-yellow-500/30"
-//     >
-//       {numRunning} Running
-//     </Badge>
-//   )}

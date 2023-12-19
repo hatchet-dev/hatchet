@@ -259,11 +259,19 @@ function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
     case StepRunStatus.CANCELLED:
       statusText = "This step was cancelled";
 
-      if (stepRun.cancelledReason == "TIMED_OUT") {
-        statusText = `This step was cancelled because it exceeded its timeout of ${
-          stepRun.step?.timeout || "60s"
-        }`;
+      switch (stepRun.cancelledReason) {
+        case "TIMED_OUT":
+          statusText = `This step was cancelled because it exceeded its timeout of ${
+            stepRun.step?.timeout || "60s"
+          }`;
+          break;
+        case "PREVIOUS_STEP_TIMED_OUT":
+          statusText = `This step was cancelled because the previous step timed out`;
+          break;
+        default:
+          break;
       }
+
       break;
     case StepRunStatus.SUCCEEDED:
       statusText = "This step succeeded";
@@ -334,10 +342,6 @@ function EventDataSection({ event }: { event: Event }) {
 }
 
 function TriggeringCronSection({ cron }: { cron: string }) {
-  // const interval = CronParser.parseExpression(cron, {
-  //   utc: true,
-  // });
-
   const prettyInterval = `Runs ${CronPrettifier.toString(
     cron
   ).toLowerCase()} UTC`;

@@ -9,3 +9,7 @@ jobs:
       - id: timeout
         action: timeout:timeout
         timeout: 5s
+      # This step should not be reached
+      - id: later-step
+        action: timeout:timeout
+        timeout: 5s
