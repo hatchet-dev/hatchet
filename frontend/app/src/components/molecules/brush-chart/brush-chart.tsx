@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import React, { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo } from "react";
 import { scaleTime, scaleLinear } from "@visx/scale";
 import appleStock, { AppleStock } from "@visx/mock-data/lib/mocks/appleStock";
 import { Brush } from "@visx/brush";
@@ -10,7 +10,6 @@ import BaseBrush, {
 } from "@visx/brush/lib/BaseBrush";
 import { PatternLines } from "@visx/pattern";
 import { Group } from "@visx/group";
-import { LinearGradient } from "@visx/gradient";
 import { max, extent } from "@visx/vendor/d3-array";
 import { BrushHandleRenderProps } from "@visx/brush/lib/BrushHandle";
 import AreaChart from "./area-chart";
@@ -21,7 +20,6 @@ const stock = appleStock.slice(1000);
 const brushMargin = { top: 10, bottom: 15, left: 50, right: 20 };
 const chartSeparation = 30;
 const PATTERN_ID = "brush_pattern";
-const GRADIENT_ID = "brush_gradient";
 export const accentColor = "#ffffff44";
 export const background = "#1E293B";
 export const background2 = "#8c77e0";

@@ -14,12 +14,46 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/jobscontroller"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
+	"github.com/spf13/cobra"
 )
 
-func main() {
-	// init the repository
-	cf := &loader.ConfigLoader{}
+var printVersion bool
 
+// rootCmd represents the base command when called without any subcommands
+var rootCmd = &cobra.Command{
+	Use:   "hatchet-engine",
+	Short: "hatchet-engine runs the Hatchet engine.",
+	Run: func(cmd *cobra.Command, args []string) {
+		if printVersion {
+			fmt.Println(Version)
+			os.Exit(0)
+		}
+
+		cf := &loader.ConfigLoader{}
+		interruptChan := cmdutils.InterruptChan()
+
+		startEngineOrDie(cf, interruptChan)
+	},
+}
+
+// Version will be linked by an ldflag during build
+var Version string = "v0.1.0-alpha.0"
+
+func main() {
+	rootCmd.PersistentFlags().BoolVar(
+		&printVersion,
+		"version",
+		false,
+		"print version and exit.",
+	)
+
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 	sc, err := cf.LoadServerConfig()
 
 	if err != nil {
@@ -27,8 +61,7 @@ func main() {
 	}
 
 	errCh := make(chan error)
-	interruptChan := cmdutils.InterruptChan()
-	ctx, cancel := cmdutils.InterruptContext(interruptChan)
+	ctx, cancel := cmdutils.InterruptContext(interruptCh)
 	wg := sync.WaitGroup{}
 
 	if sc.HasService("grpc") {
@@ -170,7 +203,7 @@ Loop:
 			os.Exit(1)
 
 			break Loop
-		case <-interruptChan:
+		case <-interruptCh:
 			break Loop
 		}
 	}
