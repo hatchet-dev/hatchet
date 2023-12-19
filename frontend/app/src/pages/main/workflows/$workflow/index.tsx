@@ -1,24 +1,24 @@
-import { DataTable } from "@/components/molecules/data-table/data-table";
-import { Icons } from "@/components/ui/icons";
-import { Separator } from "@/components/ui/separator";
-import api, { Workflow, queries } from "@/lib/api";
-import { currTenantAtom } from "@/lib/atoms";
-import { useQuery } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
-import { useAtom } from "jotai";
+import { DataTable } from '@/components/molecules/data-table/data-table';
+import { Icons } from '@/components/ui/icons';
+import { Separator } from '@/components/ui/separator';
+import api, { Workflow, queries } from '@/lib/api';
+import { currTenantAtom } from '@/lib/atoms';
+import { useQuery } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
+import { useAtom } from 'jotai';
 import {
   LoaderFunctionArgs,
   redirect,
   useLoaderData,
   useParams,
-} from "react-router-dom";
-import invariant from "tiny-invariant";
-import { columns } from "../../workflow-runs/components/workflow-runs-columns";
-import { WorkflowTags } from "../components/workflow-tags";
-import { Code } from "@/components/ui/code";
-import { Badge } from "@/components/ui/badge";
-import { relativeDate } from "@/lib/utils";
-import { Square3Stack3DIcon } from "@heroicons/react/24/outline";
+} from 'react-router-dom';
+import invariant from 'tiny-invariant';
+import { columns } from '../../workflow-runs/components/workflow-runs-columns';
+import { WorkflowTags } from '../components/workflow-tags';
+import { Code } from '@/components/ui/code';
+import { Badge } from '@/components/ui/badge';
+import { relativeDate } from '@/lib/utils';
+import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 
 export async function loader({
   params,
@@ -37,7 +37,8 @@ export async function loader({
       throw error;
     } else if (isAxiosError(error)) {
       // TODO: handle error better
-      throw redirect("/unauthorized");
+      redirect('/unauthorized');
+      throw new Error('unauthorized');
     }
   }
 
@@ -72,9 +73,9 @@ export default function ExpandedWorkflow() {
         </div>
         <div className="flex flex-row justify-start items-center mt-4">
           <div className="text-sm text-muted-foreground">
-            Updated{" "}
+            Updated{' '}
             {relativeDate(
-              workflow.versions && workflow.versions[0].metadata.updatedAt
+              workflow.versions && workflow.versions[0].metadata.updatedAt,
             )}
           </div>
         </div>

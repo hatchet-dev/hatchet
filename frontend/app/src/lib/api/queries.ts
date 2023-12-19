@@ -1,6 +1,6 @@
-import { createQueryKeyStore } from "@lukemorales/query-key-factory";
+import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 
-import api from "./api";
+import api from './api';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
@@ -8,17 +8,17 @@ type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 export const queries = createQueryKeyStore({
   user: {
     current: {
-      queryKey: ["user:get"],
+      queryKey: ['user:get'],
       queryFn: async () => (await api.userGetCurrent()).data,
     },
   },
   workflows: {
     list: (tenant: string) => ({
-      queryKey: ["workflow:list", tenant],
+      queryKey: ['workflow:list', tenant],
       queryFn: async () => (await api.workflowList(tenant)).data,
     }),
     getVersion: (workflow: string, version?: string) => ({
-      queryKey: ["workflow-version:get", workflow, version],
+      queryKey: ['workflow-version:get', workflow, version],
       queryFn: async () =>
         (
           await api.workflowVersionGet(workflow, {
@@ -27,7 +27,7 @@ export const queries = createQueryKeyStore({
         ).data,
     }),
     getDefinition: (workflow: string, version?: string) => ({
-      queryKey: ["workflow-version:get:definition", workflow, version],
+      queryKey: ['workflow-version:get:definition', workflow, version],
       queryFn: async () =>
         (
           await api.workflowVersionGetDefinition(workflow, {
@@ -38,35 +38,35 @@ export const queries = createQueryKeyStore({
   },
   workflowRuns: {
     list: (tenant: string, query: ListWorkflowRunsQuery) => ({
-      queryKey: ["workflow-run:list", tenant, query],
+      queryKey: ['workflow-run:list', tenant, query],
       queryFn: async () => (await api.workflowRunList(tenant, query)).data,
     }),
     get: (tenant: string, workflowRun: string) => ({
-      queryKey: ["workflow-run:get", tenant, workflowRun],
+      queryKey: ['workflow-run:get', tenant, workflowRun],
       queryFn: async () => (await api.workflowRunGet(tenant, workflowRun)).data,
     }),
   },
   events: {
     list: (tenant: string, query: ListEventQuery) => ({
-      queryKey: ["event:list", tenant, query],
+      queryKey: ['event:list', tenant, query],
       queryFn: async () => (await api.eventList(tenant, query)).data,
     }),
     listKeys: (tenant: string) => ({
-      queryKey: ["event-keys:list", tenant],
+      queryKey: ['event-keys:list', tenant],
       queryFn: async () => (await api.eventKeyList(tenant)).data,
     }),
     getData: (event: string) => ({
-      queryKey: ["event-data:get", event],
+      queryKey: ['event-data:get', event],
       queryFn: async () => (await api.eventDataGet(event)).data,
     }),
   },
   workers: {
     list: (tenant: string) => ({
-      queryKey: ["worker:list", tenant],
+      queryKey: ['worker:list', tenant],
       queryFn: async () => (await api.workerList(tenant)).data,
     }),
     get: (worker: string) => ({
-      queryKey: ["worker:get", worker],
+      queryKey: ['worker:get', worker],
       queryFn: async () => (await api.workerGet(worker)).data,
     }),
   },

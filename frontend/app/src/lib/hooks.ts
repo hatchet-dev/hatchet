@@ -1,8 +1,8 @@
-import { useToast } from "@/components/ui/use-toast";
-import { AxiosError } from "axios";
-import { Dispatch, SetStateAction } from "react";
-import { APIErrors } from "./api";
-import { getFieldErrors } from "./utils";
+import { useToast } from '@/components/ui/use-toast';
+import { AxiosError } from 'axios';
+import { Dispatch, SetStateAction } from 'react';
+import { APIErrors } from './api';
+import { getFieldErrors } from './utils';
 
 export function useApiError(props: {
   setFieldErrors?: Dispatch<SetStateAction<Record<string, string>>>;
@@ -15,8 +15,8 @@ export function useApiError(props: {
     if (error.response?.status) {
       if (error.response?.status >= 500) {
         toast({
-          title: "Error",
-          description: "An internal error occurred.",
+          title: 'Error',
+          description: 'An internal error occurred.',
           duration: 5000,
         });
 
@@ -31,7 +31,9 @@ export function useApiError(props: {
         const fieldErrors = getFieldErrors(apiErrors);
 
         if (Object.keys(fieldErrors).length != 0) {
-          props.setFieldErrors && props.setFieldErrors(fieldErrors);
+          if (props.setFieldErrors) {
+            props.setFieldErrors(fieldErrors);
+          }
 
           return;
         }
@@ -40,8 +42,8 @@ export function useApiError(props: {
 
     if (!apiErrors || !apiErrors.errors || apiErrors.errors.length === 0) {
       toast({
-        title: "Error",
-        description: "An internal error occurred.",
+        title: 'Error',
+        description: 'An internal error occurred.',
         duration: 5000,
       });
 
@@ -51,7 +53,7 @@ export function useApiError(props: {
     for (const error of apiErrors.errors) {
       if (error.description) {
         toast({
-          title: "Error",
+          title: 'Error',
           description: error.description,
           duration: 5000,
         });

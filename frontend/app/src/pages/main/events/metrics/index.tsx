@@ -1,6 +1,6 @@
-import BrushChart from "@/components/molecules/brush-chart/brush-chart";
-import { Separator } from "@/components/ui/separator";
-import ParentSize from "@visx/responsive/lib/components/ParentSize";
+import BrushChart from '@/components/molecules/brush-chart/brush-chart';
+import { Separator } from '@/components/ui/separator';
+import ParentSize from '@visx/responsive/lib/components/ParentSize';
 
 export default function EventMetrics() {
   return (

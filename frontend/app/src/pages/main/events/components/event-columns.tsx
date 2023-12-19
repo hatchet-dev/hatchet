@@ -1,22 +1,22 @@
-import { ColumnDef } from "@tanstack/react-table";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { DataTableColumnHeader } from "../../../../components/molecules/data-table/data-table-column-header";
-import { columns as workflowRunsColumns } from "../../workflow-runs/components/workflow-runs-columns";
-import { Event, queries } from "@/lib/api";
-import { relativeDate } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { ColumnDef } from '@tanstack/react-table';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
+import { columns as workflowRunsColumns } from '../../workflow-runs/components/workflow-runs-columns';
+import { Event, queries } from '@/lib/api';
+import { relativeDate } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
-import { useMemo, useState } from "react";
-import { currTenantAtom } from "@/lib/atoms";
-import { useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import invariant from "tiny-invariant";
-import { DataTable } from "@/components/molecules/data-table/data-table";
+} from '@/components/ui/popover';
+import { useMemo, useState } from 'react';
+import { currTenantAtom } from '@/lib/atoms';
+import { useQuery } from '@tanstack/react-query';
+import { useAtom } from 'jotai';
+import invariant from 'tiny-invariant';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 
 export const columns = ({
   onRowClick,
@@ -25,12 +25,12 @@ export const columns = ({
 }): ColumnDef<Event>[] => {
   return [
     {
-      id: "select",
+      id: 'select',
       header: ({ table }) => (
         <Checkbox
           checked={
             table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && "indeterminate")
+            (table.getIsSomePageRowsSelected() && 'indeterminate')
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
@@ -49,7 +49,7 @@ export const columns = ({
       enableHiding: false,
     },
     {
-      accessorKey: "key",
+      accessorKey: 'key',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Event" />
       ),
@@ -62,7 +62,7 @@ export const columns = ({
               onRowClick?.(row.original);
             }}
           >
-            {row.getValue("key")}
+            {row.getValue('key')}
           </Button>
         </div>
       ),
@@ -70,7 +70,7 @@ export const columns = ({
       enableHiding: false,
     },
     {
-      accessorKey: "Seen at",
+      accessorKey: 'Seen at',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Seen at" />
       ),
@@ -79,7 +79,7 @@ export const columns = ({
       },
     },
     {
-      accessorKey: "Workflow Runs",
+      accessorKey: 'Workflow Runs',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Workflow Runs" />
       ),
@@ -104,7 +104,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
   invariant(tenant);
 
   const [hoverCardOpen, setPopoverOpen] = useState<
-    "failed" | "succeeded" | "running"
+    'failed' | 'succeeded' | 'running'
   >();
 
   const numFailed = event.workflowRunSummary?.failed || 0;
@@ -126,14 +126,14 @@ function WorkflowRunSummary({ event }: { event: Event }) {
     return (
       listWorkflowRunsQuery.data?.rows?.filter((run) => {
         if (hoverCardOpen) {
-          if (hoverCardOpen == "failed") {
-            return run.status == "FAILED";
+          if (hoverCardOpen == 'failed') {
+            return run.status == 'FAILED';
           }
-          if (hoverCardOpen == "succeeded") {
-            return run.status == "SUCCEEDED";
+          if (hoverCardOpen == 'succeeded') {
+            return run.status == 'SUCCEEDED';
           }
-          if (hoverCardOpen == "running") {
-            return run.status == "RUNNING" || run.status == "PENDING";
+          if (hoverCardOpen == 'running') {
+            return run.status == 'RUNNING' || run.status == 'PENDING';
           }
         }
 
@@ -151,7 +151,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
         pageCount={0}
         columnVisibility={{
           select: false,
-          "Triggered by": false,
+          'Triggered by': false,
           actions: false,
         }}
         isLoading={listWorkflowRunsQuery.isLoading}
@@ -163,7 +163,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
     <div className="flex flex-row gap-2 items-center justify-start">
       {numFailed > 0 && (
         <Popover
-          open={hoverCardOpen == "failed"}
+          open={hoverCardOpen == 'failed'}
           // open={true}
           onOpenChange={(open) => {
             if (!open) {
@@ -175,7 +175,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
             <Badge
               variant="failed"
               className="cursor-pointer"
-              onClick={() => setPopoverOpen("failed")}
+              onClick={() => setPopoverOpen('failed')}
             >
               {numFailed} Failed
             </Badge>
@@ -190,7 +190,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
       )}
       {numSucceeded > 0 && (
         <Popover
-          open={hoverCardOpen == "succeeded"}
+          open={hoverCardOpen == 'succeeded'}
           onOpenChange={(open) => {
             if (!open) {
               setPopoverOpen(undefined);
@@ -201,7 +201,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
             <Badge
               variant="successful"
               className="cursor-pointer"
-              onClick={() => setPopoverOpen("succeeded")}
+              onClick={() => setPopoverOpen('succeeded')}
             >
               {numSucceeded} Succeeded
             </Badge>
@@ -216,7 +216,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
       )}
       {numRunning > 0 && (
         <Popover
-          open={hoverCardOpen == "running"}
+          open={hoverCardOpen == 'running'}
           onOpenChange={(open) => {
             if (!open) {
               setPopoverOpen(undefined);
@@ -227,7 +227,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
             <Badge
               variant="inProgress"
               className="cursor-pointer"
-              onClick={() => setPopoverOpen("running")}
+              onClick={() => setPopoverOpen('running')}
             >
               {numRunning} Running
             </Badge>

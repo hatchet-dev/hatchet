@@ -1,27 +1,27 @@
-import { Icons } from "@/components/ui/icons";
-import { Separator } from "@/components/ui/separator";
-import { JobRun, StepRun, StepRunStatus, queries, Event } from "@/lib/api";
-import CronPrettifier from "cronstrue";
-import { currTenantAtom } from "@/lib/atoms";
-import { useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { Link, useParams } from "react-router-dom";
-import invariant from "tiny-invariant";
-import { Badge } from "@/components/ui/badge";
-import { relativeDate } from "@/lib/utils";
+import { Icons } from '@/components/ui/icons';
+import { Separator } from '@/components/ui/separator';
+import { JobRun, StepRun, StepRunStatus, queries, Event } from '@/lib/api';
+import CronPrettifier from 'cronstrue';
+import { currTenantAtom } from '@/lib/atoms';
+import { useQuery } from '@tanstack/react-query';
+import { useAtom } from 'jotai';
+import { Link, useParams } from 'react-router-dom';
+import invariant from 'tiny-invariant';
+import { Badge } from '@/components/ui/badge';
+import { relativeDate } from '@/lib/utils';
 import {
   AdjustmentsHorizontalIcon,
   BoltIcon,
   Square3Stack3DIcon,
-} from "@heroicons/react/24/outline";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/molecules/data-table/data-table";
-import { JobRunColumns, columns } from "./components/job-runs-columns";
-import { TableCell, TableRow } from "@/components/ui/table";
-import { RunStatus } from "../components/run-statuses";
-import { ColumnDef } from "@tanstack/react-table";
-import { useState } from "react";
-import { Code } from "@/components/ui/code";
+} from '@heroicons/react/24/outline';
+import { Button } from '@/components/ui/button';
+import { DataTable } from '@/components/molecules/data-table/data-table';
+import { JobRunColumns, columns } from './components/job-runs-columns';
+import { TableCell, TableRow } from '@/components/ui/table';
+import { RunStatus } from '../components/run-statuses';
+import { ColumnDef } from '@tanstack/react-table';
+import { useState } from 'react';
+import { Code } from '@/components/ui/code';
 
 export default function ExpandedWorkflowRun() {
   const [expandedStepRuns, setExpandedStepRuns] = useState<string[]>([]);
@@ -55,7 +55,7 @@ export default function ExpandedWorkflowRun() {
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               {run?.metadata.id}
             </h2>
-            <Badge className="text-sm mt-1" variant={"secondary"}>
+            <Badge className="text-sm mt-1" variant={'secondary'}>
               {/* {workflow.versions && workflow.versions[0].version} */}
               {run.status}
             </Badge>
@@ -106,7 +106,7 @@ export default function ExpandedWorkflowRun() {
               ?.map((jobRun): JobRunColumns[] => {
                 return [
                   {
-                    kind: "job",
+                    kind: 'job',
                     isExpandable: false,
                     getRow: () => {
                       return getJobRunRow({ jobRun, columns });
@@ -117,7 +117,7 @@ export default function ExpandedWorkflowRun() {
                     ?.map((stepRun): JobRunColumns[] => {
                       const res: JobRunColumns[] = [
                         {
-                          kind: "step",
+                          kind: 'step',
                           isExpandable: true,
                           onClick: () => {
                             if (
@@ -125,8 +125,8 @@ export default function ExpandedWorkflowRun() {
                             ) {
                               setExpandedStepRuns(
                                 expandedStepRuns.filter(
-                                  (id) => id != stepRun.metadata.id
-                                )
+                                  (id) => id != stepRun.metadata.id,
+                                ),
                               );
                             } else {
                               setExpandedStepRuns([
@@ -141,7 +141,7 @@ export default function ExpandedWorkflowRun() {
 
                       if (expandedStepRuns.includes(stepRun.metadata.id)) {
                         res.push({
-                          kind: "step",
+                          kind: 'step',
                           isExpandable: false,
 
                           getRow: () => {
@@ -212,7 +212,7 @@ function getExpandedStepRunRow({
 }
 
 function StepInputSection({ stepRun }: { stepRun: StepRun }) {
-  const input = stepRun.input || "{}";
+  const input = stepRun.input || '{}';
 
   return (
     <>
@@ -227,7 +227,7 @@ function StepInputSection({ stepRun }: { stepRun: StepRun }) {
 }
 
 function StepOutputSection({ stepRun }: { stepRun: StepRun }) {
-  const output = stepRun.output || "{}";
+  const output = stepRun.output || '{}';
 
   return (
     <>
@@ -242,14 +242,14 @@ function StepOutputSection({ stepRun }: { stepRun: StepRun }) {
 }
 
 function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
-  let statusText = "Unknown";
+  let statusText = 'Unknown';
 
   switch (stepRun.status) {
     case StepRunStatus.RUNNING:
-      statusText = "This step is currently running";
+      statusText = 'This step is currently running';
       break;
     case StepRunStatus.FAILED:
-      statusText = "This step failed";
+      statusText = 'This step failed';
 
       if (stepRun.error) {
         statusText = `This step failed with error ${stepRun.error}`;
@@ -257,16 +257,17 @@ function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
 
       break;
     case StepRunStatus.CANCELLED:
-      statusText = "This step was cancelled";
+      statusText = 'This step was cancelled';
 
       switch (stepRun.cancelledReason) {
-        case "TIMED_OUT":
+        case 'TIMED_OUT':
           statusText = `This step was cancelled because it exceeded its timeout of ${
-            stepRun.step?.timeout || "60s"
+            stepRun.step?.timeout || '60s'
           }`;
           break;
-        case "PREVIOUS_STEP_TIMED_OUT":
-          statusText = `This step was cancelled because the previous step timed out`;
+        case 'PREVIOUS_STEP_TIMED_OUT':
+          statusText =
+            'This step was cancelled because the previous step timed out';
           break;
         default:
           break;
@@ -274,10 +275,10 @@ function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
 
       break;
     case StepRunStatus.SUCCEEDED:
-      statusText = "This step succeeded";
+      statusText = 'This step succeeded';
       break;
     case StepRunStatus.PENDING:
-      statusText = "This step is pending";
+      statusText = 'This step is pending';
       break;
     default:
       break;
@@ -300,7 +301,7 @@ function StepConfigurationSection({ stepRun }: { stepRun: StepRun }) {
         Configuration
       </h3>
       <div className="text-sm text-muted-foreground">
-        Timeout: {stepRun.step?.timeout || "60s"}
+        Timeout: {stepRun.step?.timeout || '60s'}
       </div>
     </div>
   );
@@ -343,7 +344,7 @@ function EventDataSection({ event }: { event: Event }) {
 
 function TriggeringCronSection({ cron }: { cron: string }) {
   const prettyInterval = `Runs ${CronPrettifier.toString(
-    cron
+    cron,
   ).toLowerCase()} UTC`;
 
   return (

@@ -1,11 +1,11 @@
-import { Separator } from "@/components/ui/separator";
-import WorkflowList from "./components/workflow-list";
-import { useQuery } from "@tanstack/react-query";
-import { queries } from "@/lib/api";
-import invariant from "tiny-invariant";
-import { useAtom } from "jotai";
-import { currTenantAtom } from "@/lib/atoms";
-import { Icons } from "@/components/ui/icons";
+import { Separator } from '@/components/ui/separator';
+import WorkflowList from './components/workflow-list';
+import { useQuery } from '@tanstack/react-query';
+import { queries } from '@/lib/api';
+import invariant from 'tiny-invariant';
+import { useAtom } from 'jotai';
+import { currTenantAtom } from '@/lib/atoms';
+import { Icons } from '@/components/ui/icons';
 
 export default function Workflows() {
   const [tenant] = useAtom(currTenantAtom);

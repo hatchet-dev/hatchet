@@ -1,13 +1,13 @@
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Icons } from "@/components/ui/icons";
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Icons } from '@/components/ui/icons';
 
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useEffect, useState } from "react";
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useEffect, useState } from 'react';
 
 const schema = z.object({
   name: z.string().min(4).max(32),
@@ -42,21 +42,21 @@ export function TenantCreateForm({
   useEffect(() => {
     const subscription = watch((value, { name }) => {
       switch (name) {
-        case "name":
+        case 'name':
           if (!isSlugSuffixed) {
             const slug = value.name
               ?.toLowerCase()
-              .replace(/[^a-z0-9-]/g, "-")
-              .replace(/-+/g, "-")
-              .replace(/^-|-$/g, "");
+              .replace(/[^a-z0-9-]/g, '-')
+              .replace(/-+/g, '-')
+              .replace(/^-|-$/g, '');
 
             if (slug) {
-              setValue("slug", slug);
+              setValue('slug', slug);
             }
           }
 
           break;
-        case "slug":
+        case 'slug':
           break;
       }
     });
@@ -70,7 +70,7 @@ export function TenantCreateForm({
   const slugError = errors.slug?.message?.toString() || props.fieldErrors?.slug;
 
   return (
-    <div className={cn("grid gap-6", className)}>
+    <div className={cn('grid gap-6', className)}>
       <form
         onSubmit={handleSubmit((d) => {
           props.onSubmit(d);
@@ -83,7 +83,7 @@ export function TenantCreateForm({
               A display name for your tenant.
             </div>
             <Input
-              {...register("name")}
+              {...register('name')}
               id="name"
               placeholder="My Awesome Tenant"
               type="name"
@@ -95,10 +95,10 @@ export function TenantCreateForm({
                 // add a random suffix to the slug if it's not modified
                 if (!isSlugSuffixed) {
                   const newSlug =
-                    getValues("slug") +
-                    "-" +
+                    getValues('slug') +
+                    '-' +
                     Math.random().toString(36).substr(2, 5);
-                  setValue("slug", newSlug);
+                  setValue('slug', newSlug);
                   setIsSlugSuffixed(true);
                 }
               }}
@@ -113,7 +113,7 @@ export function TenantCreateForm({
               A URI-friendly identifier for your tenant.
             </div>
             <Input
-              {...register("slug")}
+              {...register('slug')}
               id="slug"
               placeholder="my-awesome-tenant-123456"
               type="name"

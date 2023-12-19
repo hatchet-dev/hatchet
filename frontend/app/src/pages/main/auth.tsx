@@ -3,16 +3,16 @@ import {
   Outlet,
   redirect,
   useLoaderData,
-} from "react-router-dom";
-import api from "@/lib/api";
-import queryClient from "@/query-client";
-import { useContextFromParent } from "@/lib/outlet";
-import { Icons } from "@/components/ui/icons";
+} from 'react-router-dom';
+import api from '@/lib/api';
+import queryClient from '@/query-client';
+import { useContextFromParent } from '@/lib/outlet';
+import { Icons } from '@/components/ui/icons';
 
 const authMiddleware = async (currentUrl: string) => {
   try {
     const user = await queryClient.fetchQuery({
-      queryKey: ["user:get:current"],
+      queryKey: ['user:get:current'],
       queryFn: async () => {
         const res = await api.userGetCurrent();
 
@@ -20,8 +20,8 @@ const authMiddleware = async (currentUrl: string) => {
       },
     });
 
-    if (!user.emailVerified && !currentUrl.includes("/verify-email")) {
-      throw redirect("/verify-email");
+    if (!user.emailVerified && !currentUrl.includes('/verify-email')) {
+      throw redirect('/verify-email');
     }
 
     return user;
@@ -29,10 +29,10 @@ const authMiddleware = async (currentUrl: string) => {
     if (error instanceof Response) {
       throw error;
     } else if (
-      !currentUrl.includes("/auth/login") &&
-      !currentUrl.includes("/auth/register")
+      !currentUrl.includes('/auth/login') &&
+      !currentUrl.includes('/auth/register')
     ) {
-      throw redirect("/auth/login");
+      throw redirect('/auth/login');
     }
   }
 };
@@ -43,7 +43,7 @@ const membershipsPopulator = async () => {
   const memberships = res.data;
 
   if (memberships.rows?.length === 0) {
-    throw redirect("/onboarding/create-tenant");
+    throw redirect('/onboarding/create-tenant');
   }
 
   return res.data.rows;

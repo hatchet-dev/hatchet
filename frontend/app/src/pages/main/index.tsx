@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   AdjustmentsHorizontalIcon,
   BuildingOffice2Icon,
@@ -9,7 +9,7 @@ import {
   ServerStackIcon,
   Squares2X2Icon,
   UserCircleIcon,
-} from "@heroicons/react/24/outline";
+} from '@heroicons/react/24/outline';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,9 +18,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import hatchet from "@/assets/hatchet_logo.png";
-import invariant from "tiny-invariant";
+} from '@/components/ui/dropdown-menu';
+import hatchet from '@/assets/hatchet_logo.png';
+import invariant from 'tiny-invariant';
 
 import {
   Command,
@@ -28,27 +28,27 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@/components/ui/command";
+} from '@/components/ui/command';
 
-import { Link, Outlet, useNavigate, useOutletContext } from "react-router-dom";
-import api, { TenantMember, User } from "@/lib/api";
-import { useApiError } from "@/lib/hooks";
-import { useMutation } from "@tanstack/react-query";
-import { CaretSortIcon, PlusCircledIcon } from "@radix-ui/react-icons";
+import { Link, Outlet, useNavigate, useOutletContext } from 'react-router-dom';
+import api, { TenantMember, User } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { useMutation } from '@tanstack/react-query';
+import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import {
   PopoverTrigger,
   Popover,
   PopoverContent,
-} from "@radix-ui/react-popover";
-import React, { useEffect } from "react";
+} from '@radix-ui/react-popover';
+import React, { useEffect } from 'react';
 import {
   MembershipsContextType,
   UserContextType,
   useContextFromParent,
-} from "@/lib/outlet";
-import { useAtom } from "jotai";
-import { currTenantAtom } from "@/lib/atoms";
-import { Icons } from "@/components/ui/icons";
+} from '@/lib/outlet';
+import { useAtom } from 'jotai';
+import { currTenantAtom } from '@/lib/atoms';
+import { Icons } from '@/components/ui/icons';
 
 function Main() {
   const { user, memberships } = useOutletContext<
@@ -96,7 +96,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 
 function Sidebar({ className, memberships }: SidebarProps) {
   return (
-    <div className={cn("h-full border-r max-w-xs", className)}>
+    <div className={cn('h-full border-r max-w-xs', className)}>
       <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full">
         <div className="grow">
           <div className="py-2">
@@ -158,12 +158,12 @@ function MainNav({ user }: MainNavProps) {
   const { handleApiError } = useApiError({});
 
   const logoutMutation = useMutation({
-    mutationKey: ["user:update:logout"],
+    mutationKey: ['user:update:logout'],
     mutationFn: async () => {
       await api.userUpdateLogout();
     },
     onSuccess: () => {
-      navigate("/auth/login");
+      navigate('/auth/login');
     },
     onError: handleApiError,
   });
@@ -242,7 +242,7 @@ function TenantSwitcher({ className, memberships }: TenantSwitcherProps) {
           role="combobox"
           aria-expanded={open}
           aria-label="Select a team"
-          className={cn("w-full justify-between", className)}
+          className={cn('w-full justify-between', className)}
         >
           <BuildingOffice2Icon className="mr-2 h-4 w-4" />
           {currTenant.name}
@@ -268,10 +268,10 @@ function TenantSwitcher({ className, memberships }: TenantSwitcherProps) {
                 {membership.tenant?.name}
                 <CheckIcon
                   className={cn(
-                    "ml-auto h-4 w-4",
+                    'ml-auto h-4 w-4',
                     currTenant.slug === membership.tenant?.slug
-                      ? "opacity-100"
-                      : "opacity-0"
+                      ? 'opacity-100'
+                      : 'opacity-0',
                   )}
                 />
               </CommandItem>

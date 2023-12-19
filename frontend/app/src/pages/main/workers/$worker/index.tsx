@@ -1,16 +1,16 @@
-import { Icons } from "@/components/ui/icons";
-import { Separator } from "@/components/ui/separator";
-import { queries } from "@/lib/api";
-import { currTenantAtom } from "@/lib/atoms";
-import { useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { useParams } from "react-router-dom";
-import invariant from "tiny-invariant";
-import { relativeDate } from "@/lib/utils";
-import { ServerStackIcon } from "@heroicons/react/24/outline";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/molecules/data-table/data-table";
-import { columns } from "./components/step-runs-columns";
+import { Icons } from '@/components/ui/icons';
+import { Separator } from '@/components/ui/separator';
+import { queries } from '@/lib/api';
+import { currTenantAtom } from '@/lib/atoms';
+import { useQuery } from '@tanstack/react-query';
+import { useAtom } from 'jotai';
+import { useParams } from 'react-router-dom';
+import invariant from 'tiny-invariant';
+import { relativeDate } from '@/lib/utils';
+import { ServerStackIcon } from '@heroicons/react/24/outline';
+import { Button } from '@/components/ui/button';
+import { DataTable } from '@/components/molecules/data-table/data-table';
+import { columns } from './components/step-runs-columns';
 
 export default function ExpandedWorkflowRun() {
   const [tenant] = useAtom(currTenantAtom);
@@ -62,7 +62,11 @@ export default function ExpandedWorkflowRun() {
         </h3>
         <div className="flex-wrap flex flex-row gap-4">
           {worker.actions?.map((action) => {
-            return <Button variant="outline">{action}</Button>;
+            return (
+              <Button variant="outline" key={action}>
+                {action}
+              </Button>
+            );
           })}
         </div>
       </div>

@@ -1,32 +1,32 @@
-import { Badge } from "@/components/ui/badge";
-import { JobRunStatus, StepRunStatus, WorkflowRunStatus } from "@/lib/api";
-import { capitalize } from "@/lib/utils";
+import { Badge } from '@/components/ui/badge';
+import { JobRunStatus, StepRunStatus, WorkflowRunStatus } from '@/lib/api';
+import { capitalize } from '@/lib/utils';
 
-type RunStatus = `${StepRunStatus | WorkflowRunStatus | JobRunStatus}`;
+type RunStatusType = `${StepRunStatus | WorkflowRunStatus | JobRunStatus}`;
 
 export function RunStatus({
   status,
   reason,
 }: {
-  status: RunStatus;
+  status: RunStatusType;
   reason?: string;
 }) {
-  let variant: "inProgress" | "successful" | "failed" = "inProgress";
-  let text = "Running";
+  let variant: 'inProgress' | 'successful' | 'failed' = 'inProgress';
+  let text = 'Running';
 
   switch (status) {
-    case "SUCCEEDED":
-      variant = "successful";
-      text = "Succeeded";
+    case 'SUCCEEDED':
+      variant = 'successful';
+      text = 'Succeeded';
       break;
-    case "FAILED":
-    case "CANCELLED":
-      variant = "failed";
-      text = "Cancelled";
+    case 'FAILED':
+    case 'CANCELLED':
+      variant = 'failed';
+      text = 'Cancelled';
 
       switch (reason) {
-        case "TIMED_OUT":
-          text = "Timed out";
+        case 'TIMED_OUT':
+          text = 'Timed out';
           break;
         default:
           break;

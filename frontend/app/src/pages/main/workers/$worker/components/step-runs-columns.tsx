@@ -1,13 +1,13 @@
-import { ColumnDef } from "@tanstack/react-table";
-import { DataTableColumnHeader } from "@/components/molecules/data-table/data-table-column-header";
-import { StepRun } from "@/lib/api";
-import { relativeDate } from "@/lib/utils";
-import { Link } from "react-router-dom";
-import { RunStatus } from "@/pages/main/workflow-runs/components/run-statuses";
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
+import { StepRun } from '@/lib/api';
+import { relativeDate } from '@/lib/utils';
+import { Link } from 'react-router-dom';
+import { RunStatus } from '@/pages/main/workflow-runs/components/run-statuses';
 
 export const columns: ColumnDef<StepRun>[] = [
   {
-    accessorKey: "action",
+    accessorKey: 'action',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Action" />
     ),
@@ -22,13 +22,13 @@ export const columns: ColumnDef<StepRun>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "id",
+    accessorKey: 'id',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Step Id" />
     ),
     cell: ({ row }) => {
       return (
-        <Link to={"/workflow-runs/" + row.original.jobRun?.workflowRunId}>
+        <Link to={'/workflow-runs/' + row.original.jobRun?.workflowRunId}>
           <div className="pl-0 cursor-pointer hover:underline min-w-fit whitespace-nowrap">
             {row.original.step?.readableId}
           </div>
@@ -39,7 +39,7 @@ export const columns: ColumnDef<StepRun>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "status",
+    accessorKey: 'status',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
@@ -48,7 +48,7 @@ export const columns: ColumnDef<StepRun>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "Started at",
+    accessorKey: 'Started at',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Started at" />
     ),
@@ -59,14 +59,14 @@ export const columns: ColumnDef<StepRun>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "Finished at",
+    accessorKey: 'Finished at',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Finished at" />
     ),
     cell: ({ row }) => {
       const finishedAt = row.original.finishedAt
         ? relativeDate(row.original.finishedAt)
-        : "N/A";
+        : 'N/A';
 
       return <div>{finishedAt}</div>;
     },
