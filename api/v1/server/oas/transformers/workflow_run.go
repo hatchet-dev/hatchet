@@ -217,21 +217,12 @@ func ToStepRun(stepRun *db.StepRunModel) (*gen.StepRun, error) {
 }
 
 func ToWorkflowRunTriggeredBy(triggeredBy *db.WorkflowRunTriggeredByModel) *gen.WorkflowRunTriggeredBy {
-	res := &gen.WorkflowRunTriggeredBy{
-		Metadata: *toAPIMetadata(triggeredBy.ID, triggeredBy.CreatedAt, triggeredBy.UpdatedAt),
-		ParentId: triggeredBy.ParentID,
+	return &gen.WorkflowRunTriggeredBy{
+		Metadata:     *toAPIMetadata(triggeredBy.ID, triggeredBy.CreatedAt, triggeredBy.UpdatedAt),
+		ParentId:     triggeredBy.ParentID,
+		Event:        ToEvent(triggeredBy.RelationsWorkflowRunTriggeredBy.Event),
+		CronSchedule: &triggeredBy.RelationsWorkflowRunTriggeredBy.Cron.Cron,
 	}
-
-	if event, ok := triggeredBy.Event(); ok {
-		res.EventId = &event.ID
-		res.Event = ToEvent(event)
-	}
-
-	if cron, ok := triggeredBy.Cron(); ok {
-		res.CronSchedule = &cron.Cron
-	}
-
-	return res
 }
 
 func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {

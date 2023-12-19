@@ -6,11 +6,14 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
-
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func ToEvent(event *db.EventModel) *gen.Event {
+	if event == nil {
+		return nil
+	}
+
 	res := &gen.Event{
 		Metadata: *toAPIMetadata(event.ID, event.CreatedAt, event.UpdatedAt),
 		Key:      event.Key,
