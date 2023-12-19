@@ -7,7 +7,7 @@ on:
 name: Create prerelease w/ binaries and static assets
 jobs:
   build-push-hatchet-api:
-    name: Build and push a new hatchet-api docker image
+    name: hatchet-api
     runs-on: ubuntu-latest
     steps:
       - name: Get tag name
@@ -31,7 +31,7 @@ jobs:
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:v0.1.0-alpha.0
   build-push-hatchet-engine:
-    name: Build and push a new hatchet-engine docker image
+    name: hatchet-engine
     runs-on: ubuntu-latest
     steps:
       - name: Get tag name
@@ -55,7 +55,7 @@ jobs:
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:v0.1.0-alpha.0
   build-push-hatchet-frontend:
-    name: Build and push a new hatchet-frontend docker image
+    name: hatchet-frontend
     runs-on: ubuntu-latest
     steps:
       - name: Get tag name
