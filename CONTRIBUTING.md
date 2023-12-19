@@ -39,15 +39,13 @@ SERVER_AUTH_COOKIE_INSECURE=false
 EOF
 ```
 
-5. Generate a local entry for `app.dev.hatchet-tools.com` in `/etc/hosts`: `task set-etc-hosts` or just append `127.0.0.1 app.dev.hatchet-tools.com` to your `/etc/hosts` file.
+5. Migrate the database: `task prisma-migrate`
 
-6. Migrate the database: `task prisma-migrate`
+6. Generate all files: `task generate`
 
-7. Generate all files: `task generate`
+7. Seed the database: `task seed-dev`
 
-8. Seed the database: `task seed-dev`
-
-9. Start the Hatchet engine, API server, dashboard, and Prisma studio:
+8. Start the Hatchet engine, API server, dashboard, and Prisma studio:
 
 ```sh
 task start-dev

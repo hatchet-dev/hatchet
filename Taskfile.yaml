@@ -19,7 +19,6 @@ tasks:
       - task: start-api
       - task: start-engine
       - task: start-frontend
-      - task: prisma-studio
   start-api:
     cmds:
       - sh ./hack/dev/start-api.sh
