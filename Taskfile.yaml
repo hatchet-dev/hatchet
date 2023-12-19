@@ -59,7 +59,7 @@ tasks:
   generate-sqlc:
     cmds:
       - npx --yes prisma migrate diff --from-empty --to-schema-datasource prisma/schema.prisma --script > internal/repository/prisma/dbsqlc/schema.sql
-      - sqlc generate --file internal/repository/prisma/dbsqlc/sqlc.yaml
+      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0 generate --file internal/repository/prisma/dbsqlc/sqlc.yaml
   kill-query-engines:
     cmds:
       - ps -A | grep 'prisma-query-engine-darwin-arm64' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
