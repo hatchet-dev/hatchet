@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
@@ -47,7 +48,9 @@ func NewAPIServer(config *server.ServerConfig) *APIServer {
 	}
 }
 
-func (t *APIServer) Run() error {
+func (t *APIServer) Run(ctx context.Context) error {
+	errCh := make(chan error)
+
 	oaspec, err := gen.GetSwagger()
 	if err != nil {
 		return err
@@ -140,28 +143,27 @@ func (t *APIServer) Run() error {
 
 	gen.RegisterHandlers(e, myStrictApiHandler)
 
-	if err := e.Start(fmt.Sprintf(":%d", t.config.Runtime.Port)); err != nil {
+	go func() {
+		if err := e.Start(fmt.Sprintf(":%d", t.config.Runtime.Port)); err != nil {
+			errCh <- err
+		}
+	}()
+
+Loop:
+	for {
+		select {
+		case err := <-errCh:
+			return err
+		case <-ctx.Done():
+			break Loop
+		}
+	}
+
+	err = e.Shutdown(ctx)
+
+	if err != nil {
 		return err
 	}
 
 	return nil
 }
-
-// func IDGetter[T any](getter func(id string) (T, error), parentGetter func(val T) string) populator.PopulatorFunc {
-// 	return func(config *server.ServerConfig, parent *populator.PopulatedResourceNode, id string) (res *populator.PopulatorResult, err error) {
-// 		gotVal, err := getter(id)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-
-// 		res = &populator.PopulatorResult{
-// 			Resource: gotVal,
-// 		}
-
-// 		if parentGetter != nil {
-// 			res.ParentID = parentGetter(gotVal)
-// 		}
-
-// 		return res, nil
-// 	}
-// }
