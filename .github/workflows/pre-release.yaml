@@ -23,13 +23,13 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.Dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}} \
+            -t ghcr.io/hatchet-dev/hatchet/hatchet-api:v0.1.0-alpha.0 \
             --build-arg SERVER_TARGET=api \
-            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg VERSION=v0.1.0-alpha.0 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:v0.1.0-alpha.0
   build-push-hatchet-engine:
     name: Build and push a new hatchet-engine docker image
     runs-on: ubuntu-latest
@@ -47,10 +47,10 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.Dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}} \
+            -t ghcr.io/hatchet-dev/hatchet/hatchet-engine:v0.1.0-alpha.0 \
             --build-arg SERVER_TARGET=engine \
-            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --build-arg VERSION=v0.1.0-alpha.0 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:v0.1.0-alpha.0
