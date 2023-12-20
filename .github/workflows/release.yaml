@@ -1,0 +1,39 @@
+on:
+  release:
+    types: [released]
+name: Release
+jobs:
+  push-hatchet-server:
+    name: Push latest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: |
+          tag=${GITHUB_TAG/refs\/tags\//}
+          echo ::set-output name=tag::$tag
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Login to GHCR
+        id: login-ghcr
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Pull and push hatchet-api
+        run: |
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}
+          docker tag ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}} ghcr.io/hatchet-dev/hatchet/hatchet-server:latest
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:latest
+      - name: Pull and push hatchet-engine
+        run: |
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}
+          docker tag ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}} ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest
+      - name: Pull and push hatchet-frontend
+        run: |
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}
+          docker tag ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}} ghcr.io/hatchet-dev/hatchet/hatchet-frontend:latest
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:latest
+      - name: Pull and push hatchet-migrate
+        run: |
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}
+          docker tag ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}} ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest

@@ -54,7 +54,7 @@ tasks:
       - go run github.com/steebchen/prisma-client-go generate
   generate-proto:
     cmds:
-      - sh ./hack/dev/proto.sh
+      - sh ./hack/proto/proto.sh
   generate-sqlc:
     cmds:
       - npx --yes prisma migrate diff --from-empty --to-schema-datasource prisma/schema.prisma --script > internal/repository/prisma/dbsqlc/schema.sql

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRef, useState, useMemo } from 'react';
 import { scaleTime, scaleLinear } from '@visx/scale';
 import appleStock, { AppleStock } from '@visx/mock-data/lib/mocks/appleStock';
@@ -19,7 +20,6 @@ const stock = appleStock.slice(1000);
 const brushMargin = { top: 10, bottom: 15, left: 50, right: 20 };
 const chartSeparation = 30;
 const PATTERN_ID = 'brush_pattern';
-// const GRADIENT_ID = 'brush_gradient';
 export const accentColor = '#ffffff44';
 export const background = '#1E293B';
 export const background2 = '#8c77e0';
