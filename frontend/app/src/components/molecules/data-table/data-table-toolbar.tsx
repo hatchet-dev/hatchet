@@ -1,10 +1,10 @@
-import { Cross2Icon } from "@radix-ui/react-icons";
-import { Table } from "@tanstack/react-table";
+import { Cross2Icon } from '@radix-ui/react-icons';
+import { Table } from '@tanstack/react-table';
 
-import { Button } from "@/components/ui/button";
-import { DataTableViewOptions } from "./data-table-view-options";
+import { Button } from '@/components/ui/button';
+import { DataTableViewOptions } from './data-table-view-options';
 
-import { DataTableFacetedFilter } from "./data-table-faceted-filter";
+import { DataTableFacetedFilter } from './data-table-faceted-filter';
 
 export interface FilterOption {
   label: string;
@@ -51,7 +51,7 @@ export function DataTableToolbar<TData>({
                 title={filter.title}
                 options={filter.options}
               />
-            )
+            ),
         )}
         {isFiltered && (
           <Button

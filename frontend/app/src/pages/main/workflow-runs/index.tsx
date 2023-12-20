@@ -1,18 +1,18 @@
-import { DataTable } from "../../../components/molecules/data-table/data-table";
-import { columns } from "./components/workflow-runs-columns";
-import { Separator } from "@/components/ui/separator";
-import { useMemo, useState } from "react";
+import { DataTable } from '../../../components/molecules/data-table/data-table';
+import { columns } from './components/workflow-runs-columns';
+import { Separator } from '@/components/ui/separator';
+import { useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   PaginationState,
   SortingState,
-} from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
-import invariant from "tiny-invariant";
-import { useAtom } from "jotai";
-import { currTenantAtom } from "@/lib/atoms";
-import { Icons } from "@/components/ui/icons";
-import { queries } from "@/lib/api";
+} from '@tanstack/react-table';
+import { useQuery } from '@tanstack/react-query';
+import invariant from 'tiny-invariant';
+import { useAtom } from 'jotai';
+import { currTenantAtom } from '@/lib/atoms';
+import { Icons } from '@/components/ui/icons';
+import { queries } from '@/lib/api';
 
 export default function WorkflowRuns() {
   return (

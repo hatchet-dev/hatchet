@@ -1,9 +1,9 @@
-import api, { CreateTenantRequest } from "@/lib/api";
-import { useApiError } from "@/lib/hooks";
-import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { TenantCreateForm } from "./components/tenant-create-form";
+import api, { CreateTenantRequest } from '@/lib/api';
+import { useApiError } from '@/lib/hooks';
+import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { TenantCreateForm } from './components/tenant-create-form';
 
 export default function CreateTenant() {
   const navigate = useNavigate();
@@ -13,12 +13,12 @@ export default function CreateTenant() {
   });
 
   const createMutation = useMutation({
-    mutationKey: ["user:update:login"],
+    mutationKey: ['user:update:login'],
     mutationFn: async (data: CreateTenantRequest) => {
       await api.tenantCreate(data);
     },
     onSuccess: () => {
-      navigate("/");
+      navigate('/');
     },
     onError: handleApiError,
   });

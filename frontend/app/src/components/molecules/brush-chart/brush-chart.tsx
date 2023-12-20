@@ -1,31 +1,31 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useRef, useState, useMemo } from "react";
-import { scaleTime, scaleLinear } from "@visx/scale";
-import appleStock, { AppleStock } from "@visx/mock-data/lib/mocks/appleStock";
-import { Brush } from "@visx/brush";
-import { Bounds } from "@visx/brush/lib/types";
+import { useRef, useState, useMemo } from 'react';
+import { scaleTime, scaleLinear } from '@visx/scale';
+import appleStock, { AppleStock } from '@visx/mock-data/lib/mocks/appleStock';
+import { Brush } from '@visx/brush';
+import { Bounds } from '@visx/brush/lib/types';
 import BaseBrush, {
   BaseBrushState,
   UpdateBrush,
-} from "@visx/brush/lib/BaseBrush";
-import { PatternLines } from "@visx/pattern";
-import { Group } from "@visx/group";
-import { max, extent } from "@visx/vendor/d3-array";
-import { BrushHandleRenderProps } from "@visx/brush/lib/BrushHandle";
-import AreaChart from "./area-chart";
-import { Button } from "@/components/ui/button";
+} from '@visx/brush/lib/BaseBrush';
+import { PatternLines } from '@visx/pattern';
+import { Group } from '@visx/group';
+import { max, extent } from '@visx/vendor/d3-array';
+import { BrushHandleRenderProps } from '@visx/brush/lib/BrushHandle';
+import AreaChart from './area-chart';
+import { Button } from '@/components/ui/button';
 
 // Initialize some variables
 const stock = appleStock.slice(1000);
 const brushMargin = { top: 10, bottom: 15, left: 50, right: 20 };
 const chartSeparation = 30;
-const PATTERN_ID = "brush_pattern";
-export const accentColor = "#ffffff44";
-export const background = "#1E293B";
-export const background2 = "#8c77e0";
+const PATTERN_ID = 'brush_pattern';
+export const accentColor = '#ffffff44';
+export const background = '#1E293B';
+export const background2 = '#8c77e0';
 const selectedBrushStyle = {
   fill: `url(#${PATTERN_ID})`,
-  stroke: "white",
+  stroke: 'white',
 };
 
 // accessors
@@ -54,7 +54,9 @@ function BrushChart({
   const [filteredStock, setFilteredStock] = useState(stock);
 
   const onBrushChange = (domain: Bounds | null) => {
-    if (!domain) return;
+    if (!domain) {
+      return;
+    }
     const { x0, x1, y0, y1 } = domain;
     const stockCopy = stock.filter((s) => {
       const x = getDate(s).getTime();
@@ -77,7 +79,7 @@ function BrushChart({
   const xBrushMax = Math.max(width - brushMargin.left - brushMargin.right, 0);
   const yBrushMax = Math.max(
     bottomChartHeight - brushMargin.top - brushMargin.bottom,
-    0
+    0,
   );
 
   // scales
@@ -87,7 +89,7 @@ function BrushChart({
         range: [0, xMax],
         domain: extent(filteredStock, getDate) as [Date, Date],
       }),
-    [xMax, filteredStock]
+    [xMax, filteredStock],
   );
   const stockScale = useMemo(
     () =>
@@ -96,7 +98,7 @@ function BrushChart({
         domain: [0, max(filteredStock, getStockValue) || 0],
         nice: true,
       }),
-    [yMax, filteredStock]
+    [yMax, filteredStock],
   );
   const brushDateScale = useMemo(
     () =>
@@ -104,7 +106,7 @@ function BrushChart({
         range: [0, xBrushMax],
         domain: extent(stock, getDate) as [Date, Date],
       }),
-    [xBrushMax]
+    [xBrushMax],
   );
   const brushStockScale = useMemo(
     () =>
@@ -113,7 +115,7 @@ function BrushChart({
         domain: [0, max(stock, getStockValue) || 0],
         nice: true,
       }),
-    [yBrushMax]
+    [yBrushMax],
   );
 
   const initialBrushPosition = useMemo(
@@ -121,7 +123,7 @@ function BrushChart({
       start: { x: brushDateScale(getDate(stock[50])) },
       end: { x: brushDateScale(getDate(stock[100])) },
     }),
-    [brushDateScale]
+    [brushDateScale],
   );
 
   // event handlers
@@ -137,7 +139,7 @@ function BrushChart({
       const updater: UpdateBrush = (prevBrush) => {
         const newExtent = brushRef.current!.getExtent(
           initialBrushPosition.start,
-          initialBrushPosition.end
+          initialBrushPosition.end,
         );
 
         const newState: BaseBrushState = {
@@ -198,7 +200,7 @@ function BrushChart({
             width={8}
             stroke={accentColor}
             strokeWidth={1}
-            orientation={["diagonal"]}
+            orientation={['diagonal']}
           />
           <Brush
             xScale={brushDateScale}
@@ -208,7 +210,7 @@ function BrushChart({
             margin={brushMargin}
             handleSize={8}
             innerRef={brushRef}
-            resizeTriggerAreas={["left", "right"]}
+            resizeTriggerAreas={['left', 'right']}
             brushDirection="horizontal"
             initialBrushPosition={initialBrushPosition}
             onChange={onBrushChange}
@@ -242,7 +244,7 @@ function BrushHandle({ x, height, isBrushActive }: BrushHandleRenderProps) {
         d="M -4.5 0.5 L 3.5 0.5 L 3.5 15.5 L -4.5 15.5 L -4.5 0.5 M -1.5 4 L -1.5 12 M 0.5 4 L 0.5 12"
         stroke="#999999"
         strokeWidth="1"
-        style={{ cursor: "ew-resize" }}
+        style={{ cursor: 'ew-resize' }}
       />
     </Group>
   );

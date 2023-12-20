@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from 'react';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -16,7 +16,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
-} from "@tanstack/react-table";
+} from '@tanstack/react-table';
 
 import {
   Table,
@@ -25,12 +25,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table';
 
-import { DataTablePagination } from "./data-table-pagination";
-import { DataTableToolbar, ToolbarFilters } from "./data-table-toolbar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { DataTablePagination } from './data-table-pagination';
+import { DataTableToolbar, ToolbarFilters } from './data-table-toolbar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 export interface IDGetter {
   metadata: {
@@ -64,7 +64,7 @@ interface DataTableProps<TData extends IDGetter, TValue> {
     | ((
         originalRow: TData,
         index: number,
-        parent?: Row<TData> | undefined
+        parent?: Row<TData> | undefined,
       ) => string)
     | undefined;
 }
@@ -91,7 +91,7 @@ export function DataTable<TData extends IDGetter, TValue>({
 }: DataTableProps<TData, TValue>) {
   const tableData = React.useMemo(
     () => (isLoading ? Array(10).fill({}) : data),
-    [isLoading, data]
+    [isLoading, data],
   );
 
   const tableColumns = React.useMemo(
@@ -102,7 +102,7 @@ export function DataTable<TData extends IDGetter, TValue>({
             cell: () => <Skeleton className="h-4 w-[100px]" />,
           }))
         : columns,
-    [isLoading, columns]
+    [isLoading, columns],
   );
 
   const table = useReactTable({
@@ -142,9 +142,9 @@ export function DataTable<TData extends IDGetter, TValue>({
     return (
       <TableRow
         key={row.id}
-        data-state={row.getIsSelected() && "selected"}
+        data-state={row.getIsSelected() && 'selected'}
         className={cn(
-          row.original.isExpandable && "cursor-pointer hover:bg-muted"
+          row.original.isExpandable && 'cursor-pointer hover:bg-muted',
         )}
         onClick={row.original.onClick}
       >
@@ -174,7 +174,7 @@ export function DataTable<TData extends IDGetter, TValue>({
                         ? null
                         : flexRender(
                             header.column.columnDef.header,
-                            header.getContext()
+                            header.getContext(),
                           )}
                     </TableHead>
                   );

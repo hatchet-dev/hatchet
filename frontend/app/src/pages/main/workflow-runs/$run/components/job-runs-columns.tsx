@@ -1,15 +1,15 @@
-import { ColumnDef } from "@tanstack/react-table";
-import { DataTableColumnHeader } from "@/components/molecules/data-table/data-table-column-header";
-import { JobRun, StepRun } from "@/lib/api";
-import { relativeDate } from "@/lib/utils";
-import { RunStatus } from "../../components/run-statuses";
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
+import { JobRun, StepRun } from '@/lib/api';
+import { relativeDate } from '@/lib/utils';
+import { RunStatus } from '../../components/run-statuses';
 
 type JobRunRow = {
-  kind: "job";
+  kind: 'job';
 } & JobRun;
 
 type StepRunRow = {
-  kind: "step";
+  kind: 'step';
   onClick?: () => void;
 } & StepRun;
 
@@ -20,10 +20,10 @@ export type JobRunColumns = (JobRunRow | StepRunRow) & {
 
 export const columns: ColumnDef<JobRunColumns>[] = [
   {
-    accessorKey: "id",
+    accessorKey: 'id',
     header: () => <></>,
     cell: ({ row }) => {
-      if (row.original.kind === "job") {
+      if (row.original.kind === 'job') {
         return <></>;
       }
       return (
@@ -36,14 +36,14 @@ export const columns: ColumnDef<JobRunColumns>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "status",
+    accessorKey: 'status',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => {
       let reason;
 
-      if (row.original.kind == "step") {
+      if (row.original.kind == 'step') {
         reason = row.original.cancelledReason;
       }
 
@@ -53,7 +53,7 @@ export const columns: ColumnDef<JobRunColumns>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "Started at",
+    accessorKey: 'Started at',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Started at" />
     ),
@@ -64,14 +64,14 @@ export const columns: ColumnDef<JobRunColumns>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "Finished at",
+    accessorKey: 'Finished at',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Finished at" />
     ),
     cell: ({ row }) => {
       const finishedAt = row.original.finishedAt
         ? relativeDate(row.original.finishedAt)
-        : "N/A";
+        : 'N/A';
 
       return <div>{finishedAt}</div>;
     },

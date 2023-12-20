@@ -1,13 +1,13 @@
-import { Separator } from "@/components/ui/separator";
-import { useQuery } from "@tanstack/react-query";
-import { queries } from "@/lib/api";
-import invariant from "tiny-invariant";
-import { useAtom } from "jotai";
-import { currTenantAtom } from "@/lib/atoms";
-import { Icons } from "@/components/ui/icons";
-import { relativeDate } from "@/lib/utils";
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Separator } from '@/components/ui/separator';
+import { useQuery } from '@tanstack/react-query';
+import { queries } from '@/lib/api';
+import invariant from 'tiny-invariant';
+import { useAtom } from 'jotai';
+import { currTenantAtom } from '@/lib/atoms';
+import { Icons } from '@/components/ui/icons';
+import { relativeDate } from '@/lib/utils';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 export default function Workers() {
   const [tenant] = useAtom(currTenantAtom);

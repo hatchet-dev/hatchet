@@ -1,11 +1,11 @@
-import { Link, useNavigate } from "react-router-dom";
-import { UserRegisterForm } from "./components/user-register-form";
-import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
-import { useMutation } from "@tanstack/react-query";
-import api, { UserRegisterRequest } from "@/lib/api";
-import { useState } from "react";
-import { useApiError } from "@/lib/hooks";
+import { Link, useNavigate } from 'react-router-dom';
+import { UserRegisterForm } from './components/user-register-form';
+import { cn } from '@/lib/utils';
+import { buttonVariants } from '@/components/ui/button';
+import { useMutation } from '@tanstack/react-query';
+import api, { UserRegisterRequest } from '@/lib/api';
+import { useState } from 'react';
+import { useApiError } from '@/lib/hooks';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -15,12 +15,12 @@ export default function Login() {
   });
 
   const createMutation = useMutation({
-    mutationKey: ["user:create"],
+    mutationKey: ['user:create'],
     mutationFn: async (data: UserRegisterRequest) => {
       await api.userCreate(data);
     },
     onSuccess: () => {
-      navigate("/");
+      navigate('/');
     },
     onError: handleApiError,
   });
@@ -31,8 +31,8 @@ export default function Login() {
         <Link
           to="/auth/login"
           className={cn(
-            buttonVariants({ variant: "ghost" }),
-            "absolute right-4 top-4 md:right-8 md:top-8"
+            buttonVariants({ variant: 'ghost' }),
+            'absolute right-4 top-4 md:right-8 md:top-8',
           )}
         >
           Login
@@ -53,14 +53,14 @@ export default function Login() {
               fieldErrors={fieldErrors}
             />
             <p className="px-8 text-center text-sm text-muted-foreground">
-              By clicking continue, you agree to our{" "}
+              By clicking continue, you agree to our{' '}
               <Link
                 to="/terms"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Terms of Service
-              </Link>{" "}
-              and{" "}
+              </Link>{' '}
+              and{' '}
               <Link
                 to="/privacy"
                 className="underline underline-offset-4 hover:text-primary"
