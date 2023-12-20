@@ -1,0 +1,36 @@
+name: "frontend / app"
+on: push
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          cache-dependency-path: frontend/app/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend/app
+        run: npm ci
+      - name: Lint
+        working-directory: frontend/app
+        run: npm run lint:check
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          cache-dependency-path: frontend/app/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend/app
+        run: npm ci
+      - name: Lint
+        working-directory: frontend/app
+        run: npm run build
