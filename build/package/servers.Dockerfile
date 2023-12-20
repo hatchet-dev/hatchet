@@ -6,6 +6,16 @@ WORKDIR /hatchet
 RUN apk update && apk add --no-cache gcc musl-dev git protoc protobuf-dev
 
 COPY go.mod go.sum ./
+
+RUN go mod download
+
+# prefetch the binaries, so that they will be cached and not downloaded on each change
+RUN go run github.com/steebchen/prisma-client-go prefetch
+
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
+RUN go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@v2.0.0
+
 COPY /api ./api
 COPY /api-contracts ./api-contracts
 COPY /internal ./internal
@@ -13,16 +23,6 @@ COPY /pkg ./pkg
 COPY /hack ./hack
 COPY /prisma ./prisma
 COPY /cmd ./cmd
-
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
-RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
-RUN go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@latest
-
-RUN --mount=type=cache,target=$GOPATH/pkg/mod \
-    go mod download
-
-# prefetch the binaries, so that they will be cached and not downloaded on each change
-RUN go run github.com/steebchen/prisma-client-go prefetch
 
 # generate the Prisma Client Go client
 RUN go run github.com/steebchen/prisma-client-go generate --generator go
@@ -32,11 +32,11 @@ RUN go run github.com/steebchen/prisma-client-go generate --generator go
 FROM node:16-alpine as build-openapi
 WORKDIR /openapi
 
-COPY /api-contracts/openapi ./openapi
-
 RUN npm install -g npm@8.1
 
 RUN npm install -g @apidevtools/swagger-cli prisma
+
+COPY /api-contracts/openapi ./openapi
 
 RUN swagger-cli bundle ./openapi/openapi.yaml --outfile ./bin/oas/openapi.yaml --type yaml
 
@@ -75,6 +75,7 @@ ARG SERVER_TARGET=engine
 
 WORKDIR /hatchet
 
+# openssl and bash needed for admin build
 RUN apk update && apk add --no-cache gcc musl-dev openssl bash
 
 COPY --from=base /hatchet/prisma ./prisma
