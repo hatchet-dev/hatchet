@@ -158,14 +158,12 @@ func setupCerts(generated *generatedConfigFiles) error {
 		return fmt.Errorf("bash must be installed and available in your $PATH")
 	}
 
-	cwd, err := os.Getwd()
+	// write certificate config files to system
+	fullPathCertDir, err := filepath.Abs(certDir)
 
 	if err != nil {
 		return err
 	}
-
-	// write certificate config files to system
-	fullPathCertDir := filepath.Join(cwd, certDir)
 
 	err = os.MkdirAll(fullPathCertDir, os.ModePerm)
 
