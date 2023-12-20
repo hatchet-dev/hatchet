@@ -22,8 +22,6 @@ type ServerConfigFile struct {
 
 	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"ticker\", \"grpc\", \"eventscontroller\", \"jobscontroller\"]"`
 
-	Namespaces []string `mapstructure:"namespaces" json:"namespaces,omitempty" default:"[\"default\"]"`
-
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 }
 

@@ -85,7 +85,11 @@ func LoadConfigFromViper(bindFunc func(v *viper.Viper), configFile interface{}, 
 }
 
 type ConfigLoader struct {
-	version, directory string
+	directory string
+}
+
+func NewConfigLoader(directory string) *ConfigLoader {
+	return &ConfigLoader{directory}
 }
 
 // LoadDatabaseConfig loads the database configuration
@@ -198,6 +202,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 	return &database.Config{
 		Disconnect: client.Prisma.Disconnect,
 		Repository: prisma.NewPrismaRepository(client, pool),
+		Seed:       cf.Seed,
 	}, nil
 }
 
