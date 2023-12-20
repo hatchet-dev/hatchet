@@ -179,6 +179,9 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		cf.PostgresSSLMode,
 	)
 
+	// TODO: remove this
+	fmt.Println("DATABASE URL IS", databaseUrl)
+
 	os.Setenv("DATABASE_URL", databaseUrl)
 
 	client := db.NewClient(

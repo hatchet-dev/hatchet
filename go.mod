@@ -18,12 +18,13 @@ require (
 	github.com/oapi-codegen/runtime v1.1.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/viper v1.16.0
-	github.com/steebchen/prisma-client-go v0.27.1
+	github.com/steebchen/prisma-client-go v0.31.2
 	github.com/takuoki/gocase v1.0.0
 )
 
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
+	github.com/fatih/color v1.16.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/swag v0.22.4 // indirect
@@ -65,7 +66,7 @@ require (
 	github.com/iancoleman/strcase v0.2.0
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -83,7 +84,7 @@ require (
 	golang.org/x/crypto v0.14.0
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sync v0.4.0
-	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/sys v0.14.0 // indirect
 	golang.org/x/text v0.13.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230920204549-e6e6cdab5c13 // indirect
 	google.golang.org/grpc v1.58.2

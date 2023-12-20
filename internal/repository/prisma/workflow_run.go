@@ -146,7 +146,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(tenantId string, opts *repo
 
 	if opts.Cron != nil && opts.CronParentId != nil {
 		triggerOptionals = append(triggerOptionals, db.WorkflowRunTriggeredBy.Cron.Link(
-			db.WorkflowTriggerCronRef.ParentIDCron(
+			db.WorkflowTriggerCronRef.ParentIdcron(
 				db.WorkflowTriggerCronRef.ParentID.Equals(*opts.CronParentId),
 				db.WorkflowTriggerCronRef.Cron.Equals(*opts.Cron),
 			),
@@ -247,7 +247,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(tenantId string, opts *repo
 
 func (w *workflowRunRepository) GetWorkflowRunById(tenantId, id string) (*db.WorkflowRunModel, error) {
 	return w.client.WorkflowRun.FindUnique(
-		db.WorkflowRun.TenantIDID(
+		db.WorkflowRun.TenantIdid(
 			db.WorkflowRun.TenantID.Equals(tenantId),
 			db.WorkflowRun.ID.Equals(id),
 		),

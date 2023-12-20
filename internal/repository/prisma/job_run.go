@@ -108,7 +108,7 @@ func (j *jobRunRepository) UpdateJobRun(tenantId, jobRunId string, opts *reposit
 
 func (j *jobRunRepository) GetJobRunLookupData(tenantId, jobRunId string) (*db.JobRunLookupDataModel, error) {
 	return j.client.JobRunLookupData.FindUnique(
-		db.JobRunLookupData.JobRunIDTenantID(
+		db.JobRunLookupData.JobRunIdtenantID(
 			db.JobRunLookupData.JobRunID.Equals(jobRunId),
 			db.JobRunLookupData.TenantID.Equals(tenantId),
 		),
@@ -123,7 +123,7 @@ func (j *jobRunRepository) UpdateJobRunLookupData(tenantId, jobRunId string, opt
 	}
 
 	return j.client.JobRunLookupData.UpsertOne(
-		db.JobRunLookupData.JobRunIDTenantID(
+		db.JobRunLookupData.JobRunIdtenantID(
 			db.JobRunLookupData.JobRunID.Equals(jobRunId),
 			db.JobRunLookupData.TenantID.Equals(tenantId),
 		),

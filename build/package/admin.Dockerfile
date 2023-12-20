@@ -46,15 +46,6 @@ FROM base AS build-go
 
 ARG VERSION=v0.1.0-alpha.0
 
-# can be set to "api" or "engine"
-ARG SERVER_TARGET
-
-# check if the target is empty or not set to api, engine, or admin
-RUN if [ -z "$SERVER_TARGET" ] || [ "$SERVER_TARGET" != "api" ] && [ "$SERVER_TARGET" != "engine" ] && [ "$SERVER_TARGET" != "admin" ]; then \
-    echo "SERVER_TARGET must be set to 'api', 'engine', or 'admin'"; \
-    exit 1; \
-    fi
-
 RUN sh ./hack/proto/proto.sh
 
 COPY --from=build-openapi /openapi/bin/oas/openapi.yaml ./bin/oas/openapi.yaml
@@ -64,21 +55,15 @@ RUN oapi-codegen -config ./api/v1/server/oas/gen/codegen.yaml ./bin/oas/openapi.
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=$GOPATH/pkg/mod \
-    go build -ldflags="-w -s -X 'main.Version=${VERSION}'" -a -o ./bin/hatchet-${SERVER_TARGET} ./cmd/hatchet-${SERVER_TARGET}
+    go build -ldflags="-w -s -X 'main.Version=${VERSION}'" -a -o ./bin/hatchet-admin ./cmd/hatchet-admin
 
 # Deployment environment
 # ----------------------
 FROM alpine AS deployment
 
-# can be set to "api" or "engine"
-ARG SERVER_TARGET=engine
-
-WORKDIR /hatchet
-
 RUN apk update && apk add --no-cache gcc musl-dev openssl bash
 
-COPY --from=base /hatchet/prisma ./prisma
-COPY --from=build-go /hatchet/bin/hatchet-${SERVER_TARGET} /hatchet/
+COPY --from=build-go /hatchet/bin/hatchet-admin /hatchet/
 
 EXPOSE 8080
-CMD /hatchet/hatchet-${SERVER_TARGET}
+CMD /hatchet/hatchet-admin

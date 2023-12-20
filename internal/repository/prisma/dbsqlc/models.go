@@ -65,7 +65,7 @@ const (
 	StepRunStatusRUNNING           StepRunStatus = "RUNNING"
 	StepRunStatusSUCCEEDED         StepRunStatus = "SUCCEEDED"
 	StepRunStatusFAILED            StepRunStatus = "FAILED"
-	StepRunStatusCANCELLED         StepRunStatus = "CANCELLED"
+	StepRunStatusCancelled         StepRunStatus = "CANCELLED"
 )
 
 func (e *StepRunStatus) Scan(src interface{}) error {

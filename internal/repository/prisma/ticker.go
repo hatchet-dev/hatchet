@@ -89,7 +89,7 @@ func (t *tickerRepository) AddCron(tickerId string, cron *db.WorkflowTriggerCron
 		db.Ticker.ID.Equals(tickerId),
 	).Update(
 		db.Ticker.Crons.Link(
-			db.WorkflowTriggerCronRef.ParentIDCron(
+			db.WorkflowTriggerCronRef.ParentIdcron(
 				db.WorkflowTriggerCronRef.ParentID.Equals(cron.ParentID),
 				db.WorkflowTriggerCronRef.Cron.Equals(cron.Cron),
 			),
@@ -102,7 +102,7 @@ func (t *tickerRepository) RemoveCron(tickerId string, cron *db.WorkflowTriggerC
 		db.Ticker.ID.Equals(tickerId),
 	).Update(
 		db.Ticker.Crons.Unlink(
-			db.WorkflowTriggerCronRef.ParentIDCron(
+			db.WorkflowTriggerCronRef.ParentIdcron(
 				db.WorkflowTriggerCronRef.ParentID.Equals(cron.ParentID),
 				db.WorkflowTriggerCronRef.Cron.Equals(cron.Cron),
 			),
