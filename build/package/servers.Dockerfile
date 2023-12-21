@@ -5,16 +5,16 @@ WORKDIR /hatchet
 
 RUN apk update && apk add --no-cache gcc musl-dev git protoc protobuf-dev
 
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
+RUN go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@v2.0.0
+
 COPY go.mod go.sum ./
 
 RUN go mod download
 
 # prefetch the binaries, so that they will be cached and not downloaded on each change
 RUN go run github.com/steebchen/prisma-client-go prefetch
-
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
-RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
-RUN go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@v2.0.0
 
 COPY /api ./api
 COPY /api-contracts ./api-contracts
