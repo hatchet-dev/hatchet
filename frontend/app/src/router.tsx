@@ -1,4 +1,4 @@
-import React from 'react';
+import { FC } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 const routes = [
@@ -140,7 +140,7 @@ const routes = [
 
 const router = createBrowserRouter(routes, { basename: '/' });
 
-const Router: React.FC = () => {
+const Router: FC = () => {
   return <RouterProvider router={router} />;
 };
 

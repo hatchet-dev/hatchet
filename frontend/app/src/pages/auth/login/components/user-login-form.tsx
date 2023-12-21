@@ -2,11 +2,10 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Icons } from '@/components/ui/icons';
-
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Spinner } from '@/components/ui/loading.tsx';
 
 const schema = z.object({
   email: z.string().email('Invalid email address'),
@@ -73,9 +72,7 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
             )}
           </div>
           <Button disabled={props.isLoading}>
-            {props.isLoading && (
-              <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-            )}
+            {props.isLoading && <Spinner />}
             Sign In
           </Button>
         </div>

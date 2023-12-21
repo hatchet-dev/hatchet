@@ -20,7 +20,6 @@ import api, {
 import invariant from 'tiny-invariant';
 import { useAtom } from 'jotai';
 import { currTenantAtom } from '@/lib/atoms';
-import { Icons } from '@/components/ui/icons';
 import { FilterOption } from '@/components/molecules/data-table/data-table-toolbar';
 import {
   Dialog,
@@ -38,6 +37,7 @@ import {
   ArrowPathRoundedSquareIcon,
 } from '@heroicons/react/24/outline';
 import { useApiError } from '@/lib/hooks';
+import { Loading } from '@/components/ui/loading.tsx';
 
 export default function Events() {
   return (
@@ -171,11 +171,7 @@ function EventsTable() {
   // }, [listEventsQuery.data?.pagination]);
 
   if (listEventsQuery.isLoading) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   const tableColumns = columns({
@@ -285,11 +281,7 @@ function EventDataSection({ event }: { event: Event }) {
   });
 
   if (getEventDataQuery.isLoading || !getEventDataQuery.data) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   const eventData = getEventDataQuery.data;

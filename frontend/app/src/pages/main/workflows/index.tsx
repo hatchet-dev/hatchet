@@ -5,7 +5,7 @@ import { queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
 import { useAtom } from 'jotai';
 import { currTenantAtom } from '@/lib/atoms';
-import { Icons } from '@/components/ui/icons';
+import { Loading } from '@/components/ui/loading.tsx';
 
 export default function Workflows() {
   const [tenant] = useAtom(currTenantAtom);
@@ -16,11 +16,7 @@ export default function Workflows() {
   });
 
   if (listWorkflowsQuery.isLoading) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
