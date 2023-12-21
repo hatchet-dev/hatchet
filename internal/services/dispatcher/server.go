@@ -131,7 +131,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	defer func() {
 		s.workers.Delete(request.WorkerId)
 
-		inactive := db.WorkerStatusINACTIVE
+		inactive := db.WorkerStatusInactive
 
 		_, err := s.repo.Worker().UpdateWorker(request.TenantId, request.WorkerId, &repository.UpdateWorkerOpts{
 			Status: &inactive,

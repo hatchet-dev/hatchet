@@ -18,6 +18,7 @@ import (
 )
 
 var printVersion bool
+var configDirectory string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -29,7 +30,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		cf := &loader.ConfigLoader{}
+		cf := loader.NewConfigLoader(configDirectory)
 		interruptChan := cmdutils.InterruptChan()
 
 		startEngineOrDie(cf, interruptChan)
@@ -45,6 +46,13 @@ func main() {
 		"version",
 		false,
 		"print version and exit.",
+	)
+
+	rootCmd.PersistentFlags().StringVar(
+		&configDirectory,
+		"config",
+		"",
+		"The path the config folder.",
 	)
 
 	if err := rootCmd.Execute(); err != nil {

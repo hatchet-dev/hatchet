@@ -13,7 +13,7 @@ tasks:
   seed-dev:
     cmds:
       - sh ./hack/dev/run-npx-with-env.sh prisma db push --force-reset
-      - sh ./hack/dev/run-go-with-env.sh run ./cmd/seed
+      - SEED_DEVELOPMENT=true sh ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
   start-dev:
     deps:
       - task: start-api

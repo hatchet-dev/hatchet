@@ -12,12 +12,27 @@ type ConfigFile struct {
 	PostgresPassword string `mapstructure:"password" json:"password,omitempty" default:"hatchet"`
 	PostgresDbName   string `mapstructure:"dbName" json:"dbName,omitempty" default:"hatchet"`
 	PostgresSSLMode  string `mapstructure:"sslMode" json:"sslMode,omitempty" default:"disable"`
+
+	Seed SeedConfigFile `mapstructure:"seed" json:"seed,omitempty"`
+}
+
+type SeedConfigFile struct {
+	AdminEmail    string `mapstructure:"adminEmail" json:"adminEmail,omitempty" default:"admin@example.com"`
+	AdminPassword string `mapstructure:"adminPassword" json:"adminPassword,omitempty" default:"Admin123!!"`
+	AdminName     string `mapstructure:"adminName" json:"adminName,omitempty" default:"Admin"`
+
+	DefaultTenantName string `mapstructure:"defaultTenantName" json:"defaultTenantName,omitempty" default:"default"`
+	DefaultTenantSlug string `mapstructure:"defaultTenantSlug" json:"defaultTenantSlug,omitempty" default:"default"`
+
+	IsDevelopment bool `mapstructure:"isDevelopment" json:"isDevelopment,omitempty" default:"false"`
 }
 
 type Config struct {
 	Disconnect func() error
 
 	Repository repository.Repository
+
+	Seed SeedConfigFile
 }
 
 func BindAllEnv(v *viper.Viper) {
@@ -27,4 +42,11 @@ func BindAllEnv(v *viper.Viper) {
 	v.BindEnv("password", "DATABASE_POSTGRES_PASSWORD")
 	v.BindEnv("dbName", "DATABASE_POSTGRES_DB_NAME")
 	v.BindEnv("sslMode", "DATABASE_POSTGRES_SSL_MODE")
+
+	v.BindEnv("seed.adminEmail", "ADMIN_EMAIL")
+	v.BindEnv("seed.adminPassword", "ADMIN_PASSWORD")
+	v.BindEnv("seed.adminName", "ADMIN_NAME")
+	v.BindEnv("seed.defaultTenantName", "DEFAULT_TENANT_NAME")
+	v.BindEnv("seed.defaultTenantSlug", "DEFAULT_TENANT_SLUG")
+	v.BindEnv("seed.isDevelopment", "SEED_DEVELOPMENT")
 }
