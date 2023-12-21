@@ -162,7 +162,7 @@ func (w *workerRepository) CreateNewWorker(tenantId string, opts *repository.Cre
 	if len(opts.Actions) > 0 {
 		for _, action := range opts.Actions {
 			txs = append(txs, w.client.Action.UpsertOne(
-				db.Action.TenantIdid(
+				db.Action.TenantIDID(
 					db.Action.TenantID.Equals(tenantId),
 					db.Action.ID.Equals(action),
 				),
@@ -174,7 +174,7 @@ func (w *workerRepository) CreateNewWorker(tenantId string, opts *repository.Cre
 			).Update().Tx())
 
 			optionals = append(optionals, db.Worker.Actions.Link(
-				db.Action.TenantIdid(
+				db.Action.TenantIDID(
 					db.Action.TenantID.Equals(tenantId),
 					db.Action.ID.Equals(action),
 				),
@@ -224,7 +224,7 @@ func (w *workerRepository) UpdateWorker(tenantId, workerId string, opts *reposit
 	if len(opts.Actions) > 0 {
 		for _, action := range opts.Actions {
 			txs = append(txs, w.client.Action.UpsertOne(
-				db.Action.TenantIdid(
+				db.Action.TenantIDID(
 					db.Action.TenantID.Equals(tenantId),
 					db.Action.ID.Equals(action),
 				),
@@ -236,7 +236,7 @@ func (w *workerRepository) UpdateWorker(tenantId, workerId string, opts *reposit
 			).Update().Tx())
 
 			optionals = append(optionals, db.Worker.Actions.Link(
-				db.Action.TenantIdid(
+				db.Action.TenantIDID(
 					db.Action.TenantID.Equals(tenantId),
 					db.Action.ID.Equals(action),
 				),

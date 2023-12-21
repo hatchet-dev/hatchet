@@ -67,7 +67,7 @@ func (r *tenantRepository) GetTenantMemberByID(memberId string) (*db.TenantMembe
 
 func (r *tenantRepository) GetTenantMemberByUserID(tenantId string, userId string) (*db.TenantMemberModel, error) {
 	return r.client.TenantMember.FindUnique(
-		db.TenantMember.TenantIduserID(
+		db.TenantMember.TenantIDUserID(
 			db.TenantMember.TenantID.Equals(tenantId),
 			db.TenantMember.UserID.Equals(userId),
 		),

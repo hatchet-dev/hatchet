@@ -163,7 +163,7 @@ func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository
 
 	// preflight check to ensure the workflow doesn't already exist
 	workflow, err := r.client.Workflow.FindUnique(
-		db.Workflow.TenantIdname(
+		db.Workflow.TenantIDName(
 			db.Workflow.TenantID.Equals(tenantId),
 			db.Workflow.Name.Equals(opts.Name),
 		),
@@ -198,7 +198,7 @@ func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository
 	if len(opts.Tags) > 0 {
 		for _, tag := range opts.Tags {
 			txs = append(txs, r.client.WorkflowTag.UpsertOne(
-				db.WorkflowTag.TenantIdname(
+				db.WorkflowTag.TenantIDName(
 					db.WorkflowTag.TenantID.Equals(tenantId),
 					db.WorkflowTag.Name.Equals(tag.Name),
 				),
@@ -245,7 +245,7 @@ func (r *workflowRepository) CreateWorkflowVersion(tenantId string, opts *reposi
 
 	// preflight check to ensure the workflow already exists
 	workflow, err := r.client.Workflow.FindUnique(
-		db.Workflow.TenantIdname(
+		db.Workflow.TenantIDName(
 			db.Workflow.TenantID.Equals(tenantId),
 			db.Workflow.Name.Equals(opts.Name),
 		),
@@ -289,7 +289,7 @@ func (r *workflowRepository) GetWorkflowById(workflowId string) (*db.WorkflowMod
 
 func (r *workflowRepository) GetWorkflowByName(tenantId, workflowName string) (*db.WorkflowModel, error) {
 	return r.client.Workflow.FindUnique(
-		db.Workflow.TenantIdname(
+		db.Workflow.TenantIDName(
 			db.Workflow.TenantID.Equals(tenantId),
 			db.Workflow.Name.Equals(workflowName),
 		),
@@ -393,7 +393,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(tenantId, workflowId strin
 			}
 
 			txs = append(txs, r.client.Action.UpsertOne(
-				db.Action.TenantIdid(
+				db.Action.TenantIDID(
 					db.Action.TenantID.Equals(tenantId),
 					db.Action.ID.Equals(stepOpts.Action),
 				),
@@ -412,7 +412,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(tenantId, workflowId strin
 					db.Job.ID.Equals(jobId),
 				),
 				db.Step.Action.Link(
-					db.Action.TenantIdid(
+					db.Action.TenantIDID(
 						db.Action.TenantID.Equals(tenantId),
 						db.Action.ID.Equals(stepOpts.Action),
 					),
