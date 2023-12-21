@@ -4,10 +4,10 @@ import { queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
 import { useAtom } from 'jotai';
 import { currTenantAtom } from '@/lib/atoms';
-import { Icons } from '@/components/ui/icons';
 import { relativeDate } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Loading } from '@/components/ui/loading.tsx';
 
 export default function Workers() {
   const [tenant] = useAtom(currTenantAtom);
@@ -18,11 +18,7 @@ export default function Workers() {
   });
 
   if (listWorkersQuery.isLoading || !listWorkersQuery.data?.rows) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (

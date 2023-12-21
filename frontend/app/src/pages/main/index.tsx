@@ -48,7 +48,7 @@ import {
 } from '@/lib/outlet';
 import { useAtom } from 'jotai';
 import { currTenantAtom } from '@/lib/atoms';
-import { Icons } from '@/components/ui/icons';
+import { Loading, Spinner } from '@/components/ui/loading.tsx';
 
 function Main() {
   const { user, memberships } = useOutletContext<
@@ -70,11 +70,7 @@ function Main() {
   });
 
   if (!user || !memberships) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -231,7 +227,7 @@ function TenantSwitcher({ className, memberships }: TenantSwitcherProps) {
   const [open, setOpen] = React.useState(false);
 
   if (!currTenant) {
-    return <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />;
+    return <Spinner />;
   }
 
   return (

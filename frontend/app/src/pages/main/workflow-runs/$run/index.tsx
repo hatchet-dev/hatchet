@@ -1,4 +1,3 @@
-import { Icons } from '@/components/ui/icons';
 import { Separator } from '@/components/ui/separator';
 import { JobRun, StepRun, StepRunStatus, queries, Event } from '@/lib/api';
 import CronPrettifier from 'cronstrue';
@@ -22,6 +21,7 @@ import { RunStatus } from '../components/run-statuses';
 import { ColumnDef } from '@tanstack/react-table';
 import { useState } from 'react';
 import { Code } from '@/components/ui/code';
+import { Loading } from '@/components/ui/loading.tsx';
 
 export default function ExpandedWorkflowRun() {
   const [expandedStepRuns, setExpandedStepRuns] = useState<string[]>([]);
@@ -37,11 +37,7 @@ export default function ExpandedWorkflowRun() {
   });
 
   if (runQuery.isLoading || !runQuery.data) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   const run = runQuery.data;
@@ -266,8 +262,7 @@ function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
           }`;
           break;
         case 'PREVIOUS_STEP_TIMED_OUT':
-          statusText =
-            'This step was cancelled because the previous step timed out';
+          statusText = `This step was cancelled because the previous step timed out`;
           break;
         default:
           break;
@@ -324,11 +319,7 @@ function EventDataSection({ event }: { event: Event }) {
   });
 
   if (getEventDataQuery.isLoading || !getEventDataQuery.data) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   const eventData = getEventDataQuery.data;

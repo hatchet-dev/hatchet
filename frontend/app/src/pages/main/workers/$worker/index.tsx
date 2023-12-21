@@ -1,4 +1,3 @@
-import { Icons } from '@/components/ui/icons';
 import { Separator } from '@/components/ui/separator';
 import { queries } from '@/lib/api';
 import { currTenantAtom } from '@/lib/atoms';
@@ -11,6 +10,7 @@ import { ServerStackIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/step-runs-columns';
+import { Loading } from '@/components/ui/loading.tsx';
 
 export default function ExpandedWorkflowRun() {
   const [tenant] = useAtom(currTenantAtom);
@@ -24,11 +24,7 @@ export default function ExpandedWorkflowRun() {
   });
 
   if (workerQuery.isLoading || !workerQuery.data) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   const worker = workerQuery.data;
