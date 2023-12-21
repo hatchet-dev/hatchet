@@ -48,6 +48,8 @@ interface DataTableProps<TData extends IDGetter, TValue> {
   actions?: JSX.Element[];
   sorting?: SortingState;
   setSorting?: OnChangeFn<SortingState>;
+  setSearch?: (search: string) => void;
+  search?: string;
   columnFilters?: ColumnFiltersState;
   setColumnFilters?: OnChangeFn<ColumnFiltersState>;
   pagination?: PaginationState;
@@ -76,6 +78,8 @@ export function DataTable<TData extends IDGetter, TValue>({
   actions = [],
   sorting,
   setSorting,
+  setSearch,
+  search,
   columnFilters,
   setColumnFilters,
   pagination,
@@ -90,7 +94,7 @@ export function DataTable<TData extends IDGetter, TValue>({
   getRowId,
 }: DataTableProps<TData, TValue>) {
   const tableData = React.useMemo(
-    () => (isLoading ? Array(10).fill({}) : data),
+    () => (isLoading ? Array(10).fill({ metadata: {} }) : data),
     [isLoading, data],
   );
 
@@ -160,7 +164,13 @@ export function DataTable<TData extends IDGetter, TValue>({
   return (
     <div className="space-y-4">
       {filters && filters.length > 0 && (
-        <DataTableToolbar table={table} filters={filters} actions={actions} />
+        <DataTableToolbar
+          table={table}
+          filters={filters}
+          actions={actions}
+          search={search}
+          setSearch={setSearch}
+        />
       )}
       <div className="rounded-md border">
         <Table>

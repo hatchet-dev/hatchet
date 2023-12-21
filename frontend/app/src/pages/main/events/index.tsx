@@ -78,6 +78,7 @@ function EventsTable() {
     }
   }, [selectedEvent, searchParams, setSearchParams]);
 
+  const [search, setSearch] = useState<string | undefined>(undefined);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -134,6 +135,7 @@ function EventsTable() {
       orderByDirection,
       offset,
       limit: pageSize,
+      search,
     }),
   });
 
@@ -169,10 +171,6 @@ function EventsTable() {
   //     });
   //   }
   // }, [listEventsQuery.data?.pagination]);
-
-  if (listEventsQuery.isLoading) {
-    return <Loading />;
-  }
 
   const tableColumns = columns({
     onRowClick: (row: Event) => {
@@ -225,6 +223,7 @@ function EventsTable() {
         {selectedEvent && <ExpandedEventContent event={selectedEvent} />}
       </Dialog>
       <DataTable
+        isLoading={listEventsQuery.isLoading}
         columns={tableColumns}
         data={listEventsQuery.data?.rows || []}
         filters={[
@@ -237,6 +236,8 @@ function EventsTable() {
         actions={actions}
         sorting={sorting}
         setSorting={setSorting}
+        search={search}
+        setSearch={setSearch}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}

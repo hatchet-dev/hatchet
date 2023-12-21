@@ -50,6 +50,11 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 		TenantId: *pgTenantId,
 	}
 
+	if opts.Search != nil {
+		queryParams.Search.String = *opts.Search
+		queryParams.Search.Valid = true
+	}
+
 	if opts.Offset != nil {
 		queryParams.Offset = *opts.Offset
 	}
