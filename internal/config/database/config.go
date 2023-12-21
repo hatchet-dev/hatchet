@@ -7,7 +7,7 @@ import (
 
 type ConfigFile struct {
 	PostgresHost     string `mapstructure:"host" json:"host,omitempty" default:"127.0.0.1"`
-	PostgresPort     int    `mapstructure:"port" json:"port,omitempty" default:"5433"`
+	PostgresPort     int    `mapstructure:"port" json:"port,omitempty" default:"5431"`
 	PostgresUsername string `mapstructure:"username" json:"username,omitempty" default:"hatchet"`
 	PostgresPassword string `mapstructure:"password" json:"password,omitempty" default:"hatchet"`
 	PostgresDbName   string `mapstructure:"dbName" json:"dbName,omitempty" default:"hatchet"`
