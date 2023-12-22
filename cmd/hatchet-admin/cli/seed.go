@@ -81,6 +81,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 			// seed an example tenant
 			// initialize a tenant
 			tenant, err = dc.Repository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+				ID:   &dc.Seed.DefaultTenantID,
 				Name: dc.Seed.DefaultTenantName,
 				Slug: dc.Seed.DefaultTenantSlug,
 			})

@@ -36,8 +36,8 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	createOpts := &repository.CreateTenantOpts{
-		Slug: string(request.Body.Slug),
-		Name: string(request.Body.Name),
+		Slug: request.Body.Slug,
+		Name: request.Body.Name,
 	}
 
 	// write the user to the db
