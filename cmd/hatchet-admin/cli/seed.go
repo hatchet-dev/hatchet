@@ -130,12 +130,12 @@ func seedDev(repo repository.Repository, tenantId string) error {
 		"message": "Above message is: {{ .steps.echo1.message }}",
 	})
 
-	workflow, err := repo.Workflow().GetWorkflowByName(tenantId, "test-workflow")
+	_, err := repo.Workflow().GetWorkflowByName(tenantId, "test-workflow")
 
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 
-			_, err := repo.Workflow().CreateNewWorkflow(tenantId, &repository.CreateWorkflowVersionOpts{
+			workflow, err := repo.Workflow().CreateNewWorkflow(tenantId, &repository.CreateWorkflowVersionOpts{
 				Name:        "test-workflow",
 				Description: repository.StringPtr("This is a test workflow."),
 				Version:     "v0.1.0",
@@ -175,7 +175,7 @@ func seedDev(repo repository.Repository, tenantId string) error {
 				return err
 			}
 
-			fmt.Println("created workflow", workflow.ID, workflow.Name)
+			fmt.Println("created workflow", workflow.ID, workflow.Workflow().Name)
 		}
 
 		return err
