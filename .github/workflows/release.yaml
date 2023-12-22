@@ -27,6 +27,11 @@ jobs:
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}
           docker tag ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}} ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest
+      - name: Pull and push hatchet-admin
+        run: |
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}
+          docker tag ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}} ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest
       - name: Pull and push hatchet-frontend
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}

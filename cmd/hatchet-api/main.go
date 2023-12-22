@@ -11,6 +11,7 @@ import (
 )
 
 var printVersion bool
+var configDirectory string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -22,7 +23,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		cf := &loader.ConfigLoader{}
+		cf := loader.NewConfigLoader(configDirectory)
 		interruptChan := cmdutils.InterruptChan()
 
 		startServerOrDie(cf, interruptChan)
@@ -40,16 +41,21 @@ func main() {
 		"print version and exit.",
 	)
 
+	rootCmd.PersistentFlags().StringVar(
+		&configDirectory,
+		"config",
+		"",
+		"The path the config folder.",
+	)
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 
-func startServerOrDie(configLoader *loader.ConfigLoader, interruptCh <-chan interface{}) {
+func startServerOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 	// init the repository
-	cf := &loader.ConfigLoader{}
-
 	sc, err := cf.LoadServerConfig()
 
 	if err != nil {

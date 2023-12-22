@@ -23,6 +23,7 @@ dump.rdb
 *.csr
 *.pfx
 *.cert
+generated
 
 node_modules
 

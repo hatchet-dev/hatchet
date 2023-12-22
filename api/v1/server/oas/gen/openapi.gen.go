@@ -49,7 +49,7 @@ const (
 // Defines values for StepRunStatus.
 const (
 	StepRunStatusASSIGNED          StepRunStatus = "ASSIGNED"
-	StepRunStatusCANCELLED         StepRunStatus = "CANCELLED"
+	StepRunStatusCancelled         StepRunStatus = "CANCELLED"
 	StepRunStatusFAILED            StepRunStatus = "FAILED"
 	StepRunStatusPENDING           StepRunStatus = "PENDING"
 	StepRunStatusPENDINGASSIGNMENT StepRunStatus = "PENDING_ASSIGNMENT"

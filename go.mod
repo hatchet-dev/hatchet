@@ -7,6 +7,7 @@ replace golang.org/x/exp => golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 
 require (
 	github.com/creasty/defaults v1.7.0
+	github.com/fatih/color v1.16.0
 	github.com/getkin/kin-openapi v0.122.0
 	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.2.2
@@ -17,9 +18,10 @@ require (
 	github.com/labstack/echo/v4 v4.11.3
 	github.com/oapi-codegen/runtime v1.1.0
 	github.com/shopspring/decimal v1.3.1
+	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.16.0
-	github.com/steebchen/prisma-client-go v0.27.1
-	github.com/takuoki/gocase v1.0.0
+	github.com/steebchen/prisma-client-go v0.31.3
+	sigs.k8s.io/yaml v1.4.0
 )
 
 require (
@@ -44,7 +46,6 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
-	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	golang.org/x/time v0.3.0 // indirect
@@ -62,10 +63,9 @@ require (
 	github.com/gorilla/schema v1.2.1
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/iancoleman/strcase v0.2.0
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -83,8 +83,8 @@ require (
 	golang.org/x/crypto v0.14.0
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sync v0.4.0
-	golang.org/x/sys v0.13.0 // indirect
-	golang.org/x/text v0.13.0
+	golang.org/x/sys v0.14.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230920204549-e6e6cdab5c13 // indirect
 	google.golang.org/grpc v1.58.2
 	google.golang.org/protobuf v1.31.0

@@ -85,7 +85,11 @@ func LoadConfigFromViper(bindFunc func(v *viper.Viper), configFile interface{}, 
 }
 
 type ConfigLoader struct {
-	version, directory string
+	directory string
+}
+
+func NewConfigLoader(directory string) *ConfigLoader {
+	return &ConfigLoader{directory}
 }
 
 // LoadDatabaseConfig loads the database configuration
@@ -162,9 +166,12 @@ func getConfigBytes(configFilePath string) ([][]byte, error) {
 
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
+	if err != nil && os.IsNotExist(err) {
+		return false
+	} else if err != nil {
 		return false
 	}
+
 	return !info.IsDir()
 }
 
@@ -179,10 +186,10 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		cf.PostgresSSLMode,
 	)
 
-	os.Setenv("DATABASE_URL", databaseUrl)
+	// os.Setenv("DATABASE_URL", databaseUrl)
 
 	client := db.NewClient(
-		db.WithDatasourceURL(databaseUrl),
+	// db.WithDatasourceURL(databaseUrl),
 	)
 
 	if err := client.Prisma.Connect(); err != nil {
@@ -198,6 +205,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 	return &database.Config{
 		Disconnect: client.Prisma.Disconnect,
 		Repository: prisma.NewPrismaRepository(client, pool),
+		Seed:       cf.Seed,
 	}, nil
 }
 

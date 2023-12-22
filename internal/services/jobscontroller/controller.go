@@ -255,7 +255,7 @@ func (ec *JobsControllerImpl) handleJobRunTimedOut(ctx context.Context, task *ta
 
 	stepRuns, err := ec.repo.StepRun().ListStepRuns(metadata.TenantId, &repository.ListStepRunsOpts{
 		JobRunId: &jobRun.ID,
-		Status:   repository.StepRunStatusPtr(db.StepRunStatusRUNNING),
+		Status:   repository.StepRunStatusPtr(db.StepRunStatusRunning),
 	})
 
 	if err != nil {
@@ -276,7 +276,7 @@ func (ec *JobsControllerImpl) handleJobRunTimedOut(ctx context.Context, task *ta
 		stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, currStepRun.ID, &repository.UpdateStepRunOpts{
 			CancelledAt:     &now,
 			CancelledReason: repository.StringPtr("JOB_RUN_TIMED_OUT"),
-			Status:          repository.StepRunStatusPtr(db.StepRunStatusCANCELLED),
+			Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
 		})
 
 		if err != nil {
@@ -483,7 +483,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, stepId, stepRunId string) error {
 	// indicate that the step run is pending assignment
 	stepRun, err := ec.repo.StepRun().UpdateStepRun(tenantId, stepRunId, &repository.UpdateStepRunOpts{
-		Status: repository.StepRunStatusPtr(db.StepRunStatusPENDINGASSIGNMENT),
+		Status: repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment),
 	})
 
 	if err != nil {
@@ -598,7 +598,7 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ta
 
 	_, err = ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
 		StartedAt: &startedAt,
-		Status:    repository.StepRunStatusPtr(db.StepRunStatusRUNNING),
+		Status:    repository.StepRunStatusPtr(db.StepRunStatusRunning),
 	})
 
 	return err
@@ -639,7 +639,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 
 	stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
 		FinishedAt: &finishedAt,
-		Status:     repository.StepRunStatusPtr(db.StepRunStatusSUCCEEDED),
+		Status:     repository.StepRunStatusPtr(db.StepRunStatusSucceeded),
 		Output:     &outputJSON,
 	})
 
@@ -743,7 +743,7 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *tas
 	stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
 		FinishedAt: &failedAt,
 		Error:      &payload.Error,
-		Status:     repository.StepRunStatusPtr(db.StepRunStatusFAILED),
+		Status:     repository.StepRunStatusPtr(db.StepRunStatusFailed),
 	})
 
 	if err != nil {
@@ -806,7 +806,7 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *t
 	stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
 		CancelledAt:     &now,
 		CancelledReason: repository.StringPtr("TIMED_OUT"),
-		Status:          repository.StepRunStatusPtr(db.StepRunStatusCANCELLED),
+		Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
 	})
 
 	if err != nil {
@@ -875,7 +875,7 @@ func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *tas
 	// get all step runs assigned to the ticker
 	stepRuns, err := ec.repo.StepRun().ListAllStepRuns(&repository.ListAllStepRunsOpts{
 		NoTickerId: repository.BoolPtr(true),
-		Status:     repository.StepRunStatusPtr(db.StepRunStatusRUNNING),
+		Status:     repository.StepRunStatusPtr(db.StepRunStatusRunning),
 	})
 
 	if err != nil {
@@ -913,7 +913,7 @@ func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *tas
 	// get all step runs assigned to the ticker
 	jobRuns, err := ec.repo.JobRun().ListAllJobRuns(&repository.ListAllJobRunsOpts{
 		NoTickerId: repository.BoolPtr(true),
-		Status:     repository.JobRunStatusPtr(db.JobRunStatusRUNNING),
+		Status:     repository.JobRunStatusPtr(db.JobRunStatusRunning),
 	})
 
 	if err != nil {

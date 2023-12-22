@@ -281,7 +281,7 @@ func (w *workerRepository) AddStepRun(tenantId, workerId, stepRunId string) erro
 	tx2 := w.client.StepRun.FindUnique(
 		db.StepRun.ID.Equals(stepRunId),
 	).Update(
-		db.StepRun.Status.Set(db.StepRunStatusASSIGNED),
+		db.StepRun.Status.Set(db.StepRunStatusAssigned),
 	).Tx()
 
 	err := w.client.Prisma.Transaction(tx1, tx2).Exec(context.Background())

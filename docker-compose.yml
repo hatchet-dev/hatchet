@@ -9,7 +9,7 @@ services:
       - POSTGRES_PASSWORD=hatchet
       - POSTGRES_DB=hatchet
     ports:
-      - "5433:5432"
+      - "5431:5432"
     volumes:
       - hatchet_postgres_data:/var/lib/postgresql/data
   rabbitmq:

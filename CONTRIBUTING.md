@@ -25,7 +25,7 @@
 alias randstring='f() { openssl rand -base64 69 | tr -d "\n" | tr -d "=+/" | cut -c1-$1 };f'
 
 cat > .env <<EOF
-DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5433/hatchet'
+DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
 SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
 SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
 SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
