@@ -51,7 +51,7 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 	}
 
 	if opts.Search != nil {
-		queryParams.Search.String = *opts.Search
+		queryParams.Search = sqlchelpers.TextFromStr(opts.Search)
 		queryParams.Search.Valid = true
 	}
 
