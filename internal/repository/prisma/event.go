@@ -6,6 +6,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -51,8 +52,7 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 	}
 
 	if opts.Search != nil {
-		queryParams.Search = sqlchelpers.TextFromStr(opts.Search)
-		queryParams.Search.Valid = true
+		queryParams.Search = sqlchelpers.TextFromStr(*opts.Search)
 	}
 
 	if opts.Offset != nil {
