@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, redirect, RouterProvider } from 'react-router-dom';
 
 const routes = [
   {
@@ -39,6 +39,17 @@ const routes = [
             };
           }),
         children: [
+          {
+            path: '/',
+            
+            lazy: async () => {
+              return {
+                loader: function () {
+                  return redirect('/events')
+                }
+              }
+            }
+          },
           {
             path: '/onboarding/create-tenant',
             lazy: async () =>

@@ -61,6 +61,14 @@ function Main() {
       const tenant = memberships[0].tenant;
       invariant(tenant);
       setTenant(tenant);
+    } else if (tenant && memberships && memberships.length > 0) {
+      const membership = memberships.find((m) => m.tenant?.metadata.id === tenant.metadata.id);
+      
+      if (!membership) {
+        const tenant = memberships[0].tenant;
+        invariant(tenant);
+        setTenant(tenant);
+      }
     }
   }, [tenant, memberships, setTenant]);
 
