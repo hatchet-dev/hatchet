@@ -218,9 +218,9 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *task
 		scheduleTimeoutTask,
 	)
 
-	// if err != nil {
-	// 	return fmt.Errorf("could not add schedule job run timeout task to task queue: %w", err)
-	// }
+	if err != nil {
+		return fmt.Errorf("could not add schedule job run timeout task to task queue: %w", err)
+	}
 
 	// // update the job run
 	// _, err = ec.repo.JobRun().UpdateJobRun(metadata.TenantId, jobRun.ID, &repository.UpdateJobRunOpts{
@@ -270,7 +270,7 @@ func (ec *JobsControllerImpl) handleJobRunTimedOut(ctx context.Context, task *ta
 		currStepRun := stepRuns[0]
 
 		// cancel current step run
-		now := time.Now()
+		now := time.Now().UTC()
 
 		// cancel current step run
 		stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, currStepRun.ID, &repository.UpdateStepRunOpts{
@@ -392,8 +392,24 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 
 		stepRunCp := stepRun
 
-		// TODO: update the job run and send a task to the taskqueue
-		requeueAfter := time.Now().Add(time.Second * 5)
+		now := time.Now().UTC().UTC()
+
+		// if the current time is after the scheduleTimeoutAt, then mark this as timed out
+		if scheduleTimeoutAt, ok := stepRun.ScheduleTimeoutAt(); ok && scheduleTimeoutAt.Before(now) {
+			_, err = ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunCp.ID, &repository.UpdateStepRunOpts{
+				CancelledAt:     &now,
+				CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
+				Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
+			})
+
+			if err != nil {
+				allErrs = multierror.Append(allErrs, fmt.Errorf("could not update step run %s: %w", stepRun.ID, err))
+			}
+
+			break
+		}
+
+		requeueAfter := time.Now().UTC().Add(time.Second * 5)
 
 		_, err = ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunCp.ID, &repository.UpdateStepRunOpts{
 			RequeueAfter: &requeueAfter,
@@ -426,6 +442,15 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
+	}
+
+	updateStepOpts := &repository.UpdateStepRunOpts{}
+
+	// default scheduling timeout
+	if scheduleTimeoutAt, ok := stepRun.ScheduleTimeoutAt(); !ok || scheduleTimeoutAt.IsZero() {
+		scheduleTimeoutAt := time.Now().UTC().Add(time.Second * 30)
+
+		updateStepOpts.ScheduleTimeoutAt = &scheduleTimeoutAt
 	}
 
 	lookupDataModel, ok := stepRun.JobRun().LookupData()
@@ -466,15 +491,15 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 				return fmt.Errorf("could not convert input data to json: %w", err)
 			}
 
-			// update the step's input data
-			_, err = ec.repo.StepRun().UpdateStepRun(tenantId, stepRunId, &repository.UpdateStepRunOpts{
-				Input: newInput,
-			})
-
-			if err != nil {
-				return fmt.Errorf("could not update step run: %w", err)
-			}
+			updateStepOpts.Input = newInput
 		}
+	}
+
+	// update the step's input data
+	_, err = ec.repo.StepRun().UpdateStepRun(tenantId, stepRunId, updateStepOpts)
+
+	if err != nil {
+		return fmt.Errorf("could not update step run: %w", err)
 	}
 
 	return ec.scheduleStepRun(ctx, tenantId, stepId, stepRunId)
@@ -800,7 +825,7 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *t
 		return fmt.Errorf("could not decode step run started task metadata: %w", err)
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	// cancel current step run
 	stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
@@ -952,7 +977,7 @@ func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *tas
 }
 
 func (ec *JobsControllerImpl) getValidTickers() ([]db.TickerModel, error) {
-	within := time.Now().Add(-6 * time.Second)
+	within := time.Now().UTC().Add(-6 * time.Second)
 
 	tickers, err := ec.repo.Ticker().ListTickers(&repository.ListTickerOpts{
 		LatestHeartbeatAt: &within,
@@ -1008,7 +1033,7 @@ func scheduleStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel
 		return nil, fmt.Errorf("could not parse duration: %w", err)
 	}
 
-	timeoutAt := time.Now().Add(duration)
+	timeoutAt := time.Now().UTC().Add(duration)
 
 	payload, _ := datautils.ToJSONMap(tasktypes.ScheduleStepRunTimeoutTaskPayload{
 		StepRunId: stepRun.ID,
@@ -1046,7 +1071,7 @@ func scheduleJobRunTimeoutTask(ticker *db.TickerModel, jobRun *db.JobRunModel) (
 		return nil, fmt.Errorf("could not parse duration: %w", err)
 	}
 
-	timeoutAt := time.Now().Add(duration)
+	timeoutAt := time.Now().UTC().Add(duration)
 
 	payload, _ := datautils.ToJSONMap(tasktypes.ScheduleJobRunTimeoutTaskPayload{
 		JobRunId:  jobRun.ID,

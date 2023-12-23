@@ -37,7 +37,7 @@ func main() {
 
 	err = worker.RegisterAction("timeout:timeout", func(ctx context.Context, input *timeoutInput) (result any, err error) {
 		// wait for context done signal
-		timeStart := time.Now()
+		timeStart := time.Now().UTC()
 		<-ctx.Done()
 		fmt.Println("context cancelled in ", time.Since(timeStart).Seconds(), " seconds")
 

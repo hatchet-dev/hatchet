@@ -223,11 +223,11 @@ func (store *UserSessionStore) save(session *sessions.Session) error {
 	var expiresOn time.Time
 
 	if exOn == nil {
-		expiresOn = time.Now().Add(time.Second * time.Duration(session.Options.MaxAge))
+		expiresOn = time.Now().UTC().Add(time.Second * time.Duration(session.Options.MaxAge))
 	} else {
 		expiresOn = exOn.(time.Time)
-		if expiresOn.Sub(time.Now().Add(time.Second*time.Duration(session.Options.MaxAge))) < 0 {
-			expiresOn = time.Now().Add(time.Second * time.Duration(session.Options.MaxAge))
+		if expiresOn.Sub(time.Now().UTC().Add(time.Second*time.Duration(session.Options.MaxAge))) < 0 {
+			expiresOn = time.Now().UTC().Add(time.Second * time.Duration(session.Options.MaxAge))
 		}
 	}
 
