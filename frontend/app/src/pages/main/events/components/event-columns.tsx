@@ -12,11 +12,11 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useMemo, useState } from 'react';
-import { currTenantAtom } from '@/lib/atoms';
 import { useQuery } from '@tanstack/react-query';
-import { useAtom } from 'jotai';
 import invariant from 'tiny-invariant';
 import { DataTable } from '@/components/molecules/data-table/data-table';
+import { TenantContextType } from '@/lib/outlet';
+import { useOutletContext } from 'react-router-dom';
 
 export const columns = ({
   onRowClick,
@@ -100,7 +100,7 @@ export const columns = ({
 
 // eslint-disable-next-line react-refresh/only-export-components
 function WorkflowRunSummary({ event }: { event: Event }) {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const [hoverCardOpen, setPopoverOpen] = useState<

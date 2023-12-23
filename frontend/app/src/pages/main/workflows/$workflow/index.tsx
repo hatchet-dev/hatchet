@@ -1,14 +1,13 @@
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { Separator } from '@/components/ui/separator';
 import api, { Workflow, queries } from '@/lib/api';
-import { currTenantAtom } from '@/lib/atoms';
 import { useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { useAtom } from 'jotai';
 import {
   LoaderFunctionArgs,
   redirect,
   useLoaderData,
+  useOutletContext,
   useParams,
 } from 'react-router-dom';
 import invariant from 'tiny-invariant';
@@ -19,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { relativeDate } from '@/lib/utils';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/ui/loading.tsx';
+import { TenantContextType } from '@/lib/outlet';
 
 export async function loader({
   params,
@@ -97,7 +97,7 @@ export default function ExpandedWorkflow() {
 }
 
 function WorkflowDefinition() {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const params = useParams();
@@ -126,7 +126,7 @@ function WorkflowDefinition() {
 }
 
 function RecentRunsList() {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const params = useParams();

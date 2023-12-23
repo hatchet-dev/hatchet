@@ -2,11 +2,14 @@ package prisma
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -87,19 +90,27 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 	events, err := r.queries.ListEvents(context.Background(), tx, queryParams)
 
 	if err != nil {
-		return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			events = make([]*dbsqlc.ListEventsRow, 0)
+		} else {
+			return nil, fmt.Errorf("could not list events: %w", err)
+		}
 	}
 
 	count, err := r.queries.CountEvents(context.Background(), tx, countParams)
 
 	if err != nil {
-		return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			count = 0
+		} else {
+			return nil, fmt.Errorf("could not count events: %w", err)
+		}
 	}
 
 	err = tx.Commit(context.Background())
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
 	res.Rows = events

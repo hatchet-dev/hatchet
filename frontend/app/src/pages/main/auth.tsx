@@ -4,10 +4,11 @@ import {
   redirect,
   useLoaderData,
 } from 'react-router-dom';
-import api from '@/lib/api';
+import api, { queries } from '@/lib/api';
 import queryClient from '@/query-client';
 import { useContextFromParent } from '@/lib/outlet';
 import { Loading } from '@/components/ui/loading.tsx';
+import { useQuery } from '@tanstack/react-query';
 
 const authMiddleware = async (currentUrl: string) => {
   try {
@@ -37,12 +38,12 @@ const authMiddleware = async (currentUrl: string) => {
   }
 };
 
-const membershipsPopulator = async () => {
+const membershipsPopulator = async (currentUrl: string) => {
   const res = await api.tenantMembershipsList();
 
   const memberships = res.data;
 
-  if (memberships.rows?.length === 0) {
+  if (memberships.rows?.length === 0 && !currentUrl.includes('/onboarding')) {
     throw redirect('/onboarding/create-tenant');
   }
 
@@ -51,7 +52,7 @@ const membershipsPopulator = async () => {
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = await authMiddleware(request.url);
-  const memberships = await membershipsPopulator();
+  const memberships = await membershipsPopulator(request.url);
   return {
     user,
     memberships,
@@ -59,13 +60,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function Auth() {
+  const listMembershipsQuery = useQuery({
+    ...queries.user.listTenantMemberships,
+  });
+
   const { user, memberships } = useLoaderData() as Awaited<
     ReturnType<typeof loader>
   >;
 
   const ctx = useContextFromParent({
     user,
-    memberships,
+    memberships: listMembershipsQuery.data?.rows || memberships,
   });
 
   if (!user || !memberships) {

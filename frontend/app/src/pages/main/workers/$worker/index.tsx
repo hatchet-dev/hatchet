@@ -1,9 +1,7 @@
 import { Separator } from '@/components/ui/separator';
 import { queries } from '@/lib/api';
-import { currTenantAtom } from '@/lib/atoms';
 import { useQuery } from '@tanstack/react-query';
-import { useAtom } from 'jotai';
-import { useParams } from 'react-router-dom';
+import { useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { relativeDate } from '@/lib/utils';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
@@ -11,9 +9,10 @@ import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/step-runs-columns';
 import { Loading } from '@/components/ui/loading.tsx';
+import { TenantContextType } from '@/lib/outlet';
 
 export default function ExpandedWorkflowRun() {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const params = useParams();
