@@ -81,6 +81,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 			// seed an example tenant
 			// initialize a tenant
 			tenant, err = dc.Repository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+				ID:   &dc.Seed.DefaultTenantID,
 				Name: dc.Seed.DefaultTenantName,
 				Slug: dc.Seed.DefaultTenantSlug,
 			})
@@ -130,55 +131,52 @@ func seedDev(repo repository.Repository, tenantId string) error {
 		"message": "Above message is: {{ .steps.echo1.message }}",
 	})
 
-	workflow, err := repo.Workflow().GetWorkflowByName(tenantId, "test-workflow")
+	_, err := repo.Workflow().GetWorkflowByName(tenantId, "test-workflow")
 
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-
-			_, err := repo.Workflow().CreateNewWorkflow(tenantId, &repository.CreateWorkflowVersionOpts{
-				Name:        "test-workflow",
-				Description: repository.StringPtr("This is a test workflow."),
-				Version:     "v0.1.0",
-				EventTriggers: []string{
-					"user:create",
+		if !errors.Is(err, db.ErrNotFound) {
+			return err
+		}
+		wf, err := repo.Workflow().CreateNewWorkflow(tenantId, &repository.CreateWorkflowVersionOpts{
+			Name:        "test-workflow",
+			Description: repository.StringPtr("This is a test workflow."),
+			Version:     "v0.1.0",
+			EventTriggers: []string{
+				"user:create",
+			},
+			Tags: []repository.CreateWorkflowTagOpts{
+				{
+					Name: "Preview",
 				},
-				Tags: []repository.CreateWorkflowTagOpts{
-					{
-						Name: "Preview",
-					},
-				},
-				Jobs: []repository.CreateWorkflowJobOpts{
-					{
-						Name: "job-name",
-						Steps: []repository.CreateWorkflowStepOpts{
-							{
-								ReadableId: "echo1",
-								Action:     "echo:echo",
-								Inputs:     firstInput,
-							},
-							{
-								ReadableId: "echo2",
-								Action:     "echo:echo",
-								Inputs:     secondInput,
-							},
-							{
-								ReadableId: "echo3",
-								Action:     "echo:echo",
-								Inputs:     thirdInput,
-							},
+			},
+			Jobs: []repository.CreateWorkflowJobOpts{
+				{
+					Name: "job-name",
+					Steps: []repository.CreateWorkflowStepOpts{
+						{
+							ReadableId: "echo1",
+							Action:     "echo:echo",
+							Inputs:     firstInput,
+						},
+						{
+							ReadableId: "echo2",
+							Action:     "echo:echo",
+							Inputs:     secondInput,
+						},
+						{
+							ReadableId: "echo3",
+							Action:     "echo:echo",
+							Inputs:     thirdInput,
 						},
 					},
 				},
-			})
-
-			if err != nil {
-				return err
-			}
-
-			fmt.Println("created workflow", workflow.ID, workflow.Name)
+			},
+		})
+		if err != nil {
+			return err
 		}
 
-		return err
+		fmt.Println("created workflow", wf.ID, wf.Workflow().Name)
 	}
 
 	return nil

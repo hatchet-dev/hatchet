@@ -28,6 +28,7 @@ func (r *tenantRepository) CreateTenant(opts *repository.CreateTenantOpts) (*db.
 	return r.client.Tenant.CreateOne(
 		db.Tenant.Name.Set(opts.Name),
 		db.Tenant.Slug.Set(opts.Slug),
+		db.Tenant.ID.SetIfPresent(opts.ID),
 	).Exec(context.Background())
 }
 
