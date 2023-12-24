@@ -2,7 +2,7 @@ FROM node:18-alpine as build
 
 WORKDIR /app
 COPY ./frontend/app/package.json ./frontend/app/package-lock.json ./
-RUN npm install
+RUN npm ci
 COPY ./frontend/app ./
 RUN npm run build
 
