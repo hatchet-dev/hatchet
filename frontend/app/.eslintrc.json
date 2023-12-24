@@ -1,4 +1,4 @@
-module.exports = {
+{
   "root": true,
   "env": {
     "browser": true,
@@ -18,8 +18,7 @@ module.exports = {
   ],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "project": "./tsconfig.json",
-    "tsconfigRootDir": __dirname,
+    "project": "./tsconfig.json"
   },
   "plugins": [
     "react-refresh",
