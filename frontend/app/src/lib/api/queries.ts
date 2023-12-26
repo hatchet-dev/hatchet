@@ -11,6 +11,10 @@ export const queries = createQueryKeyStore({
       queryKey: ['user:get'],
       queryFn: async () => (await api.userGetCurrent()).data,
     },
+    listTenantMemberships: {
+      queryKey: ['tenant-memberships:list'],
+      queryFn: async () => (await api.tenantMembershipsList()).data,
+    },
   },
   workflows: {
     list: (tenant: string) => ({

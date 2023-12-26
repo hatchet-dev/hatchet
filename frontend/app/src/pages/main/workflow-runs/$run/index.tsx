@@ -1,10 +1,8 @@
 import { Separator } from '@/components/ui/separator';
 import { JobRun, StepRun, StepRunStatus, queries, Event } from '@/lib/api';
 import CronPrettifier from 'cronstrue';
-import { currTenantAtom } from '@/lib/atoms';
 import { useQuery } from '@tanstack/react-query';
-import { useAtom } from 'jotai';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { Badge } from '@/components/ui/badge';
 import { relativeDate } from '@/lib/utils';
@@ -22,11 +20,12 @@ import { ColumnDef } from '@tanstack/react-table';
 import { useState } from 'react';
 import { Code } from '@/components/ui/code';
 import { Loading } from '@/components/ui/loading.tsx';
+import { TenantContextType } from '@/lib/outlet';
 
 export default function ExpandedWorkflowRun() {
   const [expandedStepRuns, setExpandedStepRuns] = useState<string[]>([]);
 
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const params = useParams();

@@ -43,7 +43,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 
 	createOpts := &repository.CreateUserOpts{
 		Email:         string(request.Body.Email),
-		EmailVerified: repository.BoolPtr(false),
+		EmailVerified: repository.BoolPtr(u.config.Auth.SetEmailVerified),
 		Name:          repository.StringPtr(request.Body.Name),
 		Password:      *hashedPw,
 	}

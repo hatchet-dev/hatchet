@@ -1,5 +1,9 @@
 import { FC } from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  redirect,
+  RouterProvider,
+} from 'react-router-dom';
 
 const routes = [
   {
@@ -12,22 +16,33 @@ const routes = [
       }),
     children: [
       {
-        path: '/auth/login',
+        path: '/auth',
         lazy: async () =>
-          import('./pages/auth/login').then((res) => {
+          import('./pages/auth/no-auth').then((res) => {
             return {
-              Component: res.default,
+              loader: res.loader,
             };
           }),
-      },
-      {
-        path: '/auth/register',
-        lazy: async () =>
-          import('./pages/auth/register').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
+        children: [
+          {
+            path: '/auth/login',
+            lazy: async () =>
+              import('./pages/auth/login').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/auth/register',
+            lazy: async () =>
+              import('./pages/auth/register').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+        ],
       },
       {
         path: '/',
@@ -39,6 +54,16 @@ const routes = [
             };
           }),
         children: [
+          {
+            path: '/',
+            lazy: async () => {
+              return {
+                loader: function () {
+                  return redirect('/events');
+                },
+              };
+            },
+          },
           {
             path: '/onboarding/create-tenant',
             lazy: async () =>

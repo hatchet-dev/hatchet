@@ -36,6 +36,7 @@ SERVER_URL=https://app.dev.hatchet-tools.com
 SERVER_AUTH_COOKIE_SECRETS="$(randstring 16) $(randstring 16)"
 SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
 SERVER_AUTH_COOKIE_INSECURE=false
+SERVER_AUTH_SET_EMAIL_VERIFIED=true
 EOF
 ```
 

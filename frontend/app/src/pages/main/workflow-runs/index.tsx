@@ -9,10 +9,10 @@ import {
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import { useAtom } from 'jotai';
-import { currTenantAtom } from '@/lib/atoms';
 import { queries } from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
+import { TenantContextType } from '@/lib/outlet';
+import { useOutletContext } from 'react-router-dom';
 
 export default function WorkflowRuns() {
   return (
@@ -29,7 +29,7 @@ export default function WorkflowRuns() {
 }
 
 function WorkflowRunsTable() {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const [sorting, setSorting] = useState<SortingState>([]);

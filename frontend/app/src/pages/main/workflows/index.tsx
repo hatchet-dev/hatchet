@@ -3,12 +3,12 @@ import WorkflowList from './components/workflow-list';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
-import { useAtom } from 'jotai';
-import { currTenantAtom } from '@/lib/atoms';
 import { Loading } from '@/components/ui/loading.tsx';
+import { useOutletContext } from 'react-router-dom';
+import { TenantContextType } from '@/lib/outlet';
 
 export default function Workflows() {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const listWorkflowsQuery = useQuery({

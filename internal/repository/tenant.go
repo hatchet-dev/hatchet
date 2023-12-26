@@ -8,6 +8,9 @@ type CreateTenantOpts struct {
 
 	// (required) the tenant slug
 	Slug string `validate:"required,hatchetName"`
+
+	// (optional) the tenant ID
+	ID *string `validate:"omitempty,uuid"`
 }
 
 type CreateTenantMemberOpts struct {
