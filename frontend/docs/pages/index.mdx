@@ -1,0 +1,23 @@
+# Introduction
+
+Welcome to Hatchet! Hatchet is a workflow engine and event storage API, designed to make it easy to build distributed applications. The project has the following high-level goals:
+
+1. **Serve application developers:** we aim to support a broad set of languages and frameworks, to make it easier to support your existing applications. We currently support a Typescript and Go SDK, with more languages coming soon.
+2. **Simple to setup:** we've seen too many overengineered stacks built on a fragile task queue with overly complex infrastructure. Hatchet is designed to be simple to setup, with a single command to get started.
+3. **Flexibility when you need it:** as your application grows, you can use Hatchet to support complex, multi-step distributed workflows. Hatchet's backend is modular, allowing for customizing the implementation of the event storage API, queueing system, authentication, and more.
+
+We currently support the following features, with many more on the roadmap:
+
+- **Event storage API:** store events in a durable event log, with support for querying and filtering events:
+
+IMAGE
+
+- **Workflow engine:** define workflows which run when events occur, with support for retries, timeouts, and parallelism:
+
+IMAGE
+
+- **Web platform for visilibility and monitoring**: view the status of your workflows, and drill down into individual events:
+
+IMAGE
+
+Check out the [Getting Started](/getting-started) guide to deploy a simple workflow to Hatchet.
