@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/command';
 
 import { Link, Outlet, useNavigate, useOutletContext } from 'react-router-dom';
-import api, { TenantMember, User } from '@/lib/api';
+import api, { Tenant, TenantMember, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
@@ -40,45 +40,38 @@ import {
   Popover,
   PopoverContent,
 } from '@radix-ui/react-popover';
-import React, { useEffect } from 'react';
+import React from 'react';
 import {
   MembershipsContextType,
   UserContextType,
   useContextFromParent,
 } from '@/lib/outlet';
-import { useAtom } from 'jotai';
-import { currTenantAtom } from '@/lib/atoms';
+import { useTenantContext } from '@/lib/atoms';
 import { Loading, Spinner } from '@/components/ui/loading.tsx';
 
 function Main() {
-  const { user, memberships } = useOutletContext<
-    UserContextType & MembershipsContextType
-  >();
-  const [tenant, setTenant] = useAtom(currTenantAtom);
+  const ctx = useOutletContext<UserContextType & MembershipsContextType>();
 
-  useEffect(() => {
-    if (!tenant && memberships && memberships.length > 0) {
-      const tenant = memberships[0].tenant;
-      invariant(tenant);
-      setTenant(tenant);
-    }
-  }, [tenant, memberships, setTenant]);
+  const { user, memberships } = ctx;
 
-  const ctx = useContextFromParent({
+  const [currTenant] = useTenantContext();
+
+  const childCtx = useContextFromParent({
     user,
     memberships,
+    tenant: currTenant,
   });
 
-  if (!user || !memberships) {
+  if (!user || !memberships || !currTenant) {
     return <Loading />;
   }
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
       <MainNav user={user} />
-      <Sidebar memberships={memberships} />
+      <Sidebar memberships={memberships} currTenant={currTenant} />
       <div className="pt-12 flex-grow">
-        <Outlet context={ctx} />
+        <Outlet context={childCtx} />
       </div>
     </div>
   );
@@ -88,9 +81,10 @@ export default Main;
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   memberships: TenantMember[];
+  currTenant: Tenant;
 }
 
-function Sidebar({ className, memberships }: SidebarProps) {
+function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   return (
     <div className={cn('h-full border-r max-w-xs', className)}>
       <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full">
@@ -139,7 +133,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </div>
           </div>
         </div>
-        <TenantSwitcher memberships={memberships} />
+        <TenantSwitcher memberships={memberships} currTenant={currTenant} />
       </div>
     </div>
   );
@@ -189,22 +183,6 @@ function MainNav({ user }: MainNavProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {/* <DropdownMenuGroup>
-                <DropdownMenuItem>
-                  Profile
-                  <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  Billing
-                  <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  Settings
-                  <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
-                </DropdownMenuItem>
-                <DropdownMenuItem>New Team</DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator /> */}
               <DropdownMenuItem onClick={() => logoutMutation.mutate()}>
                 Log out
                 <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
@@ -220,10 +198,15 @@ function MainNav({ user }: MainNavProps) {
 interface TenantSwitcherProps {
   className?: string;
   memberships: TenantMember[];
+  currTenant: Tenant;
 }
 
-function TenantSwitcher({ className, memberships }: TenantSwitcherProps) {
-  const [currTenant, setTenant] = useAtom(currTenantAtom);
+function TenantSwitcher({
+  className,
+  memberships,
+  currTenant,
+}: TenantSwitcherProps) {
+  const setCurrTenant = useTenantContext()[1];
   const [open, setOpen] = React.useState(false);
 
   if (!currTenant) {
@@ -254,7 +237,7 @@ function TenantSwitcher({ className, memberships }: TenantSwitcherProps) {
                 key={membership.metadata.id}
                 onSelect={() => {
                   invariant(membership.tenant);
-                  setTenant(membership.tenant);
+                  setCurrTenant(membership.tenant);
                   setOpen(false);
                 }}
                 value={membership.tenant?.slug}

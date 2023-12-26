@@ -18,8 +18,6 @@ import api, {
   queries,
 } from '@/lib/api';
 import invariant from 'tiny-invariant';
-import { useAtom } from 'jotai';
-import { currTenantAtom } from '@/lib/atoms';
 import { FilterOption } from '@/components/molecules/data-table/data-table-toolbar';
 import {
   Dialog,
@@ -30,7 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { relativeDate } from '@/lib/utils';
 import { Code } from '@/components/ui/code';
-import { useSearchParams } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   ArrowPathIcon,
@@ -38,6 +36,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useApiError } from '@/lib/hooks';
 import { Loading } from '@/components/ui/loading.tsx';
+import { TenantContextType } from '@/lib/outlet';
 
 export default function Events() {
   return (
@@ -55,7 +54,7 @@ export default function Events() {
 
 function EventsTable() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
   const { handleApiError } = useApiError({});
@@ -65,16 +64,20 @@ function EventsTable() {
   useEffect(() => {
     if (
       selectedEvent &&
-      (!searchParams.get('eventId') ||
-        searchParams.get('eventId') !== selectedEvent.metadata.id)
+      (!searchParams.get('event') ||
+        searchParams.get('event') !== selectedEvent.metadata.id)
     ) {
-      setSearchParams({ eventId: selectedEvent.metadata.id });
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set('event', selectedEvent.metadata.id);
+      setSearchParams(newSearchParams);
     } else if (
       !selectedEvent &&
-      searchParams.get('eventId') &&
-      searchParams.get('eventId') !== ''
+      searchParams.get('event') &&
+      searchParams.get('event') !== ''
     ) {
-      setSearchParams({});
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('event');
+      setSearchParams(newSearchParams);
     }
   }, [selectedEvent, searchParams, setSearchParams]);
 
@@ -296,7 +299,7 @@ function EventDataSection({ event }: { event: Event }) {
 }
 
 function EventWorkflowRunsList({ event }: { event: Event }) {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const listWorkflowRunsQuery = useQuery({
