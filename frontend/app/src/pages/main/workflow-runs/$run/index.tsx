@@ -260,6 +260,9 @@ function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
             stepRun.step?.timeout || '60s'
           }`;
           break;
+        case 'SCHEDULING_TIMED_OUT':
+          statusText = `This step was cancelled because no workers were available to run ${stepRun.step?.action}`;
+          break;
         case 'PREVIOUS_STEP_TIMED_OUT':
           statusText = `This step was cancelled because the previous step timed out`;
           break;

@@ -28,6 +28,9 @@ export function RunStatus({
         case 'TIMED_OUT':
           text = 'Timed out';
           break;
+        case 'SCHEDULING_TIMED_OUT':
+          text = 'No workers available';
+          break;
         default:
           break;
       }

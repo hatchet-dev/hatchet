@@ -231,7 +231,7 @@ func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 	return func() {
 		t.l.Debug().Msgf("ticker: updating heartbeat")
 
-		now := time.Now()
+		now := time.Now().UTC()
 
 		// update the heartbeat
 		_, err := t.repo.Ticker().UpdateTicker(t.tickerId, &repository.UpdateTickerOpts{

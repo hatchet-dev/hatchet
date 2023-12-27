@@ -147,7 +147,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	// update the worker with a last heartbeat time every 5 seconds as long as the worker is connected
 	go func() {
 		timer := time.NewTicker(100 * time.Millisecond)
-		lastHeartbeat := time.Now()
+		lastHeartbeat := time.Now().UTC()
 		defer timer.Stop()
 
 		for {
@@ -156,7 +156,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 				s.l.Debug().Msgf("worker id %s has disconnected", request.WorkerId)
 				return
 			case <-timer.C:
-				if now := time.Now(); lastHeartbeat.Add(5 * time.Second).Before(now) {
+				if now := time.Now().UTC(); lastHeartbeat.Add(5 * time.Second).Before(now) {
 					s.l.Debug().Msgf("updating worker %s heartbeat", request.WorkerId)
 
 					_, err := s.repo.Worker().UpdateWorker(request.TenantId, request.WorkerId, &repository.UpdateWorkerOpts{
@@ -168,7 +168,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 						return
 					}
 
-					lastHeartbeat = time.Now()
+					lastHeartbeat = time.Now().UTC()
 				}
 			}
 		}

@@ -26,6 +26,8 @@ type ListStepRunsOpts struct {
 type UpdateStepRunOpts struct {
 	RequeueAfter *time.Time
 
+	ScheduleTimeoutAt *time.Time
+
 	Status *db.StepRunStatus
 
 	StartedAt *time.Time

@@ -335,7 +335,7 @@ func (w *Worker) cancelStepRun(ctx context.Context, assignedAction *client.Actio
 }
 
 func (w *Worker) getActionEvent(action *client.Action, eventType client.ActionEventType) *client.ActionEvent {
-	timestamp := time.Now()
+	timestamp := time.Now().UTC()
 
 	return &client.ActionEvent{
 		Action:         action,

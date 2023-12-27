@@ -131,6 +131,7 @@ CREATE TABLE "StepRun" (
     "input" JSONB,
     "output" JSONB,
     "requeueAfter" TIMESTAMP(3),
+    "scheduleTimeoutAt" TIMESTAMP(3),
     "error" TEXT,
     "startedAt" TIMESTAMP(3),
     "finishedAt" TIMESTAMP(3),
