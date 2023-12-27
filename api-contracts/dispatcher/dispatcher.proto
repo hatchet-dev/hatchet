@@ -23,6 +23,9 @@ message WorkerRegisterRequest {
 
     // a list of actions that this worker can run
     repeated string actions = 3;
+
+    // (optional) the services for this worker
+    repeated string services = 4;
 }
 
 message WorkerRegisterResponse {

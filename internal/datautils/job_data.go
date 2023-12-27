@@ -21,10 +21,12 @@ func NewJobRunLookupDataFromInputBytes(input []byte) (JobRunLookupData, error) {
 		return JobRunLookupData{}, fmt.Errorf("failed to convert input to map: %w", err)
 	}
 
-	return NewJobRunLookupData(inputMap), nil
+	return NewJobRunLookupData(inputMap, input), nil
 }
 
-func NewJobRunLookupData(input map[string]interface{}) JobRunLookupData {
+func NewJobRunLookupData(input map[string]interface{}, rawInput []byte) JobRunLookupData {
+	input["json"] = string(rawInput)
+
 	return JobRunLookupData{
 		Input: input,
 	}
@@ -61,6 +63,9 @@ func AddStepOutput(data *types.JSON, stepReadableId string, stepOutput []byte) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert step output to map: %w", err)
 	}
+
+	// add a "json" accessor to the output
+	outputMap["json"] = unquoted
 
 	currData := JobRunLookupData{}
 	err = FromJSONType(data, &currData)

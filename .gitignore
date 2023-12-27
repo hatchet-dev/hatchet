@@ -24,6 +24,7 @@ dump.rdb
 *.pfx
 *.cert
 generated
+.next
 
 node_modules
 

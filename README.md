@@ -163,8 +163,8 @@ func main() {
 	}
 
 	worker, err := worker.NewWorker(
-		worker.WithDispatcherClient(
-			client.Dispatcher(),
+		worker.WithClient(
+			client,
 		),
 	)
 

@@ -85,24 +85,18 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	s.l.Debug().Msgf("Received register request from ID %s with actions %v", request.WorkerName, request.Actions)
 
-	// // get a list of step ids based on a list of action ids for the tenant
-	// steps, err := s.repo.Step().ListStepsByActions(request.TenantId, request.Actions)
+	svcs := request.Services
 
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// stepIds := make([]string, len(steps))
-
-	// for i, step := range steps {
-	// 	stepIds[i] = step.ID
-	// }
+	if svcs == nil || len(svcs) == 0 {
+		svcs = []string{"default"}
+	}
 
 	// create a worker in the database
 	worker, err := s.repo.Worker().CreateNewWorker(request.TenantId, &repository.CreateWorkerOpts{
 		DispatcherId: s.dispatcherId,
 		Name:         request.WorkerName,
 		Actions:      request.Actions,
+		Services:     svcs,
 	})
 
 	if err != nil {

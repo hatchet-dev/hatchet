@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -29,14 +30,7 @@ func GetCreateWorkflowRunOptsFromEvent(event *db.EventModel, workflowVersion *db
 	eventId := event.ID
 	data := event.InnerEvent.Data
 
-	dataInputMap := make(map[string]interface{})
-	err := datautils.FromJSONType(data, &dataInputMap)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal event data: %w", err)
-	}
-
-	structuredJobRunData := datautils.NewJobRunLookupData(dataInputMap)
+	structuredJobRunData, err := datautils.NewJobRunLookupDataFromInputBytes([]byte(json.RawMessage(*data)))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create job run lookup data: %w", err)

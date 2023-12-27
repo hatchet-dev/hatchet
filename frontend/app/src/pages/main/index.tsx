@@ -70,7 +70,7 @@ function Main() {
     <div className="flex flex-row flex-1 w-full h-full">
       <MainNav user={user} />
       <Sidebar memberships={memberships} currTenant={currTenant} />
-      <div className="pt-12 flex-grow">
+      <div className="pt-12 flex-grow overflow-y-auto overflow-x-hidden">
         <Outlet context={childCtx} />
       </div>
     </div>

@@ -32,6 +32,7 @@ const (
 // TODO: add validator to client side
 type GetActionListenerRequest struct {
 	WorkerName string
+	Services   []string
 	Actions    []string
 }
 
@@ -157,6 +158,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		TenantId:   d.tenantId,
 		WorkerName: req.WorkerName,
 		Actions:    req.Actions,
+		Services:   req.Services,
 	})
 
 	if err != nil {

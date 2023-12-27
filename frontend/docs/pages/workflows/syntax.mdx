@@ -1,0 +1,53 @@
+# Syntax
+
+## Input types
+
+`with:` blocks can be used to specify input types. Data can be set statically or dynamically following Go templating syntax. The following example shows how to set a static value:
+
+```yaml
+with:
+  static: "value"
+```
+
+The following example shows how to set a dynamic value:
+
+```yaml
+with:
+  dynamic: "{{ .steps.stepOne.message }}"
+```
+
+If the `stepOne` step has an output value of `message`, the value of `dynamic` will be set to the value of `message` from `stepOne`.
+
+### Passing Events as Inputs
+
+It's common to pass the event payload as inputs to a step. This can be done by using the `event` field together with the reserved `object`. Let's say the event payload is the following JSON:
+
+```json
+{
+  "message": "hello world"
+}
+```
+
+You can then pass the entire object to `stepOne` using the following syntax:
+
+```yaml
+with:
+  object: "{{ .event.json }}"
+```
+
+### Passing Outputs as Inputs
+
+It's common to pass the output of one step as the input to another step. This can be done by using the `json` field together with the reserved `object`. Let's say the output of `stepOne` is the following JSON:
+
+```json
+{
+  "message": "hello world"
+}
+```
+
+You can then pass the entire object to `stepTwo` using the following syntax:
+
+```yaml
+with:
+  object: "{{ .steps.stepOne.json }}"
+```

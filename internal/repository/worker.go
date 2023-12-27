@@ -13,6 +13,9 @@ type CreateWorkerOpts struct {
 	// The name of the worker
 	Name string `validate:"required,hatchetName"`
 
+	// The name of the service
+	Services []string `validate:"dive,hatchetName"`
+
 	// A list of actions this worker can run
 	Actions []string `validate:"dive,actionId"`
 }
