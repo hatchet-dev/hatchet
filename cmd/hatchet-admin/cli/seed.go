@@ -23,7 +23,7 @@ var seedCmd = &cobra.Command{
 		err = runSeed(configLoader)
 
 		if err != nil {
-			fmt.Printf("Fatal: could not load server config: %v\n", err)
+			fmt.Printf("Fatal: could not run seed command: %v\n", err)
 			os.Exit(1)
 		}
 	},
@@ -137,6 +137,7 @@ func seedDev(repo repository.Repository, tenantId string) error {
 		if !errors.Is(err, db.ErrNotFound) {
 			return err
 		}
+
 		wf, err := repo.Workflow().CreateNewWorkflow(tenantId, &repository.CreateWorkflowVersionOpts{
 			Name:        "test-workflow",
 			Description: repository.StringPtr("This is a test workflow."),

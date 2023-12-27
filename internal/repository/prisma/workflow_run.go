@@ -168,7 +168,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(tenantId string, opts *repo
 	for _, jobOpts := range opts.JobRuns {
 		jobRunId := uuid.New().String()
 
-		requeueAfter := time.Now().Add(5 * time.Second)
+		requeueAfter := time.Now().UTC().Add(5 * time.Second)
 
 		if jobOpts.RequeueAfter != nil {
 			requeueAfter = *jobOpts.RequeueAfter

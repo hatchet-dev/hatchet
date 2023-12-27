@@ -261,7 +261,7 @@ func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 	return func() {
 		d.l.Debug().Msgf("dispatcher: updating heartbeat")
 
-		now := time.Now()
+		now := time.Now().UTC()
 
 		// update the heartbeat
 		_, err := d.repo.Dispatcher().UpdateDispatcher(d.dispatcherId, &repository.UpdateDispatcherOpts{
