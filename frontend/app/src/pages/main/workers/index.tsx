@@ -2,15 +2,14 @@ import { Separator } from '@/components/ui/separator';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
-import { useAtom } from 'jotai';
-import { currTenantAtom } from '@/lib/atoms';
 import { relativeDate } from '@/lib/utils';
-import { Link } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Loading } from '@/components/ui/loading.tsx';
+import { TenantContextType } from '@/lib/outlet';
 
 export default function Workers() {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const listWorkersQuery = useQuery({

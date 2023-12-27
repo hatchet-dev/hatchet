@@ -20,7 +20,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.Dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}} \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
@@ -44,7 +44,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.Dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}} \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
@@ -68,7 +68,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.Dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}} \
             --build-arg SERVER_TARGET=engine \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
@@ -92,7 +92,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/migrate.Dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/migrate.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}} \
             .
       - name: Push to GHCR
@@ -114,7 +114,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.Dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}} \
             .
       - name: Push to GHCR
