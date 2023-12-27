@@ -1,7 +1,5 @@
 name: test
-on:
-  pull_request:
-  push:
+on: pull_request
 jobs:
   unit:
     runs-on: ubuntu-latest
@@ -16,13 +14,13 @@ jobs:
         with:
           version: '23.x'
 
+      - name: Install Task
+        uses: arduino/setup-task@v1
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-
-      - name: Install Task
-        uses: arduino/setup-task@v1
 
       - name: Cache
         uses: actions/cache@v3
@@ -41,22 +39,8 @@ jobs:
 
       - name: Generate
         run: |
-          cat > .env <<EOF
-          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-          SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
-          SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
-          SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-
-          SERVER_PORT=8080
-          SERVER_URL=https://app.dev.hatchet-tools.com
-
-          SERVER_AUTH_COOKIE_SECRETS="asdf"
-          SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
-          SERVER_AUTH_COOKIE_INSECURE=false
-          SERVER_AUTH_SET_EMAIL_VERIFIED=true
-          EOF
-
-          go run github.com/steebchen/prisma-client-go migrate dev
+          touch .env 
+          go run github.com/steebchen/prisma-client-go db push
           task generate
 
       - name: Test
@@ -78,13 +62,13 @@ jobs:
         with:
           version: '23.x'
 
+      - name: Install Task
+        uses: arduino/setup-task@v1
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-
-      - name: Install Task
-        uses: arduino/setup-task@v1
 
       - uses: actions/cache@v3
         name: Cache
