@@ -1,3 +1,5 @@
+//go:build integration
+
 package cookie_test
 
 import (

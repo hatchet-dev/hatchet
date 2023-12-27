@@ -7,7 +7,7 @@ import (
 )
 
 type nameResource struct {
-	DisplayName string `form:"hatchet-name"`
+	DisplayName string `validate:"hatchetName"`
 }
 
 func TestValidatorInvalidName(t *testing.T) {
@@ -17,7 +17,7 @@ func TestValidatorInvalidName(t *testing.T) {
 		DisplayName: "&&!!",
 	})
 
-	assert.ErrorContains(t, err, "validation for 'DisplayName' failed on the 'hatchet-name' tag", "should throw error on invalid name")
+	assert.ErrorContains(t, err, "validation for 'DisplayName' failed on the 'hatchetName' tag", "should throw error on invalid name")
 }
 
 func TestValidatorValidName(t *testing.T) {
@@ -31,7 +31,7 @@ func TestValidatorValidName(t *testing.T) {
 }
 
 type cronResource struct {
-	Cron string `form:"cron"`
+	Cron string `validate:"cron"`
 }
 
 func TestValidatorValidCron(t *testing.T) {
