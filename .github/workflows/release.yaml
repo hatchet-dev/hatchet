@@ -20,7 +20,7 @@ jobs:
       - name: Pull and push hatchet-api
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}
-          docker tag ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}} ghcr.io/hatchet-dev/hatchet/hatchet-server:latest
+          docker tag ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}} ghcr.io/hatchet-dev/hatchet/hatchet-api:latest
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:latest
       - name: Pull and push hatchet-engine
         run: |
