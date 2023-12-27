@@ -1,4 +1,4 @@
-//go:build e2e
+//go:build integration
 
 package cookie_test
 

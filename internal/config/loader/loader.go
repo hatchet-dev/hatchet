@@ -14,10 +14,6 @@ import (
 	"strings"
 
 	"github.com/creasty/defaults"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
-	"github.com/spf13/viper"
-
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/config/client"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
@@ -28,6 +24,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+	"github.com/spf13/viper"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -186,7 +185,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		cf.PostgresSSLMode,
 	)
 
-	// os.Setenv("DATABASE_URL", databaseUrl)
+	os.Setenv("DATABASE_URL", databaseUrl)
 
 	client := db.NewClient(
 	// db.WithDatasourceURL(databaseUrl),
