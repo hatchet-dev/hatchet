@@ -24,7 +24,7 @@ func NewTickerRepository(client *db.PrismaClient, v validator.Validator) reposit
 func (t *tickerRepository) CreateNewTicker(opts *repository.CreateTickerOpts) (*db.TickerModel, error) {
 	return t.client.Ticker.CreateOne(
 		db.Ticker.ID.Set(opts.ID),
-		db.Ticker.LastHeartbeatAt.Set(time.Now()),
+		db.Ticker.LastHeartbeatAt.Set(time.Now().UTC()),
 	).Exec(context.Background())
 }
 

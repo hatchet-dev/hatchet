@@ -97,7 +97,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 	}
 
 	if crons := triggers.Crons(); len(crons) > 0 {
-		within := time.Now().Add(-6 * time.Second)
+		within := time.Now().UTC().Add(-6 * time.Second)
 
 		tickers, err := a.repo.Ticker().ListTickers(&repository.ListTickerOpts{
 			LatestHeartbeatAt: &within,

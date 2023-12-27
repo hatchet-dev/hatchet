@@ -3,9 +3,14 @@ UPDATE
     "StepRun"
 SET
     "requeueAfter" = COALESCE(sqlc.narg('requeueAfter')::timestamp, "requeueAfter"),
+    "scheduleTimeoutAt" = COALESCE(sqlc.narg('scheduleTimeoutAt')::timestamp, "scheduleTimeoutAt"),
     "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
     "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt"),
-    "status" = COALESCE(sqlc.narg('status'), "status"),
+    "status" = CASE 
+        -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        ELSE COALESCE(sqlc.narg('status'), "status")
+    END,
     "input" = COALESCE(sqlc.narg('input')::jsonb, "input"),
     "output" = COALESCE(sqlc.narg('output')::jsonb, "output"),
     "error" = COALESCE(sqlc.narg('error')::text, "error"),

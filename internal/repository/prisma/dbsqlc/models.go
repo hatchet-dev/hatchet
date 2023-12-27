@@ -65,7 +65,7 @@ const (
 	StepRunStatusRUNNING           StepRunStatus = "RUNNING"
 	StepRunStatusSUCCEEDED         StepRunStatus = "SUCCEEDED"
 	StepRunStatusFAILED            StepRunStatus = "FAILED"
-	StepRunStatusCancelled         StepRunStatus = "CANCELLED"
+	StepRunStatusCANCELLED         StepRunStatus = "CANCELLED"
 )
 
 func (e *StepRunStatus) Scan(src interface{}) error {
@@ -318,28 +318,29 @@ type Step struct {
 }
 
 type StepRun struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	TenantId        pgtype.UUID      `json:"tenantId"`
-	JobRunId        pgtype.UUID      `json:"jobRunId"`
-	StepId          pgtype.UUID      `json:"stepId"`
-	NextId          pgtype.UUID      `json:"nextId"`
-	Order           int16            `json:"order"`
-	WorkerId        pgtype.UUID      `json:"workerId"`
-	TickerId        pgtype.UUID      `json:"tickerId"`
-	Status          StepRunStatus    `json:"status"`
-	Input           []byte           `json:"input"`
-	Output          []byte           `json:"output"`
-	RequeueAfter    pgtype.Timestamp `json:"requeueAfter"`
-	Error           pgtype.Text      `json:"error"`
-	StartedAt       pgtype.Timestamp `json:"startedAt"`
-	FinishedAt      pgtype.Timestamp `json:"finishedAt"`
-	TimeoutAt       pgtype.Timestamp `json:"timeoutAt"`
-	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
-	CancelledReason pgtype.Text      `json:"cancelledReason"`
-	CancelledError  pgtype.Text      `json:"cancelledError"`
+	ID                pgtype.UUID      `json:"id"`
+	CreatedAt         pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt         pgtype.Timestamp `json:"deletedAt"`
+	TenantId          pgtype.UUID      `json:"tenantId"`
+	JobRunId          pgtype.UUID      `json:"jobRunId"`
+	StepId            pgtype.UUID      `json:"stepId"`
+	NextId            pgtype.UUID      `json:"nextId"`
+	Order             int16            `json:"order"`
+	WorkerId          pgtype.UUID      `json:"workerId"`
+	TickerId          pgtype.UUID      `json:"tickerId"`
+	Status            StepRunStatus    `json:"status"`
+	Input             []byte           `json:"input"`
+	Output            []byte           `json:"output"`
+	RequeueAfter      pgtype.Timestamp `json:"requeueAfter"`
+	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
+	Error             pgtype.Text      `json:"error"`
+	StartedAt         pgtype.Timestamp `json:"startedAt"`
+	FinishedAt        pgtype.Timestamp `json:"finishedAt"`
+	TimeoutAt         pgtype.Timestamp `json:"timeoutAt"`
+	CancelledAt       pgtype.Timestamp `json:"cancelledAt"`
+	CancelledReason   pgtype.Text      `json:"cancelledReason"`
+	CancelledError    pgtype.Text      `json:"cancelledError"`
 }
 
 type Tenant struct {

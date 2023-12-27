@@ -32,9 +32,7 @@ RUN go run github.com/steebchen/prisma-client-go generate --generator go
 FROM node:16-alpine as build-openapi
 WORKDIR /openapi
 
-RUN npm install -g npm@8.1
-
-RUN npm install -g @apidevtools/swagger-cli prisma
+RUN npm install -g npm@8.1 @apidevtools/swagger-cli prisma
 
 COPY /api-contracts/openapi ./openapi
 
