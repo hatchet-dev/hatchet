@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/cmd/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/joho/godotenv"
 )
@@ -55,7 +55,7 @@ func main() {
 		panic(err)
 	}
 
-	interruptCtx, cancel := cmdutils.InterruptContext(cmdutils.InterruptChan())
+	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
 	defer cancel()
 
 	go func() {
