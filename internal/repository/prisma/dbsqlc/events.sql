@@ -30,9 +30,9 @@ WHERE
         events."key" = ANY(sqlc.narg('keys')::text[])
     ) AND
     (
-        sqlc.narg('search') IS NULL OR
-        events."data" = sqlc.narg('search') -- TODO!!
-      )
+        sqlc.narg('search')::text IS NULL OR
+        events."data"::text like concat('%', sqlc.narg('search')::text, '%')
+    )
 GROUP BY
     events."id"
 ORDER BY

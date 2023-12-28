@@ -95,8 +95,8 @@ WHERE
         events."key" = ANY($2::text[])
     ) AND
     (
-        $3 IS NULL OR
-        events."search" = data->>'title' like '%Board%'
+        $3::text IS NULL OR
+        events."data"::text like concat('%', $3::text, '%')
     )
 GROUP BY
     events."id"
@@ -112,7 +112,7 @@ LIMIT
 type ListEventsParams struct {
 	TenantId pgtype.UUID `json:"tenantId"`
 	Keys     []string    `json:"keys"`
-	Search   interface{} `json:"search"`
+	Search   pgtype.Text `json:"search"`
 	Orderby  interface{} `json:"orderby"`
 	Offset   interface{} `json:"offset"`
 	Limit    interface{} `json:"limit"`
