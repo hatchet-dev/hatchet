@@ -110,6 +110,8 @@ func BindAllEnv(v *viper.Viper) {
 	// runtime options
 	v.BindEnv("runtime.port", "SERVER_PORT")
 	v.BindEnv("runtime.url", "SERVER_URL")
+	v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
+	v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
 	v.BindEnv("services", "SERVER_SERVICES")
 
 	// auth options
