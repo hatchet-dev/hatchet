@@ -1,0 +1,92 @@
+name: test
+on: pull_request
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: '23.x'
+
+      - name: Install Task
+        uses: arduino/setup-task@v1
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Compose
+        run: docker compose up -d
+
+      - name: Generate
+        run: |
+          go run github.com/steebchen/prisma-client-go db push
+          task generate
+
+      - name: Teardown
+        run: docker compose down
+
+  unit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: '23.x'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Generate
+        run: go run github.com/steebchen/prisma-client-go generate
+
+      - name: Test
+        run: go test ./... -v -failfast
+
+  integration:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: '23.x'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Compose
+        run: docker compose up -d
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Generate
+        run: go run github.com/steebchen/prisma-client-go db push
+
+      - name: Test
+        run: go test -tags integration ./... -v -failfast
+
+      - name: Teardown
+        run: docker compose down
