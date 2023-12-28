@@ -31,7 +31,7 @@ WHERE
     ) AND
     (
         sqlc.narg('search')::text IS NULL OR
-        events."data"::text like concat('%', sqlc.narg('search')::text, '%')
+        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
     )
 GROUP BY
     events."id"

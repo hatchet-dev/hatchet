@@ -96,7 +96,7 @@ WHERE
     ) AND
     (
         $3::text IS NULL OR
-        events."data"::text like concat('%', $3::text, '%')
+        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $3::text, '")') as jsonpath))
     )
 GROUP BY
     events."id"
@@ -126,6 +126,7 @@ type ListEventsRow struct {
 	Failedruns    int64 `json:"failedruns"`
 }
 
+// jsonb_path_exists(events."data", '$.** ? (@.type() == "string" && @ like_regex "asdf")')
 func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams) ([]*ListEventsRow, error) {
 	rows, err := db.Query(ctx, listEvents,
 		arg.TenantId,
