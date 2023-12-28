@@ -203,8 +203,8 @@ func setupCerts(generated *generatedConfigFiles) error {
 	}
 
 	generated.sc.TLS.TLSRootCAFile = filepath.Join(fullPathCertDir, "ca.cert")
-	generated.sc.TLS.TLSCertFile = filepath.Join(fullPathCertDir, "client-internal-admin.pem")
-	generated.sc.TLS.TLSKeyFile = filepath.Join(fullPathCertDir, "client-internal-admin.key")
+	generated.sc.TLS.TLSCertFile = filepath.Join(fullPathCertDir, "cluster.pem")
+	generated.sc.TLS.TLSKeyFile = filepath.Join(fullPathCertDir, "cluster.key")
 
 	return nil
 }
