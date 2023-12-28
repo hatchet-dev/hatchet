@@ -659,15 +659,10 @@ model Worker {
   dispatcher   Dispatcher @relation(fields: [dispatcherId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   dispatcherId String     @db.Uuid
 
-  <<<<<<< HEAD
   services Service[]
 
   // the actions this worker can run
   actions Action[]
-  =======
-  // the actions this worker can run
-  actions Action[]
-  >>>>>>> main
 
   // the jobs the worker has run
   stepRuns StepRun[]
