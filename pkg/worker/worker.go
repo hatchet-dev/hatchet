@@ -298,9 +298,11 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	default:
 	}
 
-	result = runResults[0]
+	if len(runResults) == 2 {
+		result = runResults[0]
+	}
 
-	if runResults[1] != nil {
+	if runResults[len(runResults)-1] != nil {
 		err = runResults[1].(error)
 	}
 
@@ -320,13 +322,6 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 
 		return nil, err
 	}
-
-	// TODO: check last argument for error
-
-	// if err != nil {
-	// 	// TODO: send a message that the step run failed
-	// 	return nil, fmt.Errorf("could not run job: %w", err)
-	// }
 
 	// send a message that the step run completed
 	finishedEvent, err := w.getActionFinishedEvent(assignedAction, result)
