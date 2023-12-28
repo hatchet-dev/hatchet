@@ -17,7 +17,7 @@ type CreateWorkflowVersionOpts struct {
 	Version string `validate:"required"`
 
 	// (optional) event triggers for the workflow
-	EventTriggers []string `validate:"dive,actionId"`
+	EventTriggers []string
 
 	// (optional) cron triggers for the workflow
 	CronTriggers []string `validate:"dive,cron"`
