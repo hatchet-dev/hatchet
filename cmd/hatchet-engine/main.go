@@ -121,6 +121,8 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			grpc.WithAdmin(adminSvc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithTLSConfig(sc.TLSConfig),
+			grpc.WithPort(sc.Runtime.GRPCPort),
+			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),
 		)
 
 		if err != nil {

@@ -136,11 +136,6 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil, fmt.Errorf("could not load TLS config: %w", err)
 	}
 
-	runtime := server.ServerRuntimeConfig{
-		ServerURL: cf.Runtime.ServerURL,
-		Port:      cf.Runtime.Port,
-	}
-
 	ss, err := cookie.NewUserSessionStore(
 		cookie.WithSessionRepository(dc.Repository.UserSession()),
 		cookie.WithCookieAllowInsecure(cf.Auth.Cookie.Insecure),
@@ -165,7 +160,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	}
 
 	return &server.ServerConfig{
-		Runtime:      runtime,
+		Runtime:      cf.Runtime,
 		Auth:         cf.Auth,
 		Config:       dc,
 		TaskQueue:    rabbitmq.New(context.Background(), rabbitmq.WithURL(cf.TaskQueue.RabbitMQ.URL)),
