@@ -35,6 +35,10 @@ func ParseActionID(actionID string) (Action, error) {
 	parts := strings.Split(actionID, ":")
 	numParts := len(parts)
 
+	if numParts < 2 || numParts > 3 {
+		return Action{}, fmt.Errorf("invalid action id %s, must have at least 2 strings separated : (colon)", actionID)
+	}
+
 	integrationId := firstToLower(parts[0])
 	verb := strings.ToLower(parts[1])
 

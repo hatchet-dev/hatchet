@@ -9,8 +9,8 @@ type CreateEventOpts struct {
 	// (required) the tenant id
 	TenantId string `validate:"required,uuid"`
 
-	// (required) the event key - must be in actionId form
-	Key string `validate:"required,actionId"`
+	// (required) the event key
+	Key string `validate:"required"`
 
 	// (optional) the event data
 	Data *db.JSON
