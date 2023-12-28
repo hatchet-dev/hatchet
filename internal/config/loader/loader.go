@@ -103,7 +103,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		cf.PostgresSSLMode,
 	)
 
-	os.Setenv("DATABASE_URL", databaseUrl)
+	// os.Setenv("DATABASE_URL", databaseUrl)
 
 	client := db.NewClient(
 	// db.WithDatasourceURL(databaseUrl),
