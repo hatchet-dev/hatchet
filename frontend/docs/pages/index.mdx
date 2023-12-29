@@ -1,10 +1,6 @@
-[![Discord](https://img.shields.io/discord/1088927970518909068?style=social&logo=discord)](https://discord.gg/ZMeUafwH89) [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](https://opensource.org/licenses/MIT) [![Go Reference](https://pkg.go.dev/badge/github.com/hatchet-dev/hatchet.svg)](https://pkg.go.dev/github.com/hatchet-dev/hatchet)
+# Introduction
 
-## Introduction
-
-_**Note:** Hatchet is in early development. Changes are not guaranteed to be backwards-compatible. If you'd like to run Hatchet in production, feel free to reach out on Discord for tips._
-
-Hatchet is a self-hostable workflow engine built for application developers.
+Welcome to the Hatchet documentation! Hatchet is a self-hostable workflow engine built for application developers. 
 
 **What is a workflow?**
 
@@ -26,14 +22,37 @@ Hatchet has the following high-level goals:
 2. **Simple to setup:** we've seen too many overengineered stacks built on a fragile task queue with overly complex infrastructure. Hatchet is designed to be simple to setup, run locally, and deploy to your own infrastructure.
 3. **Flexibility when you need it:** as your application grows, you can use Hatchet to support complex, multi-step distributed workflows. Hatchet's backend is modular, allowing for customizing the implementation of the event storage API, queueing system, authentication, and more.
 
-## Getting Started
+## Features
 
-To get started, see the Hatchet documentation [here](https://docs.hatchet.run).
+We currently support the following features, with many more on the roadmap:
 
-## Github Issues
+- **Declarative workflows:** define workflows which run when events occur, with support for timeouts and parallel or sequential execution:
 
-Please submit any bugs that you encounter via Github issues. However, please reach out on [Discord](https://discord.gg/ZMeUafwH89) before submitting a feature request - as the project is very early, we'd like to build a solid foundation before adding more complex features.
+    ```go filename="worker.go" {3} copy
+    w.On(
+        worker.Event("event:test"), 
+        &worker.WorkflowJob{
+            Name:        "example-workflow",
+            Description: "Example workflow.",
+            Timeout:     "60s",
+            Steps: []worker.WorkflowStep{
+                {
+                    Function: func(ctx context.Context, event *events.TestEvent) error {
+                        fmt.Println("got event: ", event.Name)
+                        return nil
+                    },
+                },
+            },
+        },
+    )
+    ```
 
-## I'd Like to Contribute
+- **Event storage API:** store events in a durable event log, with support for querying and filtering events:
 
-See the contributing docs [here](./CONTRIBUTING.md), and please let us know what you're interesting in working on in the #contributing channel on [Discord](https://discord.gg/ZMeUafwH89). This will help us shape the direction of the project and will make collaboration much easier!
+    ![Workflow engine](/features-2.png)
+
+- **Web platform for visibility and monitoring**: view the status of your workflows, and drill down into individual events:
+
+    ![Workflow engine](/features-1.png)
+
+Check out the [Quickstart](/quickstart) guide to work through a simple example of using Hatchet.
