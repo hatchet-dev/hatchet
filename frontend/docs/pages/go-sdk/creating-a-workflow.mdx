@@ -1,0 +1,109 @@
+# Creating a Workflow
+
+The simplest way to define a workflow is by using the `worker.On` method. This method accepts two arguments: a workflow trigger and the workflow definition. For example, to trigger a workflow on the `user:created` event, you can do the following:
+
+```go
+w.On(worker.Event("user:created"), &worker.WorkflowJob{
+  Name:        "post-user-sign-up",
+  Description: "Workflow that executes after a user signs up.",
+  Timeout:     "60s",
+  Steps: []worker.WorkflowStep{
+    {
+      Function: func(ctx context.Context) error {
+        return nil
+      },
+    },
+  },
+})
+```
+
+## Passing Arguments to Step Functions
+
+Step functions must always accept a `context.Context` as the first argument, and must return an `error` as the last return value. They can optionally accept a second argument or return a value -- both of these must be a pointer to a struct. The following are valid step functions:
+
+```go
+func (ctx context.Context) error 
+func (ctx context.Context, in *myInput) error
+func (ctx context.Context, in *myInput) (*myOutput, error)
+func (ctx context.Context) (*myOutput, error)
+```
+
+> Why pointers to structs? We use JSON marshalling/unmarshalling under the hood, and pointers to structs are the most predictable way to marshal and unmarshal values. You can use `json` tags and `MarshalJSON` + `UnmarshalJSON` methods to customize the marshalling/unmarshalling behavior.
+
+Additionally, if the second argument of the first step function is a pointer to a struct, the event payload will be unmarshalled into that struct. For example, given the following event:
+
+```go
+type MyEvent struct {
+    Name string `json:"name"`
+}
+```
+
+You can declare the following step function:
+
+```go
+func FirstStep(ctx context.Context, event *MyEvent) error {
+    fmt.Println("got event: ", event.Name)
+    return nil
+}
+```
+
+If the second argument of a step function matches the type of the first return value of the previous step function, the return value of the previous step function will be passed to the next step function. For example, the `firstStepOutput` struct will be passed between step functions:
+
+```go
+type firstStepOutput struct {
+    Output string `json:"output"`
+}
+
+func FirstStep(ctx context.Context) (*firstStepOutput, error) {
+    return &firstStepOutput{Output: "foo"}, nil
+}
+
+func SecondStep(ctx context.Context, in *firstStepOutput) error {
+    fmt.Println("got first step output: ", in.Output)
+    return nil
+}
+```
+
+## Services
+
+Services are a way to logically group workflows into different categories. For example, you may have a `user` service that contains all workflows related to users. You can define a service by using the `worker.NewService` method. For example, to define a `user` service, you can do the following:
+
+```go
+userService := w.NewService("user")
+
+userService.On(worker.Event("user:created"), &worker.WorkflowJob{
+  Name:        "post-user-sign-up",
+  Description: "Workflow that executes after a user signs up.",
+  Timeout:     "60s",
+  Steps: []worker.WorkflowStep{
+    {
+      Function: func(ctx context.Context) error {
+        fmt.Println("running post-user sign up")
+        return nil
+      },
+    },
+  },
+})
+```
+
+While this is mostly a convenience method at the moment, we plan to add more features to services in the future, like service-level metrics and service-level retries.
+
+## Cron Schedules
+
+You can declare a cron schedule by passing `worker.Cron` to the `worker.On` method. For example, to trigger a workflow every 5 minutes, you can do the following:
+
+```go
+w.On(worker.Cron("*/5 * * * *"), &worker.WorkflowJob{
+  Name:        "my-cron-job",
+  Description: "Cron workflow example.",
+  Timeout:     "60s",
+  Steps: []worker.WorkflowStep{
+    {
+      Function: func(ctx context.Context) error {
+        fmt.Println("triggered at:", time.Now())
+        return nil
+      },
+    },
+  },
+})
+```
