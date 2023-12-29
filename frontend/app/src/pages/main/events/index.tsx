@@ -1,43 +1,42 @@
-import { DataTable } from "../../../components/molecules/data-table/data-table";
-import { columns } from "./components/event-columns";
-import { columns as workflowRunsColumns } from "../workflow-runs/components/workflow-runs-columns";
-import { Separator } from "@/components/ui/separator";
-import { useEffect, useMemo, useState } from "react";
+import { DataTable } from '../../../components/molecules/data-table/data-table';
+import { columns } from './components/event-columns';
+import { columns as workflowRunsColumns } from '../workflow-runs/components/workflow-runs-columns';
+import { Separator } from '@/components/ui/separator';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   PaginationState,
   RowSelectionState,
   SortingState,
-} from "@tanstack/react-table";
-import { useMutation, useQuery } from "@tanstack/react-query";
+} from '@tanstack/react-table';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import api, {
   Event,
   EventOrderByDirection,
   EventOrderByField,
   ReplayEventRequest,
   queries,
-} from "@/lib/api";
-import invariant from "tiny-invariant";
-import { useAtom } from "jotai";
-import { currTenantAtom } from "@/lib/atoms";
-import { Icons } from "@/components/ui/icons";
-import { FilterOption } from "@/components/molecules/data-table/data-table-toolbar";
+} from '@/lib/api';
+import invariant from 'tiny-invariant';
+import { FilterOption } from '@/components/molecules/data-table/data-table-toolbar';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { relativeDate } from "@/lib/utils";
-import { Code } from "@/components/ui/code";
-import { useSearchParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+} from '@/components/ui/dialog';
+import { relativeDate } from '@/lib/utils';
+import { Code } from '@/components/ui/code';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
-} from "@heroicons/react/24/outline";
-import { useApiError } from "@/lib/hooks";
+} from '@heroicons/react/24/outline';
+import { useApiError } from '@/lib/hooks';
+import { Loading } from '@/components/ui/loading.tsx';
+import { TenantContextType } from '@/lib/outlet';
 
 export default function Events() {
   return (
@@ -55,7 +54,7 @@ export default function Events() {
 
 function EventsTable() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
   const { handleApiError } = useApiError({});
@@ -65,19 +64,24 @@ function EventsTable() {
   useEffect(() => {
     if (
       selectedEvent &&
-      (!searchParams.get("eventId") ||
-        searchParams.get("eventId") !== selectedEvent.metadata.id)
+      (!searchParams.get('event') ||
+        searchParams.get('event') !== selectedEvent.metadata.id)
     ) {
-      setSearchParams({ eventId: selectedEvent.metadata.id });
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set('event', selectedEvent.metadata.id);
+      setSearchParams(newSearchParams);
     } else if (
       !selectedEvent &&
-      searchParams.get("eventId") &&
-      searchParams.get("eventId") !== ""
+      searchParams.get('event') &&
+      searchParams.get('event') !== ''
     ) {
-      setSearchParams({});
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('event');
+      setSearchParams(newSearchParams);
     }
   }, [selectedEvent, searchParams, setSearchParams]);
 
+  const [search, setSearch] = useState<string | undefined>(undefined);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -103,14 +107,14 @@ function EventsTable() {
     }
 
     switch (sorting[0]?.id) {
-      case "Seen at":
+      case 'Seen at':
       default:
         return EventOrderByField.CreatedAt;
     }
   }, [sorting]);
 
   const keys = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === "key");
+    const filter = columnFilters.find((filter) => filter.id === 'key');
 
     if (!filter) {
       return;
@@ -134,11 +138,12 @@ function EventsTable() {
       orderByDirection,
       offset,
       limit: pageSize,
+      search,
     }),
   });
 
   const replayEventsMutation = useMutation({
-    mutationKey: ["event:update:replay", tenant.metadata.id],
+    mutationKey: ['event:update:replay', tenant.metadata.id],
     mutationFn: async (data: ReplayEventRequest) => {
       await api.eventUpdateReplay(tenant.metadata.id, data);
     },
@@ -170,14 +175,6 @@ function EventsTable() {
   //   }
   // }, [listEventsQuery.data?.pagination]);
 
-  if (listEventsQuery.isLoading) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
-  }
-
   const tableColumns = columns({
     onRowClick: (row: Event) => {
       setSelectedEvent(row);
@@ -186,8 +183,9 @@ function EventsTable() {
 
   const actions = [
     <Button
+      key="replay"
       disabled={Object.keys(rowSelection).length === 0}
-      variant={Object.keys(rowSelection).length === 0 ? "outline" : "default"}
+      variant={Object.keys(rowSelection).length === 0 ? 'outline' : 'default'}
       size="sm"
       className="h-8 px-2 lg:px-3 gap-2"
       onClick={() => {
@@ -200,16 +198,17 @@ function EventsTable() {
       Replay
     </Button>,
     <Button
+      key="refresh"
       className="h-8 px-2 lg:px-3"
       size="sm"
       onClick={() => {
         listEventsQuery.refetch();
         setRotate(!rotate);
       }}
-      variant={"outline"}
+      variant={'outline'}
     >
       <ArrowPathIcon
-        className={`h-4 w-4 transition-transform ${rotate ? "rotate-180" : ""}`}
+        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
       />
     </Button>,
   ];
@@ -227,18 +226,21 @@ function EventsTable() {
         {selectedEvent && <ExpandedEventContent event={selectedEvent} />}
       </Dialog>
       <DataTable
+        isLoading={listEventsQuery.isLoading}
         columns={tableColumns}
         data={listEventsQuery.data?.rows || []}
         filters={[
           {
-            columnId: "key",
-            title: "Key",
+            columnId: 'key',
+            title: 'Key',
             options: eventKeyFilters,
           },
         ]}
         actions={actions}
         sorting={sorting}
         setSorting={setSorting}
+        search={search}
+        setSearch={setSearch}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}
@@ -283,11 +285,7 @@ function EventDataSection({ event }: { event: Event }) {
   });
 
   if (getEventDataQuery.isLoading || !getEventDataQuery.data) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   const eventData = getEventDataQuery.data;
@@ -302,7 +300,7 @@ function EventDataSection({ event }: { event: Event }) {
 }
 
 function EventWorkflowRunsList({ event }: { event: Event }) {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const listWorkflowRunsQuery = useQuery({
@@ -320,7 +318,7 @@ function EventWorkflowRunsList({ event }: { event: Event }) {
       filters={[]}
       pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
       columnVisibility={{
-        "Triggered by": false,
+        'Triggered by': false,
       }}
       isLoading={listWorkflowRunsQuery.isLoading}
     />

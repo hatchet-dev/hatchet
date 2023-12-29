@@ -77,9 +77,9 @@ func (j *stepRunRepository) ListStepRuns(tenantId string, opts *repository.ListS
 		// and their previous step is completed
 		params = append(
 			params,
-			db.StepRun.RequeueAfter.Before(time.Now()),
+			db.StepRun.RequeueAfter.Before(time.Now().UTC()),
 			db.StepRun.WorkerID.IsNull(),
-			db.StepRun.Status.Equals(db.StepRunStatusPENDINGASSIGNMENT),
+			db.StepRun.Status.Equals(db.StepRunStatusPendingAssignment),
 			// db.StepRun.Or(
 			// 	db.StepRun.Prev
 			// 	db.StepRun.Step.Where(
@@ -139,6 +139,10 @@ func (j *stepRunRepository) UpdateStepRun(tenantId, stepRunId string, opts *repo
 
 	if opts.RequeueAfter != nil {
 		updateParams.RequeueAfter = sqlchelpers.TimestampFromTime(opts.RequeueAfter)
+	}
+
+	if opts.ScheduleTimeoutAt != nil {
+		updateParams.ScheduleTimeoutAt = sqlchelpers.TimestampFromTime(opts.ScheduleTimeoutAt)
 	}
 
 	if opts.StartedAt != nil {
@@ -298,10 +302,10 @@ func (j *stepRunRepository) GetStepRunById(tenantId, stepRunId string) (*db.Step
 func (j *stepRunRepository) CancelPendingStepRuns(tenantId, jobRunId, reason string) error {
 	_, err := j.client.StepRun.FindMany(
 		db.StepRun.JobRunID.Equals(jobRunId),
-		db.StepRun.Status.Equals(db.StepRunStatusPENDING),
+		db.StepRun.Status.Equals(db.StepRunStatusPending),
 	).Update(
-		db.StepRun.Status.Set(db.StepRunStatusCANCELLED),
-		db.StepRun.CancelledAt.Set(time.Now()),
+		db.StepRun.Status.Set(db.StepRunStatusCancelled),
+		db.StepRun.CancelledAt.Set(time.Now().UTC()),
 		db.StepRun.CancelledReason.Set(reason),
 	).Exec(context.Background())
 

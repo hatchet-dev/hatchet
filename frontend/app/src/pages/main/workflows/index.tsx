@@ -1,14 +1,14 @@
-import { Separator } from "@/components/ui/separator";
-import WorkflowList from "./components/workflow-list";
-import { useQuery } from "@tanstack/react-query";
-import { queries } from "@/lib/api";
-import invariant from "tiny-invariant";
-import { useAtom } from "jotai";
-import { currTenantAtom } from "@/lib/atoms";
-import { Icons } from "@/components/ui/icons";
+import { Separator } from '@/components/ui/separator';
+import WorkflowList from './components/workflow-list';
+import { useQuery } from '@tanstack/react-query';
+import { queries } from '@/lib/api';
+import invariant from 'tiny-invariant';
+import { Loading } from '@/components/ui/loading.tsx';
+import { useOutletContext } from 'react-router-dom';
+import { TenantContextType } from '@/lib/outlet';
 
 export default function Workflows() {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const listWorkflowsQuery = useQuery({
@@ -16,11 +16,7 @@ export default function Workflows() {
   });
 
   if (listWorkflowsQuery.isLoading) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (

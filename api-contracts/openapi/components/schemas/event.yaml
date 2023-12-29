@@ -91,3 +91,6 @@ EventOrderByDirection:
   enum:
     - asc
     - desc
+
+EventSearch:
+  type: string

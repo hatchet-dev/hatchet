@@ -22,8 +22,6 @@ type ServerConfigFile struct {
 
 	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"ticker\", \"grpc\", \"eventscontroller\", \"jobscontroller\"]"`
 
-	Namespaces []string `mapstructure:"namespaces" json:"namespaces,omitempty" default:"[\"default\"]"`
-
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 }
 
@@ -43,6 +41,9 @@ type ConfigFileAuth struct {
 	// BasedAuthEnabled controls whether email and password-based login is enabled for this
 	// Hatchet instance
 	BasicAuthEnabled bool `mapstructure:"basicAuthEnabled" json:"basicAuthEnabled,omitempty" default:"true"`
+
+	// SetEmailVerified controls whether the user's email is automatically set to verified
+	SetEmailVerified bool `mapstructure:"setEmailVerified" json:"setEmailVerified,omitempty" default:"false"`
 
 	// Configuration options for the cookie
 	Cookie ConfigFileAuthCookie `mapstructure:"cookie" json:"cookie,omitempty"`
@@ -113,6 +114,7 @@ func BindAllEnv(v *viper.Viper) {
 	// auth options
 	v.BindEnv("auth.restrictedEmailDomains", "SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS")
 	v.BindEnv("auth.basicAuthEnabled", "SERVER_AUTH_BASIC_AUTH_ENABLED")
+	v.BindEnv("auth.setEmailVerified", "SERVER_AUTH_SET_EMAIL_VERIFIED")
 	v.BindEnv("auth.cookie.name", "SERVER_AUTH_COOKIE_NAME")
 	v.BindEnv("auth.cookie.domain", "SERVER_AUTH_COOKIE_DOMAIN")
 	v.BindEnv("auth.cookie.secrets", "SERVER_AUTH_COOKIE_SECRETS")

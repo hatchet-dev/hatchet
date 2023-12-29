@@ -1,13 +1,13 @@
-import { Workflow } from "@/lib/api";
-import { cn, relativeDate } from "@/lib/utils";
-import { ChevronRightIcon } from "@heroicons/react/24/outline";
-import { Link } from "react-router-dom";
-import { WorkflowTags } from "./workflow-tags";
+import { Workflow } from '@/lib/api';
+import { cn, relativeDate } from '@/lib/utils';
+import { ChevronRightIcon } from '@heroicons/react/24/outline';
+import { Link } from 'react-router-dom';
+import { WorkflowTags } from './workflow-tags';
 
 const statuses = {
-  offline: "text-gray-500 bg-gray-100/10",
-  online: "text-green-400 bg-green-400/10",
-  error: "text-rose-400 bg-rose-400/10",
+  offline: 'text-gray-500 bg-gray-100/10',
+  online: 'text-green-400 bg-green-400/10',
+  error: 'text-rose-400 bg-rose-400/10',
 };
 
 interface WorkflowListProps {
@@ -25,7 +25,7 @@ export default function WorkflowList({ workflows }: WorkflowListProps) {
           <div className="min-w-0 flex-auto">
             <div className="flex items-center gap-x-3">
               <div
-                className={cn(statuses["online"], "flex-none rounded-full p-1")}
+                className={cn(statuses.online, 'flex-none rounded-full p-1')}
               >
                 <div className="h-2 w-2 rounded-full bg-current" />
               </div>

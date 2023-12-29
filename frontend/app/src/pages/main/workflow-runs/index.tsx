@@ -1,18 +1,18 @@
-import { DataTable } from "../../../components/molecules/data-table/data-table";
-import { columns } from "./components/workflow-runs-columns";
-import { Separator } from "@/components/ui/separator";
-import { useMemo, useState } from "react";
+import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
+import { columns } from './components/workflow-runs-columns';
+import { Separator } from '@/components/ui/separator';
+import { useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   PaginationState,
   SortingState,
-} from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
-import invariant from "tiny-invariant";
-import { useAtom } from "jotai";
-import { currTenantAtom } from "@/lib/atoms";
-import { Icons } from "@/components/ui/icons";
-import { queries } from "@/lib/api";
+} from '@tanstack/react-table';
+import { useQuery } from '@tanstack/react-query';
+import invariant from 'tiny-invariant';
+import { queries } from '@/lib/api';
+import { Loading } from '@/components/ui/loading.tsx';
+import { TenantContextType } from '@/lib/outlet';
+import { useOutletContext } from 'react-router-dom';
 
 export default function WorkflowRuns() {
   return (
@@ -29,7 +29,7 @@ export default function WorkflowRuns() {
 }
 
 function WorkflowRunsTable() {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -56,11 +56,7 @@ function WorkflowRunsTable() {
   });
 
   if (listWorkflowRunsQuery.isLoading) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (

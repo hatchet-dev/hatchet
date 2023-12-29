@@ -1,0 +1,9 @@
+/frontend/**/node_modules
+*.log
+/frontend/**/.DS_Store
+/frontend/**/.env
+/frontend/**/.cache
+/frontend/**/public/build
+/frontend/**/build
+/frontend/**/dist
+/frontend/**/.turbo

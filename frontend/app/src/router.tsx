@@ -1,38 +1,53 @@
-import React from "react";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { FC } from 'react';
+import {
+  createBrowserRouter,
+  redirect,
+  RouterProvider,
+} from 'react-router-dom';
 
 const routes = [
   {
-    path: "/",
+    path: '/',
     lazy: async () =>
-      import("./pages/root.tsx").then((res) => {
+      import('./pages/root.tsx').then((res) => {
         return {
           Component: res.default,
         };
       }),
     children: [
       {
-        path: "/auth/login",
+        path: '/auth',
         lazy: async () =>
-          import("./pages/auth/login").then((res) => {
+          import('./pages/auth/no-auth').then((res) => {
             return {
-              Component: res.default,
+              loader: res.loader,
             };
           }),
+        children: [
+          {
+            path: '/auth/login',
+            lazy: async () =>
+              import('./pages/auth/login').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/auth/register',
+            lazy: async () =>
+              import('./pages/auth/register').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+        ],
       },
       {
-        path: "/auth/register",
+        path: '/',
         lazy: async () =>
-          import("./pages/auth/register").then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      },
-      {
-        path: "/",
-        lazy: async () =>
-          import("./pages/main/auth").then((res) => {
+          import('./pages/main/auth').then((res) => {
             return {
               loader: res.loader,
               Component: res.default,
@@ -40,54 +55,64 @@ const routes = [
           }),
         children: [
           {
-            path: "/onboarding/create-tenant",
+            path: '/',
+            lazy: async () => {
+              return {
+                loader: function () {
+                  return redirect('/events');
+                },
+              };
+            },
+          },
+          {
+            path: '/onboarding/create-tenant',
             lazy: async () =>
-              import("./pages/onboarding/create-tenant").then((res) => {
+              import('./pages/onboarding/create-tenant').then((res) => {
                 return {
                   Component: res.default,
                 };
               }),
           },
           {
-            path: "/",
+            path: '/',
             lazy: async () =>
-              import("./pages/main").then((res) => {
+              import('./pages/main').then((res) => {
                 return {
                   Component: res.default,
                 };
               }),
             children: [
               {
-                path: "/events",
+                path: '/events',
                 lazy: async () =>
-                  import("./pages/main/events").then((res) => {
+                  import('./pages/main/events').then((res) => {
                     return {
                       Component: res.default,
                     };
                   }),
               },
               {
-                path: "/events/metrics",
+                path: '/events/metrics',
                 lazy: async () =>
-                  import("./pages/main/events/metrics").then((res) => {
+                  import('./pages/main/events/metrics').then((res) => {
                     return {
                       Component: res.default,
                     };
                   }),
               },
               {
-                path: "/workflows",
+                path: '/workflows',
                 lazy: async () =>
-                  import("./pages/main/workflows").then((res) => {
+                  import('./pages/main/workflows').then((res) => {
                     return {
                       Component: res.default,
                     };
                   }),
               },
               {
-                path: "/workflows/:workflow",
+                path: '/workflows/:workflow',
                 lazy: async () =>
-                  import("./pages/main/workflows/$workflow").then((res) => {
+                  import('./pages/main/workflows/$workflow').then((res) => {
                     return {
                       Component: res.default,
                       loader: res.loader,
@@ -95,36 +120,36 @@ const routes = [
                   }),
               },
               {
-                path: "/workflow-runs",
+                path: '/workflow-runs',
                 lazy: async () =>
-                  import("./pages/main/workflow-runs").then((res) => {
+                  import('./pages/main/workflow-runs').then((res) => {
                     return {
                       Component: res.default,
                     };
                   }),
               },
               {
-                path: "/workflow-runs/:run",
+                path: '/workflow-runs/:run',
                 lazy: async () =>
-                  import("./pages/main/workflow-runs/$run").then((res) => {
+                  import('./pages/main/workflow-runs/$run').then((res) => {
                     return {
                       Component: res.default,
                     };
                   }),
               },
               {
-                path: "/workers",
+                path: '/workers',
                 lazy: async () =>
-                  import("./pages/main/workers").then((res) => {
+                  import('./pages/main/workers').then((res) => {
                     return {
                       Component: res.default,
                     };
                   }),
               },
               {
-                path: "/workers/:worker",
+                path: '/workers/:worker',
                 lazy: async () =>
-                  import("./pages/main/workers/$worker").then((res) => {
+                  import('./pages/main/workers/$worker').then((res) => {
                     return {
                       Component: res.default,
                     };
@@ -138,9 +163,9 @@ const routes = [
   },
 ];
 
-const router = createBrowserRouter(routes, { basename: "/" });
+const router = createBrowserRouter(routes, { basename: '/' });
 
-const Router: React.FC = () => {
+const Router: FC = () => {
   return <RouterProvider router={router} />;
 };
 

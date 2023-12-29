@@ -9,7 +9,6 @@
 - [`Taskfile`](https://taskfile.dev/installation/)
 - The following additional devtools:
   - `protoc`: `brew install protobuf`
-  - `sqlc`: `brew install sqlc`
   - `caddy` and `nss`: `brew install caddy nss`
 
 ### Setup
@@ -26,7 +25,7 @@
 alias randstring='f() { openssl rand -base64 69 | tr -d "\n" | tr -d "=+/" | cut -c1-$1 };f'
 
 cat > .env <<EOF
-DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5433/hatchet'
+DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
 SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
 SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
 SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
@@ -37,18 +36,17 @@ SERVER_URL=https://app.dev.hatchet-tools.com
 SERVER_AUTH_COOKIE_SECRETS="$(randstring 16) $(randstring 16)"
 SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
 SERVER_AUTH_COOKIE_INSECURE=false
+SERVER_AUTH_SET_EMAIL_VERIFIED=true
 EOF
 ```
 
-5. Generate a local entry for `app.dev.hatchet-tools.com` in `/etc/hosts`: `task set-etc-hosts` or just append `127.0.0.1 app.dev.hatchet-tools.com` to your `/etc/hosts` file.
+5. Migrate the database: `task prisma-migrate`
 
-6. Migrate the database: `task prisma-migrate`
+6. Generate all files: `task generate`
 
-7. Generate all files: `task generate`
+7. Seed the database: `task seed-dev`
 
-8. Seed the database: `task seed-dev`
-
-9. Start the Hatchet engine, API server, dashboard, and Prisma studio:
+8. Start the Hatchet engine, API server, dashboard, and Prisma studio:
 
 ```sh
 task start-dev

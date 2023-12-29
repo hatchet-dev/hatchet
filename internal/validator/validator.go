@@ -13,8 +13,6 @@ var NameRegex = regexp.MustCompile("^[a-zA-Z0-9\\.\\-_]+$")
 
 var CronRegex = regexp.MustCompile(`(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)|((((\d+,)+\d+|(\d+(\/|-)\d+)|\d+|\*) ?){5,7})`)
 
-// New creates a new instance of validator and sets the tag name
-// to "form", instead of "validate"
 func newValidator() *validator.Validate {
 	validate := validator.New()
 

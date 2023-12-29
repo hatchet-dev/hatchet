@@ -14,10 +14,6 @@ import (
 	"strings"
 
 	"github.com/creasty/defaults"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
-	"github.com/spf13/viper"
-
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/config/client"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
@@ -28,6 +24,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+	"github.com/spf13/viper"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -85,7 +84,11 @@ func LoadConfigFromViper(bindFunc func(v *viper.Viper), configFile interface{}, 
 }
 
 type ConfigLoader struct {
-	version, directory string
+	directory string
+}
+
+func NewConfigLoader(directory string) *ConfigLoader {
+	return &ConfigLoader{directory}
 }
 
 // LoadDatabaseConfig loads the database configuration
@@ -162,9 +165,12 @@ func getConfigBytes(configFilePath string) ([][]byte, error) {
 
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
+	if err != nil && os.IsNotExist(err) {
+		return false
+	} else if err != nil {
 		return false
 	}
+
 	return !info.IsDir()
 }
 
@@ -182,7 +188,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 	os.Setenv("DATABASE_URL", databaseUrl)
 
 	client := db.NewClient(
-		db.WithDatasourceURL(databaseUrl),
+	// db.WithDatasourceURL(databaseUrl),
 	)
 
 	if err := client.Prisma.Connect(); err != nil {
@@ -198,6 +204,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 	return &database.Config{
 		Disconnect: client.Prisma.Disconnect,
 		Repository: prisma.NewPrismaRepository(client, pool),
+		Seed:       cf.Seed,
 	}, nil
 }
 

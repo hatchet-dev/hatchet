@@ -1,24 +1,24 @@
-import { DataTable } from "@/components/molecules/data-table/data-table";
-import { Icons } from "@/components/ui/icons";
-import { Separator } from "@/components/ui/separator";
-import api, { Workflow, queries } from "@/lib/api";
-import { currTenantAtom } from "@/lib/atoms";
-import { useQuery } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
-import { useAtom } from "jotai";
+import { DataTable } from '@/components/molecules/data-table/data-table';
+import { Separator } from '@/components/ui/separator';
+import api, { Workflow, queries } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import {
   LoaderFunctionArgs,
   redirect,
   useLoaderData,
+  useOutletContext,
   useParams,
-} from "react-router-dom";
-import invariant from "tiny-invariant";
-import { columns } from "../../workflow-runs/components/workflow-runs-columns";
-import { WorkflowTags } from "../components/workflow-tags";
-import { Code } from "@/components/ui/code";
-import { Badge } from "@/components/ui/badge";
-import { relativeDate } from "@/lib/utils";
-import { Square3Stack3DIcon } from "@heroicons/react/24/outline";
+} from 'react-router-dom';
+import invariant from 'tiny-invariant';
+import { columns } from '../../workflow-runs/components/workflow-runs-columns';
+import { WorkflowTags } from '../components/workflow-tags';
+import { Code } from '@/components/ui/code';
+import { Badge } from '@/components/ui/badge';
+import { relativeDate } from '@/lib/utils';
+import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
+import { Loading } from '@/components/ui/loading.tsx';
+import { TenantContextType } from '@/lib/outlet';
 
 export async function loader({
   params,
@@ -37,7 +37,7 @@ export async function loader({
       throw error;
     } else if (isAxiosError(error)) {
       // TODO: handle error better
-      throw redirect("/unauthorized");
+      throw redirect('/unauthorized');
     }
   }
 
@@ -48,11 +48,7 @@ export default function ExpandedWorkflow() {
   const workflow = useLoaderData() as Awaited<ReturnType<typeof loader>>;
 
   if (!workflow) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -72,9 +68,9 @@ export default function ExpandedWorkflow() {
         </div>
         <div className="flex flex-row justify-start items-center mt-4">
           <div className="text-sm text-muted-foreground">
-            Updated{" "}
+            Updated{' '}
             {relativeDate(
-              workflow.versions && workflow.versions[0].metadata.updatedAt
+              workflow.versions && workflow.versions[0].metadata.updatedAt,
             )}
           </div>
         </div>
@@ -101,7 +97,7 @@ export default function ExpandedWorkflow() {
 }
 
 function WorkflowDefinition() {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const params = useParams();
@@ -115,11 +111,7 @@ function WorkflowDefinition() {
     getWorkflowDefinitionQuery.isLoading ||
     !getWorkflowDefinitionQuery.data
   ) {
-    return (
-      <div className="flex flex-row flex-1 w-full h-full">
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   const workflowDefinition = getWorkflowDefinitionQuery.data;
@@ -134,7 +126,7 @@ function WorkflowDefinition() {
 }
 
 function RecentRunsList() {
-  const [tenant] = useAtom(currTenantAtom);
+  const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const params = useParams();

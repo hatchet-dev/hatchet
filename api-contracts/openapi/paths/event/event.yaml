@@ -35,6 +35,12 @@ withTenant:
           type: array
           items:
             $ref: "../../components/schemas/_index.yaml#/EventKey"
+      - description: The search query to filter for
+        in: query
+        name: search
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/EventSearch"
       - description: What to order by
         in: query
         name: orderByField

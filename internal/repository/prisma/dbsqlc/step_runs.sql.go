@@ -13,7 +13,7 @@ import (
 
 const resolveLaterStepRuns = `-- name: ResolveLaterStepRuns :many
 WITH currStepRun AS (
-  SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "nextId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError"
+  SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "nextId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError"
   FROM "StepRun"
   WHERE
     "id" = $1::uuid AND
@@ -46,7 +46,7 @@ WHERE
         WHERE "id" = $1::uuid
     ) AND
     sr."tenantId" = $2::uuid
-RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."nextId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError"
+RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."nextId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError"
 `
 
 type ResolveLaterStepRunsParams struct {
@@ -79,6 +79,7 @@ func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg Resolve
 			&i.Input,
 			&i.Output,
 			&i.RequeueAfter,
+			&i.ScheduleTimeoutAt,
 			&i.Error,
 			&i.StartedAt,
 			&i.FinishedAt,
@@ -102,37 +103,44 @@ UPDATE
     "StepRun"
 SET
     "requeueAfter" = COALESCE($1::timestamp, "requeueAfter"),
-    "startedAt" = COALESCE($2::timestamp, "startedAt"),
-    "finishedAt" = COALESCE($3::timestamp, "finishedAt"),
-    "status" = COALESCE($4, "status"),
-    "input" = COALESCE($5::jsonb, "input"),
-    "output" = COALESCE($6::jsonb, "output"),
-    "error" = COALESCE($7::text, "error"),
-    "cancelledAt" = COALESCE($8::timestamp, "cancelledAt"),
-    "cancelledReason" = COALESCE($9::text, "cancelledReason")
+    "scheduleTimeoutAt" = COALESCE($2::timestamp, "scheduleTimeoutAt"),
+    "startedAt" = COALESCE($3::timestamp, "startedAt"),
+    "finishedAt" = COALESCE($4::timestamp, "finishedAt"),
+    "status" = CASE 
+        -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        ELSE COALESCE($5, "status")
+    END,
+    "input" = COALESCE($6::jsonb, "input"),
+    "output" = COALESCE($7::jsonb, "output"),
+    "error" = COALESCE($8::text, "error"),
+    "cancelledAt" = COALESCE($9::timestamp, "cancelledAt"),
+    "cancelledReason" = COALESCE($10::text, "cancelledReason")
 WHERE 
-  "id" = $10::uuid AND
-  "tenantId" = $11::uuid
-RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."nextId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError"
+  "id" = $11::uuid AND
+  "tenantId" = $12::uuid
+RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."nextId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError"
 `
 
 type UpdateStepRunParams struct {
-	RequeueAfter    pgtype.Timestamp  `json:"requeueAfter"`
-	StartedAt       pgtype.Timestamp  `json:"startedAt"`
-	FinishedAt      pgtype.Timestamp  `json:"finishedAt"`
-	Status          NullStepRunStatus `json:"status"`
-	Input           []byte            `json:"input"`
-	Output          []byte            `json:"output"`
-	Error           pgtype.Text       `json:"error"`
-	CancelledAt     pgtype.Timestamp  `json:"cancelledAt"`
-	CancelledReason pgtype.Text       `json:"cancelledReason"`
-	ID              pgtype.UUID       `json:"id"`
-	Tenantid        pgtype.UUID       `json:"tenantid"`
+	RequeueAfter      pgtype.Timestamp  `json:"requeueAfter"`
+	ScheduleTimeoutAt pgtype.Timestamp  `json:"scheduleTimeoutAt"`
+	StartedAt         pgtype.Timestamp  `json:"startedAt"`
+	FinishedAt        pgtype.Timestamp  `json:"finishedAt"`
+	Status            NullStepRunStatus `json:"status"`
+	Input             []byte            `json:"input"`
+	Output            []byte            `json:"output"`
+	Error             pgtype.Text       `json:"error"`
+	CancelledAt       pgtype.Timestamp  `json:"cancelledAt"`
+	CancelledReason   pgtype.Text       `json:"cancelledReason"`
+	ID                pgtype.UUID       `json:"id"`
+	Tenantid          pgtype.UUID       `json:"tenantid"`
 }
 
 func (q *Queries) UpdateStepRun(ctx context.Context, db DBTX, arg UpdateStepRunParams) (*StepRun, error) {
 	row := db.QueryRow(ctx, updateStepRun,
 		arg.RequeueAfter,
+		arg.ScheduleTimeoutAt,
 		arg.StartedAt,
 		arg.FinishedAt,
 		arg.Status,
@@ -161,6 +169,7 @@ func (q *Queries) UpdateStepRun(ctx context.Context, db DBTX, arg UpdateStepRunP
 		&i.Input,
 		&i.Output,
 		&i.RequeueAfter,
+		&i.ScheduleTimeoutAt,
 		&i.Error,
 		&i.StartedAt,
 		&i.FinishedAt,

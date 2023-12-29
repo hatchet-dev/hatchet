@@ -22,6 +22,10 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 		Offset: &offset,
 	}
 
+	if request.Params.Search != nil {
+		listOpts.Search = request.Params.Search
+	}
+
 	if request.Params.Keys != nil {
 		listOpts.Keys = *request.Params.Keys
 	}

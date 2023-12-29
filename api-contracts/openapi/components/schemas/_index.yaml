@@ -36,6 +36,8 @@ EventOrderByField:
   $ref: "./event.yaml#/EventOrderByField"
 EventOrderByDirection:
   $ref: "./event.yaml#/EventOrderByDirection"
+EventSearch:
+  $ref: "./event.yaml#/EventSearch"
 EventKeyList:
   $ref: "./event.yaml#/EventKeyList"
 EventKey:

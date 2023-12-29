@@ -217,6 +217,8 @@ export enum EventOrderByDirection {
   Desc = "desc",
 }
 
+export type EventSearch = string;
+
 export interface EventKeyList {
   pagination?: PaginationResponse;
   rows?: EventKey[];
