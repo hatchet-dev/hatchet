@@ -20,7 +20,7 @@ require (
 	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.16.0
-	github.com/steebchen/prisma-client-go v0.31.3
+	github.com/steebchen/prisma-client-go v0.31.4-0.20231228102837-d2b2373128a2
 	sigs.k8s.io/yaml v1.4.0
 )
 
