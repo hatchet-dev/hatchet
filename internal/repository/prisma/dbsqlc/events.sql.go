@@ -77,13 +77,13 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 
 const listEvents = `-- name: ListEvents :many
 SELECT
-    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, 
+    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data,
     sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
     sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
     sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
     sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns
 FROM
-    "Event" as events 
+    "Event" as events
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
 LEFT JOIN
@@ -93,21 +93,26 @@ WHERE
     (
         $2::text[] IS NULL OR
         events."key" = ANY($2::text[])
+    ) AND
+    (
+        $3::text IS NULL OR
+        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $3::text, '")') as jsonpath))
     )
 GROUP BY
     events."id"
 ORDER BY
-    case when $3 = 'createdAt ASC' THEN events."createdAt" END ASC ,
-    case when $3 = 'createdAt DESC' then events."createdAt" END DESC
+    case when $4 = 'createdAt ASC' THEN events."createdAt" END ASC ,
+    case when $4 = 'createdAt DESC' then events."createdAt" END DESC
 OFFSET
-    COALESCE($4, 0)
+    COALESCE($5, 0)
 LIMIT
-    COALESCE($5, 50)
+    COALESCE($6, 50)
 `
 
 type ListEventsParams struct {
 	TenantId pgtype.UUID `json:"tenantId"`
 	Keys     []string    `json:"keys"`
+	Search   pgtype.Text `json:"search"`
 	Orderby  interface{} `json:"orderby"`
 	Offset   interface{} `json:"offset"`
 	Limit    interface{} `json:"limit"`
@@ -121,10 +126,12 @@ type ListEventsRow struct {
 	Failedruns    int64 `json:"failedruns"`
 }
 
+// jsonb_path_exists(events."data", '$.** ? (@.type() == "string" && @ like_regex "asdf")')
 func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams) ([]*ListEventsRow, error) {
 	rows, err := db.Query(ctx, listEvents,
 		arg.TenantId,
 		arg.Keys,
+		arg.Search,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,

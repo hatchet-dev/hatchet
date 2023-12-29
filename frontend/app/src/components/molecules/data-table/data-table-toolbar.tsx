@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { DataTableViewOptions } from './data-table-view-options';
 
 import { DataTableFacetedFilter } from './data-table-faceted-filter';
+import { Input } from '@/components/ui/input.tsx';
 
 export interface FilterOption {
   label: string;
@@ -22,26 +23,30 @@ interface DataTableToolbarProps<TData> {
   table: Table<TData>;
   filters: ToolbarFilters;
   actions: JSX.Element[];
+  setSearch?: (search: string) => void;
+  search?: string;
 }
 
 export function DataTableToolbar<TData>({
   table,
   filters,
   actions,
+  setSearch,
+  search,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0;
 
   return (
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
-        {/* <Input
-          placeholder="Filter tasks..."
-          value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("title")?.setFilterValue(event.target.value)
-          }
-          className="h-8 w-[150px] lg:w-[250px]"
-        /> */}
+        {setSearch && (
+          <Input
+            placeholder="Search for events..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 w-[150px] lg:w-[250px]"
+          />
+        )}
         {filters.map(
           (filter) =>
             table.getColumn(filter.columnId) && (

@@ -19,6 +19,7 @@ import {
   EventList,
   EventOrderByDirection,
   EventOrderByField,
+  EventSearch,
   ReplayEventRequest,
   Tenant,
   User,
@@ -165,6 +166,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       limit?: number;
       /** A list of keys to filter by */
       keys?: EventKey[];
+      /** The search query to filter for */
+      search?: EventSearch;
       /** What to order by */
       orderByField?: EventOrderByField;
       /** The order direction */

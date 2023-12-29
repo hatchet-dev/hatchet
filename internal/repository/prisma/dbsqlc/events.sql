@@ -12,13 +12,13 @@ WHERE
 
 -- name: ListEvents :many
 SELECT
-    sqlc.embed(events), 
+    sqlc.embed(events),
     sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
     sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
     sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
     sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns
 FROM
-    "Event" as events 
+    "Event" as events
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
 LEFT JOIN
@@ -28,6 +28,10 @@ WHERE
     (
         sqlc.narg('keys')::text[] IS NULL OR
         events."key" = ANY(sqlc.narg('keys')::text[])
+    ) AND
+    (
+        sqlc.narg('search')::text IS NULL OR
+        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
     )
 GROUP BY
     events."id"
