@@ -1,0 +1,26 @@
+name: build
+on: pull_request
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Build frontend
+        run: docker build -f ./build/package/frontend.dockerfile .
+
+  servers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Build servers
+        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
+
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Build migrate
+        run: docker build -f ./build/package/migrate.dockerfile .
