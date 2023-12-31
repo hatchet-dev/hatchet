@@ -1,8 +1,8 @@
 FROM node:18-alpine as build
 
 WORKDIR /app
-COPY ./frontend/app/package.json ./frontend/app/package-lock.json ./
-RUN npm ci
+COPY ./frontend/app/package.json ./frontend/app/pnpm-lock.yaml ./
+RUN pnpm install
 COPY ./frontend/app ./
 RUN npm run build
 
