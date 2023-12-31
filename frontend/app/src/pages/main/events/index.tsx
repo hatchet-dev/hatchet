@@ -131,7 +131,12 @@ function EventsTable() {
     return pagination.pageIndex * pagination.pageSize;
   }, [pagination]);
 
-  const listEventsQuery = useQuery({
+  const {
+    data,
+    isLoading,
+    refetch,
+    error: eventsError,
+  } = useQuery({
     ...queries.events.list(tenant.metadata.id, {
       keys,
       orderByField,
@@ -148,23 +153,27 @@ function EventsTable() {
       await api.eventUpdateReplay(tenant.metadata.id, data);
     },
     onSuccess: () => {
-      listEventsQuery.refetch();
+      refetch();
     },
     onError: handleApiError,
   });
 
-  const listEventKeysQuery = useQuery({
+  const {
+    data: eventKeys,
+    isLoading: eventKeysIsLoading,
+    error: eventKeysError,
+  } = useQuery({
     ...queries.events.listKeys(tenant.metadata.id),
   });
 
   const eventKeyFilters = useMemo((): FilterOption[] => {
     return (
-      listEventKeysQuery.data?.rows?.map((key) => ({
+      eventKeys?.rows?.map((key) => ({
         value: key,
         label: key,
       })) || []
     );
-  }, [listEventKeysQuery.data?.rows]);
+  }, [eventKeys?.rows]);
 
   // useEffect(() => {
   //   if (listEventsQuery.data?.pagination) {
@@ -202,7 +211,7 @@ function EventsTable() {
       className="h-8 px-2 lg:px-3"
       size="sm"
       onClick={() => {
-        listEventsQuery.refetch();
+        refetch();
         setRotate(!rotate);
       }}
       variant={'outline'}
@@ -226,9 +235,10 @@ function EventsTable() {
         {selectedEvent && <ExpandedEventContent event={selectedEvent} />}
       </Dialog>
       <DataTable
-        isLoading={listEventsQuery.isLoading}
+        error={eventKeysError || eventsError}
+        isLoading={isLoading || eventKeysIsLoading}
         columns={tableColumns}
-        data={listEventsQuery.data?.rows || []}
+        data={data?.rows || []}
         filters={[
           {
             columnId: 'key',
@@ -246,7 +256,7 @@ function EventsTable() {
         pagination={pagination}
         setPagination={setPagination}
         onSetPageSize={setPageSize}
-        pageCount={listEventsQuery.data?.pagination?.num_pages || 0}
+        pageCount={data?.pagination?.num_pages || 0}
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
         getRowId={(row) => row.metadata.id}
