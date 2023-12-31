@@ -23,6 +23,10 @@ LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
 LEFT JOIN
     "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
+LEFT JOIN
+    "WorkflowVersion" as workflowVersion ON workflowVersion."id" = runs."workflowVersionId"
+LEFT JOIN
+    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     events."tenantId" = $1 AND
     (
@@ -31,6 +35,7 @@ WHERE
     ) AND
     (
         sqlc.narg('search')::text IS NULL OR
+        workflow.name like concat('%', sqlc.narg('search')::text, '%') OR
         jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
     )
 GROUP BY
