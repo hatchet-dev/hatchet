@@ -44,6 +44,7 @@ export interface IDGetter {
 interface DataTableProps<TData extends IDGetter, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  error?: Error | null;
   filters: ToolbarFilters;
   actions?: JSX.Element[];
   sorting?: SortingState;
@@ -73,6 +74,7 @@ interface DataTableProps<TData extends IDGetter, TValue> {
 
 export function DataTable<TData extends IDGetter, TValue>({
   columns,
+  error,
   data,
   filters,
   actions = [],
@@ -193,7 +195,13 @@ export function DataTable<TData extends IDGetter, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {error ? (
+              <TableRow className="p-4 text-center text-red-500">
+                <TableCell colSpan={columns.length}>
+                  {error.message || 'An error occurred.'}
+                </TableCell>
+              </TableRow>
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => getTableRow(row))
             ) : (
               <TableRow>

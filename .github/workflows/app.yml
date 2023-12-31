@@ -6,14 +6,19 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          cache: npm
-          cache-dependency-path: frontend/app/package-lock.json
+          cache: pnpm
+          cache-dependency-path: frontend/app/pnpm-lock.yaml
       - name: Install dependencies
         working-directory: frontend/app
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       - name: Lint
         working-directory: frontend/app
         run: npm run lint:check
@@ -23,14 +28,19 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          cache: npm
-          cache-dependency-path: frontend/app/package-lock.json
+          cache: pnpm
+          cache-dependency-path: frontend/app/pnpm-lock.yaml
       - name: Install dependencies
         working-directory: frontend/app
-        run: npm ci
-      - name: Lint
+        run: pnpm install --frozen-lockfile
+      - name: Build
         working-directory: frontend/app
         run: npm run build
