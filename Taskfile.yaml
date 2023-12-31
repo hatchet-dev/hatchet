@@ -12,7 +12,7 @@ tasks:
       - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev
   seed-dev:
     cmds:
-      - sh ./hack/dev/run-npx-with-env.sh prisma db push --force-reset
+      - sh ./hack/dev/run-npx-with-env.sh prisma db push --force-reset --skip-generate
       - SEED_DEVELOPMENT=true sh ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
   start-dev:
     deps:
