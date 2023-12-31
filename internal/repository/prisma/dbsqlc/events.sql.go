@@ -88,6 +88,10 @@ LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
 LEFT JOIN
     "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
+LEFT JOIN
+    "WorkflowVersion" as workflowVersion ON workflowVersion."id" = runs."workflowVersionId"
+LEFT JOIN
+    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     events."tenantId" = $1 AND
     (
@@ -96,6 +100,7 @@ WHERE
     ) AND
     (
         $3::text IS NULL OR
+        workflow.name like concat('%', $3::text, '%') OR
         jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $3::text, '")') as jsonpath))
     )
 GROUP BY
@@ -126,7 +131,6 @@ type ListEventsRow struct {
 	Failedruns    int64 `json:"failedruns"`
 }
 
-// jsonb_path_exists(events."data", '$.** ? (@.type() == "string" && @ like_regex "asdf")')
 func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams) ([]*ListEventsRow, error) {
 	rows, err := db.Query(ctx, listEvents,
 		arg.TenantId,
