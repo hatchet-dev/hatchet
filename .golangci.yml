@@ -1,0 +1,19 @@
+run:
+  timeout: 5m
+linters:
+  enable:
+    - gofmt
+    - revive
+    - exportloopref
+    - gocritic
+    - gosec
+    - goimports
+    - errcheck
+    - goimports
+    - revive
+    - staticcheck
+    - vet
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/hatched-dev/hatchet
