@@ -1,8 +1,11 @@
 FROM node:18-alpine as build
 
 WORKDIR /app
+
 COPY ./frontend/app/package.json ./frontend/app/pnpm-lock.yaml ./
-RUN pnpm install
+RUN corepack pnpm --version
+RUN corepack pnpm install
+
 COPY ./frontend/app ./
 RUN npm run build
 
