@@ -53,7 +53,7 @@ jobs:
         run: go mod download
 
       - name: Generate
-        run: go run github.com/steebchen/prisma-client-go generate
+        run: go generate ./...
 
       - name: Test
         run: go test ./... -v -failfast
