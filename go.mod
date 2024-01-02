@@ -6,6 +6,7 @@ go 1.21
 replace golang.org/x/exp => golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 
 require (
+	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/creasty/defaults v1.7.0
 	github.com/fatih/color v1.16.0
 	github.com/getkin/kin-openapi v0.122.0

@@ -85,6 +85,12 @@ func (w workflowFn) ToWorkflow(svcName string) types.Workflow {
 	return workflowJob.ToWorkflow(svcName)
 }
 
+func (w workflowFn) ToActionMap(svcName string) map[string]any {
+	return map[string]any{
+		getFnName(w.Function): w.Function,
+	}
+}
+
 type WorkflowJob struct {
 	// The name of the job
 	Name string
@@ -109,9 +115,8 @@ func (j *WorkflowJob) ToWorkflow(svcName string) types.Workflow {
 	}
 
 	return types.Workflow{
-		Name:    j.Name,
-		Version: "v0.1.0",
-		Jobs:    jobs,
+		Name: j.Name,
+		Jobs: jobs,
 	}
 }
 
@@ -157,6 +162,9 @@ type WorkflowStep struct {
 
 	// The executed function
 	Function any
+
+	// The step id. If not set, one will be generated from the function name
+	ID string
 }
 
 type step struct {
@@ -221,6 +229,10 @@ func (s *WorkflowStep) ToWorkflowStep(prevStep *step, svcName string, index int)
 }
 
 func (s *WorkflowStep) GetStepId(index int) string {
+	if s.ID != "" {
+		return s.ID
+	}
+
 	stepId := getFnName(s.Function)
 
 	// this can happen if the function is anonymous

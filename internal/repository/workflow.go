@@ -14,7 +14,7 @@ type CreateWorkflowVersionOpts struct {
 	Description *string
 
 	// (required) the workflow version
-	Version string `validate:"required"`
+	Version string `validate:"required,semver"`
 
 	// (optional) event triggers for the workflow
 	EventTriggers []string
