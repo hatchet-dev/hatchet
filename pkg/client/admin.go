@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/Masterminds/semver/v3"
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
@@ -15,7 +16,7 @@ import (
 )
 
 type AdminClient interface {
-	PutWorkflow(workflow *types.Workflow) error
+	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
 }
 
 type adminClientImpl struct {
@@ -37,8 +38,34 @@ func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts) AdminClient {
 	}
 }
 
-func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow) error {
-	opts, err := a.getPutOpts(workflow)
+type putOpts struct {
+	autoVersion bool
+}
+
+type PutOptFunc func(*putOpts)
+
+func WithAutoVersion() PutOptFunc {
+	return func(opts *putOpts) {
+		opts.autoVersion = true
+	}
+}
+
+func defaultPutOpts() *putOpts {
+	return &putOpts{}
+}
+
+func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc) error {
+	opts := defaultPutOpts()
+
+	for _, f := range fs {
+		f(opts)
+	}
+
+	if workflow.Version == "" && !opts.autoVersion {
+		return fmt.Errorf("PutWorkflow error: workflow version is required, or use WithAutoVersion()")
+	}
+
+	req, err := a.getPutRequest(workflow)
 
 	if err != nil {
 		return fmt.Errorf("could not get put opts: %w", err)
@@ -46,10 +73,10 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow) error {
 
 	apiWorkflow, err := a.client.GetWorkflowByName(context.Background(), &admincontracts.GetWorkflowByNameRequest{
 		TenantId: a.tenantId,
-		Name:     opts.Opts.Name,
+		Name:     req.Opts.Name,
 	})
 
-	shouldPut := false
+	shouldPut := opts.autoVersion
 
 	if err != nil {
 		// if not found, create
@@ -57,6 +84,10 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow) error {
 			shouldPut = true
 		} else {
 			return fmt.Errorf("could not get workflow: %w", err)
+		}
+
+		if workflow.Version == "" && opts.autoVersion {
+			req.Opts.Version = "0.1.0"
 		}
 	} else {
 		// if there are no versions, exit
@@ -68,10 +99,18 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow) error {
 		if apiWorkflow.Versions[0].Version != workflow.Version {
 			shouldPut = true
 		}
+
+		if workflow.Version == "" && opts.autoVersion {
+			req.Opts.Version, err = bumpMinorVersion(apiWorkflow.Versions[0].Version)
+
+			if err != nil {
+				return fmt.Errorf("could not bump version: %w", err)
+			}
+		}
 	}
 
 	if shouldPut {
-		_, err = a.client.PutWorkflow(context.Background(), opts)
+		_, err = a.client.PutWorkflow(context.Background(), req)
 
 		if err != nil {
 			return fmt.Errorf("could not create workflow: %w", err)
@@ -81,7 +120,7 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow) error {
 	return nil
 }
 
-func (a *adminClientImpl) getPutOpts(workflow *types.Workflow) (*admincontracts.PutWorkflowRequest, error) {
+func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontracts.PutWorkflowRequest, error) {
 	opts := &admincontracts.CreateWorkflowVersionOpts{
 		Name:          workflow.Name,
 		Version:       workflow.Version,
@@ -129,4 +168,16 @@ func (a *adminClientImpl) getPutOpts(workflow *types.Workflow) (*admincontracts.
 		TenantId: a.tenantId,
 		Opts:     opts,
 	}, nil
+}
+
+func bumpMinorVersion(version string) (string, error) {
+	currVersion, err := semver.NewVersion(version)
+
+	if err != nil {
+		return "", fmt.Errorf("could not parse version: %w", err)
+	}
+
+	newVersion := currVersion.IncMinor()
+
+	return newVersion.String(), nil
 }

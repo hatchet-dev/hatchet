@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"unicode"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
@@ -40,6 +41,12 @@ func newValidator() *validator.Validate {
 		}
 
 		return action.IntegrationID != "" && action.Verb != ""
+	})
+
+	validate.RegisterValidation("semver", func(fl validator.FieldLevel) bool {
+		_, err := semver.NewVersion(fl.Field().String())
+
+		return err == nil
 	})
 
 	return validate
