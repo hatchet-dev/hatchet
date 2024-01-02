@@ -5,7 +5,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/hatchet-dev/hatchet/cmd/cmdutils"
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
@@ -14,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/jobscontroller"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/spf13/cobra"
 )
 
@@ -69,7 +69,7 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 	}
 
 	errCh := make(chan error)
-	ctx, cancel := cmdutils.InterruptContext(interruptCh)
+	ctx, cancel := cmdutils.InterruptContextFromChan(interruptCh)
 	wg := sync.WaitGroup{}
 
 	if sc.HasService("grpc") {
@@ -121,6 +121,8 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			grpc.WithAdmin(adminSvc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithTLSConfig(sc.TLSConfig),
+			grpc.WithPort(sc.Runtime.GRPCPort),
+			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),
 		)
 
 		if err != nil {

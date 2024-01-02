@@ -12,7 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/integrations"
 	"github.com/rs/zerolog"
-	"google.golang.org/grpc"
 )
 
 type actionFunc func(args ...any) []any
@@ -47,11 +46,7 @@ func (j *actionImpl) MethodFn() any {
 }
 
 type Worker struct {
-	conn   *grpc.ClientConn
-	client client.DispatcherClient
-
-	// The worker id that gets assigned on register
-	workerId string
+	client client.Client
 
 	name string
 
@@ -60,12 +55,14 @@ type Worker struct {
 	l *zerolog.Logger
 
 	cancelMap sync.Map
+
+	services sync.Map
 }
 
 type WorkerOpt func(*WorkerOpts)
 
 type WorkerOpts struct {
-	client client.DispatcherClient
+	client client.Client
 	name   string
 	l      *zerolog.Logger
 
@@ -88,7 +85,7 @@ func WithName(name string) WorkerOpt {
 	}
 }
 
-func WithDispatcherClient(client client.DispatcherClient) WorkerOpt {
+func WithClient(client client.Client) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.client = client
 	}
@@ -123,7 +120,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		for _, integrationAction := range actions {
 			action := fmt.Sprintf("%s:%s", integrationId, integrationAction)
 
-			err := w.RegisterAction(action, integration.ActionHandler(integrationAction))
+			err := w.registerAction(action, integration.ActionHandler(integrationAction))
 
 			if err != nil {
 				return nil, fmt.Errorf("could not register integration action %s: %w", action, err)
@@ -131,10 +128,45 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		}
 	}
 
+	w.NewService("default")
+
 	return w, nil
 }
 
+func (w *Worker) NewService(name string) *Service {
+	svc := &Service{
+		Name:   name,
+		worker: w,
+	}
+
+	w.services.Store(name, svc)
+
+	return svc
+}
+
+func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
+	// get the default service
+	svc, ok := w.services.Load("default")
+
+	if !ok {
+		return fmt.Errorf("could not load default service")
+	}
+
+	return svc.(*Service).On(t, workflow)
+}
+
 func (w *Worker) RegisterAction(name string, method any) error {
+	// get the default service
+	svc, ok := w.services.Load("default")
+
+	if !ok {
+		return fmt.Errorf("could not load default service")
+	}
+
+	return svc.(*Service).RegisterAction(method)
+}
+
+func (w *Worker) registerAction(name string, method any) error {
 	actionFunc, err := getFnFromMethod(method)
 
 	if err != nil {
@@ -163,7 +195,7 @@ func (w *Worker) Start(ctx context.Context) error {
 		actionNames = append(actionNames, job.Name())
 	}
 
-	listener, err := w.client.GetActionListener(ctx, &client.GetActionListenerRequest{
+	listener, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
 		WorkerName: w.name,
 		Actions:    actionNames,
 	})
@@ -195,13 +227,10 @@ RunWorker:
 				}
 
 				w.l.Debug().Msgf("action %s completed with result %v", action.ActionId, res)
-
-				return
 			}(action)
 		case <-ctx.Done():
 			w.l.Debug().Msgf("worker %s received context done, stopping", w.name)
 			break RunWorker
-		default:
 		}
 	}
 
@@ -228,7 +257,7 @@ func (w *Worker) executeAction(ctx context.Context, assignedAction *client.Actio
 
 func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action) (result any, err error) {
 	// send a message that the step run started
-	_, err = w.client.SendActionEvent(
+	_, err = w.client.Dispatcher().SendActionEvent(
 		ctx,
 		w.getActionEvent(assignedAction, client.ActionEventTypeStarted),
 	)
@@ -269,9 +298,11 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	default:
 	}
 
-	result = runResults[0]
+	if len(runResults) == 2 {
+		result = runResults[0]
+	}
 
-	if runResults[1] != nil {
+	if runResults[len(runResults)-1] != nil {
 		err = runResults[1].(error)
 	}
 
@@ -280,7 +311,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 
 		failureEvent.EventPayload = err.Error()
 
-		_, err := w.client.SendActionEvent(
+		_, err := w.client.Dispatcher().SendActionEvent(
 			ctx,
 			failureEvent,
 		)
@@ -292,13 +323,6 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 		return nil, err
 	}
 
-	// TODO: check last argument for error
-
-	// if err != nil {
-	// 	// TODO: send a message that the step run failed
-	// 	return nil, fmt.Errorf("could not run job: %w", err)
-	// }
-
 	// send a message that the step run completed
 	finishedEvent, err := w.getActionFinishedEvent(assignedAction, result)
 
@@ -306,7 +330,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 		return nil, fmt.Errorf("could not create finished event: %w", err)
 	}
 
-	_, err = w.client.SendActionEvent(
+	_, err = w.client.Dispatcher().SendActionEvent(
 		ctx,
 		finishedEvent,
 	)

@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/run"
-	"github.com/hatchet-dev/hatchet/cmd/cmdutils"
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/spf13/cobra"
 )
 
@@ -62,7 +62,7 @@ func startServerOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 		panic(err)
 	}
 
-	ctx, cancel := cmdutils.InterruptContext(interruptCh)
+	ctx, cancel := cmdutils.InterruptContextFromChan(interruptCh)
 	defer cancel()
 
 	runner := run.NewAPIServer(sc)

@@ -32,6 +32,12 @@ type ConfigFileRuntime struct {
 
 	// ServerURL is the full server URL of the instance, including protocol.
 	ServerURL string `mapstructure:"url" json:"url,omitempty" default:"http://localhost:8080"`
+
+	// GRPCPort is the port that the grpc service listens on
+	GRPCPort int `mapstructure:"grpcPort" json:"grpcPort,omitempty" default:"7070"`
+
+	// GRPCBindAddress is the address that the grpc server binds to. Should set to 0.0.0.0 if binding in docker container.
+	GRPCBindAddress string `mapstructure:"grpcBindAddress" json:"grpcBindAddress,omitempty" default:"127.0.0.1"`
 }
 
 type ConfigFileAuth struct {
@@ -66,17 +72,12 @@ type RabbitMQConfigFile struct {
 	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
 }
 
-type ServerRuntimeConfig struct {
-	ServerURL string
-	Port      int
-}
-
 type ServerConfig struct {
 	*database.Config
 
 	Auth ConfigFileAuth
 
-	Runtime ServerRuntimeConfig
+	Runtime ConfigFileRuntime
 
 	Services []string
 
@@ -109,6 +110,8 @@ func BindAllEnv(v *viper.Viper) {
 	// runtime options
 	v.BindEnv("runtime.port", "SERVER_PORT")
 	v.BindEnv("runtime.url", "SERVER_URL")
+	v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
+	v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
 	v.BindEnv("services", "SERVER_SERVICES")
 
 	// auth options

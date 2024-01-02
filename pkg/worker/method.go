@@ -40,28 +40,26 @@ func getFnFromMethod(method any) (result actionFunc, err error) {
 	}
 
 	// if function does not return two values, return error
-	if methodType.NumOut() != 2 {
-		return nil, fmt.Errorf("method must return exactly two values")
+	if methodType.NumOut() == 2 {
+		// if first return value is not a pointer to a struct, return error
+		firstReturn := methodType.Out(0)
+
+		if firstReturn.Kind() != reflect.Ptr {
+			return nil, fmt.Errorf("first return value must be a pointer to a struct")
+		}
+
+		firstReturnElem := firstReturn.Elem()
+
+		if firstReturnElem.Kind() != reflect.Struct {
+			return nil, fmt.Errorf("first return value must be a pointer to a struct")
+		}
 	}
 
-	// if first return value is not a pointer to a struct, return error
-	// firstReturn := methodType.Out(0)
+	// if last return value is not an error, return error
+	lastReturn := methodType.Out(methodType.NumOut() - 1)
 
-	// if firstReturn.Kind() != reflect.Ptr {
-	// 	return nil, fmt.Errorf("first return value must be a pointer to a struct")
-	// }
-
-	// firstReturnElem := firstReturn.Elem()
-
-	// if firstReturnElem.Kind() != reflect.Struct {
-	// 	return nil, fmt.Errorf("first return value must be a pointer to a struct")
-	// }
-
-	// if second return value is not an error, return error
-	secondReturn := methodType.Out(1)
-
-	if secondReturn.Kind() != reflect.Interface || !secondReturn.Implements(reflect.TypeOf((*error)(nil)).Elem()) {
-		return nil, fmt.Errorf("second return value must be an error")
+	if lastReturn.Kind() != reflect.Interface || !lastReturn.Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+		return nil, fmt.Errorf("second return value must be of type error")
 	}
 
 	return func(args ...interface{}) []interface{} {
@@ -77,6 +75,12 @@ func getFnFromMethod(method any) (result actionFunc, err error) {
 		})
 
 		// Return the results as an interface slice
-		return []interface{}{values[0].Interface(), values[1].Interface()}
+		res := []interface{}{}
+
+		for i := range values {
+			res = append(res, values[i].Interface())
+		}
+
+		return res
 	}, nil
 }

@@ -157,7 +157,43 @@ func (w *workerRepository) CreateNewWorker(tenantId string, opts *repository.Cre
 
 	txs := []transaction.Param{}
 
-	optionals := []db.WorkerSetParam{}
+	workerId := uuid.New().String()
+
+	createTx := w.client.Worker.CreateOne(
+		db.Worker.Tenant.Link(
+			db.Tenant.ID.Equals(tenantId),
+		),
+		db.Worker.Name.Set(opts.Name),
+		db.Worker.Dispatcher.Link(
+			db.Dispatcher.ID.Equals(opts.DispatcherId),
+		),
+		db.Worker.ID.Set(workerId),
+	).Tx()
+
+	txs = append(txs, createTx)
+
+	for _, svc := range opts.Services {
+		upsertServiceTx := w.client.Service.UpsertOne(
+			db.Service.TenantIDName(
+				db.Service.TenantID.Equals(tenantId),
+				db.Service.Name.Equals(svc),
+			),
+		).Create(
+			db.Service.Name.Set(svc),
+			db.Service.Tenant.Link(
+				db.Tenant.ID.Equals(tenantId),
+			),
+			db.Service.Workers.Link(
+				db.Worker.ID.Equals(workerId),
+			),
+		).Update(
+			db.Service.Workers.Link(
+				db.Worker.ID.Equals(workerId),
+			),
+		).Tx()
+
+		txs = append(txs, upsertServiceTx)
+	}
 
 	if len(opts.Actions) > 0 {
 		for _, action := range opts.Actions {
@@ -173,27 +209,21 @@ func (w *workerRepository) CreateNewWorker(tenantId string, opts *repository.Cre
 				),
 			).Update().Tx())
 
-			optionals = append(optionals, db.Worker.Actions.Link(
-				db.Action.TenantIDID(
-					db.Action.TenantID.Equals(tenantId),
-					db.Action.ID.Equals(action),
+			// This is unfortunate but due to https://github.com/steebchen/prisma-client-go/issues/1095,
+			// we cannot set db.Worker.Actions.Link multiple times, and since Link required a unique action
+			// where clause, we have to do these in separate transactions
+			txs = append(txs, w.client.Worker.FindUnique(
+				db.Worker.ID.Equals(workerId),
+			).Update(
+				db.Worker.Actions.Link(
+					db.Action.TenantIDID(
+						db.Action.TenantID.Equals(tenantId),
+						db.Action.ID.Equals(action),
+					),
 				),
-			))
+			).Tx())
 		}
 	}
-
-	createTx := w.client.Worker.CreateOne(
-		db.Worker.Tenant.Link(
-			db.Tenant.ID.Equals(tenantId),
-		),
-		db.Worker.Name.Set(opts.Name),
-		db.Worker.Dispatcher.Link(
-			db.Dispatcher.ID.Equals(opts.DispatcherId),
-		),
-		optionals...,
-	).Tx()
-
-	txs = append(txs, createTx)
 
 	err := w.client.Prisma.Transaction(txs...).Exec(context.Background())
 
@@ -235,12 +265,19 @@ func (w *workerRepository) UpdateWorker(tenantId, workerId string, opts *reposit
 				),
 			).Update().Tx())
 
-			optionals = append(optionals, db.Worker.Actions.Link(
-				db.Action.TenantIDID(
-					db.Action.TenantID.Equals(tenantId),
-					db.Action.ID.Equals(action),
+			// This is unfortunate but due to https://github.com/steebchen/prisma-client-go/issues/1095,
+			// we cannot set db.Worker.Actions.Link multiple times, and since Link required a unique action
+			// where clause, we have to do these in separate transactions
+			txs = append(txs, w.client.Worker.FindUnique(
+				db.Worker.ID.Equals(workerId),
+			).Update(
+				db.Worker.Actions.Link(
+					db.Action.TenantIDID(
+						db.Action.TenantID.Equals(tenantId),
+						db.Action.ID.Equals(action),
+					),
 				),
-			))
+			).Tx())
 		}
 	}
 

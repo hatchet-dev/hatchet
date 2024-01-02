@@ -83,6 +83,7 @@ model Tenant {
   members             TenantMember[]
   workflowTags        WorkflowTag[]
   actions             Action[]
+  services            Service[]
 }
 
 enum TenantMemberRole {
@@ -658,9 +659,33 @@ model Worker {
   dispatcher   Dispatcher @relation(fields: [dispatcherId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   dispatcherId String     @db.Uuid
 
+  services Service[]
+
   // the actions this worker can run
   actions Action[]
 
   // the jobs the worker has run
   stepRuns StepRun[]
+}
+
+model Service {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the service name
+  name String
+
+  // the service description
+  description String?
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // the service's workers
+  workers Worker[]
+
+  @@unique([tenantId, name])
 }

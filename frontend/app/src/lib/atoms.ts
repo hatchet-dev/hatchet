@@ -87,7 +87,7 @@ export function useTenantContext(): [
       } else if (computedCurrTenant?.metadata.id) {
         const newSearchParams = new URLSearchParams(searchParams);
         newSearchParams.set('tenant', computedCurrTenant?.metadata.id);
-        setSearchParams(newSearchParams);
+        setSearchParams(newSearchParams, { replace: true });
       }
     }
   }, [
@@ -116,7 +116,7 @@ export function useTenantContext(): [
   const setTenant = (tenant: Tenant) => {
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.set('tenant', tenant.metadata.id);
-    setSearchParams(newSearchParams);
+    setSearchParams(newSearchParams, { replace: true });
   };
 
   return [currTenant || computedCurrTenant, setTenant];

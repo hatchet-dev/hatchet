@@ -2,7 +2,6 @@ package cli
 
 import (
 	_ "embed"
-	"io/ioutil"
 
 	"fmt"
 	"os"
@@ -189,22 +188,25 @@ func setupCerts(generated *generatedConfigFiles) error {
 		return fmt.Errorf("could not create worker-client-cert.conf file: %w", err)
 	}
 
-	// run openssl commands
-	c := exec.Command("bash", "-s", "-", fullPathCertDir)
+	// if CA files don't exists, run the script to regenerate all certs
+	if overwrite || (!fileExists(filepath.Join(fullPathCertDir, "./ca.key")) || !fileExists(filepath.Join(fullPathCertDir, "./ca.cert"))) {
+		// run openssl commands
+		c := exec.Command("bash", "-s", "-", fullPathCertDir)
 
-	c.Stdin = strings.NewReader(GenerateCertsScript)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
+		c.Stdin = strings.NewReader(GenerateCertsScript)
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
 
-	err = c.Run()
+		err = c.Run()
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 
 	generated.sc.TLS.TLSRootCAFile = filepath.Join(fullPathCertDir, "ca.cert")
-	generated.sc.TLS.TLSCertFile = filepath.Join(fullPathCertDir, "client-internal-admin.pem")
-	generated.sc.TLS.TLSKeyFile = filepath.Join(fullPathCertDir, "client-internal-admin.key")
+	generated.sc.TLS.TLSCertFile = filepath.Join(fullPathCertDir, "cluster.pem")
+	generated.sc.TLS.TLSKeyFile = filepath.Join(fullPathCertDir, "cluster.key")
 
 	return nil
 }
@@ -273,7 +275,7 @@ func getFiles(name string) [][]byte {
 	basePath := filepath.Join(configDirectory, name)
 
 	if fileExists(basePath) {
-		configFileBytes, err := ioutil.ReadFile(basePath)
+		configFileBytes, err := os.ReadFile(basePath)
 
 		if err != nil {
 			panic(err)
@@ -285,7 +287,7 @@ func getFiles(name string) [][]byte {
 	generatedPath := filepath.Join(generatedConfigDir, name)
 
 	if fileExists(generatedPath) {
-		generatedFileBytes, err := ioutil.ReadFile(filepath.Join(generatedConfigDir, name))
+		generatedFileBytes, err := os.ReadFile(filepath.Join(generatedConfigDir, name))
 
 		if err != nil {
 			panic(err)
@@ -314,7 +316,7 @@ func writeGeneratedConfig(generated *generatedConfigFiles) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(databasePath, databaseConfigBytes, 0666)
+	err = os.WriteFile(databasePath, databaseConfigBytes, 0666)
 
 	if err != nil {
 		return fmt.Errorf("could not write database.yaml file: %w", err)
@@ -328,7 +330,7 @@ func writeGeneratedConfig(generated *generatedConfigFiles) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(serverPath, serverConfigBytes, 0666)
+	err = os.WriteFile(serverPath, serverConfigBytes, 0666)
 
 	if err != nil {
 		return fmt.Errorf("could not write server.yaml file: %w", err)

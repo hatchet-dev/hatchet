@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/cmd/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
+	"github.com/joho/godotenv"
 )
 
 type sampleEvent struct{}
@@ -15,6 +16,12 @@ type sampleEvent struct{}
 type timeoutInput struct{}
 
 func main() {
+	err := godotenv.Load()
+
+	if err != nil {
+		panic(err)
+	}
+
 	client, err := client.New(
 		client.InitWorkflows(),
 	)
@@ -26,8 +33,8 @@ func main() {
 	// Create a worker. This automatically reads in a TemporalClient from .env and workflow files from the .hatchet
 	// directory, but this can be customized with the `worker.WithTemporalClient` and `worker.WithWorkflowFiles` options.
 	worker, err := worker.NewWorker(
-		worker.WithDispatcherClient(
-			client.Dispatcher(),
+		worker.WithClient(
+			client,
 		),
 	)
 
@@ -48,7 +55,7 @@ func main() {
 		panic(err)
 	}
 
-	interruptCtx, cancel := cmdutils.InterruptContext(cmdutils.InterruptChan())
+	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
 	defer cancel()
 
 	go func() {

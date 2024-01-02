@@ -21,3 +21,8 @@ jobs:
         timeout: 60s
         with:
           message: "Above message is: {{ .steps.echo2.message }}"
+      - id: testObject
+        action: echo:object
+        timeout: 60s
+        with:
+          object: "{{ .steps.echo3.json }}"

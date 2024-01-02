@@ -34,6 +34,10 @@ func jsonBytesToMap(jsonBytes []byte) (map[string]interface{}, error) {
 		return nil, err
 	}
 
+	if dataMap == nil {
+		return map[string]interface{}{}, nil
+	}
+
 	return dataMap, nil
 }
 

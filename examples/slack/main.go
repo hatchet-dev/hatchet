@@ -8,11 +8,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/cmd/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/slack"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
+	"github.com/joho/godotenv"
 )
 
 type userCreateEvent struct {
@@ -27,6 +28,12 @@ type actionInput struct {
 var SlackChannelWorkflow []byte
 
 func init() {
+	err := godotenv.Load()
+
+	if err != nil {
+		panic(err)
+	}
+
 	// initialize the slack channel workflow with SLACK_USER_ID
 	slackUserId := os.Getenv("SLACK_USER_ID")
 
@@ -75,8 +82,8 @@ func main() {
 	// Create a worker. This automatically reads in a TemporalClient from .env and workflow files from the .hatchet
 	// directory, but this can be customized with the `worker.WithTemporalClient` and `worker.WithWorkflowFiles` options.
 	worker, err := worker.NewWorker(
-		worker.WithDispatcherClient(
-			client.Dispatcher(),
+		worker.WithClient(
+			client,
 		),
 		worker.WithIntegration(
 			slackInt,
@@ -87,7 +94,7 @@ func main() {
 		panic(err)
 	}
 
-	interruptCtx, cancel := cmdutils.InterruptContext(cmdutils.InterruptChan())
+	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
 	defer cancel()
 
 	go worker.Start(interruptCtx)

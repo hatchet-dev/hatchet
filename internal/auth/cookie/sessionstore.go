@@ -159,6 +159,10 @@ func (store *UserSessionStore) New(r *http.Request, name string) (*sessions.Sess
 			} else {
 				session.IsNew = false
 			}
+		} else if strings.Contains(err.Error(), "the value is not valid") {
+			// this error occurs if the encryption keys have been rotated, in which case we'd like a new cookie
+			err = nil
+			session.IsNew = true
 		}
 	}
 

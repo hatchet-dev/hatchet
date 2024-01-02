@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/joho/godotenv"
 )
 
 type sampleEvent struct{}
@@ -13,6 +14,12 @@ type sampleEvent struct{}
 type timeoutInput struct{}
 
 func main() {
+	err := godotenv.Load()
+
+	if err != nil {
+		panic(err)
+	}
+
 	client, err := client.New(
 		client.InitWorkflows(),
 	)

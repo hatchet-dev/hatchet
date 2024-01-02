@@ -23,8 +23,9 @@ type Server struct {
 	dispatchercontracts.UnimplementedDispatcherServer
 	admincontracts.UnimplementedWorkflowServiceServer
 
-	l    *zerolog.Logger
-	port int
+	l           *zerolog.Logger
+	port        int
+	bindAddress string
 
 	ingestor   ingestor.Ingestor
 	dispatcher dispatcher.Dispatcher
@@ -35,26 +36,34 @@ type Server struct {
 type ServerOpt func(*ServerOpts)
 
 type ServerOpts struct {
-	l          *zerolog.Logger
-	port       int
-	ingestor   ingestor.Ingestor
-	dispatcher dispatcher.Dispatcher
-	admin      admin.AdminService
-	tls        *tls.Config
+	l           *zerolog.Logger
+	port        int
+	bindAddress string
+	ingestor    ingestor.Ingestor
+	dispatcher  dispatcher.Dispatcher
+	admin       admin.AdminService
+	tls         *tls.Config
 }
 
 func defaultServerOpts() *ServerOpts {
 	logger := zerolog.New(os.Stderr)
 
 	return &ServerOpts{
-		l:    &logger,
-		port: 7070,
+		l:           &logger,
+		port:        7070,
+		bindAddress: "127.0.0.1",
 	}
 }
 
 func WithLogger(l *zerolog.Logger) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.l = l
+	}
+}
+
+func WithBindAddress(bindAddress string) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.bindAddress = bindAddress
 	}
 }
 
@@ -100,12 +109,13 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 	}
 
 	return &Server{
-		l:          opts.l,
-		port:       opts.port,
-		ingestor:   opts.ingestor,
-		dispatcher: opts.dispatcher,
-		admin:      opts.admin,
-		tls:        opts.tls,
+		l:           opts.l,
+		port:        opts.port,
+		bindAddress: opts.bindAddress,
+		ingestor:    opts.ingestor,
+		dispatcher:  opts.dispatcher,
+		admin:       opts.admin,
+		tls:         opts.tls,
 	}, nil
 }
 
@@ -114,9 +124,9 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 func (s *Server) startGRPC(ctx context.Context) error {
-	s.l.Debug().Msgf("starting grpc server on port %d", s.port)
+	s.l.Debug().Msgf("starting grpc server on %s:%d", s.bindAddress, s.port)
 
-	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", s.port))
+	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.bindAddress, s.port))
 
 	if err != nil {
 		return fmt.Errorf("failed to listen: %w", err)

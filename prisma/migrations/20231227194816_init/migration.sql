@@ -319,6 +319,19 @@ CREATE TABLE "Worker" (
 );
 
 -- CreateTable
+CREATE TABLE "Service" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "tenantId" UUID NOT NULL,
+
+    CONSTRAINT "Service_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "_WorkflowToWorkflowTag" (
     "A" UUID NOT NULL,
     "B" UUID NOT NULL
@@ -327,6 +340,12 @@ CREATE TABLE "_WorkflowToWorkflowTag" (
 -- CreateTable
 CREATE TABLE "_ActionToWorker" (
     "A" TEXT NOT NULL,
+    "B" UUID NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "_ServiceToWorker" (
+    "A" UUID NOT NULL,
     "B" UUID NOT NULL
 );
 
@@ -445,6 +464,12 @@ CREATE UNIQUE INDEX "Ticker_id_key" ON "Ticker"("id");
 CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Service_id_key" ON "Service"("id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Service_tenantId_name_key" ON "Service"("tenantId", "name");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "_WorkflowToWorkflowTag_AB_unique" ON "_WorkflowToWorkflowTag"("A", "B");
 
 -- CreateIndex
@@ -455,6 +480,12 @@ CREATE UNIQUE INDEX "_ActionToWorker_AB_unique" ON "_ActionToWorker"("A", "B");
 
 -- CreateIndex
 CREATE INDEX "_ActionToWorker_B_index" ON "_ActionToWorker"("B");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "_ServiceToWorker_AB_unique" ON "_ServiceToWorker"("A", "B");
+
+-- CreateIndex
+CREATE INDEX "_ServiceToWorker_B_index" ON "_ServiceToWorker"("B");
 
 -- AddForeignKey
 ALTER TABLE "UserPassword" ADD CONSTRAINT "UserPassword_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -580,6 +611,9 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantI
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dispatcherId") REFERENCES "Dispatcher"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Service" ADD CONSTRAINT "Service_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_A_fkey" FOREIGN KEY ("A") REFERENCES "Workflow"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -590,3 +624,9 @@ ALTER TABLE "_ActionToWorker" ADD CONSTRAINT "_ActionToWorker_A_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "_ActionToWorker" ADD CONSTRAINT "_ActionToWorker_B_fkey" FOREIGN KEY ("B") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_ServiceToWorker" ADD CONSTRAINT "_ServiceToWorker_A_fkey" FOREIGN KEY ("A") REFERENCES "Service"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_ServiceToWorker" ADD CONSTRAINT "_ServiceToWorker_B_fkey" FOREIGN KEY ("B") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
