@@ -23,6 +23,16 @@ func (c Cron) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	wt.Cron = append(wt.Cron, string(c))
 }
 
+type Crons []string
+
+func (c Crons) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+	if wt.Cron == nil {
+		wt.Cron = []string{}
+	}
+
+	wt.Cron = append(wt.Cron, c...)
+}
+
 type Event string
 
 func (e Event) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
@@ -33,6 +43,16 @@ func (e Event) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	wt.Events = append(wt.Events, string(e))
 }
 
+type Events []string
+
+func (e Events) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+	if wt.Events == nil {
+		wt.Events = []string{}
+	}
+
+	wt.Events = append(wt.Events, e...)
+}
+
 type workflowConverter interface {
 	ToWorkflow(svcName string) types.Workflow
 	ToActionMap(svcName string) map[string]any
@@ -40,6 +60,29 @@ type workflowConverter interface {
 
 type Workflow struct {
 	Jobs []WorkflowJob
+}
+
+type workflowFn struct {
+	Function any
+}
+
+func Fn(f any) workflowFn {
+	return workflowFn{
+		Function: f,
+	}
+}
+
+func (w workflowFn) ToWorkflow(svcName string) types.Workflow {
+	workflowJob := &WorkflowJob{
+		Name: getFnName(w.Function),
+		Steps: []WorkflowStep{
+			{
+				Function: w.Function,
+			},
+		},
+	}
+
+	return workflowJob.ToWorkflow(svcName)
 }
 
 type WorkflowJob struct {
@@ -178,7 +221,7 @@ func (s *WorkflowStep) ToWorkflowStep(prevStep *step, svcName string, index int)
 }
 
 func (s *WorkflowStep) GetStepId(index int) string {
-	stepId := s.getFnName()
+	stepId := getFnName(s.Function)
 
 	// this can happen if the function is anonymous
 	if stepId == "" {
@@ -194,8 +237,19 @@ func (s *WorkflowStep) GetActionId(svcName string, index int) string {
 	return fmt.Sprintf("%s:%s", svcName, stepId)
 }
 
-func (s *WorkflowStep) getFnName() string {
-	fnName := runtime.FuncForPC(reflect.ValueOf(s.Function).Pointer()).Name()
+func getFnName(fn any) string {
+	fnInfo := runtime.FuncForPC(reflect.ValueOf(fn).Pointer())
+	fnName := fnInfo.Name()
 
-	return strings.Split(fnName, ".")[1]
+	// get after the last /
+	if strings.LastIndex(fnName, "/") != -1 {
+		fnName = fnName[strings.LastIndex(fnName, "/")+1:]
+	}
+
+	// get after the first .
+	if firstDotIndex := strings.Index(fnName, "."); firstDotIndex != -1 {
+		fnName = fnName[firstDotIndex+1:]
+	}
+
+	return strings.ReplaceAll(fnName, ".", "-")
 }
