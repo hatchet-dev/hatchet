@@ -23,6 +23,16 @@ func (c Cron) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	wt.Cron = append(wt.Cron, string(c))
 }
 
+type Crons []string
+
+func (c Crons) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+	if wt.Cron == nil {
+		wt.Cron = []string{}
+	}
+
+	wt.Cron = append(wt.Cron, c...)
+}
+
 type Event string
 
 func (e Event) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
@@ -33,6 +43,16 @@ func (e Event) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	wt.Events = append(wt.Events, string(e))
 }
 
+type Events []string
+
+func (e Events) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+	if wt.Events == nil {
+		wt.Events = []string{}
+	}
+
+	wt.Events = append(wt.Events, e...)
+}
+
 type workflowConverter interface {
 	ToWorkflow(svcName string) types.Workflow
 	ToActionMap(svcName string) map[string]any
@@ -40,6 +60,29 @@ type workflowConverter interface {
 
 type Workflow struct {
 	Jobs []WorkflowJob
+}
+
+type workflowFn struct {
+	Function any
+}
+
+func Fn(f any) workflowFn {
+	return workflowFn{
+		Function: f,
+	}
+}
+
+func (w workflowFn) ToWorkflow(svcName string) types.Workflow {
+	workflowJob := &WorkflowJob{
+		Name: "default",
+		Steps: []WorkflowStep{
+			{
+				Function: w.Function,
+			},
+		},
+	}
+
+	return workflowJob.ToWorkflow(svcName)
 }
 
 type WorkflowJob struct {
