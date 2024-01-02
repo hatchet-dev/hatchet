@@ -3,18 +3,21 @@
 The simplest way to define a workflow is by using the `worker.On` method. This method accepts two arguments: a workflow trigger and the workflow definition. For example, to trigger a workflow on the `user:created` event, you can do the following:
 
 ```go
-w.On(worker.Event("user:created"), &worker.WorkflowJob{
-  Name:        "post-user-sign-up",
-  Description: "Workflow that executes after a user signs up.",
-  Timeout:     "60s",
-  Steps: []worker.WorkflowStep{
-    {
-      Function: func(ctx context.Context) error {
-        return nil
-      },
+w.On(
+    worker.Event("user:created"), 
+    &worker.WorkflowJob{
+        Name:        "post-user-sign-up",
+        Description: "Workflow that executes after a user signs up.",
+        Timeout:     "60s",
+        Steps: []worker.WorkflowStep{
+            {
+                Function: func(ctx context.Context) error {
+                    return nil
+                },
+            },
+        },
     },
-  },
-})
+)
 ```
 
 ## Passing Arguments to Step Functions
@@ -71,19 +74,22 @@ Services are a way to logically group workflows into different categories. For e
 ```go
 userService := w.NewService("user")
 
-userService.On(worker.Event("user:created"), &worker.WorkflowJob{
-  Name:        "post-user-sign-up",
-  Description: "Workflow that executes after a user signs up.",
-  Timeout:     "60s",
-  Steps: []worker.WorkflowStep{
-    {
-      Function: func(ctx context.Context) error {
-        fmt.Println("running post-user sign up")
-        return nil
-      },
+userService.On(
+    worker.Event("user:created"), 
+    &worker.WorkflowJob{
+        Name:        "post-user-sign-up",
+        Description: "Workflow that executes after a user signs up.",
+        Timeout:     "60s",
+        Steps: []worker.WorkflowStep{
+            {
+                Function: func(ctx context.Context) error {
+                    fmt.Println("running post-user sign up")
+                    return nil
+                },
+            },
+        },
     },
-  },
-})
+)
 ```
 
 While this is mostly a convenience method at the moment, we plan to add more features to services in the future, like service-level metrics and service-level retries.
@@ -93,17 +99,20 @@ While this is mostly a convenience method at the moment, we plan to add more fea
 You can declare a cron schedule by passing `worker.Cron` to the `worker.On` method. For example, to trigger a workflow every 5 minutes, you can do the following:
 
 ```go
-w.On(worker.Cron("*/5 * * * *"), &worker.WorkflowJob{
-  Name:        "my-cron-job",
-  Description: "Cron workflow example.",
-  Timeout:     "60s",
-  Steps: []worker.WorkflowStep{
-    {
-      Function: func(ctx context.Context) error {
-        fmt.Println("triggered at:", time.Now())
-        return nil
-      },
+w.On(
+    worker.Cron("*/5 * * * *"), 
+    &worker.WorkflowJob{
+        Name:        "my-cron-job",
+        Description: "Cron workflow example.",
+        Timeout:     "60s",
+        Steps: []worker.WorkflowStep{
+            {
+                Function: func(ctx context.Context) error {
+                    fmt.Println("triggered at:", time.Now())
+                    return nil
+                },
+            },
+        },
     },
-  },
-})
+)
 ```
