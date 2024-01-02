@@ -77,37 +77,47 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 
 const listEvents = `-- name: ListEvents :many
 SELECT
-    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, 
+    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data,
     sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
     sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
     sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
     sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns
 FROM
-    "Event" as events 
+    "Event" as events
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
 LEFT JOIN
     "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
+LEFT JOIN
+    "WorkflowVersion" as workflowVersion ON workflowVersion."id" = runs."workflowVersionId"
+LEFT JOIN
+    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     events."tenantId" = $1 AND
     (
         $2::text[] IS NULL OR
         events."key" = ANY($2::text[])
+    ) AND
+    (
+        $3::text IS NULL OR
+        workflow.name like concat('%', $3::text, '%') OR
+        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $3::text, '")') as jsonpath))
     )
 GROUP BY
     events."id"
 ORDER BY
-    case when $3 = 'createdAt ASC' THEN events."createdAt" END ASC ,
-    case when $3 = 'createdAt DESC' then events."createdAt" END DESC
+    case when $4 = 'createdAt ASC' THEN events."createdAt" END ASC ,
+    case when $4 = 'createdAt DESC' then events."createdAt" END DESC
 OFFSET
-    COALESCE($4, 0)
+    COALESCE($5, 0)
 LIMIT
-    COALESCE($5, 50)
+    COALESCE($6, 50)
 `
 
 type ListEventsParams struct {
 	TenantId pgtype.UUID `json:"tenantId"`
 	Keys     []string    `json:"keys"`
+	Search   pgtype.Text `json:"search"`
 	Orderby  interface{} `json:"orderby"`
 	Offset   interface{} `json:"offset"`
 	Limit    interface{} `json:"limit"`
@@ -125,6 +135,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 	rows, err := db.Query(ctx, listEvents,
 		arg.TenantId,
 		arg.Keys,
+		arg.Search,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,

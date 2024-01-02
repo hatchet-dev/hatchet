@@ -29,6 +29,9 @@ type ListEventOpts struct {
 	// (optional) number of events to return
 	Limit *int
 
+	// (optional) a search query
+	Search *string
+
 	// (optional) the event that this event is replaying
 	ReplayedEvent *string `validate:"omitempty,uuid"`
 

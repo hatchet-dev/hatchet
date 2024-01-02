@@ -81,6 +81,7 @@ function EventsTable() {
     }
   }, [selectedEvent, searchParams, setSearchParams]);
 
+  const [search, setSearch] = useState<string | undefined>(undefined);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -130,13 +131,19 @@ function EventsTable() {
     return pagination.pageIndex * pagination.pageSize;
   }, [pagination]);
 
-  const listEventsQuery = useQuery({
+  const {
+    data,
+    isLoading,
+    refetch,
+    error: eventsError,
+  } = useQuery({
     ...queries.events.list(tenant.metadata.id, {
       keys,
       orderByField,
       orderByDirection,
       offset,
       limit: pageSize,
+      search,
     }),
   });
 
@@ -146,23 +153,27 @@ function EventsTable() {
       await api.eventUpdateReplay(tenant.metadata.id, data);
     },
     onSuccess: () => {
-      listEventsQuery.refetch();
+      refetch();
     },
     onError: handleApiError,
   });
 
-  const listEventKeysQuery = useQuery({
+  const {
+    data: eventKeys,
+    isLoading: eventKeysIsLoading,
+    error: eventKeysError,
+  } = useQuery({
     ...queries.events.listKeys(tenant.metadata.id),
   });
 
   const eventKeyFilters = useMemo((): FilterOption[] => {
     return (
-      listEventKeysQuery.data?.rows?.map((key) => ({
+      eventKeys?.rows?.map((key) => ({
         value: key,
         label: key,
       })) || []
     );
-  }, [listEventKeysQuery.data?.rows]);
+  }, [eventKeys?.rows]);
 
   // useEffect(() => {
   //   if (listEventsQuery.data?.pagination) {
@@ -172,10 +183,6 @@ function EventsTable() {
   //     });
   //   }
   // }, [listEventsQuery.data?.pagination]);
-
-  if (listEventsQuery.isLoading) {
-    return <Loading />;
-  }
 
   const tableColumns = columns({
     onRowClick: (row: Event) => {
@@ -204,7 +211,7 @@ function EventsTable() {
       className="h-8 px-2 lg:px-3"
       size="sm"
       onClick={() => {
-        listEventsQuery.refetch();
+        refetch();
         setRotate(!rotate);
       }}
       variant={'outline'}
@@ -228,8 +235,10 @@ function EventsTable() {
         {selectedEvent && <ExpandedEventContent event={selectedEvent} />}
       </Dialog>
       <DataTable
+        error={eventKeysError || eventsError}
+        isLoading={isLoading || eventKeysIsLoading}
         columns={tableColumns}
-        data={listEventsQuery.data?.rows || []}
+        data={data?.rows || []}
         filters={[
           {
             columnId: 'key',
@@ -240,12 +249,14 @@ function EventsTable() {
         actions={actions}
         sorting={sorting}
         setSorting={setSorting}
+        search={search}
+        setSearch={setSearch}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}
         setPagination={setPagination}
         onSetPageSize={setPageSize}
-        pageCount={listEventsQuery.data?.pagination?.num_pages || 0}
+        pageCount={data?.pagination?.num_pages || 0}
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
         getRowId={(row) => row.metadata.id}

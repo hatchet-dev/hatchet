@@ -15,7 +15,7 @@
 
 1. Spin up Postgres and RabbitMQ: `docker-compose up -d`
 
-2. Run `npm install` inside of `./frontend/app`.
+2. Run `pnpm install` inside of `./frontend/app`.
 
 3. Generate certificates needed for communicating between the Hatchet client and engine: `task generate-certs`
 

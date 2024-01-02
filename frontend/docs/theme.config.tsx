@@ -12,13 +12,18 @@ const config: DocsThemeConfig = {
     link: "https://github.com/hatchet-dev/hatchet",
   },
   chat: {
-    link: "https://discord.com",
+    link: "https://discord.gg/ZMeUafwH89",
   },
   docsRepositoryBase: "https://github.com/hatchet-dev/hatchet/frontend/docs",
   footer: {
     text: "Hatchet",
   },
-  head: <link rel="icon" type="image/png" href="/favicon.ico" />,
+  head: (
+    <>
+      <link rel="icon" type="image/png" href="/favicon.ico" />
+      <title>Hatchet Documentation</title>{" "}
+    </>
+  ),
 };
 
 export default config;

@@ -44,10 +44,13 @@ export interface IDGetter {
 interface DataTableProps<TData extends IDGetter, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  error?: Error | null;
   filters: ToolbarFilters;
   actions?: JSX.Element[];
   sorting?: SortingState;
   setSorting?: OnChangeFn<SortingState>;
+  setSearch?: (search: string) => void;
+  search?: string;
   columnFilters?: ColumnFiltersState;
   setColumnFilters?: OnChangeFn<ColumnFiltersState>;
   pagination?: PaginationState;
@@ -71,11 +74,14 @@ interface DataTableProps<TData extends IDGetter, TValue> {
 
 export function DataTable<TData extends IDGetter, TValue>({
   columns,
+  error,
   data,
   filters,
   actions = [],
   sorting,
   setSorting,
+  setSearch,
+  search,
   columnFilters,
   setColumnFilters,
   pagination,
@@ -90,7 +96,7 @@ export function DataTable<TData extends IDGetter, TValue>({
   getRowId,
 }: DataTableProps<TData, TValue>) {
   const tableData = React.useMemo(
-    () => (isLoading ? Array(10).fill({}) : data),
+    () => (isLoading ? Array(10).fill({ metadata: {} }) : data),
     [isLoading, data],
   );
 
@@ -160,7 +166,13 @@ export function DataTable<TData extends IDGetter, TValue>({
   return (
     <div className="space-y-4">
       {filters && filters.length > 0 && (
-        <DataTableToolbar table={table} filters={filters} actions={actions} />
+        <DataTableToolbar
+          table={table}
+          filters={filters}
+          actions={actions}
+          search={search}
+          setSearch={setSearch}
+        />
       )}
       <div className="rounded-md border">
         <Table>
@@ -183,7 +195,13 @@ export function DataTable<TData extends IDGetter, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {error ? (
+              <TableRow className="p-4 text-center text-red-500">
+                <TableCell colSpan={columns.length}>
+                  {error.message || 'An error occurred.'}
+                </TableCell>
+              </TableRow>
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => getTableRow(row))
             ) : (
               <TableRow>
