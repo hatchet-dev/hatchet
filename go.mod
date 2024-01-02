@@ -54,6 +54,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/getsentry/sentry-go v0.25.0
 	github.com/go-chi/chi v1.5.5
 	github.com/go-co-op/gocron v1.36.0
 	github.com/go-playground/validator/v10 v10.16.0

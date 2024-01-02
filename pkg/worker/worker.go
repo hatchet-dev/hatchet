@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations"
 	"github.com/rs/zerolog"
 )
@@ -57,6 +58,8 @@ type Worker struct {
 	cancelMap sync.Map
 
 	services sync.Map
+
+	alerter errors.Alerter
 }
 
 type WorkerOpt func(*WorkerOpts)
@@ -67,6 +70,7 @@ type WorkerOpts struct {
 	l      *zerolog.Logger
 
 	integrations []integrations.Integration
+	alerter      errors.Alerter
 }
 
 func defaultWorkerOpts() *WorkerOpts {
@@ -76,6 +80,7 @@ func defaultWorkerOpts() *WorkerOpts {
 		name:         getHostName(),
 		l:            &logger,
 		integrations: []integrations.Integration{},
+		alerter:      errors.NoOpAlerter{},
 	}
 }
 
@@ -97,6 +102,12 @@ func WithIntegration(integration integrations.Integration) WorkerOpt {
 	}
 }
 
+func WithErrorAlerter(alerter errors.Alerter) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.alerter = alerter
+	}
+}
+
 // NewWorker creates a new worker instance
 func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 	opts := defaultWorkerOpts()
@@ -110,6 +121,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		name:    opts.name,
 		l:       opts.l,
 		actions: map[string]Action{},
+		alerter: opts.alerter,
 	}
 
 	// register all integrations
@@ -308,6 +320,14 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 
 	if err != nil {
 		failureEvent := w.getActionEvent(assignedAction, client.ActionEventTypeFailed)
+
+		w.alerter.SendAlert(context.Background(), err, map[string]interface{}{
+			"actionId":   assignedAction.ActionId,
+			"workerId":   assignedAction.WorkerId,
+			"stepRunId":  assignedAction.StepRunId,
+			"jobName":    assignedAction.JobName,
+			"actionType": assignedAction.ActionType,
+		})
 
 		failureEvent.EventPayload = err.Error()
 
