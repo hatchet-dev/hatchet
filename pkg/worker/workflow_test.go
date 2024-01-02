@@ -1,6 +1,11 @@
 package worker
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func namedFunction() {}
 
@@ -26,49 +31,46 @@ func TestGetFnNameAnon(t *testing.T) {
 	}
 }
 
-// import (
-// 	"context"
-// 	"testing"
-// )
+type actionInput struct {
+	Message string `json:"message"`
+}
 
-// // type actionInput struct {
-// // 	Message string `json:"message"`
-// // }
+type stepOneOutput struct {
+	Message string `json:"message"`
+}
 
-// // type stepOneOutput struct {
-// // 	Message string `json:"message"`
-// // }
+type stepTwoOutput struct {
+	Message string `json:"message"`
+}
 
-// // type stepTwoOutput struct {
-// // 	Message string `json:"message"`
-// // }
+func TestToWorkflowJob(t *testing.T) {
+	testJob := WorkflowJob{
+		Name:        "test",
+		Description: "test",
+		Timeout:     "1m",
+		Steps: []WorkflowStep{
+			{
+				Function: func(ctx context.Context, input *actionInput) (result *stepOneOutput, err error) {
+					return nil, nil
+				},
+			},
+			{
+				Function: func(ctx context.Context, input *stepOneOutput) (result *stepTwoOutput, err error) {
+					return nil, nil
+				},
+			},
+		},
+	}
 
-// // func TestToWorkflowJob(t *testing.T) {
-// // 	testJob := WorkflowJob{
-// // 		Name:        "test",
-// // 		Description: "test",
-// // 		Timeout:     "1m",
-// // 		Steps: []WorkflowStep{
-// // 			{
-// // 				ActionId: "test:test",
-// // 				Function: func(ctx context.Context, input *actionInput) (result *stepOneOutput, err error) {
-// // 					return nil, nil
-// // 				},
-// // 			},
-// // 			{
-// // 				ActionId: "test:test",
-// // 				Function: func(ctx context.Context, input *stepOneOutput) (result *stepTwoOutput, err error) {
-// // 					return nil, nil
-// // 				},
-// // 			},
-// // 		},
-// // 	}
+	workflow := testJob.ToWorkflow("default")
 
-// // 	job, err := testJob.ToWorkflowJob()
+	assert.Equal(t, "test", workflow.Name)
+}
 
-// // 	if err != nil {
-// // 		t.Fatalf("could not convert workflow job: %v", err)
-// // 	}
+func TestFnToWorkflow(t *testing.T) {
+	workflow := Fn(func(ctx context.Context, input *actionInput) (result *stepOneOutput, err error) {
+		return nil, nil
+	}).ToWorkflow("default")
 
-// // 	t.Fatalf("%v", job)
-// // }
+	assert.Equal(t, "TestFnToWorkflow-func1", workflow.Name)
+}

@@ -74,7 +74,7 @@ func Fn(f any) workflowFn {
 
 func (w workflowFn) ToWorkflow(svcName string) types.Workflow {
 	workflowJob := &WorkflowJob{
-		Name: "default",
+		Name: getFnName(w.Function),
 		Steps: []WorkflowStep{
 			{
 				Function: w.Function,
