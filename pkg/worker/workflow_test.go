@@ -1,5 +1,31 @@
 package worker
 
+import "testing"
+
+func namedFunction() {}
+
+func TestGetFnNameAnon(t *testing.T) {
+	fn := func() {}
+
+	name := getFnName(fn)
+
+	if name != "TestGetFnNameAnon-func1" {
+		t.Fatalf("expected function name to be TestGetFnNameAnon-func1, got %s", name)
+	}
+
+	name = getFnName(func() {})
+
+	if name != "TestGetFnNameAnon-func2" {
+		t.Fatalf("expected function name to be TestGetFnNameAnon-func2, got %s", name)
+	}
+
+	name = getFnName(namedFunction)
+
+	if name != "namedFunction" {
+		t.Fatalf("expected function name to be namedFunction, got %s", name)
+	}
+}
+
 // import (
 // 	"context"
 // 	"testing"

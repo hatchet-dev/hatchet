@@ -178,7 +178,7 @@ func (s *WorkflowStep) ToWorkflowStep(prevStep *step, svcName string, index int)
 }
 
 func (s *WorkflowStep) GetStepId(index int) string {
-	stepId := s.getFnName()
+	stepId := getFnName(s.Function)
 
 	// this can happen if the function is anonymous
 	if stepId == "" {
@@ -194,8 +194,19 @@ func (s *WorkflowStep) GetActionId(svcName string, index int) string {
 	return fmt.Sprintf("%s:%s", svcName, stepId)
 }
 
-func (s *WorkflowStep) getFnName() string {
-	fnName := runtime.FuncForPC(reflect.ValueOf(s.Function).Pointer()).Name()
+func getFnName(fn any) string {
+	fnInfo := runtime.FuncForPC(reflect.ValueOf(fn).Pointer())
+	fnName := fnInfo.Name()
 
-	return strings.Split(fnName, ".")[1]
+	// get after the last /
+	if strings.LastIndex(fnName, "/") != -1 {
+		fnName = fnName[strings.LastIndex(fnName, "/")+1:]
+	}
+
+	// get after the first .
+	if firstDotIndex := strings.Index(fnName, "."); firstDotIndex != -1 {
+		fnName = fnName[firstDotIndex+1:]
+	}
+
+	return strings.ReplaceAll(fnName, ".", "-")
 }
