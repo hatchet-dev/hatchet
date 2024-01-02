@@ -24,8 +24,7 @@ COPY /hack ./hack
 COPY /prisma ./prisma
 COPY /cmd ./cmd
 
-# generate the Prisma Client Go client
-RUN go run github.com/steebchen/prisma-client-go generate --generator go
+RUN go generate ./...
 
 # OpenAPI bundle environment
 # -------------------------

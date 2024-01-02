@@ -31,7 +31,7 @@ tasks:
   generate:
     cmds:
       - task: generate-api
-      - task: generate-prisma
+      - task: generate-go
       - task: generate-proto
       - task: generate-sqlc
   generate-api:
@@ -49,9 +49,9 @@ tasks:
     cmds:
       - sh ./hack/oas/generate-client.sh
     silent: true
-  generate-prisma:
+  generate-go:
     cmds:
-      - go run github.com/steebchen/prisma-client-go generate
+      - go generate ./...
   generate-proto:
     cmds:
       - sh ./hack/proto/proto.sh
