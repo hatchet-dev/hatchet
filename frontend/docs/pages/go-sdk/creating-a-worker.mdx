@@ -56,3 +56,56 @@ The client to use to communicate with the Hatchet instance. This is required.
 ### `worker.WithName`
 
 The name of the worker. This is used to identify the worker in the Hatchet UI.
+
+### `worker.WithErrorAlerter`
+
+Use this option to set up an external error alerter, such as [Sentry](https://sentry.io/). 
+
+#### Sentry Alerter
+
+You can use the built-in Sentry alerter via the `"github.com/hatchet-dev/hatchet/pkg/errors/sentry"` package. 
+
+```go
+
+import (
+	"os"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
+	"github.com/hatchet-dev/hatchet/pkg/worker"
+)
+
+func main() {
+    // client initialization code...
+
+    // create the sentry alerter
+    sentryAlerter, err := sentry.NewSentryAlerter(&sentry.SentryAlerterOpts{
+		DSN:         os.Getenv("SENTRY_DSN"),
+		Environment: os.Getenv("SENTRY_ENVIRONMENT"),
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	// Create a worker. This automatically reads in a TemporalClient from .env and workflow files from the .hatchet
+	// directory, but this can be customized with the `worker.WithTemporalClient` and `worker.WithWorkflowFiles` options.
+	w, err := worker.NewWorker(
+		worker.WithClient(
+			client,
+		),
+        // call the `WithErrorAlerter` method to set up the sentry alerter
+		worker.WithErrorAlerter(sentryAlerter),
+	)
+}
+```
+
+#### Custom Alerters 
+
+The `ErrorAlerter` needs to satisfy the following interface:
+
+```go
+type Alerter interface {
+	SendAlert(ctx context.Context, err error, data map[string]interface{})
+}
+```
