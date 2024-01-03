@@ -480,9 +480,6 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 				return fmt.Errorf("could not get step inputs: %w", err)
 			}
 
-			fmt.Println("RENDER TEMPLATE FIELDS ARGS", lookupDataMap, inputDataMap)
-			fmt.Println("STEP OUTPUTS ARE", lookupDataMap["steps"])
-
 			inputDataMap, err = datautils.RenderTemplateFields(lookupDataMap, inputDataMap)
 
 			if err != nil {
