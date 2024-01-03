@@ -303,6 +303,21 @@ type JobRunLookupData struct {
 	Data      []byte           `json:"data"`
 }
 
+type Service struct {
+	ID          pgtype.UUID      `json:"id"`
+	CreatedAt   pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt   pgtype.Timestamp `json:"deletedAt"`
+	Name        string           `json:"name"`
+	Description pgtype.Text      `json:"description"`
+	TenantId    pgtype.UUID      `json:"tenantId"`
+}
+
+type ServiceToWorker struct {
+	A pgtype.UUID `json:"A"`
+	B pgtype.UUID `json:"B"`
+}
+
 type Step struct {
 	ID         pgtype.UUID      `json:"id"`
 	CreatedAt  pgtype.Timestamp `json:"createdAt"`

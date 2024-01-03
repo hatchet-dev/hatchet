@@ -57,7 +57,12 @@ func main() {
 		panic(err)
 	}
 
-	err = w.On(worker.Event("user:create"), &worker.WorkflowJob{
+	err = w.On(worker.Events(
+		[]string{
+			"user:create",
+			"user:update",
+		},
+	), &worker.WorkflowJob{
 		Name:        "test-job",
 		Description: "This is a test job.",
 		Steps: []worker.WorkflowStep{
