@@ -106,12 +106,12 @@ FROM (
     ORDER BY workflows."id" DESC
 ) as workflows
 ORDER BY
-        case when $3 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
-        case when $3 = 'createdAt DESC' then workflows."createdAt" END DESC
-    OFFSET
-        COALESCE($4, 0)
-    LIMIT
-        COALESCE($5, 50)
+    case when $3 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
+    case when $3 = 'createdAt DESC' then workflows."createdAt" END DESC
+OFFSET
+    COALESCE($4, 0)
+LIMIT
+    COALESCE($5, 50)
 `
 
 type ListWorkflowsParams struct {
