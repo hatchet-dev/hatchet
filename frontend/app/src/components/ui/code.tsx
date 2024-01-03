@@ -27,6 +27,10 @@ export function Code({
       <SyntaxHighlighter
         language={language}
         style={anOldHope}
+        wrapLines={true}
+        lineProps={{
+          style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' },
+        }}
         customStyle={{
           background: 'hsl(var(--muted) / 0.5)',
           borderRadius: '0.5rem',
