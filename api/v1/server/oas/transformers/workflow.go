@@ -7,8 +7,10 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/iter"
+	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -228,6 +230,8 @@ func ToJob(job *db.JobModel) (*gen.Job, error) {
 
 	if timeout, ok := job.Timeout(); ok {
 		res.Timeout = &timeout
+	} else {
+		res.Timeout = repository.StringPtr(defaults.DefaultJobRunTimeout)
 	}
 
 	if steps := job.Steps(); steps != nil {
@@ -269,6 +273,8 @@ func ToStep(step *db.StepModel) *gen.Step {
 
 	if timeout, ok := step.Timeout(); ok {
 		res.Timeout = &timeout
+	} else {
+		res.Timeout = repository.StringPtr(defaults.DefaultStepRunTimeout)
 	}
 
 	if next, ok := step.NextID(); ok {

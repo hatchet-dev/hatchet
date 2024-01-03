@@ -185,9 +185,11 @@ func (w *Worker) registerAction(name string, method any) error {
 		return fmt.Errorf("could not get function from method: %w", err)
 	}
 
-	// ensure action has not been registered
-	if _, ok := w.actions[name]; ok {
-		return fmt.Errorf("action %s already registered", name)
+	// if action has already been registered, ensure that the method is the same
+	if currMethod, ok := w.actions[name]; ok {
+		if reflect.ValueOf(currMethod).Pointer() != reflect.ValueOf(method).Pointer() {
+			return fmt.Errorf("action %s is already registered with function %s", name, getFnName(currMethod.MethodFn()))
+		}
 	}
 
 	w.actions[name] = &actionImpl{

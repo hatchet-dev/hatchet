@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/rs/zerolog"
@@ -1016,14 +1017,10 @@ func stepRunAssignedTask(tenantId, stepRunId string, worker *db.WorkerModel) *ta
 }
 
 func scheduleStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel) (*taskqueue.Task, error) {
-	var durationStr string
+	durationStr := defaults.DefaultStepRunTimeout
 
 	if timeout, ok := stepRun.Step().Timeout(); ok {
 		durationStr = timeout
-	}
-
-	if durationStr == "" {
-		durationStr = "300s"
 	}
 
 	// get a duration
@@ -1054,14 +1051,10 @@ func scheduleStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel
 }
 
 func scheduleJobRunTimeoutTask(ticker *db.TickerModel, jobRun *db.JobRunModel) (*taskqueue.Task, error) {
-	var durationStr string
+	durationStr := defaults.DefaultJobRunTimeout
 
 	if timeout, ok := jobRun.Job().Timeout(); ok {
 		durationStr = timeout
-	}
-
-	if durationStr == "" {
-		durationStr = "300s"
 	}
 
 	// get a duration
