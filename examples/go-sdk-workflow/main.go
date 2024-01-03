@@ -57,25 +57,17 @@ func main() {
 		panic(err)
 	}
 
-	err = w.On(worker.Events(
-		[]string{
-			"user:create",
-			"user:update",
-		},
-	), &worker.WorkflowJob{
-		Name:        "test-job",
-		Description: "This is a test job.",
-		Steps: []worker.WorkflowStep{
-			{
-				Function: StepOne,
-				ID:       "step-one",
-			},
-			{
-				Function: StepTwo,
-				ID:       "step-two",
+	err = w.On(
+		worker.Events("user:create", "user:update"),
+		&worker.WorkflowJob{
+			Name:        "test-job",
+			Description: "This is a test job.",
+			Steps: []worker.WorkflowStep{
+				worker.Fn(StepOne).SetName("step-one"),
+				worker.Fn(StepTwo).SetName("step-two"),
 			},
 		},
-	})
+	)
 
 	if err != nil {
 		panic(err)

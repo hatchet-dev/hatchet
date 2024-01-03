@@ -10,17 +10,51 @@ w.On(
         Description: "Workflow that executes after a user signs up.",
         Timeout:     "60s",
         Steps: []worker.WorkflowStep{
-            {
-                Function: func(ctx context.Context) error {
-                    return nil
-                },
-            },
+            worker.Fn(func(ctx context.Context) error {
+                return nil
+            }),
         },
     },
 )
 ```
 
-## Passing Arguments to Step Functions
+**Supported Workflow Triggers**
+
+- `worker.Event` - triggers a workflow when an event is received
+- `worker.Events` - triggers a workflow when any of the given events are received
+- `worker.Cron` - triggers a workflow on a cron schedule
+- `worker.Crons` - triggers a workflow from multiple cron schedules
+
+**Supported Workflow Definitions**
+
+- `*worker.WorkflowJob` - a workflow that executes a series of steps
+- `worker.Fn` - a single-step workflow ([see below](#single-step-workflows))
+
+## Single-Step Workflows
+
+If your workflow is a single method, you can use `worker.Fn` to define your workflow:
+
+```go
+w.On(
+    worker.Event("user:created"), 
+    worker.Fn(func(ctx context.Context) error {
+        return nil
+    }),
+)
+```
+
+Anonymous functions will be given an auto-generated name based on the package and parent function name. To avoid ugly auto-generated names, you can use `SetName` on the `worker.Fn` struct:
+
+```go
+w.On(
+    worker.Event("user:created"), 
+    worker.Fn(func(ctx context.Context) error {
+        return nil
+    }).SetName("post-user-create"), // this workflow will be named "post-user-create"
+)
+```
+
+## Passing Arguments to Steps
 
 Step functions must always accept a `context.Context` as the first argument, and must return an `error` as the last return value. They can optionally accept a second argument or return a value -- both of these must be a pointer to a struct. The following are valid step functions:
 
