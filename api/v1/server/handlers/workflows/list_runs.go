@@ -22,12 +22,12 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 	}
 
 	if request.Params.Limit != nil {
-		limit := int(*request.Params.Limit)
+		limit = int(*request.Params.Limit)
 		listOpts.Limit = &limit
 	}
 
 	if request.Params.Offset != nil {
-		offset := int(*request.Params.Offset)
+		offset = int(*request.Params.Offset)
 		listOpts.Offset = &offset
 	}
 
