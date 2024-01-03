@@ -64,6 +64,8 @@ type Workflow struct {
 
 type workflowFn struct {
 	Function any
+
+	name string
 }
 
 func Fn(f any) workflowFn {
@@ -72,12 +74,23 @@ func Fn(f any) workflowFn {
 	}
 }
 
+func (w workflowFn) SetName(name string) workflowFn {
+	w.name = name
+	return w
+}
+
 func (w workflowFn) ToWorkflow(svcName string) types.Workflow {
+	jobName := w.name
+
+	if jobName == "" {
+		jobName = getFnName(w.Function)
+	}
 	workflowJob := &WorkflowJob{
-		Name: getFnName(w.Function),
+		Name: jobName,
 		Steps: []WorkflowStep{
 			{
 				Function: w.Function,
+				ID:       w.name,
 			},
 		},
 	}
