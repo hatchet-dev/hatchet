@@ -26,6 +26,25 @@ Hatchet has the following high-level goals:
 2. **Simple to setup:** we've seen too many overengineered stacks built on a fragile task queue with overly complex infrastructure. Hatchet is designed to be simple to setup, run locally, and deploy to your own infrastructure.
 3. **Flexibility when you need it:** as your application grows, you can use Hatchet to support complex, multi-step distributed workflows. Hatchet's backend is modular, allowing for customizing the implementation of the event storage API, queueing system, authentication, and more.
 
+## Features
+
+**Currently implemented**
+
+- **✅ Declarative workflows:** use the Go SDK to define workflows, with support for timeouts and parallel execution.
+- **✅ Cron schedules:** schedule workflows using a crontab syntax, like `*/15 * * * *` (every 15 minutes).
+- **✅ Events API**: store events in a durable event log, with support for querying and filtering events. Define which events trigger which workflows.
+- **✅ Web UI**: use the web UI to monitor and debug your workflows and events.
+- **✅ Self-hostable**: MIT-licensed and Docker images available.
+- **✅ Locally runnable**: see [here](https://github.com/hatchet-dev/hatchet-go-quickstart) for an example.
+- **✅ Organize workflows using services**: use `worker.NewService` to organize your workflows.
+
+**Near-term roadmap**
+
+- 🚧 Helm chart for Kubernetes deployments
+- 🚧 UI and CLI for creating, updating, and deleting workflows
+- 🚧 Better support for parallel step execution
+- 🚧 More integrations
+
 ## Getting Started
 
 To get started, see the Hatchet documentation [here](https://docs.hatchet.run).
