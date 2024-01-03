@@ -10,15 +10,25 @@ w.On(
         Description: "Workflow that executes after a user signs up.",
         Timeout:     "60s",
         Steps: []worker.WorkflowStep{
-            {
-                Function: func(ctx context.Context) error {
-                    return nil
-                },
-            },
+            worker.Fn(func(ctx context.Context) error {
+                return nil
+            }),
         },
     },
 )
 ```
+
+**Supported Workflow Triggers**
+
+- `worker.Event` - triggers a workflow when an event is received
+- `worker.Events` - triggers a workflow when any of the given events are received
+- `worker.Cron` - triggers a workflow on a cron schedule
+- `worker.Crons` - triggers a workflow from multiple cron schedules
+
+**Supported Workflow Definitions**
+
+- `*worker.WorkflowJob` - a workflow that executes a series of steps
+- `worker.Fn` - a single-step workflow ([see below](#single-step-workflows))
 
 ## Single-Step Workflows
 
