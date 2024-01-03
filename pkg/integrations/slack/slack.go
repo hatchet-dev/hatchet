@@ -4,25 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/pkg/integrations"
 	"github.com/slack-go/slack"
 )
 
 type SlackIntegration struct {
-	api              *slack.Client
-	teamId           string
-	decoderValidator datautils.DataDecoderValidator
+	api    *slack.Client
+	teamId string
 }
 
 func NewSlackIntegration(authToken string, teamId string, debug bool) *SlackIntegration {
 	api := slack.New(authToken, slack.OptionDebug(debug))
-	decoderValidator := datautils.NewDataDecoderValidator()
 
 	return &SlackIntegration{
-		api:              api,
-		teamId:           teamId,
-		decoderValidator: decoderValidator,
+		api:    api,
+		teamId: teamId,
 	}
 }
 
