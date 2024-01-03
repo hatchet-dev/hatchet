@@ -101,6 +101,7 @@ func (w workflowFn) ToWorkflow(svcName string) types.Workflow {
 func (w workflowFn) ToActionMap(svcName string) map[string]any {
 	step := &WorkflowStep{
 		Function: w.Function,
+		ID:       w.name,
 	}
 
 	return map[string]any{
@@ -233,7 +234,7 @@ func (s *WorkflowStep) ToWorkflowStep(prevStep *step, svcName string, index int)
 	if prevStep != nil && prevStep.NonErrOutput != nil {
 		if inputs[1] == *prevStep.NonErrOutput {
 			res.APIStep.With = map[string]interface{}{
-				"object": "{{ .steps." + prevStep.Id + ".json }}",
+				"object": "{{ index .steps \"" + prevStep.Id + "\" \"json\" }}",
 			}
 		}
 	} else {
