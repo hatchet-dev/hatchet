@@ -68,9 +68,11 @@ func main() {
 		Steps: []worker.WorkflowStep{
 			{
 				Function: StepOne,
+				ID:       "step-one",
 			},
 			{
 				Function: StepTwo,
+				ID:       "step-two",
 			},
 		},
 	})

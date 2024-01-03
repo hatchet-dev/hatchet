@@ -1017,10 +1017,14 @@ func stepRunAssignedTask(tenantId, stepRunId string, worker *db.WorkerModel) *ta
 }
 
 func scheduleStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel) (*taskqueue.Task, error) {
-	durationStr := defaults.DefaultStepRunTimeout
+	var durationStr string
 
 	if timeout, ok := stepRun.Step().Timeout(); ok {
 		durationStr = timeout
+	}
+
+	if durationStr == "" {
+		durationStr = defaults.DefaultStepRunTimeout
 	}
 
 	// get a duration
@@ -1051,10 +1055,14 @@ func scheduleStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel
 }
 
 func scheduleJobRunTimeoutTask(ticker *db.TickerModel, jobRun *db.JobRunModel) (*taskqueue.Task, error) {
-	durationStr := defaults.DefaultJobRunTimeout
+	var durationStr string
 
 	if timeout, ok := jobRun.Job().Timeout(); ok {
 		durationStr = timeout
+	}
+
+	if durationStr == "" {
+		durationStr = defaults.DefaultJobRunTimeout
 	}
 
 	// get a duration
