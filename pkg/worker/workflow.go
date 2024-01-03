@@ -86,8 +86,12 @@ func (w workflowFn) ToWorkflow(svcName string) types.Workflow {
 }
 
 func (w workflowFn) ToActionMap(svcName string) map[string]any {
+	step := &WorkflowStep{
+		Function: w.Function,
+	}
+
 	return map[string]any{
-		getFnName(w.Function): w.Function,
+		step.GetActionId(svcName, 0): w.Function,
 	}
 }
 
