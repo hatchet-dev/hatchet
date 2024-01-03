@@ -13,9 +13,13 @@ type triggerConverter interface {
 	ToWorkflowTriggers(*types.WorkflowTriggers)
 }
 
-type Cron string
+type cron string
 
-func (c Cron) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+func Cron(c string) cron {
+	return cron(c)
+}
+
+func (c cron) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	if wt.Cron == nil {
 		wt.Cron = []string{}
 	}
@@ -23,9 +27,13 @@ func (c Cron) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	wt.Cron = append(wt.Cron, string(c))
 }
 
-type Crons []string
+type cronArr []string
 
-func (c Crons) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+func Crons(c ...string) cronArr {
+	return cronArr(c)
+}
+
+func (c cronArr) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	if wt.Cron == nil {
 		wt.Cron = []string{}
 	}
@@ -33,9 +41,13 @@ func (c Crons) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	wt.Cron = append(wt.Cron, c...)
 }
 
-type Event string
+type event string
 
-func (e Event) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+func Event(e string) event {
+	return event(e)
+}
+
+func (e event) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	if wt.Events == nil {
 		wt.Events = []string{}
 	}
@@ -43,9 +55,13 @@ func (e Event) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	wt.Events = append(wt.Events, string(e))
 }
 
-type Events []string
+type eventsArr []string
 
-func (e Events) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+func Events(events ...string) eventsArr {
+	return eventsArr(events)
+}
+
+func (e eventsArr) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	if wt.Events == nil {
 		wt.Events = []string{}
 	}
@@ -60,53 +76,6 @@ type workflowConverter interface {
 
 type Workflow struct {
 	Jobs []WorkflowJob
-}
-
-type workflowFn struct {
-	Function any
-
-	name string
-}
-
-func Fn(f any) workflowFn {
-	return workflowFn{
-		Function: f,
-	}
-}
-
-func (w workflowFn) SetName(name string) workflowFn {
-	w.name = name
-	return w
-}
-
-func (w workflowFn) ToWorkflow(svcName string) types.Workflow {
-	jobName := w.name
-
-	if jobName == "" {
-		jobName = getFnName(w.Function)
-	}
-	workflowJob := &WorkflowJob{
-		Name: jobName,
-		Steps: []WorkflowStep{
-			{
-				Function: w.Function,
-				ID:       w.name,
-			},
-		},
-	}
-
-	return workflowJob.ToWorkflow(svcName)
-}
-
-func (w workflowFn) ToActionMap(svcName string) map[string]any {
-	step := &WorkflowStep{
-		Function: w.Function,
-		ID:       w.name,
-	}
-
-	return map[string]any{
-		step.GetActionId(svcName, 0): w.Function,
-	}
 }
 
 type WorkflowJob struct {
@@ -181,8 +150,48 @@ type WorkflowStep struct {
 	// The executed function
 	Function any
 
-	// The step id. If not set, one will be generated from the function name
-	ID string
+	// The step id/name. If not set, one will be generated from the function name
+	Name string
+}
+
+func Fn(f any) WorkflowStep {
+	return WorkflowStep{
+		Function: f,
+	}
+}
+
+func (w WorkflowStep) SetName(name string) WorkflowStep {
+	w.Name = name
+	return w
+}
+
+func (w WorkflowStep) SetTimeout(timeout string) WorkflowStep {
+	w.Timeout = timeout
+	return w
+}
+
+func (w WorkflowStep) ToWorkflow(svcName string) types.Workflow {
+	jobName := w.Name
+
+	if jobName == "" {
+		jobName = getFnName(w.Function)
+	}
+	workflowJob := &WorkflowJob{
+		Name: jobName,
+		Steps: []WorkflowStep{
+			WorkflowStep(w),
+		},
+	}
+
+	return workflowJob.ToWorkflow(svcName)
+}
+
+func (w WorkflowStep) ToActionMap(svcName string) map[string]any {
+	step := WorkflowStep(w)
+
+	return map[string]any{
+		step.GetActionId(svcName, 0): w.Function,
+	}
 }
 
 type step struct {
@@ -247,8 +256,8 @@ func (s *WorkflowStep) ToWorkflowStep(prevStep *step, svcName string, index int)
 }
 
 func (s *WorkflowStep) GetStepId(index int) string {
-	if s.ID != "" {
-		return s.ID
+	if s.Name != "" {
+		return s.Name
 	}
 
 	stepId := getFnName(s.Function)
