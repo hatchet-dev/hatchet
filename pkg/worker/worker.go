@@ -187,7 +187,7 @@ func (w *Worker) registerAction(name string, method any) error {
 
 	// if action has already been registered, ensure that the method is the same
 	if currMethod, ok := w.actions[name]; ok {
-		if reflect.ValueOf(currMethod).Pointer() != reflect.ValueOf(method).Pointer() {
+		if reflect.ValueOf(currMethod.MethodFn()).Pointer() != reflect.ValueOf(method).Pointer() {
 			return fmt.Errorf("action %s is already registered with function %s", name, getFnName(currMethod.MethodFn()))
 		}
 	}
