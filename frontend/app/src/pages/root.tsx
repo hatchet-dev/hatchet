@@ -5,7 +5,7 @@ import { Outlet } from 'react-router-dom';
 function Root() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <div className="absolute h-full w-full">
+      <div className="fixed h-full w-full">
         <Outlet />
         <Toaster />
       </div>
