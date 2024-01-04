@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
@@ -69,6 +70,15 @@ func main() {
 		}
 
 		return nil
+	})
+
+	w.Use(func(ctx context.Context, next func(context.Context) error) error {
+		// time the function duration
+		start := time.Now()
+		err := next(ctx)
+		duration := time.Since(start)
+		fmt.Printf("step function took %s\n", duration)
+		return err
 	})
 
 	testSvc := w.NewService("test")
