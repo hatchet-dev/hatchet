@@ -21,6 +21,10 @@ type stepOneOutput struct {
 }
 
 func StepOne(ctx context.Context, input *userCreateEvent) (result *stepOneOutput, err error) {
+	// could get from context
+	// testVal := ctx.Value("testkey").(string)
+	// svcVal := ctx.Value("svckey").(string)
+
 	return &stepOneOutput{
 		Message: "Username is: " + input.Username,
 	}, nil
@@ -57,7 +61,29 @@ func main() {
 		panic(err)
 	}
 
-	err = w.On(
+	w.Use(func(ctx context.Context, next func(context.Context) error) error {
+		err := next(context.WithValue(ctx, "testkey", "testvalue"))
+
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	testSvc := w.NewService("test")
+
+	testSvc.Use(func(ctx context.Context, next func(context.Context) error) error {
+		err := next(context.WithValue(ctx, "svckey", "svcvalue"))
+
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	err = testSvc.On(
 		worker.Events("user:create", "user:update"),
 		&worker.WorkflowJob{
 			Name:        "post-user-update",
