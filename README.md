@@ -18,6 +18,10 @@ Instead of processing background tasks and functions in your application handler
 
 A workflow engine orchestrates the execution of workflows. It schedules workflows on workers, retries failed workflows, and provides integrations for monitoring and debugging workflows.
 
+## Demo
+
+[![Quick Demo of Hatchet - Watch Video](https://cdn.loom.com/sessions/thumbnails/ad6a27735a42423880dedee96b56e020-with-play.gif)](https://www.loom.com/share/ad6a27735a42423880dedee96b56e020)
+
 ## Project Goals
 
 Hatchet has the following high-level goals:
