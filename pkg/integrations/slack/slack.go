@@ -55,7 +55,11 @@ type CreateChannelData struct {
 	ChannelName string `json:"channelName"`
 }
 
-func (s *SlackIntegration) createChannel(ctx context.Context, data *CreateChannelData) (map[string]interface{}, error) {
+type CreateChannelOutput struct {
+	ChannelId string `json:"channelId"`
+}
+
+func (s *SlackIntegration) createChannel(ctx context.Context, data *CreateChannelData) (*CreateChannelOutput, error) {
 	channel, err := s.api.CreateConversation(slack.CreateConversationParams{
 		IsPrivate:   true,
 		ChannelName: data.ChannelName,
@@ -66,8 +70,8 @@ func (s *SlackIntegration) createChannel(ctx context.Context, data *CreateChanne
 		return nil, fmt.Errorf("error creating slack channel: %w", err)
 	}
 
-	return map[string]interface{}{
-		"channelId": channel.ID,
+	return &CreateChannelOutput{
+		ChannelId: channel.ID,
 	}, nil
 }
 
@@ -76,14 +80,16 @@ type AddUsersToChannelData struct {
 	UserIDs   []string `json:"userIds"`
 }
 
-func (s *SlackIntegration) addUsersToChannel(ctx context.Context, data *AddUsersToChannelData) (map[string]interface{}, error) {
+type AddUsersToChannelOutput struct{}
+
+func (s *SlackIntegration) addUsersToChannel(ctx context.Context, data *AddUsersToChannelData) error {
 	_, err := s.api.InviteUsersToConversation(data.ChannelID, data.UserIDs...)
 
 	if err != nil {
-		return nil, fmt.Errorf("error adding users to slack channel: %w", err)
+		return fmt.Errorf("error adding users to slack channel: %w", err)
 	}
 
-	return map[string]interface{}{}, nil
+	return nil
 }
 
 type SendMessageToChannelData struct {
@@ -91,12 +97,12 @@ type SendMessageToChannelData struct {
 	Message   string `json:"message"`
 }
 
-func (s *SlackIntegration) sendMessageToChannel(ctx context.Context, data *SendMessageToChannelData) (map[string]interface{}, error) {
+func (s *SlackIntegration) sendMessageToChannel(ctx context.Context, data *SendMessageToChannelData) error {
 	_, _, err := s.api.PostMessage(data.ChannelID, slack.MsgOptionText(data.Message, false))
 
 	if err != nil {
-		return nil, fmt.Errorf("error sending message to slack channel: %w", err)
+		return fmt.Errorf("error sending message to slack channel: %w", err)
 	}
 
-	return map[string]interface{}{}, nil
+	return nil
 }

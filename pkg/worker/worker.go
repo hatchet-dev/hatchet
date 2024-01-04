@@ -317,7 +317,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	}
 
 	if runResults[len(runResults)-1] != nil {
-		err = runResults[1].(error)
+		err = runResults[len(runResults)-1].(error)
 	}
 
 	if err != nil {

@@ -16,12 +16,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type userCreateEvent struct {
-	Username string `json:"username"`
-}
-
-type actionInput struct {
-	Message string `json:"message"`
+type teamCreateEvent struct {
+	Name string `json:"name"`
 }
 
 //go:embed .hatchet/slack-channel.yaml
@@ -99,14 +95,14 @@ func main() {
 
 	go worker.Start(interruptCtx)
 
-	testEvent := userCreateEvent{
-		Username: "testing1233344",
+	testEvent := teamCreateEvent{
+		Name: "test-team-2",
 	}
 
 	// push an event
 	err = client.Event().Push(
 		context.Background(),
-		"user:create",
+		"team:create",
 		testEvent,
 	)
 

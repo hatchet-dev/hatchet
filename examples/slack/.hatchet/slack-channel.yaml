@@ -1,8 +1,8 @@
-name: "post-user-sign-up"
+name: "create-slack-onboarding-channel"
 version: 0.1.0
 triggers:
   events:
-    - user:create
+    - team:create
 jobs:
   create-slack-channel:
     steps:
@@ -11,7 +11,7 @@ jobs:
         id: createChannel
         timeout: 60s
         with:
-          channelName: "{{ .input.username }}-onboarding"
+          channelName: "{{ .input.name }}-onboarding"
       - name: Add user to channel
         action: slack:add-users-to-channel
         id: addUserToChannel
@@ -26,4 +26,4 @@ jobs:
         timeout: 60s
         with:
           channelId: "{{ .steps.createChannel.channelId }}"
-          message: "Welcome to your dedicated onboarding channel, {{ .input.username }}!"
+          message: "Welcome to your dedicated onboarding channel, {{ .input.name }}!"

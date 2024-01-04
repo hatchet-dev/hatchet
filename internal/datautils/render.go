@@ -57,6 +57,9 @@ func RenderTemplateFields(data map[string]interface{}, input map[string]interfac
 				// If it's a map but not map[string]interface{}, return an error
 				return nil, fmt.Errorf("encountered a map that is not map[string]interface{}: %s", key)
 			}
+
+			// otherwise, just copy the value over
+			output[key] = v
 		}
 	}
 

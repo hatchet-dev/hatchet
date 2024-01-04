@@ -60,8 +60,8 @@ func main() {
 	err = w.On(
 		worker.Events("user:create", "user:update"),
 		&worker.WorkflowJob{
-			Name:        "test-job",
-			Description: "This is a test job.",
+			Name:        "post-user-update",
+			Description: "This runs after an update to the user model.",
 			Steps: []worker.WorkflowStep{
 				worker.Fn(StepOne).SetName("step-one"),
 				worker.Fn(StepTwo).SetName("step-two"),
