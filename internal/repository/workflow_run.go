@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/iter"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/steebchen/prisma-client-go/runtime/types"
 )
 
 type CreateWorkflowRunOpts struct {
@@ -16,11 +17,14 @@ type CreateWorkflowRunOpts struct {
 	WorkflowVersionId string `validate:"required,uuid"`
 
 	// (optional) the event id that triggered the workflow run
-	TriggeringEventId *string `validate:"omitnil,uuid,required_without=Cron,excluded_with=Cron"`
+	TriggeringEventId *string `validate:"omitnil,uuid,required_without=Cron,required_without=ScheduledWorkflowId,excluded_with=Cron,excluded_with=ScheduledWorkflowId"`
 
 	// (optional) the cron schedule that triggered the workflow run
-	Cron         *string `validate:"omitnil,cron,required_without=TriggeringEventId,excluded_with=TriggeringEventId"`
-	CronParentId *string `validate:"omitempty,uuid,required_without=TriggeringEventId,excluded_with=TriggeringEventId"`
+	Cron         *string `validate:"omitnil,cron,required_without=TriggeringEventId,required_without=ScheduledWorkflowId,excluded_with=TriggeringEventId,excluded_with=ScheduledWorkflowId"`
+	CronParentId *string `validate:"omitnil,uuid,required_without=TriggeringEventId,required_without=ScheduledWorkflowId,excluded_with=TriggeringEventId,excluded_with=ScheduledWorkflowId"`
+
+	// (optional) the scheduled trigger
+	ScheduledWorkflowId *string `validate:"omitnil,uuid,required_without=TriggeringEventId,required_without=Cron,excluded_with=TriggeringEventId,excluded_with=Cron"`
 
 	// (required) the workflow jobs
 	JobRuns []CreateWorkflowJobRunOpts `validate:"required,min=1,dive"`
@@ -47,36 +51,9 @@ func GetCreateWorkflowRunOptsFromEvent(event *db.EventModel, workflowVersion *db
 		TriggeringEventId: &eventId,
 	}
 
-	for _, job := range workflowVersion.Jobs() {
-		jobOpts := CreateWorkflowJobRunOpts{
-			JobId: job.ID,
-			Input: jobRunData,
-		}
+	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, jobRunData)
 
-		iter, err := iter.New(job.Steps())
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create step iterator: %w", err)
-		}
-
-		for {
-			step, ok := iter.Next()
-
-			if !ok {
-				break
-			}
-
-			stepOpts := CreateWorkflowStepRunOpts{
-				StepId: step.ID,
-			}
-
-			jobOpts.StepRuns = append(jobOpts.StepRuns, stepOpts)
-		}
-
-		opts.JobRuns = append(opts.JobRuns, jobOpts)
-	}
-
-	return opts, nil
+	return opts, err
 }
 
 func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
@@ -92,6 +69,31 @@ func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion
 		CronParentId:      &cronParentId,
 	}
 
+	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, jobRunData)
+
+	return opts, err
+}
+
+func GetCreateWorkflowRunOptsFromSchedule(scheduledWorkflowId string, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
+	jobRunData, err := datautils.ToJSONType(map[string]interface{}{})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not convert job run lookup data to json: %w", err)
+	}
+
+	opts := &CreateWorkflowRunOpts{
+		WorkflowVersionId:   workflowVersion.ID,
+		ScheduledWorkflowId: &scheduledWorkflowId,
+	}
+
+	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, jobRunData)
+
+	return opts, err
+}
+
+func getJobsFromWorkflowVersion(workflowVersion *db.WorkflowVersionModel, jobRunData *types.JSON) ([]CreateWorkflowJobRunOpts, error) {
+	resJobRunOpts := []CreateWorkflowJobRunOpts{}
+
 	for _, job := range workflowVersion.Jobs() {
 		jobOpts := CreateWorkflowJobRunOpts{
 			JobId: job.ID,
@@ -118,10 +120,10 @@ func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion
 			jobOpts.StepRuns = append(jobOpts.StepRuns, stepOpts)
 		}
 
-		opts.JobRuns = append(opts.JobRuns, jobOpts)
+		resJobRunOpts = append(resJobRunOpts, jobOpts)
 	}
 
-	return opts, nil
+	return resJobRunOpts, nil
 }
 
 type CreateWorkflowJobRunOpts struct {

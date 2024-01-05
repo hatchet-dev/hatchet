@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"sync"
 
@@ -15,6 +16,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/spf13/cobra"
+
+	"net/http"
+	_ "net/http/pprof"
 )
 
 var printVersion bool
@@ -32,6 +36,11 @@ var rootCmd = &cobra.Command{
 
 		cf := loader.NewConfigLoader(configDirectory)
 		interruptChan := cmdutils.InterruptChan()
+
+		// TODO: configurable via env var
+		go func() {
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
 
 		startEngineOrDie(cf, interruptChan)
 	},

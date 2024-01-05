@@ -2,14 +2,12 @@ module github.com/hatchet-dev/hatchet
 
 go 1.21
 
-// this line is necessary because Temporal relies on an old version of exp
-replace golang.org/x/exp => golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
-
 require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/creasty/defaults v1.7.0
 	github.com/fatih/color v1.16.0
 	github.com/getkin/kin-openapi v0.122.0
+	github.com/go-co-op/gocron/v2 v2.1.2
 	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.2.2
 	github.com/hashicorp/go-multierror v1.1.1
@@ -40,6 +38,7 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
+	github.com/jonboulle/clockwork v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/labstack/gommon v0.4.0 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
@@ -49,6 +48,7 @@ require (
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
+	golang.org/x/exp v0.0.0-20231219180239-dc181d75b848 // indirect
 	golang.org/x/time v0.3.0 // indirect
 )
 
@@ -57,11 +57,10 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/getsentry/sentry-go v0.25.0
 	github.com/go-chi/chi v1.5.5
-	github.com/go-co-op/gocron v1.36.0
 	github.com/go-playground/validator/v10 v10.16.0
 	github.com/go-test/deep v1.1.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/google/uuid v1.4.0
+	github.com/google/uuid v1.5.0
 	github.com/gorilla/schema v1.2.1
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
@@ -81,7 +80,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.8.4
 	github.com/subosito/gotenv v1.6.0 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/crypto v0.17.0
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sync v0.4.0

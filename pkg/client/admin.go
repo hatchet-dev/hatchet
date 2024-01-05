@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type AdminClient interface {
@@ -160,6 +161,12 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		jobOpt.Steps = stepOpts
 
 		jobOpts = append(jobOpts, jobOpt)
+	}
+
+	opts.ScheduledTriggers = make([]*timestamppb.Timestamp, len(workflow.Triggers.Schedules))
+
+	for i, scheduled := range workflow.Triggers.Schedules {
+		opts.ScheduledTriggers[i] = timestamppb.New(scheduled)
 	}
 
 	opts.Jobs = jobOpts

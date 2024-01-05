@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-co-op/gocron"
+	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
@@ -24,12 +24,13 @@ type TickerImpl struct {
 	tq   taskqueue.TaskQueue
 	l    *zerolog.Logger
 	repo repository.Repository
-	s    *gocron.Scheduler
+	s    gocron.Scheduler
 
-	crons           sync.Map
-	jobRuns         sync.Map
-	stepRuns        sync.Map
-	stepRunRequeues sync.Map
+	crons              sync.Map
+	scheduledWorkflows sync.Map
+	jobRuns            sync.Map
+	stepRuns           sync.Map
+	stepRunRequeues    sync.Map
 
 	dv datautils.DataDecoderValidator
 
@@ -94,7 +95,11 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
-	s := gocron.NewScheduler(time.UTC)
+	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create scheduler: %w", err)
+	}
 
 	return &TickerImpl{
 		tq:       opts.tq,
@@ -125,19 +130,25 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 		return err
 	}
 
-	_, err = t.s.Every(5).Seconds().Do(t.runStepRunRequeue(ctx))
+	_, err = t.s.NewJob(
+		gocron.DurationJob(time.Second*5),
+		gocron.NewTask(
+			t.runStepRunRequeue(ctx),
+		),
+	)
 
 	if err != nil {
 		return fmt.Errorf("could not schedule step run requeue: %w", err)
 	}
 
-	_, err = t.s.Every(5).Seconds().Do(t.runUpdateHeartbeat(ctx))
+	_, err = t.s.NewJob(
+		gocron.DurationJob(time.Second*5),
+		gocron.NewTask(
+			t.runUpdateHeartbeat(ctx),
+		),
+	)
 
-	if err != nil {
-		return fmt.Errorf("could not schedule heartbeat update: %w", err)
-	}
-
-	t.s.StartAsync()
+	t.s.Start()
 
 	for {
 		select {
@@ -194,6 +205,10 @@ func (t *TickerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error
 		return t.handleScheduleCron(ctx, task)
 	case "cancel-cron":
 		return t.handleCancelCron(ctx, task)
+	case "schedule-workflow":
+		return t.handleScheduleWorkflow(ctx, task)
+	case "cancel-workflow":
+		return t.handleCancelWorkflow(ctx, task)
 	}
 
 	return fmt.Errorf("unknown task: %s in queue %s", task.ID, string(task.Queue))

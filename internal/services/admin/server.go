@@ -148,6 +148,58 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		}
 	}
 
+	if schedules := triggers.Scheduled(); len(schedules) > 0 {
+		within := time.Now().UTC().Add(-6 * time.Second)
+
+		tickers, err := a.repo.Ticker().ListTickers(&repository.ListTickerOpts{
+			LatestHeartbeatAt: &within,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		if len(tickers) == 0 {
+			return nil, status.Error(
+				codes.FailedPrecondition,
+				"no tickers available",
+			)
+		}
+
+		numTickers := len(tickers)
+
+		for i, scheduledTrigger := range schedules {
+			scheduledTriggerCp := scheduledTrigger
+			ticker := tickers[i%numTickers]
+
+			_, err := a.repo.Ticker().AddScheduledWorkflow(
+				ticker.ID,
+				&scheduledTriggerCp,
+			)
+
+			if err != nil {
+				return nil, err
+			}
+
+			task, err := workflowScheduleTask(&ticker, &scheduledTriggerCp, workflowVersion)
+
+			if err != nil {
+				return nil, err
+			}
+
+			// send to task queue
+			err = a.tq.AddTask(
+				ctx,
+				taskqueue.QueueTypeFromTicker(&ticker),
+				task,
+			)
+
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	// cancel the old workflow version
 	if oldWorkflowVersion != nil {
 		oldTriggers, ok := oldWorkflowVersion.Triggers()
@@ -185,6 +237,41 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 					_, err = a.repo.Ticker().RemoveCron(
 						ticker.ID,
 						&cronTriggerCp,
+					)
+
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+
+		if schedules := oldTriggers.Scheduled(); len(schedules) > 0 {
+			for _, scheduleTrigger := range schedules {
+				scheduleTriggerCp := scheduleTrigger
+
+				if ticker, ok := scheduleTriggerCp.Ticker(); ok {
+					task, err := workflowCancelTask(ticker, &scheduleTriggerCp, workflowVersion)
+
+					if err != nil {
+						return nil, err
+					}
+
+					// send to task queue
+					err = a.tq.AddTask(
+						ctx,
+						taskqueue.QueueTypeFromTicker(ticker),
+						task,
+					)
+
+					if err != nil {
+						return nil, err
+					}
+
+					// remove cron
+					_, err = a.repo.Ticker().RemoveScheduledWorkflow(
+						ticker.ID,
+						&scheduleTrigger,
 					)
 
 					if err != nil {
@@ -306,13 +393,20 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		}
 	}
 
+	scheduledTriggers := make([]time.Time, 0)
+
+	for _, trigger := range req.Opts.ScheduledTriggers {
+		scheduledTriggers = append(scheduledTriggers, trigger.AsTime())
+	}
+
 	return &repository.CreateWorkflowVersionOpts{
-		Name:          req.Opts.Name,
-		Description:   &req.Opts.Description,
-		Version:       req.Opts.Version,
-		EventTriggers: req.Opts.EventTriggers,
-		CronTriggers:  req.Opts.CronTriggers,
-		Jobs:          jobs,
+		Name:              req.Opts.Name,
+		Description:       &req.Opts.Description,
+		Version:           req.Opts.Version,
+		EventTriggers:     req.Opts.EventTriggers,
+		CronTriggers:      req.Opts.CronTriggers,
+		ScheduledTriggers: scheduledTriggers,
+		Jobs:              jobs,
 	}, nil
 }
 
@@ -494,6 +588,44 @@ func cronCancelTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTriggerCr
 
 	return &taskqueue.Task{
 		ID:       "cancel-cron",
+		Queue:    taskqueue.QueueTypeFromTicker(ticker),
+		Payload:  payload,
+		Metadata: metadata,
+	}, nil
+}
+
+func workflowScheduleTask(ticker *db.TickerModel, workflowTriggerRef *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*taskqueue.Task, error) {
+	payload, _ := datautils.ToJSONMap(tasktypes.ScheduleWorkflowTaskPayload{
+		ScheduledWorkflowId: workflowTriggerRef.ID,
+		TriggerAt:           workflowTriggerRef.TriggerAt.Format(time.RFC3339),
+		WorkflowVersionId:   workflowVersion.ID,
+	})
+
+	metadata, _ := datautils.ToJSONMap(tasktypes.ScheduleWorkflowTaskMetadata{
+		TenantId: workflowVersion.Workflow().TenantID,
+	})
+
+	return &taskqueue.Task{
+		ID:       "schedule-workflow",
+		Queue:    taskqueue.QueueTypeFromTicker(ticker),
+		Payload:  payload,
+		Metadata: metadata,
+	}, nil
+}
+
+func workflowCancelTask(ticker *db.TickerModel, workflowTriggerRef *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*taskqueue.Task, error) {
+	payload, _ := datautils.ToJSONMap(tasktypes.CancelWorkflowTaskPayload{
+		ScheduledWorkflowId: workflowTriggerRef.ID,
+		TriggerAt:           workflowTriggerRef.TriggerAt.Format(time.RFC3339),
+		WorkflowVersionId:   workflowVersion.ID,
+	})
+
+	metadata, _ := datautils.ToJSONMap(tasktypes.CancelWorkflowTaskMetadata{
+		TenantId: workflowVersion.Workflow().TenantID,
+	})
+
+	return &taskqueue.Task{
+		ID:       "cancel-workflow",
 		Queue:    taskqueue.QueueTypeFromTicker(ticker),
 		Payload:  payload,
 		Metadata: metadata,

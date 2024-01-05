@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-co-op/gocron"
+	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
@@ -25,7 +25,7 @@ type Dispatcher interface {
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
-	s            *gocron.Scheduler
+	s            gocron.Scheduler
 	tq           taskqueue.TaskQueue
 	l            *zerolog.Logger
 	dv           datautils.DataDecoderValidator
@@ -98,7 +98,12 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
-	s := gocron.NewScheduler(time.UTC)
+	// create a new scheduler
+	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create scheduler for dispatcher: %w", err)
+	}
 
 	return &DispatcherImpl{
 		tq:           opts.tq,
@@ -128,13 +133,18 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 		return err
 	}
 
-	_, err = d.s.Every(5).Seconds().Do(d.runUpdateHeartbeat(ctx))
+	_, err = d.s.NewJob(
+		gocron.DurationJob(time.Second*5),
+		gocron.NewTask(
+			d.runUpdateHeartbeat(ctx),
+		),
+	)
 
 	if err != nil {
 		return fmt.Errorf("could not schedule heartbeat update: %w", err)
 	}
 
-	d.s.StartAsync()
+	d.s.Start()
 
 	for {
 		select {

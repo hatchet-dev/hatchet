@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-co-op/gocron"
+	"github.com/go-co-op/gocron/v2"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -37,24 +37,33 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, task *taskqueue.Tas
 	}
 
 	// create a new scheduler
-	s := gocron.NewScheduler(time.UTC)
+	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+
+	if err != nil {
+		return fmt.Errorf("could not create scheduler: %w", err)
+	}
 
 	// schedule the cron
-	_, err = s.Cron(payload.Cron).Do(t.runWorkflow(ctx, metadata.TenantId, &payload, workflowVersion))
+	_, err = t.s.NewJob(
+		gocron.CronJob(payload.Cron, false),
+		gocron.NewTask(
+			t.runCronWorkflow(ctx, metadata.TenantId, &payload, workflowVersion),
+		),
+	)
 
 	if err != nil {
 		return fmt.Errorf("could not schedule cron: %w", err)
 	}
 
 	// store the schedule in the cron map
-	t.crons.Store(payload.WorkflowVersionId, s)
+	t.crons.Store(getCronKey(payload.WorkflowVersionId, payload.Cron), s)
 
-	s.StartAsync()
+	s.Start()
 
 	return nil
 }
 
-func (t *TickerImpl) runWorkflow(ctx context.Context, tenantId string, payload *tasktypes.ScheduleCronTaskPayload, workflowVersion *db.WorkflowVersionModel) func() {
+func (t *TickerImpl) runCronWorkflow(ctx context.Context, tenantId string, payload *tasktypes.ScheduleCronTaskPayload, workflowVersion *db.WorkflowVersionModel) func() {
 	return func() {
 		t.l.Debug().Msgf("ticker: running workflow %s", payload.WorkflowVersionId)
 
@@ -108,16 +117,22 @@ func (t *TickerImpl) handleCancelCron(ctx context.Context, task *taskqueue.Task)
 	}
 
 	// get the scheduler
-	schedulerVal, ok := t.crons.Load(payload.WorkflowVersionId)
+	schedulerVal, ok := t.crons.Load(getCronKey(payload.WorkflowVersionId, payload.Cron))
 
 	if !ok {
-		return fmt.Errorf("could not find cron %s", payload.WorkflowVersionId)
+		return fmt.Errorf("could not find cron %s with schedule %s", payload.WorkflowVersionId, payload.Cron)
 	}
 
-	scheduler := schedulerVal.(*gocron.Scheduler)
+	defer t.crons.Delete(getCronKey(payload.WorkflowVersionId, payload.Cron))
+
+	scheduler := schedulerVal.(gocron.Scheduler)
 
 	// cancel the cron
-	scheduler.Clear()
+	scheduler.Shutdown()
 
 	return nil
+}
+
+func getCronKey(workflowVersionId, schedule string) string {
+	return fmt.Sprintf("%s-%s", workflowVersionId, schedule)
 }

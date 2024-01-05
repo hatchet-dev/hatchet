@@ -455,6 +455,15 @@ func (r *workflowRepository) createWorkflowVersionTxs(tenantId, workflowId strin
 		).Tx())
 	}
 
+	for _, scheduledTrigger := range opts.ScheduledTriggers {
+		txs = append(txs, r.client.WorkflowTriggerScheduledRef.CreateOne(
+			db.WorkflowTriggerScheduledRef.Parent.Link(
+				db.WorkflowTriggers.ID.Equals(workflowTriggersId),
+			),
+			db.WorkflowTriggerScheduledRef.TriggerAt.Set(scheduledTrigger),
+		).Tx())
+	}
+
 	return workflowVersionId, txs
 }
 
@@ -492,6 +501,9 @@ func defaultWorkflowVersionPopulator() []db.WorkflowVersionRelationWith {
 			db.WorkflowTriggers.Events.Fetch(),
 			db.WorkflowTriggers.Crons.Fetch().With(
 				db.WorkflowTriggerCronRef.Ticker.Fetch(),
+			),
+			db.WorkflowTriggers.Scheduled.Fetch().With(
+				db.WorkflowTriggerScheduledRef.Ticker.Fetch(),
 			),
 		),
 		db.WorkflowVersion.Jobs.Fetch().With(

@@ -43,4 +43,10 @@ type TickerRepository interface {
 
 	// RemoveCron removes a cron from a ticker.
 	RemoveCron(tickerId string, cron *db.WorkflowTriggerCronRefModel) (*db.TickerModel, error)
+
+	// AddScheduledWorkflow assigns a scheduled workflow to a ticker.
+	AddScheduledWorkflow(tickerId string, schedule *db.WorkflowTriggerScheduledRefModel) (*db.TickerModel, error)
+
+	// RemoveScheduledWorkflow removes a scheduled workflow from a ticker.
+	RemoveScheduledWorkflow(tickerId string, schedule *db.WorkflowTriggerScheduledRefModel) (*db.TickerModel, error)
 }

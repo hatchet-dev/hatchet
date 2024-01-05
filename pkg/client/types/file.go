@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -21,8 +22,9 @@ type Workflow struct {
 }
 
 type WorkflowTriggers struct {
-	Events []string `yaml:"events,omitempty"`
-	Cron   []string `yaml:"crons,omitempty"`
+	Events    []string    `yaml:"events,omitempty"`
+	Cron      []string    `yaml:"crons,omitempty"`
+	Schedules []time.Time `yaml:"schedules,omitempty"`
 }
 
 type RandomScheduleOpt string

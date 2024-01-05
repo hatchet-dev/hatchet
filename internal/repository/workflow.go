@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
@@ -21,6 +23,9 @@ type CreateWorkflowVersionOpts struct {
 
 	// (optional) cron triggers for the workflow
 	CronTriggers []string `validate:"dive,cron"`
+
+	// (optional) scheduled triggers for the workflow
+	ScheduledTriggers []time.Time
 
 	// (required) the workflow jobs
 	Jobs []CreateWorkflowJobOpts `validate:"required,min=1,dive"`
