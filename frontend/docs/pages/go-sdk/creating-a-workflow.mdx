@@ -176,12 +176,12 @@ You can also use the middleware to add values to the context. For example:
 
 ```go
 w.Use(func(ctx context.Context, next func(context.Context) error) error {
-	err := next(context.WithValue(ctx, "testkey", "testvalue"))
+    err := next(context.WithValue(ctx, "testkey", "testvalue"))
 
-	if err != nil {
-		return err
-	}
+    if err != nil {
+        return fmt.Errorf("error in middleware: %w", err)
+    }
 
-	return nil
+    return nil
 })
 ```

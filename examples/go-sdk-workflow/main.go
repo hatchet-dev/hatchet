@@ -63,13 +63,7 @@ func main() {
 	}
 
 	w.Use(func(ctx context.Context, next func(context.Context) error) error {
-		err := next(context.WithValue(ctx, "testkey", "testvalue"))
-
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return next(context.WithValue(ctx, "testkey", "testvalue"))
 	})
 
 	w.Use(func(ctx context.Context, next func(context.Context) error) error {
@@ -84,13 +78,7 @@ func main() {
 	testSvc := w.NewService("test")
 
 	testSvc.Use(func(ctx context.Context, next func(context.Context) error) error {
-		err := next(context.WithValue(ctx, "svckey", "svcvalue"))
-
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return next(context.WithValue(ctx, "svckey", "svcvalue"))
 	})
 
 	err = testSvc.On(
