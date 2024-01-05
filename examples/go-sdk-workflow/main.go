@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
@@ -21,6 +22,10 @@ type stepOneOutput struct {
 }
 
 func StepOne(ctx context.Context, input *userCreateEvent) (result *stepOneOutput, err error) {
+	// could get from context
+	// testVal := ctx.Value("testkey").(string)
+	// svcVal := ctx.Value("svckey").(string)
+
 	return &stepOneOutput{
 		Message: "Username is: " + input.Username,
 	}, nil
@@ -57,7 +62,26 @@ func main() {
 		panic(err)
 	}
 
-	err = w.On(
+	w.Use(func(ctx context.Context, next func(context.Context) error) error {
+		return next(context.WithValue(ctx, "testkey", "testvalue"))
+	})
+
+	w.Use(func(ctx context.Context, next func(context.Context) error) error {
+		// time the function duration
+		start := time.Now()
+		err := next(ctx)
+		duration := time.Since(start)
+		fmt.Printf("step function took %s\n", duration)
+		return err
+	})
+
+	testSvc := w.NewService("test")
+
+	testSvc.Use(func(ctx context.Context, next func(context.Context) error) error {
+		return next(context.WithValue(ctx, "svckey", "svcvalue"))
+	})
+
+	err = testSvc.On(
 		worker.Events("user:create", "user:update"),
 		&worker.WorkflowJob{
 			Name:        "post-user-update",

@@ -150,3 +150,38 @@ w.On(
     },
 )
 ```
+
+## Middleware
+
+You can define middleware that will be executed before and after each step function. Middleware functions have the following signature:
+
+```go
+func(ctx context.Context, next func(context.Context) error) error
+```
+
+You can register this middleware globally (at the worker level) or at the service level, using `worker.Use` and `service.Use`, respectively. For example, to define a middleware that logs the start and end of each step function, you can do the following:
+
+```go
+w.Use(func(ctx context.Context, next func(context.Context) error) error {
+    // time the function duration
+    start := time.Now()
+    err := next(ctx)
+    duration := time.Since(start)
+    fmt.Printf("step function took %s\n", duration)
+    return err
+})
+```
+
+You can also use the middleware to add values to the context. For example:
+
+```go
+w.Use(func(ctx context.Context, next func(context.Context) error) error {
+    err := next(context.WithValue(ctx, "testkey", "testvalue"))
+
+    if err != nil {
+        return fmt.Errorf("error in middleware: %w", err)
+    }
+
+    return nil
+})
+```

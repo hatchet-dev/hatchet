@@ -11,7 +11,13 @@ import (
 type Service struct {
 	Name string
 
+	mws *middlewares
+
 	worker *Worker
+}
+
+func (s *Service) Use(mws ...MiddlewareFunc) {
+	s.mws.add(mws...)
 }
 
 func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
@@ -32,7 +38,7 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 
 	// register all steps as actions
 	for actionId, fn := range workflow.ToActionMap(s.Name) {
-		err := s.worker.registerAction(actionId, fn)
+		err := s.worker.registerAction(s.Name, actionId, fn)
 
 		if err != nil {
 			return err
@@ -57,5 +63,5 @@ func (s *Service) RegisterAction(fn any) error {
 
 	actionId := fmt.Sprintf("%s:%s", s.Name, fnId)
 
-	return s.worker.registerAction(actionId, fn)
+	return s.worker.registerAction(s.Name, actionId, fn)
 }

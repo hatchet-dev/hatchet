@@ -26,12 +26,16 @@ type Action interface {
 	Run(args ...any) []any
 
 	MethodFn() any
+
+	// Service returns the service that the action belongs to
+	Service() string
 }
 
 type actionImpl struct {
-	name   string
-	run    actionFunc
-	method any
+	name    string
+	run     actionFunc
+	method  any
+	service string
 }
 
 func (j *actionImpl) Name() string {
@@ -44,6 +48,10 @@ func (j *actionImpl) Run(args ...interface{}) []interface{} {
 
 func (j *actionImpl) MethodFn() any {
 	return j.method
+}
+
+func (j *actionImpl) Service() string {
+	return j.service
 }
 
 type Worker struct {
@@ -60,6 +68,8 @@ type Worker struct {
 	services sync.Map
 
 	alerter errors.Alerter
+
+	middlewares *middlewares
 }
 
 type WorkerOpt func(*WorkerOpts)
@@ -116,12 +126,17 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		f(opts)
 	}
 
+	mws := newMiddlewares()
+
+	mws.add(panicMiddleware)
+
 	w := &Worker{
-		client:  opts.client,
-		name:    opts.name,
-		l:       opts.l,
-		actions: map[string]Action{},
-		alerter: opts.alerter,
+		client:      opts.client,
+		name:        opts.name,
+		l:           opts.l,
+		actions:     map[string]Action{},
+		alerter:     opts.alerter,
+		middlewares: mws,
 	}
 
 	// register all integrations
@@ -132,7 +147,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		for _, integrationAction := range actions {
 			action := fmt.Sprintf("%s:%s", integrationId, integrationAction)
 
-			err := w.registerAction(action, integration.ActionHandler(integrationAction))
+			err := w.registerAction(integrationId, action, integration.ActionHandler(integrationAction))
 
 			if err != nil {
 				return nil, fmt.Errorf("could not register integration action %s: %w", action, err)
@@ -145,10 +160,15 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 	return w, nil
 }
 
+func (w *Worker) Use(mws ...MiddlewareFunc) {
+	w.middlewares.add(mws...)
+}
+
 func (w *Worker) NewService(name string) *Service {
 	svc := &Service{
 		Name:   name,
 		worker: w,
+		mws:    newMiddlewares(),
 	}
 
 	w.services.Store(name, svc)
@@ -178,7 +198,7 @@ func (w *Worker) RegisterAction(name string, method any) error {
 	return svc.(*Service).RegisterAction(method)
 }
 
-func (w *Worker) registerAction(name string, method any) error {
+func (w *Worker) registerAction(service, name string, method any) error {
 	actionFunc, err := getFnFromMethod(method)
 
 	if err != nil {
@@ -193,9 +213,10 @@ func (w *Worker) registerAction(name string, method any) error {
 	}
 
 	w.actions[name] = &actionImpl{
-		name:   name,
-		run:    actionFunc,
-		method: method,
+		name:    name,
+		run:     actionFunc,
+		method:  method,
+		service: service,
 	}
 
 	return nil
@@ -234,13 +255,13 @@ RunWorker:
 			break RunWorker
 		case action := <-actionCh:
 			go func(action *client.Action) {
-				res, err := w.executeAction(context.Background(), action)
+				err := w.executeAction(context.Background(), action)
 
 				if err != nil {
 					w.l.Error().Err(err).Msgf("could not execute action: %s", action.ActionId)
 				}
 
-				w.l.Debug().Msgf("action %s completed with result %v", action.ActionId, res)
+				w.l.Debug().Msgf("action %s completed", action.ActionId)
 			}(action)
 		case <-ctx.Done():
 			w.l.Debug().Msgf("worker %s received context done, stopping", w.name)
@@ -259,116 +280,133 @@ RunWorker:
 	return nil
 }
 
-func (w *Worker) executeAction(ctx context.Context, assignedAction *client.Action) (result any, err error) {
+func (w *Worker) executeAction(ctx context.Context, assignedAction *client.Action) error {
 	if assignedAction.ActionType == client.ActionTypeStartStepRun {
 		return w.startStepRun(ctx, assignedAction)
 	} else if assignedAction.ActionType == client.ActionTypeCancelStepRun {
 		return w.cancelStepRun(ctx, assignedAction)
 	}
 
-	return nil, fmt.Errorf("unknown action type: %s", assignedAction.ActionType)
+	return fmt.Errorf("unknown action type: %s", assignedAction.ActionType)
 }
 
-func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action) (result any, err error) {
+func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action) error {
 	// send a message that the step run started
-	_, err = w.client.Dispatcher().SendActionEvent(
+	_, err := w.client.Dispatcher().SendActionEvent(
 		ctx,
 		w.getActionEvent(assignedAction, client.ActionEventTypeStarted),
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not send action event: %w", err)
+		return fmt.Errorf("could not send action event: %w", err)
 	}
 
 	action, ok := w.actions[assignedAction.ActionId]
 
 	if !ok {
-		return nil, fmt.Errorf("job not found")
+		return fmt.Errorf("job not found")
 	}
 
 	arg, err := decodeArgsToInterface(reflect.TypeOf(action.MethodFn()))
 
 	if err != nil {
-		return nil, fmt.Errorf("could not decode args to interface: %w", err)
+		return fmt.Errorf("could not decode args to interface: %w", err)
 	}
 
 	err = assignedAction.ActionPayload(arg)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not decode action payload: %w", err)
+		return fmt.Errorf("could not decode action payload: %w", err)
 	}
 
 	runContext, cancel := context.WithCancel(context.Background())
 
 	w.cancelMap.Store(assignedAction.StepRunId, cancel)
 
-	runResults := action.Run(runContext, arg)
+	// get the action's service
+	svcAny, ok := w.services.Load(action.Service())
 
-	// check whether run context was cancelled while action was running
-	select {
-	case <-runContext.Done():
-		w.l.Debug().Msgf("step run %s was cancelled, returning", assignedAction.StepRunId)
-		return nil, nil
-	default:
+	if !ok {
+		return fmt.Errorf("could not load service %s", action.Service())
 	}
 
-	if len(runResults) == 2 {
-		result = runResults[0]
-	}
+	svc := svcAny.(*Service)
 
-	if runResults[len(runResults)-1] != nil {
-		err = runResults[len(runResults)-1].(error)
-	}
+	// wrap the run with middleware. start by wrapping the global worker middleware, then
+	// the service-specific middleware
+	return w.middlewares.runAll(runContext, func(ctx context.Context) error {
+		return svc.mws.runAll(ctx, func(ctx context.Context) error {
+			runResults := action.Run(ctx, arg)
 
-	if err != nil {
-		failureEvent := w.getActionEvent(assignedAction, client.ActionEventTypeFailed)
+			// check whether run context was cancelled while action was running
+			select {
+			case <-ctx.Done():
+				w.l.Debug().Msgf("step run %s was cancelled, returning", assignedAction.StepRunId)
+				return nil
+			default:
+			}
 
-		w.alerter.SendAlert(context.Background(), err, map[string]interface{}{
-			"actionId":   assignedAction.ActionId,
-			"workerId":   assignedAction.WorkerId,
-			"stepRunId":  assignedAction.StepRunId,
-			"jobName":    assignedAction.JobName,
-			"actionType": assignedAction.ActionType,
+			var result any
+
+			if len(runResults) == 2 {
+				result = runResults[0]
+			}
+
+			if runResults[len(runResults)-1] != nil {
+				err = runResults[len(runResults)-1].(error)
+			}
+
+			if err != nil {
+				failureEvent := w.getActionEvent(assignedAction, client.ActionEventTypeFailed)
+
+				w.alerter.SendAlert(context.Background(), err, map[string]interface{}{
+					"actionId":   assignedAction.ActionId,
+					"workerId":   assignedAction.WorkerId,
+					"stepRunId":  assignedAction.StepRunId,
+					"jobName":    assignedAction.JobName,
+					"actionType": assignedAction.ActionType,
+				})
+
+				failureEvent.EventPayload = err.Error()
+
+				_, err := w.client.Dispatcher().SendActionEvent(
+					ctx,
+					failureEvent,
+				)
+
+				if err != nil {
+					return fmt.Errorf("could not send action event: %w", err)
+				}
+
+				return err
+			}
+
+			// send a message that the step run completed
+			finishedEvent, err := w.getActionFinishedEvent(assignedAction, result)
+
+			if err != nil {
+				return fmt.Errorf("could not create finished event: %w", err)
+			}
+
+			_, err = w.client.Dispatcher().SendActionEvent(
+				ctx,
+				finishedEvent,
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not send action event: %w", err)
+			}
+
+			return nil
 		})
-
-		failureEvent.EventPayload = err.Error()
-
-		_, err := w.client.Dispatcher().SendActionEvent(
-			ctx,
-			failureEvent,
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not send action event: %w", err)
-		}
-
-		return nil, err
-	}
-
-	// send a message that the step run completed
-	finishedEvent, err := w.getActionFinishedEvent(assignedAction, result)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create finished event: %w", err)
-	}
-
-	_, err = w.client.Dispatcher().SendActionEvent(
-		ctx,
-		finishedEvent,
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not send action event: %w", err)
-	}
-
-	return result, nil
+	})
 }
 
-func (w *Worker) cancelStepRun(ctx context.Context, assignedAction *client.Action) (result any, err error) {
+func (w *Worker) cancelStepRun(ctx context.Context, assignedAction *client.Action) error {
 	cancel, ok := w.cancelMap.Load(assignedAction.StepRunId)
 
 	if !ok {
-		return nil, fmt.Errorf("could not find step run to cancel")
+		return fmt.Errorf("could not find step run to cancel")
 	}
 
 	w.l.Debug().Msgf("cancelling step run %s", assignedAction.StepRunId)
@@ -377,7 +415,7 @@ func (w *Worker) cancelStepRun(ctx context.Context, assignedAction *client.Actio
 
 	cancelFn()
 
-	return nil, nil
+	return nil
 }
 
 func (w *Worker) getActionEvent(action *client.Action, eventType client.ActionEventType) *client.ActionEvent {
