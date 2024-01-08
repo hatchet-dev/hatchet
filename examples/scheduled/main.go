@@ -87,8 +87,8 @@ func main() {
 
 		at := []time.Time{}
 
-		for i := 0; i < 99; i++ {
-			at = append(at, time.Now().Add(time.Second*30+time.Millisecond*10*time.Duration(i)))
+		for i := 0; i < 9; i++ {
+			at = append(at, time.Now().Add(time.Second*60+time.Millisecond*10*time.Duration(i)))
 		}
 
 		err = client.Admin().ScheduleWorkflow(

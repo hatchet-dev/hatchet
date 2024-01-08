@@ -102,6 +102,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 
 		tickers, err := a.repo.Ticker().ListTickers(&repository.ListTickerOpts{
 			LatestHeartbeatAt: &within,
+			Active:            repository.BoolPtr(true),
 		})
 
 		if err != nil {
@@ -139,7 +140,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			// send to task queue
 			err = a.tq.AddTask(
 				ctx,
-				taskqueue.QueueTypeFromTicker(&ticker),
+				taskqueue.QueueTypeFromTickerID(ticker.ID),
 				task,
 			)
 
@@ -154,6 +155,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 
 		tickers, err := a.repo.Ticker().ListTickers(&repository.ListTickerOpts{
 			LatestHeartbeatAt: &within,
+			Active:            repository.BoolPtr(true),
 		})
 
 		if err != nil {
@@ -191,7 +193,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			// send to task queue
 			err = a.tq.AddTask(
 				ctx,
-				taskqueue.QueueTypeFromTicker(&ticker),
+				taskqueue.QueueTypeFromTickerID(ticker.ID),
 				task,
 			)
 
@@ -226,7 +228,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 					// send to task queue
 					err = a.tq.AddTask(
 						ctx,
-						taskqueue.QueueTypeFromTicker(ticker),
+						taskqueue.QueueTypeFromTickerID(ticker.ID),
 						task,
 					)
 
@@ -262,7 +264,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 					if scheduleTriggerCp.TriggerAt.After(time.Now().UTC()) {
 						err = a.tq.AddTask(
 							ctx,
-							taskqueue.QueueTypeFromTicker(ticker),
+							taskqueue.QueueTypeFromTickerID(ticker.ID),
 							task,
 						)
 
@@ -334,6 +336,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 
 		tickers, err := a.repo.Ticker().ListTickers(&repository.ListTickerOpts{
 			LatestHeartbeatAt: &within,
+			Active:            repository.BoolPtr(true),
 		})
 
 		if err != nil {
@@ -371,7 +374,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 			// send to task queue
 			err = a.tq.AddTask(
 				ctx,
-				taskqueue.QueueTypeFromTicker(&ticker),
+				taskqueue.QueueTypeFromTickerID(ticker.ID),
 				task,
 			)
 
@@ -677,7 +680,7 @@ func cronScheduleTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTrigger
 
 	return &taskqueue.Task{
 		ID:       "schedule-cron",
-		Queue:    taskqueue.QueueTypeFromTicker(ticker),
+		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -696,7 +699,7 @@ func cronCancelTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTriggerCr
 
 	return &taskqueue.Task{
 		ID:       "cancel-cron",
-		Queue:    taskqueue.QueueTypeFromTicker(ticker),
+		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -715,7 +718,7 @@ func workflowScheduleTask(ticker *db.TickerModel, workflowTriggerRef *db.Workflo
 
 	return &taskqueue.Task{
 		ID:       "schedule-workflow",
-		Queue:    taskqueue.QueueTypeFromTicker(ticker),
+		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -734,7 +737,7 @@ func workflowCancelTask(ticker *db.TickerModel, workflowTriggerRef *db.WorkflowT
 
 	return &taskqueue.Task{
 		ID:       "cancel-workflow",
-		Queue:    taskqueue.QueueTypeFromTicker(ticker),
+		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil

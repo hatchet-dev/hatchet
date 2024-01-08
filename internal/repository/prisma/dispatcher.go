@@ -5,18 +5,28 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type dispatcherRepository struct {
-	client *db.PrismaClient
-	v      validator.Validator
+	client  *db.PrismaClient
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
 }
 
-func NewDispatcherRepository(client *db.PrismaClient, v validator.Validator) repository.DispatcherRepository {
+func NewDispatcherRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator) repository.DispatcherRepository {
+	queries := dbsqlc.New()
+
 	return &dispatcherRepository{
-		client: client,
-		v:      v,
+		client:  client,
+		pool:    pool,
+		queries: queries,
+		v:       v,
 	}
 }
 
@@ -62,4 +72,49 @@ func (d *dispatcherRepository) Delete(dispatcherId string) error {
 	).Delete().Exec(context.Background())
 
 	return err
+}
+
+func (d *dispatcherRepository) UpdateStaleDispatchers(onStale func(dispatcherId string, getValidDispatcherId func() string) error) error {
+	tx, err := d.pool.Begin(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback(context.Background())
+
+	staleDispatchers, err := d.queries.ListStaleDispatchers(context.Background(), tx)
+
+	if err != nil {
+		return err
+	}
+
+	activeDispatchers, err := d.queries.ListActiveDispatchers(context.Background(), tx)
+
+	if err != nil {
+		return err
+	}
+
+	dispatchersToDelete := make([]pgtype.UUID, 0)
+
+	for i, dispatcher := range staleDispatchers {
+		err := onStale(sqlchelpers.UUIDToStr(dispatcher.Dispatcher.ID), func() string {
+			// assign tickers in round-robin fashion
+			return sqlchelpers.UUIDToStr(activeDispatchers[i%len(activeDispatchers)].Dispatcher.ID)
+		})
+
+		if err != nil {
+			return err
+		}
+
+		dispatchersToDelete = append(dispatchersToDelete, dispatcher.Dispatcher.ID)
+	}
+
+	_, err = d.queries.SetDispatchersInactive(context.Background(), tx, dispatchersToDelete)
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(context.Background())
 }

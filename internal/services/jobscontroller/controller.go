@@ -215,7 +215,7 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *task
 
 	err = ec.tq.AddTask(
 		ctx,
-		taskqueue.QueueTypeFromTicker(ticker),
+		taskqueue.QueueTypeFromTickerID(ticker.ID),
 		scheduleTimeoutTask,
 	)
 
@@ -299,7 +299,7 @@ func (ec *JobsControllerImpl) handleJobRunTimedOut(ctx context.Context, task *ta
 		// send a task to the taskqueue
 		err = ec.tq.AddTask(
 			ctx,
-			taskqueue.QueueTypeFromDispatcher(worker.Dispatcher()),
+			taskqueue.QueueTypeFromDispatcherID(worker.Dispatcher().ID),
 			stepRunCancelledTask(metadata.TenantId, currStepRun.ID, "JOB_RUN_TIMED_OUT", worker),
 		)
 
@@ -313,7 +313,7 @@ func (ec *JobsControllerImpl) handleJobRunTimedOut(ctx context.Context, task *ta
 		if ok {
 			err = ec.tq.AddTask(
 				ctx,
-				taskqueue.QueueTypeFromTicker(stepRunTicker),
+				taskqueue.QueueTypeFromTickerID(stepRunTicker.ID),
 				cancelStepRunTimeoutTask(stepRunTicker, stepRun),
 			)
 
@@ -524,8 +524,11 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 	// 3. Update the step run's designated worker.
 	//
 	// After creating the worker, send a task to the taskqueue, which will be picked up by the dispatcher.
+	after := time.Now().UTC().Add(-6 * time.Second)
+
 	workers, err := ec.repo.Worker().ListWorkers(tenantId, &repository.ListWorkersOpts{
-		Action: &stepRun.Step().ActionID,
+		Action:             &stepRun.Step().ActionID,
+		LastHeartbeatAfter: &after,
 	})
 
 	if err != nil {
@@ -577,7 +580,7 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 	// send a task to the dispatcher
 	err = ec.tq.AddTask(
 		ctx,
-		taskqueue.QueueTypeFromDispatcher(selectedWorker.Worker.Dispatcher()),
+		taskqueue.QueueTypeFromDispatcherID(selectedWorker.Worker.Dispatcher().ID),
 		stepRunAssignedTask(tenantId, stepRunId, selectedWorker.Worker),
 	)
 
@@ -588,7 +591,7 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 	// send a task to the ticker
 	err = ec.tq.AddTask(
 		ctx,
-		taskqueue.QueueTypeFromTicker(ticker),
+		taskqueue.QueueTypeFromTickerID(ticker.ID),
 		scheduleTimeoutTask,
 	)
 
@@ -735,7 +738,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 	if ok {
 		err = ec.tq.AddTask(
 			ctx,
-			taskqueue.QueueTypeFromTicker(stepRunTicker),
+			taskqueue.QueueTypeFromTickerID(stepRunTicker.ID),
 			cancelStepRunTimeoutTask(stepRunTicker, stepRun),
 		)
 
@@ -782,7 +785,7 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *tas
 	if ok {
 		err = ec.tq.AddTask(
 			ctx,
-			taskqueue.QueueTypeFromTicker(stepRunTicker),
+			taskqueue.QueueTypeFromTickerID(stepRunTicker.ID),
 			cancelStepRunTimeoutTask(stepRunTicker, stepRun),
 		)
 
@@ -854,7 +857,7 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *t
 	// send a task to the taskqueue
 	err = ec.tq.AddTask(
 		ctx,
-		taskqueue.QueueTypeFromDispatcher(worker.Dispatcher()),
+		taskqueue.QueueTypeFromDispatcherID(worker.Dispatcher().ID),
 		stepRunCancelledTask(metadata.TenantId, payload.StepRunId, "TIMED_OUT", worker),
 	)
 
@@ -888,6 +891,8 @@ func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *tas
 		return fmt.Errorf("could not decode ticker removed task metadata: %w", err)
 	}
 
+	ec.l.Debug().Msgf("handling ticker removed for ticker %s", payload.TickerId)
+
 	// reassign all step runs to a different ticker
 	tickers, err := ec.getValidTickers()
 
@@ -900,8 +905,8 @@ func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *tas
 
 	// get all step runs assigned to the ticker
 	stepRuns, err := ec.repo.StepRun().ListAllStepRuns(&repository.ListAllStepRunsOpts{
-		NoTickerId: repository.BoolPtr(true),
-		Status:     repository.StepRunStatusPtr(db.StepRunStatusRunning),
+		TickerId: repository.StringPtr(payload.TickerId),
+		Status:   repository.StepRunStatusPtr(db.StepRunStatusRunning),
 	})
 
 	if err != nil {
@@ -927,7 +932,7 @@ func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *tas
 		// send a task to the ticker
 		err = ec.tq.AddTask(
 			ctx,
-			taskqueue.QueueTypeFromTicker(&ticker),
+			taskqueue.QueueTypeFromTickerID(ticker.ID),
 			scheduleTimeoutTask,
 		)
 
@@ -936,10 +941,10 @@ func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *tas
 		}
 	}
 
-	// get all step runs assigned to the ticker
+	// get all job runs assigned to the ticker
 	jobRuns, err := ec.repo.JobRun().ListAllJobRuns(&repository.ListAllJobRunsOpts{
-		NoTickerId: repository.BoolPtr(true),
-		Status:     repository.JobRunStatusPtr(db.JobRunStatusRunning),
+		TickerId: repository.StringPtr(payload.TickerId),
+		Status:   repository.JobRunStatusPtr(db.JobRunStatusRunning),
 	})
 
 	if err != nil {
@@ -965,7 +970,7 @@ func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *tas
 		// send a task to the ticker
 		err = ec.tq.AddTask(
 			ctx,
-			taskqueue.QueueTypeFromTicker(&ticker),
+			taskqueue.QueueTypeFromTickerID(ticker.ID),
 			scheduleTimeoutTask,
 		)
 
@@ -982,6 +987,7 @@ func (ec *JobsControllerImpl) getValidTickers() ([]db.TickerModel, error) {
 
 	tickers, err := ec.repo.Ticker().ListTickers(&repository.ListTickerOpts{
 		LatestHeartbeatAt: &within,
+		Active:            repository.BoolPtr(true),
 	})
 
 	if err != nil {
@@ -1010,7 +1016,7 @@ func stepRunAssignedTask(tenantId, stepRunId string, worker *db.WorkerModel) *ta
 
 	return &taskqueue.Task{
 		ID:       "step-run-assigned",
-		Queue:    taskqueue.QueueTypeFromDispatcher(dispatcher),
+		Queue:    taskqueue.QueueTypeFromDispatcherID(dispatcher.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}
@@ -1048,7 +1054,7 @@ func scheduleStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel
 
 	return &taskqueue.Task{
 		ID:       "schedule-step-run-timeout",
-		Queue:    taskqueue.QueueTypeFromTicker(ticker),
+		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -1085,7 +1091,7 @@ func scheduleJobRunTimeoutTask(ticker *db.TickerModel, jobRun *db.JobRunModel) (
 
 	return &taskqueue.Task{
 		ID:       "schedule-job-run-timeout",
-		Queue:    taskqueue.QueueTypeFromTicker(ticker),
+		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -1102,7 +1108,7 @@ func cancelStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel) 
 
 	return &taskqueue.Task{
 		ID:       "cancel-step-run-timeout",
-		Queue:    taskqueue.QueueTypeFromTicker(ticker),
+		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}
@@ -1119,7 +1125,7 @@ func cancelJobRunTimeoutTask(ticker *db.TickerModel, jobRun *db.JobRunModel) *ta
 
 	return &taskqueue.Task{
 		ID:       "cancel-job-run-timeout",
-		Queue:    taskqueue.QueueTypeFromTicker(ticker),
+		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}
@@ -1141,7 +1147,7 @@ func stepRunCancelledTask(tenantId, stepRunId, cancelledReason string, worker *d
 
 	return &taskqueue.Task{
 		ID:       "step-run-cancelled",
-		Queue:    taskqueue.QueueTypeFromDispatcher(dispatcher),
+		Queue:    taskqueue.QueueTypeFromDispatcherID(dispatcher.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}

@@ -6,18 +6,28 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type tickerRepository struct {
-	client *db.PrismaClient
-	v      validator.Validator
+	client  *db.PrismaClient
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
 }
 
-func NewTickerRepository(client *db.PrismaClient, v validator.Validator) repository.TickerRepository {
+func NewTickerRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator) repository.TickerRepository {
+	queries := dbsqlc.New()
+
 	return &tickerRepository{
-		client: client,
-		v:      v,
+		client:  client,
+		pool:    pool,
+		v:       v,
+		queries: queries,
 	}
 }
 
@@ -49,6 +59,10 @@ func (t *tickerRepository) ListTickers(opts *repository.ListTickerOpts) ([]db.Ti
 
 	if opts.LatestHeartbeatAt != nil {
 		params = append(params, db.Ticker.LastHeartbeatAt.Gt(*opts.LatestHeartbeatAt))
+	}
+
+	if opts.Active != nil {
+		params = append(params, db.Ticker.IsActive.Equals(*opts.Active))
 	}
 
 	return t.client.Ticker.FindMany(
@@ -128,4 +142,70 @@ func (t *tickerRepository) RemoveScheduledWorkflow(tickerId string, schedule *db
 			db.WorkflowTriggerScheduledRef.ID.Equals(schedule.ID),
 		),
 	).Exec(context.Background())
+}
+
+func (t *tickerRepository) GetTickerById(tickerId string) (*db.TickerModel, error) {
+	return t.client.Ticker.FindUnique(
+		db.Ticker.ID.Equals(tickerId),
+	).With(
+		db.Ticker.Crons.Fetch().With(
+			db.WorkflowTriggerCronRef.Parent.Fetch().With(
+				db.WorkflowTriggers.Workflow.Fetch().With(
+					db.WorkflowVersion.Workflow.Fetch(),
+				),
+			),
+		),
+		db.Ticker.Scheduled.Fetch().With(
+			db.WorkflowTriggerScheduledRef.Parent.Fetch().With(
+				db.WorkflowVersion.Workflow.Fetch(),
+			),
+		),
+		db.Ticker.JobRuns.Fetch(),
+		db.Ticker.StepRuns.Fetch(),
+	).Exec(context.Background())
+}
+
+func (t *tickerRepository) UpdateStaleTickers(onStale func(tickerId string, getValidTickerId func() string) error) error {
+	tx, err := t.pool.Begin(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback(context.Background())
+
+	staleTickers, err := t.queries.ListStaleTickers(context.Background(), tx)
+
+	if err != nil {
+		return err
+	}
+
+	activeTickers, err := t.queries.ListActiveTickers(context.Background(), tx)
+
+	if err != nil {
+		return err
+	}
+
+	tickersToDelete := make([]pgtype.UUID, 0)
+
+	for i, ticker := range staleTickers {
+		err := onStale(sqlchelpers.UUIDToStr(ticker.Ticker.ID), func() string {
+			// assign tickers in round-robin fashion
+			return sqlchelpers.UUIDToStr(activeTickers[i%len(activeTickers)].Ticker.ID)
+		})
+
+		if err != nil {
+			return err
+		}
+
+		tickersToDelete = append(tickersToDelete, ticker.Ticker.ID)
+	}
+
+	_, err = t.queries.SetTickersInactive(context.Background(), tx, tickersToDelete)
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(context.Background())
 }

@@ -38,6 +38,8 @@ type WorkerWithStepCount struct {
 
 type ListWorkersOpts struct {
 	Action *string `validate:"omitempty,actionId"`
+
+	LastHeartbeatAfter *time.Time
 }
 
 type WorkerRepository interface {

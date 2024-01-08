@@ -300,6 +300,7 @@ CREATE TABLE "Dispatcher" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "lastHeartbeatAt" TIMESTAMP(3),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "Dispatcher_pkey" PRIMARY KEY ("id")
 );
@@ -310,6 +311,7 @@ CREATE TABLE "Ticker" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "lastHeartbeatAt" TIMESTAMP(3),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "Ticker_pkey" PRIMARY KEY ("id")
 );

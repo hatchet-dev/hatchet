@@ -2,8 +2,6 @@ package taskqueue
 
 import (
 	"context"
-
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
 type QueueType string
@@ -15,20 +13,12 @@ const (
 	SCHEDULING_QUEUE       QueueType = "scheduling_queue"
 )
 
-func QueueTypeFromDispatcher(d *db.DispatcherModel) QueueType {
-	if d == nil {
-		return ""
-	}
-
-	return QueueType(d.ID)
+func QueueTypeFromDispatcherID(d string) QueueType {
+	return QueueType(d)
 }
 
-func QueueTypeFromTicker(t *db.TickerModel) QueueType {
-	if t == nil {
-		return ""
-	}
-
-	return QueueType(t.ID)
+func QueueTypeFromTickerID(t string) QueueType {
+	return QueueType(t)
 }
 
 type Task struct {

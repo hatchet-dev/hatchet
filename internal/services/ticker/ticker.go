@@ -112,7 +112,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 }
 
 func (t *TickerImpl) Start(ctx context.Context) error {
-	t.l.Debug().Msg("starting ticker")
+	t.l.Debug().Msgf("starting ticker %s", t.tickerId)
 
 	// register the ticker
 	ticker, err := t.repo.Ticker().CreateNewTicker(&repository.CreateTickerOpts{
@@ -124,7 +124,7 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 	}
 
 	// subscribe to a task queue with the dispatcher id
-	taskChan, err := t.tq.Subscribe(ctx, taskqueue.QueueTypeFromTicker(ticker))
+	taskChan, err := t.tq.Subscribe(ctx, taskqueue.QueueTypeFromTickerID(ticker.ID))
 
 	if err != nil {
 		return err
