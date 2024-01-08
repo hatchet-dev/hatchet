@@ -1,12 +1,12 @@
--- name: ListStaleTickers :many
+-- name: ListNewlyStaleTickers :many
 SELECT
     sqlc.embed(tickers)
 FROM "Ticker" as tickers
 WHERE
     -- last heartbeat older than 15 seconds
     "lastHeartbeatAt" < NOW () - INTERVAL '15 seconds'
-    -- not active
-    AND "isActive" = false;
+    -- active
+    AND "isActive" = true;
 
 -- name: ListActiveTickers :many
 SELECT
