@@ -1,0 +1,18 @@
+# Scheduling Workflows
+
+You can schedule workflows for specific times with the client's `Admin().ScheduleWorkflow` method:
+
+```go
+c, err := client.New(
+  client.WithHostPort("127.0.0.1", 7077),
+)
+
+if err != nil {
+  panic(err)
+}
+
+client.Admin().ScheduleWorkflow(
+    "scheduled-workflow", // the name of the workflow
+    time.Now().Add(10 * time.Second),
+)
+```

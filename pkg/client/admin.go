@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -13,10 +14,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type AdminClient interface {
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
+	ScheduleWorkflow(workflowName string, schedules ...time.Time) error
 }
 
 type adminClientImpl struct {
@@ -120,6 +123,36 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 	return nil
 }
 
+func (a *adminClientImpl) ScheduleWorkflow(workflowName string, schedules ...time.Time) error {
+	// get the workflow id from the name
+	workflow, err := a.client.GetWorkflowByName(context.Background(), &admincontracts.GetWorkflowByNameRequest{
+		TenantId: a.tenantId,
+		Name:     workflowName,
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not get workflow: %w", err)
+	}
+
+	pbSchedules := make([]*timestamppb.Timestamp, len(schedules))
+
+	for i, scheduled := range schedules {
+		pbSchedules[i] = timestamppb.New(scheduled)
+	}
+
+	_, err = a.client.ScheduleWorkflow(context.Background(), &admincontracts.ScheduleWorkflowRequest{
+		TenantId:   a.tenantId,
+		WorkflowId: workflow.Id,
+		Schedules:  pbSchedules,
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not schedule workflow: %w", err)
+	}
+
+	return nil
+}
+
 func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontracts.PutWorkflowRequest, error) {
 	opts := &admincontracts.CreateWorkflowVersionOpts{
 		Name:          workflow.Name,
@@ -160,6 +193,12 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		jobOpt.Steps = stepOpts
 
 		jobOpts = append(jobOpts, jobOpt)
+	}
+
+	opts.ScheduledTriggers = make([]*timestamppb.Timestamp, len(workflow.Triggers.Schedules))
+
+	for i, scheduled := range workflow.Triggers.Schedules {
+		opts.ScheduledTriggers[i] = timestamppb.New(scheduled)
 	}
 
 	opts.Jobs = jobOpts

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
@@ -39,6 +40,20 @@ func (c cronArr) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	}
 
 	wt.Cron = append(wt.Cron, c...)
+}
+
+type scheduled []time.Time
+
+func At(t ...time.Time) scheduled {
+	return scheduled(t)
+}
+
+func (s scheduled) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+	if wt.Schedules == nil {
+		wt.Schedules = []time.Time{}
+	}
+
+	wt.Schedules = append(wt.Schedules, s...)
 }
 
 type event string

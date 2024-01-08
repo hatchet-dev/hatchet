@@ -109,3 +109,23 @@ func (t *tickerRepository) RemoveCron(tickerId string, cron *db.WorkflowTriggerC
 		),
 	).Exec(context.Background())
 }
+
+func (t *tickerRepository) AddScheduledWorkflow(tickerId string, schedule *db.WorkflowTriggerScheduledRefModel) (*db.TickerModel, error) {
+	return t.client.Ticker.FindUnique(
+		db.Ticker.ID.Equals(tickerId),
+	).Update(
+		db.Ticker.Scheduled.Link(
+			db.WorkflowTriggerScheduledRef.ID.Equals(schedule.ID),
+		),
+	).Exec(context.Background())
+}
+
+func (t *tickerRepository) RemoveScheduledWorkflow(tickerId string, schedule *db.WorkflowTriggerScheduledRefModel) (*db.TickerModel, error) {
+	return t.client.Ticker.FindUnique(
+		db.Ticker.ID.Equals(tickerId),
+	).Update(
+		db.Ticker.Scheduled.Unlink(
+			db.WorkflowTriggerScheduledRef.ID.Equals(schedule.ID),
+		),
+	).Exec(context.Background())
+}

@@ -11,6 +11,13 @@ import (
 )
 
 type printInput struct{}
+type printOutput struct{}
+
+func print(ctx context.Context, input *printInput) (result *printOutput, err error) {
+	fmt.Println("called print:print")
+
+	return &printOutput{}, nil
+}
 
 func main() {
 	err := godotenv.Load()
@@ -39,11 +46,9 @@ func main() {
 		panic(err)
 	}
 
-	err = worker.RegisterAction("print:print", func(ctx context.Context, input *printInput) (result any, err error) {
-		fmt.Println("called print:print")
+	printSvc := worker.NewService("print")
 
-		return map[string]interface{}{}, nil
-	})
+	err = printSvc.RegisterAction(print)
 
 	if err != nil {
 		panic(err)

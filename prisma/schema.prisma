@@ -215,6 +215,9 @@ model WorkflowVersion {
   // all runs for the workflow
   runs WorkflowRun[]
 
+  // the scheduled runs for the workflow
+  scheduled WorkflowTriggerScheduledRef[]
+
   // versions are unique per workflow
   @@unique([workflowId, version])
 }
@@ -268,6 +271,23 @@ model WorkflowTriggerCronRef {
 
   // cron references must be unique per workflow
   @@unique([parentId, cron])
+}
+
+model WorkflowTriggerScheduledRef {
+  id String @id @unique @default(uuid()) @db.Uuid
+
+  // the parent workflow
+  parent   WorkflowVersion @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  parentId String          @db.Uuid
+
+  // the time that the workflow should be triggered
+  triggerAt DateTime
+
+  // the assigned ticker
+  ticker   Ticker? @relation(fields: [tickerId], references: [id])
+  tickerId String? @db.Uuid
+
+  triggered WorkflowRunTriggeredBy?
 }
 
 model Job {
@@ -430,6 +450,10 @@ model WorkflowRunTriggeredBy {
   cron         WorkflowTriggerCronRef? @relation(fields: [cronParentId, cronSchedule], references: [parentId, cron])
   cronParentId String?                 @db.Uuid
   cronSchedule String?
+
+  // a specific time that triggered this workflow
+  scheduled   WorkflowTriggerScheduledRef? @relation(fields: [scheduledId], references: [id])
+  scheduledId String?                      @unique @db.Uuid
 
   @@unique([tenantId, parentId])
 }
@@ -625,9 +649,10 @@ model Ticker {
   // the last heartbeat time
   lastHeartbeatAt DateTime?
 
-  jobRuns  JobRun[]
-  stepRuns StepRun[]
-  crons    WorkflowTriggerCronRef[]
+  jobRuns   JobRun[]
+  stepRuns  StepRun[]
+  crons     WorkflowTriggerCronRef[]
+  scheduled WorkflowTriggerScheduledRef[]
 }
 
 enum WorkerStatus {

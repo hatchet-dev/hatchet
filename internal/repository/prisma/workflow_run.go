@@ -153,6 +153,12 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(tenantId string, opts *repo
 		))
 	}
 
+	if opts.ScheduledWorkflowId != nil {
+		triggerOptionals = append(triggerOptionals, db.WorkflowRunTriggeredBy.Scheduled.Link(
+			db.WorkflowTriggerScheduledRef.ID.Equals(*opts.ScheduledWorkflowId),
+		))
+	}
+
 	// create the trigger definition
 	txs = append(txs, w.client.WorkflowRunTriggeredBy.CreateOne(
 		db.WorkflowRunTriggeredBy.Tenant.Link(

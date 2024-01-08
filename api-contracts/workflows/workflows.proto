@@ -9,6 +9,7 @@ import "google/protobuf/wrappers.proto"; // For optional fields
 service WorkflowService {
     rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
     rpc PutWorkflow(PutWorkflowRequest) returns (WorkflowVersion);
+    rpc ScheduleWorkflow(ScheduleWorkflowRequest) returns (WorkflowVersion);
     rpc GetWorkflowByName(GetWorkflowByNameRequest) returns (Workflow);
     rpc ListWorkflowsForEvent(ListWorkflowsForEventRequest) returns (ListWorkflowsResponse);
     rpc DeleteWorkflow(DeleteWorkflowRequest) returns (Workflow);
@@ -26,7 +27,8 @@ message CreateWorkflowVersionOpts {
     string version = 3; // (required) the workflow version
     repeated string event_triggers = 4; // (optional) event triggers for the workflow
     repeated string cron_triggers = 5; // (optional) cron triggers for the workflow
-    repeated CreateWorkflowJobOpts jobs = 6; // (required) the workflow jobs
+    repeated google.protobuf.Timestamp scheduled_triggers = 6; // (optional) scheduled triggers for the workflow
+    repeated CreateWorkflowJobOpts jobs = 7; // (required) the workflow jobs
 }
   
 // CreateWorkflowJobOpts represents options to create a workflow job.
@@ -49,7 +51,13 @@ message CreateWorkflowStepOpts {
 message ListWorkflowsRequest {
     string tenant_id = 1;
 }
-  
+
+message ScheduleWorkflowRequest {
+    string tenant_id = 1;
+    string workflow_id = 2;
+    repeated google.protobuf.Timestamp schedules = 3;
+}
+
 // ListWorkflowsResponse is the response for ListWorkflows.
 message ListWorkflowsResponse {
     repeated Workflow workflows = 1;

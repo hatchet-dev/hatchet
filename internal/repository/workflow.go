@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
@@ -22,8 +24,15 @@ type CreateWorkflowVersionOpts struct {
 	// (optional) cron triggers for the workflow
 	CronTriggers []string `validate:"dive,cron"`
 
+	// (optional) scheduled triggers for the workflow
+	ScheduledTriggers []time.Time
+
 	// (required) the workflow jobs
 	Jobs []CreateWorkflowJobOpts `validate:"required,min=1,dive"`
+}
+
+type CreateWorkflowSchedulesOpts struct {
+	ScheduledTriggers []time.Time
 }
 
 type CreateWorkflowTagOpts struct {
@@ -95,6 +104,9 @@ type WorkflowRepository interface {
 	// CreateWorkflowVersion creates a new workflow version for a given tenant. This will fail if there is
 	// not a parent workflow with the same name already in the database.
 	CreateWorkflowVersion(tenantId string, opts *CreateWorkflowVersionOpts) (*db.WorkflowVersionModel, error)
+
+	// CreateSchedules creates schedules for a given workflow version.
+	CreateSchedules(tenantId, workflowVersionId string, opts *CreateWorkflowSchedulesOpts) ([]*db.WorkflowTriggerScheduledRefModel, error)
 
 	// GetWorkflowById returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
 	GetWorkflowById(workflowId string) (*db.WorkflowModel, error)

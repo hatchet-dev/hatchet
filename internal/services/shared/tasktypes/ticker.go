@@ -44,6 +44,26 @@ type CancelCronTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
+type ScheduleWorkflowTaskPayload struct {
+	ScheduledWorkflowId string `json:"scheduled_workflow_id" validate:"required,uuid"`
+	TriggerAt           string `json:"trigger_at" validate:"required"`
+	WorkflowVersionId   string `json:"workflow_version_id" validate:"required,uuid"`
+}
+
+type ScheduleWorkflowTaskMetadata struct {
+	TenantId string `json:"tenant_id" validate:"required,uuid"`
+}
+
+type CancelWorkflowTaskPayload struct {
+	ScheduledWorkflowId string `json:"scheduled_workflow_id" validate:"required,uuid"`
+	TriggerAt           string `json:"trigger_at" validate:"required"`
+	WorkflowVersionId   string `json:"workflow_version_id" validate:"required,uuid"`
+}
+
+type CancelWorkflowTaskMetadata struct {
+	TenantId string `json:"tenant_id" validate:"required,uuid"`
+}
+
 type ScheduleJobRunTimeoutTaskPayload struct {
 	JobRunId  string `json:"job_run_id" validate:"required,uuid"`
 	TimeoutAt string `json:"timeout_at" validate:"required"`

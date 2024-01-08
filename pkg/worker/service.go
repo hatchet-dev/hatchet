@@ -2,7 +2,6 @@ package worker
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
@@ -49,17 +48,7 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 }
 
 func (s *Service) RegisterAction(fn any) error {
-	fnType := reflect.TypeOf(fn)
-
-	if fnType.Kind() != reflect.Func {
-		return fmt.Errorf("method must be a function")
-	}
-
-	if fnType.Name() == "" {
-		return fmt.Errorf("function cannot be anonymous")
-	}
-
-	fnId := fnType.Name()
+	fnId := getFnName(fn)
 
 	actionId := fmt.Sprintf("%s:%s", s.Name, fnId)
 
