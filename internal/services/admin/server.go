@@ -258,25 +258,27 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 						return nil, err
 					}
 
-					// send to task queue
-					err = a.tq.AddTask(
-						ctx,
-						taskqueue.QueueTypeFromTicker(ticker),
-						task,
-					)
+					// only send to task queue if the trigger is in the future
+					if scheduleTriggerCp.TriggerAt.After(time.Now().UTC()) {
+						err = a.tq.AddTask(
+							ctx,
+							taskqueue.QueueTypeFromTicker(ticker),
+							task,
+						)
 
-					if err != nil {
-						return nil, err
-					}
+						if err != nil {
+							return nil, err
+						}
 
-					// remove cron
-					_, err = a.repo.Ticker().RemoveScheduledWorkflow(
-						ticker.ID,
-						&scheduleTrigger,
-					)
+						// remove cron
+						_, err = a.repo.Ticker().RemoveScheduledWorkflow(
+							ticker.ID,
+							&scheduleTrigger,
+						)
 
-					if err != nil {
-						return nil, err
+						if err != nil {
+							return nil, err
+						}
 					}
 				}
 			}
