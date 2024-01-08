@@ -54,14 +54,8 @@ func main() {
 		panic(err)
 	}
 
-	at := []time.Time{}
-
-	for i := 0; i < 100; i++ {
-		at = append(at, time.Now().Add(time.Second*30+time.Millisecond*10*time.Duration(i)))
-	}
-
 	err = w.On(
-		worker.At(at...),
+		worker.At(time.Now().Add(time.Second*10)),
 		&worker.WorkflowJob{
 			Name:        "scheduled-workflow",
 			Description: "This runs at a scheduled time.",
@@ -86,6 +80,25 @@ func main() {
 		}
 
 		cancel()
+	}()
+
+	go func() {
+		time.Sleep(5 * time.Second)
+
+		at := []time.Time{}
+
+		for i := 0; i < 99; i++ {
+			at = append(at, time.Now().Add(time.Second*30+time.Millisecond*10*time.Duration(i)))
+		}
+
+		err = client.Admin().ScheduleWorkflow(
+			"scheduled-workflow",
+			at...,
+		)
+
+		if err != nil {
+			panic(err)
+		}
 	}()
 
 	for {

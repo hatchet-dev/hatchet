@@ -215,6 +215,9 @@ model WorkflowVersion {
   // all runs for the workflow
   runs WorkflowRun[]
 
+  // the scheduled runs for the workflow
+  scheduled WorkflowTriggerScheduledRef[]
+
   // versions are unique per workflow
   @@unique([workflowId, version])
 }
@@ -238,8 +241,6 @@ model WorkflowTriggers {
   events WorkflowTriggerEventRef[]
 
   crons WorkflowTriggerCronRef[]
-
-  scheduled WorkflowTriggerScheduledRef[]
 }
 
 model WorkflowTriggerEventRef {
@@ -276,8 +277,8 @@ model WorkflowTriggerScheduledRef {
   id String @id @unique @default(uuid()) @db.Uuid
 
   // the parent workflow
-  parent   WorkflowTriggers @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  parentId String           @db.Uuid
+  parent   WorkflowVersion @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  parentId String          @db.Uuid
 
   // the time that the workflow should be triggered
   triggerAt DateTime

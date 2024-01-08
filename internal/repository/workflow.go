@@ -31,6 +31,10 @@ type CreateWorkflowVersionOpts struct {
 	Jobs []CreateWorkflowJobOpts `validate:"required,min=1,dive"`
 }
 
+type CreateWorkflowSchedulesOpts struct {
+	ScheduledTriggers []time.Time
+}
+
 type CreateWorkflowTagOpts struct {
 	// (required) the tag name
 	Name string `validate:"required"`
@@ -100,6 +104,9 @@ type WorkflowRepository interface {
 	// CreateWorkflowVersion creates a new workflow version for a given tenant. This will fail if there is
 	// not a parent workflow with the same name already in the database.
 	CreateWorkflowVersion(tenantId string, opts *CreateWorkflowVersionOpts) (*db.WorkflowVersionModel, error)
+
+	// CreateSchedules creates schedules for a given workflow version.
+	CreateSchedules(tenantId, workflowVersionId string, opts *CreateWorkflowSchedulesOpts) ([]*db.WorkflowTriggerScheduledRefModel, error)
 
 	// GetWorkflowById returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
 	GetWorkflowById(workflowId string) (*db.WorkflowModel, error)

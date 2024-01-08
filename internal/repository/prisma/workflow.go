@@ -279,6 +279,48 @@ func (r *workflowRepository) CreateWorkflowVersion(tenantId string, opts *reposi
 	).Exec(context.Background())
 }
 
+type createScheduleTxResult interface {
+	Result() *db.WorkflowTriggerScheduledRefModel
+}
+
+func (r *workflowRepository) CreateSchedules(
+	tenantId, workflowVersionId string,
+	opts *repository.CreateWorkflowSchedulesOpts,
+) ([]*db.WorkflowTriggerScheduledRefModel, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	txs := []transaction.Param{}
+	results := []createScheduleTxResult{}
+
+	for _, scheduledTrigger := range opts.ScheduledTriggers {
+		createTx := r.client.WorkflowTriggerScheduledRef.CreateOne(
+			db.WorkflowTriggerScheduledRef.Parent.Link(
+				db.WorkflowVersion.ID.Equals(workflowVersionId),
+			),
+			db.WorkflowTriggerScheduledRef.TriggerAt.Set(scheduledTrigger),
+		).Tx()
+
+		txs = append(txs, createTx)
+		results = append(results, createTx)
+	}
+
+	err := r.client.Prisma.Transaction(txs...).Exec(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]*db.WorkflowTriggerScheduledRefModel, 0)
+
+	for _, result := range results {
+		res = append(res, result.Result())
+	}
+
+	return res, nil
+}
+
 func (r *workflowRepository) GetWorkflowById(workflowId string) (*db.WorkflowModel, error) {
 	return r.client.Workflow.FindUnique(
 		db.Workflow.ID.Equals(workflowId),
@@ -458,7 +500,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(tenantId, workflowId strin
 	for _, scheduledTrigger := range opts.ScheduledTriggers {
 		txs = append(txs, r.client.WorkflowTriggerScheduledRef.CreateOne(
 			db.WorkflowTriggerScheduledRef.Parent.Link(
-				db.WorkflowTriggers.ID.Equals(workflowTriggersId),
+				db.WorkflowVersion.ID.Equals(workflowVersionId),
 			),
 			db.WorkflowTriggerScheduledRef.TriggerAt.Set(scheduledTrigger),
 		).Tx())
@@ -502,14 +544,14 @@ func defaultWorkflowVersionPopulator() []db.WorkflowVersionRelationWith {
 			db.WorkflowTriggers.Crons.Fetch().With(
 				db.WorkflowTriggerCronRef.Ticker.Fetch(),
 			),
-			db.WorkflowTriggers.Scheduled.Fetch().With(
-				db.WorkflowTriggerScheduledRef.Ticker.Fetch(),
-			),
 		),
 		db.WorkflowVersion.Jobs.Fetch().With(
 			db.Job.Steps.Fetch().With(
 				db.Step.Action.Fetch(),
 			),
+		),
+		db.WorkflowVersion.Scheduled.Fetch().With(
+			db.WorkflowTriggerScheduledRef.Ticker.Fetch(),
 		),
 	}
 }

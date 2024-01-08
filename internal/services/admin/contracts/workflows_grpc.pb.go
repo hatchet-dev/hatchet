@@ -24,6 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 type WorkflowServiceClient interface {
 	ListWorkflows(ctx context.Context, in *ListWorkflowsRequest, opts ...grpc.CallOption) (*ListWorkflowsResponse, error)
 	PutWorkflow(ctx context.Context, in *PutWorkflowRequest, opts ...grpc.CallOption) (*WorkflowVersion, error)
+	ScheduleWorkflow(ctx context.Context, in *ScheduleWorkflowRequest, opts ...grpc.CallOption) (*WorkflowVersion, error)
 	GetWorkflowByName(ctx context.Context, in *GetWorkflowByNameRequest, opts ...grpc.CallOption) (*Workflow, error)
 	ListWorkflowsForEvent(ctx context.Context, in *ListWorkflowsForEventRequest, opts ...grpc.CallOption) (*ListWorkflowsResponse, error)
 	DeleteWorkflow(ctx context.Context, in *DeleteWorkflowRequest, opts ...grpc.CallOption) (*Workflow, error)
@@ -49,6 +50,15 @@ func (c *workflowServiceClient) ListWorkflows(ctx context.Context, in *ListWorkf
 func (c *workflowServiceClient) PutWorkflow(ctx context.Context, in *PutWorkflowRequest, opts ...grpc.CallOption) (*WorkflowVersion, error) {
 	out := new(WorkflowVersion)
 	err := c.cc.Invoke(ctx, "/WorkflowService/PutWorkflow", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workflowServiceClient) ScheduleWorkflow(ctx context.Context, in *ScheduleWorkflowRequest, opts ...grpc.CallOption) (*WorkflowVersion, error) {
+	out := new(WorkflowVersion)
+	err := c.cc.Invoke(ctx, "/WorkflowService/ScheduleWorkflow", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +98,7 @@ func (c *workflowServiceClient) DeleteWorkflow(ctx context.Context, in *DeleteWo
 type WorkflowServiceServer interface {
 	ListWorkflows(context.Context, *ListWorkflowsRequest) (*ListWorkflowsResponse, error)
 	PutWorkflow(context.Context, *PutWorkflowRequest) (*WorkflowVersion, error)
+	ScheduleWorkflow(context.Context, *ScheduleWorkflowRequest) (*WorkflowVersion, error)
 	GetWorkflowByName(context.Context, *GetWorkflowByNameRequest) (*Workflow, error)
 	ListWorkflowsForEvent(context.Context, *ListWorkflowsForEventRequest) (*ListWorkflowsResponse, error)
 	DeleteWorkflow(context.Context, *DeleteWorkflowRequest) (*Workflow, error)
@@ -103,6 +114,9 @@ func (UnimplementedWorkflowServiceServer) ListWorkflows(context.Context, *ListWo
 }
 func (UnimplementedWorkflowServiceServer) PutWorkflow(context.Context, *PutWorkflowRequest) (*WorkflowVersion, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutWorkflow not implemented")
+}
+func (UnimplementedWorkflowServiceServer) ScheduleWorkflow(context.Context, *ScheduleWorkflowRequest) (*WorkflowVersion, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ScheduleWorkflow not implemented")
 }
 func (UnimplementedWorkflowServiceServer) GetWorkflowByName(context.Context, *GetWorkflowByNameRequest) (*Workflow, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWorkflowByName not implemented")
@@ -158,6 +172,24 @@ func _WorkflowService_PutWorkflow_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorkflowServiceServer).PutWorkflow(ctx, req.(*PutWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkflowService_ScheduleWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ScheduleWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).ScheduleWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/WorkflowService/ScheduleWorkflow",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).ScheduleWorkflow(ctx, req.(*ScheduleWorkflowRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -230,6 +262,10 @@ var WorkflowService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PutWorkflow",
 			Handler:    _WorkflowService_PutWorkflow_Handler,
+		},
+		{
+			MethodName: "ScheduleWorkflow",
+			Handler:    _WorkflowService_ScheduleWorkflow_Handler,
 		},
 		{
 			MethodName: "GetWorkflowByName",

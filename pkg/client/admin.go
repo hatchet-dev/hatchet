@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -18,6 +19,7 @@ import (
 
 type AdminClient interface {
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
+	ScheduleWorkflow(workflowName string, schedules ...time.Time) error
 }
 
 type adminClientImpl struct {
@@ -116,6 +118,36 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 		if err != nil {
 			return fmt.Errorf("could not create workflow: %w", err)
 		}
+	}
+
+	return nil
+}
+
+func (a *adminClientImpl) ScheduleWorkflow(workflowName string, schedules ...time.Time) error {
+	// get the workflow id from the name
+	workflow, err := a.client.GetWorkflowByName(context.Background(), &admincontracts.GetWorkflowByNameRequest{
+		TenantId: a.tenantId,
+		Name:     workflowName,
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not get workflow: %w", err)
+	}
+
+	pbSchedules := make([]*timestamppb.Timestamp, len(schedules))
+
+	for i, scheduled := range schedules {
+		pbSchedules[i] = timestamppb.New(scheduled)
+	}
+
+	_, err = a.client.ScheduleWorkflow(context.Background(), &admincontracts.ScheduleWorkflowRequest{
+		TenantId:   a.tenantId,
+		WorkflowId: workflow.Id,
+		Schedules:  pbSchedules,
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not schedule workflow: %w", err)
 	}
 
 	return nil
