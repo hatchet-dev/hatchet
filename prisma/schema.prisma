@@ -636,6 +636,9 @@ model Dispatcher {
   // the last heartbeat time
   lastHeartbeatAt DateTime?
 
+  // whether this dispatcher is active or not
+  isActive Boolean @default(true)
+
   // a list of workers connected to this dispatcher
   workers Worker[]
 }
@@ -648,6 +651,9 @@ model Ticker {
 
   // the last heartbeat time
   lastHeartbeatAt DateTime?
+
+  // whether this ticker is active or not
+  isActive Boolean @default(true)
 
   jobRuns   JobRun[]
   stepRuns  StepRun[]

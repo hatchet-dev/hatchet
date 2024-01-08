@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/eventscontroller"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
+	"github.com/hatchet-dev/hatchet/internal/services/heartbeat"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/jobscontroller"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
@@ -205,6 +206,26 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			}
 
 			err = t.Start(ctx)
+
+			if err != nil {
+				errCh <- err
+			}
+		}()
+	}
+
+	if sc.HasService("heartbeater") {
+		go func() {
+			h, err := heartbeat.New(
+				heartbeat.WithTaskQueue(sc.TaskQueue),
+				heartbeat.WithRepository(sc.Repository),
+			)
+
+			if err != nil {
+				errCh <- err
+				return
+			}
+
+			err = h.Start(ctx)
 
 			if err != nil {
 				errCh <- err

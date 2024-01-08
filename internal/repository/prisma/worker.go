@@ -71,6 +71,10 @@ func (w *workerRepository) ListWorkers(tenantId string, opts *repository.ListWor
 		))
 	}
 
+	if opts.LastHeartbeatAfter != nil {
+		queryParams = append(queryParams, db.Worker.LastHeartbeatAt.After(*opts.LastHeartbeatAfter))
+	}
+
 	workers, err := w.client.Worker.FindMany(
 		queryParams...,
 	).With(

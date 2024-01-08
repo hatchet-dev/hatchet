@@ -7,6 +7,8 @@ sql:
       - workflows.sql
       - step_runs.sql
       - job_runs.sql
+      - tickers.sql
+      - dispatchers.sql
     schema:
       - schema.sql
     gen:

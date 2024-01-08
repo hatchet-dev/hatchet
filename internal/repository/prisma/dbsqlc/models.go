@@ -249,6 +249,7 @@ type Dispatcher struct {
 	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
 	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
+	IsActive        bool             `json:"isActive"`
 }
 
 type Event struct {
@@ -381,6 +382,7 @@ type Ticker struct {
 	CreatedAt       pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
+	IsActive        bool             `json:"isActive"`
 }
 
 type User struct {
@@ -453,6 +455,7 @@ type WorkflowRunTriggeredBy struct {
 	EventId      pgtype.UUID      `json:"eventId"`
 	CronParentId pgtype.UUID      `json:"cronParentId"`
 	CronSchedule pgtype.Text      `json:"cronSchedule"`
+	ScheduledId  pgtype.UUID      `json:"scheduledId"`
 }
 
 type WorkflowTag struct {
@@ -478,6 +481,13 @@ type WorkflowTriggerCronRef struct {
 type WorkflowTriggerEventRef struct {
 	ParentId pgtype.UUID `json:"parentId"`
 	EventKey string      `json:"eventKey"`
+}
+
+type WorkflowTriggerScheduledRef struct {
+	ID        pgtype.UUID      `json:"id"`
+	ParentId  pgtype.UUID      `json:"parentId"`
+	TriggerAt pgtype.Timestamp `json:"triggerAt"`
+	TickerId  pgtype.UUID      `json:"tickerId"`
 }
 
 type WorkflowTriggers struct {

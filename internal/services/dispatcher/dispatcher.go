@@ -127,7 +127,7 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 	}
 
 	// subscribe to a task queue with the dispatcher id
-	taskChan, err := d.tq.Subscribe(ctx, taskqueue.QueueTypeFromDispatcher(dispatcher))
+	taskChan, err := d.tq.Subscribe(ctx, taskqueue.QueueTypeFromDispatcherID(dispatcher.ID))
 
 	if err != nil {
 		return err

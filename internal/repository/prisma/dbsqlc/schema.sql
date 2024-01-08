@@ -29,6 +29,7 @@ CREATE TABLE "Dispatcher" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "lastHeartbeatAt" TIMESTAMP(3),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "Dispatcher_pkey" PRIMARY KEY ("id")
 );
@@ -186,6 +187,7 @@ CREATE TABLE "Ticker" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "lastHeartbeatAt" TIMESTAMP(3),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "Ticker_pkey" PRIMARY KEY ("id")
 );
@@ -277,6 +279,7 @@ CREATE TABLE "WorkflowRunTriggeredBy" (
     "eventId" UUID,
     "cronParentId" UUID,
     "cronSchedule" TEXT,
+    "scheduledId" UUID,
 
     CONSTRAINT "WorkflowRunTriggeredBy_pkey" PRIMARY KEY ("id")
 );
@@ -304,6 +307,16 @@ CREATE TABLE "WorkflowTriggerCronRef" (
 CREATE TABLE "WorkflowTriggerEventRef" (
     "parentId" UUID NOT NULL,
     "eventKey" TEXT NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "WorkflowTriggerScheduledRef" (
+    "id" UUID NOT NULL,
+    "parentId" UUID NOT NULL,
+    "triggerAt" TIMESTAMP(3) NOT NULL,
+    "tickerId" UUID,
+
+    CONSTRAINT "WorkflowTriggerScheduledRef_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -443,6 +456,9 @@ CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_id_key" ON "WorkflowRunTriggeredBy"(
 CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_parentId_key" ON "WorkflowRunTriggeredBy"("parentId" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_scheduledId_key" ON "WorkflowRunTriggeredBy"("scheduledId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_tenantId_parentId_key" ON "WorkflowRunTriggeredBy"("tenantId" ASC, "parentId" ASC);
 
 -- CreateIndex
@@ -456,6 +472,9 @@ CREATE UNIQUE INDEX "WorkflowTriggerCronRef_parentId_cron_key" ON "WorkflowTrigg
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggerEventRef_parentId_eventKey_key" ON "WorkflowTriggerEventRef"("parentId" ASC, "eventKey" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowTriggerScheduledRef_id_key" ON "WorkflowTriggerScheduledRef"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggers_id_key" ON "WorkflowTriggers"("id" ASC);
@@ -590,6 +609,9 @@ ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_even
 ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_scheduledId_fkey" FOREIGN KEY ("scheduledId") REFERENCES "WorkflowTriggerScheduledRef"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -603,6 +625,12 @@ ALTER TABLE "WorkflowTriggerCronRef" ADD CONSTRAINT "WorkflowTriggerCronRef_tick
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggerEventRef" ADD CONSTRAINT "WorkflowTriggerEventRef_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowTriggers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_tickerId_fkey" FOREIGN KEY ("tickerId") REFERENCES "Ticker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggers" ADD CONSTRAINT "WorkflowTriggers_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;

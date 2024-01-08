@@ -17,6 +17,8 @@ type UpdateTickerOpts struct {
 type ListTickerOpts struct {
 	// Set this to only return tickers whose heartbeat is more recent than this time
 	LatestHeartbeatAt *time.Time
+
+	Active *bool
 }
 
 type TickerRepository interface {
@@ -28,6 +30,8 @@ type TickerRepository interface {
 
 	// ListTickers lists tickers.
 	ListTickers(opts *ListTickerOpts) ([]db.TickerModel, error)
+
+	GetTickerById(tickerId string) (*db.TickerModel, error)
 
 	// Delete deletes a ticker.
 	Delete(tickerId string) error
@@ -49,4 +53,6 @@ type TickerRepository interface {
 
 	// RemoveScheduledWorkflow removes a scheduled workflow from a ticker.
 	RemoveScheduledWorkflow(tickerId string, schedule *db.WorkflowTriggerScheduledRefModel) (*db.TickerModel, error)
+
+	UpdateStaleTickers(onStale func(tickerId string, getValidTickerId func() string) error) error
 }

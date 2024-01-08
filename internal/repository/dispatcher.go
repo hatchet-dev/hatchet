@@ -28,4 +28,6 @@ type DispatcherRepository interface {
 
 	// AddWorker adds a worker to a dispatcher.
 	AddWorker(dispatcherId, workerId string) (*db.DispatcherModel, error)
+
+	UpdateStaleDispatchers(onStale func(dispatcherId string, getValidDispatcherId func() string) error) error
 }
