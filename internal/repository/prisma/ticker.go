@@ -174,7 +174,7 @@ func (t *tickerRepository) UpdateStaleTickers(onStale func(tickerId string, getV
 
 	defer tx.Rollback(context.Background())
 
-	staleTickers, err := t.queries.ListStaleTickers(context.Background(), tx)
+	staleTickers, err := t.queries.ListNewlyStaleTickers(context.Background(), tx)
 
 	if err != nil {
 		return err

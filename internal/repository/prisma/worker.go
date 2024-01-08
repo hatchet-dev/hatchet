@@ -255,6 +255,12 @@ func (w *workerRepository) UpdateWorker(tenantId, workerId string, opts *reposit
 		optionals = append(optionals, db.Worker.LastHeartbeatAt.Set(*opts.LastHeartbeatAt))
 	}
 
+	if opts.DispatcherId != nil {
+		optionals = append(optionals, db.Worker.Dispatcher.Link(
+			db.Dispatcher.ID.Equals(*opts.DispatcherId),
+		))
+	}
+
 	if len(opts.Actions) > 0 {
 		for _, action := range opts.Actions {
 			txs = append(txs, w.client.Action.UpsertOne(

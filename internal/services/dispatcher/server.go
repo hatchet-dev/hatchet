@@ -118,6 +118,25 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenServer) error {
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
+	worker, err := s.repo.Worker().GetWorkerById(request.WorkerId)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
+		return err
+	}
+
+	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
+	if worker.DispatcherID != s.dispatcherId {
+		_, err = s.repo.Worker().UpdateWorker(request.TenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+			DispatcherId: &s.dispatcherId,
+		})
+
+		if err != nil {
+			s.l.Error().Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
+			return err
+		}
+	}
+
 	fin := make(chan bool)
 
 	s.workers.Store(request.WorkerId, subscribedWorker{stream: stream, finished: fin})

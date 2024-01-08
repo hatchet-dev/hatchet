@@ -52,30 +52,30 @@ func (q *Queries) ListActiveTickers(ctx context.Context, db DBTX) ([]*ListActive
 	return items, nil
 }
 
-const listStaleTickers = `-- name: ListStaleTickers :many
+const listNewlyStaleTickers = `-- name: ListNewlyStaleTickers :many
 SELECT
     tickers.id, tickers."createdAt", tickers."updatedAt", tickers."lastHeartbeatAt", tickers."isActive"
 FROM "Ticker" as tickers
 WHERE
     -- last heartbeat older than 15 seconds
     "lastHeartbeatAt" < NOW () - INTERVAL '15 seconds'
-    -- not active
-    AND "isActive" = false
+    -- active
+    AND "isActive" = true
 `
 
-type ListStaleTickersRow struct {
+type ListNewlyStaleTickersRow struct {
 	Ticker Ticker `json:"ticker"`
 }
 
-func (q *Queries) ListStaleTickers(ctx context.Context, db DBTX) ([]*ListStaleTickersRow, error) {
-	rows, err := db.Query(ctx, listStaleTickers)
+func (q *Queries) ListNewlyStaleTickers(ctx context.Context, db DBTX) ([]*ListNewlyStaleTickersRow, error) {
+	rows, err := db.Query(ctx, listNewlyStaleTickers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListStaleTickersRow
+	var items []*ListNewlyStaleTickersRow
 	for rows.Next() {
-		var i ListStaleTickersRow
+		var i ListNewlyStaleTickersRow
 		if err := rows.Scan(
 			&i.Ticker.ID,
 			&i.Ticker.CreatedAt,

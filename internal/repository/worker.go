@@ -21,6 +21,9 @@ type CreateWorkerOpts struct {
 }
 
 type UpdateWorkerOpts struct {
+	// The id of the dispatcher
+	DispatcherId *string `validate:"omitempty,uuid"`
+
 	// The status of the worker
 	Status *db.WorkerStatus
 
