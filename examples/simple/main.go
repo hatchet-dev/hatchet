@@ -20,6 +20,20 @@ type actionInput struct {
 	Message string `json:"message"`
 }
 
+type actionOut struct {
+	Message string `json:"message"`
+}
+
+func echo(ctx context.Context, input *actionInput) (result *actionOut, err error) {
+	return &actionOut{
+		Message: input.Message,
+	}, nil
+}
+
+func object(ctx context.Context, input *userCreateEvent) error {
+	return nil
+}
+
 func main() {
 	err := godotenv.Load()
 
@@ -47,19 +61,15 @@ func main() {
 		panic(err)
 	}
 
-	err = worker.RegisterAction("echo:echo", func(ctx context.Context, input *actionInput) (result any, err error) {
-		return map[string]interface{}{
-			"message": input.Message,
-		}, nil
-	})
+	echoSvc := worker.NewService("echo")
+
+	err = echoSvc.RegisterAction(echo)
 
 	if err != nil {
 		panic(err)
 	}
 
-	err = worker.RegisterAction("echo:object", func(ctx context.Context, input *actionInput) (result any, err error) {
-		return nil, nil
-	})
+	err = echoSvc.RegisterAction(object)
 
 	if err != nil {
 		panic(err)
@@ -85,6 +95,8 @@ func main() {
 			"test": "test",
 		},
 	}
+
+	time.Sleep(1 * time.Second)
 
 	// push an event
 	err = client.Event().Push(
