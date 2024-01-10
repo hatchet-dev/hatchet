@@ -178,11 +178,13 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 			// return err
 			return nil
 		case task := <-taskChan:
-			err = t.handleTask(ctx, task)
+			go func(task *taskqueue.Task) {
+				err = t.handleTask(ctx, task)
 
-			if err != nil {
-				t.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
-			}
+				if err != nil {
+					t.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
+				}
+			}(task)
 		}
 	}
 }

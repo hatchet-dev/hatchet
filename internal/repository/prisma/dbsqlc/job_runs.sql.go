@@ -52,8 +52,8 @@ END, "finishedAt" = CASE
 END, "startedAt" = CASE 
     -- Started at is final, cannot be changed
     WHEN "startedAt" IS NOT NULL THEN "startedAt"
-    -- If a step is running, then the job has started
-    WHEN s.runningRuns > 0 THEN NOW()
+    -- If steps are running (or have finished), then set the started at time
+    WHEN s.runningRuns > 0 OR s.succeededRuns > 0 OR s.failedRuns > 0 AND s.cancelledRuns > 0 THEN NOW()
     ELSE "startedAt"
 END
 FROM stepRuns s

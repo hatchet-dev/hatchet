@@ -101,16 +101,18 @@ func (jc *JobsControllerImpl) Start(ctx context.Context) error {
 		return err
 	}
 
-	for {
-		select {
-		case task := <-taskChan:
+	// TODO: close when ctx is done
+	for task := range taskChan {
+		go func(task *taskqueue.Task) {
 			err = jc.handleTask(ctx, task)
 
 			if err != nil {
 				jc.l.Error().Err(err).Msg("could not handle job task")
 			}
-		}
+		}(task)
 	}
+
+	return nil
 }
 
 func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {

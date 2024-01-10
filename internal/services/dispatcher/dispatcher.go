@@ -168,11 +168,13 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 
 			return err
 		case task := <-taskChan:
-			err = d.handleTask(ctx, task)
+			go func(task *taskqueue.Task) {
+				err = d.handleTask(ctx, task)
 
-			if err != nil {
-				d.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
-			}
+				if err != nil {
+					d.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
+				}
+			}(task)
 		}
 	}
 }

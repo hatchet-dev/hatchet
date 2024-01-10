@@ -73,7 +73,7 @@ func (t *TickerImpl) handleCancelStepRunTimeout(ctx context.Context, task *taskq
 	childTimeoutCtxVal, ok := t.stepRuns.Load(payload.StepRunId)
 
 	if !ok {
-		return fmt.Errorf("could not find step run %s", payload.StepRunId)
+		return nil
 	}
 
 	// cancel the timeout

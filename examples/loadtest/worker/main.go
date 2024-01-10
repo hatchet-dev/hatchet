@@ -1,0 +1,92 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	"github.com/hatchet-dev/hatchet/pkg/worker"
+	"github.com/joho/godotenv"
+)
+
+type Event struct {
+	ID        uint64    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type stepOneOutput struct {
+	Message string `json:"message"`
+}
+
+func StepOne(ctx context.Context, input *Event) (result *stepOneOutput, err error) {
+	fmt.Println(input.ID, "delay", time.Since(input.CreatedAt))
+
+	return &stepOneOutput{
+		Message: "This ran at: " + time.Now().Format(time.RubyDate),
+	}, nil
+}
+
+func main() {
+	err := godotenv.Load()
+
+	if err != nil {
+		panic(err)
+	}
+
+	client, err := client.New()
+
+	if err != nil {
+		panic(err)
+	}
+
+	// Create a worker. This automatically reads in a TemporalClient from .env and workflow files from the .hatchet
+	// directory, but this can be customized with the `worker.WithTemporalClient` and `worker.WithWorkflowFiles` options.
+	w, err := worker.NewWorker(
+		worker.WithClient(
+			client,
+		),
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	err = w.On(
+		worker.Event("test:event"),
+		&worker.WorkflowJob{
+			Name:        "scheduled-workflow",
+			Description: "This runs at a scheduled time.",
+			Steps: []worker.WorkflowStep{
+				worker.Fn(StepOne).SetName("step-one"),
+			},
+		},
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
+	defer cancel()
+
+	go func() {
+		err = w.Start(interruptCtx)
+
+		if err != nil {
+			panic(err)
+		}
+
+		cancel()
+	}()
+
+	for {
+		select {
+		case <-interruptCtx.Done():
+			return
+		default:
+			time.Sleep(time.Second)
+		}
+	}
+}
