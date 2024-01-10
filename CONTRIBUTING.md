@@ -8,7 +8,7 @@
 - `docker-compose`
 - [`Taskfile`](https://taskfile.dev/installation/)
 - The following additional devtools:
-  - `protoc`: `brew install protobuf`
+  - `protoc`: `brew install protobuf@25` 
   - `caddy` and `nss`: `brew install caddy nss`
 
 ### Setup
