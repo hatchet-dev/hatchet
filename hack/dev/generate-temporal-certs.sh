@@ -10,7 +10,7 @@ if [ -n "$1" ]; then
     CERTS_DIR=$1
 fi
 
-mkdir $CERTS_DIR
+mkdir -p $CERTS_DIR
 
 # Generate a private key and a certificate for a test certificate authority
 openssl genrsa -out $CERTS_DIR/ca.key 4096
