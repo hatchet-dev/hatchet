@@ -12,7 +12,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
-          version: '25.x'
+          version: '25.1'
 
       - name: Install Task
         uses: arduino/setup-task@v1
@@ -30,6 +30,9 @@ jobs:
           go run github.com/steebchen/prisma-client-go db push --skip-generate
           task generate
 
+      - name: Check for diff
+        run: git diff --exit-code
+
       - name: Teardown
         run: docker compose down
 
@@ -42,7 +45,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
-          version: '25.x'
+          version: '25.1'
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -69,7 +72,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
-          version: '25.x'
+          version: '25.1'
 
       - name: Setup Go
         uses: actions/setup-go@v5
