@@ -265,7 +265,7 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 }
 
 func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *contracts.ActionEvent) (*contracts.ActionEventResponse, error) {
-	s.l.Debug().Msgf("Received step started event for step run %s", request.StepRunId)
+	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
 
 	finishedAt := request.EventTimestamp.AsTime()
 

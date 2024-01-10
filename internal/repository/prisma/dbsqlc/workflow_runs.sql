@@ -96,8 +96,8 @@ END, "finishedAt" = CASE
 END, "startedAt" = CASE 
     -- Started at is final, cannot be changed
     WHEN "startedAt" IS NOT NULL THEN "startedAt"
-    -- If a job is running, then the workflow has started
-    WHEN j.runningRuns > 0 THEN NOW()
+    -- If a job is running or in a final state, then the workflow has started
+    WHEN j.runningRuns > 0 OR j.succeededRuns > 0 OR j.failedRuns > 0 OR j.cancelledRuns > 0 THEN NOW()
     ELSE "startedAt"
 END
 FROM

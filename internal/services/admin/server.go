@@ -275,7 +275,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 						// remove cron
 						_, err = a.repo.Ticker().RemoveScheduledWorkflow(
 							ticker.ID,
-							&scheduleTrigger,
+							&scheduleTriggerCp,
 						)
 
 						if err != nil {

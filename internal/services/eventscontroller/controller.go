@@ -97,16 +97,18 @@ func (ec *EventsControllerImpl) Start(ctx context.Context) error {
 		return err
 	}
 
-	for {
-		select {
-		case task := <-taskChan:
+	// TODO: close when ctx is done
+	for task := range taskChan {
+		go func(task *taskqueue.Task) {
 			err = ec.handleTask(ctx, task)
 
 			if err != nil {
 				ec.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
 			}
-		}
+		}(task)
 	}
+
+	return nil
 }
 
 func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {
@@ -185,8 +187,12 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *db.Even
 	}
 
 	// send jobs to the job processing queue
-	for _, jobRun := range jobRuns {
-		err = ec.tq.AddTask(context.Background(), taskqueue.JOB_PROCESSING_QUEUE, tasktypes.JobRunQueuedToTask(jobRun.Job(), jobRun))
+	for i := range jobRuns {
+		err = ec.tq.AddTask(
+			context.Background(),
+			taskqueue.JOB_PROCESSING_QUEUE,
+			tasktypes.JobRunQueuedToTask(jobRuns[i].Job(), jobRuns[i]),
+		)
 
 		if err != nil {
 			return fmt.Errorf("could not add event to task queue: %w", err)

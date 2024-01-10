@@ -117,6 +117,10 @@ func (t *TaskQueueImpl) Subscribe(ctx context.Context, queueType taskqueue.Queue
 }
 
 func (t *TaskQueueImpl) initQueue(sub session, name string) {
+	// amqp.Table(map[string]interface{}{
+	// 	"x-dead-letter-exchange": name,
+	// }
+
 	if _, err := sub.QueueDeclare(name, true, false, false, false, nil); err != nil {
 		t.l.Error().Msgf("cannot declare queue: %q, %v", name, err)
 		return
@@ -127,19 +131,12 @@ func (t *TaskQueueImpl) publish() {
 	for session := range t.sessions {
 		pub := <-session
 
-		for {
-			select {
-			case task, running := <-t.tasks:
+		for task := range t.tasks {
+			go func(task *taskqueue.Task) {
 				body, err := json.Marshal(task)
 
 				if err != nil {
 					t.l.Error().Msgf("error marshaling task queue: %v", err)
-					return
-				}
-
-				// all messages consumed
-				if !running {
-					t.l.Debug().Msgf("no more tasks to publish, returning")
 					return
 				}
 
@@ -157,7 +154,7 @@ func (t *TaskQueueImpl) publish() {
 					t.l.Error().Msgf("error publishing task: %v", err)
 					return
 				}
-			}
+			}(task)
 		}
 	}
 }
@@ -233,7 +230,10 @@ func (t *TaskQueueImpl) publish() {
 // }
 
 func (t *TaskQueueImpl) subscribe(ctx context.Context, subId, queue string, sessions chan chan session, messages chan *taskqueue.Task, tasks chan<- *taskqueue.Task) {
+	sessionCount := 0
+
 	for session := range sessions {
+		sessionCount++
 		sub := <-session
 
 		deliveries, err := sub.Consume(queue, subId, false, false, false, false, nil)
@@ -244,16 +244,20 @@ func (t *TaskQueueImpl) subscribe(ctx context.Context, subId, queue string, sess
 		}
 
 		for msg := range deliveries {
-			task := &taskqueue.Task{}
-			if err := json.Unmarshal(msg.Body, task); err != nil {
-				t.l.Error().Msgf("error unmarshaling message: %v", err)
-				continue
-			}
+			go func(msg amqp.Delivery) {
+				task := &taskqueue.Task{}
 
-			t.l.Debug().Msgf("got task: %v", task.ID)
+				if err := json.Unmarshal(msg.Body, task); err != nil {
+					t.l.Error().Msgf("error unmarshaling message: %v", err)
+					return
+				}
 
-			tasks <- task
-			sub.Ack(msg.DeliveryTag, false)
+				t.l.Debug().Msgf("(session: %d) got task: %v", sessionCount, task.ID)
+
+				tasks <- task
+
+				sub.Ack(msg.DeliveryTag, false)
+			}(msg)
 		}
 	}
 }
