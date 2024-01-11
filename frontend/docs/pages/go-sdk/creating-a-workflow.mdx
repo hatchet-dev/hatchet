@@ -186,3 +186,24 @@ w.Use(func(ctx context.Context, next func(context.Context) error) error {
     return nil
 })
 ```
+
+## Re-using Actions
+
+If you have a common set of steps that you want to re-use across multiple workflows, you can define use `RegisterAction` on either a service or a worker. For example, to define a `send-email` action:
+
+```go
+testSvc := w.NewService("test")
+
+err = testSvc.RegisterAction(StepOne, worker.WithActionName("step-one"))
+
+if err != nil {
+	panic(err)
+}
+
+err = testSvc.On(
+	worker.Events("user:create", "user:update"),
+	testSvc.Call("step-one"),
+)
+```
+
+Note the usage of `testSvc.Call("step-one")` to invoke a single-step action.
