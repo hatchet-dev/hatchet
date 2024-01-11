@@ -1,9 +1,8 @@
 {
     "restartable": "rs",
     "verbose": true,
-    "ext": "go,mod,sum,env",
+    "ext": "go,mod,sum",
     "watch": [
-        ".env",
         "cmd/hatchet-api",
         "api",
         "internal",
