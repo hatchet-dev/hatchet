@@ -75,16 +75,36 @@ func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion
 	return opts, err
 }
 
-func GetCreateWorkflowRunOptsFromSchedule(scheduledWorkflowId string, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
-	jobRunData, err := datautils.ToJSONType(map[string]interface{}{})
+func GetCreateWorkflowRunOptsFromSchedule(scheduledTrigger *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
+	data := scheduledTrigger.InnerWorkflowTriggerScheduledRef.Input
+	var jobRunData *types.JSON
 
-	if err != nil {
-		return nil, fmt.Errorf("could not convert job run lookup data to json: %w", err)
+	var err error
+
+	if data == nil {
+		jobRunData, err = datautils.ToJSONType(map[string]interface{}{})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not convert job run lookup data to json: %w", err)
+		}
+	} else {
+		jobRunData = data
+		structuredJobRunData, err := datautils.NewJobRunLookupDataFromInputBytes([]byte(json.RawMessage(*data)))
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create job run lookup data: %w", err)
+		}
+
+		jobRunData, err = datautils.ToJSONType(structuredJobRunData)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not convert job run lookup data to json: %w", err)
+		}
 	}
 
 	opts := &CreateWorkflowRunOpts{
 		WorkflowVersionId:   workflowVersion.ID,
-		ScheduledWorkflowId: &scheduledWorkflowId,
+		ScheduledWorkflowId: &scheduledTrigger.ID,
 	}
 
 	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, jobRunData)

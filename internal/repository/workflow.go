@@ -34,6 +34,8 @@ type CreateWorkflowVersionOpts struct {
 
 type CreateWorkflowSchedulesOpts struct {
 	ScheduledTriggers []time.Time
+
+	Input *db.JSON
 }
 
 type CreateWorkflowTagOpts struct {
@@ -108,6 +110,9 @@ type WorkflowRepository interface {
 
 	// CreateSchedules creates schedules for a given workflow version.
 	CreateSchedules(tenantId, workflowVersionId string, opts *CreateWorkflowSchedulesOpts) ([]*db.WorkflowTriggerScheduledRefModel, error)
+
+	// GetScheduledById returns a scheduled workflow by its id.
+	GetScheduledById(tenantId, scheduleTriggerId string) (*db.WorkflowTriggerScheduledRefModel, error)
 
 	// GetWorkflowById returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
 	GetWorkflowById(workflowId string) (*db.WorkflowModel, error)

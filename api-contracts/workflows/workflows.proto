@@ -56,6 +56,9 @@ message ScheduleWorkflowRequest {
     string tenant_id = 1;
     string workflow_id = 2;
     repeated google.protobuf.Timestamp schedules = 3;
+
+    // (optional) the input data for the workflow
+    string input = 4;
 }
 
 // ListWorkflowsResponse is the response for ListWorkflows.

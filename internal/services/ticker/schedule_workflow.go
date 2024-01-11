@@ -36,6 +36,12 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, task *taskqueue
 		return fmt.Errorf("could not get workflow version: %w", err)
 	}
 
+	scheduledTrigger, err := t.repo.Workflow().GetScheduledById(metadata.TenantId, payload.ScheduledWorkflowId)
+
+	if err != nil {
+		return fmt.Errorf("could not get scheduled trigger: %w", err)
+	}
+
 	// create a new scheduler
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 
@@ -56,7 +62,7 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, task *taskqueue
 			gocron.OneTimeJobStartDateTime(triggerAt),
 		),
 		gocron.NewTask(
-			t.runScheduledWorkflow(ctx, metadata.TenantId, payload.ScheduledWorkflowId, workflowVersion),
+			t.runScheduledWorkflow(ctx, metadata.TenantId, scheduledTrigger, workflowVersion),
 		),
 	)
 
@@ -72,12 +78,12 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, task *taskqueue
 	return nil
 }
 
-func (t *TickerImpl) runScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string, workflowVersion *db.WorkflowVersionModel) func() {
+func (t *TickerImpl) runScheduledWorkflow(ctx context.Context, tenantId string, scheduledTrigger *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) func() {
 	return func() {
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersion.ID)
 
 		// create a new workflow run in the database
-		createOpts, err := repository.GetCreateWorkflowRunOptsFromSchedule(scheduledWorkflowId, workflowVersion)
+		createOpts, err := repository.GetCreateWorkflowRunOptsFromSchedule(scheduledTrigger, workflowVersion)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not get create workflow run opts")
@@ -106,7 +112,7 @@ func (t *TickerImpl) runScheduledWorkflow(ctx context.Context, tenantId, schedul
 		}
 
 		// get the scheduler
-		schedulerVal, ok := t.scheduledWorkflows.Load(getScheduledWorkflowKey(workflowVersion.ID, scheduledWorkflowId))
+		schedulerVal, ok := t.scheduledWorkflows.Load(getScheduledWorkflowKey(workflowVersion.ID, scheduledTrigger.ID))
 
 		if !ok {
 			// return fmt.Errorf("could not find scheduled workflow %s", payload.WorkflowVersionId)

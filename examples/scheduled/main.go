@@ -11,21 +11,21 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type userCreateEvent struct {
-	Username string            `json:"username"`
-	UserId   string            `json:"user_id"`
-	Data     map[string]string `json:"data"`
+type scheduledInput struct {
+	ScheduledAt time.Time `json:"scheduled_at"`
+	ExecuteAt   time.Time `json:"scheduled_for"`
 }
 
 type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func StepOne(ctx context.Context, input *userCreateEvent) (result *stepOneOutput, err error) {
-	fmt.Println("this ran at: ", time.Now())
+func StepOne(ctx context.Context, input *scheduledInput) (result *stepOneOutput, err error) {
+	// get time between execute at and scheduled at
+	timeBetween := time.Since(input.ScheduledAt)
 
 	return &stepOneOutput{
-		Message: "This ran at: " + time.Now().Format(time.RubyDate),
+		Message: fmt.Sprintf("This ran %s after scheduling", timeBetween),
 	}, nil
 }
 
@@ -36,7 +36,7 @@ func main() {
 		panic(err)
 	}
 
-	client, err := client.New()
+	c, err := client.New()
 
 	if err != nil {
 		panic(err)
@@ -46,7 +46,7 @@ func main() {
 	// directory, but this can be customized with the `worker.WithTemporalClient` and `worker.WithWorkflowFiles` options.
 	w, err := worker.NewWorker(
 		worker.WithClient(
-			client,
+			c,
 		),
 	)
 
@@ -55,7 +55,7 @@ func main() {
 	}
 
 	err = w.On(
-		worker.At(time.Now().Add(time.Second*10)),
+		worker.NoTrigger(),
 		&worker.WorkflowJob{
 			Name:        "scheduled-workflow",
 			Description: "This runs at a scheduled time.",
@@ -85,15 +85,15 @@ func main() {
 	go func() {
 		time.Sleep(5 * time.Second)
 
-		at := []time.Time{}
+		executeAt := time.Now().Add(time.Second * 10)
 
-		for i := 0; i < 9; i++ {
-			at = append(at, time.Now().Add(time.Second*60+time.Millisecond*10*time.Duration(i)))
-		}
-
-		err = client.Admin().ScheduleWorkflow(
+		err = c.Admin().ScheduleWorkflow(
 			"scheduled-workflow",
-			at...,
+			client.WithSchedules(executeAt),
+			client.WithInput(&scheduledInput{
+				ScheduledAt: time.Now(),
+				ExecuteAt:   executeAt,
+			}),
 		)
 
 		if err != nil {
