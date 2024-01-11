@@ -42,6 +42,16 @@ func (c cronArr) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	wt.Cron = append(wt.Cron, c...)
 }
 
+type noTrigger struct{}
+
+func NoTrigger() noTrigger {
+	return noTrigger{}
+}
+
+func (n noTrigger) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+	// do nothing
+}
+
 type scheduled []time.Time
 
 func At(t ...time.Time) scheduled {
