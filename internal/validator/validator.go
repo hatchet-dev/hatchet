@@ -40,7 +40,7 @@ func newValidator() *validator.Validate {
 			return false
 		}
 
-		return action.IntegrationID != "" && action.Verb != ""
+		return action.Service != "" && action.Verb != ""
 	})
 
 	validate.RegisterValidation("semver", func(fl validator.FieldLevel) bool {

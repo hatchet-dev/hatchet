@@ -1,8 +1,6 @@
 package worker
 
 import (
-	"fmt"
-
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
@@ -47,10 +45,28 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	return nil
 }
 
-func (s *Service) RegisterAction(fn any) error {
-	fnId := getFnName(fn)
+type registerActionOpts struct {
+	name string
+}
 
-	actionId := fmt.Sprintf("%s:%s", s.Name, fnId)
+type RegisterActionOpt func(*registerActionOpts)
 
-	return s.worker.registerAction(s.Name, actionId, fn)
+func WithActionName(name string) RegisterActionOpt {
+	return func(opts *registerActionOpts) {
+		opts.name = name
+	}
+}
+
+func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
+	fnOpts := &registerActionOpts{}
+
+	for _, opt := range opts {
+		opt(fnOpts)
+	}
+
+	if fnOpts.name == "" {
+		fnOpts.name = getFnName(fn)
+	}
+
+	return s.worker.registerAction(s.Name, fnOpts.name, fn)
 }

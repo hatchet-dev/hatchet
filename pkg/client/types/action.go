@@ -8,8 +8,8 @@ import (
 )
 
 type Action struct {
-	// Required. The integration that this uses.
-	IntegrationID string
+	// Required. The service that this belongs to
+	Service string
 
 	// Required. The verb to perform.
 	Verb string
@@ -20,14 +20,14 @@ type Action struct {
 
 func (o Action) String() string {
 	if o.Subresource != "" {
-		return fmt.Sprintf("%s:%s:%s", o.IntegrationID, o.Verb, o.Subresource)
+		return fmt.Sprintf("%s:%s:%s", o.Service, o.Verb, o.Subresource)
 	}
 
 	return o.IntegrationVerbString()
 }
 
 func (o Action) IntegrationVerbString() string {
-	return fmt.Sprintf("%s:%s", o.IntegrationID, o.Verb)
+	return fmt.Sprintf("%s:%s", o.Service, o.Verb)
 }
 
 // ParseActionID parses an action ID into its constituent parts.
@@ -39,7 +39,7 @@ func ParseActionID(actionID string) (Action, error) {
 		return Action{}, fmt.Errorf("invalid action id %s, must have at least 2 strings separated : (colon)", actionID)
 	}
 
-	integrationId := firstToLower(parts[0])
+	Service := firstToLower(parts[0])
 	verb := strings.ToLower(parts[1])
 
 	var subresource string
@@ -48,9 +48,9 @@ func ParseActionID(actionID string) (Action, error) {
 	}
 
 	return Action{
-		IntegrationID: integrationId,
-		Verb:          verb,
-		Subresource:   subresource,
+		Service:     Service,
+		Verb:        verb,
+		Subresource: subresource,
 	}, nil
 }
 
