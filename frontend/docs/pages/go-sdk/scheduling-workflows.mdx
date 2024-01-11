@@ -11,8 +11,13 @@ if err != nil {
   panic(err)
 }
 
-client.Admin().ScheduleWorkflow(
-    "scheduled-workflow", // the name of the workflow
-    time.Now().Add(10 * time.Second),
+err = c.Admin().ScheduleWorkflow(
+	"scheduled-workflow",
+	client.WithSchedules(executeAt),
+  // optional input
+	client.WithInput(&scheduledInput{
+		ScheduledAt: time.Now(),
+		ExecuteAt:   executeAt,
+	}),
 )
 ```
