@@ -5,6 +5,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 type prismaRepository struct {
@@ -26,6 +27,7 @@ type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
 
 type PrismaRepositoryOpts struct {
 	v validator.Validator
+	l *zerolog.Logger
 }
 
 func defaultPrismaRepositoryOpts() *PrismaRepositoryOpts {
@@ -40,6 +42,12 @@ func WithValidator(v validator.Validator) PrismaRepositoryOpt {
 	}
 }
 
+func WithLogger(l *zerolog.Logger) PrismaRepositoryOpt {
+	return func(opts *PrismaRepositoryOpts) {
+		opts.l = l
+	}
+}
+
 func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) repository.Repository {
 	opts := defaultPrismaRepositoryOpts()
 
@@ -47,11 +55,14 @@ func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...Pris
 		f(opts)
 	}
 
+	newLogger := opts.l.With().Str("service", "database").Logger()
+	opts.l = &newLogger
+
 	return &prismaRepository{
 		event:       NewEventRepository(client, pool, opts.v),
 		tenant:      NewTenantRepository(client, opts.v),
 		workflow:    NewWorkflowRepository(client, pool, opts.v),
-		workflowRun: NewWorkflowRunRepository(client, pool, opts.v),
+		workflowRun: NewWorkflowRunRepository(client, pool, opts.v, opts.l),
 		jobRun:      NewJobRunRepository(client, opts.v),
 		stepRun:     NewStepRunRepository(client, pool, opts.v),
 		step:        NewStepRepository(client, opts.v),

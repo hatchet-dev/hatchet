@@ -1,8 +1,10 @@
 {
     "restartable": "rs",
     "verbose": true,
-    "ext": "go,mod,sum",
+    "ext": "go,mod,sum,env",
     "watch": [
+        ".env",
+        "cmd/hatchet-engine",
         "internal",
         "pkg",
         "go.mod",

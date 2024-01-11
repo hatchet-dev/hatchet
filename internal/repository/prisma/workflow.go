@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlctoprisma"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -340,7 +341,10 @@ func (r *workflowRepository) GetWorkflowByName(tenantId, workflowName string) (*
 	).Exec(context.Background())
 }
 
-func (r *workflowRepository) ListWorkflowsForEvent(tenantId, eventKey string) ([]db.WorkflowVersionModel, error) {
+func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId, eventKey string) ([]db.WorkflowVersionModel, error) {
+	ctx, span := telemetry.NewSpan(ctx, "db-list-workflows-for-event")
+	defer span.End()
+
 	var rows []struct {
 		ID string `json:"id"`
 	}
@@ -362,7 +366,7 @@ func (r *workflowRepository) ListWorkflowsForEvent(tenantId, eventKey string) ([
 		ORDER BY "WorkflowVersion"."workflowId", "WorkflowVersion"."order" DESC
 		`,
 		tenantId, eventKey,
-	).Exec(context.Background(), &rows)
+	).Exec(ctx, &rows)
 
 	if err != nil {
 		return nil, err
@@ -381,7 +385,7 @@ func (r *workflowRepository) ListWorkflowsForEvent(tenantId, eventKey string) ([
 		db.WorkflowVersion.ID.In(workflowVersionIds),
 	).With(
 		defaultWorkflowVersionPopulator()...,
-	).Exec(context.Background())
+	).Exec(ctx)
 }
 
 func (r *workflowRepository) createWorkflowVersionTxs(tenantId, workflowId string, opts *repository.CreateWorkflowVersionOpts) (string, []transaction.Param) {

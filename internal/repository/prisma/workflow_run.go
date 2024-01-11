@@ -10,10 +10,12 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 	"github.com/steebchen/prisma-client-go/runtime/transaction"
 )
 
@@ -22,9 +24,10 @@ type workflowRunRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator) repository.WorkflowRunRepository {
+func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowRunRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRunRepository{
@@ -32,6 +35,7 @@ func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v val
 		v:       v,
 		pool:    pool,
 		queries: queries,
+		l:       l,
 	}
 }
 
@@ -115,10 +119,16 @@ func (w *workflowRunRepository) ListWorkflowRuns(tenantId string, opts *reposito
 	return res, nil
 }
 
-func (w *workflowRunRepository) CreateNewWorkflowRun(tenantId string, opts *repository.CreateWorkflowRunOpts) (*db.WorkflowRunModel, error) {
+func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*db.WorkflowRunModel, error) {
+	ctx, span := telemetry.NewSpan(ctx, "db-create-new-workflow-run")
+	defer span.End()
+
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
+
+	tx1Ctx, tx1Span := telemetry.NewSpan(ctx, "db-create-new-workflow-run-tx")
+	defer tx1Span.End()
 
 	// begin a transaction
 	workflowRunId := uuid.New().String()
@@ -238,17 +248,26 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(tenantId string, opts *repo
 		}
 	}
 
-	err := w.client.Prisma.Transaction(txs...).Exec(context.Background())
+	err := w.client.Prisma.Transaction(txs...).Exec(tx1Ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return w.client.WorkflowRun.FindUnique(
+	tx2Ctx, tx2Span := telemetry.NewSpan(ctx, "db-create-new-workflow-run-tx2")
+	defer tx2Span.End()
+
+	res, err := w.client.WorkflowRun.FindUnique(
 		db.WorkflowRun.ID.Equals(workflowRunId),
 	).With(
 		defaultWorkflowRunPopulator()...,
-	).Exec(context.Background())
+	).Exec(tx2Ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
 func (w *workflowRunRepository) GetWorkflowRunById(tenantId, id string) (*db.WorkflowRunModel, error) {

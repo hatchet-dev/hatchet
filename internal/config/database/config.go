@@ -1,6 +1,7 @@
 package database
 
 import (
+	"github.com/hatchet-dev/hatchet/internal/config/shared"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/spf13/viper"
 )
@@ -14,6 +15,8 @@ type ConfigFile struct {
 	PostgresSSLMode  string `mapstructure:"sslMode" json:"sslMode,omitempty" default:"disable"`
 
 	Seed SeedConfigFile `mapstructure:"seed" json:"seed,omitempty"`
+
+	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
 }
 
 type SeedConfigFile struct {
@@ -50,4 +53,7 @@ func BindAllEnv(v *viper.Viper) {
 	v.BindEnv("seed.defaultTenantName", "DEFAULT_TENANT_NAME")
 	v.BindEnv("seed.defaultTenantSlug", "DEFAULT_TENANT_SLUG")
 	v.BindEnv("seed.isDevelopment", "SEED_DEVELOPMENT")
+
+	v.BindEnv("logger.level", "DATABASE_LOGGER_LEVEL")
+	v.BindEnv("logger.format", "DATABASE_LOGGER_FORMAT")
 }

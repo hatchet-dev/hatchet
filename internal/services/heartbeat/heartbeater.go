@@ -3,10 +3,10 @@ package heartbeat
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/rs/zerolog"
@@ -32,7 +32,7 @@ type HeartbeaterOpts struct {
 }
 
 func defaultHeartbeaterOpts() *HeartbeaterOpts {
-	logger := zerolog.New(os.Stderr)
+	logger := logger.NewDefaultLogger("heartbeater")
 	return &HeartbeaterOpts{
 		l: &logger,
 	}
@@ -70,6 +70,9 @@ func New(fs ...HeartbeaterOpt) (*HeartbeaterImpl, error) {
 	if opts.repo == nil {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
+
+	newLogger := opts.l.With().Str("service", "heartbeater").Logger()
+	opts.l = &newLogger
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 

@@ -3,9 +3,9 @@ package datautils
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/mitchellh/mapstructure"
@@ -101,10 +101,10 @@ type DataDecoderValidatorOpts struct {
 }
 
 func defaultDataDecoderValidatorOpts() *DataDecoderValidatorOpts {
-	zl := zerolog.New(os.Stderr)
+	logger := logger.NewDefaultLogger("data-decoder-validator")
 
 	return &DataDecoderValidatorOpts{
-		logger:    &zl,
+		logger:    &logger,
 		alerter:   nil,
 		validator: validator.NewDefaultValidator(),
 		tagName:   "json",

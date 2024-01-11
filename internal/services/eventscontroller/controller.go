@@ -3,14 +3,15 @@ package eventscontroller
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 )
@@ -36,7 +37,7 @@ type EventsControllerOpts struct {
 }
 
 func defaultEventsControllerOpts() *EventsControllerOpts {
-	logger := zerolog.New(os.Stderr)
+	logger := logger.NewDefaultLogger("events-controller")
 	return &EventsControllerOpts{
 		l:  &logger,
 		dv: datautils.NewDataDecoderValidator(),
@@ -81,6 +82,9 @@ func New(fs ...EventsControllerOpt) (*EventsControllerImpl, error) {
 	if opts.repo == nil {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
+
+	newLogger := opts.l.With().Str("service", "events-controller").Logger()
+	opts.l = &newLogger
 
 	return &EventsControllerImpl{
 		tq:   opts.tq,
@@ -138,10 +142,13 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *taskqueue.
 }
 
 func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *db.EventModel) error {
+	ctx, span := telemetry.NewSpan(ctx, "process-event")
+	defer span.End()
+
 	tenantId := event.TenantID
 
 	// query for matching workflows in the system
-	workflows, err := ec.repo.Workflow().ListWorkflowsForEvent(tenantId, event.Key)
+	workflows, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, event.Key)
 
 	if err != nil {
 		return fmt.Errorf("could not query workflows for event: %w", err)
@@ -165,7 +172,7 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *db.Even
 				return fmt.Errorf("could not get create workflow run opts: %w", err)
 			}
 
-			workflowRun, err := ec.repo.WorkflowRun().CreateNewWorkflowRun(tenantId, createOpts)
+			workflowRun, err := ec.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
 			if err != nil {
 				return fmt.Errorf("could not create workflow run: %w", err)

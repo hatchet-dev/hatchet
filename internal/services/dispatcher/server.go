@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 )
 
 func (d *DispatcherImpl) GetWorker(workerId string) (*subscribedWorker, error) {
@@ -37,9 +38,13 @@ type subscribedWorker struct {
 }
 
 func (worker *subscribedWorker) StartStepRun(
+	ctx context.Context,
 	tenantId string,
 	stepRun *db.StepRunModel,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "start-step-run")
+	defer span.End()
+
 	inputBytes := []byte{}
 	inputType, ok := stepRun.Input()
 
@@ -66,9 +71,13 @@ func (worker *subscribedWorker) StartStepRun(
 }
 
 func (worker *subscribedWorker) CancelStepRun(
+	ctx context.Context,
 	tenantId string,
 	stepRun *db.StepRunModel,
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run")
+	defer span.End()
+
 	return worker.stream.Send(&contracts.AssignedAction{
 		TenantId:   tenantId,
 		JobId:      stepRun.Step().JobID,
@@ -87,7 +96,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	svcs := request.Services
 
-	if svcs == nil || len(svcs) == 0 {
+	if len(svcs) == 0 {
 		svcs = []string{"default"}
 	}
 
@@ -160,7 +169,9 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	// update the worker with a last heartbeat time every 5 seconds as long as the worker is connected
 	go func() {
 		timer := time.NewTicker(100 * time.Millisecond)
-		lastHeartbeat := time.Now().UTC()
+
+		// set the last heartbeat to 6 seconds ago so the first heartbeat is sent immediately
+		lastHeartbeat := time.Now().UTC().Add(-6 * time.Second)
 		defer timer.Stop()
 
 		for {

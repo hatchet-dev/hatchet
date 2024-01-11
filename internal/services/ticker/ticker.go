@@ -3,13 +3,13 @@ package ticker
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
@@ -54,7 +54,7 @@ type TickerOpts struct {
 }
 
 func defaultTickerOpts() *TickerOpts {
-	logger := zerolog.New(os.Stderr)
+	logger := logger.NewDefaultLogger("ticker")
 	return &TickerOpts{
 		l:        &logger,
 		tickerId: uuid.New().String(),
@@ -94,6 +94,9 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 	if opts.repo == nil {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
+
+	newLogger := opts.l.With().Str("service", "ticker").Logger()
+	opts.l = &newLogger
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 

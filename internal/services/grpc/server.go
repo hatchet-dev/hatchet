@@ -5,8 +5,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"os"
 
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
@@ -46,7 +46,7 @@ type ServerOpts struct {
 }
 
 func defaultServerOpts() *ServerOpts {
-	logger := zerolog.New(os.Stderr)
+	logger := logger.NewDefaultLogger("grpc")
 
 	return &ServerOpts{
 		l:           &logger,
@@ -107,6 +107,9 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 	if opts.tls == nil {
 		return nil, fmt.Errorf("tls config is required. use WithTLSConfig")
 	}
+
+	newLogger := opts.l.With().Str("service", "grpc").Logger()
+	opts.l = &newLogger
 
 	return &Server{
 		l:           opts.l,

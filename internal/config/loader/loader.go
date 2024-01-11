@@ -5,7 +5,6 @@ package loader
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -13,13 +12,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -93,6 +92,8 @@ func (c *ConfigLoader) LoadServerConfig() (res *server.ServerConfig, err error) 
 }
 
 func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Config, err error) {
+	l := logger.NewStdErr(&cf.Logger, "database")
+
 	databaseUrl := fmt.Sprintf(
 		"postgresql://%s:%s@%s:%d/%s?sslmode=%s",
 		cf.PostgresUsername,
@@ -121,13 +122,13 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 
 	return &database.Config{
 		Disconnect: client.Prisma.Disconnect,
-		Repository: prisma.NewPrismaRepository(client, pool),
+		Repository: prisma.NewPrismaRepository(client, pool, prisma.WithLogger(&l)),
 		Seed:       cf.Seed,
 	}, nil
 }
 
 func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigFile) (res *server.ServerConfig, err error) {
-	l := zerolog.New(os.Stderr)
+	l := logger.NewStdErr(&cf.Logger, "server")
 
 	tls, err := loaderutils.LoadServerTLSConfig(&cf.TLS)
 
@@ -147,7 +148,11 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil, fmt.Errorf("could not create session store: %w", err)
 	}
 
-	tq := rabbitmq.New(context.Background(), rabbitmq.WithURL(cf.TaskQueue.RabbitMQ.URL))
+	tq := rabbitmq.New(
+		context.Background(),
+		rabbitmq.WithURL(cf.TaskQueue.RabbitMQ.URL),
+		rabbitmq.WithLogger(&l),
+	)
 
 	ingestor, err := ingestor.NewIngestor(
 		ingestor.WithEventRepository(dc.Repository.Event()),
@@ -159,16 +164,17 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	}
 
 	return &server.ServerConfig{
-		Runtime:      cf.Runtime,
-		Auth:         cf.Auth,
-		Config:       dc,
-		TaskQueue:    rabbitmq.New(context.Background(), rabbitmq.WithURL(cf.TaskQueue.RabbitMQ.URL)),
-		Services:     cf.Services,
-		Logger:       &l,
-		TLSConfig:    tls,
-		SessionStore: ss,
-		Validator:    validator.NewDefaultValidator(),
-		Ingestor:     ingestor,
+		Runtime:       cf.Runtime,
+		Auth:          cf.Auth,
+		Config:        dc,
+		TaskQueue:     tq,
+		Services:      cf.Services,
+		Logger:        &l,
+		TLSConfig:     tls,
+		SessionStore:  ss,
+		Validator:     validator.NewDefaultValidator(),
+		Ingestor:      ingestor,
+		OpenTelemetry: cf.OpenTelemetry,
 	}, nil
 }
 

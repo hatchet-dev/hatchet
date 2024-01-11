@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations"
@@ -84,7 +85,7 @@ type WorkerOpts struct {
 }
 
 func defaultWorkerOpts() *WorkerOpts {
-	logger := zerolog.New(os.Stdout)
+	logger := logger.NewDefaultLogger("worker")
 
 	return &WorkerOpts{
 		name:         getHostName(),
