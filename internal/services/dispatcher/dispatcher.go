@@ -3,17 +3,19 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 	"github.com/rs/zerolog"
 )
 
@@ -45,7 +47,7 @@ type DispatcherOpts struct {
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
-	logger := zerolog.New(os.Stderr)
+	logger := logger.NewDefaultLogger("dispatcher")
 	return &DispatcherOpts{
 		l:            &logger,
 		dv:           datautils.NewDataDecoderValidator(),
@@ -97,6 +99,9 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	if opts.repo == nil {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
+
+	newLogger := opts.l.With().Str("service", "dispatcher").Logger()
+	opts.l = &newLogger
 
 	// create a new scheduler
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
@@ -192,6 +197,9 @@ func (d *DispatcherImpl) handleTask(ctx context.Context, task *taskqueue.Task) e
 
 // handleJobScheduledTask signals to the connected worker channel that a job should start executing.
 func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *taskqueue.Task) error {
+	ctx, span := telemetry.NewSpan(ctx, "step-run-assigned")
+	defer span.End()
+
 	payload := tasktypes.StepRunAssignedTaskPayload{}
 	metadata := tasktypes.StepRunAssignedTaskMetadata{}
 
@@ -214,6 +222,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ta
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
+	telemetry.WithAttributes(span, servertel.WorkerId(payload.WorkerId))
+
 	// load the step run from the database
 	stepRun, err := d.repo.StepRun().GetStepRunById(metadata.TenantId, payload.StepRunId)
 
@@ -221,7 +231,9 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ta
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	err = w.StartStepRun(metadata.TenantId, stepRun)
+	servertel.WithStepRunModel(span, stepRun)
+
+	err = w.StartStepRun(ctx, metadata.TenantId, stepRun)
 
 	if err != nil {
 		return fmt.Errorf("could not send job to worker: %w", err)
@@ -231,6 +243,9 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ta
 }
 
 func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *taskqueue.Task) error {
+	ctx, span := telemetry.NewSpan(ctx, "step-run-cancelled")
+	defer span.End()
+
 	payload := tasktypes.StepRunCancelledTaskPayload{}
 	metadata := tasktypes.StepRunCancelledTaskMetadata{}
 
@@ -253,6 +268,8 @@ func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *taskq
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
+	telemetry.WithAttributes(span, servertel.WorkerId(payload.WorkerId))
+
 	// load the step run from the database
 	stepRun, err := d.repo.StepRun().GetStepRunById(metadata.TenantId, payload.StepRunId)
 
@@ -260,7 +277,9 @@ func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *taskq
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	err = w.CancelStepRun(metadata.TenantId, stepRun)
+	servertel.WithStepRunModel(span, stepRun)
+
+	err = w.CancelStepRun(ctx, metadata.TenantId, stepRun)
 
 	if err != nil {
 		return fmt.Errorf("could not send job to worker: %w", err)

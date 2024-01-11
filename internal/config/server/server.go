@@ -23,6 +23,10 @@ type ServerConfigFile struct {
 	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"ticker\", \"grpc\", \"eventscontroller\", \"jobscontroller\", \"heartbeater\"]"`
 
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
+
+	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
+
+	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
 }
 
 // General server runtime options
@@ -94,6 +98,8 @@ type ServerConfig struct {
 	Validator validator.Validator
 
 	Ingestor ingestor.Ingestor
+
+	OpenTelemetry shared.OpenTelemetryConfigFile
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -135,4 +141,12 @@ func BindAllEnv(v *viper.Viper) {
 	v.BindEnv("tls.tlsRootCA", "SERVER_TLS_ROOT_CA")
 	v.BindEnv("tls.tlsRootCAFile", "SERVER_TLS_ROOT_CA_FILE")
 	v.BindEnv("tls.tlsServerName", "SERVER_TLS_SERVER_NAME")
+
+	// logger options
+	v.BindEnv("logger.level", "SERVER_LOGGER_LEVEL")
+	v.BindEnv("logger.format", "SERVER_LOGGER_FORMAT")
+
+	// otel options
+	v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")
+	v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
 }

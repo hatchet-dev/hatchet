@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
@@ -32,21 +33,21 @@ type TaskQueueImpl struct {
 type TaskQueueImplOpt func(*TaskQueueImplOpts)
 
 type TaskQueueImplOpts struct {
-	logger *zerolog.Logger
-	url    string
+	l   *zerolog.Logger
+	url string
 }
 
 func defaultTaskQueueImplOpts() *TaskQueueImplOpts {
-	zl := zerolog.New(os.Stderr)
+	logger := logger.NewDefaultLogger("rabbitmq")
 
 	return &TaskQueueImplOpts{
-		logger: &zl,
+		l: &logger,
 	}
 }
 
 func WithLogger(l *zerolog.Logger) TaskQueueImplOpt {
 	return func(opts *TaskQueueImplOpts) {
-		opts.logger = l
+		opts.l = l
 	}
 }
 
@@ -64,7 +65,10 @@ func New(ctx context.Context, fs ...TaskQueueImplOpt) *TaskQueueImpl {
 		f(opts)
 	}
 
-	sessions := redial(ctx, opts.logger, opts.url)
+	newLogger := opts.l.With().Str("service", "events-controller").Logger()
+	opts.l = &newLogger
+
+	sessions := redial(ctx, opts.l, opts.url)
 	tasks := make(chan *taskqueue.Task)
 
 	t := &TaskQueueImpl{
@@ -72,7 +76,7 @@ func New(ctx context.Context, fs ...TaskQueueImplOpt) *TaskQueueImpl {
 		sessions: sessions,
 		tasks:    tasks,
 		identity: identity(),
-		l:        opts.logger,
+		l:        opts.l,
 	}
 
 	// init the queues in a blocking fashion

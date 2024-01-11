@@ -84,7 +84,7 @@ func (t *TickerImpl) runScheduledWorkflow(ctx context.Context, tenantId, schedul
 			return
 		}
 
-		workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(tenantId, createOpts)
+		workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not create workflow run")

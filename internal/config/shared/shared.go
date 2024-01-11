@@ -8,3 +8,15 @@ type TLSConfigFile struct {
 	TLSRootCA     string `mapstructure:"tlsRootCA" json:"tlsRootCA,omitempty"`
 	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
 }
+
+type LoggerConfigFile struct {
+	Level string `mapstructure:"level" json:"level,omitempty" default:"debug"`
+
+	// format can be "json" or "console"
+	Format string `mapstructure:"format" json:"format,omitempty" default:"json"`
+}
+
+type OpenTelemetryConfigFile struct {
+	CollectorURL string `mapstructure:"collectorURL" json:"collectorURL,omitempty"`
+	ServiceName  string `mapstructure:"serviceName" json:"serviceName,omitempty" default:"server"`
+}

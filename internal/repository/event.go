@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"context"
+
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
@@ -61,5 +63,5 @@ type EventRepository interface {
 	ListEventsById(tenantId string, ids []string) ([]db.EventModel, error)
 
 	// CreateEvent creates a new event for a given tenant.
-	CreateEvent(opts *CreateEventOpts) (*db.EventModel, error)
+	CreateEvent(ctx context.Context, opts *CreateEventOpts) (*db.EventModel, error)
 }

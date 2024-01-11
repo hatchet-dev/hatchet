@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -170,7 +171,7 @@ type WorkflowRunRepository interface {
 	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
-	CreateNewWorkflowRun(tenantId string, opts *CreateWorkflowRunOpts) (*db.WorkflowRunModel, error)
+	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*db.WorkflowRunModel, error)
 
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(tenantId, runId string) (*db.WorkflowRunModel, error)

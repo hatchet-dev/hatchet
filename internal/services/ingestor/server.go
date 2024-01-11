@@ -23,7 +23,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		return nil, err
 	}
 
-	event, err := i.IngestEvent(req.TenantId, req.Key, eventDataMap)
+	event, err := i.IngestEvent(ctx, req.TenantId, req.Key, eventDataMap)
 
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 		return nil, err
 	}
 
-	newEvent, err := i.IngestReplayedEvent(req.TenantId, oldEvent)
+	newEvent, err := i.IngestReplayedEvent(ctx, req.TenantId, oldEvent)
 
 	if err != nil {
 		return nil, err

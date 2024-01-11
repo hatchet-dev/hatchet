@@ -10,13 +10,14 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/steebchen/prisma-client-go/runtime/types"
 )
 
 type Ingestor interface {
 	contracts.EventsServiceServer
-	IngestEvent(tenantId, eventName string, data any) (*db.EventModel, error)
-	IngestReplayedEvent(tenantId string, replayedEvent *db.EventModel) (*db.EventModel, error)
+	IngestEvent(ctx context.Context, tenantId, eventName string, data any) (*db.EventModel, error)
+	IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *db.EventModel) (*db.EventModel, error)
 }
 
 type IngestorOptFunc func(*IngestorOpts)
@@ -70,7 +71,10 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}, nil
 }
 
-func (i *IngestorImpl) IngestEvent(tenantId, key string, data any) (*db.EventModel, error) {
+func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data any) (*db.EventModel, error) {
+	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
+	defer span.End()
+
 	// transform data to a JSON object
 	jsonType, err := datautils.ToJSONType(data)
 
@@ -78,7 +82,7 @@ func (i *IngestorImpl) IngestEvent(tenantId, key string, data any) (*db.EventMod
 		return nil, fmt.Errorf("could not convert event data to JSON: %w", err)
 	}
 
-	event, err := i.eventRepository.CreateEvent(&repository.CreateEventOpts{
+	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
 		TenantId: tenantId,
 		Key:      key,
 		Data:     jsonType,
@@ -87,6 +91,11 @@ func (i *IngestorImpl) IngestEvent(tenantId, key string, data any) (*db.EventMod
 	if err != nil {
 		return nil, fmt.Errorf("could not create event: %w", err)
 	}
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{
+		Key:   "event_id",
+		Value: event.ID,
+	})
 
 	err = i.tq.AddTask(context.Background(), taskqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
 
@@ -97,7 +106,10 @@ func (i *IngestorImpl) IngestEvent(tenantId, key string, data any) (*db.EventMod
 	return event, nil
 }
 
-func (i *IngestorImpl) IngestReplayedEvent(tenantId string, replayedEvent *db.EventModel) (*db.EventModel, error) {
+func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *db.EventModel) (*db.EventModel, error) {
+	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
+	defer span.End()
+
 	// transform data to a JSON object
 	var data *types.JSON
 
@@ -105,7 +117,7 @@ func (i *IngestorImpl) IngestReplayedEvent(tenantId string, replayedEvent *db.Ev
 		data = &jsonType
 	}
 
-	event, err := i.eventRepository.CreateEvent(&repository.CreateEventOpts{
+	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
 		TenantId:      tenantId,
 		Key:           replayedEvent.Key,
 		Data:          data,

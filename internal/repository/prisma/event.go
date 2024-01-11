@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -165,7 +166,10 @@ func (r *eventRepository) ListEventsById(tenantId string, ids []string) ([]db.Ev
 	).Exec(context.Background())
 }
 
-func (r *eventRepository) CreateEvent(opts *repository.CreateEventOpts) (*db.EventModel, error) {
+func (r *eventRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*db.EventModel, error) {
+	ctx, span := telemetry.NewSpan(ctx, "db-create-event")
+	defer span.End()
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -186,5 +190,5 @@ func (r *eventRepository) CreateEvent(opts *repository.CreateEventOpts) (*db.Eve
 			db.Tenant.ID.Equals(opts.TenantId),
 		),
 		params...,
-	).Exec(context.Background())
+	).Exec(ctx)
 }

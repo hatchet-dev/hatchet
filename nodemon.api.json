@@ -3,6 +3,7 @@
     "verbose": true,
     "ext": "go,mod,sum",
     "watch": [
+        "cmd/hatchet-api",
         "api",
         "internal",
         "pkg",

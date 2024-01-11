@@ -3,8 +3,8 @@ package client
 import (
 	"crypto/tls"
 	"fmt"
-	"os"
 
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/client/loader"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
@@ -61,7 +61,7 @@ func defaultClientOpts() *ClientOpts {
 		panic(err)
 	}
 
-	logger := zerolog.New(os.Stdout)
+	logger := logger.NewDefaultLogger("client")
 
 	return &ClientOpts{
 		tenantId:    clientConfig.TenantId,

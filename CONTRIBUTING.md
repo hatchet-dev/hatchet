@@ -53,3 +53,33 @@ task start-dev
 ```
 
 10. To create and test workflows, run the examples in the `./examples` directory. You will need to add the tenant (output from the `task seed-dev` command) to the `.env` file in each example directory.
+
+### Logging
+
+You can set the following logging formats to configure your logging:
+
+```
+# info, debug, error, etc
+SERVER_LOGGER_LEVEL=debug
+
+# json or console
+SERVER_LOGGER_FORMAT=json
+
+DATABASE_LOGGER_LEVEL=debug
+DATABASE_LOGGER_FORMAT=console
+```
+
+### OpenTelemetry
+
+You can set the following to enable distributed tracing:
+
+```
+SERVER_OTEL_SERVICE_NAME=engine
+SERVER_OTEL_COLLECTOR_URL=<collector-url>
+
+# optional
+OTEL_EXPORTER_OTLP_HEADERS=<optional-headers>
+
+# optional
+OTEL_EXPORTER_OTLP_ENDPOINT=<collector-url>
+```

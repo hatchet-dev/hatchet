@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -116,7 +117,7 @@ type WorkflowRepository interface {
 
 	// ListWorkflowsForEvent returns the latest workflow versions for a given tenant that are triggered by the
 	// given event.
-	ListWorkflowsForEvent(tenantId, eventKey string) ([]db.WorkflowVersionModel, error)
+	ListWorkflowsForEvent(ctx context.Context, tenantId, eventKey string) ([]db.WorkflowVersionModel, error)
 
 	// GetWorkflowVersionById returns a workflow version by its id. It will return db.ErrNotFound if the workflow
 	// version does not exist.

@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/jobscontroller"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/spf13/cobra"
 
@@ -82,6 +83,17 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 	ctx, cancel := cmdutils.InterruptContextFromChan(interruptCh)
 	wg := sync.WaitGroup{}
 
+	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
+		ServiceName:  sc.OpenTelemetry.ServiceName,
+		CollectorURL: sc.OpenTelemetry.CollectorURL,
+	})
+
+	if err != nil {
+		panic(fmt.Sprintf("could not initialize tracer: %s", err))
+	}
+
+	defer shutdown(ctx)
+
 	if sc.HasService("grpc") {
 		wg.Add(1)
 
@@ -124,6 +136,11 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			admin.WithTaskQueue(sc.TaskQueue),
 		)
 
+		if err != nil {
+			errCh <- err
+			return
+		}
+
 		// create the grpc server
 		s, err := grpc.NewServer(
 			grpc.WithIngestor(ei),
@@ -156,6 +173,7 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			ec, err := eventscontroller.New(
 				eventscontroller.WithTaskQueue(sc.TaskQueue),
 				eventscontroller.WithRepository(sc.Repository),
+				eventscontroller.WithLogger(sc.Logger),
 			)
 
 			if err != nil {
@@ -177,6 +195,7 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			jc, err := jobscontroller.New(
 				jobscontroller.WithTaskQueue(sc.TaskQueue),
 				jobscontroller.WithRepository(sc.Repository),
+				jobscontroller.WithLogger(sc.Logger),
 			)
 
 			if err != nil {
@@ -198,6 +217,7 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			t, err := ticker.New(
 				ticker.WithTaskQueue(sc.TaskQueue),
 				ticker.WithRepository(sc.Repository),
+				ticker.WithLogger(sc.Logger),
 			)
 
 			if err != nil {
@@ -218,6 +238,7 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			h, err := heartbeat.New(
 				heartbeat.WithTaskQueue(sc.TaskQueue),
 				heartbeat.WithRepository(sc.Repository),
+				heartbeat.WithLogger(sc.Logger),
 			)
 
 			if err != nil {

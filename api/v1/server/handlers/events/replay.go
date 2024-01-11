@@ -30,7 +30,7 @@ func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpda
 	for i := range events {
 		event := events[i]
 
-		newEvent, err := t.config.Ingestor.IngestReplayedEvent(tenant.ID, &event)
+		newEvent, err := t.config.Ingestor.IngestReplayedEvent(ctx.Request().Context(), tenant.ID, &event)
 
 		if err != nil {
 			allErrs = multierror.Append(allErrs, err)
