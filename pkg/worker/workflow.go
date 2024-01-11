@@ -56,6 +56,25 @@ func (s scheduled) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	wt.Schedules = append(wt.Schedules, s...)
 }
 
+func (w *Worker) Call(action string) WorkflowStep {
+	registeredAction, exists := w.actions[action]
+
+	if !exists {
+		panic(fmt.Sprintf("action %s does not exist", action))
+	}
+
+	parsedAction, err := types.ParseActionID(action)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return WorkflowStep{
+		Function: registeredAction.MethodFn(),
+		Name:     parsedAction.Verb,
+	}
+}
+
 type event string
 
 func Event(e string) event {

@@ -239,8 +239,8 @@ func (w *Worker) registerAction(service, verb string, method any) error {
 func (w *Worker) Start(ctx context.Context) error {
 	actionNames := []string{}
 
-	for _, job := range w.actions {
-		actionNames = append(actionNames, job.Name())
+	for _, action := range w.actions {
+		actionNames = append(actionNames, action.Name())
 	}
 
 	listener, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{

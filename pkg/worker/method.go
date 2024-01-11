@@ -14,9 +14,11 @@ func getFnFromMethod(method any) (result actionFunc, err error) {
 		return nil, fmt.Errorf("method must be a function")
 	}
 
-	// if not a function with two arguments, return error
-	if methodType.NumIn() != 2 {
-		return nil, fmt.Errorf("method must have exactly two arguments")
+	numIn := methodType.NumIn()
+
+	// if not a function with one or two arguments, return an error
+	if numIn != 1 && numIn != 2 {
+		return nil, fmt.Errorf("method must have one or two arguments")
 	}
 
 	// if first argument is not a context, return error
@@ -27,19 +29,20 @@ func getFnFromMethod(method any) (result actionFunc, err error) {
 	}
 
 	// if second argument is not a pointer to a struct, return error
-	secondArg := methodType.In(1)
+	if numIn == 2 {
+		secondArg := methodType.In(1)
 
-	if secondArg.Kind() != reflect.Ptr {
-		return nil, fmt.Errorf("second argument must be a pointer to a struct")
+		if secondArg.Kind() != reflect.Ptr {
+			return nil, fmt.Errorf("second argument must be a pointer to a struct")
+		}
+
+		secondArgElem := secondArg.Elem()
+
+		if secondArgElem.Kind() != reflect.Struct {
+			return nil, fmt.Errorf("second argument must be a pointer to a struct")
+		}
 	}
 
-	secondArgElem := secondArg.Elem()
-
-	if secondArgElem.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("second argument must be a pointer to a struct")
-	}
-
-	// if function does not return two values, return error
 	if methodType.NumOut() == 2 {
 		// if first return value is not a pointer to a struct, return error
 		firstReturn := methodType.Out(0)
@@ -64,15 +67,20 @@ func getFnFromMethod(method any) (result actionFunc, err error) {
 
 	return func(args ...interface{}) []interface{} {
 		// Ensure args length is correct
-		if len(args) != 2 {
-			return []interface{}{nil, fmt.Errorf("expected exactly two arguments, got %d", len(args))}
+		if len(args) != 1 && len(args) != 2 {
+			return []interface{}{nil, fmt.Errorf("expected one or two arguments, got %d", len(args))}
+		}
+
+		callArgs := []reflect.Value{
+			reflect.ValueOf(args[0]),
+		}
+
+		if len(args) == 2 {
+			callArgs = append(callArgs, reflect.ValueOf(args[1]))
 		}
 
 		// Call the method with reflection
-		values := reflect.ValueOf(method).Call([]reflect.Value{
-			reflect.ValueOf(args[0]),
-			reflect.ValueOf(args[1]),
-		})
+		values := reflect.ValueOf(method).Call(callArgs)
 
 		// Return the results as an interface slice
 		res := []interface{}{}

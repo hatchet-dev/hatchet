@@ -1,6 +1,8 @@
 package worker
 
 import (
+	"fmt"
+
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
@@ -35,7 +37,13 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 
 	// register all steps as actions
 	for actionId, fn := range workflow.ToActionMap(s.Name) {
-		err := s.worker.registerAction(s.Name, actionId, fn)
+		parsedAction, err := types.ParseActionID(actionId)
+
+		if err != nil {
+			return err
+		}
+
+		err = s.worker.registerAction(s.Name, parsedAction.Verb, fn)
 
 		if err != nil {
 			return err
@@ -69,4 +77,19 @@ func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
 	}
 
 	return s.worker.registerAction(s.Name, fnOpts.name, fn)
+}
+
+func (s *Service) Call(verb string) WorkflowStep {
+	actionId := fmt.Sprintf("%s:%s", s.Name, verb)
+
+	registeredAction, exists := s.worker.actions[actionId]
+
+	if !exists {
+		panic(fmt.Sprintf("action %s does not exist", actionId))
+	}
+
+	return WorkflowStep{
+		Function: registeredAction.MethodFn(),
+		Name:     verb,
+	}
 }
