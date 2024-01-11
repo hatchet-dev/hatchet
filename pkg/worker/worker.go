@@ -11,6 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations"
 	"github.com/rs/zerolog"
@@ -188,33 +189,44 @@ func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 	return svc.(*Service).On(t, workflow)
 }
 
-func (w *Worker) RegisterAction(name string, method any) error {
-	// get the default service
-	svc, ok := w.services.Load("default")
+// RegisterAction can be used to register a single action which can be reused across multiple workflows.
+//
+// An action should be of the format <service>:<verb>, for example slack:create-channel.
+//
+// The method must match the following signatures:
+// - func(ctx context.Context) error
+// - func(ctx context.Context, input *Input) error
+// - func(ctx context.Context, input *Input) (*Output, error)
+// - func(ctx context.Context) (*Output, error)
+func (w *Worker) RegisterAction(actionId string, method any) error {
+	// parse the action
+	action, err := types.ParseActionID(actionId)
 
-	if !ok {
-		return fmt.Errorf("could not load default service")
+	if err != nil {
+		return fmt.Errorf("could not parse action id: %w", err)
 	}
 
-	return svc.(*Service).RegisterAction(method)
+	return w.registerAction(action.Service, action.Verb, method)
 }
 
-func (w *Worker) registerAction(service, name string, method any) error {
+func (w *Worker) registerAction(service, verb string, method any) error {
 	actionFunc, err := getFnFromMethod(method)
 
 	if err != nil {
 		return fmt.Errorf("could not get function from method: %w", err)
 	}
 
+	actionId := fmt.Sprintf("%s:%s", service, verb)
+
 	// if action has already been registered, ensure that the method is the same
-	if currMethod, ok := w.actions[name]; ok {
+	if currMethod, ok := w.actions[actionId]; ok {
 		if reflect.ValueOf(currMethod.MethodFn()).Pointer() != reflect.ValueOf(method).Pointer() {
-			return fmt.Errorf("action %s is already registered with function %s", name, getFnName(currMethod.MethodFn()))
+			return fmt.Errorf("action %s is already registered with function %s", actionId, getFnName(currMethod.MethodFn()))
 		}
 	}
 
-	w.actions[name] = &actionImpl{
-		name:    name,
+	w.actions[actionId] = &actionImpl{
+		name:    actionId,
 		run:     actionFunc,
 		method:  method,
 		service: service,
@@ -227,8 +239,8 @@ func (w *Worker) registerAction(service, name string, method any) error {
 func (w *Worker) Start(ctx context.Context) error {
 	actionNames := []string{}
 
-	for _, job := range w.actions {
-		actionNames = append(actionNames, job.Name())
+	for _, action := range w.actions {
+		actionNames = append(actionNames, action.Name())
 	}
 
 	listener, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{

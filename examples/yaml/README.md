@@ -1,13 +1,13 @@
-## Simple Workflow Example
+## YAML Workflow Example
 
-This example runs the [sample-workflow.yaml](./.hatchet/sample-workflow.yaml).
+This example shows how you can create a YAML file in your repository to define the structure of a workflow. This example runs the [sample-workflow.yaml](./.hatchet/sample-workflow.yaml).
 
 ## Explanation
 
 This folder contains a demo example of a workflow that simply echoes the input message as an output. The workflow file showcases the following features:
 
 - Running a simple job with a set of dependent steps
-- Variable references within step arguments -- each subsequent step in a workflow can call `.steps.<step_id>.outputs` to access output arguments
+- Variable references within step arguments -- each subsequent step in a workflow can call `.steps.<step_id>.<field>` to access output arguments
 
 ## How to run
 
@@ -29,10 +29,5 @@ EOF
 3. Run the following within this directory:
 
 ```sh
-/bin/bash -c '
-set -a
-. .env
-set +a
-
 go run main.go';
 ```

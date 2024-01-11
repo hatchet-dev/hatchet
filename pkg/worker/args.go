@@ -38,9 +38,11 @@ func decodeFnArgTypes(fnType reflect.Type) (result []reflect.Type, err error) {
 		return nil, fmt.Errorf("method must be a function")
 	}
 
-	// if not a function with two arguments, return error
-	if fnType.NumIn() != 2 {
-		return nil, fmt.Errorf("method must have exactly two arguments")
+	numIn := fnType.NumIn()
+
+	// if not a function with one or two arguments, return an error
+	if numIn != 1 && numIn != 2 {
+		return nil, fmt.Errorf("method must have one or two arguments")
 	}
 
 	// if first argument is not a context, return error
@@ -50,20 +52,26 @@ func decodeFnArgTypes(fnType reflect.Type) (result []reflect.Type, err error) {
 		return nil, fmt.Errorf("first argument must be context.Context")
 	}
 
-	// if second argument is not a pointer to a struct, return error
-	secondArg := fnType.In(1)
+	res := []reflect.Type{firstArg}
 
-	if secondArg.Kind() != reflect.Ptr {
-		return nil, fmt.Errorf("second argument must be a pointer to a struct")
+	if numIn == 2 {
+		// if second argument is not a pointer to a struct, return error
+		secondArg := fnType.In(1)
+
+		if secondArg.Kind() != reflect.Ptr {
+			return nil, fmt.Errorf("second argument must be a pointer to a struct")
+		}
+
+		secondArgElem := secondArg.Elem()
+
+		if secondArgElem.Kind() != reflect.Struct {
+			return nil, fmt.Errorf("second argument must be a pointer to a struct")
+		}
+
+		res = append(res, secondArg)
 	}
 
-	secondArgElem := secondArg.Elem()
-
-	if secondArgElem.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("second argument must be a pointer to a struct")
-	}
-
-	return []reflect.Type{firstArg, secondArg}, nil
+	return res, nil
 }
 
 func decodeFnReturnTypes(fnType reflect.Type) (result []reflect.Type, err error) {

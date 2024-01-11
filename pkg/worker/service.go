@@ -37,7 +37,13 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 
 	// register all steps as actions
 	for actionId, fn := range workflow.ToActionMap(s.Name) {
-		err := s.worker.registerAction(s.Name, actionId, fn)
+		parsedAction, err := types.ParseActionID(actionId)
+
+		if err != nil {
+			return err
+		}
+
+		err = s.worker.registerAction(s.Name, parsedAction.Verb, fn)
 
 		if err != nil {
 			return err
@@ -47,10 +53,43 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	return nil
 }
 
-func (s *Service) RegisterAction(fn any) error {
-	fnId := getFnName(fn)
+type registerActionOpts struct {
+	name string
+}
 
-	actionId := fmt.Sprintf("%s:%s", s.Name, fnId)
+type RegisterActionOpt func(*registerActionOpts)
 
-	return s.worker.registerAction(s.Name, actionId, fn)
+func WithActionName(name string) RegisterActionOpt {
+	return func(opts *registerActionOpts) {
+		opts.name = name
+	}
+}
+
+func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
+	fnOpts := &registerActionOpts{}
+
+	for _, opt := range opts {
+		opt(fnOpts)
+	}
+
+	if fnOpts.name == "" {
+		fnOpts.name = getFnName(fn)
+	}
+
+	return s.worker.registerAction(s.Name, fnOpts.name, fn)
+}
+
+func (s *Service) Call(verb string) WorkflowStep {
+	actionId := fmt.Sprintf("%s:%s", s.Name, verb)
+
+	registeredAction, exists := s.worker.actions[actionId]
+
+	if !exists {
+		panic(fmt.Sprintf("action %s does not exist", actionId))
+	}
+
+	return WorkflowStep{
+		Function: registeredAction.MethodFn(),
+		Name:     verb,
+	}
 }
