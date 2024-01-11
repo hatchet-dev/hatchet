@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
@@ -12,74 +14,81 @@ import (
 
 type userCreateEvent struct {
 	Username string            `json:"username"`
-	UserId   string            `json:"user_id"`
+	UserID   string            `json:"user_id"`
 	Data     map[string]string `json:"data"`
 }
 
-type actionInput struct {
+type stepOneOutput struct {
 	Message string `json:"message"`
-}
-
-type actionOut struct {
-	Message string `json:"message"`
-}
-
-func echo(ctx context.Context, input *actionInput) (result *actionOut, err error) {
-	return &actionOut{
-		Message: input.Message,
-	}, nil
-}
-
-func object(ctx context.Context, input *userCreateEvent) error {
-	return nil
 }
 
 func main() {
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
 
-	client, err := client.New(
-		client.InitWorkflows(),
-	)
+	events := make(chan string, 50)
+	if err := run(cmdutils.InterruptChan(), events); err != nil {
+		panic(err)
+	}
+}
+
+func run(ch <-chan interface{}, events chan<- string) error {
+	c, err := client.New()
 
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error creating client: %w", err)
 	}
 
 	// Create a worker. This automatically reads in a TemporalClient from .env and workflow files from the .hatchet
 	// directory, but this can be customized with the `worker.WithTemporalClient` and `worker.WithWorkflowFiles` options.
-	worker, err := worker.NewWorker(
+	w, err := worker.NewWorker(
 		worker.WithClient(
-			client,
+			c,
 		),
 	)
-
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error creating worker: %w", err)
 	}
 
-	echoSvc := worker.NewService("echo")
+	testSvc := w.NewService("test")
 
-	err = echoSvc.RegisterAction(echo)
+	err = testSvc.On(
+		worker.Events("user:create:simple"),
+		&worker.WorkflowJob{
+			Name:        "post-user-update",
+			Description: "This runs after an update to the user model.",
+			Steps: []worker.WorkflowStep{
+				worker.Fn(func(ctx context.Context, input *userCreateEvent) (result *stepOneOutput, err error) {
+					log.Printf("step-one")
+					events <- "step-one"
 
+					return &stepOneOutput{
+						Message: "Username is: " + input.Username,
+					}, nil
+				},
+				).SetName("step-one"),
+				worker.Fn(func(ctx context.Context, input *stepOneOutput) (result *stepOneOutput, err error) {
+					log.Printf("step-two")
+					events <- "step-two"
+
+					return &stepOneOutput{
+						Message: "Above message is: " + input.Message,
+					}, nil
+				}).SetName("step-two"),
+			},
+		},
+	)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error registering workflow: %w", err)
 	}
 
-	err = echoSvc.RegisterAction(object)
-
-	if err != nil {
-		panic(err)
-	}
-
-	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
+	interruptCtx, cancel := cmdutils.InterruptContextFromChan(ch)
 	defer cancel()
 
 	go func() {
-		err = worker.Start(interruptCtx)
+		err = w.Start(interruptCtx)
 
 		if err != nil {
 			panic(err)
@@ -90,29 +99,29 @@ func main() {
 
 	testEvent := userCreateEvent{
 		Username: "echo-test",
-		UserId:   "1234",
+		UserID:   "1234",
 		Data: map[string]string{
 			"test": "test",
 		},
 	}
 
-	time.Sleep(1 * time.Second)
+	log.Printf("pushing event user:create:simple")
 
 	// push an event
-	err = client.Event().Push(
+	err = c.Event().Push(
 		context.Background(),
-		"user:create",
+		"user:create:simple",
 		testEvent,
 	)
 
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error pushing event: %w", err)
 	}
 
 	for {
 		select {
 		case <-interruptCtx.Done():
-			return
+			return nil
 		default:
 			time.Sleep(time.Second)
 		}

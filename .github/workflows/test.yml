@@ -93,3 +93,68 @@ jobs:
 
       - name: Teardown
         run: docker compose down
+
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Task
+        uses: arduino/setup-task@v1
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: '25.1'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Compose
+        run: docker compose up -d
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Generate
+        run: |
+          go run github.com/steebchen/prisma-client-go db push
+          task generate-certs
+
+      - name: Prepare
+        run: |
+          cat > .env <<EOF
+          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+          SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
+          SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
+          SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
+          SERVER_PORT=8080
+          SERVER_URL=https://app.dev.hatchet-tools.com
+          SERVER_AUTH_COOKIE_SECRETS="something something"
+          SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
+          SERVER_AUTH_COOKIE_INSECURE=false
+          SERVER_AUTH_SET_EMAIL_VERIFIED=true
+          EOF
+
+      - name: Run engine
+        run: |
+          set -a
+          . .env
+          set +a
+          
+          go run ./cmd/hatchet-admin seed
+          
+          go run ./cmd/hatchet-engine &
+          go run ./cmd/hatchet-api &
+          sleep 30
+
+      - name: Test
+        run: go test -tags e2e ./... -p 1 -v -failfast
+
+      - name: Teardown
+        run: docker compose down
