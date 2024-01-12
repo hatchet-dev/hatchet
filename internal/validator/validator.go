@@ -7,6 +7,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 

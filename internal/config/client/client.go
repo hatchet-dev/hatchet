@@ -3,8 +3,9 @@ package client
 import (
 	"crypto/tls"
 
-	"github.com/hatchet-dev/hatchet/internal/config/shared"
 	"github.com/spf13/viper"
+
+	"github.com/hatchet-dev/hatchet/internal/config/shared"
 )
 
 type ClientConfigFile struct {

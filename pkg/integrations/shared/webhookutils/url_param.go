@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi"
+
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 )
 

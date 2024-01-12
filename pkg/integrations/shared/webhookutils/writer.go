@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"syscall"
 
-	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/rs/zerolog"
+
+	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
 type ResultWriter interface {

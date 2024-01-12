@@ -5,8 +5,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/config/shared"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/internal/config/shared"
 )
 
 func NewDefaultLogger(service string) zerolog.Logger {
