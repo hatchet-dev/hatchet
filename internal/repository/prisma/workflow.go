@@ -301,6 +301,7 @@ func (r *workflowRepository) CreateSchedules(
 				db.WorkflowVersion.ID.Equals(workflowVersionId),
 			),
 			db.WorkflowTriggerScheduledRef.TriggerAt.Set(scheduledTrigger),
+			db.WorkflowTriggerScheduledRef.Input.SetIfPresent(opts.Input),
 		).Tx()
 
 		txs = append(txs, createTx)
@@ -338,6 +339,12 @@ func (r *workflowRepository) GetWorkflowByName(tenantId, workflowName string) (*
 		),
 	).With(
 		defaultWorkflowPopulator()...,
+	).Exec(context.Background())
+}
+
+func (r *workflowRepository) GetScheduledById(tenantId, scheduleTriggerId string) (*db.WorkflowTriggerScheduledRefModel, error) {
+	return r.client.WorkflowTriggerScheduledRef.FindUnique(
+		db.WorkflowTriggerScheduledRef.ID.Equals(scheduleTriggerId),
 	).Exec(context.Background())
 }
 

@@ -151,6 +151,7 @@ CREATE TABLE "WorkflowTriggerScheduledRef" (
     "parentId" UUID NOT NULL,
     "triggerAt" TIMESTAMP(3) NOT NULL,
     "tickerId" UUID,
+    "input" JSONB,
 
     CONSTRAINT "WorkflowTriggerScheduledRef_pkey" PRIMARY KEY ("id")
 );

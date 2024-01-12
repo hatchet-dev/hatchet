@@ -315,8 +315,22 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 
 	dbSchedules := make([]time.Time, len(req.Schedules))
 
-	for _, scheduledTrigger := range req.Schedules {
-		dbSchedules = append(dbSchedules, scheduledTrigger.AsTime())
+	for i, scheduledTrigger := range req.Schedules {
+		dbSchedules[i] = scheduledTrigger.AsTime()
+	}
+
+	inputDataMap := map[string]interface{}{}
+
+	err = json.Unmarshal([]byte(req.Input), &inputDataMap)
+
+	if err != nil {
+		return nil, err
+	}
+
+	jsonType, err := datautils.ToJSONType(inputDataMap)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not convert schedule data to JSON: %w", err)
 	}
 
 	schedules, err := a.repo.Workflow().CreateSchedules(
@@ -324,6 +338,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		workflowVersion.ID,
 		&repository.CreateWorkflowSchedulesOpts{
 			ScheduledTriggers: dbSchedules,
+			Input:             jsonType,
 		},
 	)
 

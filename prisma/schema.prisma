@@ -287,6 +287,9 @@ model WorkflowTriggerScheduledRef {
   ticker   Ticker? @relation(fields: [tickerId], references: [id])
   tickerId String? @db.Uuid
 
+  // the input parameters to the scheduled workflow
+  input Json?
+
   triggered WorkflowRunTriggeredBy?
 }
 

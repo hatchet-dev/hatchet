@@ -19,7 +19,7 @@ import (
 
 type AdminClient interface {
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
-	ScheduleWorkflow(workflowName string, schedules ...time.Time) error
+	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
 }
 
 type adminClientImpl struct {
@@ -123,7 +123,40 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 	return nil
 }
 
-func (a *adminClientImpl) ScheduleWorkflow(workflowName string, schedules ...time.Time) error {
+type scheduleOpts struct {
+	schedules []time.Time
+	input     any
+}
+
+type ScheduleOptFunc func(*scheduleOpts)
+
+func WithInput(input any) ScheduleOptFunc {
+	return func(opts *scheduleOpts) {
+		opts.input = input
+	}
+}
+
+func WithSchedules(schedules ...time.Time) ScheduleOptFunc {
+	return func(opts *scheduleOpts) {
+		opts.schedules = schedules
+	}
+}
+
+func defaultScheduleOpts() *scheduleOpts {
+	return &scheduleOpts{}
+}
+
+func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOptFunc) error {
+	opts := defaultScheduleOpts()
+
+	for _, f := range fs {
+		f(opts)
+	}
+
+	if len(opts.schedules) == 0 {
+		return fmt.Errorf("ScheduleWorkflow error: schedules are required")
+	}
+
 	// get the workflow id from the name
 	workflow, err := a.client.GetWorkflowByName(context.Background(), &admincontracts.GetWorkflowByNameRequest{
 		TenantId: a.tenantId,
@@ -134,16 +167,23 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, schedules ...tim
 		return fmt.Errorf("could not get workflow: %w", err)
 	}
 
-	pbSchedules := make([]*timestamppb.Timestamp, len(schedules))
+	pbSchedules := make([]*timestamppb.Timestamp, len(opts.schedules))
 
-	for i, scheduled := range schedules {
+	for i, scheduled := range opts.schedules {
 		pbSchedules[i] = timestamppb.New(scheduled)
+	}
+
+	inputBytes, err := json.Marshal(opts.input)
+
+	if err != nil {
+		return err
 	}
 
 	_, err = a.client.ScheduleWorkflow(context.Background(), &admincontracts.ScheduleWorkflowRequest{
 		TenantId:   a.tenantId,
 		WorkflowId: workflow.Id,
 		Schedules:  pbSchedules,
+		Input:      string(inputBytes),
 	})
 
 	if err != nil {

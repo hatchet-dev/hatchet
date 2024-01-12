@@ -488,6 +488,7 @@ type WorkflowTriggerScheduledRef struct {
 	ParentId  pgtype.UUID      `json:"parentId"`
 	TriggerAt pgtype.Timestamp `json:"triggerAt"`
 	TickerId  pgtype.UUID      `json:"tickerId"`
+	Input     []byte           `json:"input"`
 }
 
 type WorkflowTriggers struct {
