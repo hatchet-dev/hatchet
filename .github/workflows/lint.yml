@@ -1,0 +1,34 @@
+name: lint all
+on: pull_request
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: Download
+        run: go mod download
+
+      - name: Generate
+        run: go run github.com/steebchen/prisma-client-go generate
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3.2.0
+        with:
+          version: v1.55.0
+          args: --config .golangci.yml --timeout 5m
+          only-new-issues: true
+          skip-cache: true
