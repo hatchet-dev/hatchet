@@ -7,7 +7,6 @@ linters:
     - exportloopref
     - gocritic
     - gosec
-    - goimports
     - errcheck
     - goimports
     - revive
