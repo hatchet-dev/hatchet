@@ -1,8 +1,11 @@
 run:
   timeout: 5m
 linters:
+  disable-all: true
   enable:
     - gofmt
+    - unused
+    - gosimple
     - revive
     - exportloopref
     - gocritic
@@ -12,6 +15,8 @@ linters:
     - revive
     - staticcheck
     - vet
+    - stylecheck
+    - unconvert
 
 linters-settings:
   goimports:
