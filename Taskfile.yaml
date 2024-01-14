@@ -55,6 +55,10 @@ tasks:
   generate-proto:
     cmds:
       - sh ./hack/proto/proto.sh
+  generate-proto-python:
+    dir: ./python-client
+    cmds:
+      - sh ./generate.sh
   generate-sqlc:
     cmds:
       - npx --yes prisma migrate diff --from-empty --to-schema-datasource prisma/schema.prisma --script > internal/repository/prisma/dbsqlc/schema.sql
