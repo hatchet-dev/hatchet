@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hatchet-dev/hatchet/pkg/integrations"
 	"github.com/slack-go/slack"
+
+	"github.com/hatchet-dev/hatchet/pkg/integrations"
 )
 
 type SlackIntegration struct {
