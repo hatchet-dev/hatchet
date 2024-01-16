@@ -177,7 +177,7 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 				err = d.handleTask(ctx, task)
 
 				if err != nil {
-					d.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
+					d.l.Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
 				}
 			}(task)
 		}

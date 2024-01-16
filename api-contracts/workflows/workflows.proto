@@ -45,8 +45,9 @@ message CreateWorkflowStepOpts {
     string action = 2; // (required) the step action id
     string timeout = 3; // (optional) the step timeout
     string inputs = 4; // (optional) the step inputs, assuming string representation of JSON
+    repeated string parents = 5; // (optional) the step parents. if none are passed in, this is a root step
 }
-  
+
 // ListWorkflowsRequest is the request for ListWorkflows.
 message ListWorkflowsRequest {
     string tenant_id = 1;
@@ -141,7 +142,8 @@ message Step {
     string job_id = 7;
     string action = 8;
     google.protobuf.StringValue timeout = 9; // Optional
-    string next_id = 10; // Optional
+    repeated string parents = 10;
+    repeated string children = 11;
 }
   
 message DeleteWorkflowRequest {

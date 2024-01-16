@@ -329,7 +329,8 @@ export interface Step {
   action: string;
   /** The timeout of the step. */
   timeout?: string;
-  nextId: string;
+  children?: string[];
+  parents?: string[];
 }
 
 export interface WorkflowRun {
@@ -418,8 +419,8 @@ export interface StepRun {
   jobRun?: JobRun;
   stepId: string;
   step?: Step;
-  nextId?: string;
-  prevId?: string;
+  children?: string[];
+  parents?: string[];
   workerId?: string;
   input?: string;
   output?: string;

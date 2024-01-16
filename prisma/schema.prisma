@@ -371,15 +371,11 @@ model Step {
 
   timeout String?
 
-  // the declared step inputs. these will not be populated if they use go tmpl syntax
-  inputs Json?
+  // a list of dependents for this step
+  children Step[] @relation("StepOrder")
 
-  // the next step in the job
-  next   Step?   @relation("StepOrder", fields: [nextId], references: [id])
-  nextId String? @unique @db.Uuid // next ids are globally unique because workflows are immutable once written
-
-  // the previous step in the job
-  prev Step? @relation("StepOrder")
+  // a list of dependencies for this step
+  parents Step[] @relation("StepOrder")
 
   // a list of runs for this step
   stepRuns StepRun[]
@@ -415,8 +411,6 @@ model WorkflowRun {
   jobRuns JobRun[]
 
   triggeredBy WorkflowRunTriggeredBy?
-
-  input Json?
 
   // the run error
   error String?
@@ -575,12 +569,11 @@ model StepRun {
   step   Step   @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepId String @db.Uuid
 
-  // the next step in the job
-  next   StepRun? @relation("StepRunOrder", fields: [nextId], references: [id])
-  nextId String?  @unique @db.Uuid // next ids are globally unique because workflows are immutable once written
+  // a list of dependents for this step
+  children StepRun[] @relation("StepRunOrder")
 
-  // the previous step in the job
-  prev StepRun? @relation("StepRunOrder")
+  // a list of dependencies for this step
+  parents StepRun[] @relation("StepRunOrder")
 
   order Int @default(autoincrement()) @db.SmallInt
 

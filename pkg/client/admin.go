@@ -226,6 +226,7 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 				Action:     step.ActionID,
 				Timeout:    step.Timeout,
 				Inputs:     string(inputBytes),
+				Parents:    step.Parents,
 			}
 
 			stepOpts[i] = stepOpt

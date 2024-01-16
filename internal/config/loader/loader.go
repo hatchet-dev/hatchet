@@ -114,7 +114,15 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		return nil, err
 	}
 
-	pool, err := pgxpool.New(context.Background(), databaseUrl)
+	config, err := pgxpool.ParseConfig(databaseUrl)
+
+	if err != nil {
+		return nil, err
+	}
+
+	config.MaxConns = 20
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)

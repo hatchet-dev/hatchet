@@ -1,14 +1,14 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"time"
+
+	"github.com/joho/godotenv"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/joho/godotenv"
 )
 
 type scheduledInput struct {
@@ -20,7 +20,15 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func StepOne(ctx context.Context, input *scheduledInput) (result *stepOneOutput, err error) {
+func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+	input := &scheduledInput{}
+
+	err = ctx.WorkflowInput(input)
+
+	if err != nil {
+		return nil, err
+	}
+
 	// get time between execute at and scheduled at
 	timeBetween := time.Since(input.ScheduledAt)
 
@@ -59,7 +67,7 @@ func main() {
 		&worker.WorkflowJob{
 			Name:        "scheduled-workflow",
 			Description: "This runs at a scheduled time.",
-			Steps: []worker.WorkflowStep{
+			Steps: []*worker.WorkflowStep{
 				worker.Fn(StepOne).SetName("step-one"),
 			},
 		},

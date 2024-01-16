@@ -73,7 +73,7 @@ type Action struct {
 	ActionId string
 
 	// the action payload
-	ActionPayload ActionPayload
+	ActionPayload []byte
 
 	// the action type
 	ActionType ActionType
@@ -248,29 +248,24 @@ func (a *actionListenerImpl) Actions(ctx context.Context, errCh chan<- error) (<
 
 			a.l.Debug().Msgf("Received action type: %s", actionType)
 
+			unquoted, err := strconv.Unquote(assignedAction.ActionPayload)
+
+			if err != nil {
+				a.l.Err(err).Msgf("Error unquoting payload for action: %s", assignedAction.ActionType)
+				continue
+			}
+
 			ch <- &Action{
-				TenantId:   assignedAction.TenantId,
-				WorkerId:   a.workerId,
-				JobId:      assignedAction.JobId,
-				JobName:    assignedAction.JobName,
-				JobRunId:   assignedAction.JobRunId,
-				StepId:     assignedAction.StepId,
-				StepRunId:  assignedAction.StepRunId,
-				ActionId:   assignedAction.ActionId,
-				ActionType: actionType,
-				ActionPayload: func(target interface{}) error {
-					if err := a.v.Validate(target); err != nil {
-						return err
-					}
-
-					unquoted, err := strconv.Unquote(assignedAction.ActionPayload)
-
-					if err != nil {
-						return err
-					}
-
-					return json.Unmarshal([]byte(unquoted), target)
-				},
+				TenantId:      assignedAction.TenantId,
+				WorkerId:      a.workerId,
+				JobId:         assignedAction.JobId,
+				JobName:       assignedAction.JobName,
+				JobRunId:      assignedAction.JobRunId,
+				StepId:        assignedAction.StepId,
+				StepRunId:     assignedAction.StepRunId,
+				ActionId:      assignedAction.ActionId,
+				ActionType:    actionType,
+				ActionPayload: []byte(unquoted),
 			}
 		}
 	}()

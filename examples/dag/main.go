@@ -19,7 +19,7 @@ type userCreateEvent struct {
 	Data     map[string]string `json:"data"`
 }
 
-type stepOneOutput struct {
+type stepOutput struct {
 	Message string `json:"message"`
 }
 
@@ -61,38 +61,53 @@ func run(ch <-chan interface{}, events chan<- string) error {
 			Name:        "post-user-update",
 			Description: "This runs after an update to the user model.",
 			Steps: []*worker.WorkflowStep{
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
 					input := &userCreateEvent{}
+					ctx.WorkflowInput(input)
 
-					err = ctx.WorkflowInput(input)
-
-					if err != nil {
-						return nil, err
-					}
-
-					log.Printf("step-one")
-					events <- "step-one"
-
-					return &stepOneOutput{
-						Message: "Username is: " + input.Username,
+					return &stepOutput{
+						Message: "Step 1 got username: " + input.Username,
 					}, nil
 				},
 				).SetName("step-one"),
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					input := &stepOneOutput{}
-					err = ctx.StepOutput("step-one", input)
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
+					input := &userCreateEvent{}
+					ctx.WorkflowInput(input)
 
-					if err != nil {
-						return nil, err
-					}
-
-					log.Printf("step-two")
-					events <- "step-two"
-
-					return &stepOneOutput{
-						Message: "Above message is: " + input.Message,
+					return &stepOutput{
+						Message: "Step 2 got username: " + input.Username,
 					}, nil
-				}).SetName("step-two").AddParents("step-one"),
+				}).SetName("step-two"),
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
+					step1Out := &stepOutput{}
+					ctx.StepOutput("step-one", step1Out)
+
+					step2Out := &stepOutput{}
+					ctx.StepOutput("step-two", step2Out)
+
+					return &stepOutput{
+						Message: "Step 3: has parents 1 and 2:" + step1Out.Message + ", " + step2Out.Message,
+					}, nil
+				}).SetName("step-three").AddParents("step-one", "step-two"),
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
+					step1Out := &stepOutput{}
+					ctx.StepOutput("step-one", step1Out)
+
+					step3Out := &stepOutput{}
+					ctx.StepOutput("step-three", step3Out)
+
+					return &stepOutput{
+						Message: "Step 4: has parents 1 and 3" + step1Out.Message + ", " + step3Out.Message,
+					}, nil
+				}).SetName("step-four").AddParents("step-one", "step-three"),
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
+					step4Out := &stepOutput{}
+					ctx.StepOutput("step-four", step4Out)
+
+					return &stepOutput{
+						Message: "Step 5: has parent 4" + step4Out.Message,
+					}, nil
+				}).SetName("step-five").AddParents("step-four"),
 			},
 		},
 	)

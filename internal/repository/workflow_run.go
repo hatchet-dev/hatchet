@@ -3,14 +3,11 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/internal/iter"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
-	"github.com/steebchen/prisma-client-go/runtime/types"
 )
 
 type CreateWorkflowRunOpts struct {
@@ -35,16 +32,12 @@ func GetCreateWorkflowRunOptsFromEvent(event *db.EventModel, workflowVersion *db
 	eventId := event.ID
 	data := event.InnerEvent.Data
 
-	structuredJobRunData, err := datautils.NewJobRunLookupDataFromInputBytes([]byte(json.RawMessage(*data)))
+	var jobRunData []byte
 
-	if err != nil {
-		return nil, fmt.Errorf("could not create job run lookup data: %w", err)
-	}
+	var err error
 
-	jobRunData, err := datautils.ToJSONType(structuredJobRunData)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not convert job run lookup data to json: %w", err)
+	if data != nil {
+		jobRunData = []byte(json.RawMessage(*data))
 	}
 
 	opts := &CreateWorkflowRunOpts{
@@ -52,54 +45,33 @@ func GetCreateWorkflowRunOptsFromEvent(event *db.EventModel, workflowVersion *db
 		TriggeringEventId: &eventId,
 	}
 
-	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, jobRunData)
+	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, datautils.TriggeredByEvent, jobRunData)
 
 	return opts, err
 }
 
 func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
-	jobRunData, err := datautils.ToJSONType(map[string]interface{}{})
-
-	if err != nil {
-		return nil, fmt.Errorf("could not convert job run lookup data to json: %w", err)
-	}
-
 	opts := &CreateWorkflowRunOpts{
 		WorkflowVersionId: workflowVersion.ID,
 		Cron:              &cron,
 		CronParentId:      &cronParentId,
 	}
 
-	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, jobRunData)
+	var err error
+
+	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, datautils.TriggeredByCron, nil)
 
 	return opts, err
 }
 
 func GetCreateWorkflowRunOptsFromSchedule(scheduledTrigger *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
 	data := scheduledTrigger.InnerWorkflowTriggerScheduledRef.Input
-	var jobRunData *types.JSON
+	var jobRunData []byte
 
 	var err error
 
-	if data == nil {
-		jobRunData, err = datautils.ToJSONType(map[string]interface{}{})
-
-		if err != nil {
-			return nil, fmt.Errorf("could not convert job run lookup data to json: %w", err)
-		}
-	} else {
-		jobRunData = data
-		structuredJobRunData, err := datautils.NewJobRunLookupDataFromInputBytes([]byte(json.RawMessage(*data)))
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create job run lookup data: %w", err)
-		}
-
-		jobRunData, err = datautils.ToJSONType(structuredJobRunData)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not convert job run lookup data to json: %w", err)
-		}
+	if data != nil {
+		jobRunData = []byte(json.RawMessage(*data))
 	}
 
 	opts := &CreateWorkflowRunOpts{
@@ -107,33 +79,22 @@ func GetCreateWorkflowRunOptsFromSchedule(scheduledTrigger *db.WorkflowTriggerSc
 		ScheduledWorkflowId: &scheduledTrigger.ID,
 	}
 
-	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, jobRunData)
+	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, datautils.TriggeredBySchedule, jobRunData)
 
 	return opts, err
 }
 
-func getJobsFromWorkflowVersion(workflowVersion *db.WorkflowVersionModel, jobRunData *types.JSON) ([]CreateWorkflowJobRunOpts, error) {
+func getJobsFromWorkflowVersion(workflowVersion *db.WorkflowVersionModel, triggeredBy datautils.TriggeredBy, input []byte) ([]CreateWorkflowJobRunOpts, error) {
 	resJobRunOpts := []CreateWorkflowJobRunOpts{}
 
 	for _, job := range workflowVersion.Jobs() {
 		jobOpts := CreateWorkflowJobRunOpts{
-			JobId: job.ID,
-			Input: jobRunData,
+			JobId:       job.ID,
+			TriggeredBy: string(triggeredBy),
+			InputData:   input,
 		}
 
-		iter, err := iter.New(job.Steps())
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create step iterator: %w", err)
-		}
-
-		for {
-			step, ok := iter.Next()
-
-			if !ok {
-				break
-			}
-
+		for _, step := range job.Steps() {
 			stepOpts := CreateWorkflowStepRunOpts{
 				StepId: step.ID,
 			}
@@ -152,7 +113,9 @@ type CreateWorkflowJobRunOpts struct {
 	JobId string `validate:"required,uuid"`
 
 	// (optional) the job run input
-	Input *db.JSON
+	InputData []byte
+
+	TriggeredBy string
 
 	// (required) the job step runs
 	StepRuns []CreateWorkflowStepRunOpts `validate:"required,min=1,dive"`

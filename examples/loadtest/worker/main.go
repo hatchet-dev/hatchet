@@ -1,14 +1,14 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"time"
+
+	"github.com/joho/godotenv"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/joho/godotenv"
 )
 
 type Event struct {
@@ -20,7 +20,15 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func StepOne(ctx context.Context, input *Event) (result *stepOneOutput, err error) {
+func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+	input := &Event{}
+
+	err = ctx.WorkflowInput(input)
+
+	if err != nil {
+		return nil, err
+	}
+
 	fmt.Println(input.ID, "delay", time.Since(input.CreatedAt))
 
 	return &stepOneOutput{
@@ -58,7 +66,7 @@ func main() {
 		&worker.WorkflowJob{
 			Name:        "scheduled-workflow",
 			Description: "This runs at a scheduled time.",
-			Steps: []worker.WorkflowStep{
+			Steps: []*worker.WorkflowStep{
 				worker.Fn(StepOne).SetName("step-one"),
 			},
 		},

@@ -6,10 +6,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func TimestampFromTime(t *time.Time) pgtype.Timestamp {
+func TimestampFromTime(t time.Time) pgtype.Timestamp {
 	var pgTs pgtype.Timestamp
 
-	if err := pgTs.Scan(*t); err != nil {
+	if err := pgTs.Scan(t); err != nil {
 		panic(err)
 	}
 

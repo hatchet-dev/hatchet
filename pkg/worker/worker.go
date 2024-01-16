@@ -327,15 +327,15 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 		return fmt.Errorf("could not decode args to interface: %w", err)
 	}
 
-	err = assignedAction.ActionPayload(arg)
-
-	if err != nil {
-		return fmt.Errorf("could not decode action payload: %w", err)
-	}
-
 	runContext, cancel := context.WithCancel(context.Background())
 
 	w.cancelMap.Store(assignedAction.StepRunId, cancel)
+
+	hCtx, err := newHatchetContext(runContext, assignedAction)
+
+	if err != nil {
+		return fmt.Errorf("could not create hatchet context: %w", err)
+	}
 
 	// get the action's service
 	svcAny, ok := w.services.Load(action.Service())
@@ -348,9 +348,15 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 
 	// wrap the run with middleware. start by wrapping the global worker middleware, then
 	// the service-specific middleware
-	return w.middlewares.runAll(runContext, func(ctx context.Context) error {
-		return svc.mws.runAll(ctx, func(ctx context.Context) error {
-			runResults := action.Run(ctx, arg)
+	return w.middlewares.runAll(hCtx, func(ctx HatchetContext) error {
+		return svc.mws.runAll(ctx, func(ctx HatchetContext) error {
+			args := []any{ctx}
+
+			if arg != nil {
+				args = append(args, arg)
+			}
+
+			runResults := action.Run(args...)
 
 			// check whether run context was cancelled while action was running
 			select {

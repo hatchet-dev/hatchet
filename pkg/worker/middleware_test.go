@@ -6,9 +6,33 @@ import (
 	"testing"
 )
 
+type testHatchetContext struct {
+	context.Context
+}
+
+func (c *testHatchetContext) SetContext(ctx context.Context) {
+	c.Context = ctx
+}
+
+func (c *testHatchetContext) GetContext() context.Context {
+	return c.Context
+}
+
+func (c *testHatchetContext) StepOutput(step string, target interface{}) error {
+	return nil
+}
+
+func (c *testHatchetContext) TriggeredByEvent() bool {
+	return false
+}
+
+func (c *testHatchetContext) WorkflowInput(target interface{}) error {
+	return nil
+}
+
 func TestAddMiddleware(t *testing.T) {
 	m := middlewares{}
-	middlewareFunc := func(ctx context.Context, next func(context.Context) error) error {
+	middlewareFunc := func(ctx HatchetContext, next func(HatchetContext) error) error {
 		return nil
 	}
 	m.add(middlewareFunc)
@@ -20,7 +44,7 @@ func TestAddMiddleware(t *testing.T) {
 
 func TestRunAllWithNoMiddleware(t *testing.T) {
 	m := middlewares{}
-	err := m.runAll(context.Background(), func(ctx context.Context) error {
+	err := m.runAll(&testHatchetContext{context.Background()}, func(ctx HatchetContext) error {
 		return nil
 	})
 
@@ -32,13 +56,13 @@ func TestRunAllWithNoMiddleware(t *testing.T) {
 func TestRunAllWithMiddleware(t *testing.T) {
 	m := middlewares{}
 	called := false
-	middlewareFunc := func(ctx context.Context, next func(context.Context) error) error {
+	middlewareFunc := func(ctx HatchetContext, next func(HatchetContext) error) error {
 		called = true
 		return next(ctx)
 	}
 	m.add(middlewareFunc)
 
-	err := m.runAll(context.Background(), func(ctx context.Context) error {
+	err := m.runAll(&testHatchetContext{context.Background()}, func(ctx HatchetContext) error {
 		return nil
 	})
 
@@ -57,13 +81,15 @@ func TestRunAllWithPropagatedContext(t *testing.T) {
 	value := "value"
 
 	// Middleware that sets a value in the context
-	middlewareFunc := func(ctx context.Context, next func(context.Context) error) error {
-		return next(context.WithValue(ctx, key, value))
+	middlewareFunc := func(ctx HatchetContext, next func(HatchetContext) error) error {
+		ctx.SetContext(context.WithValue(ctx, key, value))
+
+		return next(ctx)
 	}
 	m.add(middlewareFunc)
 
 	// Next function that checks for the value in the context
-	err := m.runAll(context.Background(), func(ctx context.Context) error {
+	err := m.runAll(&testHatchetContext{context.Background()}, func(ctx HatchetContext) error {
 		if ctx.Value(key) != value {
 			t.Errorf("Expected value %v in context, got %v", value, ctx.Value(key))
 		}
@@ -78,12 +104,12 @@ func TestRunAllWithPropagatedContext(t *testing.T) {
 func TestRunAllWithErrorInMiddleware(t *testing.T) {
 	m := middlewares{}
 	expectedErr := errors.New("middleware error")
-	middlewareFunc := func(ctx context.Context, next func(context.Context) error) error {
+	middlewareFunc := func(ctx HatchetContext, next func(HatchetContext) error) error {
 		return expectedErr
 	}
 	m.add(middlewareFunc)
 
-	err := m.runAll(context.Background(), func(ctx context.Context) error {
+	err := m.runAll(&testHatchetContext{context.Background()}, func(ctx HatchetContext) error {
 		return nil
 	})
 
@@ -95,12 +121,12 @@ func TestRunAllWithErrorInMiddleware(t *testing.T) {
 func TestRunAllWithErrorInNext(t *testing.T) {
 	m := middlewares{}
 	expectedErr := errors.New("next error")
-	middlewareFunc := func(ctx context.Context, next func(context.Context) error) error {
+	middlewareFunc := func(ctx HatchetContext, next func(HatchetContext) error) error {
 		return next(ctx)
 	}
 	m.add(middlewareFunc)
 
-	err := m.runAll(context.Background(), func(ctx context.Context) error {
+	err := m.runAll(&testHatchetContext{context.Background()}, func(ctx HatchetContext) error {
 		return expectedErr
 	})
 
