@@ -26,7 +26,7 @@ func (c *testHatchetContext) TriggeredByEvent() bool {
 	return false
 }
 
-func (c *testHatchetContext) Event(target interface{}) error {
+func (c *testHatchetContext) WorkflowInput(target interface{}) error {
 	return nil
 }
 

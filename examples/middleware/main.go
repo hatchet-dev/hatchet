@@ -87,7 +87,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					input := &userCreateEvent{}
 
-					err = ctx.Event(input)
+					err = ctx.WorkflowInput(input)
 
 					if err != nil {
 						return nil, err

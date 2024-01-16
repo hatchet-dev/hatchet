@@ -22,7 +22,7 @@ type stepOneOutput struct {
 func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 	input := &Event{}
 
-	err = ctx.Event(input)
+	err = ctx.WorkflowInput(input)
 
 	if err != nil {
 		return nil, err

@@ -62,7 +62,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 			Steps: []worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
 					input := &userCreateEvent{}
-					ctx.Event(input)
+					ctx.WorkflowInput(input)
 
 					return &stepOutput{
 						Message: "Step 1 got username: " + input.Username,
@@ -71,7 +71,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 				).SetName("step-one"),
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
 					input := &userCreateEvent{}
-					ctx.Event(input)
+					ctx.WorkflowInput(input)
 
 					return &stepOutput{
 						Message: "Step 2 got username: " + input.Username,

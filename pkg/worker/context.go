@@ -19,7 +19,7 @@ type HatchetContext interface {
 
 	TriggeredByEvent() bool
 
-	Event(target interface{}) error
+	WorkflowInput(target interface{}) error
 }
 
 // TODO: move this into proto definitions
@@ -86,7 +86,7 @@ func (h *hatchetContext) TriggeredByEvent() bool {
 	return h.stepData.TriggeredBy == TriggeredByEvent
 }
 
-func (h *hatchetContext) Event(target interface{}) error {
+func (h *hatchetContext) WorkflowInput(target interface{}) error {
 	return toTarget(h.stepData.Input, target)
 }
 
