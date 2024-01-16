@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY ./frontend/app/package.json ./frontend/app/pnpm-lock.yaml ./
 RUN corepack pnpm --version
-RUN corepack pnpm install
+RUN corepack pnpm install --frozen-lockfile && corepack pnpm store prune
 
 COPY ./frontend/app ./
 RUN npm run build

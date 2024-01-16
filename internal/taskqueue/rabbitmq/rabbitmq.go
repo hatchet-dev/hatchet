@@ -8,10 +8,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/logger"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/internal/logger"
+	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 // session composes an amqp.Connection with an amqp.Channel

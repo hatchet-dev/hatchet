@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
-	"github.com/rs/zerolog"
 )
 
 type RequestDecoderValidator interface {

@@ -6,6 +6,7 @@ import (
 
 	v10Validator "github.com/go-playground/validator/v10"
 	"github.com/hashicorp/go-multierror"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 )
