@@ -6,6 +6,12 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+	"github.com/steebchen/prisma-client-go/runtime/transaction"
+
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -14,10 +20,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlctoprisma"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/steebchen/prisma-client-go/runtime/transaction"
 )
 
 type workflowRepository struct {
@@ -25,9 +27,10 @@ type workflowRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewWorkflowRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator) repository.WorkflowRepository {
+func NewWorkflowRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRepository{
@@ -35,6 +38,7 @@ func NewWorkflowRepository(client *db.PrismaClient, pool *pgxpool.Pool, v valida
 		v:       v,
 		queries: queries,
 		pool:    pool,
+		l:       l,
 	}
 }
 
@@ -94,7 +98,7 @@ func (r *workflowRepository) ListWorkflows(tenantId string, opts *repository.Lis
 		return nil, err
 	}
 
-	defer tx.Rollback(context.Background())
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
 	workflows, err := r.queries.ListWorkflows(context.Background(), tx, queryParams)
 
@@ -197,7 +201,7 @@ func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository
 		return nil, err
 	}
 
-	defer tx.Rollback(context.Background())
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
 	workflowId := sqlchelpers.UUIDFromStr(uuid.New().String())
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
@@ -301,7 +305,7 @@ func (r *workflowRepository) CreateWorkflowVersion(tenantId string, opts *reposi
 		return nil, err
 	}
 
-	defer tx.Rollback(context.Background())
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
 	workflowId := sqlchelpers.UUIDFromStr(workflow.ID)
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
