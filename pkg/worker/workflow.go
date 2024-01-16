@@ -158,18 +158,26 @@ func (j *WorkflowJob) ToWorkflowJob(svcName string) (*types.WorkflowJob, error) 
 		Steps:       []types.WorkflowStep{},
 	}
 
-	var prevStep *step
+	for i := range j.Steps {
+		// parentSteps := []step{}
 
-	for i, step := range j.Steps {
-		newStep, err := step.ToWorkflowStep(prevStep, svcName, i)
+		// for _, parentId := range j.Steps[i].Parents {
+		// 	parentStep, exists := stepMap[parentId]
+
+		// 	if !exists {
+		// 		return nil, fmt.Errorf("step %s does not exist", parentId)
+		// 	}
+
+		// 	parentSteps = append(parentSteps, *parentStep)
+		// }
+
+		newStep, err := j.Steps[i].ToWorkflowStep(svcName, i)
 
 		if err != nil {
 			return nil, err
 		}
 
 		apiJob.Steps = append(apiJob.Steps, newStep.APIStep)
-
-		prevStep = newStep
 	}
 
 	return apiJob, nil
@@ -196,11 +204,15 @@ type WorkflowStep struct {
 
 	// The step id/name. If not set, one will be generated from the function name
 	Name string
+
+	// The ids of the parents
+	Parents []string
 }
 
 func Fn(f any) WorkflowStep {
 	return WorkflowStep{
 		Function: f,
+		Parents:  []string{},
 	}
 }
 
@@ -211,6 +223,11 @@ func (w WorkflowStep) SetName(name string) WorkflowStep {
 
 func (w WorkflowStep) SetTimeout(timeout string) WorkflowStep {
 	w.Timeout = timeout
+	return w
+}
+
+func (w WorkflowStep) AddParents(parents ...string) WorkflowStep {
+	w.Parents = append(w.Parents, parents...)
 	return w
 }
 
@@ -250,7 +267,7 @@ type step struct {
 	APIStep types.WorkflowStep
 }
 
-func (s *WorkflowStep) ToWorkflowStep(prevStep *step, svcName string, index int) (*step, error) {
+func (s *WorkflowStep) ToWorkflowStep(svcName string, index int) (*step, error) {
 	fnType := reflect.TypeOf(s.Function)
 
 	res := &step{}
@@ -262,6 +279,7 @@ func (s *WorkflowStep) ToWorkflowStep(prevStep *step, svcName string, index int)
 		ID:       s.GetStepId(index),
 		Timeout:  s.Timeout,
 		ActionID: s.GetActionId(svcName, index),
+		Parents:  []string{},
 	}
 
 	inputs, err := decodeFnArgTypes(fnType)
@@ -270,7 +288,9 @@ func (s *WorkflowStep) ToWorkflowStep(prevStep *step, svcName string, index int)
 		return nil, err
 	}
 
-	res.NonCtxInput = inputs[1]
+	if len(inputs) > 1 {
+		res.NonCtxInput = inputs[1]
+	}
 
 	outputs, err := decodeFnReturnTypes(fnType)
 
@@ -282,15 +302,19 @@ func (s *WorkflowStep) ToWorkflowStep(prevStep *step, svcName string, index int)
 		res.NonErrOutput = &outputs[0]
 	}
 
-	// if the previous step's first output matches the last input of this step, then the data
-	// is passed through
-	if prevStep != nil && prevStep.NonErrOutput != nil {
-		if inputs[1] == *prevStep.NonErrOutput {
+	for _, parent := range s.Parents {
+		if res.APIStep.With == nil {
 			res.APIStep.With = map[string]interface{}{
-				"object": "{{ index .steps \"" + prevStep.Id + "\" \"json\" }}",
+				parent: "{{ index .steps \"" + parent + "\" \"json\" }}",
 			}
+		} else {
+			res.APIStep.With[parent] = "{{ index .steps \"" + parent + "\" \"json\" }}"
 		}
-	} else {
+
+		res.APIStep.Parents = append(res.APIStep.Parents, parent)
+	}
+
+	if res.APIStep.With == nil {
 		res.APIStep.With = map[string]interface{}{
 			"object": "{{ .input.json }}",
 		}

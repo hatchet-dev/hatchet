@@ -185,7 +185,7 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 				err = t.handleTask(ctx, task)
 
 				if err != nil {
-					t.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
+					t.l.Error().Err(err).Msgf("could not handle ticker task %s", task.ID)
 				}
 			}(task)
 		}

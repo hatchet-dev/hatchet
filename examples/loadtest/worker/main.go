@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -20,7 +19,15 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func StepOne(ctx context.Context, input *Event) (result *stepOneOutput, err error) {
+func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+	input := &Event{}
+
+	err = ctx.Event(input)
+
+	if err != nil {
+		return nil, err
+	}
+
 	fmt.Println(input.ID, "delay", time.Since(input.CreatedAt))
 
 	return &stepOneOutput{

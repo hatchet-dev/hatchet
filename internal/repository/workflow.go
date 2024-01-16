@@ -70,8 +70,8 @@ type CreateWorkflowStepOpts struct {
 	// (optional) the step timeout
 	Timeout *string
 
-	// (optional) the step inputs
-	Inputs *db.JSON
+	// (optional) the parents that this step depends on
+	Parents []string `validate:"dive,hatchetName"`
 }
 
 type ListWorkflowsOpts struct {

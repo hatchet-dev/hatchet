@@ -191,8 +191,6 @@ CREATE TABLE "Step" (
     "jobId" UUID NOT NULL,
     "actionId" TEXT NOT NULL,
     "timeout" TEXT,
-    "inputs" JSONB,
-    "nextId" UUID,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );
@@ -206,7 +204,6 @@ CREATE TABLE "WorkflowRun" (
     "tenantId" UUID NOT NULL,
     "workflowVersionId" UUID NOT NULL,
     "status" "WorkflowRunStatus" NOT NULL DEFAULT 'PENDING',
-    "input" JSONB,
     "error" TEXT,
     "startedAt" TIMESTAMP(3),
     "finishedAt" TIMESTAMP(3),
@@ -274,7 +271,6 @@ CREATE TABLE "StepRun" (
     "tenantId" UUID NOT NULL,
     "jobRunId" UUID NOT NULL,
     "stepId" UUID NOT NULL,
-    "nextId" UUID,
     "order" SMALLSERIAL NOT NULL,
     "workerId" UUID,
     "tickerId" UUID,
@@ -358,6 +354,18 @@ CREATE TABLE "_ActionToWorker" (
 );
 
 -- CreateTable
+CREATE TABLE "_StepOrder" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "_StepRunOrder" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "_ServiceToWorker" (
     "A" UUID NOT NULL,
     "B" UUID NOT NULL
@@ -436,9 +444,6 @@ CREATE UNIQUE INDEX "Action_tenantId_id_key" ON "Action"("tenantId", "id");
 CREATE UNIQUE INDEX "Step_id_key" ON "Step"("id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Step_nextId_key" ON "Step"("nextId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Step_jobId_readableId_key" ON "Step"("jobId", "readableId");
 
 -- CreateIndex
@@ -472,9 +477,6 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupDat
 CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun"("id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StepRun_nextId_key" ON "StepRun"("nextId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Dispatcher_id_key" ON "Dispatcher"("id");
 
 -- CreateIndex
@@ -500,6 +502,18 @@ CREATE UNIQUE INDEX "_ActionToWorker_AB_unique" ON "_ActionToWorker"("A", "B");
 
 -- CreateIndex
 CREATE INDEX "_ActionToWorker_B_index" ON "_ActionToWorker"("B");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "_StepOrder_AB_unique" ON "_StepOrder"("A", "B");
+
+-- CreateIndex
+CREATE INDEX "_StepOrder_B_index" ON "_StepOrder"("B");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "_StepRunOrder_AB_unique" ON "_StepRunOrder"("A", "B");
+
+-- CreateIndex
+CREATE INDEX "_StepRunOrder_B_index" ON "_StepRunOrder"("B");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "_ServiceToWorker_AB_unique" ON "_ServiceToWorker"("A", "B");
@@ -574,9 +588,6 @@ ALTER TABLE "Step" ADD CONSTRAINT "Step_jobId_fkey" FOREIGN KEY ("jobId") REFERE
 ALTER TABLE "Step" ADD CONSTRAINT "Step_actionId_tenantId_fkey" FOREIGN KEY ("actionId", "tenantId") REFERENCES "Action"("id", "tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Step" ADD CONSTRAINT "Step_nextId_fkey" FOREIGN KEY ("nextId") REFERENCES "Step"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -625,9 +636,6 @@ ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_jobRunId_fkey" FOREIGN KEY ("jobRu
 ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_nextId_fkey" FOREIGN KEY ("nextId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -653,6 +661,18 @@ ALTER TABLE "_ActionToWorker" ADD CONSTRAINT "_ActionToWorker_A_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "_ActionToWorker" ADD CONSTRAINT "_ActionToWorker_B_fkey" FOREIGN KEY ("B") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_StepOrder" ADD CONSTRAINT "_StepOrder_A_fkey" FOREIGN KEY ("A") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_StepOrder" ADD CONSTRAINT "_StepOrder_B_fkey" FOREIGN KEY ("B") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_StepRunOrder" ADD CONSTRAINT "_StepRunOrder_A_fkey" FOREIGN KEY ("A") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_StepRunOrder" ADD CONSTRAINT "_StepRunOrder_B_fkey" FOREIGN KEY ("B") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_ServiceToWorker" ADD CONSTRAINT "_ServiceToWorker_A_fkey" FOREIGN KEY ("A") REFERENCES "Service"("id") ON DELETE CASCADE ON UPDATE CASCADE;

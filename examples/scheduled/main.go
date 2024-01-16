@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -20,7 +19,15 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func StepOne(ctx context.Context, input *scheduledInput) (result *stepOneOutput, err error) {
+func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+	input := &scheduledInput{}
+
+	err = ctx.Event(input)
+
+	if err != nil {
+		return nil, err
+	}
+
 	// get time between execute at and scheduled at
 	timeBetween := time.Since(input.ScheduledAt)
 

@@ -63,8 +63,9 @@ func main() {
 
 	testSvc := w.NewService("test")
 
-	testSvc.Use(func(ctx context.Context, next func(context.Context) error) error {
-		return next(context.WithValue(ctx, "svckey", "svcvalue"))
+	testSvc.Use(func(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
+		ctx.SetContext(context.WithValue(ctx.GetContext(), "testkey", "testvalue"))
+		return next(ctx)
 	})
 
 	err = testSvc.RegisterAction(StepOne, worker.WithActionName("step-one"))

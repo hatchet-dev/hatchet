@@ -63,3 +63,25 @@ WHERE
     "id" = @id::uuid AND
     "tenantId" = @tenantId::uuid
 RETURNING "JobRun".*;
+
+-- name: UpsertJobRunLookupData :exec
+INSERT INTO "JobRunLookupData" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "jobRunId",
+    "tenantId",
+    "data"
+) VALUES (
+    gen_random_uuid(), -- Generates a new UUID for id
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL,
+    @jobRunId::uuid,
+    @tenantId::uuid,
+    jsonb_set('{}', @fieldPath::text[], @jsonData::jsonb, true)
+) ON CONFLICT ("jobRunId", "tenantId") DO UPDATE
+SET 
+    "data" = jsonb_set("JobRunLookupData"."data", @fieldPath::text[], @jsonData::jsonb, true),
+    "updatedAt" = CURRENT_TIMESTAMP;

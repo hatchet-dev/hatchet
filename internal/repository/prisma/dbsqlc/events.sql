@@ -10,6 +10,27 @@ WHERE
         events."key" = ANY(sqlc.narg('keys')::text[])
     );
 
+-- name: CreateEvent :one
+INSERT INTO "Event" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "key",
+    "tenantId",
+    "replayedFromId",
+    "data"
+) VALUES (
+    @id::uuid,
+    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
+    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
+    @deletedAt::timestamp,
+    @key::text,
+    @tenantId::uuid,
+    sqlc.narg('replayedFromId')::uuid,
+    @data::jsonb
+) RETURNING *;
+
 -- name: ListEvents :many
 SELECT
     sqlc.embed(events),

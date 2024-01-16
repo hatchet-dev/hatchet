@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -489,15 +490,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		for j, step := range job.Steps {
 			stepCp := step
 
-			inputsMap := make(map[string]interface{})
-
-			err := json.Unmarshal([]byte(stepCp.Inputs), &inputsMap)
-
-			if err != nil {
-				return nil, err
-			}
-
-			inputs, err := datautils.ToJSONType(inputsMap)
+			parsedAction, err := types.ParseActionID(step.Action)
 
 			if err != nil {
 				return nil, err
@@ -505,9 +498,9 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 
 			steps[j] = repository.CreateWorkflowStepOpts{
 				ReadableId: stepCp.ReadableId,
-				Action:     stepCp.Action,
+				Action:     parsedAction.String(),
 				Timeout:    &stepCp.Timeout,
-				Inputs:     inputs,
+				Parents:    stepCp.Parents,
 			}
 		}
 
@@ -675,9 +668,9 @@ func toStep(step *db.StepModel) *contracts.Step {
 		s.Timeout = wrapperspb.String(timeout)
 	}
 
-	if nextId, ok := step.NextID(); ok {
-		s.NextId = nextId
-	}
+	// if nextId, ok := step.NextID(); ok {
+	// 	s.NextId = nextId
+	// }
 
 	return s
 }

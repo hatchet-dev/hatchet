@@ -23,7 +23,7 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func StepOne(ctx context.Context, input *userCreateEvent) (result *stepOneOutput, err error) {
+func StepOne(ctx context.Context) (result *stepOneOutput, err error) {
 	return nil, fmt.Errorf("this is an error")
 }
 

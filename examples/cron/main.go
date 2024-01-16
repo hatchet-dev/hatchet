@@ -10,10 +10,9 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type printInput struct{}
 type printOutput struct{}
 
-func print(ctx context.Context, input *printInput) (result *printOutput, err error) {
+func print(ctx context.Context) (result *printOutput, err error) {
 	fmt.Println("called print:print")
 
 	return &printOutput{}, nil
@@ -26,9 +25,7 @@ func main() {
 		panic(err)
 	}
 
-	client, err := client.New(
-		client.InitWorkflows(),
-	)
+	client, err := client.New()
 
 	if err != nil {
 		panic(err)
@@ -36,7 +33,7 @@ func main() {
 
 	// Create a worker. This automatically reads in a TemporalClient from .env and workflow files from the .hatchet
 	// directory, but this can be customized with the `worker.WithTemporalClient` and `worker.WithWorkflowFiles` options.
-	worker, err := worker.NewWorker(
+	w, err := worker.NewWorker(
 		worker.WithClient(
 			client,
 		),
@@ -46,9 +43,10 @@ func main() {
 		panic(err)
 	}
 
-	printSvc := worker.NewService("print")
-
-	err = printSvc.RegisterAction(print)
+	err = w.On(
+		worker.Cron("* * * * *"),
+		worker.Fn(print),
+	)
 
 	if err != nil {
 		panic(err)
@@ -57,7 +55,7 @@ func main() {
 	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
 	defer cancel()
 
-	err = worker.Start(interruptCtx)
+	err = w.Start(interruptCtx)
 
 	if err != nil {
 		panic(err)

@@ -137,3 +137,43 @@ func (q *Queries) UpdateJobRun(ctx context.Context, db DBTX, arg UpdateJobRunPar
 	)
 	return &i, err
 }
+
+const upsertJobRunLookupData = `-- name: UpsertJobRunLookupData :exec
+INSERT INTO "JobRunLookupData" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "jobRunId",
+    "tenantId",
+    "data"
+) VALUES (
+    gen_random_uuid(), -- Generates a new UUID for id
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL,
+    $1::uuid,
+    $2::uuid,
+    jsonb_set('{}', $3::text[], $4::jsonb, true)
+) ON CONFLICT ("jobRunId", "tenantId") DO UPDATE
+SET 
+    "data" = jsonb_set("JobRunLookupData"."data", $3::text[], $4::jsonb, true),
+    "updatedAt" = CURRENT_TIMESTAMP
+`
+
+type UpsertJobRunLookupDataParams struct {
+	Jobrunid  pgtype.UUID `json:"jobrunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+	Fieldpath []string    `json:"fieldpath"`
+	Jsondata  []byte      `json:"jsondata"`
+}
+
+func (q *Queries) UpsertJobRunLookupData(ctx context.Context, db DBTX, arg UpsertJobRunLookupDataParams) error {
+	_, err := db.Exec(ctx, upsertJobRunLookupData,
+		arg.Jobrunid,
+		arg.Tenantid,
+		arg.Fieldpath,
+		arg.Jsondata,
+	)
+	return err
+}

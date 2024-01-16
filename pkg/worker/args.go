@@ -6,31 +6,36 @@ import (
 	"reflect"
 )
 
-func decodeArgsToInterface(fnType reflect.Type) (result interface{}, err error) {
-	if fnType.NumIn() != 2 {
-		return nil, fmt.Errorf("fn must have exactly one argument")
+func decodeArgsToInterface(fnType reflect.Type) (results interface{}, err error) {
+	numIn := fnType.NumIn()
+	if numIn != 1 && numIn != 2 {
+		return nil, fmt.Errorf("fn must have exactly one or two arguments")
 	}
 
 	firstArg := fnType.In(0)
 
 	if firstArg.Kind() != reflect.Interface || !firstArg.Implements(reflect.TypeOf((*context.Context)(nil)).Elem()) {
-		return nil, fmt.Errorf("first argument must be context.Context")
+		return nil, fmt.Errorf("first argument must implement context.Context")
 	}
 
 	// second argument should be a pointer to a struct
-	secondArg := fnType.In(1)
+	if numIn == 2 {
+		secondArg := fnType.In(1)
 
-	if secondArg.Kind() != reflect.Ptr {
-		return nil, fmt.Errorf("second argument must be a pointer to a struct")
+		if secondArg.Kind() != reflect.Ptr {
+			return nil, fmt.Errorf("second argument must be a pointer to a struct")
+		}
+
+		secondArgElem := secondArg.Elem()
+
+		if secondArgElem.Kind() != reflect.Struct {
+			return nil, fmt.Errorf("second argument must be a pointer to a struct")
+		}
+
+		return reflect.New(secondArgElem).Interface(), nil
 	}
 
-	secondArgElem := secondArg.Elem()
-
-	if secondArgElem.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("second argument must be a pointer to a struct")
-	}
-
-	return reflect.New(secondArgElem).Interface(), nil
+	return nil, nil
 }
 
 func decodeFnArgTypes(fnType reflect.Type) (result []reflect.Type, err error) {

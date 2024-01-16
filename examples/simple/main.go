@@ -60,7 +60,15 @@ func run(ch <-chan interface{}, events chan<- string) error {
 			Name:        "post-user-update",
 			Description: "This runs after an update to the user model.",
 			Steps: []worker.WorkflowStep{
-				worker.Fn(func(ctx context.Context, input *userCreateEvent) (result *stepOneOutput, err error) {
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					input := &userCreateEvent{}
+
+					err = ctx.Event(input)
+
+					if err != nil {
+						return nil, err
+					}
+
 					log.Printf("step-one")
 					events <- "step-one"
 
@@ -69,14 +77,21 @@ func run(ch <-chan interface{}, events chan<- string) error {
 					}, nil
 				},
 				).SetName("step-one"),
-				worker.Fn(func(ctx context.Context, input *stepOneOutput) (result *stepOneOutput, err error) {
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					input := &stepOneOutput{}
+					err = ctx.StepOutput("step-one", input)
+
+					if err != nil {
+						return nil, err
+					}
+
 					log.Printf("step-two")
 					events <- "step-two"
 
 					return &stepOneOutput{
 						Message: "Above message is: " + input.Message,
 					}, nil
-				}).SetName("step-two"),
+				}).SetName("step-two").AddParents("step-one"),
 			},
 		},
 	)

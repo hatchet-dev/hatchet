@@ -1,3 +1,12 @@
+-- name: GetStepRun :one
+SELECT
+    "StepRun".*
+FROM
+    "StepRun"
+WHERE
+    "id" = @id::uuid AND
+    "tenantId" = @tenantId::uuid;
+
 -- name: UpdateStepRun :one
 UPDATE
     "StepRun"
