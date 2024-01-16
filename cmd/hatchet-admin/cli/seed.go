@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
-	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/spf13/cobra"
@@ -118,19 +117,6 @@ func runSeed(cf *loader.ConfigLoader) error {
 }
 
 func seedDev(repo repository.Repository, tenantId string) error {
-	// seed example workflows
-	firstInput, _ := datautils.ToJSONType(map[string]interface{}{
-		"message": "Username is {{ .input.username }}",
-	})
-
-	secondInput, _ := datautils.ToJSONType(map[string]interface{}{
-		"message": "Above message is: {{ .steps.echo1.message }}",
-	})
-
-	thirdInput, _ := datautils.ToJSONType(map[string]interface{}{
-		"message": "Above message is: {{ .steps.echo1.message }}",
-	})
-
 	_, err := repo.Workflow().GetWorkflowByName(tenantId, "test-workflow")
 
 	if err != nil {
@@ -157,17 +143,20 @@ func seedDev(repo repository.Repository, tenantId string) error {
 						{
 							ReadableId: "echo1",
 							Action:     "echo:echo",
-							Inputs:     firstInput,
 						},
 						{
 							ReadableId: "echo2",
 							Action:     "echo:echo",
-							Inputs:     secondInput,
+							Parents: []string{
+								"echo1",
+							},
 						},
 						{
 							ReadableId: "echo3",
 							Action:     "echo:echo",
-							Inputs:     thirdInput,
+							Parents: []string{
+								"echo2",
+							},
 						},
 					},
 				},

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -70,8 +71,8 @@ type CreateWorkflowStepOpts struct {
 	// (optional) the step timeout
 	Timeout *string
 
-	// (optional) the step inputs
-	Inputs *db.JSON
+	// (optional) the parents that this step depends on
+	Parents []string `validate:"dive,hatchetName"`
 }
 
 type ListWorkflowsOpts struct {
@@ -94,6 +95,14 @@ type ListWorkflowsRow struct {
 type ListWorkflowsResult struct {
 	Rows  []*ListWorkflowsRow
 	Count int
+}
+
+type JobRunHasCycleError struct {
+	JobName string
+}
+
+func (e *JobRunHasCycleError) Error() string {
+	return fmt.Sprintf("job %s has a cycle", e.JobName)
 }
 
 type WorkflowRepository interface {

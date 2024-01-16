@@ -2,7 +2,6 @@ package repository
 
 import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/steebchen/prisma-client-go/runtime/types"
 )
 
 type UpdateJobRunOpts struct {
@@ -10,7 +9,8 @@ type UpdateJobRunOpts struct {
 }
 
 type UpdateJobRunLookupDataOpts struct {
-	LookupData *types.JSON
+	FieldPath []string
+	Data      []byte
 }
 
 type ListAllJobRunsOpts struct {
@@ -34,5 +34,5 @@ type JobRunRepository interface {
 
 	GetJobRunLookupData(tenantId, jobRunId string) (*db.JobRunLookupDataModel, error)
 
-	UpdateJobRunLookupData(tenantId, jobRunId string, opts *UpdateJobRunLookupDataOpts) (*db.JobRunLookupDataModel, error)
+	UpdateJobRunLookupData(tenantId, jobRunId string, opts *UpdateJobRunLookupDataOpts) error
 }

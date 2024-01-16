@@ -6,17 +6,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
-	"github.com/steebchen/prisma-client-go/runtime/transaction"
 )
 
 type workflowRunRepository struct {
@@ -93,7 +93,7 @@ func (w *workflowRunRepository) ListWorkflowRuns(tenantId string, opts *reposito
 		return nil, err
 	}
 
-	defer tx.Rollback(context.Background())
+	defer deferRollback(context.Background(), w.l, tx.Rollback)
 
 	workflowRuns, err := w.queries.ListWorkflowRuns(context.Background(), tx, queryParams)
 
@@ -127,128 +127,164 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 		return nil, err
 	}
 
-	tx1Ctx, tx1Span := telemetry.NewSpan(ctx, "db-create-new-workflow-run-tx")
-	defer tx1Span.End()
+	sqlcWorkflowRun, err := func() (*dbsqlc.WorkflowRun, error) {
+		tx1Ctx, tx1Span := telemetry.NewSpan(ctx, "db-create-new-workflow-run-tx")
+		defer tx1Span.End()
 
-	// begin a transaction
-	workflowRunId := uuid.New().String()
+		// begin a transaction
+		workflowRunId := uuid.New().String()
 
-	txs := []transaction.Param{
-		w.client.WorkflowRun.CreateOne(
-			db.WorkflowRun.Tenant.Link(
-				db.Tenant.ID.Equals(tenantId),
-			),
-			db.WorkflowRun.WorkflowVersion.Link(
-				db.WorkflowVersion.ID.Equals(opts.WorkflowVersionId),
-			),
-			db.WorkflowRun.ID.Set(workflowRunId),
-		).Tx(),
-	}
+		tx, err := w.pool.Begin(tx1Ctx)
 
-	triggerOptionals := []db.WorkflowRunTriggeredBySetParam{}
+		if err != nil {
+			return nil, err
+		}
 
-	if opts.TriggeringEventId != nil {
-		triggerOptionals = append(triggerOptionals, db.WorkflowRunTriggeredBy.Event.Link(
-			db.Event.ID.Equals(*opts.TriggeringEventId),
-		),
+		defer deferRollback(context.Background(), w.l, tx.Rollback)
+
+		pgWorkflowRunId := sqlchelpers.UUIDFromStr(workflowRunId)
+		pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+		// create a workflow
+		sqlcWorkflowRun, err := w.queries.CreateWorkflowRun(
+			tx1Ctx,
+			tx,
+			dbsqlc.CreateWorkflowRunParams{
+				ID:                pgWorkflowRunId,
+				Tenantid:          pgTenantId,
+				Workflowversionid: sqlchelpers.UUIDFromStr(opts.WorkflowVersionId),
+			},
 		)
-	}
 
-	if opts.Cron != nil && opts.CronParentId != nil {
-		triggerOptionals = append(triggerOptionals, db.WorkflowRunTriggeredBy.Cron.Link(
-			db.WorkflowTriggerCronRef.ParentIDCron(
-				db.WorkflowTriggerCronRef.ParentID.Equals(*opts.CronParentId),
-				db.WorkflowTriggerCronRef.Cron.Equals(*opts.Cron),
-			),
-		))
-	}
-
-	if opts.ScheduledWorkflowId != nil {
-		triggerOptionals = append(triggerOptionals, db.WorkflowRunTriggeredBy.Scheduled.Link(
-			db.WorkflowTriggerScheduledRef.ID.Equals(*opts.ScheduledWorkflowId),
-		))
-	}
-
-	// create the trigger definition
-	txs = append(txs, w.client.WorkflowRunTriggeredBy.CreateOne(
-		db.WorkflowRunTriggeredBy.Tenant.Link(
-			db.Tenant.ID.Equals(tenantId),
-		),
-		db.WorkflowRunTriggeredBy.Parent.Link(
-			db.WorkflowRun.ID.Equals(workflowRunId),
-		),
-		triggerOptionals...,
-	).Tx())
-
-	// create the child jobs
-	for _, jobOpts := range opts.JobRuns {
-		jobRunId := uuid.New().String()
-
-		requeueAfter := time.Now().UTC().Add(5 * time.Second)
-
-		if jobOpts.RequeueAfter != nil {
-			requeueAfter = *jobOpts.RequeueAfter
+		if err != nil {
+			return nil, err
 		}
 
-		txs = append(txs, w.client.JobRun.CreateOne(
-			db.JobRun.Tenant.Link(
-				db.Tenant.ID.Equals(tenantId),
-			),
-			db.JobRun.WorkflowRun.Link(
-				db.WorkflowRun.ID.Equals(workflowRunId),
-			),
-			db.JobRun.Job.Link(
-				db.Job.ID.Equals(jobOpts.JobId),
-			),
-			db.JobRun.ID.Set(jobRunId),
-		).Tx())
+		var (
+			eventId, cronParentId, scheduledWorkflowId pgtype.UUID
+			cronId                                     pgtype.Text
+		)
 
-		txs = append(txs, w.client.JobRunLookupData.CreateOne(
-			db.JobRunLookupData.JobRun.Link(
-				db.JobRun.ID.Equals(jobRunId),
-			),
-
-			db.JobRunLookupData.Tenant.Link(
-				db.Tenant.ID.Equals(tenantId),
-			),
-			db.JobRunLookupData.Data.SetIfPresent(jobOpts.Input),
-		).Tx())
-
-		// create the workflow job step runs
-		var prev *string
-
-		for _, stepOpts := range jobOpts.StepRuns {
-			stepRunId := uuid.New().String()
-
-			optionals := []db.StepRunSetParam{
-				db.StepRun.ID.Set(stepRunId),
-				db.StepRun.RequeueAfter.Set(requeueAfter),
-			}
-
-			if prev != nil {
-				optionals = append(optionals, db.StepRun.Prev.Link(
-					db.StepRun.ID.Equals(*prev),
-				))
-			}
-
-			txs = append(txs, w.client.StepRun.CreateOne(
-				db.StepRun.Tenant.Link(
-					db.Tenant.ID.Equals(tenantId),
-				),
-				db.StepRun.JobRun.Link(
-					db.JobRun.ID.Equals(jobRunId),
-				),
-				db.StepRun.Step.Link(
-					db.Step.ID.Equals(stepOpts.StepId),
-				),
-				optionals...,
-			).Tx())
-
-			prev = &stepRunId
+		if opts.TriggeringEventId != nil {
+			eventId = sqlchelpers.UUIDFromStr(*opts.TriggeringEventId)
 		}
-	}
 
-	err := w.client.Prisma.Transaction(txs...).Exec(tx1Ctx)
+		if opts.CronParentId != nil {
+			cronParentId = sqlchelpers.UUIDFromStr(*opts.CronParentId)
+		}
+
+		if opts.Cron != nil {
+			cronId = sqlchelpers.TextFromStr(*opts.Cron)
+		}
+
+		if opts.ScheduledWorkflowId != nil {
+			scheduledWorkflowId = sqlchelpers.UUIDFromStr(*opts.ScheduledWorkflowId)
+		}
+
+		_, err = w.queries.CreateWorkflowRunTriggeredBy(
+			tx1Ctx,
+			tx,
+			dbsqlc.CreateWorkflowRunTriggeredByParams{
+				Tenantid:      pgTenantId,
+				Workflowrunid: sqlcWorkflowRun.ID,
+				EventId:       eventId,
+				CronParentId:  cronParentId,
+				Cron:          cronId,
+				ScheduledId:   scheduledWorkflowId,
+			},
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		// create the child jobs
+		for _, jobOpts := range opts.JobRuns {
+			jobRunId := uuid.New().String()
+
+			requeueAfter := time.Now().UTC().Add(5 * time.Second)
+
+			if jobOpts.RequeueAfter != nil {
+				requeueAfter = *jobOpts.RequeueAfter
+			}
+
+			sqlcJobRun, err := w.queries.CreateJobRun(
+				tx1Ctx,
+				tx,
+				dbsqlc.CreateJobRunParams{
+					ID:            sqlchelpers.UUIDFromStr(jobRunId),
+					Tenantid:      pgTenantId,
+					Workflowrunid: sqlcWorkflowRun.ID,
+					Jobid:         sqlchelpers.UUIDFromStr(jobOpts.JobId),
+				},
+			)
+
+			if err != nil {
+				return nil, err
+			}
+
+			lookupParams := dbsqlc.CreateJobRunLookupDataParams{
+				Tenantid:    pgTenantId,
+				Jobrunid:    sqlcJobRun.ID,
+				Triggeredby: jobOpts.TriggeredBy,
+			}
+
+			if jobOpts.InputData != nil {
+				lookupParams.Input = jobOpts.InputData
+			}
+
+			// create the job run lookup data
+			_, err = w.queries.CreateJobRunLookupData(
+				tx1Ctx,
+				tx,
+				lookupParams,
+			)
+
+			if err != nil {
+				return nil, err
+			}
+
+			// create the workflow job step runs
+			for _, stepOpts := range jobOpts.StepRuns {
+				stepRunId := uuid.New().String()
+
+				_, err := w.queries.CreateStepRun(
+					tx1Ctx,
+					tx,
+					dbsqlc.CreateStepRunParams{
+						ID:           sqlchelpers.UUIDFromStr(stepRunId),
+						Tenantid:     pgTenantId,
+						Jobrunid:     sqlcJobRun.ID,
+						Stepid:       sqlchelpers.UUIDFromStr(stepOpts.StepId),
+						Requeueafter: sqlchelpers.TimestampFromTime(requeueAfter),
+					},
+				)
+
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			// link all step runs with correct parents/children
+			err = w.queries.LinkStepRunParents(
+				tx1Ctx,
+				tx,
+				sqlcJobRun.ID,
+			)
+
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		err = tx.Commit(tx1Ctx)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return sqlcWorkflowRun, nil
+	}()
 
 	if err != nil {
 		return nil, err
@@ -258,7 +294,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 	defer tx2Span.End()
 
 	res, err := w.client.WorkflowRun.FindUnique(
-		db.WorkflowRun.ID.Equals(workflowRunId),
+		db.WorkflowRun.ID.Equals(sqlcWorkflowRun.ID),
 	).With(
 		defaultWorkflowRunPopulator()...,
 	).Exec(tx2Ctx)

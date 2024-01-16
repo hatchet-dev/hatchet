@@ -108,3 +108,193 @@ WHERE "id" = (
     WHERE "id" = @jobRunId::uuid
 ) AND "tenantId" = @tenantId::uuid
 RETURNING "WorkflowRun".*;
+
+-- name: CreateWorkflowRun :one
+INSERT INTO "WorkflowRun" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "tenantId",
+    "workflowVersionId",
+    "status",
+    "error",
+    "startedAt",
+    "finishedAt"
+) VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL, -- assuming deletedAt is not set on creation
+    @tenantId::uuid,
+    @workflowVersionId::uuid,
+    'PENDING', -- default status
+    NULL, -- assuming error is not set on creation
+    NULL, -- assuming startedAt is not set on creation
+    NULL  -- assuming finishedAt is not set on creation
+) RETURNING *;
+
+-- name: CreateWorkflowRunTriggeredBy :one
+INSERT INTO "WorkflowRunTriggeredBy" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "tenantId",
+    "parentId",
+    "eventId",
+    "cronParentId",
+    "cronSchedule",
+    "scheduledId"
+) VALUES (
+    gen_random_uuid(), -- Generates a new UUID for id
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL, -- assuming deletedAt is not set on creation
+    @tenantId::uuid,
+    @workflowRunId::text, -- assuming parentId is the workflowRunId
+    sqlc.narg('eventId')::uuid, -- NULL if not provided
+    sqlc.narg('cronParentId')::uuid, -- NULL if not provided
+    sqlc.narg('cron')::text, -- NULL if not provided
+    sqlc.narg('scheduledId')::uuid -- NULL if not provided
+) RETURNING *;
+
+-- name: CreateJobRun :one
+INSERT INTO "JobRun" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "tenantId",
+    "workflowRunId",
+    "jobId",
+    "tickerId",
+    "status",
+    "result",
+    "startedAt",
+    "finishedAt",
+    "timeoutAt",
+    "cancelledAt",
+    "cancelledReason",
+    "cancelledError"
+) VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL,
+    @tenantId::uuid,
+    @workflowRunId::text,
+    @jobId::uuid,
+    NULL,
+    'PENDING', -- default status
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL
+) RETURNING *;
+
+-- name: CreateJobRunLookupData :one
+INSERT INTO "JobRunLookupData" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "jobRunId",
+    "tenantId",
+    "data"
+) VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL,
+    @jobRunId::uuid,
+    @tenantId::uuid,
+    jsonb_build_object(
+        'input', COALESCE(sqlc.narg('input')::jsonb, '{}'::jsonb),
+        'triggered_by', @triggeredBy::text,
+        'steps', '{}'::jsonb
+    )
+) RETURNING *;
+
+-- name: CreateStepRun :one
+INSERT INTO "StepRun" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "tenantId",
+    "jobRunId",
+    "stepId",
+    "workerId",
+    "tickerId",
+    "status",
+    "input",
+    "output",
+    "requeueAfter",
+    "scheduleTimeoutAt",
+    "error",
+    "startedAt",
+    "finishedAt",
+    "timeoutAt",
+    "cancelledAt",
+    "cancelledReason",
+    "cancelledError"
+) VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL,
+    @tenantId::uuid,
+    @jobRunId::uuid,
+    @stepId::uuid,
+    NULL,
+    NULL,
+    'PENDING', -- default status
+    NULL,
+    NULL,
+    @requeueAfter::timestamp,
+    @scheduleTimeoutAt::timestamp,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL
+) RETURNING *;
+
+-- name: LinkStepRunParents :exec
+INSERT INTO "_StepRunOrder" ("A", "B")
+SELECT 
+    parent_run."id" AS "A",
+    child_run."id" AS "B"
+FROM 
+    "_StepOrder" AS step_order
+JOIN 
+    "StepRun" AS parent_run ON parent_run."stepId" = step_order."A" AND parent_run."jobRunId" = @jobRunId::uuid
+JOIN 
+    "StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = @jobRunId::uuid;
+
+-- name: ListStartableStepRuns :many
+SELECT 
+    child_run.*
+FROM 
+    "StepRun" AS child_run
+JOIN 
+    "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+WHERE 
+    child_run."tenantId" = @tenantId::uuid
+    AND child_run."jobRunId" = @jobRunId::uuid
+    AND child_run."status" = 'PENDING'
+    AND step_run_order."A" = @parentStepRunId::uuid
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "_StepRunOrder" AS parent_order
+        JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
+        WHERE 
+            parent_order."B" = child_run."id"
+            AND parent_run."status" != 'SUCCEEDED'
+    );

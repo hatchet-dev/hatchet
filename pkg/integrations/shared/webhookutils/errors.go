@@ -5,8 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/rs/zerolog"
+
+	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
 type ErrorOpts struct {

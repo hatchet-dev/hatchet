@@ -126,3 +126,184 @@ OFFSET
     COALESCE(sqlc.narg('offset'), 0)
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
+
+-- name: CreateWorkflow :one
+INSERT INTO "Workflow" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "tenantId",
+    "name",
+    "description"
+) VALUES (
+    @id::uuid,
+    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
+    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
+    @deletedAt::timestamp,
+    @tenantId::uuid,
+    @name::text,
+    @description::text
+) RETURNING *;
+
+-- name: CreateWorkflowVersion :one
+INSERT INTO "WorkflowVersion" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "version",
+    "workflowId"
+) VALUES (
+    @id::uuid,
+    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
+    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
+    @deletedAt::timestamp,
+    @version::text,
+    @workflowId::uuid
+) RETURNING *;
+
+-- name: CreateJob :one
+INSERT INTO "Job" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "tenantId",
+    "workflowVersionId",
+    "name",
+    "description",
+    "timeout"
+) VALUES (
+    @id::uuid,
+    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
+    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
+    @deletedAt::timestamp,
+    @tenantId::uuid,
+    @workflowVersionId::uuid,
+    @name::text,
+    @description::text,
+    @timeout::text
+) RETURNING *;
+
+-- name: CreateStep :one
+INSERT INTO "Step" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "readableId",
+    "tenantId",
+    "jobId",
+    "actionId",
+    "timeout"
+) VALUES (
+    @id::uuid,
+    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
+    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
+    @deletedAt::timestamp,
+    @readableId::text,
+    @tenantId::uuid,
+    @jobId::uuid,
+    @actionId::text,
+    @timeout::text
+) RETURNING *;
+
+-- name: AddStepParents :exec
+INSERT INTO "_StepOrder" ("A", "B")
+SELECT 
+    step."id",
+    @id::uuid
+FROM 
+    unnest(@parents::text[]) AS parent_readable_id
+JOIN 
+    "Step" AS step ON step."readableId" = parent_readable_id AND step."jobId" = @jobId::uuid;
+
+-- name: UpsertAction :exec
+INSERT INTO "Action" (
+    "id",
+    "tenantId"
+)
+VALUES (
+    @action::text,
+    @tenantId::uuid
+)
+ON CONFLICT ("tenantId", "id") DO UPDATE 
+SET
+    "tenantId" = EXCLUDED."tenantId"
+WHERE
+    "Action"."tenantId" = @tenantId AND "Action"."id" = @action;
+
+-- name: UpsertWorkflowTag :exec
+INSERT INTO "WorkflowTag" (
+    "id",
+    "tenantId",
+    "name",
+    "color"
+)
+VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
+    @tenantId::uuid,
+    @tagName::text,
+    COALESCE(sqlc.narg('tagColor')::text, '#93C5FD')
+)
+ON CONFLICT ("tenantId", "name") DO UPDATE
+SET
+    "color" = COALESCE(EXCLUDED."color", "WorkflowTag"."color")
+WHERE
+    "WorkflowTag"."tenantId" = @tenantId AND "WorkflowTag"."name" = @tagName;
+
+-- name: AddWorkflowTag :exec
+INSERT INTO "_WorkflowToWorkflowTag" ("A", "B")
+SELECT @id::uuid, @tags::uuid
+ON CONFLICT DO NOTHING;
+
+-- name: CreateWorkflowTriggers :one
+INSERT INTO "WorkflowTriggers" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "workflowVersionId",
+    "tenantId"
+) VALUES (
+    @id::uuid,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL,
+    @workflowVersionId::uuid,
+    @tenantId::uuid
+) RETURNING *;
+
+-- name: CreateWorkflowTriggerEventRef :one
+INSERT INTO "WorkflowTriggerEventRef" (
+    "parentId",
+    "eventKey"
+) VALUES (
+    @workflowTriggersId::uuid,
+    @eventTrigger::text
+) RETURNING *;
+
+-- name: CreateWorkflowTriggerCronRef :one
+INSERT INTO "WorkflowTriggerCronRef" (
+    "parentId",
+    "cron"
+) VALUES (
+    @workflowTriggersId::uuid,
+    @cronTrigger::text
+) RETURNING *;
+
+-- name: CreateWorkflowTriggerScheduledRef :one
+INSERT INTO "WorkflowTriggerScheduledRef" (
+    "id",
+    "parentId",
+    "triggerAt",
+    "tickerId",
+    "input"
+) VALUES (
+    gen_random_uuid(),
+    @workflowVersionId::uuid,
+    @scheduledTrigger::timestamp,
+    NULL, -- or provide a tickerId if applicable
+    NULL -- or provide input if applicable
+) RETURNING *;

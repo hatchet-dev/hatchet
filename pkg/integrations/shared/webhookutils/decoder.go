@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/schema"
+
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
 

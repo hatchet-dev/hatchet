@@ -11,6 +11,44 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addStepParents = `-- name: AddStepParents :exec
+INSERT INTO "_StepOrder" ("A", "B")
+SELECT 
+    step."id",
+    $1::uuid
+FROM 
+    unnest($2::text[]) AS parent_readable_id
+JOIN 
+    "Step" AS step ON step."readableId" = parent_readable_id AND step."jobId" = $3::uuid
+`
+
+type AddStepParentsParams struct {
+	ID      pgtype.UUID `json:"id"`
+	Parents []string    `json:"parents"`
+	Jobid   pgtype.UUID `json:"jobid"`
+}
+
+func (q *Queries) AddStepParents(ctx context.Context, db DBTX, arg AddStepParentsParams) error {
+	_, err := db.Exec(ctx, addStepParents, arg.ID, arg.Parents, arg.Jobid)
+	return err
+}
+
+const addWorkflowTag = `-- name: AddWorkflowTag :exec
+INSERT INTO "_WorkflowToWorkflowTag" ("A", "B")
+SELECT $1::uuid, $2::uuid
+ON CONFLICT DO NOTHING
+`
+
+type AddWorkflowTagParams struct {
+	ID   pgtype.UUID `json:"id"`
+	Tags pgtype.UUID `json:"tags"`
+}
+
+func (q *Queries) AddWorkflowTag(ctx context.Context, db DBTX, arg AddWorkflowTagParams) error {
+	_, err := db.Exec(ctx, addWorkflowTag, arg.ID, arg.Tags)
+	return err
+}
+
 const countWorkflows = `-- name: CountWorkflows :one
 SELECT
     count(workflows) OVER() AS total
@@ -56,6 +94,350 @@ func (q *Queries) CountWorkflows(ctx context.Context, db DBTX, arg CountWorkflow
 	var total int64
 	err := row.Scan(&total)
 	return total, err
+}
+
+const createJob = `-- name: CreateJob :one
+INSERT INTO "Job" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "tenantId",
+    "workflowVersionId",
+    "name",
+    "description",
+    "timeout"
+) VALUES (
+    $1::uuid,
+    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $4::timestamp,
+    $5::uuid,
+    $6::uuid,
+    $7::text,
+    $8::text,
+    $9::text
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", name, description, timeout
+`
+
+type CreateJobParams struct {
+	ID                pgtype.UUID      `json:"id"`
+	CreatedAt         pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
+	Deletedat         pgtype.Timestamp `json:"deletedat"`
+	Tenantid          pgtype.UUID      `json:"tenantid"`
+	Workflowversionid pgtype.UUID      `json:"workflowversionid"`
+	Name              string           `json:"name"`
+	Description       string           `json:"description"`
+	Timeout           string           `json:"timeout"`
+}
+
+func (q *Queries) CreateJob(ctx context.Context, db DBTX, arg CreateJobParams) (*Job, error) {
+	row := db.QueryRow(ctx, createJob,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Deletedat,
+		arg.Tenantid,
+		arg.Workflowversionid,
+		arg.Name,
+		arg.Description,
+		arg.Timeout,
+	)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.WorkflowVersionId,
+		&i.Name,
+		&i.Description,
+		&i.Timeout,
+	)
+	return &i, err
+}
+
+const createStep = `-- name: CreateStep :one
+INSERT INTO "Step" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "readableId",
+    "tenantId",
+    "jobId",
+    "actionId",
+    "timeout"
+) VALUES (
+    $1::uuid,
+    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $4::timestamp,
+    $5::text,
+    $6::uuid,
+    $7::uuid,
+    $8::text,
+    $9::text
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout
+`
+
+type CreateStepParams struct {
+	ID         pgtype.UUID      `json:"id"`
+	CreatedAt  pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
+	Deletedat  pgtype.Timestamp `json:"deletedat"`
+	Readableid string           `json:"readableid"`
+	Tenantid   pgtype.UUID      `json:"tenantid"`
+	Jobid      pgtype.UUID      `json:"jobid"`
+	Actionid   string           `json:"actionid"`
+	Timeout    string           `json:"timeout"`
+}
+
+func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
+	row := db.QueryRow(ctx, createStep,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Deletedat,
+		arg.Readableid,
+		arg.Tenantid,
+		arg.Jobid,
+		arg.Actionid,
+		arg.Timeout,
+	)
+	var i Step
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ReadableId,
+		&i.TenantId,
+		&i.JobId,
+		&i.ActionId,
+		&i.Timeout,
+	)
+	return &i, err
+}
+
+const createWorkflow = `-- name: CreateWorkflow :one
+INSERT INTO "Workflow" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "tenantId",
+    "name",
+    "description"
+) VALUES (
+    $1::uuid,
+    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $4::timestamp,
+    $5::uuid,
+    $6::text,
+    $7::text
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
+`
+
+type CreateWorkflowParams struct {
+	ID          pgtype.UUID      `json:"id"`
+	CreatedAt   pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
+	Deletedat   pgtype.Timestamp `json:"deletedat"`
+	Tenantid    pgtype.UUID      `json:"tenantid"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+}
+
+func (q *Queries) CreateWorkflow(ctx context.Context, db DBTX, arg CreateWorkflowParams) (*Workflow, error) {
+	row := db.QueryRow(ctx, createWorkflow,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Deletedat,
+		arg.Tenantid,
+		arg.Name,
+		arg.Description,
+	)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.Name,
+		&i.Description,
+	)
+	return &i, err
+}
+
+const createWorkflowTriggerCronRef = `-- name: CreateWorkflowTriggerCronRef :one
+INSERT INTO "WorkflowTriggerCronRef" (
+    "parentId",
+    "cron"
+) VALUES (
+    $1::uuid,
+    $2::text
+) RETURNING "parentId", cron, "tickerId"
+`
+
+type CreateWorkflowTriggerCronRefParams struct {
+	Workflowtriggersid pgtype.UUID `json:"workflowtriggersid"`
+	Crontrigger        string      `json:"crontrigger"`
+}
+
+func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefParams) (*WorkflowTriggerCronRef, error) {
+	row := db.QueryRow(ctx, createWorkflowTriggerCronRef, arg.Workflowtriggersid, arg.Crontrigger)
+	var i WorkflowTriggerCronRef
+	err := row.Scan(&i.ParentId, &i.Cron, &i.TickerId)
+	return &i, err
+}
+
+const createWorkflowTriggerEventRef = `-- name: CreateWorkflowTriggerEventRef :one
+INSERT INTO "WorkflowTriggerEventRef" (
+    "parentId",
+    "eventKey"
+) VALUES (
+    $1::uuid,
+    $2::text
+) RETURNING "parentId", "eventKey"
+`
+
+type CreateWorkflowTriggerEventRefParams struct {
+	Workflowtriggersid pgtype.UUID `json:"workflowtriggersid"`
+	Eventtrigger       string      `json:"eventtrigger"`
+}
+
+func (q *Queries) CreateWorkflowTriggerEventRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerEventRefParams) (*WorkflowTriggerEventRef, error) {
+	row := db.QueryRow(ctx, createWorkflowTriggerEventRef, arg.Workflowtriggersid, arg.Eventtrigger)
+	var i WorkflowTriggerEventRef
+	err := row.Scan(&i.ParentId, &i.EventKey)
+	return &i, err
+}
+
+const createWorkflowTriggerScheduledRef = `-- name: CreateWorkflowTriggerScheduledRef :one
+INSERT INTO "WorkflowTriggerScheduledRef" (
+    "id",
+    "parentId",
+    "triggerAt",
+    "tickerId",
+    "input"
+) VALUES (
+    gen_random_uuid(),
+    $1::uuid,
+    $2::timestamp,
+    NULL, -- or provide a tickerId if applicable
+    NULL -- or provide input if applicable
+) RETURNING id, "parentId", "triggerAt", "tickerId", input
+`
+
+type CreateWorkflowTriggerScheduledRefParams struct {
+	Workflowversionid pgtype.UUID      `json:"workflowversionid"`
+	Scheduledtrigger  pgtype.Timestamp `json:"scheduledtrigger"`
+}
+
+func (q *Queries) CreateWorkflowTriggerScheduledRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerScheduledRefParams) (*WorkflowTriggerScheduledRef, error) {
+	row := db.QueryRow(ctx, createWorkflowTriggerScheduledRef, arg.Workflowversionid, arg.Scheduledtrigger)
+	var i WorkflowTriggerScheduledRef
+	err := row.Scan(
+		&i.ID,
+		&i.ParentId,
+		&i.TriggerAt,
+		&i.TickerId,
+		&i.Input,
+	)
+	return &i, err
+}
+
+const createWorkflowTriggers = `-- name: CreateWorkflowTriggers :one
+INSERT INTO "WorkflowTriggers" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "workflowVersionId",
+    "tenantId"
+) VALUES (
+    $1::uuid,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL,
+    $2::uuid,
+    $3::uuid
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "workflowVersionId", "tenantId"
+`
+
+type CreateWorkflowTriggersParams struct {
+	ID                pgtype.UUID `json:"id"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+	Tenantid          pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) CreateWorkflowTriggers(ctx context.Context, db DBTX, arg CreateWorkflowTriggersParams) (*WorkflowTriggers, error) {
+	row := db.QueryRow(ctx, createWorkflowTriggers, arg.ID, arg.Workflowversionid, arg.Tenantid)
+	var i WorkflowTriggers
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.WorkflowVersionId,
+		&i.TenantId,
+	)
+	return &i, err
+}
+
+const createWorkflowVersion = `-- name: CreateWorkflowVersion :one
+INSERT INTO "WorkflowVersion" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "version",
+    "workflowId"
+) VALUES (
+    $1::uuid,
+    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $4::timestamp,
+    $5::text,
+    $6::uuid
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId"
+`
+
+type CreateWorkflowVersionParams struct {
+	ID         pgtype.UUID      `json:"id"`
+	CreatedAt  pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
+	Deletedat  pgtype.Timestamp `json:"deletedat"`
+	Version    string           `json:"version"`
+	Workflowid pgtype.UUID      `json:"workflowid"`
+}
+
+func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
+	row := db.QueryRow(ctx, createWorkflowVersion,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Deletedat,
+		arg.Version,
+		arg.Workflowid,
+	)
+	var i WorkflowVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.Order,
+		&i.WorkflowId,
+	)
+	return &i, err
 }
 
 const listWorkflows = `-- name: ListWorkflows :many
@@ -162,7 +544,7 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 
 const listWorkflowsLatestRuns = `-- name: ListWorkflowsLatestRuns :many
 SELECT
-    DISTINCT ON (workflow."id") runs.id, runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.input, runs.error, runs."startedAt", runs."finishedAt", workflow."id" as "workflowId"
+    DISTINCT ON (workflow."id") runs.id, runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", workflow."id" as "workflowId"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -228,7 +610,6 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 			&i.WorkflowRun.TenantId,
 			&i.WorkflowRun.WorkflowVersionId,
 			&i.WorkflowRun.Status,
-			&i.WorkflowRun.Input,
 			&i.WorkflowRun.Error,
 			&i.WorkflowRun.StartedAt,
 			&i.WorkflowRun.FinishedAt,
@@ -242,4 +623,67 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertAction = `-- name: UpsertAction :exec
+INSERT INTO "Action" (
+    "id",
+    "tenantId"
+)
+VALUES (
+    $1::text,
+    $2::uuid
+)
+ON CONFLICT ("tenantId", "id") DO UPDATE 
+SET
+    "tenantId" = EXCLUDED."tenantId"
+WHERE
+    "Action"."tenantId" = $2 AND "Action"."id" = $1
+`
+
+type UpsertActionParams struct {
+	Action   string      `json:"action"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) UpsertAction(ctx context.Context, db DBTX, arg UpsertActionParams) error {
+	_, err := db.Exec(ctx, upsertAction, arg.Action, arg.Tenantid)
+	return err
+}
+
+const upsertWorkflowTag = `-- name: UpsertWorkflowTag :exec
+INSERT INTO "WorkflowTag" (
+    "id",
+    "tenantId",
+    "name",
+    "color"
+)
+VALUES (
+    COALESCE($1::uuid, gen_random_uuid()),
+    $2::uuid,
+    $3::text,
+    COALESCE($4::text, '#93C5FD')
+)
+ON CONFLICT ("tenantId", "name") DO UPDATE
+SET
+    "color" = COALESCE(EXCLUDED."color", "WorkflowTag"."color")
+WHERE
+    "WorkflowTag"."tenantId" = $2 AND "WorkflowTag"."name" = $3
+`
+
+type UpsertWorkflowTagParams struct {
+	ID       pgtype.UUID `json:"id"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Tagname  string      `json:"tagname"`
+	TagColor pgtype.Text `json:"tagColor"`
+}
+
+func (q *Queries) UpsertWorkflowTag(ctx context.Context, db DBTX, arg UpsertWorkflowTagParams) error {
+	_, err := db.Exec(ctx, upsertWorkflowTag,
+		arg.ID,
+		arg.Tenantid,
+		arg.Tagname,
+		arg.TagColor,
+	)
+	return err
 }

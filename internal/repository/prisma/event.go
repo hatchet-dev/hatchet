@@ -2,18 +2,23 @@ package prisma
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlctoprisma"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type eventRepository struct {
@@ -21,9 +26,10 @@ type eventRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewEventRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator) repository.EventRepository {
+func NewEventRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.EventRepository {
 	queries := dbsqlc.New()
 
 	return &eventRepository{
@@ -31,6 +37,7 @@ func NewEventRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator
 		pool:    pool,
 		v:       v,
 		queries: queries,
+		l:       l,
 	}
 }
 
@@ -91,7 +98,7 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 		return nil, err
 	}
 
-	defer tx.Rollback(context.Background())
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
 	events, err := r.queries.ListEvents(context.Background(), tx, queryParams)
 
@@ -174,21 +181,64 @@ func (r *eventRepository) CreateEvent(ctx context.Context, opts *repository.Crea
 		return nil, err
 	}
 
-	params := []db.EventSetParam{
-		db.Event.Data.SetIfPresent(opts.Data),
+	// dataBytes, err := opts.Data.MarshalJSON()
+
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	createParams := dbsqlc.CreateEventParams{
+		ID:       sqlchelpers.UUIDFromStr(uuid.New().String()),
+		Key:      opts.Key,
+		Tenantid: sqlchelpers.UUIDFromStr(opts.TenantId),
+		Data:     []byte(json.RawMessage(*opts.Data)),
 	}
 
 	if opts.ReplayedEvent != nil {
-		params = append(params, db.Event.ReplayedFrom.Link(
-			db.Event.ID.Equals(*opts.ReplayedEvent),
-		))
+		createParams.ReplayedFromId = sqlchelpers.UUIDFromStr(*opts.ReplayedEvent)
 	}
 
-	return r.client.Event.CreateOne(
-		db.Event.Key.Set(opts.Key),
-		db.Event.Tenant.Link(
-			db.Tenant.ID.Equals(opts.TenantId),
-		),
-		params...,
-	).Exec(ctx)
+	tx, err := r.pool.Begin(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
+
+	e, err := r.queries.CreateEvent(
+		ctx,
+		tx,
+		createParams,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create event: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	// params := []db.EventSetParam{
+	// 	db.Event.Data.SetIfPresent(opts.Data),
+	// }
+
+	// if opts.ReplayedEvent != nil {
+	// 	params = append(params, db.Event.ReplayedFrom.Link(
+	// 		db.Event.ID.Equals(*opts.ReplayedEvent),
+	// 	))
+	// }
+
+	// return r.client.Event.CreateOne(
+	// 	db.Event.Key.Set(opts.Key),
+	// 	db.Event.Tenant.Link(
+	// 		db.Tenant.ID.Equals(opts.TenantId),
+	// 	),
+	// 	params...,
+	// ).Exec(ctx)
+
+	return sqlctoprisma.NewConverter[dbsqlc.Event, db.EventModel]().ToPrisma(e), nil
 }

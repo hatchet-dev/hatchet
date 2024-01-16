@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 
-	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
 type EventClient interface {

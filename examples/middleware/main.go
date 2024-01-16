@@ -6,10 +6,11 @@ import (
 	"log"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/joho/godotenv"
 )
 
 type userCreateEvent struct {
@@ -51,13 +52,14 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		return fmt.Errorf("error creating worker: %w", err)
 	}
 
-	w.Use(func(ctx context.Context, next func(context.Context) error) error {
+	w.Use(func(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
 		log.Printf("1st-middleware")
 		events <- "1st-middleware"
-		return next(context.WithValue(ctx, "testkey", "testvalue"))
+		ctx.SetContext(context.WithValue(ctx.GetContext(), "testkey", "testvalue"))
+		return next(ctx)
 	})
 
-	w.Use(func(ctx context.Context, next func(context.Context) error) error {
+	w.Use(func(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
 		log.Printf("2nd-middleware")
 		events <- "2nd-middleware"
 
@@ -71,9 +73,10 @@ func run(ch <-chan interface{}, events chan<- string) error {
 
 	testSvc := w.NewService("test")
 
-	testSvc.Use(func(ctx context.Context, next func(context.Context) error) error {
+	testSvc.Use(func(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
 		events <- "svc-middleware"
-		return next(context.WithValue(ctx, "svckey", "svcvalue"))
+		ctx.SetContext(context.WithValue(ctx.GetContext(), "svckey", "svcvalue"))
+		return next(ctx)
 	})
 
 	err = testSvc.On(
@@ -81,12 +84,19 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		&worker.WorkflowJob{
 			Name:        "post-user-update",
 			Description: "This runs after an update to the user model.",
-			Steps: []worker.WorkflowStep{
-				worker.Fn(func(ctx context.Context, input *userCreateEvent) (result *stepOneOutput, err error) {
+			Steps: []*worker.WorkflowStep{
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					input := &userCreateEvent{}
+
+					err = ctx.WorkflowInput(input)
+
+					if err != nil {
+						return nil, err
+					}
+
 					log.Printf("step-one")
 					events <- "step-one"
 
-					// could get from context
 					testVal := ctx.Value("testkey").(string)
 					events <- testVal
 					svcVal := ctx.Value("svckey").(string)
@@ -97,14 +107,21 @@ func run(ch <-chan interface{}, events chan<- string) error {
 					}, nil
 				},
 				).SetName("step-one"),
-				worker.Fn(func(ctx context.Context, input *stepOneOutput) (result *stepOneOutput, err error) {
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					input := &stepOneOutput{}
+					err = ctx.StepOutput("step-one", input)
+
+					if err != nil {
+						return nil, err
+					}
+
 					log.Printf("step-two")
 					events <- "step-two"
 
 					return &stepOneOutput{
 						Message: "Above message is: " + input.Message,
 					}, nil
-				}).SetName("step-two"),
+				}).SetName("step-two").AddParents("step-one"),
 			},
 		},
 	)

@@ -190,8 +190,14 @@ Step:
     timeout:
       type: string
       description: The timeout of the step.
-    nextId:
-      type: string
+    children:
+      type: array
+      items:
+        type: string
+    parents:
+      type: array
+      items:
+        type: string
   required:
     - metadata
     - readableId

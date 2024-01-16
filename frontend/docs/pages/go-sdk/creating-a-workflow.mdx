@@ -4,13 +4,13 @@ The simplest way to define a workflow is by using the `worker.On` method. This m
 
 ```go
 w.On(
-    worker.Event("user:created"), 
+    worker.Event("user:created"),
     &worker.WorkflowJob{
         Name:        "post-user-sign-up",
         Description: "Workflow that executes after a user signs up.",
         Timeout:     "60s",
-        Steps: []worker.WorkflowStep{
-            worker.Fn(func(ctx context.Context) error {
+        Steps: []*worker.WorkflowStep{
+            worker.Fn(func(ctx worker.HatchetContext) error {
                 return nil
             }),
         },
@@ -37,8 +37,8 @@ If your workflow is a single method, you can use `worker.Fn` to define your work
 
 ```go
 w.On(
-    worker.Event("user:created"), 
-    worker.Fn(func(ctx context.Context) error {
+    worker.Event("user:created"),
+    worker.Fn(func(ctx worker.HatchetContext) error {
         return nil
     }),
 )
@@ -48,27 +48,52 @@ Anonymous functions will be given an auto-generated name based on the package an
 
 ```go
 w.On(
-    worker.Event("user:created"), 
-    worker.Fn(func(ctx context.Context) error {
+    worker.Event("user:created"),
+    worker.Fn(func(ctx worker.HatchetContext) error {
         return nil
     }).SetName("post-user-create"), // this workflow will be named "post-user-create"
 )
 ```
 
-## Passing Arguments to Steps
+## Multi-Step Workflows
 
-Step functions must always accept a `context.Context` as the first argument, and must return an `error` as the last return value. They can optionally accept a second argument or return a value -- both of these must be a pointer to a struct. The following are valid step functions:
+Hatchet supports generating multi-step workflows by specifying parent steps as dependencies. Any parents declared as dependencies will be executed before the current step, and their output data will be available to the current step. For example, the following workflow declares two steps, `step-one` and `step-two`. `step-two` depends on `step-one`, so `step-one` will be executed first, and its output will be passed to `step-two`:
 
 ```go
-func (ctx context.Context) error 
-func (ctx context.Context, in *myInput) error
-func (ctx context.Context, in *myInput) (*myOutput, error)
-func (ctx context.Context) (*myOutput, error)
+type stepOneOutput struct {
+    Message string `json:"message"`
+}
+
+err = w.On(
+	worker.Events("user:create"),
+	&worker.WorkflowJob{
+		Name:        "two-step-workflow",
+		Description: "This is an example two-step workflow.",
+		Steps: []*worker.WorkflowStep{
+			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+				input := &userCreateEvent{}
+                ctx.WorkflowInput(input) // typically you would handle this error
+
+				return &stepOneOutput{
+					Message: "Username is: " + input.Username,
+				}, nil
+			}).SetName("step-one"),
+			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+				input := &stepOneOutput{}
+				ctx.StepOutput("step-one", input) // typically you would handle this error
+
+				return &stepOneOutput{
+					Message: "Above message is: " + input.Message,
+				}, nil
+			}).SetName("step-two").AddParents("step-one"), // note the usage of `AddParents`
+		},
+	},
+)
 ```
 
-> Why pointers to structs? We use JSON marshalling/unmarshalling under the hood, and pointers to structs are the most predictable way to marshal and unmarshal values. You can use `json` tags and `MarshalJSON` + `UnmarshalJSON` methods to customize the marshalling/unmarshalling behavior.
+## Getting Access to the Input Data
 
-Additionally, if the second argument of the first step function is a pointer to a struct, the event payload will be unmarshalled into that struct. For example, given the following event:
+You can get access to the workflow's input data, such as the event data or other specified input data, by using the `WorkflowInput` method on the `HatchetContext`. For example, given the following event:
 
 ```go
 type MyEvent struct {
@@ -76,31 +101,32 @@ type MyEvent struct {
 }
 ```
 
-You can declare the following step function:
+You can get access to the event data by doing the following:
 
 ```go
-func FirstStep(ctx context.Context, event *MyEvent) error {
+func FirstStep(ctx worker.HatchetContext) error {
+    event := &MyEvent{}
+    err := ctx.WorkflowInput(event)
+
+    if err != nil {
+        return err
+    }
+
     fmt.Println("got event: ", event.Name)
     return nil
 }
 ```
 
-If the second argument of a step function matches the type of the first return value of the previous step function, the return value of the previous step function will be passed to the next step function. For example, the `firstStepOutput` struct will be passed between step functions:
+## Step Function Signatures
+
+Step functions must always accept a `worker.HatchetContext` as the first argument (or alternatively, `context.Context`), and must return an `error` as the last return value. They can optionally return a value, which must be a pointer to a struct. At the moment, the following are valid step functions:
 
 ```go
-type firstStepOutput struct {
-    Output string `json:"output"`
-}
-
-func FirstStep(ctx context.Context) (*firstStepOutput, error) {
-    return &firstStepOutput{Output: "foo"}, nil
-}
-
-func SecondStep(ctx context.Context, in *firstStepOutput) error {
-    fmt.Println("got first step output: ", in.Output)
-    return nil
-}
+func (ctx worker.HatchetContext) error
+func (ctx worker.HatchetContext) (*myOutput, error)
 ```
+
+> Why pointers to structs? We use JSON marshalling/unmarshalling under the hood, and pointers to structs are the most predictable way to marshal and unmarshal values. You can use `json` tags and `MarshalJSON` + `UnmarshalJSON` methods to customize the marshalling/unmarshalling behavior.
 
 ## Services
 
@@ -110,12 +136,12 @@ Services are a way to logically group workflows into different categories. For e
 userService := w.NewService("user")
 
 userService.On(
-    worker.Event("user:created"), 
+    worker.Event("user:created"),
     &worker.WorkflowJob{
         Name:        "post-user-sign-up",
         Description: "Workflow that executes after a user signs up.",
         Timeout:     "60s",
-        Steps: []worker.WorkflowStep{
+        Steps: []*worker.WorkflowStep{
             {
                 Function: func(ctx context.Context) error {
                     fmt.Println("running post-user sign up")
@@ -135,12 +161,12 @@ You can declare a cron schedule by passing `worker.Cron` to the `worker.On` meth
 
 ```go
 w.On(
-    worker.Cron("*/5 * * * *"), 
+    worker.Cron("*/5 * * * *"),
     &worker.WorkflowJob{
         Name:        "my-cron-job",
         Description: "Cron workflow example.",
         Timeout:     "60s",
-        Steps: []worker.WorkflowStep{
+        Steps: []*worker.WorkflowStep{
             {
                 Function: func(ctx context.Context) error {
                     fmt.Println("triggered at:", time.Now())

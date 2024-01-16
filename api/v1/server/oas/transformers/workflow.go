@@ -2,11 +2,8 @@ package transformers
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/internal/iter"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
@@ -168,19 +165,7 @@ func ToWorkflowYAMLBytes(workflow *db.WorkflowModel, version *db.WorkflowVersion
 			if steps := jobCp.Steps(); steps != nil {
 				jobRes.Steps = make([]types.WorkflowStep, 0)
 
-				iter, err := iter.New(steps)
-
-				if err != nil {
-					return nil, fmt.Errorf("could not create step iterator: %w", err)
-				}
-
-				for {
-					step, ok := iter.Next()
-
-					if !ok {
-						break
-					}
-
+				for _, step := range steps {
 					stepRes := types.WorkflowStep{
 						ID:       step.ID,
 						ActionID: step.ActionID,
@@ -192,17 +177,6 @@ func ToWorkflowYAMLBytes(workflow *db.WorkflowModel, version *db.WorkflowVersion
 
 					if timeout, ok := step.Timeout(); ok {
 						stepRes.Timeout = timeout
-					}
-
-					if inputs, ok := step.Inputs(); ok {
-						withMap := map[string]interface{}{}
-						err := datautils.FromJSONType(&inputs, &withMap)
-
-						if err != nil {
-							return nil, err
-						}
-
-						stepRes.With = withMap
 					}
 
 					jobRes.Steps = append(jobRes.Steps, stepRes)
@@ -237,20 +211,9 @@ func ToJob(job *db.JobModel) (*gen.Job, error) {
 	if steps := job.Steps(); steps != nil {
 		apiSteps := make([]gen.Step, 0)
 
-		iter, err := iter.New(steps)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create step iterator: %w", err)
-		}
-
-		for {
-			step, ok := iter.Next()
-
-			if !ok {
-				break
-			}
-
-			apiSteps = append(apiSteps, *ToStep(step))
+		for _, step := range steps {
+			stepCp := step
+			apiSteps = append(apiSteps, *ToStep(&stepCp))
 		}
 
 		res.Steps = apiSteps
@@ -277,9 +240,25 @@ func ToStep(step *db.StepModel) *gen.Step {
 		res.Timeout = repository.StringPtr(defaults.DefaultStepRunTimeout)
 	}
 
-	if next, ok := step.NextID(); ok {
-		res.NextId = next
+	parents := []string{}
+
+	if step.RelationsStep.Parents != nil {
+		for _, parent := range step.Parents() {
+			parents = append(parents, parent.ID)
+		}
 	}
+
+	res.Parents = &parents
+
+	children := []string{}
+
+	if step.RelationsStep.Children != nil {
+		for _, child := range step.Children() {
+			children = append(children, child.ID)
+		}
+	}
+
+	res.Children = &children
 
 	return res
 }

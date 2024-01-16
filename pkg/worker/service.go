@@ -79,7 +79,7 @@ func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
 	return s.worker.registerAction(s.Name, fnOpts.name, fn)
 }
 
-func (s *Service) Call(verb string) WorkflowStep {
+func (s *Service) Call(verb string) *WorkflowStep {
 	actionId := fmt.Sprintf("%s:%s", s.Name, verb)
 
 	registeredAction, exists := s.worker.actions[actionId]
@@ -88,7 +88,7 @@ func (s *Service) Call(verb string) WorkflowStep {
 		panic(fmt.Sprintf("action %s does not exist", actionId))
 	}
 
-	return WorkflowStep{
+	return &WorkflowStep{
 		Function: registeredAction.MethodFn(),
 		Name:     verb,
 	}

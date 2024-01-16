@@ -3,22 +3,25 @@ package jobscontroller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/steebchen/prisma-client-go/runtime/types"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
-	"github.com/rs/zerolog"
-	"github.com/steebchen/prisma-client-go/runtime/types"
-	"golang.org/x/sync/errgroup"
 )
 
 type JobsController interface {
@@ -180,28 +183,25 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *task
 		return fmt.Errorf("job run has no step runs")
 	}
 
-	stepRun := jobRun.StepRuns()[0]
+	// list the step runs without a parent
+	for _, stepRun := range stepRuns {
+		stepRunCp := stepRun
 
-	// find the step run without a previous
-	for _, sr := range stepRuns {
-		if prev, ok := sr.Step().Prev(); !ok || prev == nil {
-			stepRun = sr
-			break
+		if len(stepRunCp.Parents()) == 0 {
+			// send a task to the taskqueue
+			err = ec.tq.AddTask(
+				ctx,
+				taskqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunQueuedToTask(
+					jobRun.Job(),
+					&stepRunCp,
+				),
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not add job queued task to task queue: %w", err)
+			}
 		}
-	}
-
-	// send a task to the taskqueue
-	err = ec.tq.AddTask(
-		ctx,
-		taskqueue.JOB_PROCESSING_QUEUE,
-		tasktypes.StepRunQueuedToTask(
-			jobRun.Job(),
-			&stepRun,
-		),
-	)
-
-	if err != nil {
-		return fmt.Errorf("could not add job queued task to task queue: %w", err)
 	}
 
 	// send a task to schedule the job run's timeout
@@ -234,11 +234,6 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *task
 	if err != nil {
 		return fmt.Errorf("could not add schedule job run timeout task to task queue: %w", err)
 	}
-
-	// // update the job run
-	// _, err = ec.repo.JobRun().UpdateJobRun(metadata.TenantId, jobRun.ID, &repository.UpdateJobRunOpts{
-	// 	Status: repository.JobRunStatusPtr(db.JobRunStatusRUNNING),
-	// })
 
 	return nil
 }
@@ -412,19 +407,19 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 	g := new(errgroup.Group)
 
 	for _, stepRun := range stepRuns {
+		stepRunCp := stepRun
+
 		// wrap in func to get defer on the span to avoid leaking spans
 		g.Go(func() error {
 			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue-step-run")
 			defer span.End()
 
-			ec.l.Debug().Msgf("requeueing step run %s", stepRun.ID)
-
-			stepRunCp := stepRun
+			ec.l.Debug().Msgf("requeueing step run %s", stepRunCp.ID)
 
 			now := time.Now().UTC().UTC()
 
 			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-			if scheduleTimeoutAt, ok := stepRun.ScheduleTimeoutAt(); ok && scheduleTimeoutAt.Before(now) {
+			if scheduleTimeoutAt, ok := stepRunCp.ScheduleTimeoutAt(); ok && scheduleTimeoutAt.Before(now) {
 				_, err = ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunCp.ID, &repository.UpdateStepRunOpts{
 					CancelledAt:     &now,
 					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
@@ -432,7 +427,7 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 				})
 
 				if err != nil {
-					return fmt.Errorf("could not update step run %s: %w", stepRun.ID, err)
+					return fmt.Errorf("could not update step run %s: %w", stepRunCp.ID, err)
 				}
 
 				return nil
@@ -440,28 +435,15 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 
 			requeueAfter := time.Now().UTC().Add(time.Second * 5)
 
-			_, err = ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunCp.ID, &repository.UpdateStepRunOpts{
+			stepRun, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunCp.ID, &repository.UpdateStepRunOpts{
 				RequeueAfter: &requeueAfter,
 			})
 
 			if err != nil {
-				return fmt.Errorf("could not update step run %s: %w", stepRun.ID, err)
+				return fmt.Errorf("could not update step run %s: %w", stepRunCp.ID, err)
 			}
 
-			err = ec.tq.AddTask(
-				ctx,
-				taskqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.StepRunQueuedToTask(
-					stepRunCp.JobRun().Job(),
-					&stepRunCp,
-				),
-			)
-
-			if err != nil {
-				return fmt.Errorf("could not add job queued task to task queue: %w", err)
-			}
-
-			return nil
+			return ec.scheduleStepRun(ctx, payload.TenantId, stepRun.StepID, stepRun.ID)
 		})
 	}
 
@@ -495,47 +477,60 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	if ok && lookupDataModel != nil {
 		data, ok := lookupDataModel.Data()
 
-		lookupDataMap := map[string]interface{}{}
-		inputDataMap := map[string]interface{}{}
+		if !ok {
+			return fmt.Errorf("job run has no lookup data")
+		}
 
-		err := datautils.FromJSONType(&data, &lookupDataMap)
+		lookupData := &datautils.JobRunLookupData{}
+
+		err := datautils.FromJSONType(&data, lookupData)
 
 		if err != nil {
 			return fmt.Errorf("could not get job run lookup data: %w", err)
 		}
 
-		// input data is the step data
-		inputData, ok := stepRun.Step().Inputs()
-
-		if ok {
-			ec.l.Debug().Msgf("rendering template fields for step run %s", stepRun.ID)
-
-			err := datautils.FromJSONType(&inputData, &inputDataMap)
-
-			if err != nil {
-				return fmt.Errorf("could not get step inputs: %w", err)
-			}
-
-			inputDataMap, err = datautils.RenderTemplateFields(lookupDataMap, inputDataMap)
-
-			if err != nil {
-				return fmt.Errorf("could not render template fields: %w", err)
-			}
-
-			newInput, err := datautils.ToJSONType(inputDataMap)
-
-			if err != nil {
-				return fmt.Errorf("could not convert input data to json: %w", err)
-			}
-
-			updateStepOpts.Input = newInput
+		// input data is the triggering event data and any parent step data
+		inputData := datautils.StepRunData{
+			Input:       lookupData.Input,
+			TriggeredBy: lookupData.TriggeredBy,
+			Parents:     map[string]datautils.StepData{},
 		}
+
+		// add all parents to the input data
+		for _, parent := range stepRun.Parents() {
+			readableId, ok := parent.Step().ReadableID()
+
+			if ok && readableId != "" {
+				parentData, exists := lookupData.Steps[readableId]
+
+				if exists {
+					inputData.Parents[readableId] = parentData
+				}
+			}
+		}
+
+		newInput, err := datautils.ToJSONType(inputData)
+
+		if err != nil {
+			return fmt.Errorf("could not convert input data to json: %w", err)
+		}
+
+		updateStepOpts.Input = newInput
 	}
 
-	// update the step's input data
-	_, err = ec.repo.StepRun().UpdateStepRun(tenantId, stepRunId, updateStepOpts)
+	// begin transaction and make sure step run is in a pending status
+	// if the step run is no longer is a pending status, we should return with no error
+	updateStepOpts.Status = repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment)
+
+	// indicate that the step run is pending assignment
+	_, err = ec.repo.StepRun().QueueStepRun(tenantId, stepRunId, updateStepOpts)
 
 	if err != nil {
+		if errors.Is(err, repository.StepRunIsNotPendingErr) {
+			ec.l.Debug().Msgf("step run %s is not pending, skipping scheduling", stepRunId)
+			return nil
+		}
+
 		return fmt.Errorf("could not update step run: %w", err)
 	}
 
@@ -547,12 +542,10 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 	defer span.End()
 
 	// indicate that the step run is pending assignment
-	stepRun, err := ec.repo.StepRun().UpdateStepRun(tenantId, stepRunId, &repository.UpdateStepRunOpts{
-		Status: repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment),
-	})
+	stepRun, err := ec.repo.StepRun().GetStepRunById(tenantId, stepRunId)
 
 	if err != nil {
-		return fmt.Errorf("could not update step run: %w", err)
+		return fmt.Errorf("could not get step run: %w", err)
 	}
 
 	servertel.WithStepRunModel(span, stepRun)
@@ -735,27 +728,20 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 
 	servertel.WithJobRunModel(span, jobRun)
 
-	lookupData, ok := jobRun.LookupData()
-
-	if !ok {
-		return fmt.Errorf("job run has no lookup data")
-	}
-
 	stepReadableId, ok := stepRun.Step().ReadableID()
 
 	// only update the job lookup data if the step has a readable id to key
 	if ok && stepReadableId != "" {
-		data, _ := lookupData.Data()
-
-		newData, err := datautils.AddStepOutput(&data, stepReadableId, []byte(payload.StepOutputData))
+		unquoted, err := strconv.Unquote(payload.StepOutputData)
 
 		if err != nil {
-			return fmt.Errorf("could not add step output to lookup data: %w", err)
+			unquoted = payload.StepOutputData
 		}
 
 		// update the job run lookup data
-		_, err = ec.repo.JobRun().UpdateJobRunLookupData(metadata.TenantId, stepRun.JobRunID, &repository.UpdateJobRunLookupDataOpts{
-			LookupData: newData,
+		err = ec.repo.JobRun().UpdateJobRunLookupData(metadata.TenantId, stepRun.JobRunID, &repository.UpdateJobRunLookupDataOpts{
+			FieldPath: []string{"steps", stepReadableId},
+			Data:      []byte(unquoted),
 		})
 
 		if err != nil {
@@ -763,14 +749,28 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 		}
 	}
 
-	// queue the next step run if there is one
-	if next, ok := stepRun.Next(); ok && next != nil {
-		err := ec.queueStepRun(ctx, metadata.TenantId, next.StepID, next.ID)
+	// queue the next step runs
+	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(metadata.TenantId, jobRun.ID, stepRun.ID)
+
+	if err != nil {
+		return fmt.Errorf("could not list startable step runs: %w", err)
+	}
+
+	for _, nextStepRun := range nextStepRuns {
+		err = ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(nextStepRun.StepId), sqlchelpers.UUIDToStr(nextStepRun.ID))
 
 		if err != nil {
 			return fmt.Errorf("could not queue next step run: %w", err)
 		}
 	}
+
+	// if next, ok := stepRun.Next(); ok && next != nil {
+	// 	err := ec.queueStepRun(ctx, metadata.TenantId, next.StepID, next.ID)
+
+	// 	if err != nil {
+	// 		return fmt.Errorf("could not queue next step run: %w", err)
+	// 	}
+	// }
 
 	// cancel the timeout task
 	stepRunTicker, ok := stepRun.Ticker()

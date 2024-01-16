@@ -3,20 +3,33 @@ package prisma
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
 type jobRunRepository struct {
-	client *db.PrismaClient
-	v      validator.Validator
+	client  *db.PrismaClient
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewJobRunRepository(client *db.PrismaClient, v validator.Validator) repository.JobRunRepository {
+func NewJobRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.JobRunRepository {
+	queries := dbsqlc.New()
+
 	return &jobRunRepository{
-		client: client,
-		v:      v,
+		client:  client,
+		v:       v,
+		pool:    pool,
+		queries: queries,
+		l:       l,
 	}
 }
 
@@ -45,8 +58,8 @@ func (j *jobRunRepository) ListAllJobRuns(opts *repository.ListAllJobRunsOpts) (
 		db.JobRun.LookupData.Fetch(),
 		db.JobRun.StepRuns.Fetch().With(
 			db.StepRun.Step.Fetch().With(
-				db.Step.Next.Fetch(),
-				db.Step.Prev.Fetch(),
+				db.Step.Children.Fetch(),
+				db.Step.Parents.Fetch(),
 				db.Step.Action.Fetch(),
 			),
 		),
@@ -62,9 +75,11 @@ func (j *jobRunRepository) GetJobRunById(tenantId, jobRunId string) (*db.JobRunM
 	).With(
 		db.JobRun.LookupData.Fetch(),
 		db.JobRun.StepRuns.Fetch().With(
+			db.StepRun.Parents.Fetch(),
+			db.StepRun.Children.Fetch(),
 			db.StepRun.Step.Fetch().With(
-				db.Step.Next.Fetch(),
-				db.Step.Prev.Fetch(),
+				db.Step.Children.Fetch(),
+				db.Step.Parents.Fetch(),
 				db.Step.Action.Fetch(),
 			),
 		),
@@ -92,8 +107,8 @@ func (j *jobRunRepository) UpdateJobRun(tenantId, jobRunId string, opts *reposit
 		db.JobRun.LookupData.Fetch(),
 		db.JobRun.StepRuns.Fetch().With(
 			db.StepRun.Step.Fetch().With(
-				db.Step.Next.Fetch(),
-				db.Step.Prev.Fetch(),
+				db.Step.Children.Fetch(),
+				db.Step.Parents.Fetch(),
 				db.Step.Action.Fetch(),
 			),
 		),
@@ -115,27 +130,32 @@ func (j *jobRunRepository) GetJobRunLookupData(tenantId, jobRunId string) (*db.J
 	).Exec(context.Background())
 }
 
-func (j *jobRunRepository) UpdateJobRunLookupData(tenantId, jobRunId string, opts *repository.UpdateJobRunLookupDataOpts) (*db.JobRunLookupDataModel, error) {
-	optionals := []db.JobRunLookupDataSetParam{}
+func (j *jobRunRepository) UpdateJobRunLookupData(tenantId, jobRunId string, opts *repository.UpdateJobRunLookupDataOpts) error {
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgJobRunId := sqlchelpers.UUIDFromStr(jobRunId)
 
-	if opts.LookupData != nil {
-		optionals = append(optionals, db.JobRunLookupData.Data.Set(*opts.LookupData))
+	tx, err := j.pool.Begin(context.Background())
+
+	if err != nil {
+		return err
 	}
 
-	return j.client.JobRunLookupData.UpsertOne(
-		db.JobRunLookupData.JobRunIDTenantID(
-			db.JobRunLookupData.JobRunID.Equals(jobRunId),
-			db.JobRunLookupData.TenantID.Equals(tenantId),
-		),
-	).Create(
-		db.JobRunLookupData.JobRun.Link(
-			db.JobRun.ID.Equals(jobRunId),
-		),
-		db.JobRunLookupData.Tenant.Link(
-			db.Tenant.ID.Equals(tenantId),
-		),
-		optionals...,
-	).Update(
-		optionals...,
-	).Exec(context.Background())
+	defer deferRollback(context.Background(), j.l, tx.Rollback)
+
+	err = j.queries.UpsertJobRunLookupData(
+		context.Background(),
+		tx,
+		dbsqlc.UpsertJobRunLookupDataParams{
+			Jobrunid:  pgJobRunId,
+			Tenantid:  pgTenantId,
+			Fieldpath: opts.FieldPath,
+			Jsondata:  opts.Data,
+		},
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(context.Background())
 }

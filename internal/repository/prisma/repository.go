@@ -1,11 +1,12 @@
 package prisma
 
 import (
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/validator"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 )
 
 type prismaRepository struct {
@@ -59,12 +60,12 @@ func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...Pris
 	opts.l = &newLogger
 
 	return &prismaRepository{
-		event:       NewEventRepository(client, pool, opts.v),
+		event:       NewEventRepository(client, pool, opts.v, opts.l),
 		tenant:      NewTenantRepository(client, opts.v),
-		workflow:    NewWorkflowRepository(client, pool, opts.v),
+		workflow:    NewWorkflowRepository(client, pool, opts.v, opts.l),
 		workflowRun: NewWorkflowRunRepository(client, pool, opts.v, opts.l),
-		jobRun:      NewJobRunRepository(client, opts.v),
-		stepRun:     NewStepRunRepository(client, pool, opts.v),
+		jobRun:      NewJobRunRepository(client, pool, opts.v, opts.l),
+		stepRun:     NewStepRunRepository(client, pool, opts.v, opts.l),
 		step:        NewStepRepository(client, opts.v),
 		dispatcher:  NewDispatcherRepository(client, pool, opts.v),
 		worker:      NewWorkerRepository(client, opts.v),

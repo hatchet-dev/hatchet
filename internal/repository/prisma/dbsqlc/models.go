@@ -329,8 +329,11 @@ type Step struct {
 	JobId      pgtype.UUID      `json:"jobId"`
 	ActionId   string           `json:"actionId"`
 	Timeout    pgtype.Text      `json:"timeout"`
-	Inputs     []byte           `json:"inputs"`
-	NextId     pgtype.UUID      `json:"nextId"`
+}
+
+type StepOrder struct {
+	A pgtype.UUID `json:"A"`
+	B pgtype.UUID `json:"B"`
 }
 
 type StepRun struct {
@@ -341,7 +344,6 @@ type StepRun struct {
 	TenantId          pgtype.UUID      `json:"tenantId"`
 	JobRunId          pgtype.UUID      `json:"jobRunId"`
 	StepId            pgtype.UUID      `json:"stepId"`
-	NextId            pgtype.UUID      `json:"nextId"`
 	Order             int16            `json:"order"`
 	WorkerId          pgtype.UUID      `json:"workerId"`
 	TickerId          pgtype.UUID      `json:"tickerId"`
@@ -357,6 +359,11 @@ type StepRun struct {
 	CancelledAt       pgtype.Timestamp `json:"cancelledAt"`
 	CancelledReason   pgtype.Text      `json:"cancelledReason"`
 	CancelledError    pgtype.Text      `json:"cancelledError"`
+}
+
+type StepRunOrder struct {
+	A pgtype.UUID `json:"A"`
+	B pgtype.UUID `json:"B"`
 }
 
 type Tenant struct {
@@ -439,7 +446,6 @@ type WorkflowRun struct {
 	TenantId          pgtype.UUID       `json:"tenantId"`
 	WorkflowVersionId pgtype.UUID       `json:"workflowVersionId"`
 	Status            WorkflowRunStatus `json:"status"`
-	Input             []byte            `json:"input"`
 	Error             pgtype.Text       `json:"error"`
 	StartedAt         pgtype.Timestamp  `json:"startedAt"`
 	FinishedAt        pgtype.Timestamp  `json:"finishedAt"`

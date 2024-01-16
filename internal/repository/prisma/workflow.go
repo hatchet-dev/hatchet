@@ -6,6 +6,13 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+	"github.com/steebchen/prisma-client-go/runtime/transaction"
+
+	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
@@ -13,10 +20,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlctoprisma"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/steebchen/prisma-client-go/runtime/transaction"
 )
 
 type workflowRepository struct {
@@ -24,9 +27,10 @@ type workflowRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewWorkflowRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator) repository.WorkflowRepository {
+func NewWorkflowRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRepository{
@@ -34,6 +38,7 @@ func NewWorkflowRepository(client *db.PrismaClient, pool *pgxpool.Pool, v valida
 		v:       v,
 		queries: queries,
 		pool:    pool,
+		l:       l,
 	}
 }
 
@@ -93,7 +98,7 @@ func (r *workflowRepository) ListWorkflows(tenantId string, opts *repository.Lis
 		return nil, err
 	}
 
-	defer tx.Rollback(context.Background())
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
 	workflows, err := r.queries.ListWorkflows(context.Background(), tx, queryParams)
 
@@ -162,6 +167,15 @@ func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository
 		return nil, err
 	}
 
+	// ensure no cycles
+	for _, job := range opts.Jobs {
+		if dagutils.HasCycle(job.Steps) {
+			return nil, &repository.JobRunHasCycleError{
+				JobName: job.Name,
+			}
+		}
+	}
+
 	// preflight check to ensure the workflow doesn't already exist
 	workflow, err := r.client.Workflow.FindUnique(
 		db.Workflow.TenantIDName(
@@ -181,52 +195,65 @@ func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository
 		)
 	}
 
-	// begin a transaction
-	workflowId := uuid.New().String()
+	tx, err := r.pool.Begin(context.Background())
 
-	txs := []transaction.Param{
-		r.client.Workflow.CreateOne(
-			db.Workflow.Tenant.Link(
-				db.Tenant.ID.Equals(tenantId),
-			),
-			db.Workflow.Name.Set(opts.Name),
-			db.Workflow.ID.Set(workflowId),
-			db.Workflow.Description.SetIfPresent(opts.Description),
-		).Tx(),
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
+
+	workflowId := sqlchelpers.UUIDFromStr(uuid.New().String())
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	// create a workflow
+	_, err = r.queries.CreateWorkflow(
+		context.Background(),
+		tx,
+		dbsqlc.CreateWorkflowParams{
+			ID:          workflowId,
+			Tenantid:    pgTenantId,
+			Name:        opts.Name,
+			Description: *opts.Description,
+		},
+	)
+
+	if err != nil {
+		return nil, err
 	}
 
 	// create any tags
 	if len(opts.Tags) > 0 {
 		for _, tag := range opts.Tags {
-			txs = append(txs, r.client.WorkflowTag.UpsertOne(
-				db.WorkflowTag.TenantIDName(
-					db.WorkflowTag.TenantID.Equals(tenantId),
-					db.WorkflowTag.Name.Equals(tag.Name),
-				),
-			).Create(
-				db.WorkflowTag.Tenant.Link(
-					db.Tenant.ID.Equals(tenantId),
-				),
-				db.WorkflowTag.Name.Set(tag.Name),
-				db.WorkflowTag.Workflows.Link(
-					db.Workflow.ID.Equals(workflowId),
-				),
-				db.WorkflowTag.Color.SetIfPresent(tag.Color),
-			).Update(
-				db.WorkflowTag.Workflows.Link(
-					db.Workflow.ID.Equals(workflowId),
-				),
-				db.WorkflowTag.Color.SetIfPresent(tag.Color),
-			).Tx())
+			var tagColor pgtype.Text
+
+			if tag.Color != nil {
+				tagColor = sqlchelpers.TextFromStr(*tag.Color)
+			}
+
+			err = r.queries.UpsertWorkflowTag(
+				context.Background(),
+				tx,
+				dbsqlc.UpsertWorkflowTagParams{
+					Tenantid: pgTenantId,
+					Tagname:  tag.Name,
+					TagColor: tagColor,
+				},
+			)
+
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	workflowVersionId, versionTxs := r.createWorkflowVersionTxs(tenantId, workflowId, opts)
+	workflowVersionId, err := r.createWorkflowVersionTxs(context.Background(), tx, pgTenantId, workflowId, opts)
 
-	txs = append(txs, versionTxs...)
+	if err != nil {
+		return nil, err
+	}
 
-	// execute the transaction
-	err = r.client.Prisma.Transaction(txs...).Exec(context.Background())
+	err = tx.Commit(context.Background())
 
 	if err != nil {
 		return nil, err
@@ -242,6 +269,15 @@ func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository
 func (r *workflowRepository) CreateWorkflowVersion(tenantId string, opts *repository.CreateWorkflowVersionOpts) (*db.WorkflowVersionModel, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
+	}
+
+	// ensure no cycles
+	for _, job := range opts.Jobs {
+		if dagutils.HasCycle(job.Steps) {
+			return nil, &repository.JobRunHasCycleError{
+				JobName: job.Name,
+			}
+		}
 	}
 
 	// preflight check to ensure the workflow already exists
@@ -263,11 +299,24 @@ func (r *workflowRepository) CreateWorkflowVersion(tenantId string, opts *reposi
 		)
 	}
 
-	// begin a transaction
-	workflowVersionId, txs := r.createWorkflowVersionTxs(tenantId, workflow.ID, opts)
+	tx, err := r.pool.Begin(context.Background())
 
-	// execute the transaction
-	err = r.client.Prisma.Transaction(txs...).Exec(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
+
+	workflowId := sqlchelpers.UUIDFromStr(workflow.ID)
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	workflowVersionId, err := r.createWorkflowVersionTxs(context.Background(), tx, pgTenantId, workflowId, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(context.Background())
 
 	if err != nil {
 		return nil, err
@@ -395,129 +444,179 @@ func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId
 	).Exec(ctx)
 }
 
-func (r *workflowRepository) createWorkflowVersionTxs(tenantId, workflowId string, opts *repository.CreateWorkflowVersionOpts) (string, []transaction.Param) {
-	txs := []transaction.Param{}
-
-	// create the workflow version
+func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts) (string, error) {
 	workflowVersionId := uuid.New().String()
 
-	txs = append(txs, r.client.WorkflowVersion.CreateOne(
-		db.WorkflowVersion.Version.Set(opts.Version),
-		db.WorkflowVersion.Workflow.Link(
-			db.Workflow.ID.Equals(workflowId),
-		),
-		db.WorkflowVersion.ID.Set(workflowVersionId),
-	).Tx())
+	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
+		context.Background(),
+		tx,
+		dbsqlc.CreateWorkflowVersionParams{
+			ID:         sqlchelpers.UUIDFromStr(workflowVersionId),
+			Version:    opts.Version,
+			Workflowid: workflowId,
+		},
+	)
+
+	if err != nil {
+		return "", err
+	}
 
 	// create the workflow jobs
 	for _, jobOpts := range opts.Jobs {
 		jobId := uuid.New().String()
 
-		txs = append(txs, r.client.Job.CreateOne(
-			db.Job.Tenant.Link(
-				db.Tenant.ID.Equals(tenantId),
-			),
-			db.Job.Workflow.Link(
-				db.WorkflowVersion.ID.Equals(workflowVersionId),
-			),
-			db.Job.Name.Set(jobOpts.Name),
-			db.Job.ID.Set(jobId),
-			db.Job.Description.SetIfPresent(jobOpts.Description),
-			db.Job.Timeout.SetIfPresent(jobOpts.Timeout),
-		).Tx())
+		var (
+			description, timeout string
+		)
 
-		// create the workflow job steps
-		var prev *string
+		if jobOpts.Description != nil {
+			description = *jobOpts.Description
+		}
+
+		if jobOpts.Timeout != nil {
+			timeout = *jobOpts.Timeout
+		}
+
+		sqlcJob, err := r.queries.CreateJob(
+			context.Background(),
+			tx,
+			dbsqlc.CreateJobParams{
+				ID:                sqlchelpers.UUIDFromStr(jobId),
+				Tenantid:          tenantId,
+				Workflowversionid: sqlcWorkflowVersion.ID,
+				Name:              jobOpts.Name,
+				Description:       description,
+				Timeout:           timeout,
+			},
+		)
+
+		if err != nil {
+			return "", err
+		}
 
 		for _, stepOpts := range jobOpts.Steps {
 			stepId := uuid.New().String()
 
-			optionals := []db.StepSetParam{
-				db.Step.Timeout.SetIfPresent(stepOpts.Timeout),
-				db.Step.Inputs.SetIfPresent(stepOpts.Inputs),
-				db.Step.ID.Set(stepId),
-				db.Step.ReadableID.Set(stepOpts.ReadableId),
+			var (
+				timeout string
+			)
+
+			if stepOpts.Timeout != nil {
+				timeout = *stepOpts.Timeout
 			}
 
-			if prev != nil {
-				optionals = append(optionals, db.Step.Prev.Link(
-					db.Step.ID.Equals(*prev),
-				))
+			// upsert the action
+			err := r.queries.UpsertAction(
+				context.Background(),
+				tx,
+				dbsqlc.UpsertActionParams{
+					Action:   stepOpts.Action,
+					Tenantid: tenantId,
+				},
+			)
+
+			if err != nil {
+				return "", err
 			}
 
-			txs = append(txs, r.client.Action.UpsertOne(
-				db.Action.TenantIDID(
-					db.Action.TenantID.Equals(tenantId),
-					db.Action.ID.Equals(stepOpts.Action),
-				),
-			).Create(
-				db.Action.ID.Set(stepOpts.Action),
-				db.Action.Tenant.Link(
-					db.Tenant.ID.Equals(tenantId),
-				),
-			).Update().Tx())
+			_, err = r.queries.CreateStep(
+				context.Background(),
+				tx,
+				dbsqlc.CreateStepParams{
+					ID:         sqlchelpers.UUIDFromStr(stepId),
+					Tenantid:   tenantId,
+					Jobid:      sqlchelpers.UUIDFromStr(jobId),
+					Actionid:   stepOpts.Action,
+					Timeout:    timeout,
+					Readableid: stepOpts.ReadableId,
+				},
+			)
 
-			txs = append(txs, r.client.Step.CreateOne(
-				db.Step.Tenant.Link(
-					db.Tenant.ID.Equals(tenantId),
-				),
-				db.Step.Job.Link(
-					db.Job.ID.Equals(jobId),
-				),
-				db.Step.Action.Link(
-					db.Action.TenantIDID(
-						db.Action.TenantID.Equals(tenantId),
-						db.Action.ID.Equals(stepOpts.Action),
-					),
-				),
-				optionals...,
-			).Tx())
+			if err != nil {
+				return "", err
+			}
 
-			prev = &stepId
+			if len(stepOpts.Parents) > 0 {
+				err := r.queries.AddStepParents(
+					context.Background(),
+					tx,
+					dbsqlc.AddStepParentsParams{
+						ID:      sqlchelpers.UUIDFromStr(stepId),
+						Parents: stepOpts.Parents,
+						Jobid:   sqlcJob.ID,
+					},
+				)
+
+				if err != nil {
+					return "", err
+				}
+			}
 		}
 	}
 
 	// create the workflow triggers
 	workflowTriggersId := uuid.New().String()
 
-	txs = append(txs, r.client.WorkflowTriggers.CreateOne(
-		db.WorkflowTriggers.Workflow.Link(
-			db.WorkflowVersion.ID.Equals(workflowVersionId),
-		),
-		db.WorkflowTriggers.Tenant.Link(
-			db.Tenant.ID.Equals(tenantId),
-		),
-		db.WorkflowTriggers.ID.Set(workflowTriggersId),
-	).Tx())
+	sqlcWorkflowTriggers, err := r.queries.CreateWorkflowTriggers(
+		context.Background(),
+		tx,
+		dbsqlc.CreateWorkflowTriggersParams{
+			ID:                sqlchelpers.UUIDFromStr(workflowTriggersId),
+			Workflowversionid: sqlcWorkflowVersion.ID,
+			Tenantid:          tenantId,
+		},
+	)
+
+	if err != nil {
+		return "", err
+	}
 
 	for _, eventTrigger := range opts.EventTriggers {
-		txs = append(txs, r.client.WorkflowTriggerEventRef.CreateOne(
-			db.WorkflowTriggerEventRef.Parent.Link(
-				db.WorkflowTriggers.ID.Equals(workflowTriggersId),
-			),
-			db.WorkflowTriggerEventRef.EventKey.Set(eventTrigger),
-		).Tx())
+		_, err := r.queries.CreateWorkflowTriggerEventRef(
+			context.Background(),
+			tx,
+			dbsqlc.CreateWorkflowTriggerEventRefParams{
+				Workflowtriggersid: sqlcWorkflowTriggers.ID,
+				Eventtrigger:       eventTrigger,
+			},
+		)
+
+		if err != nil {
+			return "", err
+		}
 	}
 
 	for _, cronTrigger := range opts.CronTriggers {
-		txs = append(txs, r.client.WorkflowTriggerCronRef.CreateOne(
-			db.WorkflowTriggerCronRef.Parent.Link(
-				db.WorkflowTriggers.ID.Equals(workflowTriggersId),
-			),
-			db.WorkflowTriggerCronRef.Cron.Set(cronTrigger),
-		).Tx())
+		_, err := r.queries.CreateWorkflowTriggerCronRef(
+			context.Background(),
+			tx,
+			dbsqlc.CreateWorkflowTriggerCronRefParams{
+				Workflowtriggersid: sqlcWorkflowTriggers.ID,
+				Crontrigger:        cronTrigger,
+			},
+		)
+
+		if err != nil {
+			return "", err
+		}
 	}
 
 	for _, scheduledTrigger := range opts.ScheduledTriggers {
-		txs = append(txs, r.client.WorkflowTriggerScheduledRef.CreateOne(
-			db.WorkflowTriggerScheduledRef.Parent.Link(
-				db.WorkflowVersion.ID.Equals(workflowVersionId),
-			),
-			db.WorkflowTriggerScheduledRef.TriggerAt.Set(scheduledTrigger),
-		).Tx())
+		_, err := r.queries.CreateWorkflowTriggerScheduledRef(
+			context.Background(),
+			tx,
+			dbsqlc.CreateWorkflowTriggerScheduledRefParams{
+				Workflowversionid: sqlcWorkflowVersion.ID,
+				Scheduledtrigger:  sqlchelpers.TimestampFromTime(scheduledTrigger),
+			},
+		)
+
+		if err != nil {
+			return "", err
+		}
 	}
 
-	return workflowVersionId, txs
+	return workflowVersionId, nil
 }
 
 func (r *workflowRepository) DeleteWorkflow(tenantId, workflowId string) (*db.WorkflowModel, error) {

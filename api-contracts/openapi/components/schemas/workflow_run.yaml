@@ -156,10 +156,14 @@ StepRun:
       type: string
     step:
       $ref: "./_index.yaml#/Step"
-    nextId:
-      type: string
-    prevId:
-      type: string
+    children:
+      type: array
+      items:
+        type: string
+    parents:
+      type: array
+      items:
+        type: string
     workerId:
       type: string
     input:

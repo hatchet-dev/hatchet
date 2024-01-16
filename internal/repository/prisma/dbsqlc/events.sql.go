@@ -36,6 +36,64 @@ func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParam
 	return total, err
 }
 
+const createEvent = `-- name: CreateEvent :one
+INSERT INTO "Event" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "key",
+    "tenantId",
+    "replayedFromId",
+    "data"
+) VALUES (
+    $1::uuid,
+    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $4::timestamp,
+    $5::text,
+    $6::uuid,
+    $7::uuid,
+    $8::jsonb
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data
+`
+
+type CreateEventParams struct {
+	ID             pgtype.UUID      `json:"id"`
+	CreatedAt      pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
+	Deletedat      pgtype.Timestamp `json:"deletedat"`
+	Key            string           `json:"key"`
+	Tenantid       pgtype.UUID      `json:"tenantid"`
+	ReplayedFromId pgtype.UUID      `json:"replayedFromId"`
+	Data           []byte           `json:"data"`
+}
+
+func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParams) (*Event, error) {
+	row := db.QueryRow(ctx, createEvent,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Deletedat,
+		arg.Key,
+		arg.Tenantid,
+		arg.ReplayedFromId,
+		arg.Data,
+	)
+	var i Event
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Key,
+		&i.TenantId,
+		&i.ReplayedFromId,
+		&i.Data,
+	)
+	return &i, err
+}
+
 const getEventsForRange = `-- name: GetEventsForRange :many
 SELECT
     date_trunc('hour', "createdAt") AS event_hour,
