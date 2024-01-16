@@ -1,6 +1,6 @@
 # Introduction
 
-Welcome to the Hatchet documentation! Hatchet is a self-hostable workflow engine built for application developers. 
+Welcome to the Hatchet documentation! Hatchet is a self-hostable workflow engine built for application developers.
 
 **What is a workflow?**
 
@@ -28,31 +28,31 @@ We currently support the following features, with many more on the roadmap:
 
 - **Declarative workflows:** define workflows which run when events occur, with support for timeouts, multi-step workflows, and parallel execution:
 
-    ```go filename="worker.go" {3} copy
-    w.On(
-        worker.Event("event:test"), 
-        &worker.WorkflowJob{
-            Name:        "example-workflow",
-            Description: "Example workflow.",
-            Timeout:     "60s",
-            Steps: []worker.WorkflowStep{
-                {
-                    Function: func(ctx context.Context, event *events.TestEvent) error {
-                        fmt.Println("got event: ", event.Name)
-                        return nil
-                    },
-                },
-            },
-        },
-    )
-    ```
+  ```go filename="worker.go" {3} copy
+  w.On(
+      worker.Event("event:test"),
+      &worker.WorkflowJob{
+          Name:        "example-workflow",
+          Description: "Example workflow.",
+          Timeout:     "60s",
+          Steps: []*worker.WorkflowStep{
+              {
+                  Function: func(ctx context.Context, event *events.TestEvent) error {
+                      fmt.Println("got event: ", event.Name)
+                      return nil
+                  },
+              },
+          },
+      },
+  )
+  ```
 
 - **Event storage API:** store events in a durable event log, with support for querying and filtering events:
 
-    ![Workflow engine](/features-2.png)
+  ![Workflow engine](/features-2.png)
 
 - **Web platform for visibility and monitoring**: view the status of your workflows, and drill down into individual events:
 
-    ![Workflow engine](/features-1.png)
+  ![Workflow engine](/features-1.png)
 
 Check out the [Quickstart](/quickstart) guide to work through a simple example of using Hatchet.

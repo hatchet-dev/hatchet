@@ -66,7 +66,7 @@ func (s scheduled) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 	wt.Schedules = append(wt.Schedules, s...)
 }
 
-func (w *Worker) Call(action string) WorkflowStep {
+func (w *Worker) Call(action string) *WorkflowStep {
 	registeredAction, exists := w.actions[action]
 
 	if !exists {
@@ -79,7 +79,7 @@ func (w *Worker) Call(action string) WorkflowStep {
 		panic(err)
 	}
 
-	return WorkflowStep{
+	return &WorkflowStep{
 		Function: registeredAction.MethodFn(),
 		Name:     parsedAction.Verb,
 	}
@@ -131,7 +131,7 @@ type WorkflowJob struct {
 	Timeout string
 
 	// The steps that are run in the job
-	Steps []WorkflowStep
+	Steps []*WorkflowStep
 }
 
 func (j *WorkflowJob) ToWorkflow(svcName string) types.Workflow {
@@ -209,29 +209,29 @@ type WorkflowStep struct {
 	Parents []string
 }
 
-func Fn(f any) WorkflowStep {
-	return WorkflowStep{
+func Fn(f any) *WorkflowStep {
+	return &WorkflowStep{
 		Function: f,
 		Parents:  []string{},
 	}
 }
 
-func (w WorkflowStep) SetName(name string) WorkflowStep {
+func (w *WorkflowStep) SetName(name string) *WorkflowStep {
 	w.Name = name
 	return w
 }
 
-func (w WorkflowStep) SetTimeout(timeout string) WorkflowStep {
+func (w *WorkflowStep) SetTimeout(timeout string) *WorkflowStep {
 	w.Timeout = timeout
 	return w
 }
 
-func (w WorkflowStep) AddParents(parents ...string) WorkflowStep {
+func (w *WorkflowStep) AddParents(parents ...string) *WorkflowStep {
 	w.Parents = append(w.Parents, parents...)
 	return w
 }
 
-func (w WorkflowStep) ToWorkflow(svcName string) types.Workflow {
+func (w *WorkflowStep) ToWorkflow(svcName string) types.Workflow {
 	jobName := w.Name
 
 	if jobName == "" {
@@ -239,16 +239,16 @@ func (w WorkflowStep) ToWorkflow(svcName string) types.Workflow {
 	}
 	workflowJob := &WorkflowJob{
 		Name: jobName,
-		Steps: []WorkflowStep{
-			WorkflowStep(w),
+		Steps: []*WorkflowStep{
+			w,
 		},
 	}
 
 	return workflowJob.ToWorkflow(svcName)
 }
 
-func (w WorkflowStep) ToActionMap(svcName string) map[string]any {
-	step := WorkflowStep(w)
+func (w *WorkflowStep) ToActionMap(svcName string) map[string]any {
+	step := *w
 
 	return map[string]any{
 		step.GetActionId(svcName, 0): w.Function,
@@ -267,18 +267,18 @@ type step struct {
 	APIStep types.WorkflowStep
 }
 
-func (s *WorkflowStep) ToWorkflowStep(svcName string, index int) (*step, error) {
-	fnType := reflect.TypeOf(s.Function)
+func (w *WorkflowStep) ToWorkflowStep(svcName string, index int) (*step, error) {
+	fnType := reflect.TypeOf(w.Function)
 
 	res := &step{}
 
-	res.Id = s.GetStepId(index)
+	res.Id = w.GetStepId(index)
 
 	res.APIStep = types.WorkflowStep{
 		Name:     res.Id,
-		ID:       s.GetStepId(index),
-		Timeout:  s.Timeout,
-		ActionID: s.GetActionId(svcName, index),
+		ID:       w.GetStepId(index),
+		Timeout:  w.Timeout,
+		ActionID: w.GetActionId(svcName, index),
 		Parents:  []string{},
 	}
 
@@ -302,7 +302,7 @@ func (s *WorkflowStep) ToWorkflowStep(svcName string, index int) (*step, error) 
 		res.NonErrOutput = &outputs[0]
 	}
 
-	for _, parent := range s.Parents {
+	for _, parent := range w.Parents {
 		if res.APIStep.With == nil {
 			res.APIStep.With = map[string]interface{}{
 				parent: "{{ index .steps \"" + parent + "\" \"json\" }}",
@@ -323,12 +323,12 @@ func (s *WorkflowStep) ToWorkflowStep(svcName string, index int) (*step, error) 
 	return res, nil
 }
 
-func (s *WorkflowStep) GetStepId(index int) string {
-	if s.Name != "" {
-		return s.Name
+func (w *WorkflowStep) GetStepId(index int) string {
+	if w.Name != "" {
+		return w.Name
 	}
 
-	stepId := getFnName(s.Function)
+	stepId := getFnName(w.Function)
 
 	// this can happen if the function is anonymous
 	if stepId == "" {
@@ -338,8 +338,8 @@ func (s *WorkflowStep) GetStepId(index int) string {
 	return stepId
 }
 
-func (s *WorkflowStep) GetActionId(svcName string, index int) string {
-	stepId := s.GetStepId(index)
+func (w *WorkflowStep) GetActionId(svcName string, index int) string {
+	stepId := w.GetStepId(index)
 
 	return fmt.Sprintf("%s:%s", svcName, stepId)
 }

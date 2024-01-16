@@ -6,11 +6,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/joho/godotenv"
 )
 
 type userCreateEvent struct {
@@ -65,7 +66,7 @@ func main() {
 	err = w.On(worker.Event("user:create"), &worker.WorkflowJob{
 		Name:        "failing-workflow",
 		Description: "This is a failing workflow.",
-		Steps: []worker.WorkflowStep{
+		Steps: []*worker.WorkflowStep{
 			{
 				Function: StepOne,
 			},

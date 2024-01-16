@@ -8,6 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/steebchen/prisma-client-go/runtime/types"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository"
@@ -18,9 +22,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
-	"github.com/rs/zerolog"
-	"github.com/steebchen/prisma-client-go/runtime/types"
-	"golang.org/x/sync/errgroup"
 )
 
 type JobsController interface {
@@ -535,7 +536,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	updateStepOpts.Status = repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment)
 
 	// indicate that the step run is pending assignment
-	stepRun, err = ec.repo.StepRun().QueueStepRun(tenantId, stepRunId, updateStepOpts)
+	_, err = ec.repo.StepRun().QueueStepRun(tenantId, stepRunId, updateStepOpts)
 
 	if err != nil {
 		if errors.Is(err, repository.StepRunIsNotPendingErr) {
@@ -767,8 +768,6 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 	if err != nil {
 		return fmt.Errorf("could not list startable step runs: %w", err)
 	}
-
-	fmt.Println("LEN OF NEXT STEP RUNS", len(nextStepRuns))
 
 	for _, nextStepRun := range nextStepRuns {
 		err = ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(nextStepRun.StepId), sqlchelpers.UUIDToStr(nextStepRun.ID))

@@ -6,16 +6,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 )
 
 type workflowRunRepository struct {
@@ -92,7 +93,7 @@ func (w *workflowRunRepository) ListWorkflowRuns(tenantId string, opts *reposito
 		return nil, err
 	}
 
-	defer tx.Rollback(context.Background())
+	defer deferRollback(context.Background(), w.l, tx.Rollback)
 
 	workflowRuns, err := w.queries.ListWorkflowRuns(context.Background(), tx, queryParams)
 
@@ -139,7 +140,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 			return nil, err
 		}
 
-		defer tx.Rollback(tx1Ctx)
+		defer deferRollback(context.Background(), w.l, tx.Rollback)
 
 		pgWorkflowRunId := sqlchelpers.UUIDFromStr(workflowRunId)
 		pgTenantId := sqlchelpers.UUIDFromStr(tenantId)

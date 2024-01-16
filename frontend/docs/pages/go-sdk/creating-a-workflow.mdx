@@ -4,12 +4,12 @@ The simplest way to define a workflow is by using the `worker.On` method. This m
 
 ```go
 w.On(
-    worker.Event("user:created"), 
+    worker.Event("user:created"),
     &worker.WorkflowJob{
         Name:        "post-user-sign-up",
         Description: "Workflow that executes after a user signs up.",
         Timeout:     "60s",
-        Steps: []worker.WorkflowStep{
+        Steps: []*worker.WorkflowStep{
             worker.Fn(func(ctx worker.HatchetContext) error {
                 return nil
             }),
@@ -37,7 +37,7 @@ If your workflow is a single method, you can use `worker.Fn` to define your work
 
 ```go
 w.On(
-    worker.Event("user:created"), 
+    worker.Event("user:created"),
     worker.Fn(func(ctx worker.HatchetContext) error {
         return nil
     }),
@@ -48,7 +48,7 @@ Anonymous functions will be given an auto-generated name based on the package an
 
 ```go
 w.On(
-    worker.Event("user:created"), 
+    worker.Event("user:created"),
     worker.Fn(func(ctx worker.HatchetContext) error {
         return nil
     }).SetName("post-user-create"), // this workflow will be named "post-user-create"
@@ -69,7 +69,7 @@ err = w.On(
 	&worker.WorkflowJob{
 		Name:        "two-step-workflow",
 		Description: "This is an example two-step workflow.",
-		Steps: []worker.WorkflowStep{
+		Steps: []*worker.WorkflowStep{
 			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 				input := &userCreateEvent{}
                 ctx.WorkflowInput(input) // typically you would handle this error
@@ -122,7 +122,7 @@ func FirstStep(ctx worker.HatchetContext) error {
 Step functions must always accept a `worker.HatchetContext` as the first argument (or alternatively, `context.Context`), and must return an `error` as the last return value. They can optionally return a value, which must be a pointer to a struct. At the moment, the following are valid step functions:
 
 ```go
-func (ctx worker.HatchetContext) error 
+func (ctx worker.HatchetContext) error
 func (ctx worker.HatchetContext) (*myOutput, error)
 ```
 
@@ -136,12 +136,12 @@ Services are a way to logically group workflows into different categories. For e
 userService := w.NewService("user")
 
 userService.On(
-    worker.Event("user:created"), 
+    worker.Event("user:created"),
     &worker.WorkflowJob{
         Name:        "post-user-sign-up",
         Description: "Workflow that executes after a user signs up.",
         Timeout:     "60s",
-        Steps: []worker.WorkflowStep{
+        Steps: []*worker.WorkflowStep{
             {
                 Function: func(ctx context.Context) error {
                     fmt.Println("running post-user sign up")
@@ -161,12 +161,12 @@ You can declare a cron schedule by passing `worker.Cron` to the `worker.On` meth
 
 ```go
 w.On(
-    worker.Cron("*/5 * * * *"), 
+    worker.Cron("*/5 * * * *"),
     &worker.WorkflowJob{
         Name:        "my-cron-job",
         Description: "Cron workflow example.",
         Timeout:     "60s",
-        Steps: []worker.WorkflowStep{
+        Steps: []*worker.WorkflowStep{
             {
                 Function: func(ctx context.Context) error {
                     fmt.Println("triggered at:", time.Now())

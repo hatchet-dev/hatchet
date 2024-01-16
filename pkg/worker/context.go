@@ -91,8 +91,6 @@ func (h *hatchetContext) WorkflowInput(target interface{}) error {
 }
 
 func (h *hatchetContext) populateStepData() error {
-	fmt.Println("ACTION PAYLOAD IS", string(h.action.ActionPayload))
-
 	if h.stepData != nil {
 		return nil
 	}

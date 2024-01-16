@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/joho/godotenv"
 )
 
 type userCreateEvent struct {
@@ -85,7 +86,7 @@ func main() {
 		&worker.WorkflowJob{
 			Name:        "post-user-update",
 			Description: "This runs after an update to the user model.",
-			Steps: []worker.WorkflowStep{
+			Steps: []*worker.WorkflowStep{
 				// example of calling a registered action from the worker (includes service name)
 				w.Call("test:step-one"),
 				// example of calling a registered action from a service

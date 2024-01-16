@@ -48,7 +48,7 @@ func TestToWorkflowJob(t *testing.T) {
 		Name:        "test",
 		Description: "test",
 		Timeout:     "1m",
-		Steps: []WorkflowStep{
+		Steps: []*WorkflowStep{
 			{
 				Function: func(ctx context.Context, input *actionInput) (result *stepOneOutput, err error) {
 					return nil, nil

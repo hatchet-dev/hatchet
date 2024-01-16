@@ -6,10 +6,11 @@ import (
 	"log"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/joho/godotenv"
 )
 
 type userCreateEvent struct {
@@ -59,7 +60,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		&worker.WorkflowJob{
 			Name:        "post-user-update",
 			Description: "This runs after an update to the user model.",
-			Steps: []worker.WorkflowStep{
+			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
 					input := &userCreateEvent{}
 					ctx.WorkflowInput(input)

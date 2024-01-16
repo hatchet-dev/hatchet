@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/joho/godotenv"
 )
 
 type Event struct {
@@ -65,7 +66,7 @@ func main() {
 		&worker.WorkflowJob{
 			Name:        "scheduled-workflow",
 			Description: "This runs at a scheduled time.",
-			Steps: []worker.WorkflowStep{
+			Steps: []*worker.WorkflowStep{
 				worker.Fn(StepOne).SetName("step-one"),
 			},
 		},

@@ -1,6 +1,6 @@
 # Quickstart
 
-> Note: this guide is written for Go developers. We have more SDKs on the roadmap, please [get in touch](mailto:contact@hatchet.run) if you would like to be notified when they're available (or you'd like to help us build one!).  
+> Note: this guide is written for Go developers. We have more SDKs on the roadmap, please [get in touch](mailto:contact@hatchet.run) if you would like to be notified when they're available (or you'd like to help us build one!).
 
 ## Prerequisites
 
@@ -14,9 +14,9 @@ This quickstart example requires the following tools to work:
 
 1. Clone the quickstart repository:
 
-    ```sh
-    git clone https://github.com/hatchet-dev/hatchet-go-quickstart.git && cd hatchet-go-quickstart
-    ```
+   ```sh
+   git clone https://github.com/hatchet-dev/hatchet-go-quickstart.git && cd hatchet-go-quickstart
+   ```
 
 2. Run `go mod download` to fetch all packages.
 
@@ -24,28 +24,32 @@ This quickstart example requires the following tools to work:
 
 4. Run `caddy start` to get an instance running. You should be able to navigate to [app.dev.hatchet-tools.com](https://app.dev.hatchet-tools.com) and use the following credentials to log in:
 
-    ```
-    Email: admin@example.com
-    Password: Admin123!!
-    ```
+   ```
+   Email: admin@example.com
+   Password: Admin123!!
+   ```
 
 5. Create the required environment variables via:
 
-    ```sh
-    cat > .env <<EOF
-    HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
-    HATCHET_CLIENT_TLS_ROOT_CA_FILE=./certs/ca.cert
-    HATCHET_CLIENT_TLS_CERT_FILE=./certs/client-worker.pem
-    HATCHET_CLIENT_TLS_KEY_FILE=./certs/client-worker.key
-    HATCHET_CLIENT_TLS_SERVER_NAME=cluster
-    EOF
-    ```
+   ```sh
+   cat > .env <<EOF
+   HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
+   HATCHET_CLIENT_TLS_ROOT_CA_FILE=./certs/ca.cert
+   HATCHET_CLIENT_TLS_CERT_FILE=./certs/client-worker.pem
+   HATCHET_CLIENT_TLS_KEY_FILE=./certs/client-worker.key
+   HATCHET_CLIENT_TLS_SERVER_NAME=cluster
+   EOF
+   ```
 
 6. Run the server and worker in two separate shell sessions via: `go run ./cmd/server` and `go run ./cmd/worker`.
 
 7. Run `curl http://localhost:1323/test` to test the endpoint. You will see events and workflows populated in the Hatchet dashboard:
 
-    <img width="1728" alt="image" src="https://github.com/hatchet-dev/hatchet-go-quickstart/assets/25448214/376e4ee8-7233-4a84-85b8-f71ad9e7402e" />
+   <img
+     width="1728"
+     alt="image"
+     src="https://github.com/hatchet-dev/hatchet-go-quickstart/assets/25448214/376e4ee8-7233-4a84-85b8-f71ad9e7402e"
+   />
 
 ## Explanation
 
@@ -72,7 +76,7 @@ w.On(worker.Event("test-called"), &worker.WorkflowJob{
   Name:        "event-test",
   Description: "Test workflow.",
   Timeout:     "60s",
-  Steps: []worker.WorkflowStep{
+  Steps: []*worker.WorkflowStep{
     {
       Function: func(ctx context.Context, event *events.TestEvent) error {
         fmt.Println("got event: ", event.Name)
@@ -85,4 +89,4 @@ w.On(worker.Event("test-called"), &worker.WorkflowJob{
 
 ## Next Steps
 
-Hatchet has many powerful features that can be used to build complex workflows. Check out the [Go SDK](./go-sdk) for more information. 
+Hatchet has many powerful features that can be used to build complex workflows. Check out the [Go SDK](./go-sdk) for more information.
