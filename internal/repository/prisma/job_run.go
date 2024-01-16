@@ -3,12 +3,14 @@ package prisma
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/validator"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type jobRunRepository struct {
@@ -16,9 +18,10 @@ type jobRunRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewJobRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator) repository.JobRunRepository {
+func NewJobRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.JobRunRepository {
 	queries := dbsqlc.New()
 
 	return &jobRunRepository{
@@ -26,6 +29,7 @@ func NewJobRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validato
 		v:       v,
 		pool:    pool,
 		queries: queries,
+		l:       l,
 	}
 }
 
@@ -136,7 +140,7 @@ func (j *jobRunRepository) UpdateJobRunLookupData(tenantId, jobRunId string, opt
 		return err
 	}
 
-	defer tx.Rollback(context.Background())
+	defer deferRollback(context.Background(), j.l, tx.Rollback)
 
 	err = j.queries.UpsertJobRunLookupData(
 		context.Background(),

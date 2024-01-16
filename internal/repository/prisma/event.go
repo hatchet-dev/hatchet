@@ -7,6 +7,11 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
@@ -14,9 +19,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlctoprisma"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type eventRepository struct {
@@ -24,9 +26,10 @@ type eventRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewEventRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator) repository.EventRepository {
+func NewEventRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.EventRepository {
 	queries := dbsqlc.New()
 
 	return &eventRepository{
@@ -34,6 +37,7 @@ func NewEventRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator
 		pool:    pool,
 		v:       v,
 		queries: queries,
+		l:       l,
 	}
 }
 
@@ -94,7 +98,7 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 		return nil, err
 	}
 
-	defer tx.Rollback(context.Background())
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
 	events, err := r.queries.ListEvents(context.Background(), tx, queryParams)
 
@@ -200,7 +204,7 @@ func (r *eventRepository) CreateEvent(ctx context.Context, opts *repository.Crea
 		return nil, err
 	}
 
-	defer tx.Rollback(ctx)
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
 	e, err := r.queries.CreateEvent(
 		ctx,
