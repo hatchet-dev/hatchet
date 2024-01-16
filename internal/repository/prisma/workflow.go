@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
@@ -162,6 +163,15 @@ func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository
 		return nil, err
 	}
 
+	// ensure no cycles
+	for _, job := range opts.Jobs {
+		if dagutils.HasCycle(job.Steps) {
+			return nil, &repository.JobRunHasCycleError{
+				JobName: job.Name,
+			}
+		}
+	}
+
 	// preflight check to ensure the workflow doesn't already exist
 	workflow, err := r.client.Workflow.FindUnique(
 		db.Workflow.TenantIDName(
@@ -245,43 +255,6 @@ func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository
 		return nil, err
 	}
 
-	// // create any tags
-	// if len(opts.Tags) > 0 {
-	// 	for _, tag := range opts.Tags {
-	// 		txs = append(txs, r.client.WorkflowTag.UpsertOne(
-	// 			db.WorkflowTag.TenantIDName(
-	// 				db.WorkflowTag.TenantID.Equals(tenantId),
-	// 				db.WorkflowTag.Name.Equals(tag.Name),
-	// 			),
-	// 		).Create(
-	// 			db.WorkflowTag.Tenant.Link(
-	// 				db.Tenant.ID.Equals(tenantId),
-	// 			),
-	// 			db.WorkflowTag.Name.Set(tag.Name),
-	// 			db.WorkflowTag.Workflows.Link(
-	// 				db.Workflow.ID.Equals(workflowId),
-	// 			),
-	// 			db.WorkflowTag.Color.SetIfPresent(tag.Color),
-	// 		).Update(
-	// 			db.WorkflowTag.Workflows.Link(
-	// 				db.Workflow.ID.Equals(workflowId),
-	// 			),
-	// 			db.WorkflowTag.Color.SetIfPresent(tag.Color),
-	// 		).Tx())
-	// 	}
-	// }
-
-	// workflowVersionId, versionTxs := r.createWorkflowVersionTxs(tenantId, workflowId, opts)
-
-	// txs = append(txs, versionTxs...)
-
-	// // execute the transaction
-	// err = r.client.Prisma.Transaction(txs...).Exec(context.Background())
-
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	return r.client.WorkflowVersion.FindUnique(
 		db.WorkflowVersion.ID.Equals(workflowVersionId),
 	).With(
@@ -292,6 +265,15 @@ func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository
 func (r *workflowRepository) CreateWorkflowVersion(tenantId string, opts *repository.CreateWorkflowVersionOpts) (*db.WorkflowVersionModel, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
+	}
+
+	// ensure no cycles
+	for _, job := range opts.Jobs {
+		if dagutils.HasCycle(job.Steps) {
+			return nil, &repository.JobRunHasCycleError{
+				JobName: job.Name,
+			}
+		}
 	}
 
 	// preflight check to ensure the workflow already exists

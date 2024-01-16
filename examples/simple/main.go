@@ -76,7 +76,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 						Message: "Username is: " + input.Username,
 					}, nil
 				},
-				).SetName("step-one"),
+				).SetName("step-one").AddParents("step-two"),
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					input := &stepOneOutput{}
 					err = ctx.StepOutput("step-one", input)

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -94,6 +95,14 @@ type ListWorkflowsRow struct {
 type ListWorkflowsResult struct {
 	Rows  []*ListWorkflowsRow
 	Count int
+}
+
+type JobRunHasCycleError struct {
+	JobName string
+}
+
+func (e *JobRunHasCycleError) Error() string {
+	return fmt.Sprintf("job %s has a cycle", e.JobName)
 }
 
 type WorkflowRepository interface {
