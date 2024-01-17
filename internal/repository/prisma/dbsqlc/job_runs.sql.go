@@ -138,6 +138,45 @@ func (q *Queries) UpdateJobRun(ctx context.Context, db DBTX, arg UpdateJobRunPar
 	return &i, err
 }
 
+const updateJobRunLookupDataWithStepRun = `-- name: UpdateJobRunLookupDataWithStepRun :exec
+WITH readable_id AS (
+    SELECT "readableId"
+    FROM "Step"
+    WHERE "id" = (
+        SELECT "stepId"
+        FROM "StepRun"
+        WHERE "id" = $2::uuid
+    )
+)
+UPDATE "JobRunLookupData"
+SET 
+    "data" = jsonb_set(
+        "JobRunLookupData"."data", 
+        ARRAY['steps', (SELECT "readableId" FROM readable_id)], 
+        $1::jsonb, 
+        true
+    ),
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    "jobRunId" = (
+        SELECT "jobRunId"
+        FROM "StepRun"
+        WHERE "id" = $2::uuid
+    )
+    AND "tenantId" = $3::uuid
+`
+
+type UpdateJobRunLookupDataWithStepRunParams struct {
+	Jsondata  []byte      `json:"jsondata"`
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) UpdateJobRunLookupDataWithStepRun(ctx context.Context, db DBTX, arg UpdateJobRunLookupDataWithStepRunParams) error {
+	_, err := db.Exec(ctx, updateJobRunLookupDataWithStepRun, arg.Jsondata, arg.Steprunid, arg.Tenantid)
+	return err
+}
+
 const upsertJobRunLookupData = `-- name: UpsertJobRunLookupData :exec
 INSERT INTO "JobRunLookupData" (
     "id",

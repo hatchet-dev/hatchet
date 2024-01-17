@@ -6,7 +6,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
-	"github.com/steebchen/prisma-client-go/runtime/types"
 )
 
 type ListAllStepRunsOpts struct {
@@ -44,9 +43,9 @@ type UpdateStepRunOpts struct {
 
 	Error *string
 
-	Input *types.JSON
+	Input []byte
 
-	Output *types.JSON
+	Output []byte
 }
 
 func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {

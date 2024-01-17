@@ -1,9 +1,9 @@
 # relative imports
-from clients.admin import AdminClientImpl, new_admin
-from clients.events import EventClientImpl, new_event
-from clients.dispatcher import DispatcherClientImpl, new_dispatcher
+from .clients.admin import AdminClientImpl, new_admin
+from .clients.events import EventClientImpl, new_event
+from .clients.dispatcher import DispatcherClientImpl, new_dispatcher
 
-from loader import ConfigLoader, ClientConfig
+from .loader import ConfigLoader, ClientConfig
 import grpc
 from dotenv import load_dotenv
 
@@ -55,8 +55,9 @@ def new_client(*opts_functions):
     if config.tls_config is None:
         raise ValueError("TLS config is required")
     
-    print(config.tenant_id)
-    
+    if config.host_port is None:
+        raise ValueError("Host and port are required")
+        
     root = open(config.tls_config.ca_file, "rb").read()
     private_key = open(config.tls_config.key_file, "rb").read()
     certificate_chain = open(config.tls_config.cert_file, "rb").read()

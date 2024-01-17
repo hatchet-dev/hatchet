@@ -1,9 +1,9 @@
 # relative imports
-from dispatcher_pb2 import ActionEvent, ActionEventResponse, ActionType, AssignedAction, WorkerListenRequest, WorkerRegisterRequest, WorkerUnsubscribeRequest, WorkerRegisterResponse
-from dispatcher_pb2_grpc import DispatcherStub
+from ..dispatcher_pb2 import ActionEvent, ActionEventResponse, ActionType, AssignedAction, WorkerListenRequest, WorkerRegisterRequest, WorkerUnsubscribeRequest, WorkerRegisterResponse
+from ..dispatcher_pb2_grpc import DispatcherStub
 
 import time
-from loader import ClientConfig
+from ..loader import ClientConfig
 import json
 import grpc
 from typing import Callable, List, Union
@@ -32,10 +32,8 @@ class GetActionListenerRequest:
         self.services = services
         self.actions = actions
 
-ActionPayload = Callable[[Union[dict, object]], Exception]
-
 class Action:
-    def __init__(self, worker_id: str, tenant_id: str, job_id: str, job_name: str, job_run_id: str, step_id: str, step_run_id: str, action_id: str, action_payload: ActionPayload, action_type: ActionType):
+    def __init__(self, worker_id: str, tenant_id: str, job_id: str, job_name: str, job_run_id: str, step_id: str, step_run_id: str, action_id: str, action_payload: str, action_type: ActionType):
         self.worker_id = worker_id
         self.tenant_id = tenant_id
         self.job_id = job_id
@@ -70,13 +68,16 @@ class ActionListenerImpl(WorkerActionListener):
     def actions(self):
         while True:
             try:
-                print("listening for actions!")
                 for assigned_action in self.listen_client:
                     assigned_action : AssignedAction
 
                     # Process the received action
                     action_type = self.map_action_type(assigned_action.actionType)
-                    action_payload = self.parse_action_payload(assigned_action.actionPayload)
+
+                    if assigned_action.actionPayload is None or assigned_action.actionPayload == "":
+                        action_payload = None
+                    else:
+                        action_payload = self.parse_action_payload(assigned_action.actionPayload)
 
                     action = Action(
                         tenant_id=assigned_action.tenantId,
@@ -109,7 +110,6 @@ class ActionListenerImpl(WorkerActionListener):
                     break
 
     def parse_action_payload(self, payload : str):
-        print("parsing payload: " + payload)
         try:
             payload_data = json.loads(payload)
         except json.JSONDecodeError as e:
@@ -125,14 +125,14 @@ class ActionListenerImpl(WorkerActionListener):
             # self.logger.error(f"Unknown action type: {action_type}")
             return None
 
-    def retry_subscribe(self, ctx):
+    def retry_subscribe(self):
         retries = 0
         while retries < DEFAULT_ACTION_LISTENER_RETRY_COUNT:
             try:
                 time.sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL)
                 self.listen_client = self.client.Listen(WorkerListenRequest(
-                    tenant_id=self.tenant_id,
-                    worker_id=self.worker_id
+                    tenantId=self.tenant_id,
+                    workerId=self.worker_id
                 ))
                 return
             except grpc.RpcError as e:
@@ -160,9 +160,6 @@ class DispatcherClientImpl(DispatcherClient):
         # self.validator = validator
 
     def get_action_listener(self, req: GetActionListenerRequest) -> ActionListenerImpl:
-        # Validate the request
-        # ... validation logic ...
-
         # Register the worker
         response : WorkerRegisterResponse = self.client.Register(WorkerRegisterRequest(
             tenantId=self.tenant_id,
@@ -171,35 +168,16 @@ class DispatcherClientImpl(DispatcherClient):
             services=req.services
         ))
 
-        # ... handle errors ...
-
-        # self.logger.debug(f'Registered worker with id: {response.worker_id}')
-
         # Subscribe to the worker
         listener = self.client.Listen(WorkerListenRequest(
             tenantId=self.tenant_id,
             workerId=response.workerId,
         ))
 
-        # ... handle errors ...
-
         return ActionListenerImpl(self.client, self.tenant_id, listener, response.workerId)
 
     def send_action_event(self, in_: ActionEvent):
-        # Validate the request
-        # ... validation logic ...
+        response : ActionEventResponse = self.client.SendActionEvent(in_)
 
-        payload_bytes = json.dumps(in_.event_payload)
-
-        # Map ActionEventType
-        # ... map action event type logic ...
-
-        response = self.client.SendActionEvent(ActionEvent(
-            # Fill in the fields based on the in_ object and mapped types
-            # ...
-        ))
-
-        # ... handle errors ...
-
-        return ActionEventResponse(tenant_id=response.tenant_id, worker_id=response.worker_id)
+        return response
 

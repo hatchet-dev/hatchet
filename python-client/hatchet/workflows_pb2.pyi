@@ -46,16 +46,18 @@ class CreateWorkflowJobOpts(_message.Message):
     def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., timeout: _Optional[str] = ..., steps: _Optional[_Iterable[_Union[CreateWorkflowStepOpts, _Mapping]]] = ...) -> None: ...
 
 class CreateWorkflowStepOpts(_message.Message):
-    __slots__ = ("readable_id", "action", "timeout", "inputs")
+    __slots__ = ("readable_id", "action", "timeout", "inputs", "parents")
     READABLE_ID_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     TIMEOUT_FIELD_NUMBER: _ClassVar[int]
     INPUTS_FIELD_NUMBER: _ClassVar[int]
+    PARENTS_FIELD_NUMBER: _ClassVar[int]
     readable_id: str
     action: str
     timeout: str
     inputs: str
-    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ...) -> None: ...
+    parents: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class ListWorkflowsRequest(_message.Message):
     __slots__ = ("tenant_id",)
@@ -64,14 +66,16 @@ class ListWorkflowsRequest(_message.Message):
     def __init__(self, tenant_id: _Optional[str] = ...) -> None: ...
 
 class ScheduleWorkflowRequest(_message.Message):
-    __slots__ = ("tenant_id", "workflow_id", "schedules")
+    __slots__ = ("tenant_id", "workflow_id", "schedules", "input")
     TENANT_ID_FIELD_NUMBER: _ClassVar[int]
     WORKFLOW_ID_FIELD_NUMBER: _ClassVar[int]
     SCHEDULES_FIELD_NUMBER: _ClassVar[int]
+    INPUT_FIELD_NUMBER: _ClassVar[int]
     tenant_id: str
     workflow_id: str
     schedules: _containers.RepeatedCompositeFieldContainer[_timestamp_pb2.Timestamp]
-    def __init__(self, tenant_id: _Optional[str] = ..., workflow_id: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ...) -> None: ...
+    input: str
+    def __init__(self, tenant_id: _Optional[str] = ..., workflow_id: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., input: _Optional[str] = ...) -> None: ...
 
 class ListWorkflowsResponse(_message.Message):
     __slots__ = ("workflows",)
@@ -182,7 +186,7 @@ class Job(_message.Message):
     def __init__(self, id: _Optional[str] = ..., created_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., tenant_id: _Optional[str] = ..., workflow_version_id: _Optional[str] = ..., name: _Optional[str] = ..., description: _Optional[_Union[_wrappers_pb2.StringValue, _Mapping]] = ..., steps: _Optional[_Iterable[_Union[Step, _Mapping]]] = ..., timeout: _Optional[_Union[_wrappers_pb2.StringValue, _Mapping]] = ...) -> None: ...
 
 class Step(_message.Message):
-    __slots__ = ("id", "created_at", "updated_at", "readable_id", "tenant_id", "job_id", "action", "timeout", "next_id")
+    __slots__ = ("id", "created_at", "updated_at", "readable_id", "tenant_id", "job_id", "action", "timeout", "parents", "children")
     ID_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
     UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -191,7 +195,8 @@ class Step(_message.Message):
     JOB_ID_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     TIMEOUT_FIELD_NUMBER: _ClassVar[int]
-    NEXT_ID_FIELD_NUMBER: _ClassVar[int]
+    PARENTS_FIELD_NUMBER: _ClassVar[int]
+    CHILDREN_FIELD_NUMBER: _ClassVar[int]
     id: str
     created_at: _timestamp_pb2.Timestamp
     updated_at: _timestamp_pb2.Timestamp
@@ -200,8 +205,9 @@ class Step(_message.Message):
     job_id: str
     action: str
     timeout: _wrappers_pb2.StringValue
-    next_id: str
-    def __init__(self, id: _Optional[str] = ..., created_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., readable_id: _Optional[_Union[_wrappers_pb2.StringValue, _Mapping]] = ..., tenant_id: _Optional[str] = ..., job_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[_Union[_wrappers_pb2.StringValue, _Mapping]] = ..., next_id: _Optional[str] = ...) -> None: ...
+    parents: _containers.RepeatedScalarFieldContainer[str]
+    children: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, id: _Optional[str] = ..., created_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., readable_id: _Optional[_Union[_wrappers_pb2.StringValue, _Mapping]] = ..., tenant_id: _Optional[str] = ..., job_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[_Union[_wrappers_pb2.StringValue, _Mapping]] = ..., parents: _Optional[_Iterable[str]] = ..., children: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class DeleteWorkflowRequest(_message.Message):
     __slots__ = ("tenant_id", "workflow_id")

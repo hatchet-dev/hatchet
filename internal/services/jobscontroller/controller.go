@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/steebchen/prisma-client-go/runtime/types"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -509,13 +508,13 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			}
 		}
 
-		newInput, err := datautils.ToJSONType(inputData)
+		inputDataBytes, err := json.Marshal(inputData)
 
 		if err != nil {
 			return fmt.Errorf("could not convert input data to json: %w", err)
 		}
 
-		updateStepOpts.Input = newInput
+		updateStepOpts.Input = inputDataBytes
 	}
 
 	// begin transaction and make sure step run is in a pending status
@@ -698,20 +697,22 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	var stepOutput string
+	var stepOutput []byte
 
-	stepOutput, err = strconv.Unquote(payload.StepOutputData)
+	if payload.StepOutputData != "" {
+		stepOutputStr, err := strconv.Unquote(payload.StepOutputData)
 
-	if err != nil {
-		stepOutput = payload.StepOutputData
+		if err != nil {
+			stepOutputStr = payload.StepOutputData
+		}
+
+		stepOutput = []byte(stepOutputStr)
 	}
-
-	outputJSON := types.JSON(json.RawMessage(stepOutput))
 
 	stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
 		FinishedAt: &finishedAt,
 		Status:     repository.StepRunStatusPtr(db.StepRunStatusSucceeded),
-		Output:     &outputJSON,
+		Output:     stepOutput,
 	})
 
 	if err != nil {
@@ -728,26 +729,29 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 
 	servertel.WithJobRunModel(span, jobRun)
 
-	stepReadableId, ok := stepRun.Step().ReadableID()
+	// stepReadableId, ok := stepRun.Step().ReadableID()
 
 	// only update the job lookup data if the step has a readable id to key
-	if ok && stepReadableId != "" {
-		unquoted, err := strconv.Unquote(payload.StepOutputData)
+	// if ok && stepReadableId != "" {
+	// 	if payload.StepOutputData != "" {
+	// 		fmt.Println("UPDATING WITH PAYLOAD", payload.StepOutputData)
+	// 		unquoted, err := strconv.Unquote(payload.StepOutputData)
 
-		if err != nil {
-			unquoted = payload.StepOutputData
-		}
+	// 		if err != nil {
+	// 			unquoted = payload.StepOutputData
+	// 		}
 
-		// update the job run lookup data
-		err = ec.repo.JobRun().UpdateJobRunLookupData(metadata.TenantId, stepRun.JobRunID, &repository.UpdateJobRunLookupDataOpts{
-			FieldPath: []string{"steps", stepReadableId},
-			Data:      []byte(unquoted),
-		})
+	// 		// update the job run lookup data
+	// 		err = ec.repo.JobRun().UpdateJobRunLookupData(metadata.TenantId, stepRun.JobRunID, &repository.UpdateJobRunLookupDataOpts{
+	// 			FieldPath: []string{"steps", stepReadableId},
+	// 			Data:      []byte(unquoted),
+	// 		})
 
-		if err != nil {
-			return fmt.Errorf("could not update job run lookup data: %w", err)
-		}
-	}
+	// 		if err != nil {
+	// 			return fmt.Errorf("could not update job run lookup data: %w", err)
+	// 		}
+	// 	}
+	// }
 
 	// queue the next step runs
 	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(metadata.TenantId, jobRun.ID, stepRun.ID)

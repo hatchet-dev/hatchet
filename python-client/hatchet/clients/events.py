@@ -1,8 +1,8 @@
-from events_pb2_grpc import EventsServiceStub
-from events_pb2 import PushEventRequest
+from ..events_pb2_grpc import EventsServiceStub
+from ..events_pb2 import PushEventRequest
 
 import datetime
-from loader import ClientConfig
+from ..loader import ClientConfig
 import json
 import grpc
 from google.protobuf import timestamp_pb2

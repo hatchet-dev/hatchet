@@ -2,7 +2,8 @@ package prisma
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -123,32 +124,70 @@ func (s *stepRunRepository) ListStepRuns(tenantId string, opts *repository.ListS
 	).Exec(context.Background())
 }
 
+var retrier = func(l *zerolog.Logger, f func() error) error {
+	retries := 0
+
+	for {
+		err := f()
+
+		if err != nil {
+			// deadlock detected, retry
+			if strings.Contains(err.Error(), "deadlock detected") {
+				retries++
+
+				if retries > 3 {
+					return fmt.Errorf("could not update job run lookup data: %w", err)
+				} else {
+					l.Err(err).Msgf("deadlock detected, retry %d", retries)
+					time.Sleep(100 * time.Millisecond)
+				}
+			} else {
+				return fmt.Errorf("could not update job run lookup data: %w", err)
+			}
+		}
+
+		if err == nil {
+			if retries > 0 {
+				l.Info().Msgf("deadlock resolved after %d retries", retries)
+			}
+
+			break
+		}
+	}
+
+	return nil
+}
+
 func (s *stepRunRepository) UpdateStepRun(tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*db.StepRunModel, error) {
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	updateParams, resolveJobRunParams, resolveLaterStepRunsParams, err := getUpdateParams(tenantId, stepRunId, opts)
+	updateParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams, err := getUpdateParams(tenantId, stepRunId, opts)
 
 	if err != nil {
 		return nil, err
 	}
 
-	tx, err := s.pool.Begin(context.Background())
+	err = retrier(s.l, func() error {
+		tx, err := s.pool.Begin(context.Background())
 
-	if err != nil {
-		return nil, err
-	}
+		if err != nil {
+			return err
+		}
 
-	defer deferRollback(context.Background(), s.l, tx.Rollback)
+		defer deferRollback(context.Background(), s.l, tx.Rollback)
 
-	err = s.updateStepRun(tx, tenantId, updateParams, resolveJobRunParams, resolveLaterStepRunsParams)
+		err = s.updateStepRun(tx, tenantId, updateParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams)
 
-	if err != nil {
-		return nil, err
-	}
+		if err != nil {
+			return err
+		}
 
-	err = tx.Commit(context.Background())
+		err = tx.Commit(context.Background())
+
+		return err
+	})
 
 	if err != nil {
 		return nil, err
@@ -176,7 +215,7 @@ func (s *stepRunRepository) QueueStepRun(tenantId, stepRunId string, opts *repos
 		return nil, err
 	}
 
-	updateParams, resolveJobRunParams, resolveLaterStepRunsParams, err := getUpdateParams(tenantId, stepRunId, opts)
+	updateParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams, err := getUpdateParams(tenantId, stepRunId, opts)
 
 	if err != nil {
 		return nil, err
@@ -204,7 +243,7 @@ func (s *stepRunRepository) QueueStepRun(tenantId, stepRunId string, opts *repos
 		return nil, repository.StepRunIsNotPendingErr
 	}
 
-	err = s.updateStepRun(tx, tenantId, updateParams, resolveJobRunParams, resolveLaterStepRunsParams)
+	err = s.updateStepRun(tx, tenantId, updateParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams)
 
 	if err != nil {
 		return nil, err
@@ -239,6 +278,7 @@ func getUpdateParams(
 	opts *repository.UpdateStepRunOpts,
 ) (
 	updateParams dbsqlc.UpdateStepRunParams,
+	updateJobRunLookupDataParams *dbsqlc.UpdateJobRunLookupDataWithStepRunParams,
 	resolveJobRunParams dbsqlc.ResolveJobRunStatusParams,
 	resolveLaterStepRunsParams dbsqlc.ResolveLaterStepRunsParams,
 	err error,
@@ -249,6 +289,14 @@ func getUpdateParams(
 	updateParams = dbsqlc.UpdateStepRunParams{
 		ID:       pgStepRunId,
 		Tenantid: pgTenantId,
+	}
+
+	if opts.Output != nil {
+		updateJobRunLookupDataParams = &dbsqlc.UpdateJobRunLookupDataWithStepRunParams{
+			Steprunid: pgStepRunId,
+			Tenantid:  pgTenantId,
+			Jsondata:  opts.Output,
+		}
 	}
 
 	resolveJobRunParams = dbsqlc.ResolveJobRunStatusParams{
@@ -281,18 +329,18 @@ func getUpdateParams(
 		runStatus := dbsqlc.NullStepRunStatus{}
 
 		if err := runStatus.Scan(string(*opts.Status)); err != nil {
-			return updateParams, resolveJobRunParams, resolveLaterStepRunsParams, err
+			return updateParams, nil, resolveJobRunParams, resolveLaterStepRunsParams, err
 		}
 
 		updateParams.Status = runStatus
 	}
 
 	if opts.Input != nil {
-		updateParams.Input = []byte(json.RawMessage(*opts.Input))
+		updateParams.Input = opts.Input
 	}
 
 	if opts.Output != nil {
-		updateParams.Output = []byte(json.RawMessage(*opts.Output))
+		updateParams.Output = opts.Output
 	}
 
 	if opts.Error != nil {
@@ -307,30 +355,33 @@ func getUpdateParams(
 		updateParams.CancelledReason = sqlchelpers.TextFromStr(*opts.CancelledReason)
 	}
 
-	return updateParams, resolveJobRunParams, resolveLaterStepRunsParams, nil
+	return updateParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams, nil
 }
 
 func (s *stepRunRepository) updateStepRun(
 	tx pgx.Tx,
 	tenantId string,
-	updateParams dbsqlc.UpdateStepRunParams, resolveJobRunParams dbsqlc.ResolveJobRunStatusParams, resolveLaterStepRunsParams dbsqlc.ResolveLaterStepRunsParams,
+	updateParams dbsqlc.UpdateStepRunParams,
+	updateJobRunLookupDataParams *dbsqlc.UpdateJobRunLookupDataWithStepRunParams,
+	resolveJobRunParams dbsqlc.ResolveJobRunStatusParams,
+	resolveLaterStepRunsParams dbsqlc.ResolveLaterStepRunsParams,
 ) error {
 	_, err := s.queries.UpdateStepRun(context.Background(), tx, updateParams)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not update step run: %w", err)
 	}
 
 	_, err = s.queries.ResolveLaterStepRuns(context.Background(), tx, resolveLaterStepRunsParams)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not resolve later step runs: %w", err)
 	}
 
 	jobRun, err := s.queries.ResolveJobRunStatus(context.Background(), tx, resolveJobRunParams)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not resolve job run status: %w", err)
 	}
 
 	resolveWorkflowRunParams := dbsqlc.ResolveWorkflowRunStatusParams{
@@ -341,7 +392,16 @@ func (s *stepRunRepository) updateStepRun(
 	_, err = s.queries.ResolveWorkflowRunStatus(context.Background(), tx, resolveWorkflowRunParams)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not resolve workflow run status: %w", err)
+	}
+
+	// update the job run lookup data if not nil
+	if updateJobRunLookupDataParams != nil {
+		err = s.queries.UpdateJobRunLookupDataWithStepRun(context.Background(), tx, *updateJobRunLookupDataParams)
+
+		if err != nil {
+			return fmt.Errorf("could not update job run lookup data: %w", err)
+		}
 	}
 
 	return nil

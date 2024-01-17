@@ -85,3 +85,30 @@ INSERT INTO "JobRunLookupData" (
 SET 
     "data" = jsonb_set("JobRunLookupData"."data", @fieldPath::text[], @jsonData::jsonb, true),
     "updatedAt" = CURRENT_TIMESTAMP;
+
+-- name: UpdateJobRunLookupDataWithStepRun :exec
+WITH readable_id AS (
+    SELECT "readableId"
+    FROM "Step"
+    WHERE "id" = (
+        SELECT "stepId"
+        FROM "StepRun"
+        WHERE "id" = @stepRunId::uuid
+    )
+)
+UPDATE "JobRunLookupData"
+SET 
+    "data" = jsonb_set(
+        "JobRunLookupData"."data", 
+        ARRAY['steps', (SELECT "readableId" FROM readable_id)], 
+        @jsonData::jsonb, 
+        true
+    ),
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    "jobRunId" = (
+        SELECT "jobRunId"
+        FROM "StepRun"
+        WHERE "id" = @stepRunId::uuid
+    )
+    AND "tenantId" = @tenantId::uuid;
