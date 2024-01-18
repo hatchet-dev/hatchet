@@ -8,6 +8,7 @@
     "prepare": "npm run build",
     "build": "tsc",
     "test": "jest",
+    "test:watch": "jest --watch",
     "generate": "./generate-protoc.sh",
     "lint:check": "npm run eslint:check && npm run prettier:check",
     "lint:fix": "npm run eslint:fix && npm run prettier:fix",
