@@ -1,21 +1,7 @@
 import { z } from 'zod';
 import { ConfigLoader } from '@util/config-loader';
-
-const ClientTLSConfigSchema = z.object({
-  cert_file: z.string(),
-  ca_file: z.string(),
-  key_file: z.string(),
-  server_name: z.string(),
-});
-
-export const ClientConfigSchema = z.object({
-  tenant_id: z.string(),
-  tls_config: ClientTLSConfigSchema,
-  host_port: z.string(),
-});
-
-export type ClientConfig = z.infer<typeof ClientConfigSchema>;
-export type ClientTLSConfig = z.infer<typeof ClientTLSConfigSchema>;
+import { EventClient } from '@clients/event/event-client';
+import { ClientConfig, ClientConfigSchema } from './client-config';
 
 interface ClientOptions {
   config_path?: string;
@@ -23,8 +9,9 @@ interface ClientOptions {
 
 export class Client {
   config: ClientConfig;
+  event: EventClient;
 
-  constructor(config: Partial<ClientConfig>, options?: ClientOptions) {
+  constructor(config?: Partial<ClientConfig>, options?: ClientOptions) {
     // Initializes a new Client instance.
     // Loads config in teh following order: config param > yaml file > env vars
 
@@ -41,6 +28,8 @@ export class Client {
       }
       throw e;
     }
+
+    this.event = new EventClient(this.config);
   }
 
   static with_host_port(
@@ -57,8 +46,4 @@ export class Client {
       options
     );
   }
-
-  admin: any; // TODO: AdminClient
-  dispatcher: any; // TODO: DispatcherClient
-  event: any; // TODO: EventClient
 }
