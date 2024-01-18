@@ -176,7 +176,13 @@ const config: Config = {
 
   // A map from regular expressions to paths to transformers
   transform: {
-    '^.+\\.(js|ts)$': 'ts-jest',
+    '^.+\\.(js|ts)$': ['ts-jest', { tsconfig: './tsconfig.json' }],
+  },
+  moduleNameMapper: {
+    '^@protoc/(.*)$': '<rootDir>/protoc/$1',
+    '^@util/(.*)$': '<rootDir>/hatchet/util/$1',
+    '^@models/(.*)$': '<rootDir>/hatchet/models/$1',
+    '^@clients/(.*)$': '<rootDir>/hatchet/clients/$1',
   },
   // An array of regexp pattern strings that are matched against all source file paths, matched files will skip transformation
   // transformIgnorePatterns: [
