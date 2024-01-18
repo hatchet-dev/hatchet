@@ -1,6 +1,6 @@
 import { Client } from './client';
 
-describe('ConfigLoader', () => {
+describe('Client', () => {
   beforeEach(() => {
     process.env.HATCHET_CLIENT_TENANT_ID = 'TENANT_ID_ENV';
   });
