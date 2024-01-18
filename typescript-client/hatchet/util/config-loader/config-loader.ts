@@ -1,6 +1,7 @@
 import { parse } from 'yaml';
 import { readFileSync } from 'fs';
 import * as p from 'path';
+import { z } from 'zod';
 import { ClientConfig, ClientConfigSchema } from '../../models/client';
 
 type EnvVars =
@@ -51,6 +52,11 @@ export default class ConfigLoader {
       return config as ClientConfig;
     } catch (e) {
       if (!path) return undefined;
+
+      if (e instanceof z.ZodError) {
+        throw new Error(`Invalid yaml config: ${e.message}`);
+      }
+
       throw e;
     }
   }
