@@ -1,4 +1,4 @@
-import ConfigLoader from './config-loader';
+import { ConfigLoader } from './config-loader';
 
 describe('ConfigLoader', () => {
   beforeEach(() => {

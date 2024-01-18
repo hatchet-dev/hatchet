@@ -2,7 +2,7 @@ import { parse } from 'yaml';
 import { readFileSync } from 'fs';
 import * as p from 'path';
 import { z } from 'zod';
-import { ClientConfig, ClientConfigSchema } from '../../models/client';
+import { ClientConfig, ClientConfigSchema } from '@models/client';
 
 type EnvVars =
   | 'HATCHET_CLIENT_TENANT_ID'
@@ -18,7 +18,7 @@ interface LoadClientConfigOptions {
 
 const DEFAULT_CONFIG_FILE = '.hatchet.yaml';
 
-export default class ConfigLoader {
+export class ConfigLoader {
   static load_client_config(config?: LoadClientConfigOptions): ClientConfig {
     const yaml = this.load_yaml_config(config?.path);
 
