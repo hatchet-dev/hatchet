@@ -2,7 +2,7 @@ import { parse } from 'yaml';
 import { readFileSync } from 'fs';
 import * as p from 'path';
 import { z } from 'zod';
-import { ClientConfig, ClientConfigSchema } from '@models/client';
+import { ClientConfig, ClientConfigSchema } from '@clients/client';
 
 type EnvVars =
   | 'HATCHET_CLIENT_TENANT_ID'
