@@ -3,6 +3,9 @@
 FROM golang:1.21-alpine as base
 WORKDIR /hatchet
 
+# curl is needed for things like signaling cloudsql proxy container to stop after a migration
+RUN apk update && apk add --no-cache curl
+
 COPY go.mod go.sum ./
 
 RUN go mod download
