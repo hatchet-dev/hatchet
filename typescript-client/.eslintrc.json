@@ -28,6 +28,7 @@
     "curly": "error",
     "import/prefer-default-export": "off",
     "import/no-unresolved": "off",
-    "lines-between-class-members": "off"
+    "lines-between-class-members": "off",
+    "class-methods-use-this": "off"
   }
 }
