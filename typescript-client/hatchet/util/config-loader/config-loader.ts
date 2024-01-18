@@ -19,7 +19,7 @@ interface LoadClientConfigOptions {
 const DEFAULT_CONFIG_FILE = '.hatchet.yaml';
 
 export class ConfigLoader {
-  static load_client_config(config?: LoadClientConfigOptions): ClientConfig {
+  static load_client_config(config?: LoadClientConfigOptions): Partial<ClientConfig> {
     const yaml = this.load_yaml_config(config?.path);
 
     return {
@@ -47,7 +47,7 @@ export class ConfigLoader {
 
       const config = parse(configFile);
 
-      ClientConfigSchema.parse(config);
+      ClientConfigSchema.partial().parse(config);
 
       return config as ClientConfig;
     } catch (e) {

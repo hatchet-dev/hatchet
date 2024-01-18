@@ -1,0 +1,96 @@
+import { Client } from './client';
+
+describe('ConfigLoader', () => {
+  beforeEach(() => {
+    process.env.HATCHET_CLIENT_TENANT_ID = 'TENANT_ID_ENV';
+  });
+
+  it('should load from environment variables', () => {
+    const hatchet = new Client({
+      host_port: 'HOST_PORT',
+      tls_config: {
+        cert_file: 'TLS_CERT_FILE',
+        key_file: 'TLS_KEY_FILE',
+        ca_file: 'TLS_ROOT_CA_FILE',
+        server_name: 'TLS_SERVER_NAME',
+      },
+    });
+
+    expect(hatchet.config).toEqual({
+      tenant_id: 'TENANT_ID_ENV',
+      host_port: 'HOST_PORT',
+      tls_config: {
+        cert_file: 'TLS_CERT_FILE',
+        key_file: 'TLS_KEY_FILE',
+        ca_file: 'TLS_ROOT_CA_FILE',
+        server_name: 'TLS_SERVER_NAME',
+      },
+    });
+  });
+
+  it('should throw an error if the config param is invalid', () => {
+    expect(
+      () =>
+        new Client({
+          host_port: 'HOST_PORT',
+          tls_config: {
+            cert_file: 'TLS_CERT_FILE',
+            key_file: 'TLS_KEY_FILE',
+            ca_file: 'TLS_ROOT_CA_FILE',
+            // @ts-ignore
+            server_name: undefined,
+          },
+        })
+    ).toThrow();
+  });
+
+  it('should favor config param over yaml over env vars ', () => {
+    const hatchet = new Client(
+      {
+        tls_config: {
+          cert_file: 'TLS_CERT_FILE',
+          key_file: 'TLS_KEY_FILE',
+          ca_file: 'TLS_ROOT_CA_FILE',
+          server_name: 'TLS_SERVER_NAME',
+        },
+      },
+      {
+        config_path: './fixtures/.hatchet.yaml',
+      }
+    );
+
+    expect(hatchet.config).toEqual({
+      tenant_id: 'TENANT_ID_YAML',
+      host_port: 'HOST_PORT_YAML',
+      tls_config: {
+        cert_file: 'TLS_CERT_FILE',
+        key_file: 'TLS_KEY_FILE',
+        ca_file: 'TLS_ROOT_CA_FILE',
+        server_name: 'TLS_SERVER_NAME',
+      },
+    });
+  });
+
+  describe('with_host_port', () => {
+    it('should set the host_port', () => {
+      const hatchet = Client.with_host_port('HOST', 1234, {
+        tls_config: {
+          cert_file: 'TLS_CERT_FILE',
+          key_file: 'TLS_KEY_FILE',
+          ca_file: 'TLS_ROOT_CA_FILE',
+          server_name: 'TLS_SERVER_NAME',
+        },
+      });
+      expect(hatchet.config).toEqual({
+        tenant_id: 'TENANT_ID_ENV',
+        host_port: 'HOST:1234',
+        tls_config: {
+          cert_file: 'TLS_CERT_FILE',
+          key_file: 'TLS_KEY_FILE',
+          ca_file: 'TLS_ROOT_CA_FILE',
+          server_name: 'TLS_SERVER_NAME',
+        },
+      });
+    });
+  });
+});
