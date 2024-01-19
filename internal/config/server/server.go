@@ -3,14 +3,15 @@ package server
 import (
 	"crypto/tls"
 
+	"github.com/rs/zerolog"
+	"github.com/spf13/viper"
+
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/shared"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/validator"
-	"github.com/rs/zerolog"
-	"github.com/spf13/viper"
 )
 
 type ServerConfigFile struct {
@@ -42,6 +43,9 @@ type ConfigFileRuntime struct {
 
 	// GRPCBindAddress is the address that the grpc server binds to. Should set to 0.0.0.0 if binding in docker container.
 	GRPCBindAddress string `mapstructure:"grpcBindAddress" json:"grpcBindAddress,omitempty" default:"127.0.0.1"`
+
+	// GRPCInsecure controls whether the grpc server is insecure or uses certs
+	GRPCInsecure bool `mapstructure:"grpcInsecure" json:"grpcInsecure,omitempty" default:"false"`
 }
 
 type ConfigFileAuth struct {
@@ -118,6 +122,7 @@ func BindAllEnv(v *viper.Viper) {
 	v.BindEnv("runtime.url", "SERVER_URL")
 	v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
 	v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
+	v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	v.BindEnv("services", "SERVER_SERVICES")
 
 	// auth options
