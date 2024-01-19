@@ -1,5 +1,6 @@
 import * as grpc from '@grpc/grpc-js';
 import { EventsServiceClient } from '@protoc/events/events_grpc_pb';
+import { Event, PushEventRequest } from '@protoc/events/events_pb';
 import { ClientConfig } from '../client/client-config';
 
 export class EventClient {
@@ -13,7 +14,20 @@ export class EventClient {
   }
 
   push<T>(type: string, input: T) {
-    // this.client.push();
-    throw new Error('not implemented');
+    return new Promise<Event>((resolve, reject) => {
+      const req = new PushEventRequest();
+
+      req.setTenantid(this.config.tenant_id);
+      req.setKey(type);
+      req.setPayload(JSON.stringify(input));
+
+      this.client.push(req, (err, response) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(response);
+        }
+      });
+    });
   }
 }
