@@ -1,4 +1,3 @@
-import { Timestamp } from '@protoc/google/protobuf/Timestamp';
 import { Workflow } from '../../workflow';
 import { ClientConfig } from '../client/client-config';
 
@@ -13,7 +12,7 @@ export class AdminClient {
     throw new Error('not implemented');
   }
 
-  schedule_workflow(workflow: Workflow, options?: { schedules?: Timestamp[] }) {
+  schedule_workflow(workflow: Workflow, options?: { schedules?: any[] }) {
     throw new Error('not implemented');
   }
 }
