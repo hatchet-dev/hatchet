@@ -1,0 +1,84 @@
+# Creating a Workflow
+
+To create a workflow, simply create a new class and use the `hatchet.workflow` and `hatchet.step` decorators to define the structure of your workflow. For example, a simple 2-step workflow would look like:
+
+```py
+from hatchet-sdk import Hatchet
+
+hatchet = Hatchet()
+
+@hatchet.workflow(on_events=["user:create"])
+class MyWorkflow:
+    @hatchet.step()
+    def step1(self, context):
+        print("executed step1")
+        pass
+
+    @hatchet.step(parents=["step1"])
+    def step2(self, context):
+        print("executed step2")
+        pass
+```
+
+You'll notice that the workflow defines a workflow trigger (in this case, `on_events`), and the workflow definition. The workflow definition is a series of steps, which can be defined using the `hatchet.step` decorator. Each step must be a method on the class, and must accept a `context` argument. The `context` argument is a `Context` object, which contains information about the workflow, such as the input data and the output data of previous steps.
+
+To create multi-step workflows, you can use `parents` to define the steps which the current step depends on. 
+
+## Getting Access to the Input Data
+
+You can get access to the workflow's input data, such as the event data or other specified input data, by using the `context.workflow_input()` method on the `context`. For example, given the following event:
+
+```json
+{
+    "name": "test"
+}
+```
+
+You can get access to the event data by doing the following:
+
+```py
+@hatchet.workflow(on_events=["user:create"])
+class MyWorkflow:
+    @hatchet.step()
+    def step1(self, context : Context):
+        print("executed step1", context.workflow_input())
+        pass
+```
+
+## Step Outputs
+
+Step outputs should be a `dict` and are optional. For example:
+
+```py
+@hatchet.workflow(on_events=["user:create"])
+class MyWorkflow:
+    @hatchet.step()
+    def step1(self, context : Context):
+        return {
+            "step-1-output": "test"
+        }
+```
+
+Future steps can access this output by calling `context.step_output("<step>")`. In this example, a future step could access this data via `context.step_output("step1")`.
+
+## Cron Schedules
+
+You can declare a cron schedule by passing `on_crons` to the `hatchet.workflow` decorator. For example, to trigger a workflow every 5 minutes, you can do the following:
+
+```go
+from hatchet-sdk import Hatchet
+
+hatchet = Hatchet()
+
+@hatchet.workflow(on_crons=["*/5 * * * *"])
+class MyWorkflow:
+    @hatchet.step()
+    def step1(self, context):
+        print("executed step1")
+        pass
+
+    @hatchet.step(parents=["step1"])
+    def step2(self, context):
+        print("executed step2")
+        pass
+```

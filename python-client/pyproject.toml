@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "hatchet"
-version = "0.1.0"
+name = "hatchet-sdk"
+version = "0.3.0"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
