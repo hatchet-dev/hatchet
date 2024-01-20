@@ -1,0 +1,18 @@
+# Pushing Events
+
+Events can be pushed via the client's `client.event.push` method:
+
+```py
+from hatchet import new_client
+
+client = new_client()
+
+client.event.push(
+    "user:create",
+    {
+        "test": "test"
+    }
+)
+```
+
+Events should be JSON serializable, so should generally use a `dict` or a type that serializes into a JSON object. 

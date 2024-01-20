@@ -1,0 +1,27 @@
+name: Publish Python SDK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.x"
+
+      - name: Install Poetry
+        run: |
+          pipx install poetry==1.7.1
+
+      - name: Run publish.sh script
+        run: |
+          cd python-client
+          sh publish.sh
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.POETRY_PYPI_TOKEN_PYPI }}
