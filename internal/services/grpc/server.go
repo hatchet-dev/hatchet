@@ -6,6 +6,11 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/rs/zerolog"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -13,9 +18,6 @@ import (
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-	"github.com/rs/zerolog"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 type Server struct {
@@ -31,6 +33,7 @@ type Server struct {
 	dispatcher dispatcher.Dispatcher
 	admin      admin.AdminService
 	tls        *tls.Config
+	insecure   bool
 }
 
 type ServerOpt func(*ServerOpts)
@@ -43,6 +46,7 @@ type ServerOpts struct {
 	dispatcher  dispatcher.Dispatcher
 	admin       admin.AdminService
 	tls         *tls.Config
+	insecure    bool
 }
 
 func defaultServerOpts() *ServerOpts {
@@ -52,6 +56,7 @@ func defaultServerOpts() *ServerOpts {
 		l:           &logger,
 		port:        7070,
 		bindAddress: "127.0.0.1",
+		insecure:    false,
 	}
 }
 
@@ -82,6 +87,12 @@ func WithIngestor(i ingestor.Ingestor) ServerOpt {
 func WithTLSConfig(tls *tls.Config) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.tls = tls
+	}
+}
+
+func WithInsecure() ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.insecure = true
 	}
 }
 
@@ -119,6 +130,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		dispatcher:  opts.dispatcher,
 		admin:       opts.admin,
 		tls:         opts.tls,
+		insecure:    opts.insecure,
 	}, nil
 }
 
@@ -135,7 +147,15 @@ func (s *Server) startGRPC(ctx context.Context) error {
 		return fmt.Errorf("failed to listen: %w", err)
 	}
 
-	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(s.tls)))
+	serverOpts := []grpc.ServerOption{}
+
+	if s.insecure {
+		serverOpts = append(serverOpts, grpc.Creds(insecure.NewCredentials()))
+	} else {
+		serverOpts = append(serverOpts, grpc.Creds(credentials.NewTLS(s.tls)))
+	}
+
+	grpcServer := grpc.NewServer(serverOpts...)
 
 	if s.ingestor != nil {
 		eventcontracts.RegisterEventsServiceServer(grpcServer, s.ingestor)

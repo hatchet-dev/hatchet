@@ -1,0 +1,28 @@
+# Setup
+
+## Installation
+
+If using `pip`, you can run:
+
+```sh
+pip install hatchet-sdk
+```
+
+If using `poetry`:
+
+```sh
+poetry add hatchet-sdk
+```
+
+## Usage
+
+You should have generated a set of client certificates (or received them through Hatchet cloud). These certificates are `ca.cert`, `client-worker.pem`, and `client-worker.key`. You should also make note of the Hatchet server address and the tenant ID you'd like to connect to. 
+
+```sh
+HATCHET_CLIENT_TENANT_ID=<tenant-id>
+HATCHET_CLIENT_TLS_ROOT_CA_FILE=./certs/ca.cert
+HATCHET_CLIENT_TLS_CERT_FILE=./certs/client-worker.pem
+HATCHET_CLIENT_TLS_KEY_FILE=./certs/client-worker.key
+HATCHET_CLIENT_TLS_SERVER_NAME=<hatchet-domain>
+HATCHET_CLIENT_HOST_PORT=<hatchet-domain>:443
+```

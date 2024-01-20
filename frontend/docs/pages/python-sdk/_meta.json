@@ -2,6 +2,5 @@
     "setup": "Setup",
     "creating-a-worker": "Creating a Worker",
     "creating-a-workflow": "Creating a Workflow",
-    "pushing-events": "Pushing Events",
-    "scheduling-workflows": "Scheduling Workflows"
+    "pushing-events": "Pushing Events"
 }

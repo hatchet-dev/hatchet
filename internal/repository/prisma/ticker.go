@@ -186,6 +186,11 @@ func (t *tickerRepository) UpdateStaleTickers(onStale func(tickerId string, getV
 		return err
 	}
 
+	// if there are no active tickers, we can't reassign the stale tickers
+	if len(activeTickers) == 0 {
+		return nil
+	}
+
 	tickersToDelete := make([]pgtype.UUID, 0)
 
 	for i, ticker := range staleTickers {

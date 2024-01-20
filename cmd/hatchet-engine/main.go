@@ -6,6 +6,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/spf13/cobra"
+
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
@@ -17,7 +19,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
-	"github.com/spf13/cobra"
 
 	"net/http"
 	_ "net/http/pprof"
@@ -141,8 +142,7 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			return
 		}
 
-		// create the grpc server
-		s, err := grpc.NewServer(
+		grpcOpts := []grpc.ServerOpt{
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
 			grpc.WithAdmin(adminSvc),
@@ -150,6 +150,15 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			grpc.WithTLSConfig(sc.TLSConfig),
 			grpc.WithPort(sc.Runtime.GRPCPort),
 			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),
+		}
+
+		if sc.Runtime.GRPCInsecure {
+			grpcOpts = append(grpcOpts, grpc.WithInsecure())
+		}
+
+		// create the grpc server
+		s, err := grpc.NewServer(
+			grpcOpts...,
 		)
 
 		if err != nil {
