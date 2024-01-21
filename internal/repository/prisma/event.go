@@ -64,6 +64,7 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 
 	if opts.Search != nil {
 		queryParams.Search = sqlchelpers.TextFromStr(*opts.Search)
+		countParams.Search = sqlchelpers.TextFromStr(*opts.Search)
 	}
 
 	if opts.Offset != nil {
@@ -77,6 +78,15 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 	if opts.Keys != nil {
 		queryParams.Keys = opts.Keys
 		countParams.Keys = opts.Keys
+	}
+
+	if opts.Workflows != nil {
+		var wfs []pgtype.UUID
+		for _, wf := range opts.Workflows {
+			wfs = append(wfs, sqlchelpers.UUIDFromStr(wf))
+		}
+		queryParams.Workflows = wfs
+		countParams.Workflows = wfs
 	}
 
 	orderByField := "createdAt"

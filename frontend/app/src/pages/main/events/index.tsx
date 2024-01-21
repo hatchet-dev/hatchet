@@ -123,6 +123,16 @@ function EventsTable() {
     return filter?.value as Array<string>;
   }, [columnFilters]);
 
+  const workflows = useMemo(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'workflows');
+
+    if (!filter) {
+      return;
+    }
+
+    return filter?.value as Array<string>;
+  }, [columnFilters]);
+
   const offset = useMemo(() => {
     if (!pagination) {
       return;
@@ -133,12 +143,13 @@ function EventsTable() {
 
   const {
     data,
-    isLoading,
+    isLoading: eventsIsLoading,
     refetch,
     error: eventsError,
   } = useQuery({
     ...queries.events.list(tenant.metadata.id, {
       keys,
+      workflows,
       orderByField,
       orderByDirection,
       offset,
@@ -173,7 +184,24 @@ function EventsTable() {
         label: key,
       })) || []
     );
-  }, [eventKeys?.rows]);
+  }, [eventKeys]);
+
+  const {
+    data: workflowKeys,
+    isLoading: workflowKeysIsLoading,
+    error: workflowKeysError,
+  } = useQuery({
+    ...queries.workflows.list(tenant.metadata.id),
+  });
+
+  const workflowKeyFilters = useMemo((): FilterOption[] => {
+    return (
+      workflowKeys?.rows?.map((key) => ({
+        value: key.metadata.id,
+        label: key.name,
+      })) || []
+    );
+  }, [workflowKeys]);
 
   // useEffect(() => {
   //   if (listEventsQuery.data?.pagination) {
@@ -235,8 +263,10 @@ function EventsTable() {
         {selectedEvent && <ExpandedEventContent event={selectedEvent} />}
       </Dialog>
       <DataTable
-        error={eventKeysError || eventsError}
-        isLoading={isLoading || eventKeysIsLoading}
+        error={eventsError || eventKeysError || workflowKeysError}
+        isLoading={
+          eventsIsLoading || eventKeysIsLoading || workflowKeysIsLoading
+        }
         columns={tableColumns}
         data={data?.rows || []}
         filters={[
@@ -244,6 +274,11 @@ function EventsTable() {
             columnId: 'key',
             title: 'Key',
             options: eventKeyFilters,
+          },
+          {
+            columnId: 'workflows',
+            title: 'Workflow',
+            options: workflowKeyFilters,
           },
         ]}
         actions={actions}

@@ -27,6 +27,10 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 		listOpts.Search = request.Params.Search
 	}
 
+	if request.Params.Workflows != nil {
+		listOpts.Workflows = *request.Params.Workflows
+	}
+
 	if request.Params.Keys != nil {
 		listOpts.Keys = *request.Params.Keys
 	}
