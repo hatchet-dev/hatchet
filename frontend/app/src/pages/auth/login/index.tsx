@@ -20,6 +20,20 @@ export default function Login() {
   }
 
   const schemes = meta.data?.data?.auth?.schemes || [];
+  const basicEnabled = schemes.includes('basic');
+  const googleEnabled = schemes.includes('google');
+
+  let prompt = 'Enter your email and password below.';
+
+  if (basicEnabled && googleEnabled) {
+    prompt = 'Enter your email and password below, or continue with Google.';
+  } else if (googleEnabled) {
+    prompt = 'Continue with Google.';
+  } else if (basicEnabled) {
+    prompt = 'Enter your email and password below.';
+  } else {
+    prompt = 'No login methods are enabled.';
+  }
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
@@ -39,12 +53,10 @@ export default function Login() {
               <h1 className="text-2xl font-semibold tracking-tight">
                 Log in to Hatchet
               </h1>
-              <p className="text-sm text-muted-foreground">
-                Enter your email and password below.
-              </p>
+              <p className="text-sm text-muted-foreground">{prompt}</p>
             </div>
-            {schemes.includes('basic') && <BasicLogin />}
-            {schemes.includes('basic') && schemes.length > 1 && (
+            {basicEnabled && <BasicLogin />}
+            {basicEnabled && schemes.length > 1 && (
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
@@ -56,7 +68,7 @@ export default function Login() {
                 </div>
               </div>
             )}
-            {schemes.includes('google') && <GoogleLogin />}
+            {googleEnabled && <GoogleLogin />}
             <p className="text-left text-sm text-muted-foreground w-full">
               By clicking continue, you agree to our{' '}
               <Link

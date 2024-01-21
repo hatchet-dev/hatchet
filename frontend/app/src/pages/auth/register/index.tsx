@@ -20,6 +20,21 @@ export default function Register() {
   }
 
   const schemes = meta.data?.data?.auth?.schemes || [];
+  const basicEnabled = schemes.includes('basic');
+  const googleEnabled = schemes.includes('google');
+
+  let prompt = 'Create an account to get started.';
+
+  if (basicEnabled && googleEnabled) {
+    prompt =
+      'Enter your email and password to create an account, or continue with Google.';
+  } else if (googleEnabled) {
+    prompt = 'Continue with Google.';
+  } else if (basicEnabled) {
+    prompt = 'Create an account to get started.';
+  } else {
+    prompt = 'No login methods are enabled.';
+  }
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
@@ -39,12 +54,10 @@ export default function Register() {
               <h1 className="text-2xl font-semibold tracking-tight">
                 Create an account
               </h1>
-              <p className="text-sm text-muted-foreground">
-                Create an account to get started.
-              </p>
+              <p className="text-sm text-muted-foreground">{prompt}</p>
             </div>
-            {schemes.includes('basic') && <BasicRegister />}
-            {schemes.includes('basic') && schemes.length > 1 && (
+            {basicEnabled && <BasicRegister />}
+            {basicEnabled && schemes.length > 1 && (
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
@@ -56,7 +69,7 @@ export default function Register() {
                 </div>
               </div>
             )}
-            {schemes.includes('google') && <GoogleLogin />}
+            {googleEnabled && <GoogleLogin />}
             <p className="text-left text-sm text-muted-foreground w-full">
               By clicking continue, you agree to our{' '}
               <Link
