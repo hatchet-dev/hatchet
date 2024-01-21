@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/spf13/cobra"
 )
 
 // seedCmd seeds the database with initial data
@@ -59,7 +60,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 					Email:         dc.Seed.AdminEmail,
 					Name:          repository.StringPtr(dc.Seed.AdminName),
 					EmailVerified: repository.BoolPtr(true),
-					Password:      *hashedPw,
+					Password:      hashedPw,
 				})
 
 				if err != nil {

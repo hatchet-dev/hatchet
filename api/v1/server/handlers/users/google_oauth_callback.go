@@ -1,6 +1,7 @@
 package users
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,7 +25,7 @@ func (u *UserService) UserUpdateOauthCallback(ctx echo.Context, _ gen.UserUpdate
 		return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Could not log in. Please try again and make sure cookies are enabled.")
 	}
 
-	token, err := u.config.Auth.GoogleOAuthConfig.Exchange(oauth2.NoContext, ctx.Request().URL.Query().Get("code"))
+	token, err := u.config.Auth.GoogleOAuthConfig.Exchange(context.Background(), ctx.Request().URL.Query().Get("code"))
 
 	if err != nil {
 		return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Forbidden")

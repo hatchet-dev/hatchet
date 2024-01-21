@@ -13,7 +13,7 @@ type Config struct {
 
 const (
 	GoogleAuthURL  string = "https://accounts.google.com/o/oauth2/v2/auth"
-	GoogleTokenURL string = "https://oauth2.googleapis.com/token"
+	GoogleTokenURL string = "https://oauth2.googleapis.com/token" // #nosec G101
 )
 
 func NewGoogleClient(cfg *Config) *oauth2.Config {

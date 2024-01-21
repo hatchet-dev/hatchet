@@ -56,7 +56,7 @@ func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
 func (s *SessionHelpers) SaveOAuthState(
 	c echo.Context,
 ) (string, error) {
-	stateBytes, err := encryption.GenerateRandomBytes(16)
+	state, err := encryption.GenerateRandomBytes(16)
 
 	if err != nil {
 		return "", err
@@ -69,7 +69,7 @@ func (s *SessionHelpers) SaveOAuthState(
 	}
 
 	// need state parameter to validate when redirected
-	session.Values["state"] = string(stateBytes)
+	session.Values["state"] = state
 
 	// need a parameter to indicate that this was triggered through the oauth flow
 	session.Values["oauth_triggered"] = true
@@ -78,7 +78,7 @@ func (s *SessionHelpers) SaveOAuthState(
 		return "", err
 	}
 
-	return string(stateBytes), nil
+	return state, nil
 }
 
 func (s *SessionHelpers) ValidateOAuthState(
