@@ -68,9 +68,9 @@ function Main() {
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
-      <MainNav user={user} />
+      {/* <MainNav user={user} /> */}
       <Sidebar memberships={memberships} currTenant={currTenant} />
-      <div className="pt-12 flex-grow overflow-y-auto overflow-x-hidden">
+      <div className="pt-12 pl-80 flex-grow overflow-y-auto overflow-x-hidden">
         <Outlet context={childCtx} />
       </div>
     </div>
@@ -86,7 +86,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   return (
-    <div className={cn('h-full border-r max-w-xs', className)}>
+    <div className={cn('h-full border-r w-80 absolute top-0', className)}>
       <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full">
         <div className="grow">
           <div className="py-2">

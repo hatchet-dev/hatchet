@@ -47,7 +47,7 @@ const routes = [
       {
         path: '/',
         lazy: async () =>
-          import('./pages/main/auth').then((res) => {
+          import('./pages/authenticated').then((res) => {
             return {
               loader: res.loader,
               Component: res.default,

@@ -4,19 +4,20 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/labstack/echo/v4"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/labstack/echo/v4"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLoginRequestObject) (gen.UserUpdateLoginResponseObject, error) {
 	// check that the server supports local registration
-	if !u.config.Auth.BasicAuthEnabled {
+	if !u.config.Auth.ConfigFile.BasicAuthEnabled {
 		return gen.UserUpdateLogin405JSONResponse(
 			apierrors.NewAPIErrors("local registration is not enabled"),
 		), nil

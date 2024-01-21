@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workers"
@@ -14,8 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 )
@@ -26,6 +28,7 @@ type apiService struct {
 	*events.EventService
 	*workflows.WorkflowService
 	*workers.WorkerService
+	*metadata.MetadataService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -35,6 +38,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		EventService:    events.NewEventService(config),
 		WorkflowService: workflows.NewWorkflowService(config),
 		WorkerService:   workers.NewWorkerService(config),
+		MetadataService: metadata.NewMetadataService(config),
 	}
 }
 

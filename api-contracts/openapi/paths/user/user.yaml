@@ -108,6 +108,36 @@ register:
     summary: Register user
     tags:
       - User
+oauth-start-google:
+  get:
+    description: Starts the OAuth flow
+    operationId: user:update:oauth-start
+    responses:
+      "302":
+        description: Successfully started the OAuth flow
+        headers:
+          location:
+            schema:
+              type: string
+    security: []
+    summary: Start OAuth flow
+    tags:
+      - User
+oauth-callback-google:
+  get:
+    description: Completes the OAuth flow
+    operationId: user:update:oauth-callback
+    responses:
+      "302":
+        description: Successfully completed the OAuth flow
+        headers:
+          location:
+            schema:
+              type: string
+    security: []
+    summary: Complete OAuth flow
+    tags:
+      - User
 logout:
   post:
     description: Logs out a user.

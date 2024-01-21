@@ -5,6 +5,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
+	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
@@ -61,6 +62,16 @@ type ConfigFileAuth struct {
 
 	// Configuration options for the cookie
 	Cookie ConfigFileAuthCookie `mapstructure:"cookie" json:"cookie,omitempty"`
+
+	Google ConfigFileAuthGoogle `mapstructure:"google" json:"google,omitempty"`
+}
+
+type ConfigFileAuthGoogle struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	ClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
+	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
+	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"openid\", \"profile\", \"email\"]"`
 }
 
 type ConfigFileAuthCookie struct {
@@ -80,10 +91,16 @@ type RabbitMQConfigFile struct {
 	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
 }
 
+type AuthConfig struct {
+	ConfigFile ConfigFileAuth
+
+	GoogleOAuthConfig *oauth2.Config
+}
+
 type ServerConfig struct {
 	*database.Config
 
-	Auth ConfigFileAuth
+	Auth AuthConfig
 
 	Runtime ConfigFileRuntime
 
@@ -133,6 +150,10 @@ func BindAllEnv(v *viper.Viper) {
 	v.BindEnv("auth.cookie.domain", "SERVER_AUTH_COOKIE_DOMAIN")
 	v.BindEnv("auth.cookie.secrets", "SERVER_AUTH_COOKIE_SECRETS")
 	v.BindEnv("auth.cookie.insecure", "SERVER_AUTH_COOKIE_INSECURE")
+	v.BindEnv("auth.google.enabled", "SERVER_AUTH_GOOGLE_ENABLED")
+	v.BindEnv("auth.google.clientID", "SERVER_AUTH_GOOGLE_CLIENT_ID")
+	v.BindEnv("auth.google.clientSecret", "SERVER_AUTH_GOOGLE_CLIENT_SECRET")
+	v.BindEnv("auth.google.scopes", "SERVER_AUTH_GOOGLE_SCOPES")
 
 	// task queue options
 	v.BindEnv("taskQueue.kind", "SERVER_TASKQUEUE_KIND")

@@ -12,6 +12,7 @@
 import {
   APIError,
   APIErrors,
+  APIMeta,
   CreateTenantRequest,
   EventData,
   EventKey,
@@ -39,6 +40,21 @@ import { ContentType, HttpClient, RequestParams } from "./http-client";
 
 export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType> {
   /**
+   * @description Gets metadata for the Hatchet instance
+   *
+   * @tags Metadata
+   * @name MetadataGet
+   * @summary Get metadata
+   * @request GET:/api/v1/meta
+   */
+  metadataGet = (params: RequestParams = {}) =>
+    this.request<APIMeta, APIErrors>({
+      path: `/api/v1/meta`,
+      method: "GET",
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Logs in a user.
    *
    * @tags User
@@ -53,6 +69,34 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       type: ContentType.Json,
       format: "json",
+      ...params,
+    });
+  /**
+   * @description Starts the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateOauthStart
+   * @summary Start OAuth flow
+   * @request GET:/api/v1/users/google/start
+   */
+  userUpdateOauthStart = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/google/start`,
+      method: "GET",
+      ...params,
+    });
+  /**
+   * @description Completes the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateOauthCallback
+   * @summary Complete OAuth flow
+   * @request GET:/api/v1/users/google/callback
+   */
+  userUpdateOauthCallback = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/google/callback`,
+      method: "GET",
       ...params,
     });
   /**
