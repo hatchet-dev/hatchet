@@ -2,10 +2,11 @@ package events
 
 import (
 	"github.com/hashicorp/go-multierror"
+	"github.com/labstack/echo/v4"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/labstack/echo/v4"
 )
 
 func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpdateReplayRequestObject) (gen.EventUpdateReplayResponseObject, error) {

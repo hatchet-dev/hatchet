@@ -3,8 +3,9 @@ package repository
 import (
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/steebchen/prisma-client-go/runtime/types"
+
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
 type CreateSessionOpts struct {

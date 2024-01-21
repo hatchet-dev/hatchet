@@ -3,11 +3,12 @@ package authz
 import (
 	"net/http"
 
+	"github.com/labstack/echo/v4"
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/labstack/echo/v4"
-	"github.com/rs/zerolog"
 )
 
 type AuthZ struct {

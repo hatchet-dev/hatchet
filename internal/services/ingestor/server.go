@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )

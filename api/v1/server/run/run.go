@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
@@ -14,8 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 )

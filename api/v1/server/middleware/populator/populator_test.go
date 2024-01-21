@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
-	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
+	"github.com/hatchet-dev/hatchet/internal/config/server"
 )
 
 type oneToManyResource struct {

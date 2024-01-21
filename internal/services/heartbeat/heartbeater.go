@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
-	"github.com/rs/zerolog"
 )
 
 type Heartbeater interface {
