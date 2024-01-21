@@ -31,8 +31,8 @@ WHERE
     events."key" = ANY($2::text[])
     ) AND
   (
-    $3::uuid[] IS NULL OR
-    workflow."id" = ANY($3::uuid[])
+    ($3::text[])::uuid[] IS NULL OR
+    (workflow."id" = ANY($3::text[]::uuid[]))
     ) AND
   (
     $4::text IS NULL OR
@@ -41,10 +41,10 @@ WHERE
 `
 
 type CountEventsParams struct {
-	TenantId  pgtype.UUID   `json:"tenantId"`
-	Keys      []string      `json:"keys"`
-	Workflows []pgtype.UUID `json:"workflows"`
-	Search    pgtype.Text   `json:"search"`
+	TenantId  pgtype.UUID `json:"tenantId"`
+	Keys      []string    `json:"keys"`
+	Workflows []string    `json:"workflows"`
+	Search    pgtype.Text `json:"search"`
 }
 
 func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
@@ -180,8 +180,8 @@ WHERE
         events."key" = ANY($2::text[])
     ) AND
     (
-        $3::uuid[] IS NULL OR
-        workflow."id" = ANY($3::uuid[])
+        ($3::text[])::uuid[] IS NULL OR
+        (workflow."id" = ANY($3::text[]::uuid[]))
     ) AND
     (
         $4::text IS NULL OR
@@ -200,13 +200,13 @@ LIMIT
 `
 
 type ListEventsParams struct {
-	TenantId  pgtype.UUID   `json:"tenantId"`
-	Keys      []string      `json:"keys"`
-	Workflows []pgtype.UUID `json:"workflows"`
-	Search    pgtype.Text   `json:"search"`
-	Orderby   interface{}   `json:"orderby"`
-	Offset    interface{}   `json:"offset"`
-	Limit     interface{}   `json:"limit"`
+	TenantId  pgtype.UUID `json:"tenantId"`
+	Keys      []string    `json:"keys"`
+	Workflows []string    `json:"workflows"`
+	Search    pgtype.Text `json:"search"`
+	Orderby   interface{} `json:"orderby"`
+	Offset    interface{} `json:"offset"`
+	Limit     interface{} `json:"limit"`
 }
 
 type ListEventsRow struct {

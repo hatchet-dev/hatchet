@@ -18,8 +18,8 @@ WHERE
     events."key" = ANY(sqlc.narg('keys')::text[])
     ) AND
   (
-    sqlc.narg('workflows')::uuid[] IS NULL OR
-    workflow."id" = ANY(sqlc.narg('workflows')::uuid[])
+    (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR
+    (workflow."id" = ANY(sqlc.narg('workflows')::text[]::uuid[]))
     ) AND
   (
     sqlc.narg('search')::text IS NULL OR
@@ -71,8 +71,8 @@ WHERE
         events."key" = ANY(sqlc.narg('keys')::text[])
     ) AND
     (
-        sqlc.narg('workflows')::uuid[] IS NULL OR
-        workflow."id" = ANY(sqlc.narg('workflows')::uuid[])
+        (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR
+        (workflow."id" = ANY(sqlc.narg('workflows')::text[]::uuid[]))
     ) AND
     (
         sqlc.narg('search')::text IS NULL OR

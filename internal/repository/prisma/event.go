@@ -81,12 +81,8 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 	}
 
 	if opts.Workflows != nil {
-		var wfs []pgtype.UUID
-		for _, wf := range opts.Workflows {
-			wfs = append(wfs, sqlchelpers.UUIDFromStr(wf))
-		}
-		queryParams.Workflows = wfs
-		countParams.Workflows = wfs
+		queryParams.Workflows = opts.Workflows
+		countParams.Workflows = opts.Workflows
 	}
 
 	orderByField := "createdAt"
