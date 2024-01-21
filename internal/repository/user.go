@@ -3,8 +3,9 @@ package repository
 import (
 	"fmt"
 
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
 type CreateUserOpts struct {

@@ -2,9 +2,10 @@ package authn
 
 import (
 	"github.com/gorilla/sessions"
+	"github.com/labstack/echo/v4"
+
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/labstack/echo/v4"
 )
 
 type SessionHelpers struct {

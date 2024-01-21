@@ -3,9 +3,10 @@ package populator
 import (
 	"fmt"
 
+	"github.com/labstack/echo/v4"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
-	"github.com/labstack/echo/v4"
 )
 
 type ResourceGetterFunc func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error)
