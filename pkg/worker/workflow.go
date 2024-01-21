@@ -55,7 +55,7 @@ func (n noTrigger) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 type scheduled []time.Time
 
 func At(t ...time.Time) scheduled {
-	return scheduled(t)
+	return t
 }
 
 func (s scheduled) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
@@ -102,7 +102,7 @@ func (e event) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 type eventsArr []string
 
 func Events(events ...string) eventsArr {
-	return eventsArr(events)
+	return events
 }
 
 func (e eventsArr) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
@@ -255,7 +255,7 @@ func (w *WorkflowStep) ToActionMap(svcName string) map[string]any {
 	}
 }
 
-type step struct {
+type Step struct {
 	Id string
 
 	// non-ctx input is not optional
@@ -267,10 +267,10 @@ type step struct {
 	APIStep types.WorkflowStep
 }
 
-func (w *WorkflowStep) ToWorkflowStep(svcName string, index int) (*step, error) {
+func (w *WorkflowStep) ToWorkflowStep(svcName string, index int) (*Step, error) {
 	fnType := reflect.TypeOf(w.Function)
 
-	res := &step{}
+	res := &Step{}
 
 	res.Id = w.GetStepId(index)
 

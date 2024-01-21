@@ -137,10 +137,10 @@ var retrier = func(l *zerolog.Logger, f func() error) error {
 
 				if retries > 3 {
 					return fmt.Errorf("could not update job run lookup data: %w", err)
-				} else {
-					l.Err(err).Msgf("deadlock detected, retry %d", retries)
-					time.Sleep(100 * time.Millisecond)
 				}
+
+				l.Err(err).Msgf("deadlock detected, retry %d", retries)
+				time.Sleep(100 * time.Millisecond)
 			} else {
 				return fmt.Errorf("could not update job run lookup data: %w", err)
 			}
@@ -240,7 +240,7 @@ func (s *stepRunRepository) QueueStepRun(tenantId, stepRunId string, opts *repos
 	}
 
 	if stepRun.Status != dbsqlc.StepRunStatusPENDING {
-		return nil, repository.StepRunIsNotPendingErr
+		return nil, repository.ErrStepRunIsNotPending
 	}
 
 	err = s.updateStepRun(tx, tenantId, updateParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams)

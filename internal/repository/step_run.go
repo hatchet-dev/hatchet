@@ -52,7 +52,7 @@ func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
 	return &status
 }
 
-var StepRunIsNotPendingErr error = fmt.Errorf("step run is not pending")
+var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
 
 type StepRunRepository interface {
 	// ListAllStepRuns returns a list of all step runs which match the given options.

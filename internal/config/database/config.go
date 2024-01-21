@@ -41,20 +41,20 @@ type Config struct {
 }
 
 func BindAllEnv(v *viper.Viper) {
-	v.BindEnv("host", "DATABASE_POSTGRES_HOST")
-	v.BindEnv("port", "DATABASE_POSTGRES_PORT")
-	v.BindEnv("username", "DATABASE_POSTGRES_USERNAME")
-	v.BindEnv("password", "DATABASE_POSTGRES_PASSWORD")
-	v.BindEnv("dbName", "DATABASE_POSTGRES_DB_NAME")
-	v.BindEnv("sslMode", "DATABASE_POSTGRES_SSL_MODE")
+	_ = v.BindEnv("host", "DATABASE_POSTGRES_HOST")
+	_ = v.BindEnv("port", "DATABASE_POSTGRES_PORT")
+	_ = v.BindEnv("username", "DATABASE_POSTGRES_USERNAME")
+	_ = v.BindEnv("password", "DATABASE_POSTGRES_PASSWORD")
+	_ = v.BindEnv("dbName", "DATABASE_POSTGRES_DB_NAME")
+	_ = v.BindEnv("sslMode", "DATABASE_POSTGRES_SSL_MODE")
 
-	v.BindEnv("seed.adminEmail", "ADMIN_EMAIL")
-	v.BindEnv("seed.adminPassword", "ADMIN_PASSWORD")
-	v.BindEnv("seed.adminName", "ADMIN_NAME")
-	v.BindEnv("seed.defaultTenantName", "DEFAULT_TENANT_NAME")
-	v.BindEnv("seed.defaultTenantSlug", "DEFAULT_TENANT_SLUG")
-	v.BindEnv("seed.isDevelopment", "SEED_DEVELOPMENT")
+	_ = v.BindEnv("seed.adminEmail", "ADMIN_EMAIL")
+	_ = v.BindEnv("seed.adminPassword", "ADMIN_PASSWORD")
+	_ = v.BindEnv("seed.adminName", "ADMIN_NAME")
+	_ = v.BindEnv("seed.defaultTenantName", "DEFAULT_TENANT_NAME")
+	_ = v.BindEnv("seed.defaultTenantSlug", "DEFAULT_TENANT_SLUG")
+	_ = v.BindEnv("seed.isDevelopment", "SEED_DEVELOPMENT")
 
-	v.BindEnv("logger.level", "DATABASE_LOGGER_LEVEL")
-	v.BindEnv("logger.format", "DATABASE_LOGGER_FORMAT")
+	_ = v.BindEnv("logger.level", "DATABASE_LOGGER_LEVEL")
+	_ = v.BindEnv("logger.format", "DATABASE_LOGGER_FORMAT")
 }

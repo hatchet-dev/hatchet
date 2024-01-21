@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"sync"
 
@@ -19,9 +21,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
-
-	"net/http"
-	_ "net/http/pprof"
 )
 
 var printVersion bool
@@ -50,7 +49,7 @@ var rootCmd = &cobra.Command{
 }
 
 // Version will be linked by an ldflag during build
-var Version string = "v0.1.0-alpha.0"
+var Version = "v0.1.0-alpha.0"
 
 func main() {
 	rootCmd.PersistentFlags().BoolVar(
@@ -270,9 +269,7 @@ Loop:
 			fmt.Fprintf(os.Stderr, "%s", err)
 
 			// exit with non-zero exit code
-			os.Exit(1)
-
-			break Loop
+			os.Exit(1) //nolint:gocritic
 		case <-interruptCh:
 			break Loop
 		}

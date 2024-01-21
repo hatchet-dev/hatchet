@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/labstack/echo/v4"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
@@ -59,10 +58,4 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	return gen.UserUpdateLogin200JSONResponse(
 		*transformers.ToUser(existingUser),
 	), nil
-}
-
-func verifyPassword(u *db.UserModel, pw string) (bool, error) {
-	err := bcrypt.CompareHashAndPassword([]byte(u.RelationsUser.Password.Hash), []byte(pw))
-
-	return err == nil, err
 }

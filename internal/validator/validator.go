@@ -11,30 +11,30 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
-var NameRegex = regexp.MustCompile("^[a-zA-Z0-9\\.\\-_]+$")
+var NameRegex = regexp.MustCompile("^[a-zA-Z0-9\\.\\-_]+$") //nolint:gosimple
 
-var CronRegex = regexp.MustCompile(`(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)|((((\d+,)+\d+|(\d+(\/|-)\d+)|\d+|\*) ?){5,7})`)
+var CronRegex = regexp.MustCompile(`(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)|((((\d+,)+\d+|(\d+(\/|-)\d+)|\d+|\*) ?){5,7})`) //nolint:gosimple
 
 func newValidator() *validator.Validate {
 	validate := validator.New()
 
-	validate.RegisterValidation("hatchetName", func(fl validator.FieldLevel) bool {
+	_ = validate.RegisterValidation("hatchetName", func(fl validator.FieldLevel) bool {
 		return NameRegex.MatchString(fl.Field().String())
 	})
 
-	validate.RegisterValidation("password", func(fl validator.FieldLevel) bool {
+	_ = validate.RegisterValidation("password", func(fl validator.FieldLevel) bool {
 		return passwordValidation(fl.Field().String())
 	})
 
-	validate.RegisterValidation("uuid", func(fl validator.FieldLevel) bool {
+	_ = validate.RegisterValidation("uuid", func(fl validator.FieldLevel) bool {
 		return IsValidUUID(fl.Field().String())
 	})
 
-	validate.RegisterValidation("cron", func(fl validator.FieldLevel) bool {
+	_ = validate.RegisterValidation("cron", func(fl validator.FieldLevel) bool {
 		return CronRegex.MatchString(fl.Field().String())
 	})
 
-	validate.RegisterValidation("actionId", func(fl validator.FieldLevel) bool {
+	_ = validate.RegisterValidation("actionId", func(fl validator.FieldLevel) bool {
 		action, err := types.ParseActionID(fl.Field().String())
 
 		if err != nil {
@@ -44,7 +44,7 @@ func newValidator() *validator.Validate {
 		return action.Service != "" && action.Verb != ""
 	})
 
-	validate.RegisterValidation("semver", func(fl validator.FieldLevel) bool {
+	_ = validate.RegisterValidation("semver", func(fl validator.FieldLevel) bool {
 		_, err := semver.NewVersion(fl.Field().String())
 
 		return err == nil

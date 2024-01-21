@@ -2,7 +2,6 @@ package cli
 
 import (
 	_ "embed"
-
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,14 +9,13 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
-
-	"github.com/spf13/cobra"
 )
 
 var certDir string
@@ -264,10 +262,6 @@ func loadBaseConfigFiles() (*generatedConfigFiles, error) {
 	}
 
 	return res, nil
-}
-
-func shouldWriteConfig(conf string) bool {
-	return overwrite || conf == ""
 }
 
 func getFiles(name string) [][]byte {

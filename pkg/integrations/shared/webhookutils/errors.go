@@ -35,8 +35,6 @@ func HandleAPIError(
 				detailedErr,
 				writeErr,
 			)
-
-			return
 		} else {
 			w.WriteHeader(int(detailedErr.Code))
 			writerErr := json.NewEncoder(w).Encode(detailedErr)
@@ -50,16 +48,9 @@ func HandleAPIError(
 					writerErr,
 					false,
 				)
-
-				return
 			}
-
 		}
-
-		return
 	}
-
-	return
 }
 
 func handleInternalError(l *zerolog.Logger,
@@ -81,5 +72,4 @@ func handleInternalError(l *zerolog.Logger,
 	alerter.SendAlert(r.Context(), err, data)
 
 	w.WriteHeader(http.StatusInternalServerError)
-	return
 }

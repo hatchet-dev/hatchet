@@ -16,7 +16,7 @@ const urlParamErrUintConvFmt = "could not convert url parameter %s to uint, got 
 // GetURLParamString returns a specific URL parameter as a string using
 // chi.URLParam. It returns an internal server error if the URL parameter is not found.
 func GetURLParamString(r *http.Request, param string) (string, error) {
-	urlParam := chi.URLParam(r, string(param))
+	urlParam := chi.URLParam(r, param)
 
 	if urlParam == "" {
 		// this is an internal server error, since it means the handler requested an

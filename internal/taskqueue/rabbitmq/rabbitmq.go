@@ -2,7 +2,7 @@ package rabbitmq
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -261,7 +261,10 @@ func (t *TaskQueueImpl) subscribe(ctx context.Context, subId, queue string, sess
 
 				tasks <- task
 
-				sub.Ack(msg.DeliveryTag, false)
+				if err := sub.Ack(msg.DeliveryTag, false); err != nil {
+					t.l.Error().Msgf("error acknowledging message: %v", err)
+					return
+				}
 			}(msg)
 		}
 	}
@@ -306,7 +309,7 @@ func redial(ctx context.Context, l *zerolog.Logger, url string) chan chan sessio
 // this process so that subscriber reconnections reuse the same queue name.
 func identity() string {
 	hostname, err := os.Hostname()
-	h := sha1.New()
+	h := sha256.New()
 	fmt.Fprint(h, hostname)
 	fmt.Fprint(h, err)
 	fmt.Fprint(h, os.Getpid())
