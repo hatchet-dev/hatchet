@@ -402,6 +402,18 @@ type User struct {
 	Name          pgtype.Text      `json:"name"`
 }
 
+type UserOAuth struct {
+	ID             pgtype.UUID      `json:"id"`
+	CreatedAt      pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
+	UserId         pgtype.UUID      `json:"userId"`
+	Provider       string           `json:"provider"`
+	ProviderUserId string           `json:"providerUserId"`
+	AccessToken    string           `json:"accessToken"`
+	RefreshToken   pgtype.Text      `json:"refreshToken"`
+	ExpiresAt      pgtype.Timestamp `json:"expiresAt"`
+}
+
 type UserPassword struct {
 	Hash   string      `json:"hash"`
 	UserId pgtype.UUID `json:"userId"`

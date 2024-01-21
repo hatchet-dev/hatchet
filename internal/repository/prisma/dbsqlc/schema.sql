@@ -203,6 +203,21 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
+CREATE TABLE "UserOAuth" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "userId" UUID NOT NULL,
+    "provider" TEXT NOT NULL,
+    "providerUserId" TEXT NOT NULL,
+    "accessToken" TEXT NOT NULL,
+    "refreshToken" TEXT,
+    "expiresAt" TIMESTAMP(3),
+
+    CONSTRAINT "UserOAuth_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "UserPassword" (
     "hash" TEXT NOT NULL,
     "userId" UUID NOT NULL
@@ -435,6 +450,15 @@ CREATE UNIQUE INDEX "User_email_key" ON "User"("email" ASC);
 CREATE UNIQUE INDEX "User_id_key" ON "User"("id" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "UserOAuth_id_key" ON "UserOAuth"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserOAuth_userId_key" ON "UserOAuth"("userId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserOAuth_userId_provider_key" ON "UserOAuth"("userId" ASC, "provider" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "UserPassword_userId_key" ON "UserPassword"("userId" ASC);
 
 -- CreateIndex
@@ -586,6 +610,9 @@ ALTER TABLE "TenantMember" ADD CONSTRAINT "TenantMember_tenantId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "TenantMember" ADD CONSTRAINT "TenantMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserOAuth" ADD CONSTRAINT "UserOAuth_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "UserPassword" ADD CONSTRAINT "UserPassword_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
