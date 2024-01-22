@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/run"
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
-	"github.com/spf13/cobra"
 )
 
 var printVersion bool

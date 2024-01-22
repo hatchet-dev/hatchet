@@ -1,10 +1,11 @@
 package workers
 
 import (
+	"github.com/labstack/echo/v4"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/labstack/echo/v4"
 )
 
 func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {

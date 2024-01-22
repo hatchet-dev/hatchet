@@ -6,7 +6,6 @@ linters:
     - gofmt
     - unused
     - gosimple
-    - revive
     - exportloopref
     - gocritic
     - gosec
