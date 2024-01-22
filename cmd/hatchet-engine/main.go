@@ -2,9 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"sync"
 
@@ -38,11 +35,6 @@ var rootCmd = &cobra.Command{
 
 		cf := loader.NewConfigLoader(configDirectory)
 		interruptChan := cmdutils.InterruptChan()
-
-		// TODO: configurable via env var
-		go func() {
-			log.Println(http.ListenAndServe("localhost:6060", nil))
-		}()
 
 		startEngineOrDie(cf, interruptChan)
 	},
@@ -92,7 +84,7 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 		panic(fmt.Sprintf("could not initialize tracer: %s", err))
 	}
 
-	defer shutdown(ctx)
+	defer shutdown(ctx) // nolint: errcheck
 
 	if sc.HasService("grpc") {
 		wg.Add(1)

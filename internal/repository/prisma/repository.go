@@ -67,9 +67,9 @@ func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...Pris
 		jobRun:      NewJobRunRepository(client, pool, opts.v, opts.l),
 		stepRun:     NewStepRunRepository(client, pool, opts.v, opts.l),
 		step:        NewStepRepository(client, opts.v),
-		dispatcher:  NewDispatcherRepository(client, pool, opts.v),
+		dispatcher:  NewDispatcherRepository(client, pool, opts.v, opts.l),
 		worker:      NewWorkerRepository(client, opts.v),
-		ticker:      NewTickerRepository(client, pool, opts.v),
+		ticker:      NewTickerRepository(client, pool, opts.v, opts.l),
 		userSession: NewUserSessionRepository(client, opts.v),
 		user:        NewUserRepository(client, opts.v),
 	}

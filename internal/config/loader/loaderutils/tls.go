@@ -68,5 +68,6 @@ func LoadBaseTLSConfig(tlsConfig *shared.TLSConfigFile) (*tls.Config, *x509.Cert
 
 	return &tls.Config{
 		Certificates: []tls.Certificate{x509Cert},
+		MinVersion:   tls.VersionTLS13,
 	}, ca, nil
 }

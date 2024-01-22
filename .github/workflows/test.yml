@@ -12,7 +12,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
-          version: '25.1'
+          version: "25.2"
 
       - name: Install Task
         uses: arduino/setup-task@v1
@@ -20,7 +20,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: "1.21"
 
       - name: Compose
         run: docker compose up -d
@@ -45,12 +45,12 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
-          version: '25.1'
+          version: "25.1"
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: "1.21"
 
       - name: Go deps
         run: go mod download
@@ -72,12 +72,12 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
-          version: '25.1'
+          version: "25.1"
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: "1.21"
 
       - name: Compose
         run: docker compose up -d
@@ -108,12 +108,12 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
-          version: '25.1'
+          version: "25.1"
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: "1.21"
 
       - name: Compose
         run: docker compose up -d
@@ -146,9 +146,9 @@ jobs:
           set -a
           . .env
           set +a
-          
+
           go run ./cmd/hatchet-admin seed
-          
+
           go run ./cmd/hatchet-engine &
           go run ./cmd/hatchet-api &
           sleep 30

@@ -1,4 +1,7 @@
 -- CreateEnum
+CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
+
+-- CreateEnum
 CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
 
 -- CreateEnum
@@ -167,6 +170,21 @@ CREATE TABLE "Tenant" (
 );
 
 -- CreateTable
+CREATE TABLE "TenantInviteLink" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "tenantId" UUID NOT NULL,
+    "inviterEmail" TEXT NOT NULL,
+    "inviteeEmail" TEXT NOT NULL,
+    "expires" TIMESTAMP(3) NOT NULL,
+    "status" "InviteLinkStatus" NOT NULL DEFAULT 'PENDING',
+    "role" "TenantMemberRole" NOT NULL DEFAULT 'OWNER',
+
+    CONSTRAINT "TenantInviteLink_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "TenantMember" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -200,6 +218,21 @@ CREATE TABLE "User" (
     "name" TEXT,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "UserOAuth" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "userId" UUID NOT NULL,
+    "provider" TEXT NOT NULL,
+    "providerUserId" TEXT NOT NULL,
+    "accessToken" TEXT NOT NULL,
+    "refreshToken" TEXT,
+    "expiresAt" TIMESTAMP(3),
+
+    CONSTRAINT "UserOAuth_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -420,6 +453,9 @@ CREATE UNIQUE INDEX "Tenant_id_key" ON "Tenant"("id" ASC);
 CREATE UNIQUE INDEX "Tenant_slug_key" ON "Tenant"("slug" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "TenantInviteLink_id_key" ON "TenantInviteLink"("id" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "TenantMember_id_key" ON "TenantMember"("id" ASC);
 
 -- CreateIndex
@@ -433,6 +469,15 @@ CREATE UNIQUE INDEX "User_email_key" ON "User"("email" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_id_key" ON "User"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserOAuth_id_key" ON "UserOAuth"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserOAuth_userId_key" ON "UserOAuth"("userId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserOAuth_userId_provider_key" ON "UserOAuth"("userId" ASC, "provider" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "UserPassword_userId_key" ON "UserPassword"("userId" ASC);
@@ -582,10 +627,16 @@ ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_tickerId_fkey" FOREIGN KEY ("ticke
 ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "TenantInviteLink" ADD CONSTRAINT "TenantInviteLink_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "TenantMember" ADD CONSTRAINT "TenantMember_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TenantMember" ADD CONSTRAINT "TenantMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserOAuth" ADD CONSTRAINT "UserOAuth_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "UserPassword" ADD CONSTRAINT "UserPassword_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
