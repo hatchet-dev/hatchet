@@ -41,7 +41,6 @@ export function UpdateInviteForm({
   ...props
 }: UpdateInviteFormProps) {
   const {
-    register,
     handleSubmit,
     control,
     formState: { errors },

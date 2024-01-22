@@ -11,11 +11,6 @@ import {
 
 import { IDGetter } from './data-table';
 
-interface Label {
-  label: string;
-  value: string;
-}
-
 interface DataTableRowActionsProps<TData extends IDGetter> {
   row: Row<TData>;
   actions?: {

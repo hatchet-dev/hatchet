@@ -115,17 +115,3 @@ export default function Authenticated() {
     </div>
   );
 }
-
-// function Authenticated() {
-//   const ctx = useOutletContext<UserContextType>();
-//   const { user } = ctx;
-
-//   return (
-//     <>
-//       <MainNav user={user} />
-//       <Outlet />
-//     </>
-//   );
-// }
-
-// export default Authenticated;

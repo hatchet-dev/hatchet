@@ -3,13 +3,7 @@ import { DataTableColumnHeader } from '../../../../components/molecules/data-tab
 import { TenantMember } from '@/lib/api';
 import { capitalize, relativeDate } from '@/lib/utils';
 
-export const columns = ({
-  onEditClick,
-  onDeleteClick,
-}: {
-  onEditClick: (row: TenantMember) => void;
-  onDeleteClick: (row: TenantMember) => void;
-}): ColumnDef<TenantMember>[] => {
+export const columns = (): ColumnDef<TenantMember>[] => {
   return [
     {
       accessorKey: 'name',

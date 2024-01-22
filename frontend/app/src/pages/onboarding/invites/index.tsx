@@ -9,7 +9,8 @@ import {
 } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
-export async function loader({ request }: LoaderFunctionArgs) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function loader(_args: LoaderFunctionArgs) {
   const res = await api.userListTenantInvites();
 
   const invites = res.data.rows || [];

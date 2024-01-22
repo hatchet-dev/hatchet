@@ -21,7 +21,6 @@ import { DeleteInviteForm } from './components/delete-invite-form';
 
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
-  const [showCreateInviteModal, setShowCreateInviteModal] = useState(false);
 
   return (
     <div className="flex-grow h-full w-full">
@@ -52,10 +51,7 @@ function MembersList() {
       </h3>
       <Separator className="my-4" />
       <DataTable
-        columns={membersColumns({
-          onEditClick: (row) => {},
-          onDeleteClick: (row) => {},
-        })}
+        columns={membersColumns()}
         data={listMembersQuery.data?.rows || []}
         filters={[]}
         getRowId={(row) => row.metadata.id}
