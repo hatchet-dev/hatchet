@@ -142,7 +142,7 @@ func (a *AuthZ) authorizeTenantOperations(tenant *db.TenantModel, tenantMember *
 
 func operationIn(operationId string, operationIds []string) bool {
 	for _, id := range operationIds {
-		if strings.ToLower(operationId) == strings.ToLower(id) {
+		if strings.EqualFold(operationId, id) {
 			return true
 		}
 	}

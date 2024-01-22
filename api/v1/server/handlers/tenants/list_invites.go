@@ -27,7 +27,7 @@ func (t *TenantService) TenantInviteList(ctx echo.Context, request gen.TenantInv
 		rows[i] = *transformers.ToTenantInviteLink(&tenantInvites[i])
 	}
 
-	return gen.TenantInviteList200JSONResponse(gen.TenantInviteList200JSONResponse{
+	return gen.TenantInviteList200JSONResponse{
 		Rows: &rows,
-	}), nil
+	}, nil
 }

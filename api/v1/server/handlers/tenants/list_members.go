@@ -23,7 +23,7 @@ func (t *TenantService) TenantMemberList(ctx echo.Context, request gen.TenantMem
 		rows[i] = *transformers.ToTenantMember(&members[i])
 	}
 
-	return gen.TenantMemberList200JSONResponse(gen.TenantMemberList200JSONResponse{
+	return gen.TenantMemberList200JSONResponse{
 		Rows: &rows,
-	}), nil
+	}, nil
 }
