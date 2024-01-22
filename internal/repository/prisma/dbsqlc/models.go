@@ -11,6 +11,49 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type InviteLinkStatus string
+
+const (
+	InviteLinkStatusPENDING  InviteLinkStatus = "PENDING"
+	InviteLinkStatusACCEPTED InviteLinkStatus = "ACCEPTED"
+	InviteLinkStatusREJECTED InviteLinkStatus = "REJECTED"
+)
+
+func (e *InviteLinkStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = InviteLinkStatus(s)
+	case string:
+		*e = InviteLinkStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for InviteLinkStatus: %T", src)
+	}
+	return nil
+}
+
+type NullInviteLinkStatus struct {
+	InviteLinkStatus InviteLinkStatus `json:"InviteLinkStatus"`
+	Valid            bool             `json:"valid"` // Valid is true if InviteLinkStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullInviteLinkStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.InviteLinkStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.InviteLinkStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullInviteLinkStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.InviteLinkStatus), nil
+}
+
 type JobRunStatus string
 
 const (
@@ -375,6 +418,18 @@ type Tenant struct {
 	Slug      string           `json:"slug"`
 }
 
+type TenantInviteLink struct {
+	ID           pgtype.UUID      `json:"id"`
+	CreatedAt    pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
+	TenantId     pgtype.UUID      `json:"tenantId"`
+	InviterEmail string           `json:"inviterEmail"`
+	InviteeEmail string           `json:"inviteeEmail"`
+	Expires      pgtype.Timestamp `json:"expires"`
+	Status       InviteLinkStatus `json:"status"`
+	Role         TenantMemberRole `json:"role"`
+}
+
 type TenantMember struct {
 	ID        pgtype.UUID      `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
@@ -400,6 +455,18 @@ type User struct {
 	Email         string           `json:"email"`
 	EmailVerified bool             `json:"emailVerified"`
 	Name          pgtype.Text      `json:"name"`
+}
+
+type UserOAuth struct {
+	ID             pgtype.UUID      `json:"id"`
+	CreatedAt      pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
+	UserId         pgtype.UUID      `json:"userId"`
+	Provider       string           `json:"provider"`
+	ProviderUserId string           `json:"providerUserId"`
+	AccessToken    string           `json:"accessToken"`
+	RefreshToken   pgtype.Text      `json:"refreshToken"`
+	ExpiresAt      pgtype.Timestamp `json:"expiresAt"`
 }
 
 type UserPassword struct {

@@ -50,7 +50,13 @@ export function relativeDate(date?: string | number) {
     return 'N/A';
   }
 
-  return rtf.format(-time.time, time.unitOfTime);
+  let value = time.time;
+
+  if (time.when === 'past') {
+    value = -value;
+  }
+
+  return capitalize(rtf.format(value, time.unitOfTime));
 }
 
 function timeFrom(time: string | number, secondTime?: string | number) {

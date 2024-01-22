@@ -23,7 +23,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// determine if a tenant with the slug already exists
-	existingTenant, err := t.config.Repository.Tenant().GetTenantBySlug(string(request.Body.Slug))
+	existingTenant, err := t.config.Repository.Tenant().GetTenantBySlug(request.Body.Slug)
 
 	if err != nil && !errors.Is(err, db.ErrNotFound) {
 		return nil, err

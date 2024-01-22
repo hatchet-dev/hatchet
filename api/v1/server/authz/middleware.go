@@ -2,6 +2,7 @@ package authz
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
@@ -20,6 +21,7 @@ type AuthZ struct {
 func NewAuthZ(config *server.ServerConfig) *AuthZ {
 	return &AuthZ{
 		config: config,
+		l:      config.Logger,
 	}
 }
 
@@ -40,6 +42,11 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 	}
 
 	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
+
+	if err := a.ensureVerifiedEmail(c, r); err != nil {
+		a.l.Debug().Err(err).Msgf("error ensuring verified email")
+		return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
+	}
 
 	// if tenant is set in the context, verify that the user is a member of the tenant
 	if tenant, ok := c.Get("tenant").(*db.TenantModel); ok {
@@ -68,7 +75,77 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 
 		// set the tenant member in the context
 		c.Set("tenant-member", tenantMember)
+
+		// authorize tenant operations
+		if err := a.authorizeTenantOperations(tenant, tenantMember, r); err != nil {
+			a.l.Debug().Err(err).Msgf("error authorizing tenant operations")
+
+			return unauthorized
+		}
 	}
 
 	return nil
+}
+
+var permittedWithUnverifiedEmail = []string{
+	"UserGetCurrent",
+	"UserUpdateLogout",
+}
+
+func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) error {
+	user, ok := c.Get("user").(*db.UserModel)
+
+	if !ok {
+		return nil
+	}
+
+	if operationIn(r.OperationID, permittedWithUnverifiedEmail) {
+		return nil
+	}
+
+	if !user.EmailVerified {
+		return echo.NewHTTPError(http.StatusForbidden, "Please verify your email before continuing")
+	}
+
+	return nil
+}
+
+var adminAndOwnerOnly = []string{
+	"TenantInviteList",
+	"TenantInviteCreate",
+	"TenantInviteUpdate",
+	"TenantInviteDelete",
+	"TenantMemberList",
+}
+
+func (a *AuthZ) authorizeTenantOperations(tenant *db.TenantModel, tenantMember *db.TenantMemberModel, r *middleware.RouteInfo) error {
+	// if the user is an owner, they can do anything
+	if tenantMember.Role == db.TenantMemberRoleOwner {
+		return nil
+	}
+
+	// if the user is an admin, they can do anything at the moment. Some downstream handlers will case on
+	// admin roles, for example admins cannot mark users as owners.
+	if tenantMember.Role == db.TenantMemberRoleAdmin {
+		return nil
+	}
+
+	// at the moment, tenant members are only restricted from creating other tenant users.
+	if operationIn(r.OperationID, adminAndOwnerOnly) {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+	}
+
+	// NOTE(abelanger5): this should be default-deny, but there's not a strong use-case for restricting member
+	// operations at the moment. If there is, we should modify this logic.
+	return nil
+}
+
+func operationIn(operationId string, operationIds []string) bool {
+	for _, id := range operationIds {
+		if strings.EqualFold(operationId, id) {
+			return true
+		}
+	}
+
+	return false
 }

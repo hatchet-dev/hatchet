@@ -93,6 +93,17 @@ type APIErrors struct {
 	Errors []APIError `json:"errors"`
 }
 
+// APIMeta defines model for APIMeta.
+type APIMeta struct {
+	Auth *APIMetaAuth `json:"auth,omitempty"`
+}
+
+// APIMetaAuth defines model for APIMetaAuth.
+type APIMetaAuth struct {
+	// Schemes the supported types of authentication
+	Schemes *[]string `json:"schemes,omitempty"`
+}
+
 // APIResourceMeta defines model for APIResourceMeta.
 type APIResourceMeta struct {
 	// CreatedAt the time that this resource was created
@@ -103,6 +114,18 @@ type APIResourceMeta struct {
 
 	// UpdatedAt the time that this resource was last updated
 	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// AcceptInviteRequest defines model for AcceptInviteRequest.
+type AcceptInviteRequest struct {
+	Invite string `json:"invite" validate:"required,uuid"`
+}
+
+// CreateTenantInviteRequest defines model for CreateTenantInviteRequest.
+type CreateTenantInviteRequest struct {
+	// Email The email of the user to invite.
+	Email string           `json:"email" validate:"required,email"`
+	Role  TenantMemberRole `json:"role"`
 }
 
 // CreateTenantRequest defines model for CreateTenantRequest.
@@ -220,6 +243,11 @@ type PaginationResponse struct {
 	NumPages *int64 `json:"num_pages,omitempty"`
 }
 
+// RejectInviteRequest defines model for RejectInviteRequest.
+type RejectInviteRequest struct {
+	Invite string `json:"invite" validate:"required,uuid"`
+}
+
 // ReplayEventRequest defines model for ReplayEventRequest.
 type ReplayEventRequest struct {
 	EventIds []openapi_types.UUID `json:"eventIds"`
@@ -280,6 +308,29 @@ type Tenant struct {
 	Slug string `json:"slug"`
 }
 
+// TenantInvite defines model for TenantInvite.
+type TenantInvite struct {
+	// Email The email of the user to invite.
+	Email string `json:"email"`
+
+	// Expires The time that this invite expires.
+	Expires  time.Time        `json:"expires"`
+	Metadata APIResourceMeta  `json:"metadata"`
+	Role     TenantMemberRole `json:"role"`
+
+	// TenantId The tenant id associated with this tenant invite.
+	TenantId string `json:"tenantId"`
+
+	// TenantName The tenant name for the tenant.
+	TenantName *string `json:"tenantName,omitempty"`
+}
+
+// TenantInviteList defines model for TenantInviteList.
+type TenantInviteList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]TenantInvite     `json:"rows,omitempty"`
+}
+
 // TenantMember defines model for TenantMember.
 type TenantMember struct {
 	Metadata APIResourceMeta  `json:"metadata"`
@@ -288,8 +339,19 @@ type TenantMember struct {
 	User     UserTenantPublic `json:"user"`
 }
 
+// TenantMemberList defines model for TenantMemberList.
+type TenantMemberList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]TenantMember     `json:"rows,omitempty"`
+}
+
 // TenantMemberRole defines model for TenantMemberRole.
 type TenantMemberRole string
+
+// UpdateTenantInviteRequest defines model for UpdateTenantInviteRequest.
+type UpdateTenantInviteRequest struct {
+	Role TenantMemberRole `json:"role"`
+}
 
 // User defines model for User.
 type User struct {
@@ -541,6 +603,18 @@ type TenantCreateJSONRequestBody = CreateTenantRequest
 // EventUpdateReplayJSONRequestBody defines body for EventUpdateReplay for application/json ContentType.
 type EventUpdateReplayJSONRequestBody = ReplayEventRequest
 
+// TenantInviteCreateJSONRequestBody defines body for TenantInviteCreate for application/json ContentType.
+type TenantInviteCreateJSONRequestBody = CreateTenantInviteRequest
+
+// TenantInviteUpdateJSONRequestBody defines body for TenantInviteUpdate for application/json ContentType.
+type TenantInviteUpdateJSONRequestBody = UpdateTenantInviteRequest
+
+// TenantInviteAcceptJSONRequestBody defines body for TenantInviteAccept for application/json ContentType.
+type TenantInviteAcceptJSONRequestBody = AcceptInviteRequest
+
+// TenantInviteRejectJSONRequestBody defines body for TenantInviteReject for application/json ContentType.
+type TenantInviteRejectJSONRequestBody = RejectInviteRequest
+
 // UserUpdateLoginJSONRequestBody defines body for UserUpdateLogin for application/json ContentType.
 type UserUpdateLoginJSONRequestBody = UserLoginRequest
 
@@ -552,6 +626,9 @@ type ServerInterface interface {
 	// Get event data
 	// (GET /api/v1/events/{event}/data)
 	EventDataGet(ctx echo.Context, event openapi_types.UUID) error
+	// Get metadata
+	// (GET /api/v1/meta)
+	MetadataGet(ctx echo.Context) error
 	// Create tenant
 	// (POST /api/v1/tenants)
 	TenantCreate(ctx echo.Context) error
@@ -564,6 +641,21 @@ type ServerInterface interface {
 	// Replay events
 	// (POST /api/v1/tenants/{tenant}/events/replay)
 	EventUpdateReplay(ctx echo.Context, tenant openapi_types.UUID) error
+	// List tenant invites
+	// (GET /api/v1/tenants/{tenant}/invites)
+	TenantInviteList(ctx echo.Context, tenant openapi_types.UUID) error
+	// Create tenant invite
+	// (POST /api/v1/tenants/{tenant}/invites)
+	TenantInviteCreate(ctx echo.Context, tenant openapi_types.UUID) error
+	// Delete invite
+	// (DELETE /api/v1/tenants/{tenant}/invites/{tenant-invite})
+	TenantInviteDelete(ctx echo.Context, tenant openapi_types.UUID, tenantInvite openapi_types.UUID) error
+	// Update invite
+	// (PATCH /api/v1/tenants/{tenant}/invites/{tenant-invite})
+	TenantInviteUpdate(ctx echo.Context, tenant openapi_types.UUID, tenantInvite openapi_types.UUID) error
+	// List tenant members
+	// (GET /api/v1/tenants/{tenant}/members)
+	TenantMemberList(ctx echo.Context, tenant openapi_types.UUID) error
 	// Get workers
 	// (GET /api/v1/tenants/{tenant}/worker)
 	WorkerList(ctx echo.Context, tenant openapi_types.UUID) error
@@ -579,6 +671,21 @@ type ServerInterface interface {
 	// Get current user
 	// (GET /api/v1/users/current)
 	UserGetCurrent(ctx echo.Context) error
+	// Complete OAuth flow
+	// (GET /api/v1/users/google/callback)
+	UserUpdateOauthCallback(ctx echo.Context) error
+	// Start OAuth flow
+	// (GET /api/v1/users/google/start)
+	UserUpdateOauthStart(ctx echo.Context) error
+	// List tenant invites
+	// (GET /api/v1/users/invites)
+	UserListTenantInvites(ctx echo.Context) error
+	// Accept tenant invite
+	// (POST /api/v1/users/invites/accept)
+	TenantInviteAccept(ctx echo.Context) error
+	// Reject tenant invite
+	// (POST /api/v1/users/invites/reject)
+	TenantInviteReject(ctx echo.Context) error
 	// Login user
 	// (POST /api/v1/users/login)
 	UserUpdateLogin(ctx echo.Context) error
@@ -627,6 +734,15 @@ func (w *ServerInterfaceWrapper) EventDataGet(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.EventDataGet(ctx, event)
+	return err
+}
+
+// MetadataGet converts echo context to params.
+func (w *ServerInterfaceWrapper) MetadataGet(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.MetadataGet(ctx)
 	return err
 }
 
@@ -751,6 +867,122 @@ func (w *ServerInterfaceWrapper) EventUpdateReplay(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.EventUpdateReplay(ctx, tenant)
+	return err
+}
+
+// TenantInviteList converts echo context to params.
+func (w *ServerInterfaceWrapper) TenantInviteList(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.TenantInviteList(ctx, tenant)
+	return err
+}
+
+// TenantInviteCreate converts echo context to params.
+func (w *ServerInterfaceWrapper) TenantInviteCreate(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.TenantInviteCreate(ctx, tenant)
+	return err
+}
+
+// TenantInviteDelete converts echo context to params.
+func (w *ServerInterfaceWrapper) TenantInviteDelete(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	// ------------- Path parameter "tenant-invite" -------------
+	var tenantInvite openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant-invite", runtime.ParamLocationPath, ctx.Param("tenant-invite"), &tenantInvite)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant-invite: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.TenantInviteDelete(ctx, tenant, tenantInvite)
+	return err
+}
+
+// TenantInviteUpdate converts echo context to params.
+func (w *ServerInterfaceWrapper) TenantInviteUpdate(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	// ------------- Path parameter "tenant-invite" -------------
+	var tenantInvite openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant-invite", runtime.ParamLocationPath, ctx.Param("tenant-invite"), &tenantInvite)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant-invite: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.TenantInviteUpdate(ctx, tenant, tenantInvite)
+	return err
+}
+
+// TenantMemberList converts echo context to params.
+func (w *ServerInterfaceWrapper) TenantMemberList(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.TenantMemberList(ctx, tenant)
 	return err
 }
 
@@ -880,6 +1112,61 @@ func (w *ServerInterfaceWrapper) UserGetCurrent(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.UserGetCurrent(ctx)
+	return err
+}
+
+// UserUpdateOauthCallback converts echo context to params.
+func (w *ServerInterfaceWrapper) UserUpdateOauthCallback(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UserUpdateOauthCallback(ctx)
+	return err
+}
+
+// UserUpdateOauthStart converts echo context to params.
+func (w *ServerInterfaceWrapper) UserUpdateOauthStart(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UserUpdateOauthStart(ctx)
+	return err
+}
+
+// UserListTenantInvites converts echo context to params.
+func (w *ServerInterfaceWrapper) UserListTenantInvites(ctx echo.Context) error {
+	var err error
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UserListTenantInvites(ctx)
+	return err
+}
+
+// TenantInviteAccept converts echo context to params.
+func (w *ServerInterfaceWrapper) TenantInviteAccept(ctx echo.Context) error {
+	var err error
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.TenantInviteAccept(ctx)
+	return err
+}
+
+// TenantInviteReject converts echo context to params.
+func (w *ServerInterfaceWrapper) TenantInviteReject(ctx echo.Context) error {
+	var err error
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.TenantInviteReject(ctx)
 	return err
 }
 
@@ -1050,15 +1337,26 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	}
 
 	router.GET(baseURL+"/api/v1/events/:event/data", wrapper.EventDataGet)
+	router.GET(baseURL+"/api/v1/meta", wrapper.MetadataGet)
 	router.POST(baseURL+"/api/v1/tenants", wrapper.TenantCreate)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/events", wrapper.EventList)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/events/keys", wrapper.EventKeyList)
 	router.POST(baseURL+"/api/v1/tenants/:tenant/events/replay", wrapper.EventUpdateReplay)
+	router.GET(baseURL+"/api/v1/tenants/:tenant/invites", wrapper.TenantInviteList)
+	router.POST(baseURL+"/api/v1/tenants/:tenant/invites", wrapper.TenantInviteCreate)
+	router.DELETE(baseURL+"/api/v1/tenants/:tenant/invites/:tenant-invite", wrapper.TenantInviteDelete)
+	router.PATCH(baseURL+"/api/v1/tenants/:tenant/invites/:tenant-invite", wrapper.TenantInviteUpdate)
+	router.GET(baseURL+"/api/v1/tenants/:tenant/members", wrapper.TenantMemberList)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/worker", wrapper.WorkerList)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflow-runs/:workflow-run", wrapper.WorkflowRunGet)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows", wrapper.WorkflowList)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/runs", wrapper.WorkflowRunList)
 	router.GET(baseURL+"/api/v1/users/current", wrapper.UserGetCurrent)
+	router.GET(baseURL+"/api/v1/users/google/callback", wrapper.UserUpdateOauthCallback)
+	router.GET(baseURL+"/api/v1/users/google/start", wrapper.UserUpdateOauthStart)
+	router.GET(baseURL+"/api/v1/users/invites", wrapper.UserListTenantInvites)
+	router.POST(baseURL+"/api/v1/users/invites/accept", wrapper.TenantInviteAccept)
+	router.POST(baseURL+"/api/v1/users/invites/reject", wrapper.TenantInviteReject)
 	router.POST(baseURL+"/api/v1/users/login", wrapper.UserUpdateLogin)
 	router.POST(baseURL+"/api/v1/users/logout", wrapper.UserUpdateLogout)
 	router.GET(baseURL+"/api/v1/users/memberships", wrapper.TenantMembershipsList)
@@ -1101,6 +1399,31 @@ type EventDataGet403JSONResponse APIErrors
 func (response EventDataGet403JSONResponse) VisitEventDataGetResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MetadataGetRequestObject struct {
+}
+
+type MetadataGetResponseObject interface {
+	VisitMetadataGetResponse(w http.ResponseWriter) error
+}
+
+type MetadataGet200JSONResponse APIMeta
+
+func (response MetadataGet200JSONResponse) VisitMetadataGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MetadataGet400JSONResponse APIErrors
+
+func (response MetadataGet400JSONResponse) VisitMetadataGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -1241,6 +1564,167 @@ func (response EventUpdateReplay400JSONResponse) VisitEventUpdateReplayResponse(
 type EventUpdateReplay403JSONResponse APIErrors
 
 func (response EventUpdateReplay403JSONResponse) VisitEventUpdateReplayResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteListRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+}
+
+type TenantInviteListResponseObject interface {
+	VisitTenantInviteListResponse(w http.ResponseWriter) error
+}
+
+type TenantInviteList200JSONResponse TenantInviteList
+
+func (response TenantInviteList200JSONResponse) VisitTenantInviteListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteList400JSONResponse APIErrors
+
+func (response TenantInviteList400JSONResponse) VisitTenantInviteListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteList403JSONResponse APIError
+
+func (response TenantInviteList403JSONResponse) VisitTenantInviteListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteCreateRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+	Body   *TenantInviteCreateJSONRequestBody
+}
+
+type TenantInviteCreateResponseObject interface {
+	VisitTenantInviteCreateResponse(w http.ResponseWriter) error
+}
+
+type TenantInviteCreate201JSONResponse TenantInvite
+
+func (response TenantInviteCreate201JSONResponse) VisitTenantInviteCreateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteCreate400JSONResponse APIErrors
+
+func (response TenantInviteCreate400JSONResponse) VisitTenantInviteCreateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteCreate403JSONResponse APIError
+
+func (response TenantInviteCreate403JSONResponse) VisitTenantInviteCreateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteDeleteRequestObject struct {
+	Tenant       openapi_types.UUID `json:"tenant"`
+	TenantInvite openapi_types.UUID `json:"tenant-invite"`
+}
+
+type TenantInviteDeleteResponseObject interface {
+	VisitTenantInviteDeleteResponse(w http.ResponseWriter) error
+}
+
+type TenantInviteDelete200JSONResponse TenantInvite
+
+func (response TenantInviteDelete200JSONResponse) VisitTenantInviteDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteDelete400JSONResponse APIErrors
+
+func (response TenantInviteDelete400JSONResponse) VisitTenantInviteDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteUpdateRequestObject struct {
+	Tenant       openapi_types.UUID `json:"tenant"`
+	TenantInvite openapi_types.UUID `json:"tenant-invite"`
+	Body         *TenantInviteUpdateJSONRequestBody
+}
+
+type TenantInviteUpdateResponseObject interface {
+	VisitTenantInviteUpdateResponse(w http.ResponseWriter) error
+}
+
+type TenantInviteUpdate200JSONResponse TenantInvite
+
+func (response TenantInviteUpdate200JSONResponse) VisitTenantInviteUpdateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteUpdate400JSONResponse APIErrors
+
+func (response TenantInviteUpdate400JSONResponse) VisitTenantInviteUpdateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantMemberListRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+}
+
+type TenantMemberListResponseObject interface {
+	VisitTenantMemberListResponse(w http.ResponseWriter) error
+}
+
+type TenantMemberList200JSONResponse TenantMemberList
+
+func (response TenantMemberList200JSONResponse) VisitTenantMemberListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantMemberList400JSONResponse APIErrors
+
+func (response TenantMemberList400JSONResponse) VisitTenantMemberListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantMemberList403JSONResponse APIError
+
+func (response TenantMemberList403JSONResponse) VisitTenantMemberListResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
 
@@ -1428,6 +1912,150 @@ type UserGetCurrent405JSONResponse APIErrors
 func (response UserGetCurrent405JSONResponse) VisitUserGetCurrentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(405)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UserUpdateOauthCallbackRequestObject struct {
+}
+
+type UserUpdateOauthCallbackResponseObject interface {
+	VisitUserUpdateOauthCallbackResponse(w http.ResponseWriter) error
+}
+
+type UserUpdateOauthCallback302ResponseHeaders struct {
+	Location string
+}
+
+type UserUpdateOauthCallback302Response struct {
+	Headers UserUpdateOauthCallback302ResponseHeaders
+}
+
+func (response UserUpdateOauthCallback302Response) VisitUserUpdateOauthCallbackResponse(w http.ResponseWriter) error {
+	w.Header().Set("location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(302)
+	return nil
+}
+
+type UserUpdateOauthStartRequestObject struct {
+}
+
+type UserUpdateOauthStartResponseObject interface {
+	VisitUserUpdateOauthStartResponse(w http.ResponseWriter) error
+}
+
+type UserUpdateOauthStart302ResponseHeaders struct {
+	Location string
+}
+
+type UserUpdateOauthStart302Response struct {
+	Headers UserUpdateOauthStart302ResponseHeaders
+}
+
+func (response UserUpdateOauthStart302Response) VisitUserUpdateOauthStartResponse(w http.ResponseWriter) error {
+	w.Header().Set("location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(302)
+	return nil
+}
+
+type UserListTenantInvitesRequestObject struct {
+}
+
+type UserListTenantInvitesResponseObject interface {
+	VisitUserListTenantInvitesResponse(w http.ResponseWriter) error
+}
+
+type UserListTenantInvites200JSONResponse TenantInviteList
+
+func (response UserListTenantInvites200JSONResponse) VisitUserListTenantInvitesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UserListTenantInvites400JSONResponse APIErrors
+
+func (response UserListTenantInvites400JSONResponse) VisitUserListTenantInvitesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UserListTenantInvites403JSONResponse APIErrors
+
+func (response UserListTenantInvites403JSONResponse) VisitUserListTenantInvitesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteAcceptRequestObject struct {
+	Body *TenantInviteAcceptJSONRequestBody
+}
+
+type TenantInviteAcceptResponseObject interface {
+	VisitTenantInviteAcceptResponse(w http.ResponseWriter) error
+}
+
+type TenantInviteAccept200Response struct {
+}
+
+func (response TenantInviteAccept200Response) VisitTenantInviteAcceptResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type TenantInviteAccept400JSONResponse APIErrors
+
+func (response TenantInviteAccept400JSONResponse) VisitTenantInviteAcceptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteAccept403JSONResponse APIError
+
+func (response TenantInviteAccept403JSONResponse) VisitTenantInviteAcceptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteRejectRequestObject struct {
+	Body *TenantInviteRejectJSONRequestBody
+}
+
+type TenantInviteRejectResponseObject interface {
+	VisitTenantInviteRejectResponse(w http.ResponseWriter) error
+}
+
+type TenantInviteReject200Response struct {
+}
+
+func (response TenantInviteReject200Response) VisitTenantInviteRejectResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type TenantInviteReject400JSONResponse APIErrors
+
+func (response TenantInviteReject400JSONResponse) VisitTenantInviteRejectResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantInviteReject403JSONResponse APIError
+
+func (response TenantInviteReject403JSONResponse) VisitTenantInviteRejectResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -1760,6 +2388,8 @@ func (response WorkflowVersionGetDefinition404JSONResponse) VisitWorkflowVersion
 type StrictServerInterface interface {
 	EventDataGet(ctx echo.Context, request EventDataGetRequestObject) (EventDataGetResponseObject, error)
 
+	MetadataGet(ctx echo.Context, request MetadataGetRequestObject) (MetadataGetResponseObject, error)
+
 	TenantCreate(ctx echo.Context, request TenantCreateRequestObject) (TenantCreateResponseObject, error)
 
 	EventList(ctx echo.Context, request EventListRequestObject) (EventListResponseObject, error)
@@ -1767,6 +2397,16 @@ type StrictServerInterface interface {
 	EventKeyList(ctx echo.Context, request EventKeyListRequestObject) (EventKeyListResponseObject, error)
 
 	EventUpdateReplay(ctx echo.Context, request EventUpdateReplayRequestObject) (EventUpdateReplayResponseObject, error)
+
+	TenantInviteList(ctx echo.Context, request TenantInviteListRequestObject) (TenantInviteListResponseObject, error)
+
+	TenantInviteCreate(ctx echo.Context, request TenantInviteCreateRequestObject) (TenantInviteCreateResponseObject, error)
+
+	TenantInviteDelete(ctx echo.Context, request TenantInviteDeleteRequestObject) (TenantInviteDeleteResponseObject, error)
+
+	TenantInviteUpdate(ctx echo.Context, request TenantInviteUpdateRequestObject) (TenantInviteUpdateResponseObject, error)
+
+	TenantMemberList(ctx echo.Context, request TenantMemberListRequestObject) (TenantMemberListResponseObject, error)
 
 	WorkerList(ctx echo.Context, request WorkerListRequestObject) (WorkerListResponseObject, error)
 
@@ -1777,6 +2417,16 @@ type StrictServerInterface interface {
 	WorkflowRunList(ctx echo.Context, request WorkflowRunListRequestObject) (WorkflowRunListResponseObject, error)
 
 	UserGetCurrent(ctx echo.Context, request UserGetCurrentRequestObject) (UserGetCurrentResponseObject, error)
+
+	UserUpdateOauthCallback(ctx echo.Context, request UserUpdateOauthCallbackRequestObject) (UserUpdateOauthCallbackResponseObject, error)
+
+	UserUpdateOauthStart(ctx echo.Context, request UserUpdateOauthStartRequestObject) (UserUpdateOauthStartResponseObject, error)
+
+	UserListTenantInvites(ctx echo.Context, request UserListTenantInvitesRequestObject) (UserListTenantInvitesResponseObject, error)
+
+	TenantInviteAccept(ctx echo.Context, request TenantInviteAcceptRequestObject) (TenantInviteAcceptResponseObject, error)
+
+	TenantInviteReject(ctx echo.Context, request TenantInviteRejectRequestObject) (TenantInviteRejectResponseObject, error)
 
 	UserUpdateLogin(ctx echo.Context, request UserUpdateLoginRequestObject) (UserUpdateLoginResponseObject, error)
 
@@ -1825,6 +2475,29 @@ func (sh *strictHandler) EventDataGet(ctx echo.Context, event openapi_types.UUID
 		return err
 	} else if validResponse, ok := response.(EventDataGetResponseObject); ok {
 		return validResponse.VisitEventDataGetResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// MetadataGet operation middleware
+func (sh *strictHandler) MetadataGet(ctx echo.Context) error {
+	var request MetadataGetRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.MetadataGet(ctx, request.(MetadataGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MetadataGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(MetadataGetResponseObject); ok {
+		return validResponse.VisitMetadataGetResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -1936,6 +2609,145 @@ func (sh *strictHandler) EventUpdateReplay(ctx echo.Context, tenant openapi_type
 		return err
 	} else if validResponse, ok := response.(EventUpdateReplayResponseObject); ok {
 		return validResponse.VisitEventUpdateReplayResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// TenantInviteList operation middleware
+func (sh *strictHandler) TenantInviteList(ctx echo.Context, tenant openapi_types.UUID) error {
+	var request TenantInviteListRequestObject
+
+	request.Tenant = tenant
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.TenantInviteList(ctx, request.(TenantInviteListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TenantInviteList")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(TenantInviteListResponseObject); ok {
+		return validResponse.VisitTenantInviteListResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// TenantInviteCreate operation middleware
+func (sh *strictHandler) TenantInviteCreate(ctx echo.Context, tenant openapi_types.UUID) error {
+	var request TenantInviteCreateRequestObject
+
+	request.Tenant = tenant
+
+	var body TenantInviteCreateJSONRequestBody
+	if err := ctx.Bind(&body); err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.TenantInviteCreate(ctx, request.(TenantInviteCreateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TenantInviteCreate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(TenantInviteCreateResponseObject); ok {
+		return validResponse.VisitTenantInviteCreateResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// TenantInviteDelete operation middleware
+func (sh *strictHandler) TenantInviteDelete(ctx echo.Context, tenant openapi_types.UUID, tenantInvite openapi_types.UUID) error {
+	var request TenantInviteDeleteRequestObject
+
+	request.Tenant = tenant
+	request.TenantInvite = tenantInvite
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.TenantInviteDelete(ctx, request.(TenantInviteDeleteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TenantInviteDelete")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(TenantInviteDeleteResponseObject); ok {
+		return validResponse.VisitTenantInviteDeleteResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// TenantInviteUpdate operation middleware
+func (sh *strictHandler) TenantInviteUpdate(ctx echo.Context, tenant openapi_types.UUID, tenantInvite openapi_types.UUID) error {
+	var request TenantInviteUpdateRequestObject
+
+	request.Tenant = tenant
+	request.TenantInvite = tenantInvite
+
+	var body TenantInviteUpdateJSONRequestBody
+	if err := ctx.Bind(&body); err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.TenantInviteUpdate(ctx, request.(TenantInviteUpdateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TenantInviteUpdate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(TenantInviteUpdateResponseObject); ok {
+		return validResponse.VisitTenantInviteUpdateResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// TenantMemberList operation middleware
+func (sh *strictHandler) TenantMemberList(ctx echo.Context, tenant openapi_types.UUID) error {
+	var request TenantMemberListRequestObject
+
+	request.Tenant = tenant
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.TenantMemberList(ctx, request.(TenantMemberListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TenantMemberList")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(TenantMemberListResponseObject); ok {
+		return validResponse.VisitTenantMemberListResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -2061,6 +2873,133 @@ func (sh *strictHandler) UserGetCurrent(ctx echo.Context) error {
 		return err
 	} else if validResponse, ok := response.(UserGetCurrentResponseObject); ok {
 		return validResponse.VisitUserGetCurrentResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// UserUpdateOauthCallback operation middleware
+func (sh *strictHandler) UserUpdateOauthCallback(ctx echo.Context) error {
+	var request UserUpdateOauthCallbackRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UserUpdateOauthCallback(ctx, request.(UserUpdateOauthCallbackRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UserUpdateOauthCallback")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(UserUpdateOauthCallbackResponseObject); ok {
+		return validResponse.VisitUserUpdateOauthCallbackResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// UserUpdateOauthStart operation middleware
+func (sh *strictHandler) UserUpdateOauthStart(ctx echo.Context) error {
+	var request UserUpdateOauthStartRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UserUpdateOauthStart(ctx, request.(UserUpdateOauthStartRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UserUpdateOauthStart")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(UserUpdateOauthStartResponseObject); ok {
+		return validResponse.VisitUserUpdateOauthStartResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// UserListTenantInvites operation middleware
+func (sh *strictHandler) UserListTenantInvites(ctx echo.Context) error {
+	var request UserListTenantInvitesRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UserListTenantInvites(ctx, request.(UserListTenantInvitesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UserListTenantInvites")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(UserListTenantInvitesResponseObject); ok {
+		return validResponse.VisitUserListTenantInvitesResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// TenantInviteAccept operation middleware
+func (sh *strictHandler) TenantInviteAccept(ctx echo.Context) error {
+	var request TenantInviteAcceptRequestObject
+
+	var body TenantInviteAcceptJSONRequestBody
+	if err := ctx.Bind(&body); err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.TenantInviteAccept(ctx, request.(TenantInviteAcceptRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TenantInviteAccept")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(TenantInviteAcceptResponseObject); ok {
+		return validResponse.VisitTenantInviteAcceptResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// TenantInviteReject operation middleware
+func (sh *strictHandler) TenantInviteReject(ctx echo.Context) error {
+	var request TenantInviteRejectRequestObject
+
+	var body TenantInviteRejectJSONRequestBody
+	if err := ctx.Bind(&body); err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.TenantInviteReject(ctx, request.(TenantInviteRejectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TenantInviteReject")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(TenantInviteRejectResponseObject); ok {
+		return validResponse.VisitTenantInviteRejectResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -2276,68 +3215,80 @@ func (sh *strictHandler) WorkflowVersionGetDefinition(ctx echo.Context, workflow
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"oBcE8/v5fwMAAP//j0uwFLh2AAA=",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

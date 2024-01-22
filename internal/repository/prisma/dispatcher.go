@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -18,9 +19,10 @@ type dispatcherRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewDispatcherRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator) repository.DispatcherRepository {
+func NewDispatcherRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.DispatcherRepository {
 	queries := dbsqlc.New()
 
 	return &dispatcherRepository{
@@ -28,6 +30,7 @@ func NewDispatcherRepository(client *db.PrismaClient, pool *pgxpool.Pool, v vali
 		pool:    pool,
 		queries: queries,
 		v:       v,
+		l:       l,
 	}
 }
 
@@ -82,7 +85,7 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(onStale func(dispatcherId 
 		return err
 	}
 
-	defer tx.Rollback(context.Background())
+	defer deferRollback(context.Background(), d.l, tx.Rollback)
 
 	staleDispatchers, err := d.queries.ListStaleDispatchers(context.Background(), tx)
 

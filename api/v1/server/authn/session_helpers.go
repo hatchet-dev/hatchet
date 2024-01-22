@@ -1,10 +1,13 @@
 package authn
 
 import (
+	"fmt"
+
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/internal/config/server"
+	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
@@ -48,6 +51,70 @@ func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
 	session.Options.MaxAge = -1
 
 	return session.Save(c.Request(), c.Response())
+}
+
+func (s *SessionHelpers) SaveOAuthState(
+	c echo.Context,
+) (string, error) {
+	state, err := encryption.GenerateRandomBytes(16)
+
+	if err != nil {
+		return "", err
+	}
+
+	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+
+	if err != nil {
+		return "", err
+	}
+
+	// need state parameter to validate when redirected
+	session.Values["state"] = state
+
+	// need a parameter to indicate that this was triggered through the oauth flow
+	session.Values["oauth_triggered"] = true
+
+	if err := session.Save(c.Request(), c.Response()); err != nil {
+		return "", err
+	}
+
+	return state, nil
+}
+
+func (s *SessionHelpers) ValidateOAuthState(
+	c echo.Context,
+) (isValidated bool, isOAuthTriggered bool, err error) {
+	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+
+	if err != nil {
+		return false, false, err
+	}
+
+	if _, ok := session.Values["state"]; !ok {
+		return false, false, fmt.Errorf("state parameter not found in session")
+	}
+
+	if c.Request().URL.Query().Get("state") != session.Values["state"] {
+		return false, false, fmt.Errorf("state parameters do not match")
+	}
+
+	if isOAuthTriggeredVal, exists := session.Values["oauth_triggered"]; exists {
+		var ok bool
+
+		isOAuthTriggered, ok = isOAuthTriggeredVal.(bool)
+
+		isOAuthTriggered = ok && isOAuthTriggered
+	}
+
+	// need state parameter to validate when redirected
+	session.Values["state"] = ""
+	session.Values["oauth_triggered"] = false
+
+	if err := session.Save(c.Request(), c.Response()); err != nil {
+		return false, false, fmt.Errorf("could not clear session")
+	}
+
+	return true, isOAuthTriggered, nil
 }
 
 func saveNewSession(c echo.Context, session *sessions.Session) error {

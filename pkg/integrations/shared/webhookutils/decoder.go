@@ -88,11 +88,12 @@ func requestErrorFromJSONErr(err error) error {
 	var typeErr *json.UnmarshalTypeError
 	var clientErr string
 
-	if errors.As(err, &syntaxErr) {
+	switch {
+	case errors.As(err, &syntaxErr):
 		clientErr = fmt.Sprintf("JSON syntax error at character %d", syntaxErr.Offset)
-	} else if errors.As(err, &typeErr) {
+	case errors.As(err, &typeErr):
 		clientErr = fmt.Sprintf("Invalid type for body param %s: expected %s, got %s", typeErr.Field, typeErr.Type.Kind().String(), typeErr.Value)
-	} else {
+	default:
 		return hatcheterrors.NewError(
 			400,
 			"Bad Request",
@@ -119,7 +120,7 @@ func requestErrorFromSchemaErr(err error) error {
 			resStrArr = append(resStrArr, readableStringFromSchemaErr(err))
 		}
 
-		clientErr := fmt.Sprintf(strings.Join(resStrArr, ","))
+		clientErr := strings.Join(resStrArr, ",")
 
 		return hatcheterrors.NewError(
 			400,

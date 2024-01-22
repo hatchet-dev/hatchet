@@ -2,7 +2,6 @@ package cli
 
 import (
 	_ "embed"
-
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,14 +9,13 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
-
-	"github.com/spf13/cobra"
 )
 
 var certDir string
@@ -171,19 +169,19 @@ func setupCerts(generated *generatedConfigFiles) error {
 		return fmt.Errorf("could not create cert directory: %w", err)
 	}
 
-	err = os.WriteFile(filepath.Join(fullPathCertDir, "./cluster-cert.conf"), ClusterCertConf, 0666)
+	err = os.WriteFile(filepath.Join(fullPathCertDir, "./cluster-cert.conf"), ClusterCertConf, 0600)
 
 	if err != nil {
 		return fmt.Errorf("could not create cluster-cert.conf file: %w", err)
 	}
 
-	err = os.WriteFile(filepath.Join(fullPathCertDir, "./internal-admin-client-cert.conf"), InternalAdminClientCertConf, 0666)
+	err = os.WriteFile(filepath.Join(fullPathCertDir, "./internal-admin-client-cert.conf"), InternalAdminClientCertConf, 0600)
 
 	if err != nil {
 		return fmt.Errorf("could not create internal-admin-client-cert.conf file: %w", err)
 	}
 
-	err = os.WriteFile(filepath.Join(fullPathCertDir, "./worker-client-cert.conf"), WorkerClientCertConf, 0666)
+	err = os.WriteFile(filepath.Join(fullPathCertDir, "./worker-client-cert.conf"), WorkerClientCertConf, 0600)
 
 	if err != nil {
 		return fmt.Errorf("could not create worker-client-cert.conf file: %w", err)
@@ -266,10 +264,6 @@ func loadBaseConfigFiles() (*generatedConfigFiles, error) {
 	return res, nil
 }
 
-func shouldWriteConfig(conf string) bool {
-	return overwrite || conf == ""
-}
-
 func getFiles(name string) [][]byte {
 	files := [][]byte{}
 
@@ -317,7 +311,7 @@ func writeGeneratedConfig(generated *generatedConfigFiles) error {
 		return err
 	}
 
-	err = os.WriteFile(databasePath, databaseConfigBytes, 0666)
+	err = os.WriteFile(databasePath, databaseConfigBytes, 0600)
 
 	if err != nil {
 		return fmt.Errorf("could not write database.yaml file: %w", err)
@@ -331,7 +325,7 @@ func writeGeneratedConfig(generated *generatedConfigFiles) error {
 		return err
 	}
 
-	err = os.WriteFile(serverPath, serverConfigBytes, 0666)
+	err = os.WriteFile(serverPath, serverConfigBytes, 0600)
 
 	if err != nil {
 		return fmt.Errorf("could not write server.yaml file: %w", err)

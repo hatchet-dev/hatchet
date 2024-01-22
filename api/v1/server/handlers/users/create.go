@@ -2,6 +2,7 @@ package users
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 
@@ -20,6 +21,19 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 		return nil, err
 	} else if apiErrors != nil {
 		return gen.UserCreate400JSONResponse(*apiErrors), nil
+	}
+
+	// check restricted email group
+	// parse domain from email
+	// make sure there's only one @ in the email
+	if strings.Count(string(request.Body.Email), "@") != 1 {
+		return nil, errors.New("invalid email")
+	}
+
+	domain := strings.Split(string(request.Body.Email), "@")[1]
+
+	if err := u.checkUserRestrictions(u.config, domain); err != nil {
+		return nil, err
 	}
 
 	// determine if the user exists before attempting to write the user
@@ -42,11 +56,15 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 		return nil, err
 	}
 
+	if hashedPw == nil {
+		return nil, errors.New("hashed password is nil")
+	}
+
 	createOpts := &repository.CreateUserOpts{
 		Email:         string(request.Body.Email),
-		EmailVerified: repository.BoolPtr(u.config.Auth.SetEmailVerified),
+		EmailVerified: repository.BoolPtr(u.config.Auth.ConfigFile.SetEmailVerified),
 		Name:          repository.StringPtr(request.Body.Name),
-		Password:      *hashedPw,
+		Password:      hashedPw,
 	}
 
 	// write the user to the db

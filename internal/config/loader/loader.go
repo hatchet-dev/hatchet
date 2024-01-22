@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
+	"github.com/hatchet-dev/hatchet/internal/auth/oauth"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
@@ -172,9 +173,32 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil, fmt.Errorf("could not create ingestor: %w", err)
 	}
 
+	auth := server.AuthConfig{
+		ConfigFile: cf.Auth,
+	}
+
+	if cf.Auth.Google.Enabled {
+		if cf.Auth.Google.ClientID == "" {
+			return nil, fmt.Errorf("google client id is required")
+		}
+
+		if cf.Auth.Google.ClientSecret == "" {
+			return nil, fmt.Errorf("google client secret is required")
+		}
+
+		gClient := oauth.NewGoogleClient(&oauth.Config{
+			ClientID:     cf.Auth.Google.ClientID,
+			ClientSecret: cf.Auth.Google.ClientSecret,
+			BaseURL:      cf.Runtime.ServerURL,
+			Scopes:       cf.Auth.Google.Scopes,
+		})
+
+		auth.GoogleOAuthConfig = gClient
+	}
+
 	return &server.ServerConfig{
 		Runtime:       cf.Runtime,
-		Auth:          cf.Auth,
+		Auth:          auth,
 		Config:        dc,
 		TaskQueue:     tq,
 		Services:      cf.Services,
