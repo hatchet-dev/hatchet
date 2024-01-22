@@ -22,8 +22,11 @@ type CreateEventOpts struct {
 }
 
 type ListEventOpts struct {
-	// (optional) a list of event keys to sort by
+	// (optional) a list of event keys to filter by
 	Keys []string
+
+	// (optional) a list of workflow IDs to filter by
+	Workflows []string
 
 	// (optional) number of events to skip
 	Offset *int

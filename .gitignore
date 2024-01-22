@@ -28,6 +28,9 @@ generated
 
 node_modules
 
+# Jetbrains IDEs
+*.iml
+
 # Local docs directories
 /docs/.obsidian
 

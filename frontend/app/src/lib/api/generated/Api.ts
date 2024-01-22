@@ -37,6 +37,7 @@ import {
   Worker,
   WorkerList,
   Workflow,
+  WorkflowID,
   WorkflowList,
   WorkflowRun,
   WorkflowRunList,
@@ -345,6 +346,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       limit?: number;
       /** A list of keys to filter by */
       keys?: EventKey[];
+      /** A list of workflow IDs to filter by */
+      workflows?: WorkflowID[];
       /** The search query to filter for */
       search?: EventSearch;
       /** What to order by */

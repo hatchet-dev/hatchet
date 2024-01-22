@@ -60,6 +60,8 @@ EventKeyList:
   $ref: "./event.yaml#/EventKeyList"
 EventKey:
   $ref: "./event.yaml#/EventKey"
+WorkflowID:
+  $ref: "./event.yaml#/WorkflowID"
 EventList:
   $ref: "./event.yaml#/EventList"
 ReplayEventRequest:

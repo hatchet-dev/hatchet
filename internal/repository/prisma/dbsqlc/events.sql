@@ -3,12 +3,28 @@ SELECT
     count(*) OVER() AS total
 FROM
     "Event" as events
+LEFT JOIN
+  "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
+LEFT JOIN
+  "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
+LEFT JOIN
+  "WorkflowVersion" as workflowVersion ON workflowVersion."id" = runs."workflowVersionId"
+LEFT JOIN
+  "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
-    events."tenantId" = $1 AND
-    (
-        sqlc.narg('keys')::text[] IS NULL OR
-        events."key" = ANY(sqlc.narg('keys')::text[])
-    );
+  events."tenantId" = $1 AND
+  (
+    sqlc.narg('keys')::text[] IS NULL OR
+    events."key" = ANY(sqlc.narg('keys')::text[])
+    ) AND
+  (
+    (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR
+    (workflow."id" = ANY(sqlc.narg('workflows')::text[]::uuid[]))
+    ) AND
+  (
+    sqlc.narg('search')::text IS NULL OR
+    jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
+  );
 
 -- name: CreateEvent :one
 INSERT INTO "Event" (
@@ -53,6 +69,10 @@ WHERE
     (
         sqlc.narg('keys')::text[] IS NULL OR
         events."key" = ANY(sqlc.narg('keys')::text[])
+    ) AND
+    (
+        (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR
+        (workflow."id" = ANY(sqlc.narg('workflows')::text[]::uuid[]))
     ) AND
     (
         sqlc.narg('search')::text IS NULL OR

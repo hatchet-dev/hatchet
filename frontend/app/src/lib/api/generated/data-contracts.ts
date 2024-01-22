@@ -296,6 +296,9 @@ export interface EventKeyList {
 /** The key for the event. */
 export type EventKey = string;
 
+/** A workflow ID. */
+export type WorkflowID = string;
+
 export interface EventList {
   pagination?: PaginationResponse;
   rows?: Event[];

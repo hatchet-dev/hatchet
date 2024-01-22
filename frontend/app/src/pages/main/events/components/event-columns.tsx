@@ -79,6 +79,13 @@ export const columns = ({
       },
     },
     {
+      accessorKey: 'workflows',
+      header: () => <></>,
+      cell: () => {
+        return <div></div>;
+      },
+    },
+    {
       accessorKey: 'Workflow Runs',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Workflow Runs" />
