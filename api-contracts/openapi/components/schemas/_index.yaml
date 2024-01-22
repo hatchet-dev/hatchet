@@ -1,3 +1,7 @@
+APIMeta:
+  $ref: "./metadata.yaml#/APIMeta"
+APIMetaAuth:
+  $ref: "./metadata.yaml#/APIMetaAuth"
 APIErrors:
   $ref: "./metadata.yaml#/APIErrors"
 APIError:

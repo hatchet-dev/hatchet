@@ -9,6 +9,18 @@
  * ---------------------------------------------------------------
  */
 
+export interface APIMeta {
+  auth?: APIMetaAuth;
+}
+
+export interface APIMetaAuth {
+  /**
+   * the supported types of authentication
+   * @example ["basic","google"]
+   */
+  schemes?: string[];
+}
+
 export interface APIErrors {
   errors: APIError[];
 }

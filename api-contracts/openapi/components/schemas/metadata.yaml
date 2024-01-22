@@ -1,3 +1,19 @@
+APIMeta:
+  type: object
+  properties:
+    auth:
+      $ref: "#/APIMetaAuth"
+APIMetaAuth:
+  type: object
+  properties:
+    schemes:
+      items:
+        type: string
+      type: array
+      description: the supported types of authentication
+      example:
+        - basic
+        - google
 APIError:
   type: object
   properties:

@@ -22,6 +22,11 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 		return gen.UserCreate400JSONResponse(*apiErrors), nil
 	}
 
+	// check restricted email group
+	if err := u.checkUserRestrictions(u.config, string(request.Body.Email)); err != nil {
+		return nil, err
+	}
+
 	// determine if the user exists before attempting to write the user
 	existingUser, err := u.config.Repository.User().GetUserByEmail(string(request.Body.Email))
 
@@ -42,11 +47,15 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 		return nil, err
 	}
 
+	if hashedPw == nil {
+		return nil, errors.New("hashed password is nil")
+	}
+
 	createOpts := &repository.CreateUserOpts{
 		Email:         string(request.Body.Email),
-		EmailVerified: repository.BoolPtr(u.config.Auth.SetEmailVerified),
+		EmailVerified: repository.BoolPtr(u.config.Auth.ConfigFile.SetEmailVerified),
 		Name:          repository.StringPtr(request.Body.Name),
-		Password:      *hashedPw,
+		Password:      hashedPw,
 	}
 
 	// write the user to the db

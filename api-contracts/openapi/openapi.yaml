@@ -20,8 +20,14 @@ components:
   schemas:
     $ref: "./components/schemas/_index.yaml"
 paths:
+  /api/v1/meta:
+    $ref: "./paths/metadata/metadata.yaml#/metadata"
   /api/v1/users/login:
     $ref: "./paths/user/user.yaml#/login"
+  /api/v1/users/google/start:
+    $ref: "./paths/user/user.yaml#/oauth-start-google"
+  /api/v1/users/google/callback:
+    $ref: "./paths/user/user.yaml#/oauth-callback-google"
   /api/v1/users/current:
     $ref: "./paths/user/user.yaml#/current"
   /api/v1/users/register:

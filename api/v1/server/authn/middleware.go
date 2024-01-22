@@ -65,8 +65,6 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 }
 
 func (a *AuthN) handleNoAuth(c echo.Context) error {
-	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
-
 	store := a.config.SessionStore
 
 	session, err := store.Get(c.Request(), store.GetName())
@@ -74,13 +72,13 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error getting session")
 
-		return forbidden
+		return GetRedirectWithError(c, a.l, err, "Could not log in. Please try again and make sure cookies are enabled.")
 	}
 
 	if auth, ok := session.Values["authenticated"].(bool); ok && auth {
 		a.l.Debug().Msgf("user was authenticated when no security schemes permit auth")
 
-		return forbidden
+		return GetRedirectNoError(c, a.config.Runtime.ServerURL)
 	}
 
 	// set unauthenticated session in context
