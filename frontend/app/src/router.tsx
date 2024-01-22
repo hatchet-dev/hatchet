@@ -45,6 +45,16 @@ const routes = [
         ],
       },
       {
+        path: '/onboarding/verify-email',
+        lazy: async () =>
+          import('./pages/onboarding/verify-email').then((res) => {
+            return {
+              loader: res.loader,
+              Component: res.default,
+            };
+          }),
+      },
+      {
         path: '/',
         lazy: async () =>
           import('./pages/authenticated').then((res) => {
@@ -69,6 +79,16 @@ const routes = [
             lazy: async () =>
               import('./pages/onboarding/create-tenant').then((res) => {
                 return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/onboarding/invites',
+            lazy: async () =>
+              import('./pages/onboarding/invites').then((res) => {
+                return {
+                  loader: res.loader,
                   Component: res.default,
                 };
               }),
@@ -150,6 +170,15 @@ const routes = [
                 path: '/workers/:worker',
                 lazy: async () =>
                   import('./pages/main/workers/$worker').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/tenant-settings',
+                lazy: async () =>
+                  import('./pages/main/tenant-settings').then((res) => {
                     return {
                       Component: res.default,
                     };

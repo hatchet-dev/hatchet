@@ -75,6 +75,32 @@ func (r *tenantRepository) GetTenantMemberByUserID(tenantId string, userId strin
 	).Exec(context.Background())
 }
 
+func (r *tenantRepository) ListTenantMembers(tenantId string) ([]db.TenantMemberModel, error) {
+	return r.client.TenantMember.FindMany(
+		db.TenantMember.TenantID.Equals(tenantId),
+	).With(
+		db.TenantMember.User.Fetch(),
+		db.TenantMember.Tenant.Fetch(),
+	).Exec(context.Background())
+}
+
+func (r *tenantRepository) GetTenantMemberByEmail(tenantId string, email string) (*db.TenantMemberModel, error) {
+	user, err := r.client.User.FindUnique(
+		db.User.Email.Equals(email),
+	).Exec(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return r.client.TenantMember.FindUnique(
+		db.TenantMember.TenantIDUserID(
+			db.TenantMember.TenantID.Equals(tenantId),
+			db.TenantMember.UserID.Equals(user.ID),
+		),
+	).Exec(context.Background())
+}
+
 func (r *tenantRepository) UpdateTenantMember(memberId string, opts *repository.UpdateTenantMemberOpts) (*db.TenantMemberModel, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err

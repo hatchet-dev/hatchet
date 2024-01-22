@@ -116,6 +116,7 @@ model Tenant {
   workflowTags        WorkflowTag[]
   actions             Action[]
   services            Service[]
+  invites             TenantInviteLink[]
 }
 
 enum TenantMemberRole {
@@ -143,6 +144,29 @@ model TenantMember {
 
   // members are unique per tenant
   @@unique([tenantId, userId])
+}
+
+enum InviteLinkStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model TenantInviteLink {
+  // base fields
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  inviterEmail String
+  inviteeEmail String
+
+  expires DateTime
+  status  InviteLinkStatus @default(PENDING)
+  role    TenantMemberRole @default(OWNER)
 }
 
 // Event represents an event in the database. 

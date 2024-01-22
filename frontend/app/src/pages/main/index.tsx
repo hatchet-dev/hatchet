@@ -22,7 +22,11 @@ import {
 
 import { Link, Outlet, useOutletContext } from 'react-router-dom';
 import { Tenant, TenantMember } from '@/lib/api';
-import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
+import {
+  CaretSortIcon,
+  GearIcon,
+  PlusCircledIcon,
+} from '@radix-ui/react-icons';
 import {
   PopoverTrigger,
   Popover,
@@ -115,6 +119,19 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <ServerStackIcon className="mr-2 h-4 w-4" />
                   Workers
+                </Button>
+              </Link>
+            </div>
+          </div>
+          <div className="py-2">
+            <h2 className="mb-2 text-lg font-semibold tracking-tight">
+              Settings
+            </h2>
+            <div className="space-y-1">
+              <Link to="/tenant-settings">
+                <Button variant="ghost" className="w-full justify-start pl-0">
+                  <GearIcon className="mr-2 h-4 w-4" />
+                  General
                 </Button>
               </Link>
             </div>

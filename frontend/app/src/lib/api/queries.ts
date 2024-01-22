@@ -15,6 +15,22 @@ export const queries = createQueryKeyStore({
       queryKey: ['tenant-memberships:list'],
       queryFn: async () => (await api.tenantMembershipsList()).data,
     },
+    listInvites: {
+      queryKey: ['user:list:tenant-invites'],
+      queryFn: async () => (await api.userListTenantInvites()).data,
+    },
+  },
+  members: {
+    list: (tenant: string) => ({
+      queryKey: ['tenant-member:list', tenant],
+      queryFn: async () => (await api.tenantMemberList(tenant)).data,
+    }),
+  },
+  invites: {
+    list: (tenant: string) => ({
+      queryKey: ['tenant-invite:list', tenant],
+      queryFn: async () => (await api.tenantInviteList(tenant)).data,
+    }),
   },
   workflows: {
     list: (tenant: string) => ({

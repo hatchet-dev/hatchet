@@ -7,8 +7,6 @@ export default function useErrorParam() {
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log('useErrorParam', searchParams.get('error'));
-
     if (searchParams.get('error') && searchParams.get('error') !== '') {
       toast({
         title: 'Error',

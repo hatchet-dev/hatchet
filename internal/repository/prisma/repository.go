@@ -10,18 +10,19 @@ import (
 )
 
 type prismaRepository struct {
-	event       repository.EventRepository
-	tenant      repository.TenantRepository
-	workflow    repository.WorkflowRepository
-	workflowRun repository.WorkflowRunRepository
-	jobRun      repository.JobRunRepository
-	stepRun     repository.StepRunRepository
-	step        repository.StepRepository
-	dispatcher  repository.DispatcherRepository
-	worker      repository.WorkerRepository
-	ticker      repository.TickerRepository
-	userSession repository.UserSessionRepository
-	user        repository.UserRepository
+	event        repository.EventRepository
+	tenant       repository.TenantRepository
+	tenantInvite repository.TenantInviteRepository
+	workflow     repository.WorkflowRepository
+	workflowRun  repository.WorkflowRunRepository
+	jobRun       repository.JobRunRepository
+	stepRun      repository.StepRunRepository
+	step         repository.StepRepository
+	dispatcher   repository.DispatcherRepository
+	worker       repository.WorkerRepository
+	ticker       repository.TickerRepository
+	userSession  repository.UserSessionRepository
+	user         repository.UserRepository
 }
 
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
@@ -60,18 +61,19 @@ func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...Pris
 	opts.l = &newLogger
 
 	return &prismaRepository{
-		event:       NewEventRepository(client, pool, opts.v, opts.l),
-		tenant:      NewTenantRepository(client, opts.v),
-		workflow:    NewWorkflowRepository(client, pool, opts.v, opts.l),
-		workflowRun: NewWorkflowRunRepository(client, pool, opts.v, opts.l),
-		jobRun:      NewJobRunRepository(client, pool, opts.v, opts.l),
-		stepRun:     NewStepRunRepository(client, pool, opts.v, opts.l),
-		step:        NewStepRepository(client, opts.v),
-		dispatcher:  NewDispatcherRepository(client, pool, opts.v, opts.l),
-		worker:      NewWorkerRepository(client, opts.v),
-		ticker:      NewTickerRepository(client, pool, opts.v, opts.l),
-		userSession: NewUserSessionRepository(client, opts.v),
-		user:        NewUserRepository(client, opts.v),
+		event:        NewEventRepository(client, pool, opts.v, opts.l),
+		tenant:       NewTenantRepository(client, opts.v),
+		tenantInvite: NewTenantInviteRepository(client, opts.v),
+		workflow:     NewWorkflowRepository(client, pool, opts.v, opts.l),
+		workflowRun:  NewWorkflowRunRepository(client, pool, opts.v, opts.l),
+		jobRun:       NewJobRunRepository(client, pool, opts.v, opts.l),
+		stepRun:      NewStepRunRepository(client, pool, opts.v, opts.l),
+		step:         NewStepRepository(client, opts.v),
+		dispatcher:   NewDispatcherRepository(client, pool, opts.v, opts.l),
+		worker:       NewWorkerRepository(client, opts.v),
+		ticker:       NewTickerRepository(client, pool, opts.v, opts.l),
+		userSession:  NewUserSessionRepository(client, opts.v),
+		user:         NewUserRepository(client, opts.v),
 	}
 }
 
@@ -81,6 +83,10 @@ func (r *prismaRepository) Event() repository.EventRepository {
 
 func (r *prismaRepository) Tenant() repository.TenantRepository {
 	return r.tenant
+}
+
+func (r *prismaRepository) TenantInvite() repository.TenantInviteRepository {
+	return r.tenantInvite
 }
 
 func (r *prismaRepository) Workflow() repository.WorkflowRepository {

@@ -44,6 +44,12 @@ type TenantRepository interface {
 	// GetTenantMemberByUserID returns the tenant member with the given user id
 	GetTenantMemberByUserID(tenantId string, userId string) (*db.TenantMemberModel, error)
 
+	// GetTenantMemberByEmail returns the tenant member with the given email
+	GetTenantMemberByEmail(tenantId string, email string) (*db.TenantMemberModel, error)
+
+	// ListTenantMembers returns the list of tenant members for the given tenant
+	ListTenantMembers(tenantId string) ([]db.TenantMemberModel, error)
+
 	// UpdateTenantMember updates the tenant member with the given id
 	UpdateTenantMember(memberId string, opts *UpdateTenantMemberOpts) (*db.TenantMemberModel, error)
 
