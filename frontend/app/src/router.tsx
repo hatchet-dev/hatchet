@@ -74,6 +74,15 @@ const routes = [
               }),
           },
           {
+            path: '/onboarding/invites',
+            lazy: async () =>
+              import('./pages/onboarding/invites').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
             path: '/',
             lazy: async () =>
               import('./pages/main').then((res) => {
@@ -150,6 +159,15 @@ const routes = [
                 path: '/workers/:worker',
                 lazy: async () =>
                   import('./pages/main/workers/$worker').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/tenant-settings',
+                lazy: async () =>
+                  import('./pages/main/tenant-settings').then((res) => {
                     return {
                       Component: res.default,
                     };

@@ -24,8 +24,22 @@ Tenant:
   $ref: "./tenant.yaml#/Tenant"
 TenantMember:
   $ref: "./tenant.yaml#/TenantMember"
+TenantMemberList:
+  $ref: "./tenant.yaml#/TenantMemberList"
 TenantMemberRole:
   $ref: "./tenant.yaml#/TenantMemberRole"
+CreateTenantInviteRequest:
+  $ref: "./tenant.yaml#/CreateTenantInviteRequest"
+UpdateTenantInviteRequest:
+  $ref: "./tenant.yaml#/UpdateTenantInviteRequest"
+TenantInvite:
+  $ref: "./tenant.yaml#/TenantInvite"
+TenantInviteList:
+  $ref: "./tenant.yaml#/TenantInviteList"
+AcceptInviteRequest:
+  $ref: "./user.yaml#/AcceptInviteRequest"
+RejectInviteRequest:
+  $ref: "./user.yaml#/RejectInviteRequest"
 TenantList:
   $ref: "./tenant.yaml#/TenantList"
 CreateTenantRequest:

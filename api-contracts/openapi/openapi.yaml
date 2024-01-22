@@ -36,12 +36,24 @@ paths:
     $ref: "./paths/user/user.yaml#/logout"
   /api/v1/users/memberships:
     $ref: "./paths/user/user.yaml#/memberships"
+  /api/v1/users/invites:
+    $ref: "./paths/user/user.yaml#/invites"
+  /api/v1/users/invites/accept:
+    $ref: "./paths/user/user.yaml#/acceptInvite"
+  /api/v1/users/invites/reject:
+    $ref: "./paths/user/user.yaml#/rejectInvite"
   /api/v1/tenants:
     $ref: "./paths/tenant/tenant.yaml#/tenants"
+  /api/v1/tenants/{tenant}/invites:
+    $ref: "./paths/tenant/tenant.yaml#/invites"
+  /api/v1/tenants/{tenant}/invites/{tenant-invite}:
+    $ref: "./paths/tenant/tenant.yaml#/inviteScoped"
   /api/v1/tenants/{tenant}/events:
     $ref: "./paths/event/event.yaml#/withTenant"
   /api/v1/tenants/{tenant}/events/replay:
     $ref: "./paths/event/event.yaml#/replayEvents"
+  /api/v1/tenants/{tenant}/members:
+    $ref: "./paths/tenant/tenant.yaml#/members"
   /api/v1/events/{event}/data:
     $ref: "./paths/event/event.yaml#/eventData"
   /api/v1/tenants/{tenant}/events/keys:

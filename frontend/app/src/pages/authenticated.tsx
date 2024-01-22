@@ -39,6 +39,18 @@ const authMiddleware = async (currentUrl: string) => {
   }
 };
 
+const invitesRedirector = async (currentUrl: string) => {
+  const res = await api.userListTenantInvites();
+
+  const invites = res.data.rows || [];
+
+  if (invites.length > 0 && !currentUrl.includes('/onboarding')) {
+    throw redirect('/onboarding/invites');
+  }
+
+  return;
+};
+
 const membershipsPopulator = async (currentUrl: string) => {
   const res = await api.tenantMembershipsList();
 
@@ -53,6 +65,7 @@ const membershipsPopulator = async (currentUrl: string) => {
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = await authMiddleware(request.url);
+  await invitesRedirector(request.url);
   const memberships = await membershipsPopulator(request.url);
   return {
     user,

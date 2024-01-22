@@ -80,3 +80,29 @@ UserTenantMembershipsList:
         $ref: "./_index.yaml#/TenantMember"
       type: array
       x-go-name: Rows
+
+AcceptInviteRequest:
+  properties:
+    invite:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      x-oapi-codegen-extra-tags:
+        validate: "required,uuid"
+  required:
+    - invite
+  type: object
+
+RejectInviteRequest:
+  properties:
+    invite:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      x-oapi-codegen-extra-tags:
+        validate: "required,uuid"
+  required:
+    - invite
+  type: object

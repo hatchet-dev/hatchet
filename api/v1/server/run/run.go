@@ -75,6 +75,16 @@ func (t *APIServer) Run(ctx context.Context) error {
 		return tenant, "", nil
 	})
 
+	populatorMW.RegisterGetter("tenant-invite", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		tenantInvite, err := config.Repository.TenantInvite().GetTenantInvite(id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return tenantInvite, tenantInvite.TenantID, nil
+	})
+
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		workflow, err := config.Repository.Workflow().GetWorkflowById(id)
 

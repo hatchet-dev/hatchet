@@ -40,7 +40,7 @@ TenantMember:
       description: The user associated with this tenant member.
     role:
       $ref: "#/TenantMemberRole"
-      description: The role of the user in the tenant.      
+      description: The role of the user in the tenant.
     tenant:
       $ref: "#/Tenant"
       description: The tenant associated with this tenant member.
@@ -49,6 +49,16 @@ TenantMember:
     - user
     - role
   type: object
+
+TenantMemberList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/TenantMember"
+      type: array
+      x-go-name: Rows
 
 TenantMemberRole:
   enum:
@@ -64,5 +74,71 @@ TenantList:
     rows:
       items:
         $ref: "#/Tenant"
+      type: array
+      x-go-name: Rows
+
+CreateTenantInviteRequest:
+  properties:
+    email:
+      type: string
+      description: The email of the user to invite.
+      x-oapi-codegen-extra-tags:
+        validate: "required,email"
+    role:
+      $ref: "#/TenantMemberRole"
+      description: The role of the user in the tenant.
+      x-oapi-codegen-extra-tags:
+        validate: "required"
+  required:
+    - email
+    - role
+  type: object
+
+UpdateTenantInviteRequest:
+  properties:
+    role:
+      $ref: "#/TenantMemberRole"
+      description: The role of the user in the tenant.
+      x-oapi-codegen-extra-tags:
+        validate: "required"
+  required:
+    - role
+  type: object
+
+TenantInvite:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    email:
+      type: string
+      description: The email of the user to invite.
+    role:
+      $ref: "#/TenantMemberRole"
+      description: The role of the user in the tenant.
+    tenantId:
+      type: string
+      description: The tenant id associated with this tenant invite.
+    tenantName:
+      type: string
+      description: The tenant name for the tenant.
+    expires:
+      type: string
+      description: The time that this invite expires.
+      format: date-time
+  required:
+    - metadata
+    - email
+    - role
+    - expires
+    - tenantId
+  type: object
+
+TenantInviteList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/TenantInvite"
       type: array
       x-go-name: Rows

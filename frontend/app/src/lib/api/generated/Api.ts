@@ -13,6 +13,8 @@ import {
   APIError,
   APIErrors,
   APIMeta,
+  AcceptInviteRequest,
+  CreateTenantInviteRequest,
   CreateTenantRequest,
   EventData,
   EventKey,
@@ -21,8 +23,13 @@ import {
   EventOrderByDirection,
   EventOrderByField,
   EventSearch,
+  RejectInviteRequest,
   ReplayEventRequest,
   Tenant,
+  TenantInvite,
+  TenantInviteList,
+  TenantMemberList,
+  UpdateTenantInviteRequest,
   User,
   UserLoginRequest,
   UserRegisterRequest,
@@ -168,6 +175,59 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Lists all tenant invites for the current user
+   *
+   * @tags Tenant
+   * @name UserListTenantInvites
+   * @summary List tenant invites
+   * @request GET:/api/v1/users/invites
+   * @secure
+   */
+  userListTenantInvites = (params: RequestParams = {}) =>
+    this.request<TenantInviteList, APIErrors>({
+      path: `/api/v1/users/invites`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Accepts a tenant invite
+   *
+   * @tags Tenant
+   * @name TenantInviteAccept
+   * @summary Accept tenant invite
+   * @request POST:/api/v1/users/invites/accept
+   * @secure
+   */
+  tenantInviteAccept = (data: AcceptInviteRequest, params: RequestParams = {}) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/users/invites/accept`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Rejects a tenant invite
+   *
+   * @tags Tenant
+   * @name TenantInviteReject
+   * @summary Reject tenant invite
+   * @request POST:/api/v1/users/invites/reject
+   * @secure
+   */
+  tenantInviteReject = (data: RejectInviteRequest, params: RequestParams = {}) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/users/invites/reject`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
    * @description Creates a new tenant
    *
    * @tags Tenant
@@ -183,6 +243,81 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Creates a new tenant invite
+   *
+   * @tags Tenant
+   * @name TenantInviteCreate
+   * @summary Create tenant invite
+   * @request POST:/api/v1/tenants/{tenant}/invites
+   * @secure
+   */
+  tenantInviteCreate = (tenant: string, data: CreateTenantInviteRequest, params: RequestParams = {}) =>
+    this.request<TenantInvite, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/invites`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets a list of tenant invites
+   *
+   * @tags Tenant
+   * @name TenantInviteList
+   * @summary List tenant invites
+   * @request GET:/api/v1/tenants/{tenant}/invites
+   * @secure
+   */
+  tenantInviteList = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantInviteList, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/invites`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Updates a tenant invite
+   *
+   * @name TenantInviteUpdate
+   * @summary Update invite
+   * @request PATCH:/api/v1/tenants/{tenant}/invites/{tenant-invite}
+   * @secure
+   */
+  tenantInviteUpdate = (
+    tenant: string,
+    tenantInvite: string,
+    data: UpdateTenantInviteRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<TenantInvite, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/invites/${tenantInvite}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Deletes a tenant invite
+   *
+   * @name TenantInviteDelete
+   * @summary Delete invite
+   * @request DELETE:/api/v1/tenants/{tenant}/invites/{tenant-invite}
+   * @secure
+   */
+  tenantInviteDelete = (tenant: string, tenantInvite: string, params: RequestParams = {}) =>
+    this.request<TenantInvite, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/invites/${tenantInvite}`,
+      method: "DELETE",
+      secure: true,
       format: "json",
       ...params,
     });
@@ -243,6 +378,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets a list of tenant members
+   *
+   * @tags Tenant
+   * @name TenantMemberList
+   * @summary List tenant members
+   * @request GET:/api/v1/tenants/{tenant}/members
+   * @secure
+   */
+  tenantMemberList = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantMemberList, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/members`,
+      method: "GET",
+      secure: true,
       format: "json",
       ...params,
     });
