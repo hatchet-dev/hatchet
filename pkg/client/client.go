@@ -33,8 +33,6 @@ type clientImpl struct {
 	l *zerolog.Logger
 
 	v validator.Validator
-
-	tls *tls.Config
 }
 
 type ClientOpt func(*ClientOpts)

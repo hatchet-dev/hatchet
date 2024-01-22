@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -19,9 +20,10 @@ type tickerRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewTickerRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator) repository.TickerRepository {
+func NewTickerRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.TickerRepository {
 	queries := dbsqlc.New()
 
 	return &tickerRepository{
@@ -29,6 +31,7 @@ func NewTickerRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validato
 		pool:    pool,
 		v:       v,
 		queries: queries,
+		l:       l,
 	}
 }
 
@@ -173,7 +176,7 @@ func (t *tickerRepository) UpdateStaleTickers(onStale func(tickerId string, getV
 		return err
 	}
 
-	defer tx.Rollback(context.Background())
+	defer deferRollback(context.Background(), t.l, tx.Rollback)
 
 	staleTickers, err := t.queries.ListNewlyStaleTickers(context.Background(), tx)
 

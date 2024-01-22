@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -54,7 +54,7 @@ func readYAMLFiles(rootDir string) ([][]byte, error) {
 		// Check if the file is a YAML file
 		if !info.IsDir() && (strings.HasSuffix(info.Name(), ".yaml") || strings.HasSuffix(info.Name(), ".yml")) {
 			// Read the file
-			data, err := ioutil.ReadFile(path) // #nosec G304 -- files are meant to be read from user-supplied directory
+			data, err := os.ReadFile(path) // #nosec G304 -- files are meant to be read from user-supplied directory
 			if err != nil {
 				return fmt.Errorf("error reading file %s: %v", path, err)
 			}

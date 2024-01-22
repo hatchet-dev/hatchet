@@ -3,7 +3,6 @@ package types
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 )
 
@@ -29,7 +28,7 @@ func readHatchetYAMLFileBytes(filepath string) ([]byte, error) {
 		return nil, fmt.Errorf("file does not exist: %s", filepath)
 	}
 
-	yamlFileBytes, err := ioutil.ReadFile(filepath) // #nosec G304 -- files are meant to be read from user-supplied directory
+	yamlFileBytes, err := os.ReadFile(filepath) // #nosec G304 -- files are meant to be read from user-supplied directory
 
 	if err != nil {
 		panic(err)
