@@ -31,7 +31,6 @@ type TickerImpl struct {
 	scheduledWorkflows sync.Map
 	jobRuns            sync.Map
 	stepRuns           sync.Map
-	stepRunRequeues    sync.Map
 
 	dv datautils.DataDecoderValidator
 

@@ -15,8 +15,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/credentials"
-
-	_ "net/http/pprof"
 )
 
 type TracerOpts struct {

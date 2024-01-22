@@ -21,7 +21,9 @@ func LoadConfigFromViper(bindFunc func(v *viper.Viper), configFile interface{}, 
 		}
 	}
 
-	defaults.Set(configFile)
+	if err := defaults.Set(configFile); err != nil {
+		return nil, fmt.Errorf("could not set defaults for config: %w", err)
+	}
 
 	err := v.Unmarshal(configFile)
 

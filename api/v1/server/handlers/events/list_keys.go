@@ -17,10 +17,7 @@ func (t *EventService) EventKeyList(ctx echo.Context, request gen.EventKeyListRe
 	}
 
 	rows := make([]gen.EventKey, len(eventKeys))
-
-	for i, eventKey := range eventKeys {
-		rows[i] = gen.EventKey(eventKey)
-	}
+	copy(rows, eventKeys)
 
 	return gen.EventKeyList200JSONResponse(
 		gen.EventKeyList{

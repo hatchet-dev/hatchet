@@ -9,22 +9,19 @@ func isYAMLTable(v interface{}) bool {
 // precedent
 func MergeMaps(maps ...map[string]interface{}) map[string]interface{} {
 	// merge bottom-up
-	if len(maps) > 2 {
+	switch {
+	case len(maps) > 2:
 		mLen := len(maps)
 		newMaps := maps[0 : mLen-2]
-
-		// reduce length of maps by 1 and merge again
 		newMaps = append(newMaps, MergeMaps(maps[mLen-2], maps[mLen-1]))
 		return MergeMaps(newMaps...)
-	} else if len(maps) == 2 {
+	case len(maps) == 2:
 		if maps[0] == nil {
 			return maps[1]
 		}
-
 		if maps[1] == nil {
 			return maps[0]
 		}
-
 		for key, map0Val := range maps[0] {
 			if map1Val, ok := maps[1][key]; ok && map1Val == nil {
 				delete(maps[1], key)
@@ -36,9 +33,8 @@ func MergeMaps(maps ...map[string]interface{}) map[string]interface{} {
 				}
 			}
 		}
-
 		return maps[1]
-	} else if len(maps) == 1 {
+	case len(maps) == 1:
 		return maps[0]
 	}
 

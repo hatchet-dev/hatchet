@@ -129,7 +129,9 @@ func (t *TickerImpl) handleCancelCron(ctx context.Context, task *taskqueue.Task)
 	scheduler := schedulerVal.(gocron.Scheduler)
 
 	// cancel the cron
-	scheduler.Shutdown()
+	if err := scheduler.Shutdown(); err != nil {
+		return fmt.Errorf("could not cancel cron: %w", err)
+	}
 
 	return nil
 }

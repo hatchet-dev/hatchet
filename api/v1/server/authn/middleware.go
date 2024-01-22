@@ -106,7 +106,10 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
 		// if the session is new, make sure we write a Set-Cookie header to the response
 		if session.IsNew {
-			saveNewSession(c, session)
+			if err := saveNewSession(c, session); err != nil {
+				a.l.Error().Err(err).Msg("error saving unauthenticated session")
+				return forbidden
+			}
 
 			c.Set("session", session)
 		}

@@ -40,21 +40,23 @@ func LoadBaseTLSConfig(tlsConfig *shared.TLSConfigFile) (*tls.Config, *x509.Cert
 	var x509Cert tls.Certificate
 	var err error
 
-	if tlsConfig.TLSCert != "" && tlsConfig.TLSKey != "" {
+	switch {
+	case tlsConfig.TLSCert != "" && tlsConfig.TLSKey != "":
 		x509Cert, err = tls.X509KeyPair([]byte(tlsConfig.TLSCert), []byte(tlsConfig.TLSKey))
-	} else if tlsConfig.TLSCertFile != "" && tlsConfig.TLSKeyFile != "" {
+	case tlsConfig.TLSCertFile != "" && tlsConfig.TLSKeyFile != "":
 		x509Cert, err = tls.LoadX509KeyPair(tlsConfig.TLSCertFile, tlsConfig.TLSKeyFile)
-	} else {
+	default:
 		return nil, nil, fmt.Errorf("no cert or key provided")
 	}
 
 	var caBytes []byte
 
-	if tlsConfig.TLSRootCA != "" {
+	switch {
+	case tlsConfig.TLSRootCA != "":
 		caBytes = []byte(tlsConfig.TLSRootCA)
-	} else if tlsConfig.TLSRootCAFile != "" {
+	case tlsConfig.TLSRootCAFile != "":
 		caBytes, err = os.ReadFile(tlsConfig.TLSRootCAFile)
-	} else {
+	default:
 		return nil, nil, fmt.Errorf("no root CA provided")
 	}
 
@@ -66,5 +68,6 @@ func LoadBaseTLSConfig(tlsConfig *shared.TLSConfigFile) (*tls.Config, *x509.Cert
 
 	return &tls.Config{
 		Certificates: []tls.Certificate{x509Cert},
+		MinVersion:   tls.VersionTLS13,
 	}, ca, nil
 }
