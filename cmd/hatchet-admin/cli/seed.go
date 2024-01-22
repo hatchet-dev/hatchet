@@ -60,7 +60,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 					Email:         dc.Seed.AdminEmail,
 					Name:          repository.StringPtr(dc.Seed.AdminName),
 					EmailVerified: repository.BoolPtr(true),
-					Password:      *hashedPw,
+					Password:      hashedPw,
 				})
 
 				if err != nil {

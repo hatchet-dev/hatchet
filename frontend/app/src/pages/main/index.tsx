@@ -8,17 +8,7 @@ import {
   QueueListIcon,
   ServerStackIcon,
   Squares2X2Icon,
-  UserCircleIcon,
 } from '@heroicons/react/24/outline';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import hatchet from '@/assets/hatchet_logo.png';
 import invariant from 'tiny-invariant';
 
@@ -30,10 +20,8 @@ import {
   CommandSeparator,
 } from '@/components/ui/command';
 
-import { Link, Outlet, useNavigate, useOutletContext } from 'react-router-dom';
-import api, { Tenant, TenantMember, User } from '@/lib/api';
-import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
+import { Link, Outlet, useOutletContext } from 'react-router-dom';
+import { Tenant, TenantMember } from '@/lib/api';
 import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import {
   PopoverTrigger,
@@ -68,9 +56,8 @@ function Main() {
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
-      <MainNav user={user} />
       <Sidebar memberships={memberships} currTenant={currTenant} />
-      <div className="pt-12 flex-grow overflow-y-auto overflow-x-hidden">
+      <div className="pt-12 pl-80 flex-grow overflow-y-auto overflow-x-hidden">
         <Outlet context={childCtx} />
       </div>
     </div>
@@ -86,7 +73,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   return (
-    <div className={cn('h-full border-r max-w-xs', className)}>
+    <div className={cn('h-full border-r w-80 absolute top-0', className)}>
       <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full">
         <div className="grow">
           <div className="py-2">
@@ -134,62 +121,6 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
           </div>
         </div>
         <TenantSwitcher memberships={memberships} currTenant={currTenant} />
-      </div>
-    </div>
-  );
-}
-
-interface MainNavProps {
-  user: User;
-}
-
-function MainNav({ user }: MainNavProps) {
-  const navigate = useNavigate();
-  const { handleApiError } = useApiError({});
-
-  const logoutMutation = useMutation({
-    mutationKey: ['user:update:logout'],
-    mutationFn: async () => {
-      await api.userUpdateLogout();
-    },
-    onSuccess: () => {
-      navigate('/auth/login');
-    },
-    onError: handleApiError,
-  });
-
-  return (
-    <div className="absolute top-0 w-screen h-12">
-      <div className="flex h-16 items-center pr-4 pl-7">
-        <div className="ml-auto flex items-center space-x-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="relative h-10 w-10 rounded-full p-1"
-              >
-                <UserCircleIcon className="h-6 w-6 text-foreground cursor-pointer" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">
-                    {user.name || user.email}
-                  </p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    {user.email}
-                  </p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => logoutMutation.mutate()}>
-                Log out
-                <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       </div>
     </div>
   );

@@ -6,24 +6,35 @@ import { useMutation } from '@tanstack/react-query';
 import api, { UserRegisterRequest } from '@/lib/api';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';
+import useApiMeta from '../hooks/use-api-meta';
+import { Loading } from '@/components/ui/loading';
+import { GoogleLogin } from '../login';
+import useErrorParam from '../hooks/use-error-param';
 
-export default function Login() {
-  const navigate = useNavigate();
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { handleApiError } = useApiError({
-    setFieldErrors: setFieldErrors,
-  });
+export default function Register() {
+  useErrorParam();
+  const meta = useApiMeta();
 
-  const createMutation = useMutation({
-    mutationKey: ['user:create'],
-    mutationFn: async (data: UserRegisterRequest) => {
-      await api.userCreate(data);
-    },
-    onSuccess: () => {
-      navigate('/');
-    },
-    onError: handleApiError,
-  });
+  if (meta.isLoading) {
+    return <Loading />;
+  }
+
+  const schemes = meta.data?.data?.auth?.schemes || [];
+  const basicEnabled = schemes.includes('basic');
+  const googleEnabled = schemes.includes('google');
+
+  let prompt = 'Create an account to get started.';
+
+  if (basicEnabled && googleEnabled) {
+    prompt =
+      'Enter your email and password to create an account, or continue with Google.';
+  } else if (googleEnabled) {
+    prompt = 'Continue with Google.';
+  } else if (basicEnabled) {
+    prompt = 'Create an account to get started.';
+  } else {
+    prompt = 'No login methods are enabled.';
+  }
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
@@ -43,16 +54,23 @@ export default function Login() {
               <h1 className="text-2xl font-semibold tracking-tight">
                 Create an account
               </h1>
-              <p className="text-sm text-muted-foreground">
-                Create an account to get started.
-              </p>
+              <p className="text-sm text-muted-foreground">{prompt}</p>
             </div>
-            <UserRegisterForm
-              isLoading={createMutation.isPending}
-              onSubmit={createMutation.mutate}
-              fieldErrors={fieldErrors}
-            />
-            <p className="px-8 text-center text-sm text-muted-foreground">
+            {basicEnabled && <BasicRegister />}
+            {basicEnabled && schemes.length > 1 && (
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+            )}
+            {googleEnabled && <GoogleLogin />}
+            <p className="text-left text-sm text-muted-foreground w-full">
               By clicking continue, you agree to our{' '}
               <Link
                 to="/terms"
@@ -73,5 +91,32 @@ export default function Login() {
         </div>
       </div>
     </div>
+  );
+}
+
+function BasicRegister() {
+  const navigate = useNavigate();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { handleApiError } = useApiError({
+    setFieldErrors: setFieldErrors,
+  });
+
+  const createMutation = useMutation({
+    mutationKey: ['user:create'],
+    mutationFn: async (data: UserRegisterRequest) => {
+      await api.userCreate(data);
+    },
+    onSuccess: () => {
+      navigate('/');
+    },
+    onError: handleApiError,
+  });
+
+  return (
+    <UserRegisterForm
+      isLoading={createMutation.isPending}
+      onSubmit={createMutation.mutate}
+      fieldErrors={fieldErrors}
+    />
   );
 }

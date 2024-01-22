@@ -5,6 +5,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
+	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
@@ -61,6 +62,16 @@ type ConfigFileAuth struct {
 
 	// Configuration options for the cookie
 	Cookie ConfigFileAuthCookie `mapstructure:"cookie" json:"cookie,omitempty"`
+
+	Google ConfigFileAuthGoogle `mapstructure:"google" json:"google,omitempty"`
+}
+
+type ConfigFileAuthGoogle struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	ClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
+	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
+	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"openid\", \"profile\", \"email\"]"`
 }
 
 type ConfigFileAuthCookie struct {
@@ -80,10 +91,16 @@ type RabbitMQConfigFile struct {
 	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
 }
 
+type AuthConfig struct {
+	ConfigFile ConfigFileAuth
+
+	GoogleOAuthConfig *oauth2.Config
+}
+
 type ServerConfig struct {
 	*database.Config
 
-	Auth ConfigFileAuth
+	Auth AuthConfig
 
 	Runtime ConfigFileRuntime
 
@@ -118,40 +135,44 @@ func (c *ServerConfig) HasService(name string) bool {
 
 func BindAllEnv(v *viper.Viper) {
 	// runtime options
-	v.BindEnv("runtime.port", "SERVER_PORT")
-	v.BindEnv("runtime.url", "SERVER_URL")
-	v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
-	v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
-	v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
-	v.BindEnv("services", "SERVER_SERVICES")
+	_ = v.BindEnv("runtime.port", "SERVER_PORT")
+	_ = v.BindEnv("runtime.url", "SERVER_URL")
+	_ = v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
+	_ = v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
+	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
+	_ = v.BindEnv("services", "SERVER_SERVICES")
 
 	// auth options
-	v.BindEnv("auth.restrictedEmailDomains", "SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS")
-	v.BindEnv("auth.basicAuthEnabled", "SERVER_AUTH_BASIC_AUTH_ENABLED")
-	v.BindEnv("auth.setEmailVerified", "SERVER_AUTH_SET_EMAIL_VERIFIED")
-	v.BindEnv("auth.cookie.name", "SERVER_AUTH_COOKIE_NAME")
-	v.BindEnv("auth.cookie.domain", "SERVER_AUTH_COOKIE_DOMAIN")
-	v.BindEnv("auth.cookie.secrets", "SERVER_AUTH_COOKIE_SECRETS")
-	v.BindEnv("auth.cookie.insecure", "SERVER_AUTH_COOKIE_INSECURE")
+	_ = v.BindEnv("auth.restrictedEmailDomains", "SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS")
+	_ = v.BindEnv("auth.basicAuthEnabled", "SERVER_AUTH_BASIC_AUTH_ENABLED")
+	_ = v.BindEnv("auth.setEmailVerified", "SERVER_AUTH_SET_EMAIL_VERIFIED")
+	_ = v.BindEnv("auth.cookie.name", "SERVER_AUTH_COOKIE_NAME")
+	_ = v.BindEnv("auth.cookie.domain", "SERVER_AUTH_COOKIE_DOMAIN")
+	_ = v.BindEnv("auth.cookie.secrets", "SERVER_AUTH_COOKIE_SECRETS")
+	_ = v.BindEnv("auth.cookie.insecure", "SERVER_AUTH_COOKIE_INSECURE")
+	_ = v.BindEnv("auth.google.enabled", "SERVER_AUTH_GOOGLE_ENABLED")
+	_ = v.BindEnv("auth.google.clientID", "SERVER_AUTH_GOOGLE_CLIENT_ID")
+	_ = v.BindEnv("auth.google.clientSecret", "SERVER_AUTH_GOOGLE_CLIENT_SECRET")
+	_ = v.BindEnv("auth.google.scopes", "SERVER_AUTH_GOOGLE_SCOPES")
 
 	// task queue options
-	v.BindEnv("taskQueue.kind", "SERVER_TASKQUEUE_KIND")
-	v.BindEnv("taskQueue.rabbitmq.url", "SERVER_TASKQUEUE_RABBITMQ_URL")
+	_ = v.BindEnv("taskQueue.kind", "SERVER_TASKQUEUE_KIND")
+	_ = v.BindEnv("taskQueue.rabbitmq.url", "SERVER_TASKQUEUE_RABBITMQ_URL")
 
 	// tls options
-	v.BindEnv("tls.tlsCert", "SERVER_TLS_CERT")
-	v.BindEnv("tls.tlsCertFile", "SERVER_TLS_CERT_FILE")
-	v.BindEnv("tls.tlsKey", "SERVER_TLS_KEY")
-	v.BindEnv("tls.tlsKeyFile", "SERVER_TLS_KEY_FILE")
-	v.BindEnv("tls.tlsRootCA", "SERVER_TLS_ROOT_CA")
-	v.BindEnv("tls.tlsRootCAFile", "SERVER_TLS_ROOT_CA_FILE")
-	v.BindEnv("tls.tlsServerName", "SERVER_TLS_SERVER_NAME")
+	_ = v.BindEnv("tls.tlsCert", "SERVER_TLS_CERT")
+	_ = v.BindEnv("tls.tlsCertFile", "SERVER_TLS_CERT_FILE")
+	_ = v.BindEnv("tls.tlsKey", "SERVER_TLS_KEY")
+	_ = v.BindEnv("tls.tlsKeyFile", "SERVER_TLS_KEY_FILE")
+	_ = v.BindEnv("tls.tlsRootCA", "SERVER_TLS_ROOT_CA")
+	_ = v.BindEnv("tls.tlsRootCAFile", "SERVER_TLS_ROOT_CA_FILE")
+	_ = v.BindEnv("tls.tlsServerName", "SERVER_TLS_SERVER_NAME")
 
 	// logger options
-	v.BindEnv("logger.level", "SERVER_LOGGER_LEVEL")
-	v.BindEnv("logger.format", "SERVER_LOGGER_FORMAT")
+	_ = v.BindEnv("logger.level", "SERVER_LOGGER_LEVEL")
+	_ = v.BindEnv("logger.format", "SERVER_LOGGER_FORMAT")
 
 	// otel options
-	v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")
-	v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
+	_ = v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")
+	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
 }

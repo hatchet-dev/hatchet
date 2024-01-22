@@ -1,3 +1,4 @@
+import MainNav from '@/components/molecules/nav-bar/nav-bar';
 import {
   LoaderFunctionArgs,
   Outlet,
@@ -59,7 +60,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   };
 }
 
-export default function Auth() {
+export default function Authenticated() {
   const listMembershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
   });
@@ -77,5 +78,12 @@ export default function Auth() {
     return <Loading />;
   }
 
-  return <Outlet context={ctx} />;
+  return (
+    <div className="flex flex-row flex-1 w-full h-full">
+      <MainNav user={user} />
+      <div className="pt-12 flex-grow overflow-y-auto overflow-x-hidden">
+        <Outlet context={ctx} />
+      </div>
+    </div>
+  );
 }

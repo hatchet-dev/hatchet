@@ -72,10 +72,24 @@ func (r *userRepository) CreateUser(opts *repository.CreateUserOpts) (*db.UserMo
 
 	txs := []transaction.Param{
 		createTx,
-		r.client.UserPassword.CreateOne(
-			db.UserPassword.Hash.Set(opts.Password),
+	}
+
+	if opts.Password != nil {
+		txs = append(txs, r.client.UserPassword.CreateOne(
+			db.UserPassword.Hash.Set(*opts.Password),
 			db.UserPassword.User.Link(db.User.ID.Equals(userId)),
-		).Tx(),
+		).Tx())
+	}
+
+	if opts.OAuth != nil {
+		txs = append(txs, r.client.UserOAuth.CreateOne(
+			db.UserOAuth.User.Link(db.User.ID.Equals(userId)),
+			db.UserOAuth.Provider.Set(opts.OAuth.Provider),
+			db.UserOAuth.ProviderUserID.Set(opts.OAuth.ProviderUserId),
+			db.UserOAuth.AccessToken.Set(opts.OAuth.AccessToken),
+			db.UserOAuth.RefreshToken.SetIfPresent(opts.OAuth.RefreshToken),
+			db.UserOAuth.ExpiresAt.SetIfPresent(opts.OAuth.ExpiresAt),
+		).Tx())
 	}
 
 	if err := r.client.Prisma.Transaction(txs...).Exec(context.Background()); err != nil {
@@ -100,11 +114,41 @@ func (r *userRepository) UpdateUser(id string, opts *repository.UpdateUserOpts) 
 		params = append(params, db.User.Name.Set(*opts.Name))
 	}
 
-	return r.client.User.FindUnique(
+	updateTx := r.client.User.FindUnique(
 		db.User.ID.Equals(id),
 	).Update(
 		params...,
-	).Exec(context.Background())
+	).Tx()
+
+	txs := []transaction.Param{
+		updateTx,
+	}
+
+	if opts.OAuth != nil {
+		txs = append(txs, r.client.UserOAuth.UpsertOne(
+			db.UserOAuth.UserIDProvider(
+				db.UserOAuth.UserID.Equals(id),
+				db.UserOAuth.Provider.Equals(opts.OAuth.Provider),
+			),
+		).Create(
+			db.UserOAuth.User.Link(db.User.ID.Equals(id)),
+			db.UserOAuth.Provider.Set(opts.OAuth.Provider),
+			db.UserOAuth.ProviderUserID.Set(opts.OAuth.ProviderUserId),
+			db.UserOAuth.AccessToken.Set(opts.OAuth.AccessToken),
+			db.UserOAuth.RefreshToken.SetIfPresent(opts.OAuth.RefreshToken),
+			db.UserOAuth.ExpiresAt.SetIfPresent(opts.OAuth.ExpiresAt),
+		).Update(
+			db.UserOAuth.AccessToken.Set(opts.OAuth.AccessToken),
+			db.UserOAuth.RefreshToken.SetIfPresent(opts.OAuth.RefreshToken),
+			db.UserOAuth.ExpiresAt.SetIfPresent(opts.OAuth.ExpiresAt),
+		).Tx())
+	}
+
+	if err := r.client.Prisma.Transaction(txs...).Exec(context.Background()); err != nil {
+		return nil, err
+	}
+
+	return updateTx.Result(), nil
 }
 
 func (r *userRepository) ListTenantMemberships(userId string) ([]db.TenantMemberModel, error) {

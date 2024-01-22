@@ -1,29 +1,39 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { UserLoginForm } from './components/user-login-form';
 import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
 import api, { UserLoginRequest } from '@/lib/api';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';
+import useApiMeta from '../hooks/use-api-meta';
+import { Loading } from '@/components/ui/loading';
+import { Icons } from '@/components/ui/icons';
+import useErrorParam from '../hooks/use-error-param';
 
 export default function Login() {
-  const navigate = useNavigate();
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { handleApiError } = useApiError({
-    setFieldErrors: setFieldErrors,
-  });
+  useErrorParam();
+  const meta = useApiMeta();
 
-  const loginMutation = useMutation({
-    mutationKey: ['user:update:login'],
-    mutationFn: async (data: UserLoginRequest) => {
-      await api.userUpdateLogin(data);
-    },
-    onSuccess: () => {
-      navigate('/');
-    },
-    onError: handleApiError,
-  });
+  if (meta.isLoading) {
+    return <Loading />;
+  }
+
+  const schemes = meta.data?.data?.auth?.schemes || [];
+  const basicEnabled = schemes.includes('basic');
+  const googleEnabled = schemes.includes('google');
+
+  let prompt = 'Enter your email and password below.';
+
+  if (basicEnabled && googleEnabled) {
+    prompt = 'Enter your email and password below, or continue with Google.';
+  } else if (googleEnabled) {
+    prompt = 'Continue with Google.';
+  } else if (basicEnabled) {
+    prompt = 'Enter your email and password below.';
+  } else {
+    prompt = 'No login methods are enabled.';
+  }
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
@@ -43,16 +53,23 @@ export default function Login() {
               <h1 className="text-2xl font-semibold tracking-tight">
                 Log in to Hatchet
               </h1>
-              <p className="text-sm text-muted-foreground">
-                Enter your email and password below.
-              </p>
+              <p className="text-sm text-muted-foreground">{prompt}</p>
             </div>
-            <UserLoginForm
-              isLoading={loginMutation.isPending}
-              onSubmit={loginMutation.mutate}
-              fieldErrors={fieldErrors}
-            />
-            <p className="px-8 text-center text-sm text-muted-foreground">
+            {basicEnabled && <BasicLogin />}
+            {basicEnabled && schemes.length > 1 && (
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+            )}
+            {googleEnabled && <GoogleLogin />}
+            <p className="text-left text-sm text-muted-foreground w-full">
               By clicking continue, you agree to our{' '}
               <Link
                 to="/terms"
@@ -73,5 +90,43 @@ export default function Login() {
         </div>
       </div>
     </div>
+  );
+}
+
+function BasicLogin() {
+  const navigate = useNavigate();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { handleApiError } = useApiError({
+    setFieldErrors: setFieldErrors,
+  });
+
+  const loginMutation = useMutation({
+    mutationKey: ['user:update:login'],
+    mutationFn: async (data: UserLoginRequest) => {
+      await api.userUpdateLogin(data);
+    },
+    onSuccess: () => {
+      navigate('/');
+    },
+    onError: handleApiError,
+  });
+
+  return (
+    <UserLoginForm
+      isLoading={loginMutation.isPending}
+      onSubmit={loginMutation.mutate}
+      fieldErrors={fieldErrors}
+    />
+  );
+}
+
+export function GoogleLogin() {
+  return (
+    <a href="/api/v1/users/google/start">
+      <Button variant="outline" type="button" className="w-full py-2">
+        <Icons.google className="mr-2 h-4 w-4" />
+        Google
+      </Button>
+    </a>
   );
 }
