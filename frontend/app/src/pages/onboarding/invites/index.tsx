@@ -1,17 +1,33 @@
-import api, { queries } from '@/lib/api';
+import api from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { Loading } from '@/components/ui/loading';
+import { useMutation } from '@tanstack/react-query';
+import {
+  LoaderFunctionArgs,
+  redirect,
+  useLoaderData,
+  useNavigate,
+} from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const res = await api.userListTenantInvites();
+
+  const invites = res.data.rows || [];
+
+  if (invites.length == 0) {
+    throw redirect('/');
+  }
+
+  return {
+    invites,
+  };
+}
 
 export default function TenantInvites() {
   const navigate = useNavigate();
   const { handleApiError } = useApiError({});
 
-  const listInvitesQuery = useQuery({
-    ...queries.user.listInvites,
-  });
+  const { invites } = useLoaderData() as Awaited<ReturnType<typeof loader>>;
 
   const acceptMutation = useMutation({
     mutationKey: ['tenant-invite:accept'],
@@ -19,7 +35,6 @@ export default function TenantInvites() {
       await api.tenantInviteAccept(data);
     },
     onSuccess: async () => {
-      await listInvitesQuery.refetch();
       // TODO: if there's more than 1 invite, stay on the screen
       navigate('/');
     },
@@ -32,17 +47,10 @@ export default function TenantInvites() {
       await api.tenantInviteReject(data);
     },
     onSuccess: async () => {
-      await listInvitesQuery.refetch();
       navigate('/');
     },
     onError: handleApiError,
   });
-
-  if (listInvitesQuery.isLoading) {
-    return <Loading />;
-  }
-
-  const invites = listInvitesQuery.data?.rows || [];
 
   const header =
     invites.length > 1 ? 'Join your team' : 'Join ' + invites[0].tenantName;

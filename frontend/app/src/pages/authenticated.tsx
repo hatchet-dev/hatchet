@@ -22,8 +22,11 @@ const authMiddleware = async (currentUrl: string) => {
       },
     });
 
-    if (!user.emailVerified && !currentUrl.includes('/verify-email')) {
-      throw redirect('/verify-email');
+    if (
+      !user.emailVerified &&
+      !currentUrl.includes('/onboarding/verify-email')
+    ) {
+      throw redirect('/onboarding/verify-email');
     }
 
     return user;
@@ -40,27 +43,39 @@ const authMiddleware = async (currentUrl: string) => {
 };
 
 const invitesRedirector = async (currentUrl: string) => {
-  const res = await api.userListTenantInvites();
+  try {
+    const res = await api.userListTenantInvites();
 
-  const invites = res.data.rows || [];
+    const invites = res.data.rows || [];
 
-  if (invites.length > 0 && !currentUrl.includes('/onboarding')) {
-    throw redirect('/onboarding/invites');
+    if (invites.length > 0 && !currentUrl.includes('/onboarding')) {
+      throw redirect('/onboarding/invites');
+    }
+
+    return;
+  } catch (error) {
+    if (error instanceof Response) {
+      throw error;
+    }
   }
-
-  return;
 };
 
 const membershipsPopulator = async (currentUrl: string) => {
-  const res = await api.tenantMembershipsList();
+  try {
+    const res = await api.tenantMembershipsList();
 
-  const memberships = res.data;
+    const memberships = res.data;
 
-  if (memberships.rows?.length === 0 && !currentUrl.includes('/onboarding')) {
-    throw redirect('/onboarding/create-tenant');
+    if (memberships.rows?.length === 0 && !currentUrl.includes('/onboarding')) {
+      throw redirect('/onboarding/create-tenant');
+    }
+
+    return res.data.rows;
+  } catch (error) {
+    if (error instanceof Response) {
+      throw error;
+    }
   }
-
-  return res.data.rows;
 };
 
 export async function loader({ request }: LoaderFunctionArgs) {

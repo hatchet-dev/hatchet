@@ -10,11 +10,12 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"sigs.k8s.io/yaml"
+
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
-	"sigs.k8s.io/yaml"
 
 	"github.com/spf13/cobra"
 )

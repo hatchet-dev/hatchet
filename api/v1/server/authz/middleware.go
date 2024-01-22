@@ -2,6 +2,7 @@ package authz
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
@@ -87,7 +88,8 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 }
 
 var permittedWithUnverifiedEmail = []string{
-	"user:get:current",
+	"UserGetCurrent",
+	"UserUpdateLogout",
 }
 
 func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) error {
@@ -109,11 +111,11 @@ func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) err
 }
 
 var adminAndOwnerOnly = []string{
-	"tenant-invite:list",
-	"tenant-invite:create",
-	"tenant-invite:update",
-	"tenant-invite:delete",
-	"tenant-member:list",
+	"TenantInviteList",
+	"TenantInviteCreate",
+	"TenantInviteUpdate",
+	"TenantInviteDelete",
+	"TenantMemberList",
 }
 
 func (a *AuthZ) authorizeTenantOperations(tenant *db.TenantModel, tenantMember *db.TenantMemberModel, r *middleware.RouteInfo) error {
@@ -140,7 +142,7 @@ func (a *AuthZ) authorizeTenantOperations(tenant *db.TenantModel, tenantMember *
 
 func operationIn(operationId string, operationIds []string) bool {
 	for _, id := range operationIds {
-		if operationId == id {
+		if strings.ToLower(operationId) == strings.ToLower(id) {
 			return true
 		}
 	}

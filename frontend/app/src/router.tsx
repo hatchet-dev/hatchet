@@ -45,6 +45,16 @@ const routes = [
         ],
       },
       {
+        path: '/onboarding/verify-email',
+        lazy: async () =>
+          import('./pages/onboarding/verify-email').then((res) => {
+            return {
+              loader: res.loader,
+              Component: res.default,
+            };
+          }),
+      },
+      {
         path: '/',
         lazy: async () =>
           import('./pages/authenticated').then((res) => {
@@ -78,6 +88,7 @@ const routes = [
             lazy: async () =>
               import('./pages/onboarding/invites').then((res) => {
                 return {
+                  loader: res.loader,
                   Component: res.default,
                 };
               }),

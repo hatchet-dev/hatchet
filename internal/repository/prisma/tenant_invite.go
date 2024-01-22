@@ -44,6 +44,7 @@ func (r *tenantInviteRepository) GetTenantInvite(id string) (*db.TenantInviteLin
 func (r *tenantInviteRepository) ListTenantInvitesByEmail(email string) ([]db.TenantInviteLinkModel, error) {
 	return r.client.TenantInviteLink.FindMany(
 		db.TenantInviteLink.InviteeEmail.Equals(email),
+		db.TenantInviteLink.Status.Equals(db.InviteLinkStatusPending),
 	).With(
 		db.TenantInviteLink.Tenant.Fetch(),
 	).Exec(context.Background())

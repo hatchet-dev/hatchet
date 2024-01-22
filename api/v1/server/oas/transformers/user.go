@@ -1,9 +1,10 @@
 package transformers
 
 import (
+	"github.com/oapi-codegen/runtime/types"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/oapi-codegen/runtime/types"
 )
 
 func ToUser(user *db.UserModel) *gen.User {
