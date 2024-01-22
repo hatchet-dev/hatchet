@@ -30,10 +30,16 @@ tasks:
       - sh ./hack/dev/start-frontend.sh
   generate:
     cmds:
+      - task: deps
       - task: generate-api
       - task: generate-go
       - task: generate-proto
       - task: generate-sqlc
+  deps:
+    cmds:
+      - go mod download
+      - cd frontend/app/ && pnpm install
+      - cd frontend/docs/ && pnpm install
   generate-api:
     cmds:
       - task: generate-api-server
