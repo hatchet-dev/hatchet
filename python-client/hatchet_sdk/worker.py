@@ -6,7 +6,7 @@ import grpc
 from typing import Any, Callable, Dict
 from .workflow import WorkflowMeta
 from .clients.dispatcher import GetActionListenerRequest, ActionListenerImpl, Action
-from .dispatcher_pb2 import ActionType, ActionEvent, ActionEventType, STEP_EVENT_TYPE_COMPLETED, STEP_EVENT_TYPE_STARTED
+from .dispatcher_pb2 import STEP_EVENT_TYPE_FAILED, ActionType, ActionEvent, ActionEventType, STEP_EVENT_TYPE_COMPLETED, STEP_EVENT_TYPE_STARTED
 from .client import new_client 
 from concurrent.futures import ThreadPoolExecutor, Future
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -36,24 +36,33 @@ class Worker:
 
         if action_func:
             def callback(future : Future):
+                errored = False
+
                 # Get the output from the future
                 try:
                     output = future.result()
                 except Exception as e:
-                    logger.error(f"Error on action finished event: {e}")
-                    raise e
+                    errored = True
 
-                # TODO: case on cancelled errors and such
+                    # This except is coming from the application itself, so we want to send that to the Hatchet instance
+                    event = self.get_action_event(action, STEP_EVENT_TYPE_FAILED)
+                    event.eventPayload = str(e)
 
-                # Create an action event
-                try:
-                    event = self.get_action_finished_event(action, output)
-                except Exception as e:
-                    logger.error(f"Could not get action finished event: {e}")
-                    raise e
+                    try:
+                        self.client.dispatcher.send_action_event(event)
+                    except Exception as e:
+                        logger.error(f"Could not send action event: {e}")
 
-                # Send the action event to the dispatcher
-                self.client.dispatcher.send_action_event(event)
+                if not errored:
+                    # Create an action event
+                    try:
+                        event = self.get_action_finished_event(action, output)
+                    except Exception as e:
+                        logger.error(f"Could not get action finished event: {e}")
+                        raise e
+
+                    # Send the action event to the dispatcher
+                    self.client.dispatcher.send_action_event(event)
 
                 # Remove the future from the dictionary
                 del self.futures[action.step_run_id]
@@ -132,7 +141,10 @@ class Worker:
 
         # wait for futures to complete
         for future in self.futures.values():
-            future.result()
+            try:
+                future.result()
+            except Exception as e:
+                logger.error(f"Could not wait for future: {e}")
 
         try:
             self.listener.unregister()
