@@ -1,4 +1,8 @@
 import json
+import signal
+import sys
+
+import grpc
 from typing import Any, Callable, Dict
 from .workflow import WorkflowMeta
 from .clients.dispatcher import GetActionListenerRequest, ActionListenerImpl, Action
@@ -7,14 +11,21 @@ from .client import new_client
 from concurrent.futures import ThreadPoolExecutor, Future
 from google.protobuf.timestamp_pb2 import Timestamp
 from .context import Context
+from .logger import logger
 
 # Worker class
 class Worker:
-    def __init__(self, name: str, max_threads: int = 200):
+    def __init__(self, name: str, max_threads: int = 200, debug=False, handle_kill=True):
         self.name = name
         self.thread_pool = ThreadPoolExecutor(max_workers=max_threads)
         self.futures: Dict[str, Future] = {}  # Store step run ids and futures
         self.action_registry : dict[str, Callable[..., Any]] = {} 
+
+        signal.signal(signal.SIGINT, self.exit_gracefully)
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+        self.killing = False
+        self.handle_kill = handle_kill
 
     def handle_start_step_run(self, action : Action):
         action_name = action.action_id  # Assuming action object has 'name' attribute
@@ -29,8 +40,7 @@ class Worker:
                 try:
                     output = future.result()
                 except Exception as e:
-                    # TODO: handle errors
-                    print("error:", e)
+                    logger.error(f"Error on action finished event: {e}")
                     raise e
 
                 # TODO: case on cancelled errors and such
@@ -39,7 +49,7 @@ class Worker:
                 try:
                     event = self.get_action_finished_event(action, output)
                 except Exception as e:
-                    print("error on action finished event:", e)
+                    logger.error(f"Could not get action finished event: {e}")
                     raise e
 
                 # Send the action event to the dispatcher
@@ -59,7 +69,7 @@ class Worker:
             try:
                 event = self.get_action_event(action, STEP_EVENT_TYPE_STARTED)
             except Exception as e:
-                print("error on action event:", e)
+                logger.error(f"Could not create action event: {e}")
 
             # Send the action event to the dispatcher
             self.client.dispatcher.send_action_event(event)
@@ -96,7 +106,7 @@ class Worker:
         try:
             event = self.get_action_event(action, STEP_EVENT_TYPE_COMPLETED)
         except Exception as e:
-            print("error on get action event:", e)
+            logger.error(f"Could not create action finished event: {e}")
             raise e
 
         output_bytes = ''
@@ -116,22 +126,52 @@ class Worker:
 
         for action_name, action_func in workflow.get_actions():
             self.action_registry[action_name] = create_action_function(action_func)
+
+    def exit_gracefully(self, signum, frame):
+        self.killing = True
+
+        # wait for futures to complete
+        for future in self.futures.values():
+            future.result()
+
+        try:
+            self.listener.unregister()
+        except Exception as e:
+            logger.error(f"Could not unregister worker: {e}")
+
+        if self.handle_kill:
+            logger.info("Exiting...")
+            sys.exit(0)
     
-    def start(self):
+    def start(self, retry_count=1):
+        logger.info("Starting worker...")
+
         self.client = new_client()
 
-        listener : ActionListenerImpl = self.client.dispatcher.get_action_listener(GetActionListenerRequest(
-            worker_name="test-worker",
-            services=["default"],
-            actions=self.action_registry.keys(),
-        ))
+        try:
+            self.listener : ActionListenerImpl = self.client.dispatcher.get_action_listener(GetActionListenerRequest(
+                worker_name=self.name,
+                services=["default"],
+                actions=self.action_registry.keys(),
+            ))
 
-        generator = listener.actions()
+            generator = self.listener.actions()
 
-        for action in generator:
-            if action.action_type == ActionType.START_STEP_RUN:
-                self.handle_start_step_run(action)
-            elif action.action_type == ActionType.CANCEL_STEP_RUN:
-                self.handle_cancel_step_run(action)
+            for action in generator:
+                if action.action_type == ActionType.START_STEP_RUN:
+                    self.handle_start_step_run(action)
+                elif action.action_type == ActionType.CANCEL_STEP_RUN:
+                    self.handle_cancel_step_run(action)
 
-            pass  # Replace this with your actual processing code
+                pass  # Replace this with your actual processing code
+        except grpc.RpcError as rpc_error:
+            logger.error(f"Could not start worker: {rpc_error}")
+
+        # if we are here, but not killing, then we should retry start
+        if not self.killing:
+            if retry_count > 5:
+                raise Exception("Could not start worker after 5 retries")
+            
+            logger.info("Could not start worker, retrying...")
+            
+            self.start(retry_count + 1)

@@ -1,6 +1,9 @@
-from hatchet import Hatchet
+from hatchet_sdk import Hatchet
+from dotenv import load_dotenv
 
-hatchet = Hatchet()
+load_dotenv()
+
+hatchet = Hatchet(debug=True)
 
 @hatchet.workflow(on_events=["user:create"])
 class MyWorkflow:

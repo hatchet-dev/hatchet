@@ -3,7 +3,7 @@
 To create a workflow, simply create a new class and use the `hatchet.workflow` and `hatchet.step` decorators to define the structure of your workflow. For example, a simple 2-step workflow would look like:
 
 ```py
-from hatchet-sdk import Hatchet
+from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 
@@ -66,7 +66,7 @@ Future steps can access this output by calling `context.step_output("<step>")`. 
 You can declare a cron schedule by passing `on_crons` to the `hatchet.workflow` decorator. For example, to trigger a workflow every 5 minutes, you can do the following:
 
 ```go
-from hatchet-sdk import Hatchet
+from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 

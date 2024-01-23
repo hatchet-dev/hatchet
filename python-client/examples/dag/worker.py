@@ -1,4 +1,4 @@
-from hatchet import Hatchet, Context
+from hatchet_sdk import Hatchet, Context
 
 hatchet = Hatchet()
 

@@ -4,6 +4,7 @@ from ..dispatcher_pb2_grpc import DispatcherStub
 
 import time
 from ..loader import ClientConfig
+from ..logger import logger
 import json
 import grpc
 from typing import Callable, List, Union
@@ -23,8 +24,10 @@ class DispatcherClient:
     def send_action_event(self, ctx, in_):
         raise NotImplementedError
 
-DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds
+DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 1  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 5
+DEFAULT_ACTION_TIMEOUT = 60  # seconds
+DEFAULT_REGISTER_TIMEOUT = 5
 
 class GetActionListenerRequest:
     def __init__(self, worker_name: str, services: List[str], actions: List[str]):
@@ -57,18 +60,21 @@ START_STEP_RUN = 0
 CANCEL_STEP_RUN = 1
 
 class ActionListenerImpl(WorkerActionListener):
-    def __init__(self, client : DispatcherStub, tenant_id, listen_client, worker_id):
+    def __init__(self, client : DispatcherStub, tenant_id, worker_id):
         self.client = client
         self.tenant_id = tenant_id
-        self.listen_client = listen_client
         self.worker_id = worker_id
+        self.retries = 0
+        
         # self.logger = logger
         # self.validator = validator
 
     def actions(self):
         while True:
+            logger.info("Listening for actions...")
+
             try:
-                for assigned_action in self.listen_client:
+                for assigned_action in self.get_listen_client():
                     assigned_action : AssignedAction
 
                     # Process the received action
@@ -102,11 +108,16 @@ class ActionListenerImpl(WorkerActionListener):
                     break
                 elif e.code() == grpc.StatusCode.UNAVAILABLE:
                     # Retry logic
-                    self.retry_subscribe()
+                    logger.info("Could not connect to Hatchet, retrying...")
+                    self.retries = self.retries + 1
+                elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+                    logger.info("Deadline exceeded, retrying subscription")
+                    continue
                 else:
                     # Unknown error, report and break
                     # self.logger.error(f"Failed to receive message: {e}")
                     # err_ch(e)
+                    logger.error(f"Failed to receive message: {e}")
                     break
 
     def parse_action_payload(self, payload : str):
@@ -124,30 +135,28 @@ class ActionListenerImpl(WorkerActionListener):
         else:
             # self.logger.error(f"Unknown action type: {action_type}")
             return None
-
-    def retry_subscribe(self):
-        retries = 0
-        while retries < DEFAULT_ACTION_LISTENER_RETRY_COUNT:
-            try:
-                time.sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL)
-                self.listen_client = self.client.Listen(WorkerListenRequest(
+        
+    def get_listen_client(self):
+        if self.retries > DEFAULT_ACTION_LISTENER_RETRY_COUNT:
+            raise Exception(f"Could not subscribe to the worker after {DEFAULT_ACTION_LISTENER_RETRY_COUNT} retries")
+        elif self.retries > 1:
+            # logger.info
+            # if we are retrying, we wait for a bit. this should eventually be replaced with exp backoff + jitter
+            time.sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL)
+        
+        return self.client.Listen(WorkerListenRequest(
                     tenantId=self.tenant_id,
                     workerId=self.worker_id
-                ))
-                return
-            except grpc.RpcError as e:
-                retries += 1
-                # self.logger.error(f"Failed to retry subscription: {e}")
-
-        raise Exception(f"Could not subscribe to the worker after {DEFAULT_ACTION_LISTENER_RETRY_COUNT} retries")
+                ), timeout=DEFAULT_ACTION_TIMEOUT)
 
     def unregister(self):
         try:
             self.client.Unsubscribe(
                 WorkerUnsubscribeRequest(
-                    tenant_id=self.tenant_id,
-                    worker_id=self.worker_id
-                )
+                    tenantId=self.tenant_id,
+                    workerId=self.worker_id
+                ),
+                timeout=DEFAULT_REGISTER_TIMEOUT,
             )
         except grpc.RpcError as e:
             raise Exception(f"Failed to unsubscribe: {e}")
@@ -166,15 +175,9 @@ class DispatcherClientImpl(DispatcherClient):
             workerName=req.worker_name,
             actions=req.actions,
             services=req.services
-        ))
+        ), timeout=DEFAULT_REGISTER_TIMEOUT)
 
-        # Subscribe to the worker
-        listener = self.client.Listen(WorkerListenRequest(
-            tenantId=self.tenant_id,
-            workerId=response.workerId,
-        ))
-
-        return ActionListenerImpl(self.client, self.tenant_id, listener, response.workerId)
+        return ActionListenerImpl(self.client, self.tenant_id, response.workerId)
 
     def send_action_event(self, in_: ActionEvent):
         response : ActionEventResponse = self.client.SendActionEvent(in_)
