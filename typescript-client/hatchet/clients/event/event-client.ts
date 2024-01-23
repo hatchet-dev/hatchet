@@ -1,7 +1,11 @@
-import * as grpc from '@grpc/grpc-js';
-import { EventsServiceClient } from '@protoc/events/events_grpc_pb';
-import { Event, PushEventRequest } from '@protoc/events/events_pb';
-import { ClientConfig } from '../client/client-config';
+import { createChannel, createClient } from 'nice-grpc';
+import {
+  EventsServiceClient,
+  EventsServiceDefinition,
+  PushEventRequest,
+} from '@protoc/events/events';
+import HatchetError from '@util/errors/hatchet-error';
+import { ClientConfig } from '@clients/client/client-config';
 
 export class EventClient {
   config: ClientConfig;
@@ -9,25 +13,28 @@ export class EventClient {
 
   constructor(config: ClientConfig) {
     this.config = config;
-
-    this.client = new EventsServiceClient(config.host_port, grpc.credentials.createInsecure());
+    this.client = createClient(
+      EventsServiceDefinition,
+      createChannel(
+        config.host_port
+        // FIXME: Credentials ChannelCredentials.createSsl(config.tls_config.)
+      )
+    );
   }
 
   push<T>(type: string, input: T) {
-    return new Promise<Event>((resolve, reject) => {
-      const req = new PushEventRequest();
+    const req: PushEventRequest = {
+      tenantId: this.config.tenant_id,
+      key: type,
+      payload: JSON.stringify(input),
+      eventTimestamp: new Date(),
+    };
 
-      req.setTenantid(this.config.tenant_id);
-      req.setKey(type);
-      req.setPayload(JSON.stringify(input));
-
-      this.client.push(req, (err, response) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(response);
-        }
-      });
-    });
+    try {
+      return this.client.push(req);
+    } catch (e: any) {
+      // FIXME: any
+      throw new HatchetError(e.message);
+    }
   }
 }
