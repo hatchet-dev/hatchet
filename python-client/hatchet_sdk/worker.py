@@ -139,17 +139,19 @@ class Worker:
     def exit_gracefully(self, signum, frame):
         self.killing = True
 
+        logger.info("Gracefully exiting hatchet worker...")
+
+        try:
+            self.listener.unregister()
+        except Exception as e:
+            logger.error(f"Could not unregister worker: {e}")
+
         # wait for futures to complete
         for future in self.futures.values():
             try:
                 future.result()
             except Exception as e:
                 logger.error(f"Could not wait for future: {e}")
-
-        try:
-            self.listener.unregister()
-        except Exception as e:
-            logger.error(f"Could not unregister worker: {e}")
 
         if self.handle_kill:
             logger.info("Exiting...")
