@@ -13,6 +13,18 @@ import { DispatcherClient } from './dispatcher-client';
 const DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5; // seconds
 const DEFAULT_ACTION_LISTENER_RETRY_COUNT = 5;
 
+interface Action {
+  tenantId: string;
+  jobId: string;
+  jobName: string;
+  jobRunId: string;
+  stepId: string;
+  stepRunId: string;
+  actionId: string;
+  actionType: number;
+  actionPayload: string;
+}
+
 export class ActionListener {
   config: ClientConfig;
   client: PbDispatcherClient;
@@ -34,12 +46,8 @@ export class ActionListener {
       while (true) {
         try {
           for await (const assignedAction of client.listener) {
-            const action: ActionEvent = {
+            const action: Action = {
               ...assignedAction,
-              workerId: '',
-              eventTimestamp: undefined,
-              eventType: 0,
-              eventPayload: assignedAction.actionPayload,
             };
 
             yield action;
