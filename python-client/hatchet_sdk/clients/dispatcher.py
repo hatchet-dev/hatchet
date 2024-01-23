@@ -177,12 +177,6 @@ class DispatcherClientImpl(DispatcherClient):
             services=req.services
         ), timeout=DEFAULT_REGISTER_TIMEOUT)
 
-        # Subscribe to the worker
-        # listener = self.client.Listen(WorkerListenRequest(
-        #     tenantId=self.tenant_id,
-        #     workerId=response.workerId,
-        # ))
-
         return ActionListenerImpl(self.client, self.tenant_id, response.workerId)
 
     def send_action_event(self, in_: ActionEvent):
