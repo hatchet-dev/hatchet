@@ -2,16 +2,9 @@
 OUT_DIR="./protoc"
 
 # Generate code
-pnpm grpc_tools_node_protoc \
-    --js_out=import_style=commonjs,binary:$OUT_DIR \
-    --grpc_out=grpc_js:$OUT_DIR \
-    --plugin=protoc-gen-grpc=`which grpc_tools_node_protoc_plugin` \
-    -I ../api-contracts \
-    ../api-contracts/**/*.proto
-
-# Generate types
-protoc \
-    --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts \
-    --ts_out=grpc_js:$OUT_DIR \
-    -I ../api-contracts \
-    ../api-contracts/**/*.proto
+./node_modules/.bin/grpc_tools_node_protoc \
+  --plugin=protoc-gen-ts_proto=./node_modules/.bin/protoc-gen-ts_proto \
+  --ts_proto_out=$OUT_DIR \
+  --ts_proto_opt=outputServices=nice-grpc,outputServices=generic-definitions,useExactTypes=false \
+  --proto_path=../api-contracts \
+  ../api-contracts/**/*.proto
