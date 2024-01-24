@@ -1,4 +1,4 @@
-import { ChannelCredentials, createChannel, createClient } from 'nice-grpc';
+import { Channel, createClient } from 'nice-grpc';
 import {
   EventsServiceClient,
   EventsServiceDefinition,
@@ -11,17 +11,10 @@ export class EventClient {
   config: ClientConfig;
   client: EventsServiceClient;
 
-  constructor(config: ClientConfig) {
+  constructor(config: ClientConfig, channel: Channel) {
     this.config = config;
 
-    console.log('config', config);
-
-    this.client = createClient(
-      EventsServiceDefinition,
-      createChannel(config.host_port, config.credentials, {
-        'grpc.ssl_target_name_override': config.tls_config.server_name,
-      })
-    );
+    this.client = createClient(EventsServiceDefinition, channel);
   }
 
   push<T>(type: string, input: T) {

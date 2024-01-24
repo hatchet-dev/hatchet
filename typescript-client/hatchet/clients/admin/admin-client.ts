@@ -1,4 +1,4 @@
-import { ServerError, Status, createChannel, createClient } from 'nice-grpc';
+import { Channel, ServerError, Status, createClient } from 'nice-grpc';
 import {
   CreateWorkflowVersionOpts,
   Workflow,
@@ -13,12 +13,9 @@ export class AdminClient {
   config: ClientConfig;
   client: WorkflowServiceClient;
 
-  constructor(config: ClientConfig) {
+  constructor(config: ClientConfig, channel: Channel) {
     this.config = config;
-    this.client = createClient(
-      WorkflowServiceDefinition,
-      createChannel(config.host_port, config.credentials)
-    );
+    this.client = createClient(WorkflowServiceDefinition, channel);
   }
 
   static should_put(

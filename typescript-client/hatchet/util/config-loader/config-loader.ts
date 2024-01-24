@@ -29,13 +29,10 @@ export class ConfigLoader {
       server_name: yaml?.tls_config?.server_name ?? this.env('HATCHET_CLIENT_TLS_SERVER_NAME')!,
     };
 
-    const credentials = this.createCredentials(tlsConfig);
-
     return {
       tenant_id: yaml?.tenant_id ?? this.env('HATCHET_CLIENT_TENANT_ID'),
       host_port: yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT'),
       tls_config: tlsConfig,
-      credentials,
     };
   }
 
@@ -47,12 +44,6 @@ export class ConfigLoader {
     const rootCerts = config.ca_file ? readFileSync(config.ca_file) : null;
     const privateKey = config.key_file ? readFileSync(config.key_file) : null;
     const certChain = config.cert_file ? readFileSync(config.cert_file) : null;
-
-    console.log('rootCerts', rootCerts);
-    console.log('privateKey', privateKey);
-    console.log('certChain', certChain);
-
-    // Assuming verifyOptions are handled separately or are not needed
     return ChannelCredentials.createSsl(rootCerts, privateKey, certChain);
   }
 

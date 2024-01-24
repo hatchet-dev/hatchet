@@ -157,9 +157,9 @@ export class Worker {
     if (retryCount > 5) {
       throw new HatchetError('Could not start worker after 5 retries');
     }
-    console.log(`Could not start worker, retrying in ${retryCount} seconds`);
 
     // await this.start(retryCount + 1);
+    console.log(`Could not start worker, retrying in ${retryCount} seconds`);
     // TODO retry not implemented
   }
 }

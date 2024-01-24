@@ -3,6 +3,7 @@ import { ConfigLoader } from '@util/config-loader';
 import { EventClient } from '@clients/event/event-client';
 import { DispatcherClient } from '@clients/dispatcher/dispatcher-client';
 import { AdminClient } from '@clients/admin/admin-client';
+import { Channel, ChannelCredentials, createChannel } from 'nice-grpc';
 import { ClientConfig, ClientConfigSchema } from './client-config';
 
 export interface HatchetClientOptions {
@@ -11,6 +12,9 @@ export interface HatchetClientOptions {
 
 export class HatchetClient {
   config: ClientConfig;
+  credentials: ChannelCredentials;
+  channel: Channel;
+
   event: EventClient;
   dispatcher: DispatcherClient;
   admin: AdminClient;
@@ -33,9 +37,14 @@ export class HatchetClient {
       throw e;
     }
 
-    this.event = new EventClient(this.config);
-    this.dispatcher = new DispatcherClient(this.config);
-    this.admin = new AdminClient(this.config);
+    this.credentials = ConfigLoader.createCredentials(this.config.tls_config);
+    this.channel = createChannel(this.config.host_port, this.credentials, {
+      'grpc.ssl_target_name_override': this.config.tls_config.server_name,
+    });
+
+    this.event = new EventClient(this.config, this.channel);
+    this.dispatcher = new DispatcherClient(this.config, this.channel);
+    this.admin = new AdminClient(this.config, this.channel);
   }
 
   static with_host_port(
