@@ -1,6 +1,7 @@
 package repository
 
 type Repository interface {
+	APIToken() APITokenRepository
 	Event() EventRepository
 	Tenant() TenantRepository
 	TenantInvite() TenantInviteRepository

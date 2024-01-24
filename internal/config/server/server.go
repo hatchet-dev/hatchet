@@ -8,8 +8,10 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
+	"github.com/hatchet-dev/hatchet/internal/auth/token"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/shared"
+	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/validator"
@@ -17,6 +19,8 @@ import (
 
 type ServerConfigFile struct {
 	Auth ConfigFileAuth `mapstructure:"auth" json:"auth,omitempty"`
+
+	Encryption EncryptionConfigFile `mapstructure:"encryption" json:"encryption,omitempty"`
 
 	Runtime ConfigFileRuntime `mapstructure:"runtime" json:"runtime,omitempty"`
 
@@ -47,6 +51,40 @@ type ConfigFileRuntime struct {
 
 	// GRPCInsecure controls whether the grpc server is insecure or uses certs
 	GRPCInsecure bool `mapstructure:"grpcInsecure" json:"grpcInsecure,omitempty" default:"false"`
+}
+
+// Encryption options
+type EncryptionConfigFile struct {
+	// MasterKeyset is the raw master keyset for the instance. This should be a base64-encoded JSON string. You must set
+	// either RawKeyset or cloudKms.enabled.
+	MasterKeyset string `mapstructure:"masterKeyset" json:"masterKeyset,omitempty"`
+
+	JWT EncryptionConfigFileJWT `mapstructure:"jwt" json:"jwt,omitempty"`
+
+	// CloudKMS is the configuration for Google Cloud KMS. You must set either MasterKeyset or cloudKms.enabled.
+	CloudKMS EncryptionConfigFileCloudKMS `mapstructure:"cloudKms" json:"cloudKms,omitempty"`
+}
+
+type EncryptionConfigFileJWT struct {
+	// PublicJWTKeyset is a base64-encoded JSON string containing the public keyset which has been encrypted
+	// by the master key.
+	PublicJWTKeyset string `mapstructure:"publicJWTKeyset" json:"publicJWTKeyset,omitempty"`
+
+	// PrivateJWTKeyset is a base64-encoded JSON string containing the private keyset which has been encrypted
+	// by the master key.
+	PrivateJWTKeyset string `mapstructure:"privateJWTKeyset" json:"privateJWTKeyset,omitempty"`
+}
+
+type EncryptionConfigFileCloudKMS struct {
+	// Enabled controls whether the Cloud KMS service is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	// KeyURI is the URI of the key in Google Cloud KMS. This should be in the format of
+	// gcp-kms://...
+	KeyURI string `mapstructure:"keyURI" json:"keyURI,omitempty"`
+
+	// CredentialsJSON is the JSON credentials for the Google Cloud KMS service account.
+	CredentialsJSON string `mapstructure:"credentialsJSON" json:"credentialsJSON,omitempty"`
 }
 
 type ConfigFileAuth struct {
@@ -95,12 +133,16 @@ type AuthConfig struct {
 	ConfigFile ConfigFileAuth
 
 	GoogleOAuthConfig *oauth2.Config
+
+	JWTManager token.JWTManager
 }
 
 type ServerConfig struct {
 	*database.Config
 
 	Auth AuthConfig
+
+	Encryption encryption.EncryptionService
 
 	Runtime ConfigFileRuntime
 

@@ -12,9 +12,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/auth/oauth"
+	"github.com/hatchet-dev/hatchet/internal/auth/token"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
+	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -173,6 +175,40 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil, fmt.Errorf("could not create ingestor: %w", err)
 	}
 
+	if cf.Encryption.MasterKeyset == "" && !cf.Encryption.CloudKMS.Enabled {
+		return nil, fmt.Errorf("encryption is required")
+	}
+
+	if cf.Encryption.MasterKeyset != "" && cf.Encryption.CloudKMS.Enabled {
+		return nil, fmt.Errorf("cannot use both encryption and cloud kms")
+	}
+
+	if cf.Encryption.JWT.PublicJWTKeyset == "" || cf.Encryption.JWT.PrivateJWTKeyset == "" {
+		return nil, fmt.Errorf("jwt encryption is required")
+	}
+
+	var encryptionSvc encryption.EncryptionService
+
+	if cf.Encryption.MasterKeyset != "" {
+		encryptionSvc, err = encryption.NewLocalEncryption(
+			[]byte(cf.Encryption.MasterKeyset),
+			[]byte(cf.Encryption.JWT.PrivateJWTKeyset),
+			[]byte(cf.Encryption.JWT.PublicJWTKeyset),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create raw keyset encryption service: %w", err)
+		}
+	}
+
+	if cf.Encryption.CloudKMS.Enabled {
+		// encryptionSvc, err = encryption.NewCloudKMSEncryption(cf.Encryption.CloudKMS.KeyURI, []byte(cf.Encryption.CloudKMS.CredentialsJSON))
+
+		// if err != nil {
+		// 	return nil, fmt.Errorf("could not create CloudKMS encryption service: %w", err)
+		// }
+	}
+
 	auth := server.AuthConfig{
 		ConfigFile: cf.Auth,
 	}
@@ -196,9 +232,16 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		auth.GoogleOAuthConfig = gClient
 	}
 
+	// create a new JWT manager
+	auth.JWTManager = token.NewJWTManager(encryptionSvc, dc.Repository.APIToken(), &token.TokenOpts{
+		Issuer:   cf.Runtime.ServerURL,
+		Audience: cf.Runtime.ServerURL,
+	})
+
 	return &server.ServerConfig{
 		Runtime:       cf.Runtime,
 		Auth:          auth,
+		Encryption:    encryptionSvc,
 		Config:        dc,
 		TaskQueue:     tq,
 		Services:      cf.Services,

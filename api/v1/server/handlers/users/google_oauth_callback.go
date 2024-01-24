@@ -66,11 +66,24 @@ func (u *UserService) upsertGoogleUserFromToken(config *server.ServerConfig, tok
 
 	expiresAt := tok.Expiry
 
+	// use the encryption service to encrypt the access and refresh token
+	accessTokenEncrypted, err := config.Encryption.Encrypt([]byte(tok.AccessToken), "google_access_token")
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt access token: %s", err.Error())
+	}
+
+	refreshTokenEncrypted, err := config.Encryption.Encrypt([]byte(tok.RefreshToken), "google_refresh_token")
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt refresh token: %s", err.Error())
+	}
+
 	oauthOpts := &repository.OAuthOpts{
 		Provider:       "google",
 		ProviderUserId: gInfo.Sub,
-		AccessToken:    tok.AccessToken,
-		RefreshToken:   repository.StringPtr(tok.RefreshToken),
+		AccessToken:    accessTokenEncrypted,
+		RefreshToken:   &refreshTokenEncrypted,
 		ExpiresAt:      &expiresAt,
 	}
 

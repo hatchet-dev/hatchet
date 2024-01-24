@@ -1,0 +1,167 @@
+package token
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/tink-crypto/tink-go/jwt"
+
+	"github.com/hatchet-dev/hatchet/internal/encryption"
+	"github.com/hatchet-dev/hatchet/internal/repository"
+)
+
+type JWTManager interface {
+	GenerateTenantToken(tenantId string) (string, error)
+	ValidateTenantToken(token, tenantId string) error
+}
+
+type TokenOpts struct {
+	Issuer   string
+	Audience string
+}
+
+type jwtManagerImpl struct {
+	encryption encryption.EncryptionService
+	opts       *TokenOpts
+	tokenRepo  repository.APITokenRepository
+}
+
+func NewJWTManager(encryption encryption.EncryptionService, tokenRepo repository.APITokenRepository, opts *TokenOpts) JWTManager {
+	return &jwtManagerImpl{
+		encryption: encryption,
+		opts:       opts,
+		tokenRepo:  tokenRepo,
+	}
+}
+
+func (j *jwtManagerImpl) GenerateTenantToken(tenantId string) (string, error) {
+	// Retrieve the JWT Signer primitive from privateKeysetHandle.
+	signer, err := jwt.NewSigner(j.encryption.GetPrivateJWTHandle())
+
+	if err != nil {
+		return "", fmt.Errorf("failed to create JWT Signer: %v", err)
+	}
+
+	tokenId, expiresAt, opts := j.getJWTOptionsForTenant(tenantId)
+
+	rawJWT, err := jwt.NewRawJWT(opts)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to create raw JWT: %v", err)
+	}
+
+	token, err := signer.SignAndEncode(rawJWT)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to sign and encode JWT: %v", err)
+	}
+
+	// write the token to the database
+	_, err = j.tokenRepo.CreateAPIToken(&repository.CreateAPITokenOpts{
+		ID:        tokenId,
+		ExpiresAt: expiresAt,
+		TenantId:  &tenantId,
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("failed to write token to database: %v", err)
+	}
+
+	return token, nil
+}
+
+func (j *jwtManagerImpl) ValidateTenantToken(token, tenantId string) error {
+	// Retrieve the Verifier primitive from publicKeysetHandle.
+	// TODO: move verifier to the constructor
+	verifier, err := jwt.NewVerifier(j.encryption.GetPublicJWTHandle())
+
+	if err != nil {
+		return fmt.Errorf("failed to create JWT Verifier: %v", err)
+	}
+
+	// Verify the signed token. For this example, we use a fixed date. Usually, you would
+	// either not set FixedNow, or set it to the current time.
+	audience := j.opts.Audience
+
+	validator, err := jwt.NewValidator(&jwt.ValidatorOpts{
+		ExpectedAudience:      &audience,
+		ExpectedIssuer:        &j.opts.Issuer,
+		FixedNow:              time.Now(),
+		ExpectIssuedInThePast: true,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create JWT Validator: %v", err)
+	}
+
+	verifiedJwt, err := verifier.VerifyAndDecode(token, validator)
+
+	if err != nil {
+		return fmt.Errorf("failed to verify and decode JWT: %v", err)
+	}
+
+	// Read the token from the database and make sure it's not revoked
+	if hasTokenId := verifiedJwt.HasStringClaim("token_id"); !hasTokenId {
+		return fmt.Errorf("token does not have token_id claim")
+	}
+
+	tokenId, err := verifiedJwt.StringClaim("token_id")
+
+	if err != nil {
+		return fmt.Errorf("failed to read token_id claim: %v", err)
+	}
+
+	// read the token from the database
+	dbToken, err := j.tokenRepo.GetAPITokenById(tokenId)
+
+	if err != nil {
+		return fmt.Errorf("failed to read token from database: %v", err)
+	}
+
+	if dbToken.Revoked {
+		return fmt.Errorf("token has been revoked")
+	}
+
+	if expiresAt, ok := dbToken.ExpiresAt(); ok && expiresAt.Before(time.Now()) {
+		return fmt.Errorf("token has expired")
+	}
+
+	// ensure the subject of the token matches the tenantId
+	if hasSubject := verifiedJwt.HasSubject(); !hasSubject {
+		return fmt.Errorf("token does not have subject claim")
+	}
+
+	subject, err := verifiedJwt.Subject()
+
+	if err != nil {
+		return fmt.Errorf("failed to read subject claim: %v", err)
+	}
+
+	if subject != tenantId {
+		return fmt.Errorf("token subject does not match tenantId")
+	}
+
+	return nil
+}
+
+func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId string) (tokenId string, expiresAt time.Time, opts *jwt.RawJWTOptions) {
+	expiresAt = time.Now().Add(30 * 24 * time.Hour)
+	iAt := time.Now()
+	audience := j.opts.Audience
+	subject := tenantId
+	issuer := j.opts.Issuer
+	tokenId = uuid.New().String()
+	opts = &jwt.RawJWTOptions{
+		IssuedAt:  &iAt,
+		Audience:  &audience,
+		Subject:   &subject,
+		ExpiresAt: &expiresAt,
+		Issuer:    &issuer,
+		CustomClaims: map[string]interface{}{
+			"token_id": tokenId,
+		},
+	}
+
+	return
+}
