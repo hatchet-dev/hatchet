@@ -1,7 +1,7 @@
 import { DispatcherClient as PbDispatcherClient, AssignedAction } from '@protoc/dispatcher';
 
 import { ServerError, Status } from 'nice-grpc';
-import { ClientConfig } from '@clients/client/client-config';
+import { ClientConfig } from '@clients/hatchet-client/client-config';
 import sleep from '@util/sleep';
 import HatchetError from '@util/errors/hatchet-error';
 import { DispatcherClient } from './dispatcher-client';

@@ -1,4 +1,4 @@
-import { Client } from './client';
+import { HatchetClient } from './hatchet-client';
 
 describe('Client', () => {
   beforeEach(() => {
@@ -6,7 +6,7 @@ describe('Client', () => {
   });
 
   it('should load from environment variables', () => {
-    const hatchet = new Client({
+    const hatchet = new HatchetClient({
       host_port: 'HOST_PORT',
       tls_config: {
         cert_file: 'TLS_CERT_FILE',
@@ -31,7 +31,7 @@ describe('Client', () => {
   it('should throw an error if the config param is invalid', () => {
     expect(
       () =>
-        new Client({
+        new HatchetClient({
           host_port: 'HOST_PORT',
           tls_config: {
             cert_file: 'TLS_CERT_FILE',
@@ -45,7 +45,7 @@ describe('Client', () => {
   });
 
   it('should favor config param over yaml over env vars ', () => {
-    const hatchet = new Client(
+    const hatchet = new HatchetClient(
       {
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
@@ -73,7 +73,7 @@ describe('Client', () => {
 
   describe('with_host_port', () => {
     it('should set the host_port', () => {
-      const hatchet = Client.with_host_port('HOST', 1234, {
+      const hatchet = HatchetClient.with_host_port('HOST', 1234, {
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
           key_file: 'TLS_KEY_FILE',

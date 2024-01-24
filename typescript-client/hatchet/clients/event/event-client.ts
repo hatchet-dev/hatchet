@@ -5,7 +5,7 @@ import {
   PushEventRequest,
 } from '@protoc/events/events';
 import HatchetError from '@util/errors/hatchet-error';
-import { ClientConfig } from '@clients/client/client-config';
+import { ClientConfig } from '@clients/hatchet-client/client-config';
 
 export class EventClient {
   config: ClientConfig;

@@ -6,7 +6,7 @@ import {
   WorkflowServiceDefinition,
 } from '@protoc/workflows';
 import HatchetError from '@util/errors/hatchet-error';
-import { ClientConfig } from '@clients/client/client-config';
+import { ClientConfig } from '@clients/hatchet-client/client-config';
 import * as semver from '@util/semver/semver';
 
 export class AdminClient {

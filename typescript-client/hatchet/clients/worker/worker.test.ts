@@ -1,4 +1,4 @@
-import { Client } from '@clients/client';
+import { HatchetClient } from '@clients/hatchet-client';
 import { ActionEventType, ActionType, AssignedAction } from '@protoc/dispatcher';
 import { ActionListener } from '@clients/dispatcher/action-listener';
 import { ServerError, Status } from 'nice-grpc-common';
@@ -27,10 +27,10 @@ const mockCancel: AssignActionMock = {
 };
 
 describe('Worker', () => {
-  let hatchet: Client;
+  let hatchet: HatchetClient;
 
   beforeEach(() => {
-    hatchet = new Client({
+    hatchet = new HatchetClient({
       tenant_id: 'TENNANT_ID',
       host_port: 'HOST_PORT',
       tls_config: {

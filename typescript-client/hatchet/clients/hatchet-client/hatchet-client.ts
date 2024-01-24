@@ -5,17 +5,17 @@ import { DispatcherClient } from '@clients/dispatcher/dispatcher-client';
 import { AdminClient } from '@clients/admin/admin-client';
 import { ClientConfig, ClientConfigSchema } from './client-config';
 
-export interface ClientOptions {
+export interface HatchetClientOptions {
   config_path?: string;
 }
 
-export class Client {
+export class HatchetClient {
   config: ClientConfig;
   event: EventClient;
   dispatcher: DispatcherClient;
   admin: AdminClient;
 
-  constructor(config?: Partial<ClientConfig>, options?: ClientOptions) {
+  constructor(config?: Partial<ClientConfig>, options?: HatchetClientOptions) {
     // Initializes a new Client instance.
     // Loads config in teh following order: config param > yaml file > env vars
 
@@ -42,9 +42,9 @@ export class Client {
     host: string,
     port: number,
     config?: Partial<ClientConfig>,
-    options?: ClientOptions
-  ): Client {
-    return new Client(
+    options?: HatchetClientOptions
+  ): HatchetClient {
+    return new HatchetClient(
       {
         ...config,
         host_port: `${host}:${port}`,

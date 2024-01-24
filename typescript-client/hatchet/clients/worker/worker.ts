@@ -1,4 +1,4 @@
-import { Client } from '@clients/client';
+import { HatchetClient } from '@clients/hatchet-client';
 import HatchetError from '@util/errors/hatchet-error';
 import { Action, ActionListener } from '@clients/dispatcher/action-listener';
 import { ActionEvent, ActionEventType, ActionType } from '@protoc/dispatcher';
@@ -6,7 +6,7 @@ import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
 import { Context } from '../../step';
 
 export class Worker {
-  client: Client;
+  client: HatchetClient;
   name: string;
   killing: boolean;
   handle_kill: boolean;
@@ -17,7 +17,7 @@ export class Worker {
 
   futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
 
-  constructor(client: Client, options: { name: string; handleKill?: boolean }) {
+  constructor(client: HatchetClient, options: { name: string; handleKill?: boolean }) {
     this.client = client;
     this.name = options.name;
     this.action_registry = {};

@@ -4,7 +4,7 @@ import {
   DispatcherDefinition,
   ActionEvent,
 } from '@protoc/dispatcher';
-import { ClientConfig } from '@clients/client/client-config';
+import { ClientConfig } from '@clients/hatchet-client/client-config';
 import HatchetError from '@util/errors/hatchet-error';
 import { ActionListener } from './action-listener';
 
