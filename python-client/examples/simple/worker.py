@@ -5,7 +5,6 @@ load_dotenv()
 
 hatchet = Hatchet(debug=True)
 
-
 @hatchet.workflow(on_events=["user:create"])
 class MyWorkflow:
     def __init__(self):
@@ -20,7 +19,6 @@ class MyWorkflow:
     def step2(self, context):
         print("executed step2")
         pass
-
 
 workflow = MyWorkflow()
 worker = hatchet.worker('test-worker')
