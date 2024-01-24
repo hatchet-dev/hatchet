@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/run"
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
-	"github.com/spf13/cobra"
 )
 
 var printVersion bool
@@ -31,7 +32,7 @@ var rootCmd = &cobra.Command{
 }
 
 // Version will be linked by an ldflag during build
-var Version string = "v0.1.0-alpha.0"
+var Version = "v0.1.0-alpha.0"
 
 func main() {
 	rootCmd.PersistentFlags().BoolVar(

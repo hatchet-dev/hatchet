@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"sync"
 
@@ -19,9 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
-
-	"net/http"
-	_ "net/http/pprof"
 )
 
 var printVersion bool
@@ -40,17 +36,12 @@ var rootCmd = &cobra.Command{
 		cf := loader.NewConfigLoader(configDirectory)
 		interruptChan := cmdutils.InterruptChan()
 
-		// TODO: configurable via env var
-		go func() {
-			log.Println(http.ListenAndServe("localhost:6060", nil))
-		}()
-
 		startEngineOrDie(cf, interruptChan)
 	},
 }
 
 // Version will be linked by an ldflag during build
-var Version string = "v0.1.0-alpha.0"
+var Version = "v0.1.0-alpha.0"
 
 func main() {
 	rootCmd.PersistentFlags().BoolVar(
@@ -93,7 +84,7 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 		panic(fmt.Sprintf("could not initialize tracer: %s", err))
 	}
 
-	defer shutdown(ctx)
+	defer shutdown(ctx) // nolint: errcheck
 
 	if sc.HasService("grpc") {
 		wg.Add(1)
@@ -270,9 +261,7 @@ Loop:
 			fmt.Fprintf(os.Stderr, "%s", err)
 
 			// exit with non-zero exit code
-			os.Exit(1)
-
-			break Loop
+			os.Exit(1) //nolint:gocritic
 		case <-interruptCh:
 			break Loop
 		}

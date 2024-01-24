@@ -525,7 +525,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	_, err = ec.repo.StepRun().QueueStepRun(tenantId, stepRunId, updateStepOpts)
 
 	if err != nil {
-		if errors.Is(err, repository.StepRunIsNotPendingErr) {
+		if errors.Is(err, repository.ErrStepRunIsNotPending) {
 			ec.l.Debug().Msgf("step run %s is not pending, skipping scheduling", stepRunId)
 			return nil
 		}
@@ -815,6 +815,9 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *tas
 
 	// update the step run in the database
 	failedAt, err := time.Parse(time.RFC3339, payload.FailedAt)
+	if err != nil {
+		return fmt.Errorf("could not parse started at: %w", err)
+	}
 
 	stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
 		FinishedAt: &failedAt,
@@ -1149,23 +1152,6 @@ func cancelStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel) 
 
 	return &taskqueue.Task{
 		ID:       "cancel-step-run-timeout",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
-		Payload:  payload,
-		Metadata: metadata,
-	}
-}
-
-func cancelJobRunTimeoutTask(ticker *db.TickerModel, jobRun *db.JobRunModel) *taskqueue.Task {
-	payload, _ := datautils.ToJSONMap(tasktypes.CancelJobRunTimeoutTaskPayload{
-		JobRunId: jobRun.ID,
-	})
-
-	metadata, _ := datautils.ToJSONMap(tasktypes.CancelJobRunTimeoutTaskMetadata{
-		TenantId: jobRun.TenantID,
-	})
-
-	return &taskqueue.Task{
-		ID:       "cancel-job-run-timeout",
 		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,

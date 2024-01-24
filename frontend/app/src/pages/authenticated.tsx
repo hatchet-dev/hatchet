@@ -1,3 +1,4 @@
+import MainNav from '@/components/molecules/nav-bar/nav-bar';
 import {
   LoaderFunctionArgs,
   Outlet,
@@ -21,8 +22,11 @@ const authMiddleware = async (currentUrl: string) => {
       },
     });
 
-    if (!user.emailVerified && !currentUrl.includes('/verify-email')) {
-      throw redirect('/verify-email');
+    if (
+      !user.emailVerified &&
+      !currentUrl.includes('/onboarding/verify-email')
+    ) {
+      throw redirect('/onboarding/verify-email');
     }
 
     return user;
@@ -38,20 +42,45 @@ const authMiddleware = async (currentUrl: string) => {
   }
 };
 
-const membershipsPopulator = async (currentUrl: string) => {
-  const res = await api.tenantMembershipsList();
+const invitesRedirector = async (currentUrl: string) => {
+  try {
+    const res = await api.userListTenantInvites();
 
-  const memberships = res.data;
+    const invites = res.data.rows || [];
 
-  if (memberships.rows?.length === 0 && !currentUrl.includes('/onboarding')) {
-    throw redirect('/onboarding/create-tenant');
+    if (invites.length > 0 && !currentUrl.includes('/onboarding')) {
+      throw redirect('/onboarding/invites');
+    }
+
+    return;
+  } catch (error) {
+    if (error instanceof Response) {
+      throw error;
+    }
   }
+};
 
-  return res.data.rows;
+const membershipsPopulator = async (currentUrl: string) => {
+  try {
+    const res = await api.tenantMembershipsList();
+
+    const memberships = res.data;
+
+    if (memberships.rows?.length === 0 && !currentUrl.includes('/onboarding')) {
+      throw redirect('/onboarding/create-tenant');
+    }
+
+    return res.data.rows;
+  } catch (error) {
+    if (error instanceof Response) {
+      throw error;
+    }
+  }
 };
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = await authMiddleware(request.url);
+  await invitesRedirector(request.url);
   const memberships = await membershipsPopulator(request.url);
   return {
     user,
@@ -59,7 +88,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   };
 }
 
-export default function Auth() {
+export default function Authenticated() {
   const listMembershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
   });
@@ -77,5 +106,12 @@ export default function Auth() {
     return <Loading />;
   }
 
-  return <Outlet context={ctx} />;
+  return (
+    <div className="flex flex-row flex-1 w-full h-full">
+      <MainNav user={user} />
+      <div className="pt-12 flex-grow overflow-y-auto overflow-x-hidden">
+        <Outlet context={ctx} />
+      </div>
+    </div>
+  );
 }

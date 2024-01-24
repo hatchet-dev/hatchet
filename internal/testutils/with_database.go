@@ -17,7 +17,7 @@ func RunTestWithDatabase(t *testing.T, test func(config *database.Config) error)
 	if err != nil {
 		t.Fatalf("failed to load database config: %v\n", err)
 	}
-	defer conf.Disconnect()
+	defer conf.Disconnect() // nolint: errcheck
 
 	err = test(conf)
 

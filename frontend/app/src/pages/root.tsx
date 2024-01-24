@@ -6,8 +6,8 @@ function Root() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       <div className="fixed h-full w-full">
-        <Outlet />
         <Toaster />
+        <Outlet />
       </div>
     </ThemeProvider>
   );

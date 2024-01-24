@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "0.3.0"
+version = "0.5.0"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -12,6 +12,7 @@ python-dotenv = "^1.0.0"
 protobuf = "^4.25.2"
 pyyaml = "^6.0.1"
 grpcio-tools = "^1.60.0"
+loguru = "^0.7.2"
 
 
 [build-system]

@@ -1,9 +1,10 @@
 package events
 
 import (
+	"github.com/labstack/echo/v4"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/labstack/echo/v4"
 )
 
 func (t *EventService) EventKeyList(ctx echo.Context, request gen.EventKeyListRequestObject) (gen.EventKeyListResponseObject, error) {
@@ -16,10 +17,7 @@ func (t *EventService) EventKeyList(ctx echo.Context, request gen.EventKeyListRe
 	}
 
 	rows := make([]gen.EventKey, len(eventKeys))
-
-	for i, eventKey := range eventKeys {
-		rows[i] = gen.EventKey(eventKey)
-	}
+	copy(rows, eventKeys)
 
 	return gen.EventKeyList200JSONResponse(
 		gen.EventKeyList{

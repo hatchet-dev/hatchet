@@ -16,21 +16,44 @@ SELECT
     count(*) OVER() AS total
 FROM
     "Event" as events
+LEFT JOIN
+  "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
+LEFT JOIN
+  "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
+LEFT JOIN
+  "WorkflowVersion" as workflowVersion ON workflowVersion."id" = runs."workflowVersionId"
+LEFT JOIN
+  "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
-    events."tenantId" = $1 AND
-    (
-        $2::text[] IS NULL OR
-        events."key" = ANY($2::text[])
-    )
+  events."tenantId" = $1 AND
+  (
+    $2::text[] IS NULL OR
+    events."key" = ANY($2::text[])
+    ) AND
+  (
+    ($3::text[])::uuid[] IS NULL OR
+    (workflow."id" = ANY($3::text[]::uuid[]))
+    ) AND
+  (
+    $4::text IS NULL OR
+    jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $4::text, '")') as jsonpath))
+  )
 `
 
 type CountEventsParams struct {
-	TenantId pgtype.UUID `json:"tenantId"`
-	Keys     []string    `json:"keys"`
+	TenantId  pgtype.UUID `json:"tenantId"`
+	Keys      []string    `json:"keys"`
+	Workflows []string    `json:"workflows"`
+	Search    pgtype.Text `json:"search"`
 }
 
 func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
-	row := db.QueryRow(ctx, countEvents, arg.TenantId, arg.Keys)
+	row := db.QueryRow(ctx, countEvents,
+		arg.TenantId,
+		arg.Keys,
+		arg.Workflows,
+		arg.Search,
+	)
 	var total int64
 	err := row.Scan(&total)
 	return total, err
@@ -157,28 +180,33 @@ WHERE
         events."key" = ANY($2::text[])
     ) AND
     (
-        $3::text IS NULL OR
-        workflow.name like concat('%', $3::text, '%') OR
-        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $3::text, '")') as jsonpath))
+        ($3::text[])::uuid[] IS NULL OR
+        (workflow."id" = ANY($3::text[]::uuid[]))
+    ) AND
+    (
+        $4::text IS NULL OR
+        workflow.name like concat('%', $4::text, '%') OR
+        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $4::text, '")') as jsonpath))
     )
 GROUP BY
     events."id"
 ORDER BY
-    case when $4 = 'createdAt ASC' THEN events."createdAt" END ASC ,
-    case when $4 = 'createdAt DESC' then events."createdAt" END DESC
+    case when $5 = 'createdAt ASC' THEN events."createdAt" END ASC ,
+    case when $5 = 'createdAt DESC' then events."createdAt" END DESC
 OFFSET
-    COALESCE($5, 0)
+    COALESCE($6, 0)
 LIMIT
-    COALESCE($6, 50)
+    COALESCE($7, 50)
 `
 
 type ListEventsParams struct {
-	TenantId pgtype.UUID `json:"tenantId"`
-	Keys     []string    `json:"keys"`
-	Search   pgtype.Text `json:"search"`
-	Orderby  interface{} `json:"orderby"`
-	Offset   interface{} `json:"offset"`
-	Limit    interface{} `json:"limit"`
+	TenantId  pgtype.UUID `json:"tenantId"`
+	Keys      []string    `json:"keys"`
+	Workflows []string    `json:"workflows"`
+	Search    pgtype.Text `json:"search"`
+	Orderby   interface{} `json:"orderby"`
+	Offset    interface{} `json:"offset"`
+	Limit     interface{} `json:"limit"`
 }
 
 type ListEventsRow struct {
@@ -193,6 +221,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 	rows, err := db.Query(ctx, listEvents,
 		arg.TenantId,
 		arg.Keys,
+		arg.Workflows,
 		arg.Search,
 		arg.Orderby,
 		arg.Offset,

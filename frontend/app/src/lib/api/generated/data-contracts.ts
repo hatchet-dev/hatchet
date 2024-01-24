@@ -9,6 +9,18 @@
  * ---------------------------------------------------------------
  */
 
+export interface APIMeta {
+  auth?: APIMetaAuth;
+}
+
+export interface APIMetaAuth {
+  /**
+   * the supported types of authentication
+   * @example ["basic","google"]
+   */
+  schemes?: string[];
+}
+
 export interface APIErrors {
   errors: APIError[];
 }
@@ -150,10 +162,67 @@ export interface TenantMember {
   tenant?: Tenant;
 }
 
+export interface TenantMemberList {
+  pagination?: PaginationResponse;
+  rows?: TenantMember[];
+}
+
 export enum TenantMemberRole {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
   MEMBER = "MEMBER",
+}
+
+export interface CreateTenantInviteRequest {
+  /** The email of the user to invite. */
+  email: string;
+  /** The role of the user in the tenant. */
+  role: TenantMemberRole;
+}
+
+export interface UpdateTenantInviteRequest {
+  /** The role of the user in the tenant. */
+  role: TenantMemberRole;
+}
+
+export interface TenantInvite {
+  metadata: APIResourceMeta;
+  /** The email of the user to invite. */
+  email: string;
+  /** The role of the user in the tenant. */
+  role: TenantMemberRole;
+  /** The tenant id associated with this tenant invite. */
+  tenantId: string;
+  /** The tenant name for the tenant. */
+  tenantName?: string;
+  /**
+   * The time that this invite expires.
+   * @format date-time
+   */
+  expires: string;
+}
+
+export interface TenantInviteList {
+  pagination?: PaginationResponse;
+  rows?: TenantInvite[];
+}
+
+export interface AcceptInviteRequest {
+  /**
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  invite: string;
+}
+
+export interface RejectInviteRequest {
+  /**
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  invite: string;
 }
 
 export interface TenantList {
@@ -226,6 +295,9 @@ export interface EventKeyList {
 
 /** The key for the event. */
 export type EventKey = string;
+
+/** A workflow ID. */
+export type WorkflowID = string;
 
 export interface EventList {
   pagination?: PaginationResponse;

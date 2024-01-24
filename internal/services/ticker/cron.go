@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -128,7 +129,9 @@ func (t *TickerImpl) handleCancelCron(ctx context.Context, task *taskqueue.Task)
 	scheduler := schedulerVal.(gocron.Scheduler)
 
 	// cancel the cron
-	scheduler.Shutdown()
+	if err := scheduler.Shutdown(); err != nil {
+		return fmt.Errorf("could not cancel cron: %w", err)
+	}
 
 	return nil
 }

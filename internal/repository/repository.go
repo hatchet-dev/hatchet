@@ -3,6 +3,7 @@ package repository
 type Repository interface {
 	Event() EventRepository
 	Tenant() TenantRepository
+	TenantInvite() TenantInviteRepository
 	Workflow() WorkflowRepository
 	WorkflowRun() WorkflowRunRepository
 	JobRun() JobRunRepository

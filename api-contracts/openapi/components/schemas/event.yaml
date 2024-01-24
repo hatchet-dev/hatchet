@@ -72,6 +72,10 @@ EventKey:
   type: string
   description: The key for the event.
 
+WorkflowID:
+  type: string
+  description: A workflow ID.
+
 EventList:
   properties:
     pagination:

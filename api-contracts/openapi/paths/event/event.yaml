@@ -35,6 +35,14 @@ withTenant:
           type: array
           items:
             $ref: "../../components/schemas/_index.yaml#/EventKey"
+      - description: A list of workflow IDs to filter by
+        in: query
+        name: workflows
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../components/schemas/_index.yaml#/WorkflowID"
       - description: The search query to filter for
         in: query
         name: search

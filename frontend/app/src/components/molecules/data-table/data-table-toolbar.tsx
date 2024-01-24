@@ -41,23 +41,20 @@ export function DataTableToolbar<TData>({
       <div className="flex flex-1 items-center space-x-2">
         {setSearch && (
           <Input
-            placeholder="Search for events..."
+            placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-8 w-[150px] lg:w-[250px]"
           />
         )}
-        {filters.map(
-          (filter) =>
-            table.getColumn(filter.columnId) && (
-              <DataTableFacetedFilter
-                key={filter.columnId}
-                column={table.getColumn(filter.columnId)}
-                title={filter.title}
-                options={filter.options}
-              />
-            ),
-        )}
+        {filters.map((filter) => (
+          <DataTableFacetedFilter
+            key={filter.columnId}
+            column={table.getColumn(filter.columnId)}
+            title={filter.title}
+            options={filter.options}
+          />
+        ))}
         {isFiltered && (
           <Button
             variant="ghost"

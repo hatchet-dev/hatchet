@@ -2,11 +2,15 @@ from .client import new_client
 from typing import List
 from .workflow import WorkflowMeta
 from .worker import Worker
+from .logger import logger
 
 class Hatchet:
-    def __init__(self):
+    def __init__(self, debug=False):
         # initialize a client
         self.client = new_client()
+
+        if not debug:
+            logger.disable("hatchet_sdk")
 
     def workflow(self, name : str='', on_events : list=[], on_crons : list=[]):
         def inner(cls):

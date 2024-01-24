@@ -7,11 +7,5 @@ if [ -z "$POETRY_PYPI_TOKEN_PYPI" ]; then
     exit 1
 fi
 
-# version is required
-if [ -z "$VERSION" ]; then
-    echo "Please set VERSION variable"
-    exit 1
-fi
-
 poetry build
 poetry publish

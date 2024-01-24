@@ -127,7 +127,7 @@ func ToWorkflowYAMLBytes(workflow *db.WorkflowModel, version *db.WorkflowVersion
 	if triggers, ok := version.Triggers(); ok && triggers != nil {
 		triggersResp := types.WorkflowTriggers{}
 
-		if crons := triggers.Crons(); crons != nil && len(crons) > 0 {
+		if crons := triggers.Crons(); len(crons) > 0 {
 			triggersResp.Cron = make([]string, len(crons))
 
 			for i, cron := range crons {
@@ -135,7 +135,7 @@ func ToWorkflowYAMLBytes(workflow *db.WorkflowModel, version *db.WorkflowVersion
 			}
 		}
 
-		if events := triggers.Events(); events != nil && len(events) > 0 {
+		if events := triggers.Events(); len(events) > 0 {
 			triggersResp.Events = make([]string, len(events))
 
 			for i, event := range events {

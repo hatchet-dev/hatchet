@@ -2,21 +2,36 @@ package repository
 
 import (
 	"fmt"
+	"time"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type CreateUserOpts struct {
 	Email         string `validate:"required,email"`
 	EmailVerified *bool
 	Name          *string
-	Password      string `validate:"required"`
+
+	// auth options
+	Password *string    `validate:"omitempty,required_without=OAuth,excluded_with=OAuth"`
+	OAuth    *OAuthOpts `validate:"omitempty,required_without=Password,excluded_with=Password"`
+}
+
+type OAuthOpts struct {
+	Provider       string     `validate:"required,oneof=google"`
+	ProviderUserId string     `validate:"required,min=1"`
+	AccessToken    string     `validate:"required,min=1"`
+	RefreshToken   *string    // optional
+	ExpiresAt      *time.Time // optional
 }
 
 type UpdateUserOpts struct {
 	EmailVerified *bool
 	Name          *string
+
+	OAuth *OAuthOpts `validate:"omitempty"`
 }
 
 type UserRepository interface {
