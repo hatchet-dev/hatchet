@@ -1,35 +1,44 @@
 import HatchetError from '@util/errors/hatchet-error';
+import { createChannel } from 'nice-grpc';
 import { EventClient } from './event-client';
 
 let client: EventClient;
 
+const mockChannel = createChannel('localhost:50051');
+
 describe('EventClient', () => {
   it('should create a client', () => {
-    const x = new EventClient({
-      tenant_id: 'TENANT_ID',
-      host_port: 'HOST_PORT',
-      tls_config: {
-        cert_file: 'TLS_CERT_FILE',
-        key_file: 'TLS_KEY_FILE',
-        ca_file: 'TLS_ROOT_CA_FILE',
-        server_name: 'TLS_SERVER_NAME',
+    const x = new EventClient(
+      {
+        tenant_id: 'TENANT_ID',
+        host_port: 'HOST_PORT',
+        tls_config: {
+          cert_file: 'TLS_CERT_FILE',
+          key_file: 'TLS_KEY_FILE',
+          ca_file: 'TLS_ROOT_CA_FILE',
+          server_name: 'TLS_SERVER_NAME',
+        },
       },
-    });
+      mockChannel
+    );
 
     expect(x).toBeDefined();
   });
 
   beforeEach(() => {
-    client = new EventClient({
-      tenant_id: 'TENANT_ID',
-      host_port: 'HOST_PORT',
-      tls_config: {
-        cert_file: 'TLS_CERT_FILE',
-        key_file: 'TLS_KEY_FILE',
-        ca_file: 'TLS_ROOT_CA_FILE',
-        server_name: 'TLS_SERVER_NAME',
+    client = new EventClient(
+      {
+        tenant_id: 'TENANT_ID',
+        host_port: 'HOST_PORT',
+        tls_config: {
+          cert_file: 'TLS_CERT_FILE',
+          key_file: 'TLS_KEY_FILE',
+          ca_file: 'TLS_ROOT_CA_FILE',
+          server_name: 'TLS_SERVER_NAME',
+        },
       },
-    });
+      mockChannel
+    );
   });
 
   it('should push events', () => {

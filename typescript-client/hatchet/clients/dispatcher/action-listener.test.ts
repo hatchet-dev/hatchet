@@ -3,6 +3,7 @@ import sleep from '@util/sleep';
 import { ServerError, Status } from 'nice-grpc-common';
 import { DispatcherClient } from './dispatcher-client';
 import { ActionListener } from './action-listener';
+import { mockChannel } from '../hatchet-client/hatchet-client.test';
 
 let dispatcher: DispatcherClient;
 
@@ -41,16 +42,19 @@ export const mockListener = (fixture: AssignActionMock[]) =>
 
 describe('ActionListener', () => {
   beforeEach(() => {
-    dispatcher = new DispatcherClient({
-      tenant_id: 'TENANT_ID',
-      host_port: 'HOST_PORT',
-      tls_config: {
-        cert_file: 'TLS_CERT_FILE',
-        key_file: 'TLS_KEY_FILE',
-        ca_file: 'TLS_ROOT_CA_FILE',
-        server_name: 'TLS_SERVER_NAME',
+    dispatcher = new DispatcherClient(
+      {
+        tenant_id: 'TENANT_ID',
+        host_port: 'HOST_PORT',
+        tls_config: {
+          cert_file: 'TLS_CERT_FILE',
+          key_file: 'TLS_KEY_FILE',
+          ca_file: 'TLS_ROOT_CA_FILE',
+          server_name: 'TLS_SERVER_NAME',
+        },
       },
-    });
+      mockChannel
+    );
   });
 
   it('should create a client', async () => {

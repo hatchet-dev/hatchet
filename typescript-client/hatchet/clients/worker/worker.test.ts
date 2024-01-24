@@ -5,6 +5,7 @@ import { ServerError, Status } from 'nice-grpc-common';
 import { mockListener } from '@clients/dispatcher/action-listener.test';
 import { never } from 'zod';
 import sleep from '@util/sleep';
+import { ChannelCredentials } from 'nice-grpc';
 import { Worker } from './worker';
 
 type AssignActionMock = AssignedAction | Error;
@@ -30,16 +31,21 @@ describe('Worker', () => {
   let hatchet: HatchetClient;
 
   beforeEach(() => {
-    hatchet = new HatchetClient({
-      tenant_id: 'TENNANT_ID',
-      host_port: 'HOST_PORT',
-      tls_config: {
-        cert_file: 'TLS_CERT_FILE',
-        key_file: 'TLS_KEY_FILE',
-        ca_file: 'TLS_ROOT_CA_FILE',
-        server_name: 'TLS_SERVER_NAME',
+    hatchet = new HatchetClient(
+      {
+        tenant_id: 'TENNANT_ID',
+        host_port: 'HOST_PORT',
+        tls_config: {
+          cert_file: 'TLS_CERT_FILE',
+          key_file: 'TLS_KEY_FILE',
+          ca_file: 'TLS_ROOT_CA_FILE',
+          server_name: 'TLS_SERVER_NAME',
+        },
       },
-    });
+      {
+        credentials: ChannelCredentials.createInsecure(),
+      }
+    );
   });
 
   describe('handle_start_step_run', () => {

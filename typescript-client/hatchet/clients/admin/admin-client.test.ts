@@ -1,36 +1,43 @@
 import { CreateWorkflowVersionOpts, Workflow, WorkflowVersion } from '@protoc/workflows';
 import { ServerError, Status } from 'nice-grpc-common';
 import { AdminClient } from './admin-client';
+import { mockChannel } from '../hatchet-client/hatchet-client.test';
 
 describe('AdminClient', () => {
   let client: AdminClient;
 
   it('should create a client', () => {
-    const x = new AdminClient({
-      tenant_id: 'TENANT_ID',
-      host_port: 'HOST_PORT',
-      tls_config: {
-        cert_file: 'TLS_CERT_FILE',
-        key_file: 'TLS_KEY_FILE',
-        ca_file: 'TLS_ROOT_CA_FILE',
-        server_name: 'TLS_SERVER_NAME',
+    const x = new AdminClient(
+      {
+        tenant_id: 'TENANT_ID',
+        host_port: 'HOST_PORT',
+        tls_config: {
+          cert_file: 'TLS_CERT_FILE',
+          key_file: 'TLS_KEY_FILE',
+          ca_file: 'TLS_ROOT_CA_FILE',
+          server_name: 'TLS_SERVER_NAME',
+        },
       },
-    });
+      mockChannel
+    );
 
     expect(x).toBeDefined();
   });
 
   beforeEach(() => {
-    client = new AdminClient({
-      tenant_id: 'TENANT_ID',
-      host_port: 'HOST_PORT',
-      tls_config: {
-        cert_file: 'TLS_CERT_FILE',
-        key_file: 'TLS_KEY_FILE',
-        ca_file: 'TLS_ROOT_CA_FILE',
-        server_name: 'TLS_SERVER_NAME',
+    client = new AdminClient(
+      {
+        tenant_id: 'TENANT_ID',
+        host_port: 'HOST_PORT',
+        tls_config: {
+          cert_file: 'TLS_CERT_FILE',
+          key_file: 'TLS_KEY_FILE',
+          ca_file: 'TLS_ROOT_CA_FILE',
+          server_name: 'TLS_SERVER_NAME',
+        },
       },
-    });
+      mockChannel
+    );
   });
 
   describe('should_put', () => {

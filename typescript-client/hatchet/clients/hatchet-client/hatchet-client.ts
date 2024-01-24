@@ -8,6 +8,7 @@ import { ClientConfig, ClientConfigSchema } from './client-config';
 
 export interface HatchetClientOptions {
   config_path?: string;
+  credentials?: ChannelCredentials;
 }
 
 export class HatchetClient {
@@ -37,7 +38,8 @@ export class HatchetClient {
       throw e;
     }
 
-    this.credentials = ConfigLoader.createCredentials(this.config.tls_config);
+    this.credentials =
+      options?.credentials ?? ConfigLoader.createCredentials(this.config.tls_config);
     this.channel = createChannel(this.config.host_port, this.credentials, {
       'grpc.ssl_target_name_override': this.config.tls_config.server_name,
     });
