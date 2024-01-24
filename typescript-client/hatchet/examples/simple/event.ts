@@ -1,6 +1,6 @@
-import { Client } from '@clients/client';
+import Hatchet from '@hatchet/sdk';
 
-const hatchet = new Client();
+const hatchet = Hatchet.init();
 
 hatchet.event.push('user:create', {
   test: 'test',

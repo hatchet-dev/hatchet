@@ -177,6 +177,7 @@ const config: Config = {
     '^.+\\.(js|ts)$': ['ts-jest', { tsconfig: './tsconfig.json' }],
   },
   moduleNameMapper: {
+    '^@hatchet(.*)$': '<rootDir>/hatchet$1',
     '^@protoc/(.*)$': '<rootDir>/protoc/$1',
     '^@util/(.*)$': '<rootDir>/hatchet/util/$1',
     '^@models/(.*)$': '<rootDir>/hatchet/models/$1',

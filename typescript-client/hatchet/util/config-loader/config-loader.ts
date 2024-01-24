@@ -48,6 +48,10 @@ export class ConfigLoader {
     const privateKey = config.key_file ? readFileSync(config.key_file) : null;
     const certChain = config.cert_file ? readFileSync(config.cert_file) : null;
 
+    console.log('rootCerts', rootCerts);
+    console.log('privateKey', privateKey);
+    console.log('certChain', certChain);
+
     // Assuming verifyOptions are handled separately or are not needed
     return ChannelCredentials.createSsl(rootCerts, privateKey, certChain);
   }

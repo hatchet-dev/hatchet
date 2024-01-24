@@ -15,7 +15,9 @@
     "eslint:check": "eslint \"{hatchet,tests}/**/*.{ts,tsx,js}\"",
     "eslint:fix": "eslint \"{hatchet,tests}/**/*.{ts,tsx,js}\" --fix",
     "prettier:check": "prettier \"hatchet/**/*.{ts,tsx}\" --list-different",
-    "prettier:fix": "prettier \"hatchet/**/*.{ts,tsx}\" --write"
+    "prettier:fix": "prettier \"hatchet/**/*.{ts,tsx}\" --write",
+    "exec": "npx dotenv -- ts-node -r tsconfig-paths/register --project tsconfig.json",
+    "example": "npm run exec -- ./hatchet/examples/simple/event.ts"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +26,7 @@
     "@types/jest": "^29.5.11",
     "@typescript-eslint/eslint-plugin": "^6.4.0",
     "autoprefixer": "^10.4.16",
+    "dotenv-cli": "^7.3.0",
     "eslint": "^8.56.0",
     "eslint-config-airbnb-typescript": "^17.1.0",
     "eslint-config-prettier": "^9.1.0",

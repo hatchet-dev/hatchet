@@ -1,6 +1,9 @@
+import Hatchet from '../..';
 import { Workflow } from '../../workflow';
 
-const w: Workflow = {
+const hatchet = Hatchet.init();
+
+const workflow: Workflow = {
   id: 'test',
   description: 'test',
   on: {
@@ -15,3 +18,6 @@ const w: Workflow = {
     },
   ],
 };
+
+// const worker = hatchet.worker(workflow);
+// worker.start();
