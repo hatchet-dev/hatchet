@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import * as p from 'path';
 import { z } from 'zod';
 import { ClientConfig, ClientConfigSchema } from '@clients/hatchet-client';
+import { ChannelCredentials } from 'nice-grpc';
 
 type EnvVars =
   | 'HATCHET_CLIENT_TENANT_ID'
@@ -21,21 +22,34 @@ const DEFAULT_CONFIG_FILE = '.hatchet.yaml';
 export class ConfigLoader {
   static load_client_config(config?: LoadClientConfigOptions): Partial<ClientConfig> {
     const yaml = this.load_yaml_config(config?.path);
+    const tlsConfig = {
+      cert_file: yaml?.tls_config?.cert_file ?? this.env('HATCHET_CLIENT_TLS_CERT_FILE')!,
+      key_file: yaml?.tls_config?.key_file ?? this.env('HATCHET_CLIENT_TLS_KEY_FILE')!,
+      ca_file: yaml?.tls_config?.ca_file ?? this.env('HATCHET_CLIENT_TLS_ROOT_CA_FILE')!,
+      server_name: yaml?.tls_config?.server_name ?? this.env('HATCHET_CLIENT_TLS_SERVER_NAME')!,
+    };
+
+    const credentials = this.createCredentials(tlsConfig);
 
     return {
       tenant_id: yaml?.tenant_id ?? this.env('HATCHET_CLIENT_TENANT_ID'),
       host_port: yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT'),
-      tls_config: {
-        cert_file: yaml?.tls_config?.cert_file ?? this.env('HATCHET_CLIENT_TLS_CERT_FILE')!,
-        key_file: yaml?.tls_config?.key_file ?? this.env('HATCHET_CLIENT_TLS_KEY_FILE')!,
-        ca_file: yaml?.tls_config?.ca_file ?? this.env('HATCHET_CLIENT_TLS_ROOT_CA_FILE')!,
-        server_name: yaml?.tls_config?.server_name ?? this.env('HATCHET_CLIENT_TLS_SERVER_NAME')!,
-      },
+      tls_config: tlsConfig,
+      credentials,
     };
   }
 
   static get default_yaml_config_path() {
     return p.join(process.cwd(), DEFAULT_CONFIG_FILE);
+  }
+
+  static createCredentials(config: ClientConfig['tls_config']): ChannelCredentials {
+    const rootCerts = config.ca_file ? readFileSync(config.ca_file) : null;
+    const privateKey = config.key_file ? readFileSync(config.key_file) : null;
+    const certChain = config.cert_file ? readFileSync(config.cert_file) : null;
+
+    // Assuming verifyOptions are handled separately or are not needed
+    return ChannelCredentials.createSsl(rootCerts, privateKey, certChain);
   }
 
   static load_yaml_config(path?: string): ClientConfig | undefined {

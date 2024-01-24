@@ -1,3 +1,4 @@
+import { ChannelCredentials } from 'nice-grpc';
 import { z } from 'zod';
 
 const ClientTLSConfigSchema = z.object({
@@ -13,5 +14,7 @@ export const ClientConfigSchema = z.object({
   host_port: z.string(),
 });
 
-export type ClientConfig = z.infer<typeof ClientConfigSchema>;
+export type ClientConfig = z.infer<typeof ClientConfigSchema> & {
+  credentials?: ChannelCredentials;
+};
 export type ClientTLSConfig = z.infer<typeof ClientTLSConfigSchema>;

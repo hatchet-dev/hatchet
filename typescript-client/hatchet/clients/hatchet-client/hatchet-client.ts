@@ -17,7 +17,7 @@ export class HatchetClient {
 
   constructor(config?: Partial<ClientConfig>, options?: HatchetClientOptions) {
     // Initializes a new Client instance.
-    // Loads config in teh following order: config param > yaml file > env vars
+    // Loads config in the following order: config param > yaml file > env vars
 
     const loaded = ConfigLoader.load_client_config({
       path: options?.config_path,
@@ -52,4 +52,24 @@ export class HatchetClient {
       options
     );
   }
+
+  static init(config?: Partial<ClientConfig>, options?: HatchetClientOptions): HatchetClient {
+    return new HatchetClient(config, options);
+  }
+
+  // register_workflow(workflow: any): Promise<any> {
+  //   return this.client.admin.put_workflow(workflow);
+  // }
+
+  // worker(workflowId: string | Workflow): Worker {
+  //   const name = typeof workflowId === 'string' ? workflowId : workflowId.id;
+  //   const worker = new Worker(name);
+
+  //   if (typeof workflowId !== 'string') {
+  //     worker.register_workflow(workflowId);
+  //     return worker;
+  //   }
+
+  //   return worker;
+  // }
 }

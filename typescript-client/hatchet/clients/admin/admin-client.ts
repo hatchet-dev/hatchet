@@ -17,10 +17,7 @@ export class AdminClient {
     this.config = config;
     this.client = createClient(
       WorkflowServiceDefinition,
-      createChannel(
-        config.host_port
-        // FIXME: Credentials ChannelCredentials.createSsl(config.tls_config.)
-      )
+      createChannel(config.host_port, config.credentials)
     );
   }
 

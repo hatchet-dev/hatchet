@@ -22,10 +22,7 @@ export class DispatcherClient {
     this.config = config;
     this.client = createClient(
       DispatcherDefinition,
-      createChannel(
-        config.host_port
-        // FIXME: Credentials ChannelCredentials.createSsl(config.tls_config.)
-      )
+      createChannel(config.host_port, config.credentials)
     );
   }
 

@@ -13,12 +13,10 @@ export class EventClient {
 
   constructor(config: ClientConfig) {
     this.config = config;
+
     this.client = createClient(
       EventsServiceDefinition,
-      createChannel(
-        config.host_port
-        // FIXME: Credentials ChannelCredentials.createSsl(config.tls_config.)
-      )
+      createChannel(config.host_port, config.credentials)
     );
   }
 
