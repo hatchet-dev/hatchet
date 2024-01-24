@@ -14,11 +14,15 @@ const EventConfigSchema = z.object({
 
 const OnConfigSchema = z.union([CronConfigSchema, EventConfigSchema]);
 
+const StepsSchema = z.array(CreateStepSchema);
+
+export type Steps = z.infer<typeof StepsSchema>;
+
 export const CreateWorkflowSchema = z.object({
   id: z.string(),
   description: z.string(),
   on: OnConfigSchema,
-  steps: z.array(CreateStepSchema),
+  steps: StepsSchema,
 });
 
 export interface Workflow extends z.infer<typeof CreateWorkflowSchema> {

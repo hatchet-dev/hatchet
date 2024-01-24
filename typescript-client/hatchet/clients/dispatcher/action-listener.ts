@@ -1,8 +1,4 @@
-import {
-  DispatcherClient as PbDispatcherClient,
-  AssignedAction,
-  ActionEvent,
-} from '@protoc/dispatcher';
+import { DispatcherClient as PbDispatcherClient, AssignedAction } from '@protoc/dispatcher';
 
 import { ServerError, Status } from 'nice-grpc';
 import { ClientConfig } from '@clients/client/client-config';
@@ -13,7 +9,7 @@ import { DispatcherClient } from './dispatcher-client';
 const DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5; // seconds
 const DEFAULT_ACTION_LISTENER_RETRY_COUNT = 5;
 
-interface Action {
+export interface Action {
   tenantId: string;
   jobId: string;
   jobName: string;
@@ -37,9 +33,6 @@ export class ActionListener {
     this.listener = listener;
     this.workerId = workerId;
   }
-
-  // actions
-  // parse_action_payload
 
   actions = () =>
     (async function* gen(client: ActionListener) {

@@ -25,7 +25,7 @@ const mockAssignedActions: AssignActionMock[] = [
 ];
 
 // Mock implementation of the listener
-const mockListener = (fixture: AssignActionMock[]) =>
+export const mockListener = (fixture: AssignActionMock[]) =>
   (async function* gen() {
     for (const action of fixture) {
       // Simulate asynchronous behavior

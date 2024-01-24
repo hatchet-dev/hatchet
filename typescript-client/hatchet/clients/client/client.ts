@@ -1,15 +1,19 @@
 import { z } from 'zod';
 import { ConfigLoader } from '@util/config-loader';
 import { EventClient } from '@clients/event/event-client';
+import { DispatcherClient } from '@clients/dispatcher/dispatcher-client';
+import { AdminClient } from '@clients/admin/admin-client';
 import { ClientConfig, ClientConfigSchema } from './client-config';
 
-interface ClientOptions {
+export interface ClientOptions {
   config_path?: string;
 }
 
 export class Client {
   config: ClientConfig;
   event: EventClient;
+  dispatcher: DispatcherClient;
+  admin: AdminClient;
 
   constructor(config?: Partial<ClientConfig>, options?: ClientOptions) {
     // Initializes a new Client instance.
@@ -30,6 +34,8 @@ export class Client {
     }
 
     this.event = new EventClient(this.config);
+    this.dispatcher = new DispatcherClient(this.config);
+    this.admin = new AdminClient(this.config);
   }
 
   static with_host_port(
