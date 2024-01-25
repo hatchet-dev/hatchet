@@ -1,7 +1,9 @@
 import Hatchet from '@hatchet/sdk';
 import { Workflow } from '@hatchet/workflow';
 
-const hatchet = Hatchet.init();
+const hatchet = Hatchet.init({
+  log_level: 'DEBUG',
+});
 
 const sleep = (ms: number) =>
   new Promise((resolve) => {

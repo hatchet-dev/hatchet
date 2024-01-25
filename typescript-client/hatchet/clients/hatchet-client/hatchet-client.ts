@@ -6,6 +6,7 @@ import { AdminClient } from '@clients/admin/admin-client';
 import { Channel, ChannelCredentials, createChannel } from 'nice-grpc';
 import { Workflow } from '@hatchet/workflow';
 import { Worker } from '@clients/worker';
+import Logger from '@hatchet/util/logger/logger';
 import { ClientConfig, ClientConfigSchema } from './client-config';
 
 export interface HatchetClientOptions {
@@ -21,6 +22,8 @@ export class HatchetClient {
   event: EventClient;
   dispatcher: DispatcherClient;
   admin: AdminClient;
+
+  logger: Logger;
 
   constructor(config?: Partial<ClientConfig>, options?: HatchetClientOptions) {
     // Initializes a new Client instance.
@@ -49,6 +52,10 @@ export class HatchetClient {
     this.event = new EventClient(this.config, this.channel);
     this.dispatcher = new DispatcherClient(this.config, this.channel);
     this.admin = new AdminClient(this.config, this.channel);
+
+    this.logger = new Logger('HatchetClient', this.config.log_level);
+
+    this.logger.info(`Initialized HatchetClient`);
   }
 
   static with_host_port(

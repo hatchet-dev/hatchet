@@ -4,6 +4,7 @@ import * as p from 'path';
 import { z } from 'zod';
 import { ClientConfig, ClientConfigSchema } from '@clients/hatchet-client';
 import { ChannelCredentials } from 'nice-grpc';
+import { LogLevel } from '../logger/logger';
 
 type EnvVars =
   | 'HATCHET_CLIENT_TENANT_ID'
@@ -11,7 +12,8 @@ type EnvVars =
   | 'HATCHET_CLIENT_TLS_CERT_FILE'
   | 'HATCHET_CLIENT_TLS_KEY_FILE'
   | 'HATCHET_CLIENT_TLS_ROOT_CA_FILE'
-  | 'HATCHET_CLIENT_TLS_SERVER_NAME';
+  | 'HATCHET_CLIENT_TLS_SERVER_NAME'
+  | 'HATCHET_CLIENT_LOG_LEVEL';
 
 interface LoadClientConfigOptions {
   path?: string;
@@ -33,6 +35,7 @@ export class ConfigLoader {
       tenant_id: yaml?.tenant_id ?? this.env('HATCHET_CLIENT_TENANT_ID'),
       host_port: yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT'),
       tls_config: tlsConfig,
+      log_level: yaml?.log_level ?? (this.env('HATCHET_CLIENT_LOG_LEVEL') as LogLevel) ?? 'INFO',
     };
   }
 

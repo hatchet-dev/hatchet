@@ -5,6 +5,7 @@ import { ActionEvent, ActionEventType, ActionType } from '@protoc/dispatcher';
 import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
 import { Workflow } from '@hatchet/workflow';
 import { CreateWorkflowStepOpts } from '@protoc/workflows';
+import { Logger } from '@hatchet/util/logger';
 import { Context } from '../../step';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
@@ -17,10 +18,10 @@ export class Worker {
   handle_kill: boolean;
 
   action_registry: ActionRegistry;
-
   listener: ActionListener | undefined;
-
   futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
+
+  logger: Logger;
 
   constructor(client: HatchetClient, options: { name: string; handleKill?: boolean }) {
     this.client = client;
@@ -32,6 +33,8 @@ export class Worker {
 
     this.killing = false;
     this.handle_kill = options.handleKill === undefined ? true : options.handleKill;
+
+    this.logger = new Logger(`Worker/${this.name}`, this.client.config.log_level);
   }
 
   async register_workflow(workflow: Workflow, options?: { autoVersion?: boolean }) {
@@ -80,7 +83,7 @@ export class Worker {
 
     const step = this.action_registry[actionId];
     if (!step) {
-      // TODO logger.error(`Could not find step '${actionId}'`);
+      this.logger.error(`Could not find step '${actionId}'`);
       return;
     }
 
@@ -89,7 +92,7 @@ export class Worker {
     };
 
     const success = (result: any) => {
-      // TODO logger.info(`Step run ${action.stepRunId} succeeded`)
+      this.logger.info(`Step run ${action.stepRunId} succeeded`);
 
       try {
         // Send the action event to the dispatcher
@@ -103,12 +106,12 @@ export class Worker {
         // delete the run from the futures
         delete this.futures[action.stepRunId];
       } catch (e: any) {
-        // TODO logger.error(`Could not send action event: ${e.message}`)
+        this.logger.error(`Could not send action event: ${e.message}`);
       }
     };
 
     const failure = (error: any) => {
-      // TODO logger.error(`Step run ${action.stepRunId} failed: ${error.message}`)
+      this.logger.error(`Step run ${action.stepRunId} failed: ${error.message}`);
 
       try {
         // Send the action event to the dispatcher
@@ -117,7 +120,7 @@ export class Worker {
         // delete the run from the futures
         delete this.futures[action.stepRunId];
       } catch (e: any) {
-        // TODO logger.error(`Could not send action event: ${e.message}`)
+        this.logger.error(`Could not send action event: ${e.message}`);
       }
     };
 
@@ -129,7 +132,7 @@ export class Worker {
       const event = this.get_action_event(action, ActionEventType.STEP_EVENT_TYPE_STARTED);
       this.client.dispatcher.send_action_event(event);
     } catch (e: any) {
-      // TODO logger.error(`Could not send action event: ${e.message}`)
+      this.logger.error(`Could not send action event: ${e.message}`);
     }
   }
 
@@ -164,23 +167,28 @@ export class Worker {
   exit_gracefully() {
     this.killing = true;
 
-    // TODO logger.info("Gracefully exiting hatchet worker...")
+    this.logger.info('Gracefully exiting hatchet worker...');
 
     try {
       this.listener?.unregister();
     } catch (e: any) {
-      // TODO logger.error(`Could not unregister listener: ${e.message}`);
+      this.logger.error(`Could not unregister listener: ${e.message}`);
     }
 
     // TODO wait for futures to finish
 
     if (this.handle_kill) {
-      // TODO logger.info("Exiting hatchet worker...")
+      this.logger.info('Exiting hatchet worker...');
       process.exit(0);
     }
   }
 
   async start(retryCount = 1) {
+    if (retryCount === 1) {
+      this.logger.info(`Starting worker ${this.name}`);
+    } else {
+      this.logger.warn(`Retrying to start worker ${this.name}`);
+    }
     try {
       this.listener = await this.client.dispatcher.get_action_listener({
         workerName: this.name,
@@ -190,7 +198,11 @@ export class Worker {
 
       const generator = this.listener.actions();
 
+      this.logger.info(`Worker ${this.name} listening for actions`);
+
       for await (const action of generator) {
+        this.logger.info(`Worker ${this.name} received action ${action.actionId}`);
+
         if (action.actionType === ActionType.START_STEP_RUN) {
           this.handle_start_step_run(action);
         } else if (action.actionType === ActionType.CANCEL_STEP_RUN) {
@@ -198,7 +210,7 @@ export class Worker {
         }
       }
     } catch (e: any) {
-      // TODO logger.error(`Could not start worker: ${e.message}`);
+      this.logger.error(`Could not start worker: ${e.message}`);
 
       console.error(e);
     }
