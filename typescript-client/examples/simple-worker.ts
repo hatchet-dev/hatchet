@@ -19,6 +19,7 @@ const workflow: Workflow = {
     },
     {
       name: 'step2',
+      parents: ['step1'],
       run: (input, ctx) => {
         console.log('executed step2!');
         return { step2: 'step2' };
