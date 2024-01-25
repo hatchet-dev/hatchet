@@ -1,5 +1,5 @@
 import Hatchet from '@hatchet/sdk';
-import { Workflow } from '@hatchet/sdk';
+import { Workflow } from '@hatchet/workflow';
 
 const hatchet = Hatchet.init();
 
@@ -43,5 +43,4 @@ const workflow: Workflow = {
   ],
 };
 
-const worker = hatchet.worker(workflow);
-worker.start();
+hatchet.run(workflow);

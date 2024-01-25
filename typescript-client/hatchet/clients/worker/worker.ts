@@ -157,6 +157,10 @@ export class Worker {
     }
   }
 
+  stop() {
+    this.exit_gracefully();
+  }
+
   exit_gracefully() {
     this.killing = true;
 
