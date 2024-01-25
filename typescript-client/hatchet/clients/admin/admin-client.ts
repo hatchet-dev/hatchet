@@ -1,4 +1,4 @@
-import { Channel, ServerError, Status, createClient } from 'nice-grpc';
+import { Channel, Status, createClient } from 'nice-grpc';
 import {
   CreateWorkflowVersionOpts,
   Workflow,
@@ -43,9 +43,7 @@ export class AdminClient {
 
   async put_workflow(workflow: CreateWorkflowVersionOpts, options?: { autoVersion?: boolean }) {
     if (workflow.version === '' && !options?.autoVersion) {
-      throw new HatchetError(
-        'PutWorkflow error: workflow version is required, or use with_auto_version'
-      );
+      throw new HatchetError('PutWorkflow error: workflow version is required, or use autoVersion');
     }
 
     let existing: Workflow | undefined;
@@ -56,7 +54,7 @@ export class AdminClient {
         name: workflow.name,
       });
     } catch (e: any) {
-      if (e instanceof ServerError && e.code === Status.NOT_FOUND) {
+      if (e.code === Status.NOT_FOUND) {
         existing = undefined;
       } else {
         throw new HatchetError(e.message);

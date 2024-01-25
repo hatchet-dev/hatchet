@@ -3,15 +3,20 @@ import HatchetError from '@util/errors/hatchet-error';
 import { Action, ActionListener } from '@clients/dispatcher/action-listener';
 import { ActionEvent, ActionEventType, ActionType } from '@protoc/dispatcher';
 import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
+import { Workflow } from '@hatchet/workflow';
+import { CreateWorkflowStepOpts } from '@protoc/workflows';
 import { Context } from '../../step';
 
+export type ActionRegistry = Record<Action['actionId'], Function>;
+
 export class Worker {
+  serviceName = 'default'; // TODO verify this never changes
   client: HatchetClient;
   name: string;
   killing: boolean;
   handle_kill: boolean;
 
-  action_registry: Record<Action['actionId'], Function>;
+  action_registry: ActionRegistry;
 
   listener: ActionListener | undefined;
 
@@ -27,6 +32,46 @@ export class Worker {
 
     this.killing = false;
     this.handle_kill = options.handleKill === undefined ? true : options.handleKill;
+  }
+
+  async register_workflow(workflow: Workflow, options?: { autoVersion?: boolean }) {
+    try {
+      await this.client.admin.put_workflow(
+        {
+          name: workflow.id,
+          description: workflow.description,
+          version: 'v0.55.0', // FIXME  workflow.version,
+          eventTriggers: workflow.on.event ? [workflow.on.event] : [],
+          cronTriggers: workflow.on.cron ? [workflow.on.cron] : [],
+          scheduledTriggers: [],
+          jobs: [
+            {
+              name: 'my-job', // FIXME variable names
+              timeout: '60s',
+              description: 'my-job',
+              steps: workflow.steps.map<CreateWorkflowStepOpts>((step) => ({
+                readableId: step.name,
+                action: `${this.serviceName}:${step.name}`,
+                timeout: '60s',
+                inputs: '{}',
+                parents: step.parents ?? [],
+              })),
+            },
+          ],
+        },
+        {
+          autoVersion: !options?.autoVersion,
+        }
+      );
+    } catch (e: any) {
+      throw new HatchetError(`Could not register workflow: ${e.message}`);
+    }
+
+    // TODO understand create_action_function
+    this.action_registry = workflow.steps.reduce<ActionRegistry>((acc, step) => {
+      acc[`${this.serviceName}:${step.name}`] = step.run;
+      return acc;
+    }, {});
   }
 
   handle_start_step_run(action: Action) {
@@ -150,6 +195,8 @@ export class Worker {
       }
     } catch (e: any) {
       // TODO logger.error(`Could not start worker: ${e.message}`);
+
+      console.error(e);
     }
 
     if (this.killing) return;

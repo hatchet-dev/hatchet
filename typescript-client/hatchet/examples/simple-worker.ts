@@ -27,5 +27,4 @@ const workflow: Workflow = {
   ],
 };
 
-const worker = hatchet.worker(workflow);
-worker.start();
+hatchet.run(workflow);

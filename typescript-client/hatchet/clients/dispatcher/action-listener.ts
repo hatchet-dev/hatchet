@@ -1,6 +1,6 @@
 import { DispatcherClient as PbDispatcherClient, AssignedAction } from '@protoc/dispatcher';
 
-import { ServerError, Status } from 'nice-grpc';
+import { Status } from 'nice-grpc';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import sleep from '@util/sleep';
 import HatchetError from '@util/errors/hatchet-error';
@@ -46,10 +46,10 @@ export class ActionListener {
             yield action;
           }
         } catch (e: any) {
-          if (e instanceof ServerError && e.code === Status.CANCELLED) {
+          if (e.code === Status.CANCELLED) {
             break;
           }
-          if (e instanceof ServerError && e.code === Status.UNAVAILABLE) {
+          if (e.code === Status.UNAVAILABLE) {
             client.retrySubscribe();
           }
           break;

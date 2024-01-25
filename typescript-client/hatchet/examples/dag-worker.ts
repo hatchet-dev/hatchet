@@ -4,7 +4,7 @@ import { Workflow } from '../workflow';
 const hatchet = Hatchet.init();
 
 const workflow: Workflow = {
-  id: 'example',
+  id: 'dag-example',
   description: 'test',
   on: {
     event: 'user:create',

@@ -149,7 +149,7 @@ describe('AdminClient', () => {
       };
 
       expect(() => client.put_workflow(workflow, { autoVersion: false })).rejects.toThrow(
-        'PutWorkflow error: workflow version is required, or use with_auto_version'
+        'PutWorkflow error: workflow version is required, or use autoVersion'
       );
     });
 

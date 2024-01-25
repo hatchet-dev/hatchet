@@ -4,6 +4,8 @@ import { EventClient } from '@clients/event/event-client';
 import { DispatcherClient } from '@clients/dispatcher/dispatcher-client';
 import { AdminClient } from '@clients/admin/admin-client';
 import { Channel, ChannelCredentials, createChannel } from 'nice-grpc';
+import { Workflow } from '@hatchet/workflow';
+import { Worker } from '@clients/worker';
 import { ClientConfig, ClientConfigSchema } from './client-config';
 
 export interface HatchetClientOptions {
@@ -68,19 +70,23 @@ export class HatchetClient {
     return new HatchetClient(config, options);
   }
 
-  // register_workflow(workflow: any): Promise<any> {
-  //   return this.client.admin.put_workflow(workflow);
-  // }
+  async run(workflow: string | Workflow): Promise<Worker> {
+    const worker = await this.worker(workflow);
+    worker.start();
+    return worker;
+  }
 
-  // worker(workflowId: string | Workflow): Worker {
-  //   const name = typeof workflowId === 'string' ? workflowId : workflowId.id;
-  //   const worker = new Worker(name);
+  async worker(workflow: string | Workflow): Promise<Worker> {
+    const name = typeof workflow === 'string' ? workflow : workflow.id;
+    const worker = new Worker(this, {
+      name,
+    });
 
-  //   if (typeof workflowId !== 'string') {
-  //     worker.register_workflow(workflowId);
-  //     return worker;
-  //   }
+    if (typeof workflow !== 'string') {
+      await worker.register_workflow(workflow);
+      return worker;
+    }
 
-  //   return worker;
-  // }
+    return worker;
+  }
 }

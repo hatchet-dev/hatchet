@@ -109,4 +109,41 @@ describe('Client', () => {
       });
     });
   });
+
+  describe('Worker', () => {
+    let hatchet: HatchetClient;
+
+    beforeEach(() => {
+      hatchet = new HatchetClient(
+        {
+          host_port: 'HOST_PORT',
+          tls_config: {
+            cert_file: 'TLS_CERT_FILE',
+            key_file: 'TLS_KEY_FILE',
+            ca_file: 'TLS_ROOT_CA_FILE',
+            server_name: 'TLS_SERVER_NAME',
+          },
+        },
+        {
+          credentials: ChannelCredentials.createInsecure(),
+        }
+      );
+    });
+
+    describe('run', () => {
+      it('should start a worker', () => {
+        const worker = hatchet.run('workflow1');
+
+        expect(worker).toBeDefined();
+      });
+    });
+
+    describe('run', () => {
+      it('should start a worker', () => {
+        const worker = hatchet.run('workflow1');
+
+        expect(worker).toBeDefined();
+      });
+    });
+  });
 });
