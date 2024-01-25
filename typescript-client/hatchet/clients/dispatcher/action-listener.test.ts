@@ -64,7 +64,7 @@ describe('ActionListener', () => {
   });
 
   describe('actions', () => {
-    xit('it should "yield" actions', async () => {
+    it('it should "yield" actions', async () => {
       const listener = new ActionListener(
         dispatcher,
         mockListener([...mockAssignedActions, new ServerError(Status.CANCELLED, 'CANCELLED')]),
@@ -78,7 +78,6 @@ describe('ActionListener', () => {
       }
 
       expect(res[0]).toEqual({
-        // TODO - fix this test
         tenantId: 'tenant1',
         jobId: 'job1',
         jobName: 'Job One',
@@ -88,10 +87,6 @@ describe('ActionListener', () => {
         actionId: 'action1',
         actionType: ActionType.START_STEP_RUN,
         actionPayload: 'payload1',
-        eventPayload: 'payload1',
-        eventTimestamp: undefined,
-        eventType: 0,
-        workerId: '',
       });
     });
 

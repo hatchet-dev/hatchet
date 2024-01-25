@@ -19,7 +19,7 @@ const mockStart: AssignActionMock = {
   stepRunId: 'runStep1',
   actionId: 'action1',
   actionType: ActionType.START_STEP_RUN,
-  actionPayload: '{"input": {"data": 1}}', // TODO verify this shape
+  actionPayload: '{"input": {"data": 1}}',
 };
 
 const mockCancel: AssignActionMock = {

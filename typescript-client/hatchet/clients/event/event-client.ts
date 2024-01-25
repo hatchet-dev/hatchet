@@ -28,7 +28,6 @@ export class EventClient {
     try {
       return this.client.push(req);
     } catch (e: any) {
-      // FIXME: any
       throw new HatchetError(e.message);
     }
   }

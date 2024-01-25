@@ -26,5 +26,5 @@ export const CreateWorkflowSchema = z.object({
 });
 
 export interface Workflow extends z.infer<typeof CreateWorkflowSchema> {
-  steps: CreateStep<any>[]; // TODO type this?
+  steps: CreateStep<any>[];
 }

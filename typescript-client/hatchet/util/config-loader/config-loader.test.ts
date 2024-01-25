@@ -57,7 +57,7 @@ describe('ConfigLoader', () => {
   });
 
   xit('should attempt to load the root .hatchet.yaml config', () => {
-    // TODO i'm not sure the best way to test this, maybe spy on readFileSync called with
+    //  i'm not sure the best way to test this, maybe spy on readFileSync called with
     const config = ConfigLoader.load_client_config({
       path: './fixtures/.hatchet.yaml',
     });

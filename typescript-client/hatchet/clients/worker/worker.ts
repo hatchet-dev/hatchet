@@ -144,7 +144,7 @@ export class Worker {
       actionId: action.actionId,
       eventTimestamp: new Date(),
       eventType,
-      eventPayload: JSON.stringify(payload), // TODO verify we need this
+      eventPayload: JSON.stringify(payload),
     };
   }
 
