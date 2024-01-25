@@ -38,5 +38,5 @@ export class Context<T = any> {
 }
 
 export interface CreateStep<T> extends z.infer<typeof CreateStepSchema> {
-  run: (input: T, ctx: Context) => NextStep;
+  run: (input: T, ctx: Context) => Promise<NextStep> | NextStep | void;
 }

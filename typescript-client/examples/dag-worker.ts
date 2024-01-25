@@ -3,6 +3,11 @@ import { Workflow } from '@hatchet/workflow';
 
 const hatchet = Hatchet.init();
 
+const sleep = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
 const workflow: Workflow = {
   id: 'dag-example',
   description: 'test',
@@ -11,21 +16,22 @@ const workflow: Workflow = {
   },
   steps: [
     {
-      name: 'step1',
-      run: (input, ctx) => {
+      name: 'dag-step1',
+      run: async (input, ctx) => {
+        await sleep(5000);
         console.log('executed step1!');
         return { step1: 'step1' };
       },
     },
     {
-      name: 'step2',
+      name: 'dag-step2',
       run: (input, ctx) => {
         console.log('executed step2!');
         return { step2: 'step2' };
       },
     },
     {
-      name: 'step3',
+      name: 'dag-step3',
       parents: ['step1', 'step2'],
       run: (input, ctx) => {
         console.log('executed step3!');
@@ -33,7 +39,7 @@ const workflow: Workflow = {
       },
     },
     {
-      name: 'step4',
+      name: 'dag-step4',
       parents: ['step1', 'step3'],
       run: (input, ctx) => {
         console.log('executed step4!');
