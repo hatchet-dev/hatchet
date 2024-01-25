@@ -17,9 +17,9 @@
     "prettier:check": "prettier \"hatchet/**/*.{ts,tsx}\" --list-different",
     "prettier:fix": "prettier \"hatchet/**/*.{ts,tsx}\" --write",
     "exec": "npx dotenv -- ts-node -r tsconfig-paths/register --project tsconfig.json",
-    "example:event": "npm run exec -- ./hatchet/examples/example-event.ts",
-    "simple:worker": "npm run exec -- ./hatchet/examples/simple-worker.ts",
-    "dag:worker": "npm run exec -- ./hatchet/examples/dag-worker.ts"
+    "example:event": "npm run exec -- ./examples/example-event.ts",
+    "worker:simple": "npm run exec -- ./examples/simple-worker.ts",
+    "worker:dag": "npm run exec -- ./examples/dag-worker.ts"
   },
   "keywords": [],
   "author": "",
