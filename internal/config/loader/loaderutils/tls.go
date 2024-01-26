@@ -44,6 +44,10 @@ func LoadServerTLSConfig(tlsConfig *shared.TLSConfigFile) (*tls.Config, error) {
 	switch tlsConfig.TLSStrategy {
 	case "tls":
 		res.ClientAuth = tls.VerifyClientCertIfGiven
+
+		if ca != nil {
+			res.ClientCAs = ca
+		}
 	case "mtls":
 		if ca == nil {
 			return nil, fmt.Errorf("Client CA is required for mTLS")
