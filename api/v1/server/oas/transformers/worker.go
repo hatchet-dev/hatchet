@@ -20,7 +20,7 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 			apiActions := make([]string, len(actions))
 
 			for i, action := range actions {
-				apiActions[i] = action.ID
+				apiActions[i] = action.ActionID
 			}
 
 			res.Actions = &apiActions

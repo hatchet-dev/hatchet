@@ -22,16 +22,34 @@ func TestCreateTenantToken(t *testing.T) {
 
 		tenantId := uuid.New().String()
 
-		token, err := jwtManager.GenerateTenantToken(tenantId)
+		// create the tenant
+		slugSuffix, err := encryption.GenerateRandomBytes(8)
+
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+
+		_, err = conf.Repository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+			ID:   &tenantId,
+			Name: "test-tenant",
+			Slug: fmt.Sprintf("test-tenant-%s", slugSuffix),
+		})
+
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+
+		token, err := jwtManager.GenerateTenantToken(tenantId, "test token")
 
 		if err != nil {
 			t.Fatal(err.Error())
 		}
 
 		// validate the token
-		err = jwtManager.ValidateTenantToken(token, tenantId)
+		newTenantId, err := jwtManager.ValidateTenantToken(token)
 
 		assert.NoError(t, err)
+		assert.Equal(t, tenantId, newTenantId)
 
 		return nil
 	})
@@ -60,14 +78,14 @@ func TestRevokeTenantToken(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		token, err := jwtManager.GenerateTenantToken(tenantId)
+		token, err := jwtManager.GenerateTenantToken(tenantId, "test token")
 
 		if err != nil {
 			t.Fatal(err.Error())
 		}
 
 		// validate the token
-		err = jwtManager.ValidateTenantToken(token, tenantId)
+		_, err = jwtManager.ValidateTenantToken(token)
 
 		assert.NoError(t, err)
 
@@ -86,7 +104,7 @@ func TestRevokeTenantToken(t *testing.T) {
 		}
 
 		// validate the token again
-		err = jwtManager.ValidateTenantToken(token, tenantId)
+		_, err = jwtManager.ValidateTenantToken(token)
 
 		assert.Error(t, err)
 

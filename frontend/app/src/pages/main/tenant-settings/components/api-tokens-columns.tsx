@@ -1,0 +1,55 @@
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
+import { APIToken } from '@/lib/api';
+import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
+import { relativeDate } from '@/lib/utils';
+
+export const columns = ({
+  onRevokeClick,
+}: {
+  onRevokeClick: (row: APIToken) => void;
+}): ColumnDef<APIToken>[] => {
+  return [
+    {
+      accessorKey: 'name',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Name" />
+      ),
+      cell: ({ row }) => <div>{row.getValue('name')}</div>,
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'created',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Created" />
+      ),
+      cell: ({ row }) => (
+        <div>{relativeDate(row.original.metadata.createdAt)}</div>
+      ),
+    },
+    {
+      accessorKey: 'Expires',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Expires" />
+      ),
+      cell: ({ row }) => {
+        return <div>{relativeDate(row.original.expiresAt)}</div>;
+      },
+    },
+    {
+      id: 'actions',
+      cell: ({ row }) => (
+        <DataTableRowActions
+          row={row}
+          actions={[
+            {
+              label: 'Revoke',
+              onClick: () => onRevokeClick(row.original),
+            },
+          ]}
+        />
+      ),
+    },
+  ];
+};

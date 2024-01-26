@@ -12,8 +12,8 @@ import (
 )
 
 type JWTManager interface {
-	GenerateTenantToken(tenantId string) (string, error)
-	ValidateTenantToken(token, tenantId string) error
+	GenerateTenantToken(tenantId, name string) (string, error)
+	ValidateTenantToken(token string) (string, error)
 }
 
 type TokenOpts struct {
@@ -35,7 +35,7 @@ func NewJWTManager(encryption encryption.EncryptionService, tokenRepo repository
 	}
 }
 
-func (j *jwtManagerImpl) GenerateTenantToken(tenantId string) (string, error) {
+func (j *jwtManagerImpl) GenerateTenantToken(tenantId, name string) (string, error) {
 	// Retrieve the JWT Signer primitive from privateKeysetHandle.
 	signer, err := jwt.NewSigner(j.encryption.GetPrivateJWTHandle())
 
@@ -62,6 +62,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(tenantId string) (string, error) {
 		ID:        tokenId,
 		ExpiresAt: expiresAt,
 		TenantId:  &tenantId,
+		Name:      &name,
 	})
 
 	if err != nil {
@@ -71,13 +72,13 @@ func (j *jwtManagerImpl) GenerateTenantToken(tenantId string) (string, error) {
 	return token, nil
 }
 
-func (j *jwtManagerImpl) ValidateTenantToken(token, tenantId string) error {
+func (j *jwtManagerImpl) ValidateTenantToken(token string) (tenantId string, err error) {
 	// Retrieve the Verifier primitive from publicKeysetHandle.
 	// TODO: move verifier to the constructor
 	verifier, err := jwt.NewVerifier(j.encryption.GetPublicJWTHandle())
 
 	if err != nil {
-		return fmt.Errorf("failed to create JWT Verifier: %v", err)
+		return "", fmt.Errorf("failed to create JWT Verifier: %v", err)
 	}
 
 	// Verify the signed token. For this example, we use a fixed date. Usually, you would
@@ -92,61 +93,57 @@ func (j *jwtManagerImpl) ValidateTenantToken(token, tenantId string) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to create JWT Validator: %v", err)
+		return "", fmt.Errorf("failed to create JWT Validator: %v", err)
 	}
 
 	verifiedJwt, err := verifier.VerifyAndDecode(token, validator)
 
 	if err != nil {
-		return fmt.Errorf("failed to verify and decode JWT: %v", err)
+		return "", fmt.Errorf("failed to verify and decode JWT: %v", err)
 	}
 
 	// Read the token from the database and make sure it's not revoked
 	if hasTokenId := verifiedJwt.HasStringClaim("token_id"); !hasTokenId {
-		return fmt.Errorf("token does not have token_id claim")
+		return "", fmt.Errorf("token does not have token_id claim")
 	}
 
 	tokenId, err := verifiedJwt.StringClaim("token_id")
 
 	if err != nil {
-		return fmt.Errorf("failed to read token_id claim: %v", err)
+		return "", fmt.Errorf("failed to read token_id claim: %v", err)
 	}
 
 	// read the token from the database
 	dbToken, err := j.tokenRepo.GetAPITokenById(tokenId)
 
 	if err != nil {
-		return fmt.Errorf("failed to read token from database: %v", err)
+		return "", fmt.Errorf("failed to read token from database: %v", err)
 	}
 
 	if dbToken.Revoked {
-		return fmt.Errorf("token has been revoked")
+		return "", fmt.Errorf("token has been revoked")
 	}
 
 	if expiresAt, ok := dbToken.ExpiresAt(); ok && expiresAt.Before(time.Now()) {
-		return fmt.Errorf("token has expired")
+		return "", fmt.Errorf("token has expired")
 	}
 
 	// ensure the subject of the token matches the tenantId
 	if hasSubject := verifiedJwt.HasSubject(); !hasSubject {
-		return fmt.Errorf("token does not have subject claim")
+		return "", fmt.Errorf("token does not have subject claim")
 	}
 
 	subject, err := verifiedJwt.Subject()
 
 	if err != nil {
-		return fmt.Errorf("failed to read subject claim: %v", err)
+		return "", fmt.Errorf("failed to read subject claim: %v", err)
 	}
 
-	if subject != tenantId {
-		return fmt.Errorf("token subject does not match tenantId")
-	}
-
-	return nil
+	return subject, nil
 }
 
 func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId string) (tokenId string, expiresAt time.Time, opts *jwt.RawJWTOptions) {
-	expiresAt = time.Now().Add(30 * 24 * time.Hour)
+	expiresAt = time.Now().Add(90 * 24 * time.Hour)
 	iAt := time.Now()
 	audience := j.opts.Audience
 	subject := tenantId

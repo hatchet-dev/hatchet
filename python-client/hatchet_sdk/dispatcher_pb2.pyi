@@ -26,16 +26,14 @@ STEP_EVENT_TYPE_COMPLETED: ActionEventType
 STEP_EVENT_TYPE_FAILED: ActionEventType
 
 class WorkerRegisterRequest(_message.Message):
-    __slots__ = ("tenantId", "workerName", "actions", "services")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("workerName", "actions", "services")
     WORKERNAME_FIELD_NUMBER: _ClassVar[int]
     ACTIONS_FIELD_NUMBER: _ClassVar[int]
     SERVICES_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
     workerName: str
     actions: _containers.RepeatedScalarFieldContainer[str]
     services: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, tenantId: _Optional[str] = ..., workerName: _Optional[str] = ..., actions: _Optional[_Iterable[str]] = ..., services: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, workerName: _Optional[str] = ..., actions: _Optional[_Iterable[str]] = ..., services: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class WorkerRegisterResponse(_message.Message):
     __slots__ = ("tenantId", "workerId", "workerName")
@@ -70,20 +68,16 @@ class AssignedAction(_message.Message):
     def __init__(self, tenantId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobName: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., actionType: _Optional[_Union[ActionType, str]] = ..., actionPayload: _Optional[str] = ...) -> None: ...
 
 class WorkerListenRequest(_message.Message):
-    __slots__ = ("tenantId", "workerId")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("workerId",)
     WORKERID_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
     workerId: str
-    def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ...) -> None: ...
+    def __init__(self, workerId: _Optional[str] = ...) -> None: ...
 
 class WorkerUnsubscribeRequest(_message.Message):
-    __slots__ = ("tenantId", "workerId")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("workerId",)
     WORKERID_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
     workerId: str
-    def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ...) -> None: ...
+    def __init__(self, workerId: _Optional[str] = ...) -> None: ...
 
 class WorkerUnsubscribeResponse(_message.Message):
     __slots__ = ("tenantId", "workerId")
@@ -94,8 +88,7 @@ class WorkerUnsubscribeResponse(_message.Message):
     def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ...) -> None: ...
 
 class ActionEvent(_message.Message):
-    __slots__ = ("tenantId", "workerId", "jobId", "jobRunId", "stepId", "stepRunId", "actionId", "eventTimestamp", "eventType", "eventPayload")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("workerId", "jobId", "jobRunId", "stepId", "stepRunId", "actionId", "eventTimestamp", "eventType", "eventPayload")
     WORKERID_FIELD_NUMBER: _ClassVar[int]
     JOBID_FIELD_NUMBER: _ClassVar[int]
     JOBRUNID_FIELD_NUMBER: _ClassVar[int]
@@ -105,7 +98,6 @@ class ActionEvent(_message.Message):
     EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     EVENTTYPE_FIELD_NUMBER: _ClassVar[int]
     EVENTPAYLOAD_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
     workerId: str
     jobId: str
     jobRunId: str
@@ -115,7 +107,7 @@ class ActionEvent(_message.Message):
     eventTimestamp: _timestamp_pb2.Timestamp
     eventType: ActionEventType
     eventPayload: str
-    def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventType: _Optional[_Union[ActionEventType, str]] = ..., eventPayload: _Optional[str] = ...) -> None: ...
+    def __init__(self, workerId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventType: _Optional[_Union[ActionEventType, str]] = ..., eventPayload: _Optional[str] = ...) -> None: ...
 
 class ActionEventResponse(_message.Message):
     __slots__ = ("tenantId", "workerId")

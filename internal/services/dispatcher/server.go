@@ -90,7 +90,7 @@ func (worker *subscribedWorker) CancelStepRun(
 }
 
 func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.WorkerRegisterRequest) (*contracts.WorkerRegisterResponse, error) {
-	// TODO: auth checks to make sure the worker is allowed to register for this tenant
+	tenant := ctx.Value("tenant").(*db.TenantModel)
 
 	s.l.Debug().Msgf("Received register request from ID %s with actions %v", request.WorkerName, request.Actions)
 
@@ -101,7 +101,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	}
 
 	// create a worker in the database
-	worker, err := s.repo.Worker().CreateNewWorker(request.TenantId, &repository.CreateWorkerOpts{
+	worker, err := s.repo.Worker().CreateNewWorker(tenant.ID, &repository.CreateWorkerOpts{
 		DispatcherId: s.dispatcherId,
 		Name:         request.WorkerName,
 		Actions:      request.Actions,
@@ -109,7 +109,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	})
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("could not create worker for tenant %s", request.TenantId)
+		s.l.Error().Err(err).Msgf("could not create worker for tenant %s", tenant.ID)
 		return nil, err
 	}
 
@@ -125,6 +125,8 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 // Subscribe handles a subscribe request from a client
 func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenServer) error {
+	tenant := stream.Context().Value("tenant").(*db.TenantModel)
+
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
 	worker, err := s.repo.Worker().GetWorkerById(request.WorkerId)
@@ -136,7 +138,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if worker.DispatcherID != s.dispatcherId {
-		_, err = s.repo.Worker().UpdateWorker(request.TenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+		_, err = s.repo.Worker().UpdateWorker(tenant.ID, request.WorkerId, &repository.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})
 
@@ -155,7 +157,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 		inactive := db.WorkerStatusInactive
 
-		_, err := s.repo.Worker().UpdateWorker(request.TenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+		_, err := s.repo.Worker().UpdateWorker(tenant.ID, request.WorkerId, &repository.UpdateWorkerOpts{
 			Status: &inactive,
 		})
 
@@ -183,7 +185,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 				if now := time.Now().UTC(); lastHeartbeat.Add(5 * time.Second).Before(now) {
 					s.l.Debug().Msgf("updating worker %s heartbeat", request.WorkerId)
 
-					_, err := s.repo.Worker().UpdateWorker(request.TenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+					_, err := s.repo.Worker().UpdateWorker(tenant.ID, request.WorkerId, &repository.UpdateWorkerOpts{
 						LastHeartbeatAt: &now,
 					})
 
@@ -227,23 +229,26 @@ func (s *DispatcherImpl) SendActionEvent(ctx context.Context, request *contracts
 }
 
 func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.WorkerUnsubscribeRequest) (*contracts.WorkerUnsubscribeResponse, error) {
-	// TODO: auth checks to make sure the worker is allowed to unsubscribe for this tenant
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
 	// no matter what, remove the worker from the connection pool
 	defer s.workers.Delete(request.WorkerId)
 
-	err := s.repo.Worker().DeleteWorker(request.TenantId, request.WorkerId)
+	err := s.repo.Worker().DeleteWorker(tenant.ID, request.WorkerId)
 
 	if err != nil {
 		return nil, err
 	}
 
 	return &contracts.WorkerUnsubscribeResponse{
-		TenantId: request.TenantId,
+		TenantId: tenant.ID,
 		WorkerId: request.WorkerId,
 	}, nil
 }
 
 func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *contracts.ActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
 	s.l.Debug().Msgf("Received step started event for step run %s", request.StepRunId)
 
 	startedAt := request.EventTimestamp.AsTime()
@@ -254,7 +259,7 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunStartedTaskMetadata{
-		TenantId: request.TenantId,
+		TenantId: tenant.ID,
 	})
 
 	// send the event to the jobs queue
@@ -270,12 +275,14 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 	}
 
 	return &contracts.ActionEventResponse{
-		TenantId: request.TenantId,
+		TenantId: tenant.ID,
 		WorkerId: request.WorkerId,
 	}, nil
 }
 
 func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *contracts.ActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
 
 	finishedAt := request.EventTimestamp.AsTime()
@@ -287,7 +294,7 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunFinishedTaskMetadata{
-		TenantId: request.TenantId,
+		TenantId: tenant.ID,
 	})
 
 	// send the event to the jobs queue
@@ -303,12 +310,14 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 	}
 
 	return &contracts.ActionEventResponse{
-		TenantId: request.TenantId,
+		TenantId: tenant.ID,
 		WorkerId: request.WorkerId,
 	}, nil
 }
 
 func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contracts.ActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
 	s.l.Debug().Msgf("Received step failed event for step run %s", request.StepRunId)
 
 	failedAt := request.EventTimestamp.AsTime()
@@ -320,7 +329,7 @@ func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contr
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunFailedTaskMetadata{
-		TenantId: request.TenantId,
+		TenantId: tenant.ID,
 	})
 
 	// send the event to the jobs queue
@@ -336,7 +345,7 @@ func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contr
 	}
 
 	return &contracts.ActionEventResponse{
-		TenantId: request.TenantId,
+		TenantId: tenant.ID,
 		WorkerId: request.WorkerId,
 	}, nil
 }

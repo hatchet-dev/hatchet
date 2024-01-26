@@ -17,21 +17,28 @@ func TestNewCloudKMSEncryptionValid(t *testing.T) {
 	client, err := fakekms.NewClient(fakeKeyURI)
 	assert.NoError(t, err)
 
+	// generate JWT keysets
+	privateEc256, publicEc256, err := generateJWTKeysetsWithClient(fakeKeyURI, client)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Create encryption service with valid key URI and credentials
-	svc, err := newWithClient(client, fakeKeyURI)
+	svc, err := newWithClient(client, fakeKeyURI, privateEc256, publicEc256)
 	assert.NoError(t, err)
 	assert.NotNil(t, svc)
 }
 
 func TestNewCloudKMSEncryptionInvalidKeyUri(t *testing.T) {
 	// Create encryption service with invalid key URI
-	_, err := NewCloudKMSEncryption("invalid-key-uri", fakeCredentialsJSON)
+	_, err := NewCloudKMSEncryption("invalid-key-uri", fakeCredentialsJSON, nil, nil)
 	assert.Error(t, err)
 }
 
 func TestNewCloudKMSEncryptionInvalidCredentials(t *testing.T) {
 	// Create encryption service with invalid credentials
-	_, err := NewCloudKMSEncryption(fakeKeyURI, []byte("invalid credentials"))
+	_, err := NewCloudKMSEncryption(fakeKeyURI, []byte("invalid credentials"), nil, nil)
 	assert.Error(t, err)
 }
 
@@ -40,8 +47,15 @@ func TestEncryptDecryptCloudKMS(t *testing.T) {
 	client, err := fakekms.NewClient(fakeKeyURI)
 	assert.NoError(t, err)
 
+	// generate JWT keysets
+	privateEc256, publicEc256, err := generateJWTKeysetsWithClient(fakeKeyURI, client)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Create encryption service with valid key URI and credentials
-	svc, err := newWithClient(client, fakeKeyURI)
+	svc, err := newWithClient(client, fakeKeyURI, privateEc256, publicEc256)
 
 	if err != nil {
 		t.Fatal(err)
@@ -69,8 +83,15 @@ func TestEncryptDecryptCloudKMSWithEmptyDataID(t *testing.T) {
 	client, err := fakekms.NewClient(fakeKeyURI)
 	assert.NoError(t, err)
 
+	// generate JWT keysets
+	privateEc256, publicEc256, err := generateJWTKeysetsWithClient(fakeKeyURI, client)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Create encryption service with valid key URI and credentials
-	svc, err := newWithClient(client, fakeKeyURI)
+	svc, err := newWithClient(client, fakeKeyURI, privateEc256, publicEc256)
 
 	if err != nil {
 		t.Fatal(err)

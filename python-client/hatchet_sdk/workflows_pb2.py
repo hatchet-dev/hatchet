@@ -16,7 +16,7 @@ from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__
 from google.protobuf import wrappers_pb2 as google_dot_protobuf_dot_wrappers__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0fworkflows.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/wrappers.proto\"Q\n\x12PutWorkflowRequest\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12(\n\x04opts\x18\x02 \x01(\x0b\x32\x1a.CreateWorkflowVersionOpts\"\xdc\x01\n\x19\x43reateWorkflowVersionOpts\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x0f\n\x07version\x18\x03 \x01(\t\x12\x16\n\x0e\x65vent_triggers\x18\x04 \x03(\t\x12\x15\n\rcron_triggers\x18\x05 \x03(\t\x12\x36\n\x12scheduled_triggers\x18\x06 \x03(\x0b\x32\x1a.google.protobuf.Timestamp\x12$\n\x04jobs\x18\x07 \x03(\x0b\x32\x16.CreateWorkflowJobOpts\"s\n\x15\x43reateWorkflowJobOpts\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x0f\n\x07timeout\x18\x03 \x01(\t\x12&\n\x05steps\x18\x04 \x03(\x0b\x32\x17.CreateWorkflowStepOpts\"o\n\x16\x43reateWorkflowStepOpts\x12\x13\n\x0breadable_id\x18\x01 \x01(\t\x12\x0e\n\x06\x61\x63tion\x18\x02 \x01(\t\x12\x0f\n\x07timeout\x18\x03 \x01(\t\x12\x0e\n\x06inputs\x18\x04 \x01(\t\x12\x0f\n\x07parents\x18\x05 \x03(\t\")\n\x14ListWorkflowsRequest\x12\x11\n\ttenant_id\x18\x01 \x01(\t\"\x7f\n\x17ScheduleWorkflowRequest\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x13\n\x0bworkflow_id\x18\x02 \x01(\t\x12-\n\tschedules\x18\x03 \x03(\x0b\x32\x1a.google.protobuf.Timestamp\x12\r\n\x05input\x18\x04 \x01(\t\"5\n\x15ListWorkflowsResponse\x12\x1c\n\tworkflows\x18\x01 \x03(\x0b\x32\t.Workflow\"D\n\x1cListWorkflowsForEventRequest\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x11\n\tevent_key\x18\x02 \x01(\t\"\xee\x01\n\x08Workflow\x12\n\n\x02id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x11\n\ttenant_id\x18\x05 \x01(\t\x12\x0c\n\x04name\x18\x06 \x01(\t\x12\x31\n\x0b\x64\x65scription\x18\x07 \x01(\x0b\x32\x1c.google.protobuf.StringValue\x12\"\n\x08versions\x18\x08 \x03(\x0b\x32\x10.WorkflowVersion\"\xeb\x01\n\x0fWorkflowVersion\x12\n\n\x02id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07version\x18\x05 \x01(\t\x12\r\n\x05order\x18\x06 \x01(\x05\x12\x13\n\x0bworkflow_id\x18\x07 \x01(\t\x12#\n\x08triggers\x18\x08 \x01(\x0b\x32\x11.WorkflowTriggers\x12\x12\n\x04jobs\x18\t \x03(\x0b\x32\x04.Job\"\x80\x02\n\x10WorkflowTriggers\x12\n\n\x02id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x1b\n\x13workflow_version_id\x18\x05 \x01(\t\x12\x11\n\ttenant_id\x18\x06 \x01(\t\x12(\n\x06\x65vents\x18\x07 \x03(\x0b\x32\x18.WorkflowTriggerEventRef\x12&\n\x05\x63rons\x18\x08 \x03(\x0b\x32\x17.WorkflowTriggerCronRef\"?\n\x17WorkflowTriggerEventRef\x12\x11\n\tparent_id\x18\x01 \x01(\t\x12\x11\n\tevent_key\x18\x02 \x01(\t\"9\n\x16WorkflowTriggerCronRef\x12\x11\n\tparent_id\x18\x01 \x01(\t\x12\x0c\n\x04\x63ron\x18\x02 \x01(\t\"\xa7\x02\n\x03Job\x12\n\n\x02id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x11\n\ttenant_id\x18\x05 \x01(\t\x12\x1b\n\x13workflow_version_id\x18\x06 \x01(\t\x12\x0c\n\x04name\x18\x07 \x01(\t\x12\x31\n\x0b\x64\x65scription\x18\x08 \x01(\x0b\x32\x1c.google.protobuf.StringValue\x12\x14\n\x05steps\x18\t \x03(\x0b\x32\x05.Step\x12-\n\x07timeout\x18\n \x01(\x0b\x32\x1c.google.protobuf.StringValue\"\xaa\x02\n\x04Step\x12\n\n\x02id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x31\n\x0breadable_id\x18\x05 \x01(\x0b\x32\x1c.google.protobuf.StringValue\x12\x11\n\ttenant_id\x18\x06 \x01(\t\x12\x0e\n\x06job_id\x18\x07 \x01(\t\x12\x0e\n\x06\x61\x63tion\x18\x08 \x01(\t\x12-\n\x07timeout\x18\t \x01(\x0b\x32\x1c.google.protobuf.StringValue\x12\x0f\n\x07parents\x18\n \x03(\t\x12\x10\n\x08\x63hildren\x18\x0b \x03(\t\"?\n\x15\x44\x65leteWorkflowRequest\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x13\n\x0bworkflow_id\x18\x02 \x01(\t\";\n\x18GetWorkflowByNameRequest\x12\x11\n\ttenant_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t2\x87\x03\n\x0fWorkflowService\x12>\n\rListWorkflows\x12\x15.ListWorkflowsRequest\x1a\x16.ListWorkflowsResponse\x12\x34\n\x0bPutWorkflow\x12\x13.PutWorkflowRequest\x1a\x10.WorkflowVersion\x12>\n\x10ScheduleWorkflow\x12\x18.ScheduleWorkflowRequest\x1a\x10.WorkflowVersion\x12\x39\n\x11GetWorkflowByName\x12\x19.GetWorkflowByNameRequest\x1a\t.Workflow\x12N\n\x15ListWorkflowsForEvent\x12\x1d.ListWorkflowsForEventRequest\x1a\x16.ListWorkflowsResponse\x12\x33\n\x0e\x44\x65leteWorkflow\x12\x16.DeleteWorkflowRequest\x1a\t.WorkflowBBZ@github.com/hatchet-dev/hatchet/internal/services/admin/contractsb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0fworkflows.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/wrappers.proto\">\n\x12PutWorkflowRequest\x12(\n\x04opts\x18\x01 \x01(\x0b\x32\x1a.CreateWorkflowVersionOpts\"\xdc\x01\n\x19\x43reateWorkflowVersionOpts\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x0f\n\x07version\x18\x03 \x01(\t\x12\x16\n\x0e\x65vent_triggers\x18\x04 \x03(\t\x12\x15\n\rcron_triggers\x18\x05 \x03(\t\x12\x36\n\x12scheduled_triggers\x18\x06 \x03(\x0b\x32\x1a.google.protobuf.Timestamp\x12$\n\x04jobs\x18\x07 \x03(\x0b\x32\x16.CreateWorkflowJobOpts\"s\n\x15\x43reateWorkflowJobOpts\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x0f\n\x07timeout\x18\x03 \x01(\t\x12&\n\x05steps\x18\x04 \x03(\x0b\x32\x17.CreateWorkflowStepOpts\"o\n\x16\x43reateWorkflowStepOpts\x12\x13\n\x0breadable_id\x18\x01 \x01(\t\x12\x0e\n\x06\x61\x63tion\x18\x02 \x01(\t\x12\x0f\n\x07timeout\x18\x03 \x01(\t\x12\x0e\n\x06inputs\x18\x04 \x01(\t\x12\x0f\n\x07parents\x18\x05 \x03(\t\"\x16\n\x14ListWorkflowsRequest\"l\n\x17ScheduleWorkflowRequest\x12\x13\n\x0bworkflow_id\x18\x01 \x01(\t\x12-\n\tschedules\x18\x02 \x03(\x0b\x32\x1a.google.protobuf.Timestamp\x12\r\n\x05input\x18\x03 \x01(\t\"5\n\x15ListWorkflowsResponse\x12\x1c\n\tworkflows\x18\x01 \x03(\x0b\x32\t.Workflow\"1\n\x1cListWorkflowsForEventRequest\x12\x11\n\tevent_key\x18\x01 \x01(\t\"\xee\x01\n\x08Workflow\x12\n\n\x02id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x11\n\ttenant_id\x18\x05 \x01(\t\x12\x0c\n\x04name\x18\x06 \x01(\t\x12\x31\n\x0b\x64\x65scription\x18\x07 \x01(\x0b\x32\x1c.google.protobuf.StringValue\x12\"\n\x08versions\x18\x08 \x03(\x0b\x32\x10.WorkflowVersion\"\xeb\x01\n\x0fWorkflowVersion\x12\n\n\x02id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07version\x18\x05 \x01(\t\x12\r\n\x05order\x18\x06 \x01(\x05\x12\x13\n\x0bworkflow_id\x18\x07 \x01(\t\x12#\n\x08triggers\x18\x08 \x01(\x0b\x32\x11.WorkflowTriggers\x12\x12\n\x04jobs\x18\t \x03(\x0b\x32\x04.Job\"\x80\x02\n\x10WorkflowTriggers\x12\n\n\x02id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x1b\n\x13workflow_version_id\x18\x05 \x01(\t\x12\x11\n\ttenant_id\x18\x06 \x01(\t\x12(\n\x06\x65vents\x18\x07 \x03(\x0b\x32\x18.WorkflowTriggerEventRef\x12&\n\x05\x63rons\x18\x08 \x03(\x0b\x32\x17.WorkflowTriggerCronRef\"?\n\x17WorkflowTriggerEventRef\x12\x11\n\tparent_id\x18\x01 \x01(\t\x12\x11\n\tevent_key\x18\x02 \x01(\t\"9\n\x16WorkflowTriggerCronRef\x12\x11\n\tparent_id\x18\x01 \x01(\t\x12\x0c\n\x04\x63ron\x18\x02 \x01(\t\"\xa7\x02\n\x03Job\x12\n\n\x02id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x11\n\ttenant_id\x18\x05 \x01(\t\x12\x1b\n\x13workflow_version_id\x18\x06 \x01(\t\x12\x0c\n\x04name\x18\x07 \x01(\t\x12\x31\n\x0b\x64\x65scription\x18\x08 \x01(\x0b\x32\x1c.google.protobuf.StringValue\x12\x14\n\x05steps\x18\t \x03(\x0b\x32\x05.Step\x12-\n\x07timeout\x18\n \x01(\x0b\x32\x1c.google.protobuf.StringValue\"\xaa\x02\n\x04Step\x12\n\n\x02id\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x31\n\x0breadable_id\x18\x05 \x01(\x0b\x32\x1c.google.protobuf.StringValue\x12\x11\n\ttenant_id\x18\x06 \x01(\t\x12\x0e\n\x06job_id\x18\x07 \x01(\t\x12\x0e\n\x06\x61\x63tion\x18\x08 \x01(\t\x12-\n\x07timeout\x18\t \x01(\x0b\x32\x1c.google.protobuf.StringValue\x12\x0f\n\x07parents\x18\n \x03(\t\x12\x10\n\x08\x63hildren\x18\x0b \x03(\t\",\n\x15\x44\x65leteWorkflowRequest\x12\x13\n\x0bworkflow_id\x18\x01 \x01(\t\"(\n\x18GetWorkflowByNameRequest\x12\x0c\n\x04name\x18\x01 \x01(\t2\x87\x03\n\x0fWorkflowService\x12>\n\rListWorkflows\x12\x15.ListWorkflowsRequest\x1a\x16.ListWorkflowsResponse\x12\x34\n\x0bPutWorkflow\x12\x13.PutWorkflowRequest\x1a\x10.WorkflowVersion\x12>\n\x10ScheduleWorkflow\x12\x18.ScheduleWorkflowRequest\x1a\x10.WorkflowVersion\x12\x39\n\x11GetWorkflowByName\x12\x19.GetWorkflowByNameRequest\x1a\t.Workflow\x12N\n\x15ListWorkflowsForEvent\x12\x1d.ListWorkflowsForEventRequest\x1a\x16.ListWorkflowsResponse\x12\x33\n\x0e\x44\x65leteWorkflow\x12\x16.DeleteWorkflowRequest\x1a\t.WorkflowBBZ@github.com/hatchet-dev/hatchet/internal/services/admin/contractsb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -25,39 +25,39 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['DESCRIPTOR']._options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z@github.com/hatchet-dev/hatchet/internal/services/admin/contracts'
   _globals['_PUTWORKFLOWREQUEST']._serialized_start=84
-  _globals['_PUTWORKFLOWREQUEST']._serialized_end=165
-  _globals['_CREATEWORKFLOWVERSIONOPTS']._serialized_start=168
-  _globals['_CREATEWORKFLOWVERSIONOPTS']._serialized_end=388
-  _globals['_CREATEWORKFLOWJOBOPTS']._serialized_start=390
-  _globals['_CREATEWORKFLOWJOBOPTS']._serialized_end=505
-  _globals['_CREATEWORKFLOWSTEPOPTS']._serialized_start=507
-  _globals['_CREATEWORKFLOWSTEPOPTS']._serialized_end=618
-  _globals['_LISTWORKFLOWSREQUEST']._serialized_start=620
-  _globals['_LISTWORKFLOWSREQUEST']._serialized_end=661
-  _globals['_SCHEDULEWORKFLOWREQUEST']._serialized_start=663
-  _globals['_SCHEDULEWORKFLOWREQUEST']._serialized_end=790
-  _globals['_LISTWORKFLOWSRESPONSE']._serialized_start=792
-  _globals['_LISTWORKFLOWSRESPONSE']._serialized_end=845
-  _globals['_LISTWORKFLOWSFOREVENTREQUEST']._serialized_start=847
-  _globals['_LISTWORKFLOWSFOREVENTREQUEST']._serialized_end=915
-  _globals['_WORKFLOW']._serialized_start=918
-  _globals['_WORKFLOW']._serialized_end=1156
-  _globals['_WORKFLOWVERSION']._serialized_start=1159
-  _globals['_WORKFLOWVERSION']._serialized_end=1394
-  _globals['_WORKFLOWTRIGGERS']._serialized_start=1397
-  _globals['_WORKFLOWTRIGGERS']._serialized_end=1653
-  _globals['_WORKFLOWTRIGGEREVENTREF']._serialized_start=1655
-  _globals['_WORKFLOWTRIGGEREVENTREF']._serialized_end=1718
-  _globals['_WORKFLOWTRIGGERCRONREF']._serialized_start=1720
-  _globals['_WORKFLOWTRIGGERCRONREF']._serialized_end=1777
-  _globals['_JOB']._serialized_start=1780
-  _globals['_JOB']._serialized_end=2075
-  _globals['_STEP']._serialized_start=2078
-  _globals['_STEP']._serialized_end=2376
-  _globals['_DELETEWORKFLOWREQUEST']._serialized_start=2378
-  _globals['_DELETEWORKFLOWREQUEST']._serialized_end=2441
-  _globals['_GETWORKFLOWBYNAMEREQUEST']._serialized_start=2443
-  _globals['_GETWORKFLOWBYNAMEREQUEST']._serialized_end=2502
-  _globals['_WORKFLOWSERVICE']._serialized_start=2505
-  _globals['_WORKFLOWSERVICE']._serialized_end=2896
+  _globals['_PUTWORKFLOWREQUEST']._serialized_end=146
+  _globals['_CREATEWORKFLOWVERSIONOPTS']._serialized_start=149
+  _globals['_CREATEWORKFLOWVERSIONOPTS']._serialized_end=369
+  _globals['_CREATEWORKFLOWJOBOPTS']._serialized_start=371
+  _globals['_CREATEWORKFLOWJOBOPTS']._serialized_end=486
+  _globals['_CREATEWORKFLOWSTEPOPTS']._serialized_start=488
+  _globals['_CREATEWORKFLOWSTEPOPTS']._serialized_end=599
+  _globals['_LISTWORKFLOWSREQUEST']._serialized_start=601
+  _globals['_LISTWORKFLOWSREQUEST']._serialized_end=623
+  _globals['_SCHEDULEWORKFLOWREQUEST']._serialized_start=625
+  _globals['_SCHEDULEWORKFLOWREQUEST']._serialized_end=733
+  _globals['_LISTWORKFLOWSRESPONSE']._serialized_start=735
+  _globals['_LISTWORKFLOWSRESPONSE']._serialized_end=788
+  _globals['_LISTWORKFLOWSFOREVENTREQUEST']._serialized_start=790
+  _globals['_LISTWORKFLOWSFOREVENTREQUEST']._serialized_end=839
+  _globals['_WORKFLOW']._serialized_start=842
+  _globals['_WORKFLOW']._serialized_end=1080
+  _globals['_WORKFLOWVERSION']._serialized_start=1083
+  _globals['_WORKFLOWVERSION']._serialized_end=1318
+  _globals['_WORKFLOWTRIGGERS']._serialized_start=1321
+  _globals['_WORKFLOWTRIGGERS']._serialized_end=1577
+  _globals['_WORKFLOWTRIGGEREVENTREF']._serialized_start=1579
+  _globals['_WORKFLOWTRIGGEREVENTREF']._serialized_end=1642
+  _globals['_WORKFLOWTRIGGERCRONREF']._serialized_start=1644
+  _globals['_WORKFLOWTRIGGERCRONREF']._serialized_end=1701
+  _globals['_JOB']._serialized_start=1704
+  _globals['_JOB']._serialized_end=1999
+  _globals['_STEP']._serialized_start=2002
+  _globals['_STEP']._serialized_end=2300
+  _globals['_DELETEWORKFLOWREQUEST']._serialized_start=2302
+  _globals['_DELETEWORKFLOWREQUEST']._serialized_end=2346
+  _globals['_GETWORKFLOWBYNAMEREQUEST']._serialized_start=2348
+  _globals['_GETWORKFLOWBYNAMEREQUEST']._serialized_end=2388
+  _globals['_WORKFLOWSERVICE']._serialized_start=2391
+  _globals['_WORKFLOWSERVICE']._serialized_end=2782
 # @@protoc_insertion_point(module_scope)

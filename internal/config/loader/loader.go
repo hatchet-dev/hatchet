@@ -202,11 +202,16 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	}
 
 	if cf.Encryption.CloudKMS.Enabled {
-		// encryptionSvc, err = encryption.NewCloudKMSEncryption(cf.Encryption.CloudKMS.KeyURI, []byte(cf.Encryption.CloudKMS.CredentialsJSON))
+		encryptionSvc, err = encryption.NewCloudKMSEncryption(
+			cf.Encryption.CloudKMS.KeyURI,
+			[]byte(cf.Encryption.CloudKMS.CredentialsJSON),
+			[]byte(cf.Encryption.JWT.PrivateJWTKeyset),
+			[]byte(cf.Encryption.JWT.PublicJWTKeyset),
+		)
 
-		// if err != nil {
-		// 	return nil, fmt.Errorf("could not create CloudKMS encryption service: %w", err)
-		// }
+		if err != nil {
+			return nil, fmt.Errorf("could not create CloudKMS encryption service: %w", err)
+		}
 	}
 
 	auth := server.AuthConfig{

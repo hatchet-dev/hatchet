@@ -134,6 +134,7 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 		}
 
 		grpcOpts := []grpc.ServerOpt{
+			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
 			grpc.WithAdmin(adminSvc),

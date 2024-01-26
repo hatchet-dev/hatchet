@@ -41,6 +41,35 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 		return nil
 	}
 
+	var err error
+	var checkedAuthz bool
+
+	if r.Security.CookieAuth() && c.Get("auth_strategy").(string) == "cookie" {
+		err = a.handleCookieAuth(c, r)
+		checkedAuthz = true
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if r.Security.BearerAuth() && c.Get("auth_strategy").(string) == "bearer" {
+		err = a.handleBearerAuth(c, r)
+		checkedAuthz = true
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if !checkedAuthz {
+		return echo.NewHTTPError(http.StatusInternalServerError, "No authorization strategy was checked")
+	}
+
+	return nil
+}
+
+func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error {
 	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
 
 	if err := a.ensureVerifiedEmail(c, r); err != nil {
@@ -82,6 +111,23 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 
 			return unauthorized
 		}
+	}
+
+	return nil
+}
+
+var restrictedWithBearerToken = []string{
+	// bearer tokens cannot read, list, or write other bearer tokens
+	"ApiTokenList",
+	"ApiTokenCreate",
+	"ApiTokenUpdateRevoke",
+}
+
+// At the moment, there's no further bearer auth because bearer tokens are admin-scoped
+// and we check that the bearer token has access to the tenant in the authn step.
+func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
+	if operationIn(r.OperationID, restrictedWithBearerToken) {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 
 	return nil

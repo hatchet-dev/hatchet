@@ -17,8 +17,22 @@ CREATE TYPE "WorkerStatus" AS ENUM ('ACTIVE', 'INACTIVE');
 CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED');
 
 -- CreateTable
+CREATE TABLE "APIToken" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expiresAt" TIMESTAMP(3),
+    "revoked" BOOLEAN NOT NULL DEFAULT false,
+    "name" TEXT,
+    "tenantId" UUID,
+
+    CONSTRAINT "APIToken_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Action" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL,
+    "actionId" TEXT NOT NULL,
     "description" TEXT,
     "tenantId" UUID NOT NULL,
 
@@ -228,8 +242,8 @@ CREATE TABLE "UserOAuth" (
     "userId" UUID NOT NULL,
     "provider" TEXT NOT NULL,
     "providerUserId" TEXT NOT NULL,
-    "accessToken" TEXT NOT NULL,
-    "refreshToken" TEXT,
+    "accessToken" BYTEA NOT NULL,
+    "refreshToken" BYTEA,
     "expiresAt" TIMESTAMP(3),
 
     CONSTRAINT "UserOAuth_pkey" PRIMARY KEY ("id")
@@ -376,7 +390,7 @@ CREATE TABLE "WorkflowVersion" (
 
 -- CreateTable
 CREATE TABLE "_ActionToWorker" (
-    "A" TEXT NOT NULL,
+    "A" UUID NOT NULL,
     "B" UUID NOT NULL
 );
 
@@ -405,7 +419,13 @@ CREATE TABLE "_WorkflowToWorkflowTag" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Action_tenantId_id_key" ON "Action"("tenantId" ASC, "id" ASC);
+CREATE UNIQUE INDEX "APIToken_id_key" ON "APIToken"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Action_id_key" ON "Action"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Action_tenantId_actionId_key" ON "Action"("tenantId" ASC, "actionId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Dispatcher_id_key" ON "Dispatcher"("id" ASC);
@@ -567,6 +587,9 @@ CREATE UNIQUE INDEX "_WorkflowToWorkflowTag_AB_unique" ON "_WorkflowToWorkflowTa
 CREATE INDEX "_WorkflowToWorkflowTag_B_index" ON "_WorkflowToWorkflowTag"("B" ASC);
 
 -- AddForeignKey
+ALTER TABLE "APIToken" ADD CONSTRAINT "APIToken_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Action" ADD CONSTRAINT "Action_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -603,7 +626,7 @@ ALTER TABLE "JobRunLookupData" ADD CONSTRAINT "JobRunLookupData_tenantId_fkey" F
 ALTER TABLE "Service" ADD CONSTRAINT "Service_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Step" ADD CONSTRAINT "Step_actionId_tenantId_fkey" FOREIGN KEY ("actionId", "tenantId") REFERENCES "Action"("id", "tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Step" ADD CONSTRAINT "Step_actionId_tenantId_fkey" FOREIGN KEY ("actionId", "tenantId") REFERENCES "Action"("actionId", "tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Step" ADD CONSTRAINT "Step_jobId_fkey" FOREIGN KEY ("jobId") REFERENCES "Job"("id") ON DELETE CASCADE ON UPDATE CASCADE;

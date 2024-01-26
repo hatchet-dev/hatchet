@@ -8,13 +8,13 @@ from ..logger import logger
 import json
 import grpc
 from typing import Callable, List, Union
+from ..metadata import get_metadata
+
 
 def new_dispatcher(conn, config: ClientConfig):
     return DispatcherClientImpl(
         client=DispatcherStub(conn),
-        tenant_id=config.tenant_id,
-        # logger=shared_opts['logger'],
-        # validator=shared_opts['validator'],
+        token=config.token,
     )
     
 class DispatcherClient:
@@ -60,9 +60,9 @@ START_STEP_RUN = 0
 CANCEL_STEP_RUN = 1
 
 class ActionListenerImpl(WorkerActionListener):
-    def __init__(self, client : DispatcherStub, tenant_id, worker_id):
+    def __init__(self, client : DispatcherStub, token, worker_id):
         self.client = client
-        self.tenant_id = tenant_id
+        self.token = token
         self.worker_id = worker_id
         self.retries = 0
         
@@ -145,42 +145,43 @@ class ActionListenerImpl(WorkerActionListener):
             time.sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL)
         
         return self.client.Listen(WorkerListenRequest(
-                    tenantId=self.tenant_id,
                     workerId=self.worker_id
-                ), timeout=DEFAULT_ACTION_TIMEOUT)
+                ), 
+                timeout=DEFAULT_ACTION_TIMEOUT, 
+                metadata=get_metadata(self.token),
+            )
 
     def unregister(self):
         try:
             self.client.Unsubscribe(
                 WorkerUnsubscribeRequest(
-                    tenantId=self.tenant_id,
                     workerId=self.worker_id
                 ),
                 timeout=DEFAULT_REGISTER_TIMEOUT,
+                metadata=get_metadata(self.token),
             )
         except grpc.RpcError as e:
             raise Exception(f"Failed to unsubscribe: {e}")
 
 class DispatcherClientImpl(DispatcherClient):
-    def __init__(self, client : DispatcherStub, tenant_id):
+    def __init__(self, client : DispatcherStub, token):
         self.client = client
-        self.tenant_id = tenant_id
+        self.token = token
         # self.logger = logger
         # self.validator = validator
 
     def get_action_listener(self, req: GetActionListenerRequest) -> ActionListenerImpl:
         # Register the worker
         response : WorkerRegisterResponse = self.client.Register(WorkerRegisterRequest(
-            tenantId=self.tenant_id,
             workerName=req.worker_name,
             actions=req.actions,
             services=req.services
-        ), timeout=DEFAULT_REGISTER_TIMEOUT)
+        ), timeout=DEFAULT_REGISTER_TIMEOUT, metadata=get_metadata(self.token))
 
-        return ActionListenerImpl(self.client, self.tenant_id, response.workerId)
+        return ActionListenerImpl(self.client, self.token, response.workerId)
 
     def send_action_event(self, in_: ActionEvent):
-        response : ActionEventResponse = self.client.SendActionEvent(in_)
+        response : ActionEventResponse = self.client.SendActionEvent(in_, metadata=get_metadata(self.token),)
 
         return response
 

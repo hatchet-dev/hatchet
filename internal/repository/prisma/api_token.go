@@ -43,6 +43,10 @@ func (a *apiTokenRepository) CreateAPIToken(opts *repository.CreateAPITokenOpts)
 		))
 	}
 
+	if opts.Name != nil {
+		optionals = append(optionals, db.APIToken.Name.Set(*opts.Name))
+	}
+
 	return a.client.APIToken.CreateOne(
 		optionals...,
 	).Exec(context.Background())
@@ -62,5 +66,6 @@ func (a *apiTokenRepository) RevokeAPIToken(id string) error {
 func (a *apiTokenRepository) ListAPITokensByTenant(tenantId string) ([]db.APITokenModel, error) {
 	return a.client.APIToken.FindMany(
 		db.APIToken.TenantID.Equals(tenantId),
+		db.APIToken.Revoked.Equals(false),
 	).Exec(context.Background())
 }

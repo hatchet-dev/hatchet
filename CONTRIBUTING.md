@@ -8,7 +8,7 @@
 - `docker-compose`
 - [`Taskfile`](https://taskfile.dev/installation/)
 - The following additional devtools:
-  - `protoc`: `brew install protobuf@25` 
+  - `protoc`: `brew install protobuf@25`
   - `caddy` and `nss`: `brew install caddy nss`
 
 ### Setup
@@ -82,4 +82,26 @@ OTEL_EXPORTER_OTLP_HEADERS=<optional-headers>
 
 # optional
 OTEL_EXPORTER_OTLP_ENDPOINT=<collector-url>
+```
+
+### CloudKMS
+
+CloudKMS can be used to generate master encryption keys:
+
+```
+gcloud kms keyrings create "development" --location "global"
+gcloud kms keys create "development" --location "global" --keyring "development" --purpose "encryption"
+gcloud kms keys list --location "global" --keyring "development"
+```
+
+From the last step, copy the Key URI and set the following environment variable:
+
+```
+SERVER_ENCRYPTION_CLOUDKMS_KEY_URI=gcp-kms://projects/<PROJECT>/locations/global/keyRings/development/cryptoKeys/development
+```
+
+Generate a service account in GCP which can encrypt/decrypt on CloudKMS, then download a service account JSON file and set it via:
+
+```
+SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON='{...}'
 ```

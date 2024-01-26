@@ -9,19 +9,54 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/encryption"
 )
 
+var (
+	cloudKMSCredentialsPath string
+	cloudKMSKeyURI          string
+)
+
 // keysetCmd seeds the database with initial data
 var keysetCmd = &cobra.Command{
 	Use:   "keyset",
 	Short: "command for managing keysets.",
 }
 
-var keysetCreateLocalCmd = &cobra.Command{
-	Use:   "create-local",
-	Short: "create a new local keyset.",
+var keysetCreateMasterCmd = &cobra.Command{
+	Use:   "create-master",
+	Short: "create a new local master keyset.",
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error
 
-		err = runCreateLocalKeyset()
+		err = runCreateLocalMasterKeyset()
+
+		if err != nil {
+			fmt.Printf("Fatal: could not run seed command: %v\n", err)
+			os.Exit(1)
+		}
+	},
+}
+
+var keysetCreateLocalJWTCmd = &cobra.Command{
+	Use:   "create-local-jwt",
+	Short: "create a new local JWT keyset.",
+	Run: func(cmd *cobra.Command, args []string) {
+		var err error
+
+		err = runCreateLocalJWTKeyset()
+
+		if err != nil {
+			fmt.Printf("Fatal: could not run seed command: %v\n", err)
+			os.Exit(1)
+		}
+	},
+}
+
+var keysetCreateCloudKMSJWTCmd = &cobra.Command{
+	Use:   "create-cloudkms-jwt",
+	Short: "create a new JWT keyset encrypted by a remote CloudKMS repository.",
+	Run: func(cmd *cobra.Command, args []string) {
+		var err error
+
+		err = runCreateCloudKMSJWTKeyset()
 
 		if err != nil {
 			fmt.Printf("Fatal: could not run seed command: %v\n", err)
@@ -32,11 +67,27 @@ var keysetCreateLocalCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(keysetCmd)
-	keysetCmd.AddCommand(keysetCreateLocalCmd)
+	keysetCmd.AddCommand(keysetCreateMasterCmd)
+	keysetCmd.AddCommand(keysetCreateLocalJWTCmd)
+	keysetCmd.AddCommand(keysetCreateCloudKMSJWTCmd)
+
+	keysetCreateCloudKMSJWTCmd.PersistentFlags().StringVar(
+		&cloudKMSCredentialsPath,
+		"credentials",
+		"",
+		"path to the JSON credentials file for the CloudKMS repository",
+	)
+
+	keysetCreateCloudKMSJWTCmd.PersistentFlags().StringVar(
+		&cloudKMSKeyURI,
+		"key-uri",
+		"",
+		"URI of the key in the CloudKMS repository",
+	)
 }
 
-func runCreateLocalKeyset() error {
-	masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
+func runCreateLocalMasterKeyset() error {
+	masterKeyBytes, _, _, err := encryption.GenerateLocalKeys()
 
 	if err != nil {
 		return err
@@ -44,6 +95,46 @@ func runCreateLocalKeyset() error {
 
 	fmt.Println("Master Key Bytes:")
 	fmt.Println(string(masterKeyBytes))
+
+	return nil
+}
+
+func runCreateLocalJWTKeyset() error {
+	_, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Private EC256 Keyset:")
+	fmt.Println(string(privateEc256))
+
+	fmt.Println("Public EC256 Keyset:")
+	fmt.Println(string(publicEc256))
+
+	return nil
+}
+
+func runCreateCloudKMSJWTKeyset() error {
+	if cloudKMSCredentialsPath == "" {
+		return fmt.Errorf("missing required flag --credentials")
+	}
+
+	if cloudKMSKeyURI == "" {
+		return fmt.Errorf("missing required flag --key-uri")
+	}
+
+	credentials, err := os.ReadFile(cloudKMSCredentialsPath)
+
+	if err != nil {
+		return err
+	}
+
+	privateEc256, publicEc256, err := encryption.GenerateJWTKeysetsFromCloudKMS(cloudKMSKeyURI, credentials)
+
+	if err != nil {
+		return err
+	}
 
 	fmt.Println("Private EC256 Keyset:")
 	fmt.Println(string(privateEc256))

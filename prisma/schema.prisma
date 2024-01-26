@@ -53,10 +53,10 @@ model UserOAuth {
   providerUserId String
 
   // the oauth provider's access token
-  accessToken Bytes
+  accessToken Bytes @db.ByteA
 
   // the oauth provider's refresh token
-  refreshToken Bytes?
+  refreshToken Bytes? @db.ByteA
 
   // the oauth provider's expiry time
   expiresAt DateTime?
@@ -181,6 +181,9 @@ model APIToken {
 
   // whether the token has been revoked
   revoked Boolean @default(false)
+
+  // an optional name for the token
+  name String?
 
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String? @db.Uuid
@@ -402,7 +405,9 @@ model Job {
 
 model Action {
   // base fields
-  id String @id
+  id String @id @unique @default(uuid()) @db.Uuid
+
+  actionId String
 
   // the action description
   description String?
@@ -417,7 +422,7 @@ model Action {
   workers Worker[]
 
   // actions are unique per tenant
-  @@unique([tenantId, id])
+  @@unique([tenantId, actionId])
 }
 
 model Step {
@@ -439,7 +444,7 @@ model Step {
   jobId String @db.Uuid
 
   // an action id for the step
-  action   Action @relation(fields: [actionId, tenantId], references: [id, tenantId])
+  action   Action @relation(fields: [actionId, tenantId], references: [actionId, tenantId])
   actionId String
 
   timeout String?

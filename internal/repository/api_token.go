@@ -15,6 +15,9 @@ type CreateAPITokenOpts struct {
 
 	// (optional) A tenant ID for this API token
 	TenantId *string `validate:"omitempty,uuid"`
+
+	// (optional) A name for this API token
+	Name *string `validate:"omitempty,max=255"`
 }
 
 type APITokenRepository interface {

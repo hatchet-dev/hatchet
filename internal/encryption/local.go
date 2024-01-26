@@ -46,51 +46,6 @@ func NewLocalEncryption(masterKey []byte, privateEc256 []byte, publicEc256 []byt
 		return nil, err
 	}
 
-	// // base64-decode bytes
-	// keysetJsonBytes := make([]byte, base64.RawStdEncoding.DecodedLen(len(keysetBytes)))
-	// _, err := base64.RawStdEncoding.Decode(keysetJsonBytes, keysetBytes)
-
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to decode keyset bytes: %w", err)
-	// }
-
-	// // read keyset
-	// handle, err := insecurecleartextkeyset.Read(keyset.NewJSONReader(bytes.NewReader(keysetJsonBytes)))
-
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to read keyset: %w", err)
-	// }
-
-	// jwtTemplate := jwt.ES256Template()
-	// jwtHandle, err := keyset.NewHandle(jwtTemplate)
-
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// kh, err := keyset.NewHandle(signature.ECDSAP256KeyTemplate()) // Other key templates can also be used.
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create new handle: %w", err)
-	// }
-
-	// publicKeyset, err := kh.Public()
-
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to get public keyset: %w", err)
-	// }
-
-	// _, err = jwt.JWKSetFromPublicKeysetHandle(publicKeyset)
-
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create JWK set: %w", err)
-	// }
-
-	// a, err := aead.New(handle)
-
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create AEAD: %w", err)
-	// }
-
 	envelope := aead.NewKMSEnvelopeAEAD2(aead.AES128GCMKeyTemplate(), a)
 
 	if envelope == nil {
@@ -175,47 +130,6 @@ func generateJWTKeysets(masterKey tink.AEAD) (privateEc256 []byte, publicEc256 [
 
 	return
 }
-
-// // NewLocalKeyset generates a new local keyset and returns it as a base64-encoded JSON string.
-// // Note that this uses the insecurecleartextkeyset package. It's recommended to use the CloudKMS
-// // service, but this will work for smaller deployments. If the keyset is exposed, all API tokens
-// // must be revoked and a new local keyset should be created.
-// func NewLocalKeysets() (aes256Gcm []byte, privateEc256 []byte, publicEc256 []byte, err error) {
-// 	// Generate a new keyset handle for the primitive we want to use.
-// 	aeadTemplate := aead.AES256GCMKeyTemplate()
-
-// 	aes256GcmHandle, err := keyset.NewHandle(aeadTemplate)
-
-// 	if err != nil {
-// 		return
-// 	}
-
-// 	if aes256Gcm, err = bytesFromHandle(aes256GcmHandle); err != nil {
-// 		return
-// 	}
-
-// 	kh, err := keyset.NewHandle(signature.ECDSAP256KeyTemplate())
-
-// 	if err != nil {
-// 		return
-// 	}
-
-// 	if privateEc256, err = bytesFromHandle(kh); err != nil {
-// 		return
-// 	}
-
-// 	publicKeyset, err := kh.Public()
-
-// 	if err != nil {
-// 		return
-// 	}
-
-// 	if publicEc256, err = bytesFromHandle(publicKeyset); err != nil {
-// 		return
-// 	}
-
-// 	return
-// }
 
 // bytesFromHandle returns the encrypted keyset in base64-encoded JSON format, encrypted with the
 // masterKey

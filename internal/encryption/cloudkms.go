@@ -7,7 +7,6 @@ import (
 	"github.com/tink-crypto/tink-go-gcpkms/integration/gcpkms"
 	"github.com/tink-crypto/tink-go/aead"
 	"github.com/tink-crypto/tink-go/core/registry"
-	"github.com/tink-crypto/tink-go/jwt"
 	"github.com/tink-crypto/tink-go/keyset"
 	"google.golang.org/api/option"
 )
@@ -19,17 +18,39 @@ type cloudkmsEncryptionService struct {
 }
 
 // NewCloudKMSEncryption creates a GCP CloudKMS-backed encryption service.
-func NewCloudKMSEncryption(keyUri string, credentialsJSON []byte) (*cloudkmsEncryptionService, error) {
+func NewCloudKMSEncryption(keyUri string, credentialsJSON, privateEc256, publicEc256 []byte) (*cloudkmsEncryptionService, error) {
 	client, err := gcpkms.NewClientWithOptions(context.Background(), keyUri, option.WithCredentialsJSON(credentialsJSON))
 
 	if err != nil {
 		return nil, err
 	}
 
-	return newWithClient(client, keyUri)
+	return newWithClient(client, keyUri, privateEc256, publicEc256)
 }
 
-func newWithClient(client registry.KMSClient, keyUri string) (*cloudkmsEncryptionService, error) {
+func GenerateJWTKeysetsFromCloudKMS(keyUri string, credentialsJSON []byte) (privateEc256 []byte, publicEc256 []byte, err error) {
+	client, err := gcpkms.NewClientWithOptions(context.Background(), keyUri, option.WithCredentialsJSON(credentialsJSON))
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return generateJWTKeysetsWithClient(keyUri, client)
+}
+
+func generateJWTKeysetsWithClient(keyUri string, client registry.KMSClient) (privateEc256 []byte, publicEc256 []byte, err error) {
+	registry.RegisterKMSClient(client)
+
+	remote, err := client.GetAEAD(keyUri)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return generateJWTKeysets(remote)
+}
+
+func newWithClient(client registry.KMSClient, keyUri string, privateEc256, publicEc256 []byte) (*cloudkmsEncryptionService, error) {
 	registry.RegisterKMSClient(client)
 
 	dek := aead.AES128CTRHMACSHA256KeyTemplate()
@@ -52,23 +73,22 @@ func newWithClient(client registry.KMSClient, keyUri string) (*cloudkmsEncryptio
 		return nil, fmt.Errorf("failed to create envelope")
 	}
 
-	jwtTemplate := jwt.ES256Template()
-
-	jwtHandle, err := keyset.NewHandle(jwtTemplate)
+	privateEc256Handle, err := handleFromBytes(privateEc256, remote)
 
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = jwt.JWKSetFromPublicKeysetHandle(jwtHandle)
+	publicEc256Handle, err := handleFromBytes(publicEc256, remote)
 
 	if err != nil {
 		return nil, err
 	}
 
 	return &cloudkmsEncryptionService{
-		key: envelope,
-		// jwtHandle: jwtHandle,
+		key:                envelope,
+		privateEc256Handle: privateEc256Handle,
+		publicEc256Handle:  publicEc256Handle,
 	}, nil
 }
 
@@ -80,6 +100,10 @@ func (svc *cloudkmsEncryptionService) Decrypt(ciphertext []byte, dataId string) 
 	return decrypt(svc.key, ciphertext, dataId)
 }
 
-// func (svc *cloudkmsEncryptionService) GetJWTHandle() *keyset.Handle {
-// 	return svc.jwtHandle
-// }
+func (svc *cloudkmsEncryptionService) GetPrivateJWTHandle() *keyset.Handle {
+	return svc.privateEc256Handle
+}
+
+func (svc *cloudkmsEncryptionService) GetPublicJWTHandle() *keyset.Handle {
+	return svc.publicEc256Handle
+}

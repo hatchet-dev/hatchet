@@ -16,6 +16,8 @@ import (
 )
 
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
 	eventDataMap := map[string]interface{}{}
 
 	err := json.Unmarshal([]byte(req.Payload), &eventDataMap)
@@ -24,7 +26,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		return nil, err
 	}
 
-	event, err := i.IngestEvent(ctx, req.TenantId, req.Key, eventDataMap)
+	event, err := i.IngestEvent(ctx, tenant.ID, req.Key, eventDataMap)
 
 	if err != nil {
 		return nil, err
@@ -40,6 +42,8 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 }
 
 func (i *IngestorImpl) List(ctx context.Context, req *contracts.ListEventRequest) (*contracts.ListEventResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
 	offset := int(req.Offset)
 	var keys []string
 
@@ -47,7 +51,7 @@ func (i *IngestorImpl) List(ctx context.Context, req *contracts.ListEventRequest
 		keys = []string{req.Key}
 	}
 
-	listResult, err := i.eventRepository.ListEvents(req.TenantId, &repository.ListEventOpts{
+	listResult, err := i.eventRepository.ListEvents(tenant.ID, &repository.ListEventOpts{
 		Keys:   keys,
 		Offset: &offset,
 	})
@@ -74,13 +78,15 @@ func (i *IngestorImpl) List(ctx context.Context, req *contracts.ListEventRequest
 }
 
 func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.ReplayEventRequest) (*contracts.Event, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
 	oldEvent, err := i.eventRepository.GetEventById(req.EventId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	newEvent, err := i.IngestReplayedEvent(ctx, req.TenantId, oldEvent)
+	newEvent, err := i.IngestReplayedEvent(ctx, tenant.ID, oldEvent)
 
 	if err != nil {
 		return nil, err

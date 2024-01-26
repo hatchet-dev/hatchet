@@ -184,6 +184,14 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
 
+	// encryption options
+	_ = v.BindEnv("encryption.masterKeyset", "SERVER_ENCRYPTION_MASTER_KEYSET")
+	_ = v.BindEnv("encryption.jwt.publicJWTKeyset", "SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET")
+	_ = v.BindEnv("encryption.jwt.privateJWTKeyset", "SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET")
+	_ = v.BindEnv("encryption.cloudKms.enabled", "SERVER_ENCRYPTION_CLOUDKMS_ENABLED")
+	_ = v.BindEnv("encryption.cloudKms.keyURI", "SERVER_ENCRYPTION_CLOUDKMS_KEY_URI")
+	_ = v.BindEnv("encryption.cloudKms.credentialsJSON", "SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON")
+
 	// auth options
 	_ = v.BindEnv("auth.restrictedEmailDomains", "SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS")
 	_ = v.BindEnv("auth.basicAuthEnabled", "SERVER_AUTH_BASIC_AUTH_ENABLED")
@@ -202,6 +210,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("taskQueue.rabbitmq.url", "SERVER_TASKQUEUE_RABBITMQ_URL")
 
 	// tls options
+	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")
 	_ = v.BindEnv("tls.tlsCert", "SERVER_TLS_CERT")
 	_ = v.BindEnv("tls.tlsCertFile", "SERVER_TLS_CERT_FILE")
 	_ = v.BindEnv("tls.tlsKey", "SERVER_TLS_KEY")
