@@ -25,14 +25,22 @@ type jwtManagerImpl struct {
 	encryption encryption.EncryptionService
 	opts       *TokenOpts
 	tokenRepo  repository.APITokenRepository
+	verifier   jwt.Verifier
 }
 
-func NewJWTManager(encryption encryption.EncryptionService, tokenRepo repository.APITokenRepository, opts *TokenOpts) JWTManager {
+func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo repository.APITokenRepository, opts *TokenOpts) (JWTManager, error) {
+	verifier, err := jwt.NewVerifier(encryptionSvc.GetPublicJWTHandle())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWT Verifier: %v", err)
+	}
+
 	return &jwtManagerImpl{
-		encryption: encryption,
+		encryption: encryptionSvc,
 		opts:       opts,
 		tokenRepo:  tokenRepo,
-	}
+		verifier:   verifier,
+	}, nil
 }
 
 func (j *jwtManagerImpl) GenerateTenantToken(tenantId, name string) (string, error) {
@@ -73,16 +81,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(tenantId, name string) (string, err
 }
 
 func (j *jwtManagerImpl) ValidateTenantToken(token string) (tenantId string, err error) {
-	// Retrieve the Verifier primitive from publicKeysetHandle.
-	// TODO: move verifier to the constructor
-	verifier, err := jwt.NewVerifier(j.encryption.GetPublicJWTHandle())
-
-	if err != nil {
-		return "", fmt.Errorf("failed to create JWT Verifier: %v", err)
-	}
-
-	// Verify the signed token. For this example, we use a fixed date. Usually, you would
-	// either not set FixedNow, or set it to the current time.
+	// Verify the signed token.
 	audience := j.opts.Audience
 
 	validator, err := jwt.NewValidator(&jwt.ValidatorOpts{
@@ -96,7 +95,7 @@ func (j *jwtManagerImpl) ValidateTenantToken(token string) (tenantId string, err
 		return "", fmt.Errorf("failed to create JWT Validator: %v", err)
 	}
 
-	verifiedJwt, err := verifier.VerifyAndDecode(token, validator)
+	verifiedJwt, err := j.verifier.VerifyAndDecode(token, validator)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to verify and decode JWT: %v", err)

@@ -15,6 +15,6 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 	if err != nil {
 		return nil, err
 	}
-	// This is the only time the token is sent over the API
+
 	return gen.ApiTokenUpdateRevoke204Response{}, nil
 }

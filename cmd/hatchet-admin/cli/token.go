@@ -25,7 +25,7 @@ var tokenCreateAPICmd = &cobra.Command{
 		err := runCreateAPIToken()
 
 		if err != nil {
-			fmt.Printf("Fatal: could not run seed command: %v\n", err)
+			fmt.Printf("Fatal: could not run [token create] command: %v\n", err)
 		}
 	},
 }

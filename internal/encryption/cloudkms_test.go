@@ -78,8 +78,6 @@ func TestEncryptDecryptCloudKMS(t *testing.T) {
 
 func TestEncryptDecryptCloudKMSWithEmptyDataID(t *testing.T) {
 	// Using fake KMS client for testing
-	// Using fake KMS client for testing
-	// Using fake KMS client for testing
 	client, err := fakekms.NewClient(fakeKeyURI)
 	assert.NoError(t, err)
 

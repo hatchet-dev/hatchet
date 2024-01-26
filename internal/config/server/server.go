@@ -56,8 +56,11 @@ type ConfigFileRuntime struct {
 // Encryption options
 type EncryptionConfigFile struct {
 	// MasterKeyset is the raw master keyset for the instance. This should be a base64-encoded JSON string. You must set
-	// either RawKeyset or cloudKms.enabled.
+	// either MasterKeyset, MasterKeysetFile or cloudKms.enabled with CloudKMS credentials
 	MasterKeyset string `mapstructure:"masterKeyset" json:"masterKeyset,omitempty"`
+
+	// MasterKeysetFile is the path to the master keyset file for the instance.
+	MasterKeysetFile string `mapstructure:"masterKeysetFile" json:"masterKeysetFile,omitempty"`
 
 	JWT EncryptionConfigFileJWT `mapstructure:"jwt" json:"jwt,omitempty"`
 
@@ -70,9 +73,15 @@ type EncryptionConfigFileJWT struct {
 	// by the master key.
 	PublicJWTKeyset string `mapstructure:"publicJWTKeyset" json:"publicJWTKeyset,omitempty"`
 
+	// PublicJWTKeysetFile is the path to the public keyset file for the instance.
+	PublicJWTKeysetFile string `mapstructure:"publicJWTKeysetFile" json:"publicJWTKeysetFile,omitempty"`
+
 	// PrivateJWTKeyset is a base64-encoded JSON string containing the private keyset which has been encrypted
 	// by the master key.
 	PrivateJWTKeyset string `mapstructure:"privateJWTKeyset" json:"privateJWTKeyset,omitempty"`
+
+	// PrivateJWTKeysetFile is the path to the private keyset file for the instance.
+	PrivateJWTKeysetFile string `mapstructure:"privateJWTKeysetFile" json:"privateJWTKeysetFile,omitempty"`
 }
 
 type EncryptionConfigFileCloudKMS struct {
@@ -186,8 +195,11 @@ func BindAllEnv(v *viper.Viper) {
 
 	// encryption options
 	_ = v.BindEnv("encryption.masterKeyset", "SERVER_ENCRYPTION_MASTER_KEYSET")
+	_ = v.BindEnv("encryption.masterKeysetFile", "SERVER_ENCRYPTION_MASTER_KEYSET_FILE")
 	_ = v.BindEnv("encryption.jwt.publicJWTKeyset", "SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET")
+	_ = v.BindEnv("encryption.jwt.publicJWTKeysetFile", "SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE")
 	_ = v.BindEnv("encryption.jwt.privateJWTKeyset", "SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET")
+	_ = v.BindEnv("encryption.jwt.privateJWTKeysetFile", "SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE")
 	_ = v.BindEnv("encryption.cloudKms.enabled", "SERVER_ENCRYPTION_CLOUDKMS_ENABLED")
 	_ = v.BindEnv("encryption.cloudKms.keyURI", "SERVER_ENCRYPTION_CLOUDKMS_KEY_URI")
 	_ = v.BindEnv("encryption.cloudKms.credentialsJSON", "SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON")

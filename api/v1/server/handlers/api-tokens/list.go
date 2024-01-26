@@ -23,7 +23,6 @@ func (a *APITokenService) ApiTokenList(ctx echo.Context, request gen.ApiTokenLis
 		rows[i] = *transformers.ToAPIToken(&tokens[i])
 	}
 
-	// This is the only time the token is sent over the API
 	return gen.ApiTokenList200JSONResponse(
 		gen.ListAPITokensResponse{
 			Rows: &rows,

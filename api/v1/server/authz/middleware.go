@@ -42,31 +42,17 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 	}
 
 	var err error
-	var checkedAuthz bool
 
-	if r.Security.CookieAuth() && c.Get("auth_strategy").(string) == "cookie" {
+	switch c.Get("auth_strategy").(string) {
+	case "cookie":
 		err = a.handleCookieAuth(c, r)
-		checkedAuthz = true
-	}
-
-	if err != nil {
-		return err
-	}
-
-	if r.Security.BearerAuth() && c.Get("auth_strategy").(string) == "bearer" {
+	case "bearer":
 		err = a.handleBearerAuth(c, r)
-		checkedAuthz = true
-	}
-
-	if err != nil {
-		return err
-	}
-
-	if !checkedAuthz {
+	default:
 		return echo.NewHTTPError(http.StatusInternalServerError, "No authorization strategy was checked")
 	}
 
-	return nil
+	return err
 }
 
 func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error {
@@ -162,6 +148,10 @@ var adminAndOwnerOnly = []string{
 	"TenantInviteUpdate",
 	"TenantInviteDelete",
 	"TenantMemberList",
+	// members cannot create API tokens for a tenant, because they have admin permissions
+	"ApiTokenList",
+	"ApiTokenCreate",
+	"ApiTokenUpdateRevoke",
 }
 
 func (a *AuthZ) authorizeTenantOperations(tenant *db.TenantModel, tenantMember *db.TenantMemberModel, r *middleware.RouteInfo) error {

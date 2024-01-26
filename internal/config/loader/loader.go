@@ -176,45 +176,6 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil, fmt.Errorf("could not create ingestor: %w", err)
 	}
 
-	if cf.Encryption.MasterKeyset == "" && !cf.Encryption.CloudKMS.Enabled {
-		return nil, fmt.Errorf("encryption is required")
-	}
-
-	if cf.Encryption.MasterKeyset != "" && cf.Encryption.CloudKMS.Enabled {
-		return nil, fmt.Errorf("cannot use both encryption and cloud kms")
-	}
-
-	if cf.Encryption.JWT.PublicJWTKeyset == "" || cf.Encryption.JWT.PrivateJWTKeyset == "" {
-		return nil, fmt.Errorf("jwt encryption is required")
-	}
-
-	var encryptionSvc encryption.EncryptionService
-
-	if cf.Encryption.MasterKeyset != "" {
-		encryptionSvc, err = encryption.NewLocalEncryption(
-			[]byte(cf.Encryption.MasterKeyset),
-			[]byte(cf.Encryption.JWT.PrivateJWTKeyset),
-			[]byte(cf.Encryption.JWT.PublicJWTKeyset),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create raw keyset encryption service: %w", err)
-		}
-	}
-
-	if cf.Encryption.CloudKMS.Enabled {
-		encryptionSvc, err = encryption.NewCloudKMSEncryption(
-			cf.Encryption.CloudKMS.KeyURI,
-			[]byte(cf.Encryption.CloudKMS.CredentialsJSON),
-			[]byte(cf.Encryption.JWT.PrivateJWTKeyset),
-			[]byte(cf.Encryption.JWT.PublicJWTKeyset),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create CloudKMS encryption service: %w", err)
-		}
-	}
-
 	auth := server.AuthConfig{
 		ConfigFile: cf.Auth,
 	}
@@ -238,11 +199,21 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		auth.GoogleOAuthConfig = gClient
 	}
 
+	encryptionSvc, err := loadEncryptionSvc(cf)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not load encryption service: %w", err)
+	}
+
 	// create a new JWT manager
-	auth.JWTManager = token.NewJWTManager(encryptionSvc, dc.Repository.APIToken(), &token.TokenOpts{
+	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.Repository.APIToken(), &token.TokenOpts{
 		Issuer:   cf.Runtime.ServerURL,
 		Audience: cf.Runtime.ServerURL,
 	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create JWT manager: %w", err)
+	}
 
 	return &server.ServerConfig{
 		Runtime:       cf.Runtime,
@@ -262,4 +233,91 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 func getStrArr(v string) []string {
 	return strings.Split(v, " ")
+}
+
+func loadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
+	var err error
+
+	hasLocalMasterKeyset := cf.Encryption.MasterKeyset != "" || cf.Encryption.MasterKeysetFile != ""
+	isCloudKMSEnabled := cf.Encryption.CloudKMS.Enabled
+
+	if !hasLocalMasterKeyset && !isCloudKMSEnabled {
+		return nil, fmt.Errorf("encryption is required")
+	}
+
+	if hasLocalMasterKeyset && isCloudKMSEnabled {
+		return nil, fmt.Errorf("cannot use both encryption and cloud kms")
+	}
+
+	hasJWTKeys := (cf.Encryption.JWT.PublicJWTKeyset != "" || cf.Encryption.JWT.PublicJWTKeysetFile != "") &&
+		(cf.Encryption.JWT.PrivateJWTKeyset != "" || cf.Encryption.JWT.PrivateJWTKeysetFile != "")
+
+	if !hasJWTKeys {
+		return nil, fmt.Errorf("jwt encryption is required")
+	}
+
+	privateJWT := cf.Encryption.JWT.PrivateJWTKeyset
+
+	if cf.Encryption.JWT.PrivateJWTKeysetFile != "" {
+		privateJWTBytes, err := loaderutils.GetFileBytes(cf.Encryption.JWT.PrivateJWTKeysetFile)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not load private jwt keyset file: %w", err)
+		}
+
+		privateJWT = string(privateJWTBytes)
+	}
+
+	publicJWT := cf.Encryption.JWT.PublicJWTKeyset
+
+	if cf.Encryption.JWT.PublicJWTKeysetFile != "" {
+		publicJWTBytes, err := loaderutils.GetFileBytes(cf.Encryption.JWT.PublicJWTKeysetFile)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not load public jwt keyset file: %w", err)
+		}
+
+		publicJWT = string(publicJWTBytes)
+	}
+
+	var encryptionSvc encryption.EncryptionService
+
+	if hasLocalMasterKeyset {
+		masterKeyset := cf.Encryption.MasterKeyset
+
+		if cf.Encryption.MasterKeysetFile != "" {
+			masterKeysetBytes, err := loaderutils.GetFileBytes(cf.Encryption.MasterKeysetFile)
+
+			if err != nil {
+				return nil, fmt.Errorf("could not load master keyset file: %w", err)
+			}
+
+			masterKeyset = string(masterKeysetBytes)
+		}
+
+		encryptionSvc, err = encryption.NewLocalEncryption(
+			[]byte(masterKeyset),
+			[]byte(privateJWT),
+			[]byte(publicJWT),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create raw keyset encryption service: %w", err)
+		}
+	}
+
+	if isCloudKMSEnabled {
+		encryptionSvc, err = encryption.NewCloudKMSEncryption(
+			cf.Encryption.CloudKMS.KeyURI,
+			[]byte(cf.Encryption.CloudKMS.CredentialsJSON),
+			[]byte(privateJWT),
+			[]byte(publicJWT),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create CloudKMS encryption service: %w", err)
+		}
+	}
+
+	return encryptionSvc, nil
 }

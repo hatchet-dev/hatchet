@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	encryptionKeyDir        string
 	cloudKMSCredentialsPath string
 	cloudKMSKeyURI          string
 )
@@ -19,27 +20,14 @@ var keysetCmd = &cobra.Command{
 	Short: "command for managing keysets.",
 }
 
-var keysetCreateMasterCmd = &cobra.Command{
-	Use:   "create-master",
-	Short: "create a new local master keyset.",
+var keysetCreateLocalKeysetsCmd = &cobra.Command{
+	Use:   "create-local-keys",
+	Short: "create a new local master keyset and JWT public/private keyset.",
 	Run: func(cmd *cobra.Command, args []string) {
-		err := runCreateLocalMasterKeyset()
+		err := runCreateLocalKeysets()
 
 		if err != nil {
-			fmt.Printf("Fatal: could not run seed command: %v\n", err)
-			os.Exit(1)
-		}
-	},
-}
-
-var keysetCreateLocalJWTCmd = &cobra.Command{
-	Use:   "create-local-jwt",
-	Short: "create a new local JWT keyset.",
-	Run: func(cmd *cobra.Command, args []string) {
-		err := runCreateLocalJWTKeyset()
-
-		if err != nil {
-			fmt.Printf("Fatal: could not run seed command: %v\n", err)
+			fmt.Printf("Fatal: could not run [keyset create-local-keys] command: %v\n", err)
 			os.Exit(1)
 		}
 	},
@@ -52,7 +40,7 @@ var keysetCreateCloudKMSJWTCmd = &cobra.Command{
 		err := runCreateCloudKMSJWTKeyset()
 
 		if err != nil {
-			fmt.Printf("Fatal: could not run seed command: %v\n", err)
+			fmt.Printf("Fatal: could not run [keyset create-cloudkms-jwt] command: %v\n", err)
 			os.Exit(1)
 		}
 	},
@@ -60,9 +48,15 @@ var keysetCreateCloudKMSJWTCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(keysetCmd)
-	keysetCmd.AddCommand(keysetCreateMasterCmd)
-	keysetCmd.AddCommand(keysetCreateLocalJWTCmd)
+	keysetCmd.AddCommand(keysetCreateLocalKeysetsCmd)
 	keysetCmd.AddCommand(keysetCreateCloudKMSJWTCmd)
+
+	keysetCmd.PersistentFlags().StringVar(
+		&encryptionKeyDir,
+		"key-dir",
+		"",
+		"if storing keys on disk, path to the directory where encryption keys should be stored",
+	)
 
 	keysetCreateCloudKMSJWTCmd.PersistentFlags().StringVar(
 		&cloudKMSCredentialsPath,
@@ -79,31 +73,42 @@ func init() {
 	)
 }
 
-func runCreateLocalMasterKeyset() error {
-	masterKeyBytes, _, _, err := encryption.GenerateLocalKeys()
+func runCreateLocalKeysets() error {
+	masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Master Key Bytes:")
-	fmt.Println(string(masterKeyBytes))
+	if encryptionKeyDir != "" {
+		// we write these as .key files so that they're gitignored by default
+		err = os.WriteFile(encryptionKeyDir+"/master.key", masterKeyBytes, 0600)
 
-	return nil
-}
+		if err != nil {
+			return err
+		}
 
-func runCreateLocalJWTKeyset() error {
-	_, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
+		err = os.WriteFile(encryptionKeyDir+"/private_ec256.key", privateEc256, 0600)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(encryptionKeyDir+"/public_ec256.key", publicEc256, 0600)
+
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("Master Key Bytes:")
+		fmt.Println(string(masterKeyBytes))
+
+		fmt.Println("Private EC256 Keyset:")
+		fmt.Println(string(privateEc256))
+
+		fmt.Println("Public EC256 Keyset:")
+		fmt.Println(string(publicEc256))
 	}
-
-	fmt.Println("Private EC256 Keyset:")
-	fmt.Println(string(privateEc256))
-
-	fmt.Println("Public EC256 Keyset:")
-	fmt.Println(string(publicEc256))
 
 	return nil
 }

@@ -187,8 +187,6 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 var errInvalidAuthHeader = fmt.Errorf("invalid authorization header in request")
 
-// getPATFromRequest finds an `Authorization` header of the form `Bearer <token>`,
-// and returns the token if it exists.
 func getBearerTokenFromRequest(r *http.Request) (string, error) {
 	reqToken := r.Header.Get("Authorization")
 	splitToken := strings.Split(reqToken, "Bearer")

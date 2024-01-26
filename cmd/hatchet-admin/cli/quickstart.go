@@ -248,7 +248,6 @@ func generateKeys(generated *generatedConfigFiles) error {
 	}
 
 	// generate jwt keys
-	// TODO: clean up this if statement
 	if generated.sc.Encryption.CloudKMS.Enabled && (overwrite || (generated.sc.Encryption.JWT.PublicJWTKeyset == "") || (generated.sc.Encryption.JWT.PrivateJWTKeyset == "")) {
 		privateEc256, publicEc256, err := encryption.GenerateJWTKeysetsFromCloudKMS(
 			generated.sc.Encryption.CloudKMS.KeyURI,
