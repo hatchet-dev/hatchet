@@ -11,7 +11,7 @@ import { Context } from '../../step';
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
 export class Worker {
-  serviceName = 'default'; // TODO verify this never changes
+  serviceName = 'default';
   client: HatchetClient;
   name: string;
   killing: boolean;
@@ -70,7 +70,6 @@ export class Worker {
       throw new HatchetError(`Could not register workflow: ${e.message}`);
     }
 
-    // TODO understand create_action_function
     this.action_registry = workflow.steps.reduce<ActionRegistry>((acc, step) => {
       acc[`${this.serviceName}:${step.name}`] = step.run;
       return acc;
@@ -224,8 +223,8 @@ export class Worker {
       throw new HatchetError('Could not start worker after 5 retries');
     }
 
-    // await this.start(retryCount + 1);
     console.log(`Could not start worker, retrying in ${retryCount} seconds`);
     // TODO retry not implemented
+    // await this.start(retryCount + 1);
   }
 }
