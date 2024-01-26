@@ -3,7 +3,7 @@ import * as z from 'zod';
 import { CreateStep, CreateStepSchema } from './step';
 
 const CronConfigSchema = z.object({
-  cron: z.string(), // TODO validate cron
+  cron: z.string(),
   event: z.undefined(),
 });
 
