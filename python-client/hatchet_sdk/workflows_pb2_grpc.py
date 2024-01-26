@@ -2,8 +2,6 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-# from .workflows_pb2 import workflows__pb2
-
 from . import workflows_pb2 as workflows__pb2
 
 class WorkflowServiceStub(object):

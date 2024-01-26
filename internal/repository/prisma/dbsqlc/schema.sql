@@ -31,10 +31,10 @@ CREATE TABLE "APIToken" (
 
 -- CreateTable
 CREATE TABLE "Action" (
+    "id" UUID NOT NULL,
+    "actionId" TEXT NOT NULL,
     "description" TEXT,
     "tenantId" UUID NOT NULL,
-    "actionId" TEXT NOT NULL,
-    "id" UUID NOT NULL,
 
     CONSTRAINT "Action_pkey" PRIMARY KEY ("id")
 );
@@ -242,9 +242,9 @@ CREATE TABLE "UserOAuth" (
     "userId" UUID NOT NULL,
     "provider" TEXT NOT NULL,
     "providerUserId" TEXT NOT NULL,
-    "expiresAt" TIMESTAMP(3),
     "accessToken" BYTEA NOT NULL,
     "refreshToken" BYTEA,
+    "expiresAt" TIMESTAMP(3),
 
     CONSTRAINT "UserOAuth_pkey" PRIMARY KEY ("id")
 );
@@ -390,8 +390,8 @@ CREATE TABLE "WorkflowVersion" (
 
 -- CreateTable
 CREATE TABLE "_ActionToWorker" (
-    "B" UUID NOT NULL,
-    "A" UUID NOT NULL
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL
 );
 
 -- CreateTable

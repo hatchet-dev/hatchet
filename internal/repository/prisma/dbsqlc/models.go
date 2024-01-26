@@ -286,15 +286,15 @@ type APIToken struct {
 }
 
 type Action struct {
+	ID          pgtype.UUID `json:"id"`
+	ActionId    string      `json:"actionId"`
 	Description pgtype.Text `json:"description"`
 	TenantId    pgtype.UUID `json:"tenantId"`
-	ActionId    string      `json:"actionId"`
-	ID          pgtype.UUID `json:"id"`
 }
 
 type ActionToWorker struct {
-	B pgtype.UUID `json:"B"`
 	A pgtype.UUID `json:"A"`
+	B pgtype.UUID `json:"B"`
 }
 
 type Dispatcher struct {
@@ -475,9 +475,9 @@ type UserOAuth struct {
 	UserId         pgtype.UUID      `json:"userId"`
 	Provider       string           `json:"provider"`
 	ProviderUserId string           `json:"providerUserId"`
-	ExpiresAt      pgtype.Timestamp `json:"expiresAt"`
 	AccessToken    []byte           `json:"accessToken"`
 	RefreshToken   []byte           `json:"refreshToken"`
+	ExpiresAt      pgtype.Timestamp `json:"expiresAt"`
 }
 
 type UserPassword struct {
