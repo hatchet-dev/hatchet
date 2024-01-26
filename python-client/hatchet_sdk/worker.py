@@ -100,7 +100,6 @@ class Worker:
         eventTimestamp.GetCurrentTime()
 
         return ActionEvent(
-            tenantId=action.tenant_id,
             workerId=action.worker_id,
             jobId=action.job_id,
             jobRunId=action.job_run_id,

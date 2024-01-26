@@ -45,6 +45,7 @@ type ClientOpts struct {
 	v        validator.Validator
 	tls      *tls.Config
 	hostPort string
+	token    string
 
 	filesLoader   filesLoaderFunc
 	initWorkflows bool
@@ -64,6 +65,7 @@ func defaultClientOpts() *ClientOpts {
 
 	return &ClientOpts{
 		tenantId:    clientConfig.TenantId,
+		token:       clientConfig.Token,
 		l:           &logger,
 		v:           validator.NewDefaultValidator(),
 		tls:         clientConfig.TLSConfig,
@@ -101,9 +103,10 @@ func WithWorkflows(files []*types.Workflow) ClientOpt {
 }
 
 type sharedClientOpts struct {
-	tenantId string
-	l        *zerolog.Logger
-	v        validator.Validator
+	tenantId  string
+	l         *zerolog.Logger
+	v         validator.Validator
+	ctxLoader *contextLoader
 }
 
 // New creates a new client instance.
@@ -119,6 +122,10 @@ func New(fs ...ClientOpt) (Client, error) {
 		return nil, fmt.Errorf("tls config is required")
 	}
 
+	if opts.token == "" {
+		return nil, fmt.Errorf("token is required")
+	}
+
 	opts.l.Debug().Msgf("connecting to %s with TLS server name %s", opts.hostPort, opts.tls.ServerName)
 
 	conn, err := grpc.Dial(
@@ -131,9 +138,10 @@ func New(fs ...ClientOpt) (Client, error) {
 	}
 
 	shared := &sharedClientOpts{
-		tenantId: opts.tenantId,
-		l:        opts.l,
-		v:        opts.v,
+		tenantId:  opts.tenantId,
+		l:         opts.l,
+		v:         opts.v,
+		ctxLoader: newContextLoader(opts.token),
 	}
 
 	admin := newAdmin(conn, shared)

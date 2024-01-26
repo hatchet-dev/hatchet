@@ -41,6 +41,21 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 		return nil
 	}
 
+	var err error
+
+	switch c.Get("auth_strategy").(string) {
+	case "cookie":
+		err = a.handleCookieAuth(c, r)
+	case "bearer":
+		err = a.handleBearerAuth(c, r)
+	default:
+		return echo.NewHTTPError(http.StatusInternalServerError, "No authorization strategy was checked")
+	}
+
+	return err
+}
+
+func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error {
 	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
 
 	if err := a.ensureVerifiedEmail(c, r); err != nil {
@@ -87,6 +102,23 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 	return nil
 }
 
+var restrictedWithBearerToken = []string{
+	// bearer tokens cannot read, list, or write other bearer tokens
+	"ApiTokenList",
+	"ApiTokenCreate",
+	"ApiTokenUpdateRevoke",
+}
+
+// At the moment, there's no further bearer auth because bearer tokens are admin-scoped
+// and we check that the bearer token has access to the tenant in the authn step.
+func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
+	if operationIn(r.OperationID, restrictedWithBearerToken) {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+	}
+
+	return nil
+}
+
 var permittedWithUnverifiedEmail = []string{
 	"UserGetCurrent",
 	"UserUpdateLogout",
@@ -116,6 +148,10 @@ var adminAndOwnerOnly = []string{
 	"TenantInviteUpdate",
 	"TenantInviteDelete",
 	"TenantMemberList",
+	// members cannot create API tokens for a tenant, because they have admin permissions
+	"ApiTokenList",
+	"ApiTokenCreate",
+	"ApiTokenUpdateRevoke",
 }
 
 func (a *AuthZ) authorizeTenantOperations(tenant *db.TenantModel, tenantMember *db.TenantMemberModel, r *middleware.RouteInfo) error {

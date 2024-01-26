@@ -8,8 +8,10 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
+	"github.com/hatchet-dev/hatchet/internal/auth/token"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/shared"
+	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/validator"
@@ -17,6 +19,8 @@ import (
 
 type ServerConfigFile struct {
 	Auth ConfigFileAuth `mapstructure:"auth" json:"auth,omitempty"`
+
+	Encryption EncryptionConfigFile `mapstructure:"encryption" json:"encryption,omitempty"`
 
 	Runtime ConfigFileRuntime `mapstructure:"runtime" json:"runtime,omitempty"`
 
@@ -47,6 +51,49 @@ type ConfigFileRuntime struct {
 
 	// GRPCInsecure controls whether the grpc server is insecure or uses certs
 	GRPCInsecure bool `mapstructure:"grpcInsecure" json:"grpcInsecure,omitempty" default:"false"`
+}
+
+// Encryption options
+type EncryptionConfigFile struct {
+	// MasterKeyset is the raw master keyset for the instance. This should be a base64-encoded JSON string. You must set
+	// either MasterKeyset, MasterKeysetFile or cloudKms.enabled with CloudKMS credentials
+	MasterKeyset string `mapstructure:"masterKeyset" json:"masterKeyset,omitempty"`
+
+	// MasterKeysetFile is the path to the master keyset file for the instance.
+	MasterKeysetFile string `mapstructure:"masterKeysetFile" json:"masterKeysetFile,omitempty"`
+
+	JWT EncryptionConfigFileJWT `mapstructure:"jwt" json:"jwt,omitempty"`
+
+	// CloudKMS is the configuration for Google Cloud KMS. You must set either MasterKeyset or cloudKms.enabled.
+	CloudKMS EncryptionConfigFileCloudKMS `mapstructure:"cloudKms" json:"cloudKms,omitempty"`
+}
+
+type EncryptionConfigFileJWT struct {
+	// PublicJWTKeyset is a base64-encoded JSON string containing the public keyset which has been encrypted
+	// by the master key.
+	PublicJWTKeyset string `mapstructure:"publicJWTKeyset" json:"publicJWTKeyset,omitempty"`
+
+	// PublicJWTKeysetFile is the path to the public keyset file for the instance.
+	PublicJWTKeysetFile string `mapstructure:"publicJWTKeysetFile" json:"publicJWTKeysetFile,omitempty"`
+
+	// PrivateJWTKeyset is a base64-encoded JSON string containing the private keyset which has been encrypted
+	// by the master key.
+	PrivateJWTKeyset string `mapstructure:"privateJWTKeyset" json:"privateJWTKeyset,omitempty"`
+
+	// PrivateJWTKeysetFile is the path to the private keyset file for the instance.
+	PrivateJWTKeysetFile string `mapstructure:"privateJWTKeysetFile" json:"privateJWTKeysetFile,omitempty"`
+}
+
+type EncryptionConfigFileCloudKMS struct {
+	// Enabled controls whether the Cloud KMS service is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	// KeyURI is the URI of the key in Google Cloud KMS. This should be in the format of
+	// gcp-kms://...
+	KeyURI string `mapstructure:"keyURI" json:"keyURI,omitempty"`
+
+	// CredentialsJSON is the JSON credentials for the Google Cloud KMS service account.
+	CredentialsJSON string `mapstructure:"credentialsJSON" json:"credentialsJSON,omitempty"`
 }
 
 type ConfigFileAuth struct {
@@ -95,12 +142,16 @@ type AuthConfig struct {
 	ConfigFile ConfigFileAuth
 
 	GoogleOAuthConfig *oauth2.Config
+
+	JWTManager token.JWTManager
 }
 
 type ServerConfig struct {
 	*database.Config
 
 	Auth AuthConfig
+
+	Encryption encryption.EncryptionService
 
 	Runtime ConfigFileRuntime
 
@@ -142,6 +193,17 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
 
+	// encryption options
+	_ = v.BindEnv("encryption.masterKeyset", "SERVER_ENCRYPTION_MASTER_KEYSET")
+	_ = v.BindEnv("encryption.masterKeysetFile", "SERVER_ENCRYPTION_MASTER_KEYSET_FILE")
+	_ = v.BindEnv("encryption.jwt.publicJWTKeyset", "SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET")
+	_ = v.BindEnv("encryption.jwt.publicJWTKeysetFile", "SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE")
+	_ = v.BindEnv("encryption.jwt.privateJWTKeyset", "SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET")
+	_ = v.BindEnv("encryption.jwt.privateJWTKeysetFile", "SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE")
+	_ = v.BindEnv("encryption.cloudKms.enabled", "SERVER_ENCRYPTION_CLOUDKMS_ENABLED")
+	_ = v.BindEnv("encryption.cloudKms.keyURI", "SERVER_ENCRYPTION_CLOUDKMS_KEY_URI")
+	_ = v.BindEnv("encryption.cloudKms.credentialsJSON", "SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON")
+
 	// auth options
 	_ = v.BindEnv("auth.restrictedEmailDomains", "SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS")
 	_ = v.BindEnv("auth.basicAuthEnabled", "SERVER_AUTH_BASIC_AUTH_ENABLED")
@@ -160,6 +222,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("taskQueue.rabbitmq.url", "SERVER_TASKQUEUE_RABBITMQ_URL")
 
 	// tls options
+	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")
 	_ = v.BindEnv("tls.tlsCert", "SERVER_TLS_CERT")
 	_ = v.BindEnv("tls.tlsCertFile", "SERVER_TLS_CERT_FILE")
 	_ = v.BindEnv("tls.tlsKey", "SERVER_TLS_KEY")

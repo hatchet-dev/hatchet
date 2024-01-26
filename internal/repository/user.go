@@ -22,8 +22,8 @@ type CreateUserOpts struct {
 type OAuthOpts struct {
 	Provider       string     `validate:"required,oneof=google"`
 	ProviderUserId string     `validate:"required,min=1"`
-	AccessToken    string     `validate:"required,min=1"`
-	RefreshToken   *string    // optional
+	AccessToken    []byte     `validate:"required,min=1"`
+	RefreshToken   *[]byte    // optional
 	ExpiresAt      *time.Time // optional
 }
 

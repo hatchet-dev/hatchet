@@ -1,13 +1,16 @@
 package authn
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
 type AuthN struct {
@@ -51,14 +54,20 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 	if r.Security.CookieAuth() {
 		err = a.handleCookieAuth(c)
+		c.Set("auth_strategy", "cookie")
 	}
 
-	if err != nil {
+	if err != nil && !r.Security.BearerAuth() {
 		return err
 	}
 
 	if err != nil && r.Security.BearerAuth() {
 		err = a.handleBearerAuth(c)
+		c.Set("auth_strategy", "bearer")
+
+		if err == nil {
+			return nil
+		}
 	}
 
 	return err
@@ -136,5 +145,57 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 }
 
 func (a *AuthN) handleBearerAuth(c echo.Context) error {
-	panic("implement me")
+	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
+
+	// a tenant id must exist in the context in order for the bearer auth to succeed, since
+	// these tokens are tenant-scoped
+	queriedTenant, ok := c.Get("tenant").(*db.TenantModel)
+
+	if !ok {
+		a.l.Debug().Msgf("tenant not found in context")
+
+		return forbidden
+	}
+
+	token, err := getBearerTokenFromRequest(c.Request())
+
+	if err != nil {
+		a.l.Debug().Err(err).Msg("error getting bearer token from request")
+
+		return forbidden
+	}
+
+	// Validate the token.
+	tenantId, err := a.config.Auth.JWTManager.ValidateTenantToken(token)
+
+	if err != nil {
+		a.l.Debug().Err(err).Msg("error validating tenant token")
+
+		return forbidden
+	}
+
+	// Verify that the tenant id which exists in the context is the same as the tenant id
+	// in the token.
+	if queriedTenant.ID != tenantId {
+		a.l.Debug().Msgf("tenant id in token does not match tenant id in context")
+
+		return forbidden
+	}
+
+	return nil
+}
+
+var errInvalidAuthHeader = fmt.Errorf("invalid authorization header in request")
+
+func getBearerTokenFromRequest(r *http.Request) (string, error) {
+	reqToken := r.Header.Get("Authorization")
+	splitToken := strings.Split(reqToken, "Bearer")
+
+	if len(splitToken) != 2 {
+		return "", errInvalidAuthHeader
+	}
+
+	reqToken = strings.TrimSpace(splitToken[1])
+
+	return reqToken, nil
 }

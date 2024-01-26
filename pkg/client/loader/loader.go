@@ -2,7 +2,9 @@ package loader
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/hatchet-dev/hatchet/internal/config/client"
 	"github.com/hatchet-dev/hatchet/internal/config/loader/loaderutils"
@@ -41,7 +43,21 @@ func LoadClientConfigFile(files ...[]byte) (*client.ClientConfigFile, error) {
 }
 
 func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.ClientConfig, err error) {
-	tlsConf, err := loaderutils.LoadClientTLSConfig(&cf.TLS)
+	tlsServerName := cf.TLS.TLSServerName
+
+	// if the tls server name is empty, parse the domain from the host:port
+	if tlsServerName == "" {
+		// parse the domain from the host:port
+		domain, err := parseDomain(cf.HostPort)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse domain: %w", err)
+		}
+
+		tlsServerName = domain.Hostname()
+	}
+
+	tlsConf, err := loaderutils.LoadClientTLSConfig(&cf.TLS, tlsServerName)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not load TLS config: %w", err)
@@ -50,5 +66,13 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 	return &client.ClientConfig{
 		TenantId:  cf.TenantId,
 		TLSConfig: tlsConf,
+		Token:     cf.Token,
 	}, nil
+}
+
+func parseDomain(domain string) (*url.URL, error) {
+	if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
+		domain = "https://" + domain
+	}
+	return url.Parse(domain)
 }

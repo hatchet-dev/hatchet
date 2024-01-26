@@ -21,6 +21,20 @@ func GetConfigBytes(configFilePath string) ([][]byte, error) {
 	return configFileBytes, nil
 }
 
+func GetFileBytes(filename string) ([]byte, error) {
+	if fileExists(filename) {
+		fileBytes, err := os.ReadFile(filename) // #nosec G304 -- config files are meant to be read from user-supplied directory
+
+		if err != nil {
+			return nil, fmt.Errorf("could not read config file at path %s: %w", filename, err)
+		}
+
+		return fileBytes, nil
+	}
+
+	return nil, fmt.Errorf("could not read config file at path %s", filename)
+}
+
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
 	if err != nil && os.IsNotExist(err) {

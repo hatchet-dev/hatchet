@@ -6,21 +6,18 @@ from ..loader import ClientConfig
 import json
 import grpc
 from google.protobuf import timestamp_pb2
+from ..metadata import get_metadata
 
 def new_event(conn, config: ClientConfig):
     return EventClientImpl(
         client=EventsServiceStub(conn),
-        tenant_id=config.tenant_id,
-        # logger=shared_opts['logger'],
-        # validator=shared_opts['validator'],
+        token=config.token,
     )
 
 class EventClientImpl:
-    def __init__(self, client, tenant_id):
+    def __init__(self, client, token):
         self.client = client
-        self.tenant_id = tenant_id
-        # self.logger = logger
-        # self.validator = validator
+        self.token = token
 
     def push(self, event_key, payload):
         try:
@@ -29,13 +26,12 @@ class EventClientImpl:
             raise ValueError(f"Error encoding payload: {e}")
 
         request = PushEventRequest(
-            tenantId=self.tenant_id,
             key=event_key,
             payload=payload_bytes,
             eventTimestamp=timestamp_pb2.Timestamp().FromDatetime(datetime.datetime.now()),
         )
 
         try:
-            self.client.Push(request)
+            self.client.Push(request, metadata=get_metadata(self.token))
         except grpc.RpcError as e:
             raise ValueError(f"gRPC error: {e}")

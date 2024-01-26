@@ -11,6 +11,10 @@ import (
 type ClientConfigFile struct {
 	TenantId string `mapstructure:"tenantId" json:"tenantId,omitempty"`
 
+	Token string `mapstructure:"token" json:"token,omitempty"`
+
+	HostPort string `mapstructure:"hostPort" json:"hostPort,omitempty"`
+
 	TLS ClientTLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 }
 
@@ -22,14 +26,18 @@ type ClientTLSConfigFile struct {
 
 type ClientConfig struct {
 	TenantId string
+	Token    string
 
 	TLSConfig *tls.Config
 }
 
 func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("tenantId", "HATCHET_CLIENT_TENANT_ID")
+	_ = v.BindEnv("token", "HATCHET_CLIENT_TOKEN")
+	_ = v.BindEnv("hostPort", "HATCHET_CLIENT_HOST_PORT")
 
 	// tls options
+	_ = v.BindEnv("tls.base.tlsStrategy", "HATCHET_CLIENT_TLS_STRATEGY")
 	_ = v.BindEnv("tls.base.tlsCertFile", "HATCHET_CLIENT_TLS_CERT_FILE")
 	_ = v.BindEnv("tls.base.tlsKeyFile", "HATCHET_CLIENT_TLS_KEY_FILE")
 	_ = v.BindEnv("tls.base.tlsRootCAFile", "HATCHET_CLIENT_TLS_ROOT_CA_FILE")

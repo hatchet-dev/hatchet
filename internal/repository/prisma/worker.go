@@ -68,7 +68,7 @@ func (w *workerRepository) ListWorkers(tenantId string, opts *repository.ListWor
 	if opts.Action != nil {
 		queryParams = append(queryParams, db.Worker.Actions.Some(
 			db.Action.TenantID.Equals(tenantId),
-			db.Action.ID.Equals(*opts.Action),
+			db.Action.ActionID.Equals(*opts.Action),
 		))
 	}
 
@@ -203,12 +203,12 @@ func (w *workerRepository) CreateNewWorker(tenantId string, opts *repository.Cre
 	if len(opts.Actions) > 0 {
 		for _, action := range opts.Actions {
 			txs = append(txs, w.client.Action.UpsertOne(
-				db.Action.TenantIDID(
+				db.Action.TenantIDActionID(
 					db.Action.TenantID.Equals(tenantId),
-					db.Action.ID.Equals(action),
+					db.Action.ActionID.Equals(action),
 				),
 			).Create(
-				db.Action.ID.Set(action),
+				db.Action.ActionID.Set(action),
 				db.Action.Tenant.Link(
 					db.Tenant.ID.Equals(tenantId),
 				),
@@ -221,9 +221,9 @@ func (w *workerRepository) CreateNewWorker(tenantId string, opts *repository.Cre
 				db.Worker.ID.Equals(workerId),
 			).Update(
 				db.Worker.Actions.Link(
-					db.Action.TenantIDID(
+					db.Action.TenantIDActionID(
 						db.Action.TenantID.Equals(tenantId),
-						db.Action.ID.Equals(action),
+						db.Action.ActionID.Equals(action),
 					),
 				),
 			).Tx())
@@ -265,12 +265,12 @@ func (w *workerRepository) UpdateWorker(tenantId, workerId string, opts *reposit
 	if len(opts.Actions) > 0 {
 		for _, action := range opts.Actions {
 			txs = append(txs, w.client.Action.UpsertOne(
-				db.Action.TenantIDID(
+				db.Action.TenantIDActionID(
 					db.Action.TenantID.Equals(tenantId),
-					db.Action.ID.Equals(action),
+					db.Action.ActionID.Equals(action),
 				),
 			).Create(
-				db.Action.ID.Set(action),
+				db.Action.ActionID.Set(action),
 				db.Action.Tenant.Link(
 					db.Tenant.ID.Equals(tenantId),
 				),
@@ -283,9 +283,9 @@ func (w *workerRepository) UpdateWorker(tenantId, workerId string, opts *reposit
 				db.Worker.ID.Equals(workerId),
 			).Update(
 				db.Worker.Actions.Link(
-					db.Action.TenantIDID(
+					db.Action.TenantIDActionID(
 						db.Action.TenantID.Equals(tenantId),
-						db.Action.ID.Equals(action),
+						db.Action.ActionID.Equals(action),
 					),
 				),
 			).Tx())

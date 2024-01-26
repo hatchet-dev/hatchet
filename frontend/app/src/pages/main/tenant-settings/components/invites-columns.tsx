@@ -43,7 +43,6 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Expires" />
       ),
       cell: ({ row }) => {
-        console.log(row.original.expires);
         return <div>{relativeDate(row.original.expires)}</div>;
       },
     },

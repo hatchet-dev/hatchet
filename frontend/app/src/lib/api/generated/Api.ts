@@ -14,6 +14,8 @@ import {
   APIErrors,
   APIMeta,
   AcceptInviteRequest,
+  CreateAPITokenRequest,
+  CreateAPITokenResponse,
   CreateTenantInviteRequest,
   CreateTenantRequest,
   EventData,
@@ -23,6 +25,7 @@ import {
   EventOrderByDirection,
   EventOrderByField,
   EventSearch,
+  ListAPITokensResponse,
   RejectInviteRequest,
   ReplayEventRequest,
   Tenant,
@@ -320,6 +323,58 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       method: "DELETE",
       secure: true,
       format: "json",
+      ...params,
+    });
+  /**
+   * @description Create an API token for a tenant
+   *
+   * @tags API Token
+   * @name ApiTokenCreate
+   * @summary Create API Token
+   * @request POST:/api/v1/tenants/{tenant}/api-tokens
+   * @secure
+   */
+  apiTokenCreate = (tenant: string, data: CreateAPITokenRequest, params: RequestParams = {}) =>
+    this.request<CreateAPITokenResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/api-tokens`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List API tokens for a tenant
+   *
+   * @tags API Token
+   * @name ApiTokenList
+   * @summary List API Tokens
+   * @request GET:/api/v1/tenants/{tenant}/api-tokens
+   * @secure
+   */
+  apiTokenList = (tenant: string, params: RequestParams = {}) =>
+    this.request<ListAPITokensResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/api-tokens`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Revoke an API token for a tenant
+   *
+   * @tags API Token
+   * @name ApiTokenUpdateRevoke
+   * @summary Revoke API Token
+   * @request POST:/api/v1/api-tokens/{api-token}
+   * @secure
+   */
+  apiTokenUpdateRevoke = (apiToken: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/api-tokens/${apiToken}`,
+      method: "POST",
+      secure: true,
       ...params,
     });
   /**

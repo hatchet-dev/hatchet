@@ -1,4 +1,5 @@
 # relative imports
+from typing import Any
 from .clients.admin import AdminClientImpl, new_admin
 from .clients.events import EventClientImpl, new_event
 from .clients.dispatcher import DispatcherClientImpl, new_dispatcher
@@ -53,14 +54,27 @@ def new_client(*opts_functions):
     
     if config.host_port is None:
         raise ValueError("Host and port are required")
-        
-    root = open(config.tls_config.ca_file, "rb").read()
-    private_key = open(config.tls_config.key_file, "rb").read()
-    certificate_chain = open(config.tls_config.cert_file, "rb").read()
+    
+    credentials : grpc.ChannelCredentials | None = None
+    
+    # load channel credentials
+    if config.tls_config.tls_strategy == 'tls':
+        root : Any | None = None
 
+        if config.tls_config.ca_file:
+            root = open(config.tls_config.ca_file, "rb").read()
+        
+        credentials = grpc.ssl_channel_credentials(root_certificates=root)
+    elif config.tls_config.tls_strategy == 'mtls':
+        root = open(config.tls_config.ca_file, "rb").read()
+        private_key = open(config.tls_config.key_file, "rb").read()
+        certificate_chain = open(config.tls_config.cert_file, "rb").read()
+
+        credentials = grpc.ssl_channel_credentials(root_certificates=root, private_key=private_key, certificate_chain=certificate_chain)
+        
     conn = grpc.secure_channel(
         target=config.host_port,
-        credentials=grpc.ssl_channel_credentials(root_certificates=root, private_key=private_key, certificate_chain=certificate_chain),
+        credentials=credentials,
         options=[('grpc.ssl_target_name_override', config.tls_config.server_name)],
     )
 

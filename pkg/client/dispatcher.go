@@ -123,6 +123,8 @@ type dispatcherClientImpl struct {
 	l *zerolog.Logger
 
 	v validator.Validator
+
+	ctx *contextLoader
 }
 
 func newDispatcher(conn *grpc.ClientConn, opts *sharedClientOpts) DispatcherClient {
@@ -131,6 +133,7 @@ func newDispatcher(conn *grpc.ClientConn, opts *sharedClientOpts) DispatcherClie
 		tenantId: opts.tenantId,
 		l:        opts.l,
 		v:        opts.v,
+		ctx:      opts.ctxLoader,
 	}
 }
 
@@ -146,6 +149,8 @@ type actionListenerImpl struct {
 	l *zerolog.Logger
 
 	v validator.Validator
+
+	ctx *contextLoader
 }
 
 func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetActionListenerRequest) (*actionListenerImpl, error) {
@@ -155,8 +160,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	}
 
 	// register the worker
-	resp, err := d.client.Register(ctx, &dispatchercontracts.WorkerRegisterRequest{
-		TenantId:   d.tenantId,
+	resp, err := d.client.Register(d.ctx.newContext(ctx), &dispatchercontracts.WorkerRegisterRequest{
 		WorkerName: req.WorkerName,
 		Actions:    req.Actions,
 		Services:   req.Services,
@@ -169,8 +173,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	d.l.Debug().Msgf("Registered worker with id: %s", resp.WorkerId)
 
 	// subscribe to the worker
-	listener, err := d.client.Listen(ctx, &dispatchercontracts.WorkerListenRequest{
-		TenantId: d.tenantId,
+	listener, err := d.client.Listen(d.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
 		WorkerId: resp.WorkerId,
 	})
 
@@ -185,6 +188,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		l:            d.l,
 		v:            d.v,
 		tenantId:     d.tenantId,
+		ctx:          d.ctx,
 	}, nil
 }
 
@@ -279,8 +283,7 @@ func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
 	for retries < DefaultActionListenerRetryCount {
 		time.Sleep(DefaultActionListenerRetryInterval)
 
-		listenClient, err := a.client.Listen(ctx, &dispatchercontracts.WorkerListenRequest{
-			TenantId: a.tenantId,
+		listenClient, err := a.client.Listen(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
 			WorkerId: a.workerId,
 		})
 
@@ -300,9 +303,8 @@ func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
 
 func (a *actionListenerImpl) Unregister() error {
 	_, err := a.client.Unsubscribe(
-		context.Background(),
+		a.ctx.newContext(context.Background()),
 		&dispatchercontracts.WorkerUnsubscribeRequest{
-			TenantId: a.tenantId,
 			WorkerId: a.workerId,
 		},
 	)
@@ -343,8 +345,7 @@ func (d *dispatcherClientImpl) SendActionEvent(ctx context.Context, in *ActionEv
 		actionEventType = dispatchercontracts.ActionEventType_STEP_EVENT_TYPE_UNKNOWN
 	}
 
-	resp, err := d.client.SendActionEvent(ctx, &dispatchercontracts.ActionEvent{
-		TenantId:       d.tenantId,
+	resp, err := d.client.SendActionEvent(d.ctx.newContext(ctx), &dispatchercontracts.ActionEvent{
 		WorkerId:       in.WorkerId,
 		JobId:          in.JobId,
 		JobRunId:       in.JobRunId,

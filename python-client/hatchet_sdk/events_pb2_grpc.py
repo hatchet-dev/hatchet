@@ -2,7 +2,6 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-# import events_pb2 as events__pb2
 from . import events_pb2 as events__pb2
 
 class EventsServiceStub(object):

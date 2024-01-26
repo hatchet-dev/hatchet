@@ -31,6 +31,8 @@ type adminClientImpl struct {
 	l *zerolog.Logger
 
 	v validator.Validator
+
+	ctx *contextLoader
 }
 
 func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts) AdminClient {
@@ -39,6 +41,7 @@ func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts) AdminClient {
 		tenantId: opts.tenantId,
 		l:        opts.l,
 		v:        opts.v,
+		ctx:      opts.ctxLoader,
 	}
 }
 
@@ -75,9 +78,8 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 		return fmt.Errorf("could not get put opts: %w", err)
 	}
 
-	apiWorkflow, err := a.client.GetWorkflowByName(context.Background(), &admincontracts.GetWorkflowByNameRequest{
-		TenantId: a.tenantId,
-		Name:     req.Opts.Name,
+	apiWorkflow, err := a.client.GetWorkflowByName(a.ctx.newContext(context.Background()), &admincontracts.GetWorkflowByNameRequest{
+		Name: req.Opts.Name,
 	})
 
 	shouldPut := opts.autoVersion
@@ -114,7 +116,7 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 	}
 
 	if shouldPut {
-		_, err = a.client.PutWorkflow(context.Background(), req)
+		_, err = a.client.PutWorkflow(a.ctx.newContext(context.Background()), req)
 
 		if err != nil {
 			return fmt.Errorf("could not create workflow: %w", err)
@@ -159,9 +161,8 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 	}
 
 	// get the workflow id from the name
-	workflow, err := a.client.GetWorkflowByName(context.Background(), &admincontracts.GetWorkflowByNameRequest{
-		TenantId: a.tenantId,
-		Name:     workflowName,
+	workflow, err := a.client.GetWorkflowByName(a.ctx.newContext(context.Background()), &admincontracts.GetWorkflowByNameRequest{
+		Name: workflowName,
 	})
 
 	if err != nil {
@@ -180,8 +181,7 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 		return err
 	}
 
-	_, err = a.client.ScheduleWorkflow(context.Background(), &admincontracts.ScheduleWorkflowRequest{
-		TenantId:   a.tenantId,
+	_, err = a.client.ScheduleWorkflow(a.ctx.newContext(context.Background()), &admincontracts.ScheduleWorkflowRequest{
 		WorkflowId: workflow.Id,
 		Schedules:  pbSchedules,
 		Input:      string(inputBytes),
@@ -246,8 +246,7 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 	opts.Jobs = jobOpts
 
 	return &admincontracts.PutWorkflowRequest{
-		TenantId: a.tenantId,
-		Opts:     opts,
+		Opts: opts,
 	}, nil
 }
 

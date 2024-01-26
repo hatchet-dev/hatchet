@@ -41,6 +41,8 @@ func runSeed(cf *loader.ConfigLoader) error {
 		panic(err)
 	}
 
+	defer dc.Disconnect() // nolint: errcheck
+
 	shouldSeedUser := dc.Seed.AdminEmail != "" && dc.Seed.AdminPassword != ""
 	var userId string
 

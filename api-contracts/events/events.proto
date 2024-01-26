@@ -30,28 +30,22 @@ message Event {
 }
 
 message PushEventRequest {
-    // the tenant id
-    string tenantId = 1;
-
     // the key for the event
-    string key = 2;
+    string key = 1;
 
     // the payload for the event
-    string payload = 3;
+    string payload = 2;
 
     // when the event was generated
-    google.protobuf.Timestamp eventTimestamp = 4;
+    google.protobuf.Timestamp eventTimestamp = 3;
 }
 
 message ListEventRequest {
-    // (required) the tenant id
-    string tenantId = 1;
-
     // (optional) the number of events to skip
-    int32 offset = 2; 
+    int32 offset = 1; 
 
     // (optional) the key for the event
-    string key = 3;
+    string key = 2;
 }
 
 message ListEventResponse {
@@ -60,9 +54,6 @@ message ListEventResponse {
 }
 
 message ReplayEventRequest {
-    // the tenant id
-    string tenantId = 1;
-
     // the event id to replay
-    string eventId = 2;
+    string eventId = 1;
 }

@@ -533,3 +533,35 @@ export interface Worker {
   /** The recent step runs for this worker. */
   recentStepRuns?: StepRun[];
 }
+
+export interface APIToken {
+  metadata: APIResourceMeta;
+  /**
+   * The name of the API token.
+   * @maxLength 255
+   */
+  name: string;
+  /**
+   * When the API token expires.
+   * @format date-time
+   */
+  expiresAt: string;
+}
+
+export interface CreateAPITokenRequest {
+  /**
+   * A name for the API token.
+   * @maxLength 255
+   */
+  name: string;
+}
+
+export interface CreateAPITokenResponse {
+  /** The API token. */
+  token: string;
+}
+
+export interface ListAPITokensResponse {
+  pagination?: PaginationResponse;
+  rows?: APIToken[];
+}

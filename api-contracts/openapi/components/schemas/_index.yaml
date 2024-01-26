@@ -108,3 +108,11 @@ WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 Worker:
   $ref: "./worker.yaml#/Worker"
+APIToken:
+  $ref: "./api_tokens.yaml#/APIToken"
+CreateAPITokenRequest:
+  $ref: "./api_tokens.yaml#/CreateAPITokenRequest"
+CreateAPITokenResponse:
+  $ref: "./api_tokens.yaml#/CreateAPITokenResponse"
+ListAPITokensResponse:
+  $ref: "./api_tokens.yaml#/ListAPITokensResponse"

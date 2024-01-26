@@ -5,6 +5,7 @@ package loader
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -12,9 +13,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/auth/oauth"
+	"github.com/hatchet-dev/hatchet/internal/auth/token"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
+	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -106,7 +109,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		cf.PostgresSSLMode,
 	)
 
-	// os.Setenv("DATABASE_URL", databaseUrl)
+	os.Setenv("DATABASE_URL", databaseUrl)
 
 	client := db.NewClient(
 	// db.WithDatasourceURL(databaseUrl),
@@ -196,9 +199,26 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		auth.GoogleOAuthConfig = gClient
 	}
 
+	encryptionSvc, err := loadEncryptionSvc(cf)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not load encryption service: %w", err)
+	}
+
+	// create a new JWT manager
+	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.Repository.APIToken(), &token.TokenOpts{
+		Issuer:   cf.Runtime.ServerURL,
+		Audience: cf.Runtime.ServerURL,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create JWT manager: %w", err)
+	}
+
 	return &server.ServerConfig{
 		Runtime:       cf.Runtime,
 		Auth:          auth,
+		Encryption:    encryptionSvc,
 		Config:        dc,
 		TaskQueue:     tq,
 		Services:      cf.Services,
@@ -213,4 +233,91 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 func getStrArr(v string) []string {
 	return strings.Split(v, " ")
+}
+
+func loadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
+	var err error
+
+	hasLocalMasterKeyset := cf.Encryption.MasterKeyset != "" || cf.Encryption.MasterKeysetFile != ""
+	isCloudKMSEnabled := cf.Encryption.CloudKMS.Enabled
+
+	if !hasLocalMasterKeyset && !isCloudKMSEnabled {
+		return nil, fmt.Errorf("encryption is required")
+	}
+
+	if hasLocalMasterKeyset && isCloudKMSEnabled {
+		return nil, fmt.Errorf("cannot use both encryption and cloud kms")
+	}
+
+	hasJWTKeys := (cf.Encryption.JWT.PublicJWTKeyset != "" || cf.Encryption.JWT.PublicJWTKeysetFile != "") &&
+		(cf.Encryption.JWT.PrivateJWTKeyset != "" || cf.Encryption.JWT.PrivateJWTKeysetFile != "")
+
+	if !hasJWTKeys {
+		return nil, fmt.Errorf("jwt encryption is required")
+	}
+
+	privateJWT := cf.Encryption.JWT.PrivateJWTKeyset
+
+	if cf.Encryption.JWT.PrivateJWTKeysetFile != "" {
+		privateJWTBytes, err := loaderutils.GetFileBytes(cf.Encryption.JWT.PrivateJWTKeysetFile)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not load private jwt keyset file: %w", err)
+		}
+
+		privateJWT = string(privateJWTBytes)
+	}
+
+	publicJWT := cf.Encryption.JWT.PublicJWTKeyset
+
+	if cf.Encryption.JWT.PublicJWTKeysetFile != "" {
+		publicJWTBytes, err := loaderutils.GetFileBytes(cf.Encryption.JWT.PublicJWTKeysetFile)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not load public jwt keyset file: %w", err)
+		}
+
+		publicJWT = string(publicJWTBytes)
+	}
+
+	var encryptionSvc encryption.EncryptionService
+
+	if hasLocalMasterKeyset {
+		masterKeyset := cf.Encryption.MasterKeyset
+
+		if cf.Encryption.MasterKeysetFile != "" {
+			masterKeysetBytes, err := loaderutils.GetFileBytes(cf.Encryption.MasterKeysetFile)
+
+			if err != nil {
+				return nil, fmt.Errorf("could not load master keyset file: %w", err)
+			}
+
+			masterKeyset = string(masterKeysetBytes)
+		}
+
+		encryptionSvc, err = encryption.NewLocalEncryption(
+			[]byte(masterKeyset),
+			[]byte(privateJWT),
+			[]byte(publicJWT),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create raw keyset encryption service: %w", err)
+		}
+	}
+
+	if isCloudKMSEnabled {
+		encryptionSvc, err = encryption.NewCloudKMSEncryption(
+			cf.Encryption.CloudKMS.KeyURI,
+			[]byte(cf.Encryption.CloudKMS.CredentialsJSON),
+			[]byte(privateJWT),
+			[]byte(publicJWT),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create CloudKMS encryption service: %w", err)
+		}
+	}
+
+	return encryptionSvc, nil
 }

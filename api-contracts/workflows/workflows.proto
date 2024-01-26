@@ -16,8 +16,7 @@ service WorkflowService {
 }
 
 message PutWorkflowRequest {
-    string tenant_id = 1;
-    CreateWorkflowVersionOpts opts = 2;
+    CreateWorkflowVersionOpts opts = 1;
 }
 
 // CreateWorkflowVersionOpts represents options to create a workflow version.
@@ -49,17 +48,14 @@ message CreateWorkflowStepOpts {
 }
 
 // ListWorkflowsRequest is the request for ListWorkflows.
-message ListWorkflowsRequest {
-    string tenant_id = 1;
-}
+message ListWorkflowsRequest {}
 
 message ScheduleWorkflowRequest {
-    string tenant_id = 1;
-    string workflow_id = 2;
-    repeated google.protobuf.Timestamp schedules = 3;
+    string workflow_id = 1;
+    repeated google.protobuf.Timestamp schedules = 2;
 
     // (optional) the input data for the workflow
-    string input = 4;
+    string input = 3;
 }
 
 // ListWorkflowsResponse is the response for ListWorkflows.
@@ -69,8 +65,7 @@ message ListWorkflowsResponse {
   
 // ListWorkflowsForEventRequest is the request for ListWorkflowsForEvent.
 message ListWorkflowsForEventRequest {
-    string tenant_id = 1;
-    string event_key = 2;
+    string event_key = 1;
 }
   
 // Workflow represents the Workflow model.
@@ -147,11 +142,9 @@ message Step {
 }
   
 message DeleteWorkflowRequest {
-    string tenant_id = 1;
-    string workflow_id = 2;
+    string workflow_id = 1;
 }
 
 message GetWorkflowByNameRequest {
-    string tenant_id = 1;
-    string name = 2;
+    string name = 1;
 }

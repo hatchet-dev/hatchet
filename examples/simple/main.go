@@ -6,10 +6,11 @@ import (
 	"log"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/joho/godotenv"
 )
 
 type userCreateEvent struct {
@@ -141,4 +142,6 @@ func run(ch <-chan interface{}, events chan<- string) error {
 			time.Sleep(time.Second)
 		}
 	}
+
+	return nil
 }

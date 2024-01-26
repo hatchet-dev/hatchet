@@ -5,21 +5,19 @@ from ..workflows_pb2_grpc import WorkflowServiceStub
 from ..workflows_pb2 import CreateWorkflowVersionOpts, ScheduleWorkflowRequest, PutWorkflowRequest, GetWorkflowByNameRequest, Workflow
 from ..loader import ClientConfig
 from ..semver import bump_minor_version
+from ..metadata import get_metadata
+
 
 def new_admin(conn, config: ClientConfig):
     return AdminClientImpl(
         client=WorkflowServiceStub(conn),
-        tenant_id=config.tenant_id,
-        # logger=shared_opts['logger'],
-        # validator=shared_opts['validator'],
+        token=config.token,
     )
 
 class AdminClientImpl:
-    def __init__(self, client : WorkflowServiceStub, tenant_id):
+    def __init__(self, client : WorkflowServiceStub, token):
         self.client = client
-        self.tenant_id = tenant_id
-        # self.logger = logger
-        # self.validator = validator
+        self.token = token
         
     def put_workflow(self, workflow: CreateWorkflowVersionOpts, auto_version: bool = False):
         if workflow.version == "" and not auto_version:
@@ -31,9 +29,9 @@ class AdminClientImpl:
         try:
             existing_workflow : Workflow = self.client.GetWorkflowByName(
                 GetWorkflowByNameRequest(
-                    tenant_id=self.tenant_id,
                     name=workflow.name,
-                )
+                ),
+                metadata=get_metadata(self.token),
             )
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
@@ -63,9 +61,9 @@ class AdminClientImpl:
             try:
                 self.client.PutWorkflow(
                     PutWorkflowRequest(
-                        tenant_id=self.tenant_id,
                         opts=workflow,
-                    )
+                    ),
+                    metadata=get_metadata(self.token),
                 )
             except grpc.RpcError as e:
                 raise ValueError(f"Could not create/update workflow: {e}")
@@ -76,6 +74,6 @@ class AdminClientImpl:
                 tenant_id=self.tenant_id,
                 workflow_id=workflow_id,
                 schedules=schedules,
-            ))
+            ), metadata=get_metadata(self.token))
         except grpc.RpcError as e:
             raise ValueError(f"gRPC error: {e}")
