@@ -26,6 +26,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - name: Install dependencies
+        uses: ./
+        with:
+          working-directory: typescript-sdk
+          build: pnpm install
+
       - name: Jest tests
         uses: ./
         with:
