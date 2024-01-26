@@ -12,7 +12,7 @@ export const ClientConfigSchema = z.object({
   tenant_id: z.string(),
   tls_config: ClientTLSConfigSchema,
   host_port: z.string(),
-  log_level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']),
+  log_level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(),
 });
 
 export type ClientConfig = z.infer<typeof ClientConfigSchema> & {

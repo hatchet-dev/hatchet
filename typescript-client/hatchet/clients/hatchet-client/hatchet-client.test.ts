@@ -12,6 +12,7 @@ describe('Client', () => {
     const hatchet = new HatchetClient(
       {
         host_port: 'HOST_PORT',
+        log_level: 'INFO',
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
           key_file: 'TLS_KEY_FILE',
@@ -27,6 +28,7 @@ describe('Client', () => {
     expect(hatchet.config).toEqual({
       tenant_id: 'TENANT_ID_ENV',
       host_port: 'HOST_PORT',
+      log_level: 'INFO',
       tls_config: {
         cert_file: 'TLS_CERT_FILE',
         key_file: 'TLS_KEY_FILE',
@@ -71,6 +73,7 @@ describe('Client', () => {
     expect(hatchet.config).toEqual({
       tenant_id: 'TENANT_ID_YAML',
       host_port: 'HOST_PORT_YAML',
+      log_level: 'INFO',
       tls_config: {
         cert_file: 'TLS_CERT_FILE',
         key_file: 'TLS_KEY_FILE',
@@ -100,6 +103,7 @@ describe('Client', () => {
       expect(hatchet.config).toEqual({
         tenant_id: 'TENANT_ID_ENV',
         host_port: 'HOST:1234',
+        log_level: 'INFO',
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
           key_file: 'TLS_KEY_FILE',
