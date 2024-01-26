@@ -32,7 +32,7 @@ export class Context<T = any> {
     return this.data?.triggered_by_event === 'event';
   }
 
-  workflow_input(): any {
+  workflowInput(): any {
     return this.data?.input || {};
   }
 }

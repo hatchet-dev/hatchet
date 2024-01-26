@@ -88,7 +88,7 @@ export class Worker {
     }
 
     const run = async () => {
-      return step(context.workflow_input(), context);
+      return step(context.workflowInput(), context);
     };
 
     const success = (result: any) => {
