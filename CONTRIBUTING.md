@@ -105,3 +105,15 @@ Generate a service account in GCP which can encrypt/decrypt on CloudKMS, then do
 ```
 SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON='{...}'
 ```
+
+## Issues
+
+### Query engine leakage
+
+Sometimes the spawned query engines from Prisma don't get killed when hot reloading. You can run `task kill-query-engines` on OSX to kill the query engines.
+
+Make sure you call `.Disconnect` on the database config object when writing CLI commands which interact with the database. If you don't, and you try to wrap these CLI commands in a new command, it will never exit, for example:
+
+```
+export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --tenant-id <tenant>)"
+```

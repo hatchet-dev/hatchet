@@ -14,7 +14,6 @@ var (
 	cloudKMSKeyURI          string
 )
 
-// keysetCmd seeds the database with initial data
 var keysetCmd = &cobra.Command{
 	Use:   "keyset",
 	Short: "command for managing keysets.",
@@ -24,9 +23,7 @@ var keysetCreateMasterCmd = &cobra.Command{
 	Use:   "create-master",
 	Short: "create a new local master keyset.",
 	Run: func(cmd *cobra.Command, args []string) {
-		var err error
-
-		err = runCreateLocalMasterKeyset()
+		err := runCreateLocalMasterKeyset()
 
 		if err != nil {
 			fmt.Printf("Fatal: could not run seed command: %v\n", err)
@@ -39,9 +36,7 @@ var keysetCreateLocalJWTCmd = &cobra.Command{
 	Use:   "create-local-jwt",
 	Short: "create a new local JWT keyset.",
 	Run: func(cmd *cobra.Command, args []string) {
-		var err error
-
-		err = runCreateLocalJWTKeyset()
+		err := runCreateLocalJWTKeyset()
 
 		if err != nil {
 			fmt.Printf("Fatal: could not run seed command: %v\n", err)
@@ -54,9 +49,7 @@ var keysetCreateCloudKMSJWTCmd = &cobra.Command{
 	Use:   "create-cloudkms-jwt",
 	Short: "create a new JWT keyset encrypted by a remote CloudKMS repository.",
 	Run: func(cmd *cobra.Command, args []string) {
-		var err error
-
-		err = runCreateCloudKMSJWTKeyset()
+		err := runCreateCloudKMSJWTKeyset()
 
 		if err != nil {
 			fmt.Printf("Fatal: could not run seed command: %v\n", err)
