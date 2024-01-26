@@ -1,6 +1,10 @@
 {
-  "index": "Introduction",
-  "quickstart": "Quickstart",
-  "go-sdk": "Go SDK",
-  "python-sdk": "Python SDK"
+    "home": {
+        "title": "Home",
+        "type": "page"
+    },
+    "contributing": {
+        "title": "Contributing",
+        "type": "page"
+    }
 }
