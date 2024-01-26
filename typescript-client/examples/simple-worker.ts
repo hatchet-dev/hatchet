@@ -3,6 +3,11 @@ import { Workflow } from '@hatchet/workflow';
 
 const hatchet = Hatchet.init();
 
+const sleep = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
 const workflow: Workflow = {
   id: 'example',
   description: 'test',
@@ -12,7 +17,9 @@ const workflow: Workflow = {
   steps: [
     {
       name: 'step1',
-      run: (input, ctx) => {
+      run: async (input, ctx) => {
+        console.log('starting step1!');
+        await sleep(5000);
         console.log('executed step1!');
         return { step1: 'step1' };
       },

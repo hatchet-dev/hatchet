@@ -160,14 +160,14 @@ export class Worker {
     }
   }
 
-  stop() {
-    this.exit_gracefully();
+  async stop() {
+    await this.exit_gracefully();
   }
 
-  exit_gracefully() {
+  async exit_gracefully() {
     this.killing = true;
 
-    this.logger.info('Gracefully exiting hatchet worker...');
+    this.logger.info('Starting to exit...');
 
     try {
       this.listener?.unregister();
@@ -175,7 +175,10 @@ export class Worker {
       this.logger.error(`Could not unregister listener: ${e.message}`);
     }
 
-    // TODO wait for futures to finish
+    this.logger.info('Gracefully exiting hatchet worker, running tasks will attempt to finish...');
+
+    // attempt to wait for futures to finish
+    await Promise.all(Object.values(this.futures).map(({ promise }) => promise));
 
     if (this.handle_kill) {
       this.logger.info('Exiting hatchet worker...');
