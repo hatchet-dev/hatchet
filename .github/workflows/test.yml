@@ -155,13 +155,13 @@ jobs:
 
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine &
-          go run ./cmd/hatchet-api &
+          go run ./cmd/hatchet-engine --config ./generated/ &
+          go run ./cmd/hatchet-api --config ./generated/ &
           sleep 30
 
       - name: Test
         run: |
-          export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
+          export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
 
           go test -tags e2e ./... -p 1 -v -failfast
 
