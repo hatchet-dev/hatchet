@@ -19,54 +19,16 @@ class AdminClientImpl:
         self.client = client
         self.token = token
         
-    def put_workflow(self, workflow: CreateWorkflowVersionOpts, auto_version: bool = False):
-        if workflow.version == "" and not auto_version:
-            raise ValueError("PutWorkflow error: workflow version is required, or use with_auto_version")
-        
-        existing_workflow : Workflow = None
-
-        # Get existing workflow by name
+    def put_workflow(self, workflow: CreateWorkflowVersionOpts):
         try:
-            existing_workflow : Workflow = self.client.GetWorkflowByName(
-                GetWorkflowByNameRequest(
-                    name=workflow.name,
+            self.client.PutWorkflow(
+                PutWorkflowRequest(
+                    opts=workflow,
                 ),
                 metadata=get_metadata(self.token),
             )
         except grpc.RpcError as e:
-            if e.code() == grpc.StatusCode.NOT_FOUND:
-                should_put = True
-            else:
-                raise ValueError(f"Could not get workflow: {e}")
-
-        # Determine if we should put the workflow
-        should_put = False
-        if auto_version:
-            if workflow.version == "":
-                workflow.version = "v0.1.0"
-                should_put = True
-            elif existing_workflow and existing_workflow.versions:
-                if auto_version:
-                    workflow.version = bump_minor_version(existing_workflow.versions[0].version)
-                    should_put = True
-                elif existing_workflow.versions[0].version != workflow.version:
-                    should_put = True
-                else:
-                    should_put = False
-            else:
-                should_put = True
-
-        # Put the workflow if conditions are met
-        if should_put:
-            try:
-                self.client.PutWorkflow(
-                    PutWorkflowRequest(
-                        opts=workflow,
-                    ),
-                    metadata=get_metadata(self.token),
-                )
-            except grpc.RpcError as e:
-                raise ValueError(f"Could not create/update workflow: {e}")
+            raise ValueError(f"Could not put workflow: {e}")            
     
     def schedule_workflow(self, workflow_id : str, schedules : List[timestamp_pb2.Timestamp]):
         try:

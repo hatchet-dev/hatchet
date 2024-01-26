@@ -397,6 +397,7 @@ INSERT INTO "WorkflowVersion" (
     "createdAt",
     "updatedAt",
     "deletedAt",
+    "checksum",
     "version",
     "workflowId"
 ) VALUES (
@@ -405,8 +406,9 @@ INSERT INTO "WorkflowVersion" (
     coalesce($3::timestamp, CURRENT_TIMESTAMP),
     $4::timestamp,
     $5::text,
-    $6::uuid
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId"
+    $6::text,
+    $7::uuid
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", checksum, version, "order", "workflowId"
 `
 
 type CreateWorkflowVersionParams struct {
@@ -414,7 +416,8 @@ type CreateWorkflowVersionParams struct {
 	CreatedAt  pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
 	Deletedat  pgtype.Timestamp `json:"deletedat"`
-	Version    string           `json:"version"`
+	Checksum   string           `json:"checksum"`
+	Version    pgtype.Text      `json:"version"`
 	Workflowid pgtype.UUID      `json:"workflowid"`
 }
 
@@ -424,6 +427,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.Deletedat,
+		arg.Checksum,
 		arg.Version,
 		arg.Workflowid,
 	)
@@ -433,6 +437,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Checksum,
 		&i.Version,
 		&i.Order,
 		&i.WorkflowId,
@@ -450,7 +455,7 @@ FROM (
         "Workflow" as workflows 
     LEFT JOIN
         (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
+            SELECT id, "createdAt", "updatedAt", "deletedAt", checksum, version, "order", "workflowId" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
         ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
     LEFT JOIN
         "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
