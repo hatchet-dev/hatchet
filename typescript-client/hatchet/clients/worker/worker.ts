@@ -6,6 +6,7 @@ import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
 import { Workflow } from '@hatchet/workflow';
 import { CreateWorkflowStepOpts } from '@protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
+import sleep from '@hatchet/util/sleep';
 import { Context } from '../../step';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
@@ -185,46 +186,46 @@ export class Worker {
     }
   }
 
-  async start(retryCount = 1) {
-    if (retryCount === 1) {
-      this.logger.info(`Starting worker ${this.name}`);
-    } else {
-      this.logger.warn(`Retrying to start worker ${this.name}`);
-    }
-    try {
-      this.listener = await this.client.dispatcher.get_action_listener({
-        workerName: this.name,
-        services: ['default'],
-        actions: Object.keys(this.action_registry),
-      });
+  async start() {
+    let retries = 0;
 
-      const generator = this.listener.actions();
+    while (retries < 5) {
+      try {
+        this.listener = await this.client.dispatcher.get_action_listener({
+          workerName: this.name,
+          services: ['default'],
+          actions: Object.keys(this.action_registry),
+        });
 
-      this.logger.info(`Worker ${this.name} listening for actions`);
+        const generator = this.listener.actions();
 
-      for await (const action of generator) {
-        this.logger.info(`Worker ${this.name} received action ${action.actionId}`);
+        this.logger.info(`Worker ${this.name} listening for actions`);
 
-        if (action.actionType === ActionType.START_STEP_RUN) {
-          this.handle_start_step_run(action);
-        } else if (action.actionType === ActionType.CANCEL_STEP_RUN) {
-          this.handle_cancel_step_run(action);
+        for await (const action of generator) {
+          this.logger.info(`Worker ${this.name} received action ${action.actionId}`);
+
+          if (action.actionType === ActionType.START_STEP_RUN) {
+            this.handle_start_step_run(action);
+          } else if (action.actionType === ActionType.CANCEL_STEP_RUN) {
+            this.handle_cancel_step_run(action);
+          }
         }
-      }
-    } catch (e: any) {
-      this.logger.error(`Could not start worker: ${e.message}`);
 
-      console.error(e);
+        break;
+      } catch (e: any) {
+        this.logger.error(`Could not start worker: ${e.message}`);
+        retries += 1;
+        const wait = 500;
+        this.logger.error(`Could not start worker, retrying in ${500} seconds`);
+        await sleep(wait);
+      }
     }
 
     if (this.killing) return;
 
-    if (retryCount > 5) {
+    if (retries > 5) {
       throw new HatchetError('Could not start worker after 5 retries');
     }
-
-    console.log(`Could not start worker, retrying in ${retryCount} seconds`);
-    // TODO retry not implemented
     // await this.start(retryCount + 1);
   }
 }
