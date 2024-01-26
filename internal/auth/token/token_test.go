@@ -129,8 +129,14 @@ func getJWTManager(t *testing.T, conf *database.Config) token.JWTManager {
 
 	tokenRepo := conf.Repository.APIToken()
 
-	return token.NewJWTManager(encryptionService, tokenRepo, &token.TokenOpts{
+	jwtManager, err := token.NewJWTManager(encryptionService, tokenRepo, &token.TokenOpts{
 		Issuer:   "hatchet",
 		Audience: "hatchet",
 	})
+
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	return jwtManager
 }
