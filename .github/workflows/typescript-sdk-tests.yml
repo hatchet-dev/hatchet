@@ -5,7 +5,7 @@ on:
 
 jobs:
   run-typescript-sdk-tests:
-    runs-on: ubuntu-lastest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
