@@ -29,7 +29,7 @@ type CreateWorkflowVersionOpts struct {
 	CronTriggers []string `validate:"dive,cron"`
 
 	// (optional) scheduled triggers for the workflow
-	ScheduledTriggers []time.Time `json:"-"` // we marshal this for computing checksums, and this isn't part of the core definition
+	ScheduledTriggers []time.Time
 
 	// (required) the workflow jobs
 	Jobs []CreateWorkflowJobOpts `validate:"required,min=1,dive"`
