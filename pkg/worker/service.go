@@ -3,7 +3,6 @@ package worker
 import (
 	"fmt"
 
-	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -29,7 +28,7 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	apiWorkflow.Triggers = *wt
 
 	// create the workflow via the API
-	err := s.worker.client.Admin().PutWorkflow(&apiWorkflow, client.WithAutoVersion())
+	err := s.worker.client.Admin().PutWorkflow(&apiWorkflow)
 
 	if err != nil {
 		return err

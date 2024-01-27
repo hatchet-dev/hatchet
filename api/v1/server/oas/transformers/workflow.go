@@ -64,9 +64,12 @@ func ToWorkflow(workflow *db.WorkflowModel, lastRun *db.WorkflowRunModel) (*gen.
 func ToWorkflowVersionMeta(version *db.WorkflowVersionModel) *gen.WorkflowVersionMeta {
 	res := &gen.WorkflowVersionMeta{
 		Metadata:   *toAPIMetadata(version.ID, version.CreatedAt, version.UpdatedAt),
-		Version:    version.Version,
 		WorkflowId: version.WorkflowID,
 		Order:      int32(version.Order),
+	}
+
+	if setVersion, ok := version.Version(); ok {
+		res.Version = setVersion
 	}
 
 	return res
@@ -75,9 +78,12 @@ func ToWorkflowVersionMeta(version *db.WorkflowVersionModel) *gen.WorkflowVersio
 func ToWorkflowVersion(workflow *db.WorkflowModel, version *db.WorkflowVersionModel) (*gen.WorkflowVersion, error) {
 	res := &gen.WorkflowVersion{
 		Metadata:   *toAPIMetadata(version.ID, version.CreatedAt, version.UpdatedAt),
-		Version:    version.Version,
 		WorkflowId: version.WorkflowID,
 		Order:      int32(version.Order),
+	}
+
+	if setVersion, ok := version.Version(); ok {
+		res.Version = setVersion
 	}
 
 	if version.RelationsWorkflowVersion.Jobs != nil {
@@ -116,8 +122,11 @@ func ToWorkflowVersion(workflow *db.WorkflowModel, version *db.WorkflowVersionMo
 
 func ToWorkflowYAMLBytes(workflow *db.WorkflowModel, version *db.WorkflowVersionModel) ([]byte, error) {
 	res := &types.Workflow{
-		Name:    workflow.Name,
-		Version: version.Version,
+		Name: workflow.Name,
+	}
+
+	if setVersion, ok := version.Version(); ok {
+		res.Version = setVersion
 	}
 
 	if description, ok := workflow.Description(); ok {
@@ -276,7 +285,7 @@ func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
 func ToWorkflowVersionMetaFromSQLC(row *dbsqlc.WorkflowVersion, workflow *gen.Workflow) *gen.WorkflowVersionMeta {
 	res := &gen.WorkflowVersionMeta{
 		Metadata:   *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
-		Version:    row.Version,
+		Version:    row.Version.String,
 		WorkflowId: pgUUIDToStr(row.WorkflowId),
 		Order:      int32(row.Order),
 		Workflow:   workflow,
@@ -288,7 +297,7 @@ func ToWorkflowVersionMetaFromSQLC(row *dbsqlc.WorkflowVersion, workflow *gen.Wo
 func ToWorkflowVersionFromSQLC(row *dbsqlc.WorkflowVersion, workflow *gen.Workflow) *gen.WorkflowVersion {
 	res := &gen.WorkflowVersion{
 		Metadata:   *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
-		Version:    row.Version,
+		Version:    row.Version.String,
 		WorkflowId: pgUUIDToStr(row.WorkflowId),
 		Order:      int32(row.Order),
 		Workflow:   workflow,

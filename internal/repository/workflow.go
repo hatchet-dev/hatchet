@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
@@ -15,10 +17,10 @@ type CreateWorkflowVersionOpts struct {
 	Tags []CreateWorkflowTagOpts `validate:"dive"`
 
 	// (optional) the workflow description
-	Description *string
+	Description *string `json:"description,omitempty"`
 
-	// (required) the workflow version
-	Version string `validate:"required,semver"`
+	// (optional) the workflow version
+	Version *string `json:"version,omitempty"`
 
 	// (optional) event triggers for the workflow
 	EventTriggers []string
@@ -31,6 +33,23 @@ type CreateWorkflowVersionOpts struct {
 
 	// (required) the workflow jobs
 	Jobs []CreateWorkflowJobOpts `validate:"required,min=1,dive"`
+}
+
+func (o *CreateWorkflowVersionOpts) Checksum() (string, error) {
+	// compute a checksum for the workflow
+	declaredValues, err := datautils.ToJSONMap(o)
+
+	if err != nil {
+		return "", err
+	}
+
+	workflowChecksum, err := digest.DigestValues(declaredValues)
+
+	if err != nil {
+		return "", err
+	}
+
+	return workflowChecksum.String(), nil
 }
 
 type CreateWorkflowSchedulesOpts struct {

@@ -8,6 +8,7 @@
   - Added the required column `actionId` to the `Action` table without a default value. This is not possible if the table is not empty.
   - Changed the type of `id` on the `Action` table. No cast exists, the column would be dropped and recreated, which cannot be done if there is data, since the column is required.
   - Changed the type of `accessToken` on the `UserOAuth` table. No cast exists, the column would be dropped and recreated, which cannot be done if there is data, since the column is required.
+  - Added the required column `checksum` to the `WorkflowVersion` table without a default value. This is not possible if the table is not empty.
   - Changed the type of `A` on the `_ActionToWorker` table. No cast exists, the column would be dropped and recreated, which cannot be done if there is data, since the column is required.
 
 */
@@ -19,6 +20,9 @@ ALTER TABLE "_ActionToWorker" DROP CONSTRAINT "_ActionToWorker_A_fkey";
 
 -- DropIndex
 DROP INDEX "Action_tenantId_id_key";
+
+-- DropIndex
+DROP INDEX "WorkflowVersion_workflowId_version_key";
 
 -- AlterTable
 ALTER TABLE "Action" DROP CONSTRAINT "Action_pkey",
@@ -32,6 +36,19 @@ ALTER TABLE "UserOAuth" DROP COLUMN "accessToken",
 ADD COLUMN     "accessToken" BYTEA NOT NULL,
 DROP COLUMN "refreshToken",
 ADD COLUMN     "refreshToken" BYTEA;
+
+-- AlterTable
+ALTER TABLE "WorkflowVersion" ADD COLUMN "checksum" TEXT;
+
+-- Add a default random string value to existing rows
+UPDATE "WorkflowVersion"
+SET "checksum" = md5(random()::text || clock_timestamp()::text);
+
+-- Make the checksum column NOT NULL
+ALTER TABLE "WorkflowVersion" ALTER COLUMN "checksum" SET NOT NULL;
+
+-- Update the version column to allow NULL
+ALTER TABLE "WorkflowVersion" ALTER COLUMN "version" DROP NOT NULL;
 
 -- AlterTable
 ALTER TABLE "_ActionToWorker" DROP COLUMN "A",

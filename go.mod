@@ -16,6 +16,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.11.3
 	github.com/oapi-codegen/runtime v1.1.0
+	github.com/opencontainers/go-digest v1.0.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.16.0

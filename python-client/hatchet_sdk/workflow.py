@@ -35,6 +35,7 @@ class WorkflowMeta(type):
         name = attrs['name']
         event_triggers = attrs['on_events']
         cron_triggers = attrs['on_crons']
+        version = attrs['version']
 
         createStepOpts: List[CreateWorkflowStepOpts] = [
             CreateWorkflowStepOpts(
@@ -49,7 +50,7 @@ class WorkflowMeta(type):
 
         client.admin.put_workflow(CreateWorkflowVersionOpts(
             name=name,
-            version="v0.62.0",
+            version=version,
             event_triggers=event_triggers,
             cron_triggers=cron_triggers,
             jobs=[
@@ -59,6 +60,6 @@ class WorkflowMeta(type):
                     steps=createStepOpts,
                 )
             ]
-        ), auto_version=True)
+        ))
 
         return super(WorkflowMeta, cls).__new__(cls, name, bases, attrs)

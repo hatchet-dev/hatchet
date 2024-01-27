@@ -447,12 +447,25 @@ func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts) (string, error) {
 	workflowVersionId := uuid.New().String()
 
+	var version pgtype.Text
+
+	if opts.Version != nil {
+		version = sqlchelpers.TextFromStr(*opts.Version)
+	}
+
+	cs, err := opts.Checksum()
+
+	if err != nil {
+		return "", err
+	}
+
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		context.Background(),
 		tx,
 		dbsqlc.CreateWorkflowVersionParams{
 			ID:         sqlchelpers.UUIDFromStr(workflowVersionId),
-			Version:    opts.Version,
+			Checksum:   cs,
+			Version:    version,
 			Workflowid: workflowId,
 		},
 	)

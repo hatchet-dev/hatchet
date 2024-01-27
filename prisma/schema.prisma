@@ -275,8 +275,11 @@ model WorkflowVersion {
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
 
-  version String
-  order   Int    @default(autoincrement()) @db.SmallInt
+  // note that checksums don't need to be unique, as they're computed from the workflow
+  // declaration, which can be the same for multiple versions (e.g. on revert)
+  checksum String
+  version  String?
+  order    Int     @default(autoincrement()) @db.SmallInt
 
   // the parent workflow
   workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -293,9 +296,6 @@ model WorkflowVersion {
 
   // the scheduled runs for the workflow
   scheduled WorkflowTriggerScheduledRef[]
-
-  // versions are unique per workflow
-  @@unique([workflowId, version])
 }
 
 model WorkflowTriggers {
