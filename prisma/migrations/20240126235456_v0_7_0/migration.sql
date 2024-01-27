@@ -38,8 +38,17 @@ DROP COLUMN "refreshToken",
 ADD COLUMN     "refreshToken" BYTEA;
 
 -- AlterTable
-ALTER TABLE "WorkflowVersion" ADD COLUMN     "checksum" TEXT NOT NULL,
-ALTER COLUMN "version" DROP NOT NULL;
+ALTER TABLE "WorkflowVersion" ADD COLUMN "checksum" TEXT;
+
+-- Add a default random string value to existing rows
+UPDATE "WorkflowVersion"
+SET "checksum" = md5(random()::text || clock_timestamp()::text);
+
+-- Make the checksum column NOT NULL
+ALTER TABLE "WorkflowVersion" ALTER COLUMN "checksum" SET NOT NULL;
+
+-- Update the version column to allow NULL
+ALTER TABLE "WorkflowVersion" ALTER COLUMN "version" DROP NOT NULL;
 
 -- AlterTable
 ALTER TABLE "_ActionToWorker" DROP COLUMN "A",
