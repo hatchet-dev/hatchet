@@ -152,6 +152,7 @@ INSERT INTO "WorkflowVersion" (
     "createdAt",
     "updatedAt",
     "deletedAt",
+    "checksum",
     "version",
     "workflowId"
 ) VALUES (
@@ -159,7 +160,8 @@ INSERT INTO "WorkflowVersion" (
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
     coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
     @deletedAt::timestamp,
-    @version::text,
+    @checksum::text,
+    sqlc.narg('version')::text,
     @workflowId::uuid
 ) RETURNING *;
 

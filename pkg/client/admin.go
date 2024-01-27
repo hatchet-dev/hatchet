@@ -6,11 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -46,16 +43,9 @@ func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts) AdminClient {
 }
 
 type putOpts struct {
-	autoVersion bool
 }
 
 type PutOptFunc func(*putOpts)
-
-func WithAutoVersion() PutOptFunc {
-	return func(opts *putOpts) {
-		opts.autoVersion = true
-	}
-}
 
 func defaultPutOpts() *putOpts {
 	return &putOpts{}
@@ -68,59 +58,16 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 		f(opts)
 	}
 
-	if workflow.Version == "" && !opts.autoVersion {
-		return fmt.Errorf("PutWorkflow error: workflow version is required, or use WithAutoVersion()")
-	}
-
 	req, err := a.getPutRequest(workflow)
 
 	if err != nil {
 		return fmt.Errorf("could not get put opts: %w", err)
 	}
 
-	apiWorkflow, err := a.client.GetWorkflowByName(a.ctx.newContext(context.Background()), &admincontracts.GetWorkflowByNameRequest{
-		Name: req.Opts.Name,
-	})
-
-	shouldPut := opts.autoVersion
+	_, err = a.client.PutWorkflow(a.ctx.newContext(context.Background()), req)
 
 	if err != nil {
-		// if not found, create
-		if statusErr, ok := status.FromError(err); ok && statusErr.Code() == codes.NotFound {
-			shouldPut = true
-		} else {
-			return fmt.Errorf("could not get workflow: %w", err)
-		}
-
-		if workflow.Version == "" && opts.autoVersion {
-			req.Opts.Version = "0.1.0"
-		}
-	} else {
-		// if there are no versions, exit
-		if len(apiWorkflow.Versions) == 0 {
-			return fmt.Errorf("found workflow, but it has no versions")
-		}
-
-		// get the workflow version to determine whether to update
-		if apiWorkflow.Versions[0].Version != workflow.Version {
-			shouldPut = true
-		}
-
-		if workflow.Version == "" && opts.autoVersion {
-			req.Opts.Version, err = bumpMinorVersion(apiWorkflow.Versions[0].Version)
-
-			if err != nil {
-				return fmt.Errorf("could not bump version: %w", err)
-			}
-		}
-	}
-
-	if shouldPut {
-		_, err = a.client.PutWorkflow(a.ctx.newContext(context.Background()), req)
-
-		if err != nil {
-			return fmt.Errorf("could not create workflow: %w", err)
-		}
+		return fmt.Errorf("could not create workflow: %w", err)
 	}
 
 	return nil
@@ -248,16 +195,4 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 	return &admincontracts.PutWorkflowRequest{
 		Opts: opts,
 	}, nil
-}
-
-func bumpMinorVersion(version string) (string, error) {
-	currVersion, err := semver.NewVersion(version)
-
-	if err != nil {
-		return "", fmt.Errorf("could not parse version: %w", err)
-	}
-
-	newVersion := currVersion.IncMinor()
-
-	return newVersion.String(), nil
 }

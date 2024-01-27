@@ -381,7 +381,8 @@ CREATE TABLE "WorkflowVersion" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
-    "version" TEXT NOT NULL,
+    "checksum" TEXT NOT NULL,
+    "version" TEXT,
     "order" SMALLSERIAL NOT NULL,
     "workflowId" UUID NOT NULL,
 
@@ -552,9 +553,6 @@ CREATE UNIQUE INDEX "WorkflowTriggers_workflowVersionId_key" ON "WorkflowTrigger
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowVersion_id_key" ON "WorkflowVersion"("id" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "WorkflowVersion_workflowId_version_key" ON "WorkflowVersion"("workflowId" ASC, "version" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "_ActionToWorker_AB_unique" ON "_ActionToWorker"("A" ASC, "B" ASC);

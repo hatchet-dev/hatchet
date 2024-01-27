@@ -12,12 +12,13 @@ class Hatchet:
         if not debug:
             logger.disable("hatchet_sdk")
 
-    def workflow(self, name : str='', on_events : list=[], on_crons : list=[]):
+    def workflow(self, name : str='', on_events : list=[], on_crons : list=[], version : str=''):
         def inner(cls):
                 cls.on_events = on_events
                 cls.on_crons = on_crons
                 cls.name = name or str(cls.__name__)
                 cls.client = self.client
+                cls.version = version
 
                 # Define a new class with the same name and bases as the original, but with WorkflowMeta as its metaclass
                 return WorkflowMeta(cls.__name__, cls.__bases__, dict(cls.__dict__))

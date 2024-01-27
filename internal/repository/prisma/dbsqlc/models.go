@@ -589,7 +589,8 @@ type WorkflowVersion struct {
 	CreatedAt  pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
 	DeletedAt  pgtype.Timestamp `json:"deletedAt"`
-	Version    string           `json:"version"`
+	Checksum   string           `json:"checksum"`
+	Version    pgtype.Text      `json:"version"`
 	Order      int16            `json:"order"`
 	WorkflowId pgtype.UUID      `json:"workflowId"`
 }

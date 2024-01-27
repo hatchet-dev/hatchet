@@ -130,7 +130,7 @@ func seedDev(repo repository.Repository, tenantId string) error {
 		wf, err := repo.Workflow().CreateNewWorkflow(tenantId, &repository.CreateWorkflowVersionOpts{
 			Name:        "test-workflow",
 			Description: repository.StringPtr("This is a test workflow."),
-			Version:     "v0.1.0",
+			Version:     repository.StringPtr("v0.1.0"),
 			EventTriggers: []string{
 				"user:create",
 			},
