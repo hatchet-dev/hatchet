@@ -6,7 +6,8 @@ authors = []
 readme = "README.md"
 
 [tool.poetry.scripts]
-start = "src.main:start"
+api = "src.api.main:start"
+hatchet = "src.workflows.main:start"
 
 [tool.poetry.dependencies]
 python = "^3.8"

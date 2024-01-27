@@ -1,7 +1,9 @@
 from fastapi import FastAPI
+from hatchet_sdk import Hatchet, Context
 import uvicorn
 
 app = FastAPI()
+hatchet = Hatchet()
 
 
 @app.get("/")
