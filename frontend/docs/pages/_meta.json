@@ -1,6 +1,7 @@
 {
   "index": "Introduction",
   "quickstart": "Quickstart",
-  "go-sdk": "Go SDK",
-  "python-sdk": "Python SDK"
+  "python-sdk": "Python SDK",
+  "typescript-sdk": "TypeScript SDK",
+  "go-sdk": "Go SDK"
 }

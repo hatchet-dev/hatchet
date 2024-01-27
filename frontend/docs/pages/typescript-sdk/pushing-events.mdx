@@ -1,0 +1,15 @@
+# Pushing Events
+
+Events can be pushed via the client's `hatchet.event.push()` method:
+
+```ts
+import Hatchet from "@hatchet/sdk";
+
+const hatchet = Hatchet.init();
+
+hatchet.event.push("user:create", {
+  test: "test",
+});
+```
+
+Events should be JSON serializable and typically utilize a `Record` or a type that serializes into a JSON object in TypeScript.
