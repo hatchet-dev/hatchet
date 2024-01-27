@@ -21,7 +21,7 @@ jobs:
 
       - name: Run publish.sh script
         run: |
-          cd python-client
+          cd python-sdk
           sh publish.sh
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.POETRY_PYPI_TOKEN_PYPI }}

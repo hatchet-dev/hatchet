@@ -65,7 +65,7 @@ tasks:
     cmds:
       - sh ./hack/proto/proto.sh
   generate-proto-python:
-    dir: ./python-client
+    dir: ./python-sdk
     cmds:
       - sh ./generate.sh
   generate-sqlc:

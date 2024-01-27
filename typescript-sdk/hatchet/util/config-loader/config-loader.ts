@@ -9,10 +9,13 @@ import { LogLevel } from '../logger/logger';
 type EnvVars =
   | 'HATCHET_CLIENT_TENANT_ID'
   | 'HATCHET_CLIENT_HOST_PORT'
+  | 'HATCHET_CLIENT_TLS_STRATEGY'
   | 'HATCHET_CLIENT_TLS_CERT_FILE'
   | 'HATCHET_CLIENT_TLS_KEY_FILE'
   | 'HATCHET_CLIENT_TLS_ROOT_CA_FILE'
+  | 'HATCHET_CLIENT_TLS_ROOT_CA'
   | 'HATCHET_CLIENT_TLS_SERVER_NAME'
+  | 'HATCHET_CLIENT_TLS_STRATEGY'
   | 'HATCHET_CLIENT_LOG_LEVEL';
 
 interface LoadClientConfigOptions {
@@ -22,17 +25,24 @@ interface LoadClientConfigOptions {
 const DEFAULT_CONFIG_FILE = '.hatchet.yaml';
 
 export class ConfigLoader {
-  static load_client_config(config?: LoadClientConfigOptions): Partial<ClientConfig> {
-    const yaml = this.load_yaml_config(config?.path);
+  static load_tls_config(): ClientConfig['tls_config'] {
     const tlsConfig = {
       cert_file: yaml?.tls_config?.cert_file ?? this.env('HATCHET_CLIENT_TLS_CERT_FILE')!,
       key_file: yaml?.tls_config?.key_file ?? this.env('HATCHET_CLIENT_TLS_KEY_FILE')!,
       ca_file: yaml?.tls_config?.ca_file ?? this.env('HATCHET_CLIENT_TLS_ROOT_CA_FILE')!,
       server_name: yaml?.tls_config?.server_name ?? this.env('HATCHET_CLIENT_TLS_SERVER_NAME')!,
     };
+  }
+
+  static load_client_config(config?: LoadClientConfigOptions): Partial<ClientConfig> {
+    const yaml = this.load_yaml_config(config?.path);
+
+    const 
+
 
     return {
       tenant_id: yaml?.tenant_id ?? this.env('HATCHET_CLIENT_TENANT_ID'),
+      host_port: yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT'),
       host_port: yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT'),
       tls_config: tlsConfig,
       log_level: yaml?.log_level ?? (this.env('HATCHET_CLIENT_LOG_LEVEL') as LogLevel) ?? 'INFO',
