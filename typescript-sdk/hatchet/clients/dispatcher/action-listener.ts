@@ -65,7 +65,6 @@ export class ActionListener {
         await sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL);
 
         this.listener = this.client.listen({
-          tenantId: this.config.tenant_id,
           workerId: this.workerId,
         });
 
@@ -83,7 +82,6 @@ export class ActionListener {
   async unregister() {
     try {
       return this.client.unsubscribe({
-        tenantId: this.config.tenant_id,
         workerId: this.workerId,
       });
     } catch (e: any) {

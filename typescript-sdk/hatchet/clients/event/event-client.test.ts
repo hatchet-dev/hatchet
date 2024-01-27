@@ -53,7 +53,6 @@ describe('EventClient', () => {
     client.push('type', { foo: 'bar' });
 
     expect(clientSpy).toHaveBeenCalledWith({
-      tenantId: 'TENANT_ID',
       key: 'type',
       payload: '{"foo":"bar"}',
       eventTimestamp: expect.any(Date),

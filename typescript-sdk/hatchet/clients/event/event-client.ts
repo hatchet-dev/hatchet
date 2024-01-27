@@ -19,7 +19,6 @@ export class EventClient {
 
   push<T>(type: string, input: T) {
     const req: PushEventRequest = {
-      tenantId: this.config.tenant_id,
       key: type,
       payload: JSON.stringify(input),
       eventTimestamp: new Date(),

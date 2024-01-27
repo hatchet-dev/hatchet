@@ -19,8 +19,6 @@ export interface Event {
 }
 
 export interface PushEventRequest {
-  /** the tenant id */
-  tenantId: string;
   /** the key for the event */
   key: string;
   /** the payload for the event */
@@ -30,8 +28,6 @@ export interface PushEventRequest {
 }
 
 export interface ListEventRequest {
-  /** (required) the tenant id */
-  tenantId: string;
   /** (optional) the number of events to skip */
   offset: number;
   /** (optional) the key for the event */
@@ -44,8 +40,6 @@ export interface ListEventResponse {
 }
 
 export interface ReplayEventRequest {
-  /** the tenant id */
-  tenantId: string;
   /** the event id to replay */
   eventId: string;
 }
@@ -170,22 +164,19 @@ export const Event = {
 };
 
 function createBasePushEventRequest(): PushEventRequest {
-  return { tenantId: "", key: "", payload: "", eventTimestamp: undefined };
+  return { key: "", payload: "", eventTimestamp: undefined };
 }
 
 export const PushEventRequest = {
   encode(message: PushEventRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.key !== "") {
-      writer.uint32(18).string(message.key);
+      writer.uint32(10).string(message.key);
     }
     if (message.payload !== "") {
-      writer.uint32(26).string(message.payload);
+      writer.uint32(18).string(message.payload);
     }
     if (message.eventTimestamp !== undefined) {
-      Timestamp.encode(toTimestamp(message.eventTimestamp), writer.uint32(34).fork()).ldelim();
+      Timestamp.encode(toTimestamp(message.eventTimestamp), writer.uint32(26).fork()).ldelim();
     }
     return writer;
   },
@@ -202,24 +193,17 @@ export const PushEventRequest = {
             break;
           }
 
-          message.tenantId = reader.string();
+          message.key = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          message.key = reader.string();
+          message.payload = reader.string();
           continue;
         case 3:
           if (tag !== 26) {
-            break;
-          }
-
-          message.payload = reader.string();
-          continue;
-        case 4:
-          if (tag !== 34) {
             break;
           }
 
@@ -236,7 +220,6 @@ export const PushEventRequest = {
 
   fromJSON(object: any): PushEventRequest {
     return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
       key: isSet(object.key) ? globalThis.String(object.key) : "",
       payload: isSet(object.payload) ? globalThis.String(object.payload) : "",
       eventTimestamp: isSet(object.eventTimestamp) ? fromJsonTimestamp(object.eventTimestamp) : undefined,
@@ -245,9 +228,6 @@ export const PushEventRequest = {
 
   toJSON(message: PushEventRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.key !== "") {
       obj.key = message.key;
     }
@@ -265,7 +245,6 @@ export const PushEventRequest = {
   },
   fromPartial(object: DeepPartial<PushEventRequest>): PushEventRequest {
     const message = createBasePushEventRequest();
-    message.tenantId = object.tenantId ?? "";
     message.key = object.key ?? "";
     message.payload = object.payload ?? "";
     message.eventTimestamp = object.eventTimestamp ?? undefined;
@@ -274,19 +253,16 @@ export const PushEventRequest = {
 };
 
 function createBaseListEventRequest(): ListEventRequest {
-  return { tenantId: "", offset: 0, key: "" };
+  return { offset: 0, key: "" };
 }
 
 export const ListEventRequest = {
   encode(message: ListEventRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.offset !== 0) {
-      writer.uint32(16).int32(message.offset);
+      writer.uint32(8).int32(message.offset);
     }
     if (message.key !== "") {
-      writer.uint32(26).string(message.key);
+      writer.uint32(18).string(message.key);
     }
     return writer;
   },
@@ -299,21 +275,14 @@ export const ListEventRequest = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag !== 10) {
-            break;
-          }
-
-          message.tenantId = reader.string();
-          continue;
-        case 2:
-          if (tag !== 16) {
+          if (tag !== 8) {
             break;
           }
 
           message.offset = reader.int32();
           continue;
-        case 3:
-          if (tag !== 26) {
+        case 2:
+          if (tag !== 18) {
             break;
           }
 
@@ -330,7 +299,6 @@ export const ListEventRequest = {
 
   fromJSON(object: any): ListEventRequest {
     return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
       offset: isSet(object.offset) ? globalThis.Number(object.offset) : 0,
       key: isSet(object.key) ? globalThis.String(object.key) : "",
     };
@@ -338,9 +306,6 @@ export const ListEventRequest = {
 
   toJSON(message: ListEventRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.offset !== 0) {
       obj.offset = Math.round(message.offset);
     }
@@ -355,7 +320,6 @@ export const ListEventRequest = {
   },
   fromPartial(object: DeepPartial<ListEventRequest>): ListEventRequest {
     const message = createBaseListEventRequest();
-    message.tenantId = object.tenantId ?? "";
     message.offset = object.offset ?? 0;
     message.key = object.key ?? "";
     return message;
@@ -420,16 +384,13 @@ export const ListEventResponse = {
 };
 
 function createBaseReplayEventRequest(): ReplayEventRequest {
-  return { tenantId: "", eventId: "" };
+  return { eventId: "" };
 }
 
 export const ReplayEventRequest = {
   encode(message: ReplayEventRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.eventId !== "") {
-      writer.uint32(18).string(message.eventId);
+      writer.uint32(10).string(message.eventId);
     }
     return writer;
   },
@@ -446,13 +407,6 @@ export const ReplayEventRequest = {
             break;
           }
 
-          message.tenantId = reader.string();
-          continue;
-        case 2:
-          if (tag !== 18) {
-            break;
-          }
-
           message.eventId = reader.string();
           continue;
       }
@@ -465,17 +419,11 @@ export const ReplayEventRequest = {
   },
 
   fromJSON(object: any): ReplayEventRequest {
-    return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
-      eventId: isSet(object.eventId) ? globalThis.String(object.eventId) : "",
-    };
+    return { eventId: isSet(object.eventId) ? globalThis.String(object.eventId) : "" };
   },
 
   toJSON(message: ReplayEventRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.eventId !== "") {
       obj.eventId = message.eventId;
     }
@@ -487,7 +435,6 @@ export const ReplayEventRequest = {
   },
   fromPartial(object: DeepPartial<ReplayEventRequest>): ReplayEventRequest {
     const message = createBaseReplayEventRequest();
-    message.tenantId = object.tenantId ?? "";
     message.eventId = object.eventId ?? "";
     return message;
   },

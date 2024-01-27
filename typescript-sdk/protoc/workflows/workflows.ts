@@ -7,7 +7,6 @@ import { StringValue } from "../google/protobuf/wrappers";
 export const protobufPackage = "";
 
 export interface PutWorkflowRequest {
-  tenantId: string;
   opts: CreateWorkflowVersionOpts | undefined;
 }
 
@@ -57,11 +56,9 @@ export interface CreateWorkflowStepOpts {
 
 /** ListWorkflowsRequest is the request for ListWorkflows. */
 export interface ListWorkflowsRequest {
-  tenantId: string;
 }
 
 export interface ScheduleWorkflowRequest {
-  tenantId: string;
   workflowId: string;
   schedules: Date[];
   /** (optional) the input data for the workflow */
@@ -75,7 +72,6 @@ export interface ListWorkflowsResponse {
 
 /** ListWorkflowsForEventRequest is the request for ListWorkflowsForEvent. */
 export interface ListWorkflowsForEventRequest {
-  tenantId: string;
   eventKey: string;
 }
 
@@ -160,26 +156,21 @@ export interface Step {
 }
 
 export interface DeleteWorkflowRequest {
-  tenantId: string;
   workflowId: string;
 }
 
 export interface GetWorkflowByNameRequest {
-  tenantId: string;
   name: string;
 }
 
 function createBasePutWorkflowRequest(): PutWorkflowRequest {
-  return { tenantId: "", opts: undefined };
+  return { opts: undefined };
 }
 
 export const PutWorkflowRequest = {
   encode(message: PutWorkflowRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.opts !== undefined) {
-      CreateWorkflowVersionOpts.encode(message.opts, writer.uint32(18).fork()).ldelim();
+      CreateWorkflowVersionOpts.encode(message.opts, writer.uint32(10).fork()).ldelim();
     }
     return writer;
   },
@@ -196,13 +187,6 @@ export const PutWorkflowRequest = {
             break;
           }
 
-          message.tenantId = reader.string();
-          continue;
-        case 2:
-          if (tag !== 18) {
-            break;
-          }
-
           message.opts = CreateWorkflowVersionOpts.decode(reader, reader.uint32());
           continue;
       }
@@ -215,17 +199,11 @@ export const PutWorkflowRequest = {
   },
 
   fromJSON(object: any): PutWorkflowRequest {
-    return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
-      opts: isSet(object.opts) ? CreateWorkflowVersionOpts.fromJSON(object.opts) : undefined,
-    };
+    return { opts: isSet(object.opts) ? CreateWorkflowVersionOpts.fromJSON(object.opts) : undefined };
   },
 
   toJSON(message: PutWorkflowRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.opts !== undefined) {
       obj.opts = CreateWorkflowVersionOpts.toJSON(message.opts);
     }
@@ -237,7 +215,6 @@ export const PutWorkflowRequest = {
   },
   fromPartial(object: DeepPartial<PutWorkflowRequest>): PutWorkflowRequest {
     const message = createBasePutWorkflowRequest();
-    message.tenantId = object.tenantId ?? "";
     message.opts = (object.opts !== undefined && object.opts !== null)
       ? CreateWorkflowVersionOpts.fromPartial(object.opts)
       : undefined;
@@ -636,14 +613,11 @@ export const CreateWorkflowStepOpts = {
 };
 
 function createBaseListWorkflowsRequest(): ListWorkflowsRequest {
-  return { tenantId: "" };
+  return {};
 }
 
 export const ListWorkflowsRequest = {
-  encode(message: ListWorkflowsRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
+  encode(_: ListWorkflowsRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     return writer;
   },
 
@@ -654,13 +628,6 @@ export const ListWorkflowsRequest = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 1:
-          if (tag !== 10) {
-            break;
-          }
-
-          message.tenantId = reader.string();
-          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -670,45 +637,38 @@ export const ListWorkflowsRequest = {
     return message;
   },
 
-  fromJSON(object: any): ListWorkflowsRequest {
-    return { tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "" };
+  fromJSON(_: any): ListWorkflowsRequest {
+    return {};
   },
 
-  toJSON(message: ListWorkflowsRequest): unknown {
+  toJSON(_: ListWorkflowsRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     return obj;
   },
 
   create(base?: DeepPartial<ListWorkflowsRequest>): ListWorkflowsRequest {
     return ListWorkflowsRequest.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<ListWorkflowsRequest>): ListWorkflowsRequest {
+  fromPartial(_: DeepPartial<ListWorkflowsRequest>): ListWorkflowsRequest {
     const message = createBaseListWorkflowsRequest();
-    message.tenantId = object.tenantId ?? "";
     return message;
   },
 };
 
 function createBaseScheduleWorkflowRequest(): ScheduleWorkflowRequest {
-  return { tenantId: "", workflowId: "", schedules: [], input: "" };
+  return { workflowId: "", schedules: [], input: "" };
 }
 
 export const ScheduleWorkflowRequest = {
   encode(message: ScheduleWorkflowRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.workflowId !== "") {
-      writer.uint32(18).string(message.workflowId);
+      writer.uint32(10).string(message.workflowId);
     }
     for (const v of message.schedules) {
-      Timestamp.encode(toTimestamp(v!), writer.uint32(26).fork()).ldelim();
+      Timestamp.encode(toTimestamp(v!), writer.uint32(18).fork()).ldelim();
     }
     if (message.input !== "") {
-      writer.uint32(34).string(message.input);
+      writer.uint32(26).string(message.input);
     }
     return writer;
   },
@@ -725,24 +685,17 @@ export const ScheduleWorkflowRequest = {
             break;
           }
 
-          message.tenantId = reader.string();
+          message.workflowId = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          message.workflowId = reader.string();
+          message.schedules.push(fromTimestamp(Timestamp.decode(reader, reader.uint32())));
           continue;
         case 3:
           if (tag !== 26) {
-            break;
-          }
-
-          message.schedules.push(fromTimestamp(Timestamp.decode(reader, reader.uint32())));
-          continue;
-        case 4:
-          if (tag !== 34) {
             break;
           }
 
@@ -759,7 +712,6 @@ export const ScheduleWorkflowRequest = {
 
   fromJSON(object: any): ScheduleWorkflowRequest {
     return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
       workflowId: isSet(object.workflowId) ? globalThis.String(object.workflowId) : "",
       schedules: globalThis.Array.isArray(object?.schedules)
         ? object.schedules.map((e: any) => fromJsonTimestamp(e))
@@ -770,9 +722,6 @@ export const ScheduleWorkflowRequest = {
 
   toJSON(message: ScheduleWorkflowRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.workflowId !== "") {
       obj.workflowId = message.workflowId;
     }
@@ -790,7 +739,6 @@ export const ScheduleWorkflowRequest = {
   },
   fromPartial(object: DeepPartial<ScheduleWorkflowRequest>): ScheduleWorkflowRequest {
     const message = createBaseScheduleWorkflowRequest();
-    message.tenantId = object.tenantId ?? "";
     message.workflowId = object.workflowId ?? "";
     message.schedules = object.schedules?.map((e) => e) || [];
     message.input = object.input ?? "";
@@ -860,16 +808,13 @@ export const ListWorkflowsResponse = {
 };
 
 function createBaseListWorkflowsForEventRequest(): ListWorkflowsForEventRequest {
-  return { tenantId: "", eventKey: "" };
+  return { eventKey: "" };
 }
 
 export const ListWorkflowsForEventRequest = {
   encode(message: ListWorkflowsForEventRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.eventKey !== "") {
-      writer.uint32(18).string(message.eventKey);
+      writer.uint32(10).string(message.eventKey);
     }
     return writer;
   },
@@ -886,13 +831,6 @@ export const ListWorkflowsForEventRequest = {
             break;
           }
 
-          message.tenantId = reader.string();
-          continue;
-        case 2:
-          if (tag !== 18) {
-            break;
-          }
-
           message.eventKey = reader.string();
           continue;
       }
@@ -905,17 +843,11 @@ export const ListWorkflowsForEventRequest = {
   },
 
   fromJSON(object: any): ListWorkflowsForEventRequest {
-    return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
-      eventKey: isSet(object.eventKey) ? globalThis.String(object.eventKey) : "",
-    };
+    return { eventKey: isSet(object.eventKey) ? globalThis.String(object.eventKey) : "" };
   },
 
   toJSON(message: ListWorkflowsForEventRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.eventKey !== "") {
       obj.eventKey = message.eventKey;
     }
@@ -927,7 +859,6 @@ export const ListWorkflowsForEventRequest = {
   },
   fromPartial(object: DeepPartial<ListWorkflowsForEventRequest>): ListWorkflowsForEventRequest {
     const message = createBaseListWorkflowsForEventRequest();
-    message.tenantId = object.tenantId ?? "";
     message.eventKey = object.eventKey ?? "";
     return message;
   },
@@ -1971,16 +1902,13 @@ export const Step = {
 };
 
 function createBaseDeleteWorkflowRequest(): DeleteWorkflowRequest {
-  return { tenantId: "", workflowId: "" };
+  return { workflowId: "" };
 }
 
 export const DeleteWorkflowRequest = {
   encode(message: DeleteWorkflowRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.workflowId !== "") {
-      writer.uint32(18).string(message.workflowId);
+      writer.uint32(10).string(message.workflowId);
     }
     return writer;
   },
@@ -1997,13 +1925,6 @@ export const DeleteWorkflowRequest = {
             break;
           }
 
-          message.tenantId = reader.string();
-          continue;
-        case 2:
-          if (tag !== 18) {
-            break;
-          }
-
           message.workflowId = reader.string();
           continue;
       }
@@ -2016,17 +1937,11 @@ export const DeleteWorkflowRequest = {
   },
 
   fromJSON(object: any): DeleteWorkflowRequest {
-    return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
-      workflowId: isSet(object.workflowId) ? globalThis.String(object.workflowId) : "",
-    };
+    return { workflowId: isSet(object.workflowId) ? globalThis.String(object.workflowId) : "" };
   },
 
   toJSON(message: DeleteWorkflowRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.workflowId !== "") {
       obj.workflowId = message.workflowId;
     }
@@ -2038,23 +1953,19 @@ export const DeleteWorkflowRequest = {
   },
   fromPartial(object: DeepPartial<DeleteWorkflowRequest>): DeleteWorkflowRequest {
     const message = createBaseDeleteWorkflowRequest();
-    message.tenantId = object.tenantId ?? "";
     message.workflowId = object.workflowId ?? "";
     return message;
   },
 };
 
 function createBaseGetWorkflowByNameRequest(): GetWorkflowByNameRequest {
-  return { tenantId: "", name: "" };
+  return { name: "" };
 }
 
 export const GetWorkflowByNameRequest = {
   encode(message: GetWorkflowByNameRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.name !== "") {
-      writer.uint32(18).string(message.name);
+      writer.uint32(10).string(message.name);
     }
     return writer;
   },
@@ -2071,13 +1982,6 @@ export const GetWorkflowByNameRequest = {
             break;
           }
 
-          message.tenantId = reader.string();
-          continue;
-        case 2:
-          if (tag !== 18) {
-            break;
-          }
-
           message.name = reader.string();
           continue;
       }
@@ -2090,17 +1994,11 @@ export const GetWorkflowByNameRequest = {
   },
 
   fromJSON(object: any): GetWorkflowByNameRequest {
-    return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-    };
+    return { name: isSet(object.name) ? globalThis.String(object.name) : "" };
   },
 
   toJSON(message: GetWorkflowByNameRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.name !== "") {
       obj.name = message.name;
     }
@@ -2112,7 +2010,6 @@ export const GetWorkflowByNameRequest = {
   },
   fromPartial(object: DeepPartial<GetWorkflowByNameRequest>): GetWorkflowByNameRequest {
     const message = createBaseGetWorkflowByNameRequest();
-    message.tenantId = object.tenantId ?? "";
     message.name = object.name ?? "";
     return message;
   },

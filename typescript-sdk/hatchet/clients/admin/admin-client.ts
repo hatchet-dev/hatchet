@@ -50,7 +50,6 @@ export class AdminClient {
 
     try {
       existing = await this.client.getWorkflowByName({
-        tenantId: this.config.tenant_id,
         name: workflow.name,
       });
     } catch (e: any) {
@@ -70,7 +69,6 @@ export class AdminClient {
 
     try {
       await this.client.putWorkflow({
-        tenantId: this.config.tenant_id,
         opts: workflow,
       });
     } catch (e: any) {
@@ -81,7 +79,6 @@ export class AdminClient {
   schedule_workflow(workflowId: string, options?: { schedules?: Date[] }) {
     try {
       this.client.scheduleWorkflow({
-        tenantId: this.config.tenant_id,
         workflowId,
         schedules: options?.schedules,
       });

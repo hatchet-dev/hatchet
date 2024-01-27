@@ -138,7 +138,6 @@ export class Worker {
 
   get_action_event(action: Action, eventType: ActionEventType, payload: any = ''): ActionEvent {
     return {
-      tenantId: action.tenantId,
       workerId: this.name,
       jobId: action.jobId,
       jobRunId: action.jobRunId,
@@ -226,6 +225,5 @@ export class Worker {
     if (retries > 5) {
       throw new HatchetError('Could not start worker after 5 retries');
     }
-    // await this.start(retryCount + 1);
   }
 }

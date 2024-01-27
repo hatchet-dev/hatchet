@@ -58,14 +58,12 @@ describe('DispatcherClient', () => {
       });
 
       expect(clientSpy).toHaveBeenCalledWith({
-        tenantId: 'TENANT_ID',
         workerName: 'WORKER_NAME',
         services: ['SERVICE'],
         actions: ['ACTION'],
       });
 
       expect(listenerSpy).toHaveBeenCalledWith({
-        tenantId: 'TENANT_ID',
         workerId: 'WORKER_ID',
       });
 
@@ -82,7 +80,6 @@ describe('DispatcherClient', () => {
       });
 
       client.send_action_event({
-        tenantId: 'TENANT_ID',
         workerId: 'WORKER_ID',
         actionId: 'ACTION_ID',
         eventType: ActionEventType.STEP_EVENT_TYPE_COMPLETED,
@@ -95,7 +92,6 @@ describe('DispatcherClient', () => {
       });
 
       expect(clientSpy).toHaveBeenCalledWith({
-        tenantId: 'TENANT_ID',
         workerId: 'WORKER_ID',
         actionId: 'ACTION_ID',
         eventType: ActionEventType.STEP_EVENT_TYPE_COMPLETED,
@@ -104,7 +100,7 @@ describe('DispatcherClient', () => {
         jobRunId: 'b',
         stepId: 'c',
         stepRunId: 'd',
-        eventTimestamp: expect.any(Date),
+        eventTimestamp: expect.any(Object),
       });
     });
   });

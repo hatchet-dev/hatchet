@@ -184,7 +184,6 @@ describe('AdminClient', () => {
       await client.put_workflow(workflow);
 
       expect(existingSpy).toHaveBeenCalledWith({
-        tenantId: 'TENANT_ID',
         name: 'workflow1',
       });
 
@@ -245,7 +244,6 @@ describe('AdminClient', () => {
       await client.put_workflow(workflow, { autoVersion: false });
 
       expect(existingSpy).toHaveBeenCalledWith({
-        tenantId: 'TENANT_ID',
         name: 'workflow1',
       });
 
@@ -277,7 +275,6 @@ describe('AdminClient', () => {
       });
 
       expect(spy).toHaveBeenCalledWith({
-        tenantId: 'TENANT_ID',
         workflowId: 'workflowId',
         schedules: [now],
       });

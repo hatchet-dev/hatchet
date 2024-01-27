@@ -84,8 +84,6 @@ export function actionEventTypeToJSON(object: ActionEventType): string {
 }
 
 export interface WorkerRegisterRequest {
-  /** the tenant id */
-  tenantId: string;
   /** the name of the worker */
   workerName: string;
   /** a list of actions that this worker can run */
@@ -125,15 +123,11 @@ export interface AssignedAction {
 }
 
 export interface WorkerListenRequest {
-  /** the tenant id */
-  tenantId: string;
   /** the id of the worker */
   workerId: string;
 }
 
 export interface WorkerUnsubscribeRequest {
-  /** the tenant id to unsubscribe from */
-  tenantId: string;
   /** the id of the worker */
   workerId: string;
 }
@@ -146,8 +140,6 @@ export interface WorkerUnsubscribeResponse {
 }
 
 export interface ActionEvent {
-  /** the tenant id */
-  tenantId: string;
   /** the id of the worker */
   workerId: string;
   /** the id of the job */
@@ -177,22 +169,19 @@ export interface ActionEventResponse {
 }
 
 function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
-  return { tenantId: "", workerName: "", actions: [], services: [] };
+  return { workerName: "", actions: [], services: [] };
 }
 
 export const WorkerRegisterRequest = {
   encode(message: WorkerRegisterRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.workerName !== "") {
-      writer.uint32(18).string(message.workerName);
+      writer.uint32(10).string(message.workerName);
     }
     for (const v of message.actions) {
-      writer.uint32(26).string(v!);
+      writer.uint32(18).string(v!);
     }
     for (const v of message.services) {
-      writer.uint32(34).string(v!);
+      writer.uint32(26).string(v!);
     }
     return writer;
   },
@@ -209,24 +198,17 @@ export const WorkerRegisterRequest = {
             break;
           }
 
-          message.tenantId = reader.string();
+          message.workerName = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          message.workerName = reader.string();
+          message.actions.push(reader.string());
           continue;
         case 3:
           if (tag !== 26) {
-            break;
-          }
-
-          message.actions.push(reader.string());
-          continue;
-        case 4:
-          if (tag !== 34) {
             break;
           }
 
@@ -243,7 +225,6 @@ export const WorkerRegisterRequest = {
 
   fromJSON(object: any): WorkerRegisterRequest {
     return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
       workerName: isSet(object.workerName) ? globalThis.String(object.workerName) : "",
       actions: globalThis.Array.isArray(object?.actions) ? object.actions.map((e: any) => globalThis.String(e)) : [],
       services: globalThis.Array.isArray(object?.services) ? object.services.map((e: any) => globalThis.String(e)) : [],
@@ -252,9 +233,6 @@ export const WorkerRegisterRequest = {
 
   toJSON(message: WorkerRegisterRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.workerName !== "") {
       obj.workerName = message.workerName;
     }
@@ -272,7 +250,6 @@ export const WorkerRegisterRequest = {
   },
   fromPartial(object: DeepPartial<WorkerRegisterRequest>): WorkerRegisterRequest {
     const message = createBaseWorkerRegisterRequest();
-    message.tenantId = object.tenantId ?? "";
     message.workerName = object.workerName ?? "";
     message.actions = object.actions?.map((e) => e) || [];
     message.services = object.services?.map((e) => e) || [];
@@ -559,16 +536,13 @@ export const AssignedAction = {
 };
 
 function createBaseWorkerListenRequest(): WorkerListenRequest {
-  return { tenantId: "", workerId: "" };
+  return { workerId: "" };
 }
 
 export const WorkerListenRequest = {
   encode(message: WorkerListenRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.workerId !== "") {
-      writer.uint32(18).string(message.workerId);
+      writer.uint32(10).string(message.workerId);
     }
     return writer;
   },
@@ -585,13 +559,6 @@ export const WorkerListenRequest = {
             break;
           }
 
-          message.tenantId = reader.string();
-          continue;
-        case 2:
-          if (tag !== 18) {
-            break;
-          }
-
           message.workerId = reader.string();
           continue;
       }
@@ -604,17 +571,11 @@ export const WorkerListenRequest = {
   },
 
   fromJSON(object: any): WorkerListenRequest {
-    return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
-      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
-    };
+    return { workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "" };
   },
 
   toJSON(message: WorkerListenRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
@@ -626,23 +587,19 @@ export const WorkerListenRequest = {
   },
   fromPartial(object: DeepPartial<WorkerListenRequest>): WorkerListenRequest {
     const message = createBaseWorkerListenRequest();
-    message.tenantId = object.tenantId ?? "";
     message.workerId = object.workerId ?? "";
     return message;
   },
 };
 
 function createBaseWorkerUnsubscribeRequest(): WorkerUnsubscribeRequest {
-  return { tenantId: "", workerId: "" };
+  return { workerId: "" };
 }
 
 export const WorkerUnsubscribeRequest = {
   encode(message: WorkerUnsubscribeRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.workerId !== "") {
-      writer.uint32(18).string(message.workerId);
+      writer.uint32(10).string(message.workerId);
     }
     return writer;
   },
@@ -659,13 +616,6 @@ export const WorkerUnsubscribeRequest = {
             break;
           }
 
-          message.tenantId = reader.string();
-          continue;
-        case 2:
-          if (tag !== 18) {
-            break;
-          }
-
           message.workerId = reader.string();
           continue;
       }
@@ -678,17 +628,11 @@ export const WorkerUnsubscribeRequest = {
   },
 
   fromJSON(object: any): WorkerUnsubscribeRequest {
-    return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
-      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
-    };
+    return { workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "" };
   },
 
   toJSON(message: WorkerUnsubscribeRequest): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
@@ -700,7 +644,6 @@ export const WorkerUnsubscribeRequest = {
   },
   fromPartial(object: DeepPartial<WorkerUnsubscribeRequest>): WorkerUnsubscribeRequest {
     const message = createBaseWorkerUnsubscribeRequest();
-    message.tenantId = object.tenantId ?? "";
     message.workerId = object.workerId ?? "";
     return message;
   },
@@ -782,7 +725,6 @@ export const WorkerUnsubscribeResponse = {
 
 function createBaseActionEvent(): ActionEvent {
   return {
-    tenantId: "",
     workerId: "",
     jobId: "",
     jobRunId: "",
@@ -797,35 +739,32 @@ function createBaseActionEvent(): ActionEvent {
 
 export const ActionEvent = {
   encode(message: ActionEvent, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.tenantId !== "") {
-      writer.uint32(10).string(message.tenantId);
-    }
     if (message.workerId !== "") {
-      writer.uint32(18).string(message.workerId);
+      writer.uint32(10).string(message.workerId);
     }
     if (message.jobId !== "") {
-      writer.uint32(26).string(message.jobId);
+      writer.uint32(18).string(message.jobId);
     }
     if (message.jobRunId !== "") {
-      writer.uint32(34).string(message.jobRunId);
+      writer.uint32(26).string(message.jobRunId);
     }
     if (message.stepId !== "") {
-      writer.uint32(42).string(message.stepId);
+      writer.uint32(34).string(message.stepId);
     }
     if (message.stepRunId !== "") {
-      writer.uint32(50).string(message.stepRunId);
+      writer.uint32(42).string(message.stepRunId);
     }
     if (message.actionId !== "") {
-      writer.uint32(58).string(message.actionId);
+      writer.uint32(50).string(message.actionId);
     }
     if (message.eventTimestamp !== undefined) {
-      Timestamp.encode(toTimestamp(message.eventTimestamp), writer.uint32(66).fork()).ldelim();
+      Timestamp.encode(toTimestamp(message.eventTimestamp), writer.uint32(58).fork()).ldelim();
     }
     if (message.eventType !== 0) {
-      writer.uint32(72).int32(message.eventType);
+      writer.uint32(64).int32(message.eventType);
     }
     if (message.eventPayload !== "") {
-      writer.uint32(82).string(message.eventPayload);
+      writer.uint32(74).string(message.eventPayload);
     }
     return writer;
   },
@@ -842,66 +781,59 @@ export const ActionEvent = {
             break;
           }
 
-          message.tenantId = reader.string();
+          message.workerId = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          message.workerId = reader.string();
+          message.jobId = reader.string();
           continue;
         case 3:
           if (tag !== 26) {
             break;
           }
 
-          message.jobId = reader.string();
+          message.jobRunId = reader.string();
           continue;
         case 4:
           if (tag !== 34) {
             break;
           }
 
-          message.jobRunId = reader.string();
+          message.stepId = reader.string();
           continue;
         case 5:
           if (tag !== 42) {
             break;
           }
 
-          message.stepId = reader.string();
+          message.stepRunId = reader.string();
           continue;
         case 6:
           if (tag !== 50) {
             break;
           }
 
-          message.stepRunId = reader.string();
+          message.actionId = reader.string();
           continue;
         case 7:
           if (tag !== 58) {
             break;
           }
 
-          message.actionId = reader.string();
-          continue;
-        case 8:
-          if (tag !== 66) {
-            break;
-          }
-
           message.eventTimestamp = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
           continue;
-        case 9:
-          if (tag !== 72) {
+        case 8:
+          if (tag !== 64) {
             break;
           }
 
           message.eventType = reader.int32() as any;
           continue;
-        case 10:
-          if (tag !== 82) {
+        case 9:
+          if (tag !== 74) {
             break;
           }
 
@@ -918,7 +850,6 @@ export const ActionEvent = {
 
   fromJSON(object: any): ActionEvent {
     return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
       workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
       jobId: isSet(object.jobId) ? globalThis.String(object.jobId) : "",
       jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : "",
@@ -933,9 +864,6 @@ export const ActionEvent = {
 
   toJSON(message: ActionEvent): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
-      obj.tenantId = message.tenantId;
-    }
     if (message.workerId !== "") {
       obj.workerId = message.workerId;
     }
@@ -971,7 +899,6 @@ export const ActionEvent = {
   },
   fromPartial(object: DeepPartial<ActionEvent>): ActionEvent {
     const message = createBaseActionEvent();
-    message.tenantId = object.tenantId ?? "";
     message.workerId = object.workerId ?? "";
     message.jobId = object.jobId ?? "";
     message.jobRunId = object.jobRunId ?? "";

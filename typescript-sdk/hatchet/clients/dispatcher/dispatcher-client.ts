@@ -26,13 +26,11 @@ export class DispatcherClient {
   async get_action_listener(options: GetActionListenerOptions) {
     // Register the worker
     const registration = await this.client.register({
-      tenantId: this.config.tenant_id,
       ...options,
     });
 
     // Subscribe to the worker
     const listener = this.client.listen({
-      tenantId: this.config.tenant_id,
       workerId: registration.workerId,
     });
 
