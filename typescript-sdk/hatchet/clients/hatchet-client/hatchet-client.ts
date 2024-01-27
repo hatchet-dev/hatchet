@@ -29,7 +29,7 @@ const addTokenMiddleware = (token: string) =>
   ) {
     const optionsWithAuth: CallOptions = {
       ...options,
-      metadata: new Metadata({ authorization: `'Bearer ${token}` }),
+      metadata: new Metadata({ authorization: `bearer ${token}` }),
     };
 
     if (!call.responseStream) {
