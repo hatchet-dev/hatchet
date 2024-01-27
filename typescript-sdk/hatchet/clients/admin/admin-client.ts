@@ -1,13 +1,11 @@
-import { Channel, Status, createClient } from 'nice-grpc';
+import { Channel, createClient } from 'nice-grpc';
 import {
   CreateWorkflowVersionOpts,
-  Workflow,
   WorkflowServiceClient,
   WorkflowServiceDefinition,
 } from '@protoc/workflows';
 import HatchetError from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
-import * as semver from '@util/semver/semver';
 
 export class AdminClient {
   config: ClientConfig;
@@ -18,54 +16,10 @@ export class AdminClient {
     this.client = createClient(WorkflowServiceDefinition, channel);
   }
 
-  static should_put(
-    workflow: CreateWorkflowVersionOpts,
-    existing?: Workflow,
-    options?: { autoVersion?: boolean }
-  ): [boolean, string] {
-    // TODO verify this function before merge #122
-    if (!options?.autoVersion) {
-      return [false, workflow.version];
-    }
-
-    if (workflow.version === '') {
-      return [true, 'v0.1.0'];
-    }
-
-    if (existing && existing.versions.length > 0) {
-      const newVersion = semver.bumpMinorVersion(existing.versions[0].version);
-      const shouldPut = newVersion !== workflow.version;
-      return [shouldPut, newVersion];
-    }
-
-    return [true, workflow.version];
-  }
-
   async put_workflow(workflow: CreateWorkflowVersionOpts, options?: { autoVersion?: boolean }) {
     if (workflow.version === '' && !options?.autoVersion) {
       throw new HatchetError('PutWorkflow error: workflow version is required, or use autoVersion');
     }
-
-    let existing: Workflow | undefined;
-
-    try {
-      existing = await this.client.getWorkflowByName({
-        name: workflow.name,
-      });
-    } catch (e: any) {
-      if (e.code === Status.NOT_FOUND) {
-        existing = undefined;
-      } else {
-        throw new HatchetError(e.message);
-      }
-    }
-
-    const [shouldPut, version] = AdminClient.should_put(workflow, existing, options);
-
-    // eslint-disable-next-line no-param-reassign
-    workflow.version = version;
-
-    if (!shouldPut) return;
 
     try {
       await this.client.putWorkflow({
