@@ -1,5 +1,5 @@
 {
-  "name": "@hatchet-dev/node-sdk",
+  "name": "@hatchet-dev/typescript-sdk",
   "version": "0.0.1",
   "description": "Background task orchestration & visibility for developers",
   "main": "dist/index.js",
