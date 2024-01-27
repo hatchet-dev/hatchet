@@ -13,27 +13,23 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm@8
 
-      # - name: Get pnpm store directory
-      #   shell: bash
-      #   run: |
-      #     echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-      # - name: Setup pnpm cache
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ${{ env.STORE_PATH }}
-      #     key: ${{ runner.os }}-pnpm-store-${{ hashFiles('typescript-sdk/pnpm-lock.yaml') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-pnpm-store-
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('typescript-sdk/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        uses: ./
-        with:
-          working-directory: typescript-sdk
-          build: pnpm install
+        run: pnpm install
+        working-directory: typescript-sdk
 
       - name: Jest tests
-        uses: ./
-        with:
-          working-directory: typescript-sdk
-          build: pnpm test
+        run: pnpm test
+        working-directory: typescript-sdk
