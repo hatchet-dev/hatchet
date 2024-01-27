@@ -41,7 +41,7 @@ class WorkflowMeta(type):
             CreateWorkflowStepOpts(
                 readable_id=func_name,
                 action="default:" + func_name,
-                timeout="60s",
+                timeout=func._step_timeout or "60s",
                 inputs='{}',
                 parents=[x for x in func._step_parents]  # Assuming this is how you get the parents
             ) 

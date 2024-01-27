@@ -15,9 +15,10 @@ class MyWorkflow:
         print("executed step1")
         pass
 
-    @hatchet.step(parents=["step1"])
+    @hatchet.step(parents=["step1"],timeout='30s')
     def step2(self, context):
         print("executed step2")
+        context.sleep(30)
         pass
 
 workflow = MyWorkflow()

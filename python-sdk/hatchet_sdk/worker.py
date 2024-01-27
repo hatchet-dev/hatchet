@@ -1,6 +1,7 @@
 import json
 import signal
 import sys
+from threading import current_thread
 
 import grpc
 from typing import Any, Callable, Dict
@@ -17,8 +18,21 @@ from .logger import logger
 class Worker:
     def __init__(self, name: str, max_threads: int = 200, debug=False, handle_kill=True):
         self.name = name
+        self.thread_ids: Dict[str, int] = {}  # Store step run ids and threads
+
+        # function for initializing the thread
+        # def initializer():
+        #     # get the unique name for this thread
+        #     id = current_thread().ident
+
+        #     print("THREAD ID", id)
+
+        #     # store the thread id 
+        #     self.thread_ids[id] = id
+
         self.thread_pool = ThreadPoolExecutor(max_workers=max_threads)
-        self.futures: Dict[str, Future] = {}  # Store step run ids and futures
+        # self.futures: Dict[str, Future] = {}  # Store step run ids and futures
+        self.contexts: Dict[str, Context] = {}  # Store step run ids and contexts
         self.action_registry : dict[str, Callable[..., Any]] = {} 
 
         signal.signal(signal.SIGINT, self.exit_gracefully)
@@ -30,6 +44,8 @@ class Worker:
     def handle_start_step_run(self, action : Action):
         action_name = action.action_id  # Assuming action object has 'name' attribute
         context = Context(action.action_payload)  # Assuming action object has 'context' attribute
+
+        self.contexts[action.step_run_id] = context
 
         # Find the corresponding action function from the registry
         action_func = self.action_registry.get(action_name)
@@ -65,14 +81,28 @@ class Worker:
                     self.client.dispatcher.send_action_event(event)
 
                 # Remove the future from the dictionary
-                del self.futures[action.step_run_id]
-                del self.futures[action.step_run_id + "_callback"]
+                # del self.futures[action.step_run_id]
 
             # Submit the action to the thread pool
-            future = self.thread_pool.submit(action_func, context)
-            callback = self.thread_pool.submit(callback, future)
-            self.futures[action.step_run_id] = future
-            self.futures[action.step_run_id + "_callback"] = callback
+            def wrapped_action_func(context):
+                id = current_thread().ident
+
+                # store the thread id
+                self.thread_ids[id] = id
+
+                print("THREAD ID", id, "FOR STEP", action.step_run_id)
+
+                try:
+                    return action_func(context)
+                except Exception as e:
+                    logger.error(f"Could not execute action: {e}")
+                    raise e
+                finally:
+                    # remove the thread id
+                    del self.thread_ids[id]
+
+            future = self.thread_pool.submit(wrapped_action_func, context)
+            future.add_done_callback(callback)
 
             # send an event that the step run has started
             try:
@@ -86,11 +116,18 @@ class Worker:
     def handle_cancel_step_run(self, action : Action):
         step_run_id = action.step_run_id
 
-        future = self.futures.get(step_run_id)
+        # call cancel to signal the context to stop
+        context = self.contexts.get(step_run_id)
+        context.cancel()
 
-        if future:
-            future.cancel()
-            del self.futures[step_run_id]
+        # wait for a grace period
+        # check if thread is still running, if so, kill it
+
+        # future = self.futures.get(step_run_id)
+
+        # if future:
+        #     future.cancel()
+        #     del self.futures[step_run_id]
     
     def get_action_event(self, action : Action, event_type : ActionEventType) -> ActionEvent:
         # timestamp 
@@ -146,11 +183,11 @@ class Worker:
             logger.error(f"Could not unregister worker: {e}")
 
         # wait for futures to complete
-        for future in self.futures.values():
-            try:
-                future.result()
-            except Exception as e:
-                logger.error(f"Could not wait for future: {e}")
+        # for future in self.futures.values():
+        #     try:
+        #         future.result()
+        #     except Exception as e:
+        #         logger.error(f"Could not wait for future: {e}")
 
         if self.handle_kill:
             logger.info("Exiting...")
