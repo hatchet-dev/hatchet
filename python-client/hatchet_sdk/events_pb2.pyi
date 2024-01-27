@@ -21,26 +21,22 @@ class Event(_message.Message):
     def __init__(self, tenantId: _Optional[str] = ..., eventId: _Optional[str] = ..., key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class PushEventRequest(_message.Message):
-    __slots__ = ("tenantId", "key", "payload", "eventTimestamp")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("key", "payload", "eventTimestamp")
     KEY_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
     key: str
     payload: str
     eventTimestamp: _timestamp_pb2.Timestamp
-    def __init__(self, tenantId: _Optional[str] = ..., key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class ListEventRequest(_message.Message):
-    __slots__ = ("tenantId", "offset", "key")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("offset", "key")
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     KEY_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
     offset: int
     key: str
-    def __init__(self, tenantId: _Optional[str] = ..., offset: _Optional[int] = ..., key: _Optional[str] = ...) -> None: ...
+    def __init__(self, offset: _Optional[int] = ..., key: _Optional[str] = ...) -> None: ...
 
 class ListEventResponse(_message.Message):
     __slots__ = ("events",)
@@ -49,9 +45,7 @@ class ListEventResponse(_message.Message):
     def __init__(self, events: _Optional[_Iterable[_Union[Event, _Mapping]]] = ...) -> None: ...
 
 class ReplayEventRequest(_message.Message):
-    __slots__ = ("tenantId", "eventId")
-    TENANTID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("eventId",)
     EVENTID_FIELD_NUMBER: _ClassVar[int]
-    tenantId: str
     eventId: str
-    def __init__(self, tenantId: _Optional[str] = ..., eventId: _Optional[str] = ...) -> None: ...
+    def __init__(self, eventId: _Optional[str] = ...) -> None: ...

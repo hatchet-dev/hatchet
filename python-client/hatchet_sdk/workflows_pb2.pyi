@@ -8,12 +8,10 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class PutWorkflowRequest(_message.Message):
-    __slots__ = ("tenant_id", "opts")
-    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("opts",)
     OPTS_FIELD_NUMBER: _ClassVar[int]
-    tenant_id: str
     opts: CreateWorkflowVersionOpts
-    def __init__(self, tenant_id: _Optional[str] = ..., opts: _Optional[_Union[CreateWorkflowVersionOpts, _Mapping]] = ...) -> None: ...
+    def __init__(self, opts: _Optional[_Union[CreateWorkflowVersionOpts, _Mapping]] = ...) -> None: ...
 
 class CreateWorkflowVersionOpts(_message.Message):
     __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "scheduled_triggers", "jobs")
@@ -60,22 +58,18 @@ class CreateWorkflowStepOpts(_message.Message):
     def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class ListWorkflowsRequest(_message.Message):
-    __slots__ = ("tenant_id",)
-    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
-    tenant_id: str
-    def __init__(self, tenant_id: _Optional[str] = ...) -> None: ...
+    __slots__ = ()
+    def __init__(self) -> None: ...
 
 class ScheduleWorkflowRequest(_message.Message):
-    __slots__ = ("tenant_id", "workflow_id", "schedules", "input")
-    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("workflow_id", "schedules", "input")
     WORKFLOW_ID_FIELD_NUMBER: _ClassVar[int]
     SCHEDULES_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
-    tenant_id: str
     workflow_id: str
     schedules: _containers.RepeatedCompositeFieldContainer[_timestamp_pb2.Timestamp]
     input: str
-    def __init__(self, tenant_id: _Optional[str] = ..., workflow_id: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., input: _Optional[str] = ...) -> None: ...
+    def __init__(self, workflow_id: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., input: _Optional[str] = ...) -> None: ...
 
 class ListWorkflowsResponse(_message.Message):
     __slots__ = ("workflows",)
@@ -84,12 +78,10 @@ class ListWorkflowsResponse(_message.Message):
     def __init__(self, workflows: _Optional[_Iterable[_Union[Workflow, _Mapping]]] = ...) -> None: ...
 
 class ListWorkflowsForEventRequest(_message.Message):
-    __slots__ = ("tenant_id", "event_key")
-    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("event_key",)
     EVENT_KEY_FIELD_NUMBER: _ClassVar[int]
-    tenant_id: str
     event_key: str
-    def __init__(self, tenant_id: _Optional[str] = ..., event_key: _Optional[str] = ...) -> None: ...
+    def __init__(self, event_key: _Optional[str] = ...) -> None: ...
 
 class Workflow(_message.Message):
     __slots__ = ("id", "created_at", "updated_at", "tenant_id", "name", "description", "versions")
@@ -210,17 +202,13 @@ class Step(_message.Message):
     def __init__(self, id: _Optional[str] = ..., created_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., readable_id: _Optional[_Union[_wrappers_pb2.StringValue, _Mapping]] = ..., tenant_id: _Optional[str] = ..., job_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[_Union[_wrappers_pb2.StringValue, _Mapping]] = ..., parents: _Optional[_Iterable[str]] = ..., children: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class DeleteWorkflowRequest(_message.Message):
-    __slots__ = ("tenant_id", "workflow_id")
-    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("workflow_id",)
     WORKFLOW_ID_FIELD_NUMBER: _ClassVar[int]
-    tenant_id: str
     workflow_id: str
-    def __init__(self, tenant_id: _Optional[str] = ..., workflow_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, workflow_id: _Optional[str] = ...) -> None: ...
 
 class GetWorkflowByNameRequest(_message.Message):
-    __slots__ = ("tenant_id", "name")
-    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("name",)
     NAME_FIELD_NUMBER: _ClassVar[int]
-    tenant_id: str
     name: str
-    def __init__(self, tenant_id: _Optional[str] = ..., name: _Optional[str] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ...) -> None: ...

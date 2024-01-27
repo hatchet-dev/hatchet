@@ -116,9 +116,31 @@ type APIResourceMeta struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// APIToken defines model for APIToken.
+type APIToken struct {
+	// ExpiresAt When the API token expires.
+	ExpiresAt time.Time       `json:"expiresAt"`
+	Metadata  APIResourceMeta `json:"metadata"`
+
+	// Name The name of the API token.
+	Name string `json:"name"`
+}
+
 // AcceptInviteRequest defines model for AcceptInviteRequest.
 type AcceptInviteRequest struct {
 	Invite string `json:"invite" validate:"required,uuid"`
+}
+
+// CreateAPITokenRequest defines model for CreateAPITokenRequest.
+type CreateAPITokenRequest struct {
+	// Name A name for the API token.
+	Name string `json:"name"`
+}
+
+// CreateAPITokenResponse defines model for CreateAPITokenResponse.
+type CreateAPITokenResponse struct {
+	// Token The API token.
+	Token string `json:"token"`
 }
 
 // CreateTenantInviteRequest defines model for CreateTenantInviteRequest.
@@ -230,6 +252,12 @@ type JobRun struct {
 
 // JobRunStatus defines model for JobRunStatus.
 type JobRunStatus string
+
+// ListAPITokensResponse defines model for ListAPITokensResponse.
+type ListAPITokensResponse struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]APIToken         `json:"rows,omitempty"`
+}
 
 // PaginationResponse defines model for PaginationResponse.
 type PaginationResponse struct {
@@ -600,6 +628,9 @@ type WorkflowVersionGetDefinitionParams struct {
 // TenantCreateJSONRequestBody defines body for TenantCreate for application/json ContentType.
 type TenantCreateJSONRequestBody = CreateTenantRequest
 
+// ApiTokenCreateJSONRequestBody defines body for ApiTokenCreate for application/json ContentType.
+type ApiTokenCreateJSONRequestBody = CreateAPITokenRequest
+
 // EventUpdateReplayJSONRequestBody defines body for EventUpdateReplay for application/json ContentType.
 type EventUpdateReplayJSONRequestBody = ReplayEventRequest
 
@@ -623,6 +654,9 @@ type UserCreateJSONRequestBody = UserRegisterRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Revoke API Token
+	// (POST /api/v1/api-tokens/{api-token})
+	ApiTokenUpdateRevoke(ctx echo.Context, apiToken openapi_types.UUID) error
 	// Get event data
 	// (GET /api/v1/events/{event}/data)
 	EventDataGet(ctx echo.Context, event openapi_types.UUID) error
@@ -632,6 +666,12 @@ type ServerInterface interface {
 	// Create tenant
 	// (POST /api/v1/tenants)
 	TenantCreate(ctx echo.Context) error
+	// List API Tokens
+	// (GET /api/v1/tenants/{tenant}/api-tokens)
+	ApiTokenList(ctx echo.Context, tenant openapi_types.UUID) error
+	// Create API Token
+	// (POST /api/v1/tenants/{tenant}/api-tokens)
+	ApiTokenCreate(ctx echo.Context, tenant openapi_types.UUID) error
 	// List events
 	// (GET /api/v1/tenants/{tenant}/events)
 	EventList(ctx echo.Context, tenant openapi_types.UUID, params EventListParams) error
@@ -717,6 +757,26 @@ type ServerInterfaceWrapper struct {
 	Handler ServerInterface
 }
 
+// ApiTokenUpdateRevoke converts echo context to params.
+func (w *ServerInterfaceWrapper) ApiTokenUpdateRevoke(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "api-token" -------------
+	var apiToken openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "api-token", runtime.ParamLocationPath, ctx.Param("api-token"), &apiToken)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter api-token: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.ApiTokenUpdateRevoke(ctx, apiToken)
+	return err
+}
+
 // EventDataGet converts echo context to params.
 func (w *ServerInterfaceWrapper) EventDataGet(ctx echo.Context) error {
 	var err error
@@ -756,6 +816,46 @@ func (w *ServerInterfaceWrapper) TenantCreate(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantCreate(ctx)
+	return err
+}
+
+// ApiTokenList converts echo context to params.
+func (w *ServerInterfaceWrapper) ApiTokenList(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.ApiTokenList(ctx, tenant)
+	return err
+}
+
+// ApiTokenCreate converts echo context to params.
+func (w *ServerInterfaceWrapper) ApiTokenCreate(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.ApiTokenCreate(ctx, tenant)
 	return err
 }
 
@@ -1336,9 +1436,12 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 		Handler: si,
 	}
 
+	router.POST(baseURL+"/api/v1/api-tokens/:api-token", wrapper.ApiTokenUpdateRevoke)
 	router.GET(baseURL+"/api/v1/events/:event/data", wrapper.EventDataGet)
 	router.GET(baseURL+"/api/v1/meta", wrapper.MetadataGet)
 	router.POST(baseURL+"/api/v1/tenants", wrapper.TenantCreate)
+	router.GET(baseURL+"/api/v1/tenants/:tenant/api-tokens", wrapper.ApiTokenList)
+	router.POST(baseURL+"/api/v1/tenants/:tenant/api-tokens", wrapper.ApiTokenCreate)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/events", wrapper.EventList)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/events/keys", wrapper.EventKeyList)
 	router.POST(baseURL+"/api/v1/tenants/:tenant/events/replay", wrapper.EventUpdateReplay)
@@ -1366,6 +1469,40 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/api/v1/workflows/:workflow/versions", wrapper.WorkflowVersionGet)
 	router.GET(baseURL+"/api/v1/workflows/:workflow/versions/definition", wrapper.WorkflowVersionGetDefinition)
 
+}
+
+type ApiTokenUpdateRevokeRequestObject struct {
+	ApiToken openapi_types.UUID `json:"api-token"`
+}
+
+type ApiTokenUpdateRevokeResponseObject interface {
+	VisitApiTokenUpdateRevokeResponse(w http.ResponseWriter) error
+}
+
+type ApiTokenUpdateRevoke204Response struct {
+}
+
+func (response ApiTokenUpdateRevoke204Response) VisitApiTokenUpdateRevokeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ApiTokenUpdateRevoke400JSONResponse APIErrors
+
+func (response ApiTokenUpdateRevoke400JSONResponse) VisitApiTokenUpdateRevokeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ApiTokenUpdateRevoke403JSONResponse APIErrors
+
+func (response ApiTokenUpdateRevoke403JSONResponse) VisitApiTokenUpdateRevokeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type EventDataGetRequestObject struct {
@@ -1457,6 +1594,77 @@ func (response TenantCreate400JSONResponse) VisitTenantCreateResponse(w http.Res
 type TenantCreate403JSONResponse APIError
 
 func (response TenantCreate403JSONResponse) VisitTenantCreateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ApiTokenListRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+}
+
+type ApiTokenListResponseObject interface {
+	VisitApiTokenListResponse(w http.ResponseWriter) error
+}
+
+type ApiTokenList200JSONResponse ListAPITokensResponse
+
+func (response ApiTokenList200JSONResponse) VisitApiTokenListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ApiTokenList400JSONResponse APIErrors
+
+func (response ApiTokenList400JSONResponse) VisitApiTokenListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ApiTokenList403JSONResponse APIErrors
+
+func (response ApiTokenList403JSONResponse) VisitApiTokenListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ApiTokenCreateRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+	Body   *ApiTokenCreateJSONRequestBody
+}
+
+type ApiTokenCreateResponseObject interface {
+	VisitApiTokenCreateResponse(w http.ResponseWriter) error
+}
+
+type ApiTokenCreate200JSONResponse CreateAPITokenResponse
+
+func (response ApiTokenCreate200JSONResponse) VisitApiTokenCreateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ApiTokenCreate400JSONResponse APIErrors
+
+func (response ApiTokenCreate400JSONResponse) VisitApiTokenCreateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ApiTokenCreate403JSONResponse APIErrors
+
+func (response ApiTokenCreate403JSONResponse) VisitApiTokenCreateResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
 
@@ -2386,11 +2594,17 @@ func (response WorkflowVersionGetDefinition404JSONResponse) VisitWorkflowVersion
 }
 
 type StrictServerInterface interface {
+	ApiTokenUpdateRevoke(ctx echo.Context, request ApiTokenUpdateRevokeRequestObject) (ApiTokenUpdateRevokeResponseObject, error)
+
 	EventDataGet(ctx echo.Context, request EventDataGetRequestObject) (EventDataGetResponseObject, error)
 
 	MetadataGet(ctx echo.Context, request MetadataGetRequestObject) (MetadataGetResponseObject, error)
 
 	TenantCreate(ctx echo.Context, request TenantCreateRequestObject) (TenantCreateResponseObject, error)
+
+	ApiTokenList(ctx echo.Context, request ApiTokenListRequestObject) (ApiTokenListResponseObject, error)
+
+	ApiTokenCreate(ctx echo.Context, request ApiTokenCreateRequestObject) (ApiTokenCreateResponseObject, error)
 
 	EventList(ctx echo.Context, request EventListRequestObject) (EventListResponseObject, error)
 
@@ -2454,6 +2668,31 @@ func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareF
 type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
+}
+
+// ApiTokenUpdateRevoke operation middleware
+func (sh *strictHandler) ApiTokenUpdateRevoke(ctx echo.Context, apiToken openapi_types.UUID) error {
+	var request ApiTokenUpdateRevokeRequestObject
+
+	request.ApiToken = apiToken
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ApiTokenUpdateRevoke(ctx, request.(ApiTokenUpdateRevokeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ApiTokenUpdateRevoke")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(ApiTokenUpdateRevokeResponseObject); ok {
+		return validResponse.VisitApiTokenUpdateRevokeResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
 }
 
 // EventDataGet operation middleware
@@ -2527,6 +2766,62 @@ func (sh *strictHandler) TenantCreate(ctx echo.Context) error {
 		return err
 	} else if validResponse, ok := response.(TenantCreateResponseObject); ok {
 		return validResponse.VisitTenantCreateResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// ApiTokenList operation middleware
+func (sh *strictHandler) ApiTokenList(ctx echo.Context, tenant openapi_types.UUID) error {
+	var request ApiTokenListRequestObject
+
+	request.Tenant = tenant
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ApiTokenList(ctx, request.(ApiTokenListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ApiTokenList")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(ApiTokenListResponseObject); ok {
+		return validResponse.VisitApiTokenListResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// ApiTokenCreate operation middleware
+func (sh *strictHandler) ApiTokenCreate(ctx echo.Context, tenant openapi_types.UUID) error {
+	var request ApiTokenCreateRequestObject
+
+	request.Tenant = tenant
+
+	var body ApiTokenCreateJSONRequestBody
+	if err := ctx.Bind(&body); err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ApiTokenCreate(ctx, request.(ApiTokenCreateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ApiTokenCreate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(ApiTokenCreateResponseObject); ok {
+		return validResponse.VisitApiTokenCreateResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -3215,80 +3510,84 @@ func (sh *strictHandler) WorkflowVersionGetDefinition(ctx echo.Context, workflow
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"H4sIAAAAAAAC/+xdW3PbuJL+KyzuPuxWSZbtODlZv3lsT45nYyfly6R2U64URLYkxBSpAUA73pT++xZu",
+	"JCgCJKiLjzzRk2kRl0bj6wvQDfBnGGXTWZZCymh4/DOk0QSmSDyefL44JyQj/HlGshkQhkG8ibIY+N8Y",
+	"aETwjOEsDY9DFEQ5Zdk0+Cdi0QRYALx2IAr3QviBprMEwuODo/39XjjKyBSx8DjMccreHYW9kD3PIDwO",
+	"ccpgDCSc96rN13sz/g9GGQnYBFPZp9ldeFIWfARF0xQoRWMoe6WM4HQsOs0i+i3B6YOtS/57wLKATSCI",
+	"syifQsqQhYBegEcBZgH8wJTRCjljzCb5cC/KpoOJ5FM/hkf9bKNohCGJ69RwGsSrgE0QMzoPMA0QpVmE",
+	"EYM4eMJsIuhBs1mCIzRMKtMRpmhqYcS8FxL4K8cE4vD4a6Xr+6JwNvwOEeM0aqzQOlig+B0zmIqHfycw",
+	"Co/DfxuU2Bso4A0K1M2LbhAh6LlGkmrXQc0lMFSnBeVs4kEAr3zCi87n7tZPVFvVHkQr8rE+XTSfzTLC",
+	"J4U3SoNsFHCKIGU4EjAyJ+ZrOEQUR2EvHGfZOAE+0oKDNZDUWGUj+xpolpMI7MyJCHDAnDA78QxPwYAa",
+	"UW0FT4gGqmoFV4f7h4f9g8P+wZvbw/3j/XfHR+/33r9//7+hIfwxYtDnDdtwjx2gxzFnXIWIXoDT4O7u",
+	"4ixQTZuEDIeHB0fv9//RPzx6B/2jN+htHx2+jftHB/94dxAfRKPRf4FJVJ5jPpIp+vER0jGf5DfveuEU",
+	"p+a/NWrzWbws9xJEWaDqr5OFCwIjRlVOskmyQ4huswdILRL9Y4YJUNtQv0wgFdrx5PNFwHj1QJXe8573",
+	"KTAUI4nQFkGtAHrek7qsRtTtBAL+RsLGoG2vOs2Hb9+28bCgraf1ZskMKxOjCGbsIn3EDK7hrxwoq/MT",
+	"i9eSsx1B2wWkvfBHP0Mz3OcWeQxpH34wgvoMjQUVjyjBfF7C42LEPSEK8xqQJL228Z4KeGnoOEdsn6cT",
+	"OUvSlK40TaJ9H/roLEsp1AlkGvl1JFXIaiZDtuKm4xZSlLahA6YIJ3ZSxCuN6pwC4b6JnJ06cUtMv+xa",
+	"jCpLoE0e5WguYToEcs3L1yy2aE411saVjthZlHEmGlkHF8QwaJKP7Z3yN+vvtKf8wSs+2LkV3oooGx/P",
+	"HyG1cO4Bnu1jeIDnQuqA191bs16WjPEDUFn+IraTe3FWZfiit6t8YedAnjLyMEqyp+s8vcmnU0Se2ygT",
+	"DP1Sr9ZgHjizjYHc62k5QzbfS/O1Plj+pjo5wX/8cfPpKhg+M6D/2a6ERNNF9/+9GgZ0Gx+xTTRnaIxT",
+	"pNdrTQz9XJQsdLDQMk/+C4ViOHXvVxO6LVQ2kPiJxEB+ez7DBCJNEqT5lM8cotz751NlSPnCXKj6v+s1",
+	"oq5b+nnOqjeASDSxriZceK/xcoRwAg4xTXNuCbioylIBydOqG+he+s8gjTktLQ2rYl1aJnmaerSsinVp",
+	"meZRBBC3s6Mo6N86x8sf2dCiOJr2SIT+MHZJlNb8ng33NuR419qkDGb+0nLDYFYXlqo9qC998RSynNmH",
+	"r162Df0RCMVZau3BreMLsswGipWBHLrNPv+RDa9zy8IqQmkESaJXkX7LpaJSsVnnLnINiEqgWHaZUkwn",
+	"3br+LhHZNKMctLKkY/ZWAB0BmifMaLXkMGWIsG6DoQyxnHqMh+tDWVbh+zpPu0GcT353lEcPQJpFoMtw",
+	"DSeojWTDECzUXF5eqo1ogBSz4Jaam2KatKn7fH51dnH1IeyF13dXV/Lp5u709Pz87Pws7IW/n1x8FA+n",
+	"J1en5x/5s80mcmdBLwype2X4ot5DsQdjdSAsHZh7CD/DKCcEUvZthsYQHh/2whR+6P/e9MI0n4p/aHh8",
+	"sM+NblUZVSrb9rRUiWAmt9KLjg+9zKVBi61x/rrW8hu/lstxWbfiMoYS04ngRYXvm2DK5HqtjFbs+1hn",
+	"C1qvgT/9Ojs/1zBL0LNwHN1bGfztRVzF/0tv1DYHFTSFfMEkvJF6DKHw0+t2doKTmMiNI9+t+g3Zxhki",
+	"OqTnTwkBFKNhAq6Ft35fbMFDwO2f1aNam8vm6MFtZYxRVEyONjFqAqUG4ktzC5q1ld4qF205eIGzz2Vc",
+	"PpzOcmZt7Xvh1Lb7T2X59SM/y5mLxCWF4q8ccjgZMSD+fPpX+KYKtFXn1HfJxcu6pNVDlLu6ng5X1st3",
+	"LJBTUN3oN1bZYnUc1dO3k5ubiw9Xl+dXt2EvlP8Iz3Elx/K22PysqpKNx7lc29Er72e3R8WcW9NmyGNz",
+	"sY55EZdzmxgjGiubedFI5XIBlbadcbUfjmP7lrh+7eaaLHHlhJdqoRKnWwIllUhQOVfmfnkLdrZga7cC",
+	"5UXDwV3ucdaXghpe83aFN23O6VpVwmqA8g/NcNFrK31Hgcgan/NhgqMmKIj2GmKCJs1bM+lq/paZ9Gs1",
+	"T9oIffpydX7Nrc3Z5cVV2Asvzy9/O7+2GpI7ka/hFTReS7zWOSd31AbeVuWN4pgApaYSr+harRXqupy/",
+	"+BMIHmHb7vqXCbAJkNIyTBANHlVx/ismVQoMXTXMsgRQurG8kxhTvi6u2GU98M7qssoH18x8zMY4XT6d",
+	"YLlZWim7YIYofcqIw6jpt83sW4KAotu5K1OhKOHi9TWMMWX87ytit5/36EDpFs6WzsTynTRT8dEJntHX",
+	"aldqdvYFdfImVJ7szDZtX8SS0bUZ5/Dy1Uvp+8pFZxChNJgB4ePj9PhvAySIsn8CImwIiJ2wxnVF2Z1I",
+	"7aSQsgAFE117b715shtfR8qx7Nm3OSJI2Y0RBLPtGvIyYh9PBLzLXPmy4dVCZy3LUTegtkDwFbKtAR4d",
+	"eFtP2F+H3PYcoVzH9PE3tia8RqfCvzZh6h54fBGgOzmkbZNF6tF4eQ7pMd4iq9pReQXd8MTb+1NWLDLw",
+	"1iEwvN2LM1virh52cHFmZZ6ubRe4leIcLyyrQh69Dlx8qUbYLadi1r8rj+IY8yGi5LPRHSM5WAiU+6j+",
+	"wy/37hdRusIEbmw33ExfK3bEm7eyCR6PgUD823OHxm+NWkZ2hJK/juJqaWH1HIs/jdwkxbvqYO+b0bsl",
+	"VtKwBJ2Eb2MZIw4QWA5WZelnEXpyAI8XuIkmEOeJPYsOdEK3V6qpCmJvJqTcEY5FpSaMcdtnOWSaSA25",
+	"unOzsvW3LzglhY0Dk7A4JRz6IzsyGiKV37CD2W0dqjSMkSMF45s6CbDubql9hN3FfIFvtqj2Yy2S26Hh",
+	"gj/rtWVS99rZV6rjb8qn685mw6ZUuay991V88lVC7iReiI3jlL05tCZnMQMqHWaMGs6wXZTVSy+F8GQs",
+	"rHwdPl2nowLUNGsuVRq6b5/sM+AOIbNOO0FP1deWxTd6Cv7n5PJjEBcFu+u7aj8eRNsPGL8Qwn4BlHAn",
+	"GKKcYPZ8Ux44HwIiQPS5dHkSPTxWP5cDnDAmMj6iLHvAoItjziH5k14GHoe1WwnQDIsjN3Ox6Bhldibr",
+	"CyBOPl/wqpiJja7qr8UshQd7+3v7YpJnkKIZDo/DN3sHe/vCe2ATMbQBmuHB4wH/0xenKungZ/E8F1DL",
+	"qGVT7hoeswcIUGocSB5lJEAqah2KXolwTvmUhSczLDJuZaxNVpduDJoCE3rra+OpUL7u5z9y0ktGFrSG",
+	"JgTkukzCqALuZTIb5/ci60j414Jnh/tHdYbc5FEElI7yJHkOiBheLKP4Os/4aH9ful8pU06nujiCtzD4",
+	"rpLTSqJ9LnNQ+9WLuwZTlPAhQxxkJBiiOCAqjCLIePMyZPyekSGOYz54cYhHnXTS0OETe6tmTm4BfQ3L",
+	"3+574Y++Pswv3hW4Kqf8njesESwdl8FP8Xc+0PpwDBb0fgAmrxrRZwBRWp7Nq+K2OFv4QYhrK17lSUKB",
+	"Mgtc5XrjJaG6PsyVpywtk70Af0YwPCoBkBwR87GTgkIKOAQNzpQyIFebDfiXGKpgfwrNYKeBNolFcpE2",
+	"GjilDKUR1IB/qWpI3G8MVfpKmW6YKiz8tiDKcBzC46/3izNt7iOpedb8rc6knGXqNrzyKD8NUJDCk8vY",
+	"ytilLKq0DVD2WxY/r41TtisFLDwzcttYpq6zqem/+QbxpROsWuCljvUaeXd/c2XVRVfJuS7BpiGseFvT",
+	"VTZED37Kh7nhajpV1kdMWen5UT/PUuymeljoIpfTbqKLXl6jjbafteumW/UCie7MdSkCBSIla7v5rPfz",
+	"XqM2X2IZVej21wH3TdmfxQuR5iqHaUPi5bjlaCdfK8uXEoQlF4XNBqfc0nYaGxqgJJH+eNXaOBaEr8XW",
+	"9BouzGBZQB/wTFP2Vw7kuSQtG42o8PwtpLiP6zZ3l+ApZsHw2dGleL1qjyfisHGQjYIHeKa81xFOGBB3",
+	"t7xcpddVb8lpoMlI5/CirdQVnQk08ko8SBQnlMS9NYEgwSBuJO59tVEnK1RIa2WZuhzHQsIXcWwoC8RG",
+	"rZslmXkxT6euK1f6OHggO4+LW4MaaTgzinWno6z9Avs2QmG12SmOUnPTZmehFj1AxRbv3RofwzQQCsjT",
+	"Okmt5mGh9F1iv/iCqMKLrvgXzN7JgE0GAmU11ykHRNx00RRz4u9pgApzKis6JEBHmkSjv+5CyXJ/iGOf",
+	"TocuhGdCNN9ebqvO31BJ4namyhlhE+dE1mus5OFm2hxmKEWzciSaOnaojSPHv7idqvGj257CArd3W9cV",
+	"i1XDYtsGtu/GXTUMozpoxPpu3855QXdz9EhdJdEliHSwEelcIpSkgbETS2tEqZQbf7n0sFT6h778fy6F",
+	"OAFmSVk+E7/TYlHlI8qyzqvdBazKVTNt/YIdr922tkqvRMg2S29FkCQIS7i6kkaq8yjsGmLykupqz3LV",
+	"1E0SZJ2dJGyz3XXfceJrd3M9yy+dvOEpueqrO69FcuWEdJfcJss3lVcvdFyj6Vp2ETduCNqt0ar8WGqN",
+	"prm9cwZta7QSi+vxBZ+K+y2cicAoSdSFCS2JRsbVBr+4JBic2OU+rCUVWAHQwL26v2IF3HNG90me0sFP",
+	"8995szSUMWqSp+0Coc7pembHb6X/VxmwizSTg69Yaouz3kuJLefQTnLrklvwpiq+4uxaQyZ/BVN+8ky9",
+	"TJko6Se7O3NWCsbOoK1fLGgnmfAUggHJU39JKC/H8rFku9S+bU3tM2PUvM8xsGJq9xwd6ys7XsqF8KfM",
+	"OIf86tyHFRSl4MtOWbp9iBUUZk6B0IH6elDzJpD5mSF1U3RVI95RIB+AnarGNogrcelxNzAJircJQwcv",
+	"Q8ZdinI2yQj+P4hlx29fpuNLYJMsDtJMWNbsSX+9tzzy+LNy7cHX+3ntDOQC3DTGxfRbYCw/zj+IUJIM",
+	"UfTghPNpNp3J4B1HxifefyBkxoZouen6iXPxVDe8AO03+4ctp/sj1WNc73ECKFYbsEkWFZd4lTOwqLDn",
+	"TSdH9dCqfXgyTtz/5uTaDX/blWWiUnd+qZvoNs0tQV03VrXlNJXJt9UUkuIUdasK5S2YUQwablMSkZHw",
+	"+ktlEPkYaF/V5pdh5MTeAEURzJg76/VEvO8WkJV1NnTyWzZeiyE64oAN6JMj32XKNLqHktutmTJufBHx",
+	"vcSmrGr+vhu+ZJ1wUwnL9Q88LoUvOfIdvlpyhTmTlsBXko1x6obVx2xMA5wGqLii3uVaiM9qbAhLtc92",
+	"bPiAsNdaJsnGY4gDnO6WMFu1hKmadY4a37VKko3VVzcbhCHLmZ808Ka2BKOclB1IX886W6LHF7bT8kst",
+	"/ksgo5LfMsj+VZgNA9zeaff1kMmi3ZpomTWRycF2SBL13acmf1WWoI3KdKN3X9k+ULUNjoVm3m6X9FW4",
+	"GBpC7epaZQfJPB4gPhk8FkUsM4o8M3XUd5aa0mHk9yVfbfraEgGsLZOnrclb65C2pr9SXQe4jOwXqWre",
+	"aWpegf0OqFdx3OY0sFee6bJk8HaHfnvcdsm8r3YZGJifqfIRBn0Nu5dQqEvlX5FsNCdfqMHvBRcjYYRp",
+	"ziEBcU+AOEEMKCs4hGkwAhZNIHZlaJR3x78m0S4+eLRcesZj+b2kX1jSea9HL9PrVcaCUZancVNeSAnF",
+	"DeuZQVz57kUXlWN8CKOj9jG+gbHTQ38zPWTM7WoaycDXTjlto3IyJ2h5PbW4zWR+e+XrPRc8y8YTkEet",
+	"L3KShMdhOL+f/38AAAD//1fM3PiCpwAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

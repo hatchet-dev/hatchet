@@ -2,7 +2,6 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-# import dispatcher_pb2 as dispatcher__pb2
 from . import dispatcher_pb2 as dispatcher__pb2
 
 class DispatcherStub(object):

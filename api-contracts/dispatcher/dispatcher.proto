@@ -15,17 +15,14 @@ service Dispatcher {
 }
 
 message WorkerRegisterRequest {
-    // the tenant id
-    string tenantId = 1;
-
     // the name of the worker
-    string workerName = 2;
+    string workerName = 1;
 
     // a list of actions that this worker can run
-    repeated string actions = 3;
+    repeated string actions = 2;
 
     // (optional) the services for this worker
-    repeated string services = 4;
+    repeated string services = 3;
 }
 
 message WorkerRegisterResponse {
@@ -74,19 +71,13 @@ message AssignedAction {
 }
 
 message WorkerListenRequest {
-    // the tenant id
-    string tenantId = 1;
-
     // the id of the worker
-    string workerId = 2;
+    string workerId = 1;
 }
 
 message WorkerUnsubscribeRequest {
-    // the tenant id to unsubscribe from
-    string tenantId = 1;
-
     // the id of the worker
-    string workerId = 2;
+    string workerId = 1;
 }
 
 message WorkerUnsubscribeResponse {
@@ -105,34 +96,31 @@ enum ActionEventType {
 }
 
 message ActionEvent {
-    // the tenant id
-    string tenantId = 1;
-
     // the id of the worker
-    string workerId = 2;
+    string workerId = 1;
 
     // the id of the job
-    string jobId = 3;
+    string jobId = 2;
 
     // the job run id
-    string jobRunId = 4;
+    string jobRunId = 3;
 
     // the id of the step
-    string stepId = 5;
+    string stepId = 4;
 
     // the step run id
-    string stepRunId = 6;
+    string stepRunId = 5;
 
     // the action id
-    string actionId = 7;
+    string actionId = 6;
 
-    google.protobuf.Timestamp eventTimestamp = 8;
+    google.protobuf.Timestamp eventTimestamp = 7;
 
     // the step event type
-    ActionEventType eventType = 9;
+    ActionEventType eventType = 8;
 
     // the event payload
-    string eventPayload = 10;
+    string eventPayload = 9;
 }
 
 message ActionEventResponse {

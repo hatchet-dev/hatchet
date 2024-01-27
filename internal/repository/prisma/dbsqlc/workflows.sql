@@ -222,17 +222,19 @@ JOIN
 -- name: UpsertAction :exec
 INSERT INTO "Action" (
     "id",
+    "actionId",
     "tenantId"
 )
 VALUES (
+    gen_random_uuid(),
     @action::text,
     @tenantId::uuid
 )
-ON CONFLICT ("tenantId", "id") DO UPDATE 
+ON CONFLICT ("tenantId", "actionId") DO UPDATE 
 SET
     "tenantId" = EXCLUDED."tenantId"
 WHERE
-    "Action"."tenantId" = @tenantId AND "Action"."id" = @action;
+    "Action"."tenantId" = @tenantId AND "Action"."actionId" = @action::text;
 
 -- name: UpsertWorkflowTag :exec
 INSERT INTO "WorkflowTag" (

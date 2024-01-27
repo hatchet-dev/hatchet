@@ -24,6 +24,8 @@ type eventClientImpl struct {
 	l *zerolog.Logger
 
 	v validator.Validator
+
+	ctx *contextLoader
 }
 
 func newEvent(conn *grpc.ClientConn, opts *sharedClientOpts) EventClient {
@@ -32,6 +34,7 @@ func newEvent(conn *grpc.ClientConn, opts *sharedClientOpts) EventClient {
 		tenantId: opts.tenantId,
 		l:        opts.l,
 		v:        opts.v,
+		ctx:      opts.ctxLoader,
 	}
 }
 
@@ -42,8 +45,7 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 		return err
 	}
 
-	_, err = a.client.Push(ctx, &eventcontracts.PushEventRequest{
-		TenantId:       a.tenantId,
+	_, err = a.client.Push(a.ctx.newContext(ctx), &eventcontracts.PushEventRequest{
 		Key:            eventKey,
 		Payload:        string(payloadBytes),
 		EventTimestamp: timestamppb.Now(),

@@ -53,10 +53,10 @@ model UserOAuth {
   providerUserId String
 
   // the oauth provider's access token
-  accessToken String
+  accessToken Bytes @db.ByteA
 
   // the oauth provider's refresh token
-  refreshToken String?
+  refreshToken Bytes? @db.ByteA
 
   // the oauth provider's expiry time
   expiresAt DateTime?
@@ -117,6 +117,7 @@ model Tenant {
   actions             Action[]
   services            Service[]
   invites             TenantInviteLink[]
+  apiTokens           APIToken[]
 }
 
 enum TenantMemberRole {
@@ -167,6 +168,25 @@ model TenantInviteLink {
   expires DateTime
   status  InviteLinkStatus @default(PENDING)
   role    TenantMemberRole @default(OWNER)
+}
+
+model APIToken {
+  // base fields
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // when it expires
+  expiresAt DateTime?
+
+  // whether the token has been revoked
+  revoked Boolean @default(false)
+
+  // an optional name for the token
+  name String?
+
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String? @db.Uuid
 }
 
 // Event represents an event in the database. 
@@ -385,7 +405,9 @@ model Job {
 
 model Action {
   // base fields
-  id String @id
+  id String @id @unique @default(uuid()) @db.Uuid
+
+  actionId String
 
   // the action description
   description String?
@@ -400,7 +422,7 @@ model Action {
   workers Worker[]
 
   // actions are unique per tenant
-  @@unique([tenantId, id])
+  @@unique([tenantId, actionId])
 }
 
 model Step {
@@ -422,7 +444,7 @@ model Step {
   jobId String @db.Uuid
 
   // an action id for the step
-  action   Action @relation(fields: [actionId, tenantId], references: [id, tenantId])
+  action   Action @relation(fields: [actionId, tenantId], references: [actionId, tenantId])
   actionId String
 
   timeout String?

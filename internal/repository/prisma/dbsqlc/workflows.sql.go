@@ -628,17 +628,19 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 const upsertAction = `-- name: UpsertAction :exec
 INSERT INTO "Action" (
     "id",
+    "actionId",
     "tenantId"
 )
 VALUES (
+    gen_random_uuid(),
     $1::text,
     $2::uuid
 )
-ON CONFLICT ("tenantId", "id") DO UPDATE 
+ON CONFLICT ("tenantId", "actionId") DO UPDATE 
 SET
     "tenantId" = EXCLUDED."tenantId"
 WHERE
-    "Action"."tenantId" = $2 AND "Action"."id" = $1
+    "Action"."tenantId" = $2 AND "Action"."actionId" = $1::text
 `
 
 type UpsertActionParams struct {

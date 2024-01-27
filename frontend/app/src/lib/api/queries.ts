@@ -26,6 +26,12 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.tenantMemberList(tenant)).data,
     }),
   },
+  tokens: {
+    list: (tenant: string) => ({
+      queryKey: ['api-token:list', tenant],
+      queryFn: async () => (await api.apiTokenList(tenant)).data,
+    }),
+  },
   invites: {
     list: (tenant: string) => ({
       queryKey: ['tenant-invite:list', tenant],

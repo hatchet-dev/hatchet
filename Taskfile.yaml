@@ -1,9 +1,6 @@
 version: "3"
 
 tasks:
-  write-default-env:
-    cmds:
-      - sh ./hack/dev/write-default-env.sh
   set-etc-hosts:
     cmds:
       - sudo sh ./hack/dev/manage-hosts.sh add 127.0.0.1 app.dev.hatchet-tools.com
@@ -46,7 +43,13 @@ tasks:
       - task: generate-api-client
   generate-certs:
     cmds:
-      - sh ./hack/dev/generate-temporal-certs.sh ./hack/dev/certs
+      - sh ./hack/dev/generate-x509-certs.sh ./hack/dev/certs
+  generate-local-encryption-keys:
+    cmds:
+      - sh ./hack/dev/generate-local-encryption-keys.sh ./hack/dev/encryption-keys
+  generate-dev-api-token:
+    cmds:
+      - sh ./hack/dev/generate-dev-api-token.sh
   generate-api-server:
     cmds:
       - sh ./hack/oas/generate-server.sh

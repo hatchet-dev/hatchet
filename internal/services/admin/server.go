@@ -22,8 +22,10 @@ import (
 )
 
 func (a *AdminServiceImpl) GetWorkflowByName(ctx context.Context, req *contracts.GetWorkflowByNameRequest) (*contracts.Workflow, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
 	workflow, err := a.repo.Workflow().GetWorkflowByName(
-		req.TenantId,
+		tenant.ID,
 		req.Name,
 	)
 
@@ -44,7 +46,7 @@ func (a *AdminServiceImpl) GetWorkflowByName(ctx context.Context, req *contracts
 }
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
-	// TODO: authorize request
+	tenant := ctx.Value("tenant").(*db.TenantModel)
 
 	createOpts, err := getCreateWorkflowOpts(req)
 
@@ -57,7 +59,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 	var oldWorkflowVersion *db.WorkflowVersionModel
 
 	currWorkflow, err := a.repo.Workflow().GetWorkflowByName(
-		req.TenantId,
+		tenant.ID,
 		req.Opts.Name,
 	)
 
@@ -68,7 +70,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 
 		// workflow does not exist, create it
 		workflowVersion, err = a.repo.Workflow().CreateNewWorkflow(
-			req.TenantId,
+			tenant.ID,
 			createOpts,
 		)
 
@@ -80,7 +82,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 
 		// workflow exists, create a new version
 		workflowVersion, err = a.repo.Workflow().CreateWorkflowVersion(
-			req.TenantId,
+			tenant.ID,
 			createOpts,
 		)
 
@@ -295,7 +297,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 }
 
 func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.ScheduleWorkflowRequest) (*contracts.WorkflowVersion, error) {
-	// TODO: authorize request
+	tenant := ctx.Value("tenant").(*db.TenantModel)
 
 	currWorkflow, err := a.repo.Workflow().GetWorkflowById(
 		req.WorkflowId,
@@ -336,7 +338,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	}
 
 	schedules, err := a.repo.Workflow().CreateSchedules(
-		req.TenantId,
+		tenant.ID,
 		workflowVersion.ID,
 		&repository.CreateWorkflowSchedulesOpts{
 			ScheduledTriggers: dbSchedules,
@@ -416,8 +418,10 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 }
 
 func (a *AdminServiceImpl) DeleteWorkflow(ctx context.Context, req *contracts.DeleteWorkflowRequest) (*contracts.Workflow, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
 	workflow, err := a.repo.Workflow().DeleteWorkflow(
-		req.TenantId,
+		tenant.ID,
 		req.WorkflowId,
 	)
 
@@ -434,8 +438,10 @@ func (a *AdminServiceImpl) ListWorkflows(
 	ctx context.Context,
 	req *contracts.ListWorkflowsRequest,
 ) (*contracts.ListWorkflowsResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
 	listResp, err := a.repo.Workflow().ListWorkflows(
-		req.TenantId,
+		tenant.ID,
 		&repository.ListWorkflowsOpts{},
 	)
 
@@ -458,8 +464,10 @@ func (a *AdminServiceImpl) ListWorkflowsForEvent(
 	ctx context.Context,
 	req *contracts.ListWorkflowsForEventRequest,
 ) (*contracts.ListWorkflowsResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
 	listResp, err := a.repo.Workflow().ListWorkflows(
-		req.TenantId,
+		tenant.ID,
 		&repository.ListWorkflowsOpts{
 			EventKey: &req.EventKey,
 		},

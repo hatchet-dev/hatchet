@@ -6,16 +6,19 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 )
@@ -29,6 +32,7 @@ type Server struct {
 	port        int
 	bindAddress string
 
+	config     *server.ServerConfig
 	ingestor   ingestor.Ingestor
 	dispatcher dispatcher.Dispatcher
 	admin      admin.AdminService
@@ -39,6 +43,7 @@ type Server struct {
 type ServerOpt func(*ServerOpts)
 
 type ServerOpts struct {
+	config      *server.ServerConfig
 	l           *zerolog.Logger
 	port        int
 	bindAddress string
@@ -84,6 +89,12 @@ func WithIngestor(i ingestor.Ingestor) ServerOpt {
 	}
 }
 
+func WithConfig(config *server.ServerConfig) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.config = config
+	}
+}
+
 func WithTLSConfig(tls *tls.Config) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.tls = tls
@@ -115,6 +126,10 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		f(opts)
 	}
 
+	if opts.config == nil {
+		return nil, fmt.Errorf("config is required. use WithConfig")
+	}
+
 	if opts.tls == nil {
 		return nil, fmt.Errorf("tls config is required. use WithTLSConfig")
 	}
@@ -124,6 +139,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 
 	return &Server{
 		l:           opts.l,
+		config:      opts.config,
 		port:        opts.port,
 		bindAddress: opts.bindAddress,
 		ingestor:    opts.ingestor,
@@ -154,6 +170,16 @@ func (s *Server) startGRPC(ctx context.Context) error {
 	} else {
 		serverOpts = append(serverOpts, grpc.Creds(credentials.NewTLS(s.tls)))
 	}
+
+	authMiddleware := middleware.NewAuthN(s.config)
+
+	serverOpts = append(serverOpts, grpc.StreamInterceptor(
+		auth.StreamServerInterceptor(authMiddleware.Middleware),
+	))
+
+	serverOpts = append(serverOpts, grpc.UnaryInterceptor(
+		auth.UnaryServerInterceptor(authMiddleware.Middleware),
+	))
 
 	grpcServer := grpc.NewServer(serverOpts...)
 

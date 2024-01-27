@@ -275,14 +275,25 @@ func (ns NullWorkflowRunStatus) Value() (driver.Value, error) {
 	return string(ns.WorkflowRunStatus), nil
 }
 
+type APIToken struct {
+	ID        pgtype.UUID      `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
+	Revoked   bool             `json:"revoked"`
+	Name      pgtype.Text      `json:"name"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+}
+
 type Action struct {
-	ID          string      `json:"id"`
+	ID          pgtype.UUID `json:"id"`
+	ActionId    string      `json:"actionId"`
 	Description pgtype.Text `json:"description"`
 	TenantId    pgtype.UUID `json:"tenantId"`
 }
 
 type ActionToWorker struct {
-	A string      `json:"A"`
+	A pgtype.UUID `json:"A"`
 	B pgtype.UUID `json:"B"`
 }
 
@@ -464,8 +475,8 @@ type UserOAuth struct {
 	UserId         pgtype.UUID      `json:"userId"`
 	Provider       string           `json:"provider"`
 	ProviderUserId string           `json:"providerUserId"`
-	AccessToken    string           `json:"accessToken"`
-	RefreshToken   pgtype.Text      `json:"refreshToken"`
+	AccessToken    []byte           `json:"accessToken"`
+	RefreshToken   []byte           `json:"refreshToken"`
 	ExpiresAt      pgtype.Timestamp `json:"expiresAt"`
 }
 

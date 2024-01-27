@@ -9,6 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
+	apitokens "github.com/hatchet-dev/hatchet/api/v1/server/handlers/api-tokens"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
@@ -29,6 +30,7 @@ type apiService struct {
 	*workflows.WorkflowService
 	*workers.WorkerService
 	*metadata.MetadataService
+	*apitokens.APITokenService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -39,6 +41,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		WorkflowService: workflows.NewWorkflowService(config),
 		WorkerService:   workers.NewWorkerService(config),
 		MetadataService: metadata.NewMetadataService(config),
+		APITokenService: apitokens.NewAPITokenService(config),
 	}
 }
 
@@ -73,6 +76,25 @@ func (t *APIServer) Run(ctx context.Context) error {
 		}
 
 		return tenant, "", nil
+	})
+
+	populatorMW.RegisterGetter("api-token", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		apiToken, err := config.Repository.APIToken().GetAPITokenById(id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		// at the moment, API tokens should have a tenant id, because there are no other types of
+		// API tokens. If we add other types of API tokens, we'll need to pass in a parent id to query
+		// for.
+		tenantId, ok := apiToken.TenantID()
+
+		if !ok {
+			return nil, "", fmt.Errorf("api token has no tenant id")
+		}
+
+		return apiToken, tenantId, nil
 	})
 
 	populatorMW.RegisterGetter("tenant-invite", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {

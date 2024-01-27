@@ -229,6 +229,39 @@ func generateKeys(generated *generatedConfigFiles) error {
 		generated.sc.Auth.Cookie.Secrets = fmt.Sprintf("%s %s", cookieHashKey, cookieBlockKey)
 	}
 
+	// if using local keys, generate master key
+	if !generated.sc.Encryption.CloudKMS.Enabled {
+		masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
+
+		if err != nil {
+			return err
+		}
+
+		if overwrite || (generated.sc.Encryption.MasterKeyset == "") {
+			generated.sc.Encryption.MasterKeyset = string(masterKeyBytes)
+		}
+
+		if overwrite || (generated.sc.Encryption.JWT.PublicJWTKeyset == "") || (generated.sc.Encryption.JWT.PrivateJWTKeyset == "") {
+			generated.sc.Encryption.JWT.PrivateJWTKeyset = string(privateEc256)
+			generated.sc.Encryption.JWT.PublicJWTKeyset = string(publicEc256)
+		}
+	}
+
+	// generate jwt keys
+	if generated.sc.Encryption.CloudKMS.Enabled && (overwrite || (generated.sc.Encryption.JWT.PublicJWTKeyset == "") || (generated.sc.Encryption.JWT.PrivateJWTKeyset == "")) {
+		privateEc256, publicEc256, err := encryption.GenerateJWTKeysetsFromCloudKMS(
+			generated.sc.Encryption.CloudKMS.KeyURI,
+			[]byte(generated.sc.Encryption.CloudKMS.CredentialsJSON),
+		)
+
+		if err != nil {
+			return err
+		}
+
+		generated.sc.Encryption.JWT.PrivateJWTKeyset = string(privateEc256)
+		generated.sc.Encryption.JWT.PublicJWTKeyset = string(publicEc256)
+	}
+
 	return nil
 }
 
