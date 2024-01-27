@@ -33,6 +33,7 @@ describe('Worker', () => {
   beforeEach(() => {
     hatchet = new HatchetClient(
       {
+        log_level: 'OFF',
         tenant_id: 'TENNANT_ID',
         host_port: 'HOST_PORT',
         tls_config: {

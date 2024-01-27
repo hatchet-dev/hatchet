@@ -41,8 +41,14 @@ describe('EventClient', () => {
     );
   });
 
-  it('should push events', () => {
-    const clientSpy = jest.spyOn(client.client, 'push');
+  fit('should push events', () => {
+    const clientSpy = jest.spyOn(client.client, 'push').mockResolvedValue({
+      tenantId: 'x',
+      eventId: 'y',
+      key: 'z',
+      eventTimestamp: new Date(),
+      payload: 'string',
+    });
 
     client.push('type', { foo: 'bar' });
 

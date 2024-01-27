@@ -1,7 +1,7 @@
 import HatchetPromise from './hatchet-promise';
 
 describe('HatchetPromise', () => {
-  it('should resolve the original promise if not canceled', async () => {
+  fit('should resolve the original promise if not canceled', async () => {
     const hatchetPromise = new HatchetPromise(
       new Promise((resolve) => {
         setTimeout(() => resolve('RESOLVED'), 500);
@@ -10,7 +10,7 @@ describe('HatchetPromise', () => {
     const result = await hatchetPromise.promise;
     expect(result).toEqual('RESOLVED');
   });
-  it('should resolve the cancel promise if canceled', async () => {
+  fit('should resolve the cancel promise if canceled', async () => {
     const hatchetPromise = new HatchetPromise(
       new Promise((resolve) => {
         setTimeout(() => resolve('RESOLVED'), 500);

@@ -1,7 +1,8 @@
-export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+export type LogLevel = 'OFF' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
 // eslint-disable-next-line no-shadow
 enum LogLevelEnum {
+  OFF = -1,
   DEBUG = 0,
   INFO = 1,
   WARN = 2,

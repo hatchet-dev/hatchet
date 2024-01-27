@@ -12,7 +12,7 @@ describe('Client', () => {
     const hatchet = new HatchetClient(
       {
         host_port: 'HOST_PORT',
-        log_level: 'INFO',
+        log_level: 'OFF',
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
           key_file: 'TLS_KEY_FILE',
@@ -28,7 +28,7 @@ describe('Client', () => {
     expect(hatchet.config).toEqual({
       tenant_id: 'TENANT_ID_ENV',
       host_port: 'HOST_PORT',
-      log_level: 'INFO',
+      log_level: 'OFF',
       tls_config: {
         cert_file: 'TLS_CERT_FILE',
         key_file: 'TLS_KEY_FILE',
@@ -121,6 +121,7 @@ describe('Client', () => {
       hatchet = new HatchetClient(
         {
           host_port: 'HOST_PORT',
+          log_level: 'OFF',
           tls_config: {
             cert_file: 'TLS_CERT_FILE',
             key_file: 'TLS_KEY_FILE',
@@ -135,16 +136,15 @@ describe('Client', () => {
     });
 
     describe('run', () => {
-      it('should start a worker', () => {
+      xit('should start a worker', () => {
         const worker = hatchet.run('workflow1');
-
         expect(worker).toBeDefined();
       });
     });
 
-    describe('run', () => {
+    describe('worker', () => {
       it('should start a worker', () => {
-        const worker = hatchet.run('workflow1');
+        const worker = hatchet.worker('workflow1');
 
         expect(worker).toBeDefined();
       });

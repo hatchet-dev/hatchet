@@ -46,6 +46,7 @@ describe('ActionListener', () => {
       {
         tenant_id: 'TENANT_ID',
         host_port: 'HOST_PORT',
+        log_level: 'OFF',
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
           key_file: 'TLS_KEY_FILE',
