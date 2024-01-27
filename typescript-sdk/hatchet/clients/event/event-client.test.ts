@@ -1,10 +1,8 @@
 import HatchetError from '@util/errors/hatchet-error';
-import { createChannel } from 'nice-grpc';
 import { EventClient } from './event-client';
+import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
 
 let client: EventClient;
-
-const mockChannel = createChannel('localhost:50051');
 
 describe('EventClient', () => {
   it('should create a client', () => {
@@ -20,7 +18,8 @@ describe('EventClient', () => {
           server_name: 'TLS_SERVER_NAME',
         },
       },
-      mockChannel
+      mockChannel,
+      mockFactory
     );
 
     expect(x).toBeDefined();
@@ -39,7 +38,8 @@ describe('EventClient', () => {
           server_name: 'TLS_SERVER_NAME',
         },
       },
-      mockChannel
+      mockChannel,
+      mockFactory
     );
   });
 

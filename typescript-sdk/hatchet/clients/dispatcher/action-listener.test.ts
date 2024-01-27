@@ -3,7 +3,7 @@ import sleep from '@util/sleep';
 import { ServerError, Status } from 'nice-grpc-common';
 import { DispatcherClient } from './dispatcher-client';
 import { ActionListener } from './action-listener';
-import { mockChannel } from '../hatchet-client/hatchet-client.test';
+import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
 
 let dispatcher: DispatcherClient;
 
@@ -55,7 +55,8 @@ describe('ActionListener', () => {
           server_name: 'TLS_SERVER_NAME',
         },
       },
-      mockChannel
+      mockChannel,
+      mockFactory
     );
   });
 

@@ -1,4 +1,4 @@
-import { Channel, createClient } from 'nice-grpc';
+import { Channel, ClientFactory } from 'nice-grpc';
 import {
   DispatcherClient as PbDispatcherClient,
   DispatcherDefinition,
@@ -18,9 +18,9 @@ export class DispatcherClient {
   config: ClientConfig;
   client: PbDispatcherClient;
 
-  constructor(config: ClientConfig, channel: Channel) {
+  constructor(config: ClientConfig, channel: Channel, factory: ClientFactory) {
     this.config = config;
-    this.client = createClient(DispatcherDefinition, channel);
+    this.client = factory.create(DispatcherDefinition, channel);
   }
 
   async get_action_listener(options: GetActionListenerOptions) {

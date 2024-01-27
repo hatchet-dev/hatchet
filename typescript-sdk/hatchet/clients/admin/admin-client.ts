@@ -1,4 +1,4 @@
-import { Channel, createClient } from 'nice-grpc';
+import { Channel, ClientFactory } from 'nice-grpc';
 import {
   CreateWorkflowVersionOpts,
   WorkflowServiceClient,
@@ -11,9 +11,9 @@ export class AdminClient {
   config: ClientConfig;
   client: WorkflowServiceClient;
 
-  constructor(config: ClientConfig, channel: Channel) {
+  constructor(config: ClientConfig, channel: Channel, factory: ClientFactory) {
     this.config = config;
-    this.client = createClient(WorkflowServiceDefinition, channel);
+    this.client = factory.create(WorkflowServiceDefinition, channel);
   }
 
   async put_workflow(workflow: CreateWorkflowVersionOpts, options?: { autoVersion?: boolean }) {

@@ -1,6 +1,6 @@
 import { ActionEventType } from '@protoc/dispatcher';
 import { DispatcherClient } from './dispatcher-client';
-import { mockChannel } from '../hatchet-client/hatchet-client.test';
+import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
 
 let client: DispatcherClient;
 
@@ -19,7 +19,8 @@ describe('DispatcherClient', () => {
           server_name: 'TLS_SERVER_NAME',
         },
       },
-      mockChannel
+      mockChannel,
+      mockFactory
     );
 
     expect(x).toBeDefined();
@@ -39,7 +40,8 @@ describe('DispatcherClient', () => {
           server_name: 'TLS_SERVER_NAME',
         },
       },
-      mockChannel
+      mockChannel,
+      mockFactory
     );
   });
 

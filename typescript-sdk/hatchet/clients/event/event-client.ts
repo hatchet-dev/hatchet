@@ -1,4 +1,4 @@
-import { Channel, createClient } from 'nice-grpc';
+import { Channel, ClientFactory } from 'nice-grpc';
 import {
   EventsServiceClient,
   EventsServiceDefinition,
@@ -11,10 +11,9 @@ export class EventClient {
   config: ClientConfig;
   client: EventsServiceClient;
 
-  constructor(config: ClientConfig, channel: Channel) {
+  constructor(config: ClientConfig, channel: Channel, factory: ClientFactory) {
     this.config = config;
-
-    this.client = createClient(EventsServiceDefinition, channel);
+    this.client = factory.create(EventsServiceDefinition, channel);
   }
 
   push<T>(type: string, input: T) {

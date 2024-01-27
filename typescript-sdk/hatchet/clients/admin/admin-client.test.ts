@@ -1,6 +1,6 @@
 import { CreateWorkflowVersionOpts, WorkflowVersion } from '@protoc/workflows';
 import { AdminClient } from './admin-client';
-import { mockChannel } from '../hatchet-client/hatchet-client.test';
+import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
 
 describe('AdminClient', () => {
   let client: AdminClient;
@@ -18,7 +18,8 @@ describe('AdminClient', () => {
           server_name: 'TLS_SERVER_NAME',
         },
       },
-      mockChannel
+      mockChannel,
+      mockFactory
     );
 
     expect(x).toBeDefined();
@@ -37,7 +38,8 @@ describe('AdminClient', () => {
           server_name: 'TLS_SERVER_NAME',
         },
       },
-      mockChannel
+      mockChannel,
+      mockFactory
     );
   });
 

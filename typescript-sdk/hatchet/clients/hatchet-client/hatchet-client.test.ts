@@ -1,7 +1,8 @@
-import { ChannelCredentials, createChannel } from 'nice-grpc';
+import { ChannelCredentials, createChannel, createClientFactory } from 'nice-grpc';
 import { HatchetClient } from './hatchet-client';
 
 export const mockChannel = createChannel('localhost:50051');
+export const mockFactory = createClientFactory();
 
 describe('Client', () => {
   beforeEach(() => {

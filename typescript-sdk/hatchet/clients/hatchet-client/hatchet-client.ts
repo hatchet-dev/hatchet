@@ -3,7 +3,15 @@ import { ConfigLoader } from '@util/config-loader';
 import { EventClient } from '@clients/event/event-client';
 import { DispatcherClient } from '@clients/dispatcher/dispatcher-client';
 import { AdminClient } from '@clients/admin/admin-client';
-import { Channel, ChannelCredentials, createChannel } from 'nice-grpc';
+import {
+  CallOptions,
+  Channel,
+  ChannelCredentials,
+  ClientMiddlewareCall,
+  Metadata,
+  createChannel,
+  createClientFactory,
+} from 'nice-grpc';
 import { Workflow } from '@hatchet/workflow';
 import { Worker } from '@clients/worker';
 import Logger from '@hatchet/util/logger/logger';
@@ -13,6 +21,29 @@ export interface HatchetClientOptions {
   config_path?: string;
   credentials?: ChannelCredentials;
 }
+
+const addTokenMiddleware = (token: string) =>
+  async function* _<Request, Response>(
+    call: ClientMiddlewareCall<Request, Response>,
+    options: CallOptions
+  ) {
+    const optionsWithAuth: CallOptions = {
+      ...options,
+      metadata: new Metadata({ authorization: `'Bearer ${token}` }),
+    };
+
+    if (!call.responseStream) {
+      const response = yield* call.next(call.request, optionsWithAuth);
+
+      return response;
+    }
+
+    for await (const response of call.next(call.request, optionsWithAuth)) {
+      yield response;
+    }
+
+    return undefined;
+  };
 
 export class HatchetClient {
   config: ClientConfig;
@@ -48,13 +79,16 @@ export class HatchetClient {
 
     this.credentials =
       options?.credentials ?? ConfigLoader.createCredentials(this.config.tls_config);
+
     this.channel = createChannel(this.config.host_port, this.credentials, {
       'grpc.ssl_target_name_override': this.config.tls_config.server_name,
     });
 
-    this.event = new EventClient(this.config, this.channel);
-    this.dispatcher = new DispatcherClient(this.config, this.channel);
-    this.admin = new AdminClient(this.config, this.channel);
+    const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
+
+    this.event = new EventClient(this.config, this.channel, clientFactory);
+    this.dispatcher = new DispatcherClient(this.config, this.channel, clientFactory);
+    this.admin = new AdminClient(this.config, this.channel, clientFactory);
 
     this.logger = new Logger('HatchetClient', this.config.log_level);
 
