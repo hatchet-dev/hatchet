@@ -1,4 +1,4 @@
-name: typescript-sdk-tests
+name: typescript-sdk-publish
 on:
   push:
   pull_request:
