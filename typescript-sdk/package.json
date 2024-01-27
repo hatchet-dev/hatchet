@@ -8,6 +8,9 @@
     "type": "git",
     "url": "https://github.com/hatchet-dev/hatchet.git"
   },
+  "publishConfig": {
+    "@hatchet:registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "prepare": "npm run build",
     "build": "tsc",
