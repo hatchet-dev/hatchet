@@ -8,6 +8,7 @@ describe('AdminClient', () => {
   it('should create a client', () => {
     const x = new AdminClient(
       {
+        token: 'TOKEN',
         tenant_id: 'TENANT_ID',
         host_port: 'HOST_PORT',
         tls_config: {
@@ -26,6 +27,7 @@ describe('AdminClient', () => {
   beforeEach(() => {
     client = new AdminClient(
       {
+        token: 'TOKEN',
         tenant_id: 'TENANT_ID',
         host_port: 'HOST_PORT',
         tls_config: {

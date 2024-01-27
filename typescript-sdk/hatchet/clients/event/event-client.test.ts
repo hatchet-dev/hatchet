@@ -10,6 +10,7 @@ describe('EventClient', () => {
   it('should create a client', () => {
     const x = new EventClient(
       {
+        token: 'TOKEN',
         tenant_id: 'TENANT_ID',
         host_port: 'HOST_PORT',
         tls_config: {
@@ -28,6 +29,7 @@ describe('EventClient', () => {
   beforeEach(() => {
     client = new EventClient(
       {
+        token: 'TOKEN',
         tenant_id: 'TENANT_ID',
         host_port: 'HOST_PORT',
         tls_config: {

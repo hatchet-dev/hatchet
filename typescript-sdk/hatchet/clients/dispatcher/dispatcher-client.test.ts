@@ -8,6 +8,7 @@ describe('DispatcherClient', () => {
   it('should create a client', () => {
     const x = new DispatcherClient(
       {
+        token: 'TOKEN',
         tenant_id: 'TENANT_ID',
         host_port: 'HOST_PORT',
         log_level: 'OFF',
@@ -27,6 +28,7 @@ describe('DispatcherClient', () => {
   beforeEach(() => {
     client = new DispatcherClient(
       {
+        token: 'TOKEN',
         tenant_id: 'TENANT_ID',
         host_port: 'HOST_PORT',
         log_level: 'OFF',

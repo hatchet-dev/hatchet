@@ -6,11 +6,13 @@ export const mockChannel = createChannel('localhost:50051');
 describe('Client', () => {
   beforeEach(() => {
     process.env.HATCHET_CLIENT_TENANT_ID = 'TENANT_ID_ENV';
+    process.env.HATCHET_CLIENT_TOKEN = 'TOKEN_ENV';
   });
 
   it('should load from environment variables', () => {
     const hatchet = new HatchetClient(
       {
+        token: 'TOKEN_ENV',
         host_port: 'HOST_PORT',
         log_level: 'OFF',
         tls_config: {
@@ -26,10 +28,12 @@ describe('Client', () => {
     );
 
     expect(hatchet.config).toEqual({
+      token: 'TOKEN_ENV',
       tenant_id: 'TENANT_ID_ENV',
       host_port: 'HOST_PORT',
       log_level: 'OFF',
       tls_config: {
+        tls_strategy: 'tls',
         cert_file: 'TLS_CERT_FILE',
         key_file: 'TLS_KEY_FILE',
         ca_file: 'TLS_ROOT_CA_FILE',
@@ -44,6 +48,7 @@ describe('Client', () => {
         new HatchetClient({
           host_port: 'HOST_PORT',
           tls_config: {
+            tls_strategy: 'tls',
             cert_file: 'TLS_CERT_FILE',
             key_file: 'TLS_KEY_FILE',
             ca_file: 'TLS_ROOT_CA_FILE',
@@ -71,10 +76,12 @@ describe('Client', () => {
     );
 
     expect(hatchet.config).toEqual({
+      token: 'TOKEN_YAML',
       tenant_id: 'TENANT_ID_YAML',
       host_port: 'HOST_PORT_YAML',
       log_level: 'INFO',
       tls_config: {
+        tls_strategy: 'tls',
         cert_file: 'TLS_CERT_FILE',
         key_file: 'TLS_KEY_FILE',
         ca_file: 'TLS_ROOT_CA_FILE',
@@ -89,7 +96,9 @@ describe('Client', () => {
         'HOST',
         1234,
         {
+          token: 'TOKEN',
           tls_config: {
+            tls_strategy: 'tls',
             cert_file: 'TLS_CERT_FILE',
             key_file: 'TLS_KEY_FILE',
             ca_file: 'TLS_ROOT_CA_FILE',
@@ -101,10 +110,12 @@ describe('Client', () => {
         }
       );
       expect(hatchet.config).toEqual({
+        token: 'TOKEN',
         tenant_id: 'TENANT_ID_ENV',
         host_port: 'HOST:1234',
         log_level: 'INFO',
         tls_config: {
+          tls_strategy: 'tls',
           cert_file: 'TLS_CERT_FILE',
           key_file: 'TLS_KEY_FILE',
           ca_file: 'TLS_ROOT_CA_FILE',
@@ -120,6 +131,7 @@ describe('Client', () => {
     beforeEach(() => {
       hatchet = new HatchetClient(
         {
+          token: 'TOKEN',
           host_port: 'HOST_PORT',
           log_level: 'OFF',
           tls_config: {

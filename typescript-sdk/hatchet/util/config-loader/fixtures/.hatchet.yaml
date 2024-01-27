@@ -1,3 +1,4 @@
+token: 'TOKEN_YAML'
 tenant_id: 'TENANT_ID_YAML'
 host_port: 'HOST_PORT_YAML'
 tls_config:

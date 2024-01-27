@@ -44,6 +44,7 @@ describe('ActionListener', () => {
   beforeEach(() => {
     dispatcher = new DispatcherClient(
       {
+        token: 'TOKEN',
         tenant_id: 'TENANT_ID',
         host_port: 'HOST_PORT',
         log_level: 'OFF',

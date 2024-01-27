@@ -2,14 +2,16 @@ import { ChannelCredentials } from 'nice-grpc';
 import { z } from 'zod';
 
 const ClientTLSConfigSchema = z.object({
-  cert_file: z.string(),
-  ca_file: z.string(),
-  key_file: z.string(),
-  server_name: z.string(),
+  tls_strategy: z.enum(['tls', 'mtls']).optional(),
+  cert_file: z.string().optional(),
+  ca_file: z.string().optional(),
+  key_file: z.string().optional(),
+  server_name: z.string().optional(),
 });
 
 export const ClientConfigSchema = z.object({
   tenant_id: z.string(),
+  token: z.string(),
   tls_config: ClientTLSConfigSchema,
   host_port: z.string(),
   log_level: z.enum(['OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR']).optional(),

@@ -34,7 +34,10 @@ export class HatchetClient {
     });
 
     try {
-      const valid = ClientConfigSchema.parse({ ...loaded, ...config });
+      const valid = ClientConfigSchema.parse({
+        ...loaded,
+        ...{ ...config, tls_config: { ...loaded.tls_config, ...config?.tls_config } },
+      });
       this.config = valid;
     } catch (e) {
       if (e instanceof z.ZodError) {
