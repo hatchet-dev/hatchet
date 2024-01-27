@@ -10,7 +10,7 @@ class MyWorkflow:
     def __init__(self):
         self.my_value = "test"
 
-    @hatchet.step()
+    @hatchet.step(timeout="10s")
     def step1(self, context):
         print("executed step1")
         pass
