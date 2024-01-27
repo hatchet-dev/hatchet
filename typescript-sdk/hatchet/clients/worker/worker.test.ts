@@ -7,6 +7,7 @@ import { never } from 'zod';
 import sleep from '@util/sleep';
 import { ChannelCredentials } from 'nice-grpc';
 import { Worker } from './worker';
+import { Context } from '@hatchet/step';
 
 type AssignActionMock = AssignedAction | Error;
 
@@ -19,7 +20,7 @@ const mockStart: AssignActionMock = {
   stepRunId: 'runStep1',
   actionId: 'action1',
   actionType: ActionType.START_STEP_RUN,
-  actionPayload: '{"input": {"data": 1}}',
+  actionPayload: JSON.stringify('{"input": {"data": 1}}'),
 };
 
 const mockCancel: AssignActionMock = {
@@ -63,8 +64,7 @@ describe('Worker', () => {
         steps: [
           {
             name: 'step1',
-            run: (input: any, ctx: any) => {
-              console.log('step1', input, ctx);
+            run: (ctx: any) => {
               return { test: 'test' };
             },
           },
@@ -106,7 +106,7 @@ describe('Worker', () => {
       await sleep(100);
 
       expect(startSpy).toHaveBeenCalledTimes(1);
-      expect(startSpy).toHaveBeenCalledWith({ data: 1 }, expect.anything());
+
       expect(getActionEventSpy).toHaveBeenNthCalledWith(
         2,
         expect.anything(),
@@ -139,7 +139,6 @@ describe('Worker', () => {
       await sleep(100);
 
       expect(startSpy).toHaveBeenCalledTimes(1);
-      expect(startSpy).toHaveBeenCalledWith({ data: 1 }, expect.anything());
       expect(getActionEventSpy).toHaveBeenNthCalledWith(
         2,
         expect.anything(),

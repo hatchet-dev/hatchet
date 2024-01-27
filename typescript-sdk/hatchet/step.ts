@@ -8,11 +8,17 @@ export const CreateStepSchema = z.object({
 
 export type NextStep = { [key: string]: string };
 
-export class Context<T = any> {
-  data: T | any;
+interface ContextData<T = unknown> {
+  input: T;
+  parents: Record<string, any>;
+  triggered_by_event: string;
+}
+
+export class Context<T = unknown> {
+  data: ContextData<T>;
   constructor(payload: string) {
     try {
-      this.data = JSON.parse(payload);
+      this.data = JSON.parse(JSON.parse(payload));
     } catch (e: any) {
       throw new HatchetError(`Could not parse payload: ${e.message}`);
     }
@@ -38,5 +44,5 @@ export class Context<T = any> {
 }
 
 export interface CreateStep<T> extends z.infer<typeof CreateStepSchema> {
-  run: (input: T, ctx: Context) => Promise<NextStep> | NextStep | void;
+  run: (ctx: Context) => Promise<NextStep> | NextStep | void;
 }

@@ -19,7 +19,7 @@ const workflow: Workflow = {
   steps: [
     {
       name: 'dag-step1',
-      run: async (input, ctx) => {
+      run: async (ctx) => {
         console.log('executed step1!');
         await sleep(5000);
         return { step1: 'step1' };
@@ -28,7 +28,7 @@ const workflow: Workflow = {
     {
       name: 'dag-step2',
       parents: ['dag-step1'],
-      run: (input, ctx) => {
+      run: (ctx) => {
         console.log('executed step2!');
         return { step2: 'step2' };
       },
@@ -36,7 +36,7 @@ const workflow: Workflow = {
     {
       name: 'dag-step3',
       parents: ['dag-step1', 'dag-step2'],
-      run: (input, ctx) => {
+      run: (ctx) => {
         console.log('executed step3!');
         return { step3: 'step3' };
       },
@@ -44,7 +44,7 @@ const workflow: Workflow = {
     {
       name: 'dag-step4',
       parents: ['dag-step1', 'dag-step3'],
-      run: (input, ctx) => {
+      run: (ctx) => {
         console.log('executed step4!');
         return { step4: 'step4' };
       },
