@@ -6,7 +6,6 @@ export const mockFactory = createClientFactory();
 
 describe('Client', () => {
   beforeEach(() => {
-    process.env.HATCHET_CLIENT_TENANT_ID = 'TENANT_ID_ENV';
     process.env.HATCHET_CLIENT_TOKEN = 'TOKEN_ENV';
   });
 
@@ -30,7 +29,6 @@ describe('Client', () => {
 
     expect(hatchet.config).toEqual({
       token: 'TOKEN_ENV',
-      tenant_id: 'TENANT_ID_ENV',
       host_port: 'HOST_PORT',
       log_level: 'OFF',
       tls_config: {
@@ -78,7 +76,6 @@ describe('Client', () => {
 
     expect(hatchet.config).toEqual({
       token: 'TOKEN_YAML',
-      tenant_id: 'TENANT_ID_YAML',
       host_port: 'HOST_PORT_YAML',
       log_level: 'INFO',
       tls_config: {
@@ -112,7 +109,6 @@ describe('Client', () => {
       );
       expect(hatchet.config).toEqual({
         token: 'TOKEN',
-        tenant_id: 'TENANT_ID_ENV',
         host_port: 'HOST:1234',
         log_level: 'INFO',
         tls_config: {

@@ -35,7 +35,6 @@ describe('Worker', () => {
       {
         token: 'TOKEN',
         log_level: 'OFF',
-        tenant_id: 'TENNANT_ID',
         host_port: 'HOST_PORT',
         tls_config: {
           cert_file: 'TLS_CERT_FILE',

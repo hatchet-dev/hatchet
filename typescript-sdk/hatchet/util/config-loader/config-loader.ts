@@ -9,7 +9,6 @@ import { LogLevel } from '../logger/logger';
 type EnvVars =
   | 'HATCHET_CLIENT_TOKEN'
   | 'HATCHET_CLIENT_TLS_STRATEGY'
-  | 'HATCHET_CLIENT_TENANT_ID'
   | 'HATCHET_CLIENT_HOST_PORT'
   | 'HATCHET_CLIENT_TLS_CERT_FILE'
   | 'HATCHET_CLIENT_TLS_KEY_FILE'
@@ -41,7 +40,6 @@ export class ConfigLoader {
 
     return {
       token: yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN'),
-      tenant_id: yaml?.tenant_id ?? this.env('HATCHET_CLIENT_TENANT_ID'),
       host_port: yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT'),
       tls_config: tlsConfig,
       log_level: yaml?.log_level ?? (this.env('HATCHET_CLIENT_LOG_LEVEL') as LogLevel) ?? 'INFO',

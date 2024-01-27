@@ -10,7 +10,6 @@ const ClientTLSConfigSchema = z.object({
 });
 
 export const ClientConfigSchema = z.object({
-  tenant_id: z.string(),
   token: z.string(),
   tls_config: ClientTLSConfigSchema,
   host_port: z.string(),

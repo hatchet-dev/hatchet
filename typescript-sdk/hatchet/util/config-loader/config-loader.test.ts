@@ -2,7 +2,6 @@ import { ConfigLoader } from './config-loader';
 
 fdescribe('ConfigLoader', () => {
   beforeEach(() => {
-    process.env.HATCHET_CLIENT_TENANT_ID = 'TENANT_ID';
     process.env.HATCHET_CLIENT_HOST_PORT = 'HOST_PORT';
     process.env.HATCHET_CLIENT_TLS_CERT_FILE = 'TLS_CERT_FILE';
     process.env.HATCHET_CLIENT_TLS_KEY_FILE = 'TLS_KEY_FILE';
@@ -13,7 +12,6 @@ fdescribe('ConfigLoader', () => {
   it('should load from environment variables', () => {
     const config = ConfigLoader.load_client_config();
     expect(config).toEqual({
-      tenant_id: 'TENANT_ID',
       host_port: 'HOST_PORT',
       log_level: 'INFO',
       tls_config: {
@@ -49,7 +47,6 @@ fdescribe('ConfigLoader', () => {
     });
     expect(config).toEqual({
       token: 'TOKEN_YAML',
-      tenant_id: 'TENANT_ID_YAML',
       host_port: 'HOST_PORT_YAML',
       log_level: 'INFO',
       tls_config: {
@@ -69,7 +66,6 @@ fdescribe('ConfigLoader', () => {
     });
     expect(config).toEqual({
       token: 'TOKEN_YAML',
-      tenant_id: 'TENANT_ID_YAML',
       host_port: 'HOST_PORT_YAML',
       tls_config: {
         tls_strategy: 'tls',

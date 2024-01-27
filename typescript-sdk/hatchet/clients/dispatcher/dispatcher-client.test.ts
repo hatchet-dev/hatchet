@@ -9,7 +9,7 @@ describe('DispatcherClient', () => {
     const x = new DispatcherClient(
       {
         token: 'TOKEN',
-        tenant_id: 'TENANT_ID',
+
         host_port: 'HOST_PORT',
         log_level: 'OFF',
         tls_config: {
@@ -30,7 +30,7 @@ describe('DispatcherClient', () => {
     client = new DispatcherClient(
       {
         token: 'TOKEN',
-        tenant_id: 'TENANT_ID',
+
         host_port: 'HOST_PORT',
         log_level: 'OFF',
         tls_config: {

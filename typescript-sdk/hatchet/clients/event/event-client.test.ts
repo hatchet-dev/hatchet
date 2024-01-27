@@ -9,7 +9,6 @@ describe('EventClient', () => {
     const x = new EventClient(
       {
         token: 'TOKEN',
-        tenant_id: 'TENANT_ID',
         host_port: 'HOST_PORT',
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
@@ -29,7 +28,6 @@ describe('EventClient', () => {
     client = new EventClient(
       {
         token: 'TOKEN',
-        tenant_id: 'TENANT_ID',
         host_port: 'HOST_PORT',
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
