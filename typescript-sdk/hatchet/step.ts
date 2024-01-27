@@ -18,7 +18,7 @@ export class Context<T = any> {
     }
   }
 
-  step_output(step: string): string {
+  stepOutput(step: string): string {
     if (!this.data.parents) {
       throw new HatchetError('Step output not found');
     }
@@ -28,7 +28,7 @@ export class Context<T = any> {
     return this.data.parents[step];
   }
 
-  triggered_by_event(): boolean {
+  triggeredByEvent(): boolean {
     return this.data?.triggered_by_event === 'event';
   }
 
