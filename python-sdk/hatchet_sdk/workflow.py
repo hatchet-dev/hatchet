@@ -8,7 +8,7 @@ class WorkflowMeta(type):
     def __new__(cls, name, bases, attrs):
         serviceName = "default"
 
-        steps: stepsType = [(func_name, attrs.pop(func_name)) for func_name, func in list(attrs.items()) if hasattr(func, '_step_name')]
+        steps: stepsType = [(name.lower() + "-" + func_name, attrs.pop(func_name)) for func_name, func in list(attrs.items()) if hasattr(func, '_step_name')]
 
         # Define __init__ and get_step_order methods
         original_init = attrs.get('__init__')  # Get the original __init__ if it exists

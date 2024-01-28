@@ -1,4 +1,4 @@
-from asyncio import Event
+from multiprocessing import Event
 from .logger import logger
 import json
 
@@ -21,6 +21,9 @@ class Context:
     
     def sleep(self, seconds: int):
         self.exit_flag.wait(seconds)
+
+        if self.exit_flag.is_set():
+            raise Exception("Context cancelled")
     
     def cancel(self):
         logger.info("Cancelling step...")
