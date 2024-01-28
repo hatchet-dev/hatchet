@@ -1,4 +1,4 @@
-package jobscontroller
+package jobs
 
 import (
 	"context"
@@ -729,30 +729,6 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 
 	servertel.WithJobRunModel(span, jobRun)
 
-	// stepReadableId, ok := stepRun.Step().ReadableID()
-
-	// only update the job lookup data if the step has a readable id to key
-	// if ok && stepReadableId != "" {
-	// 	if payload.StepOutputData != "" {
-	// 		fmt.Println("UPDATING WITH PAYLOAD", payload.StepOutputData)
-	// 		unquoted, err := strconv.Unquote(payload.StepOutputData)
-
-	// 		if err != nil {
-	// 			unquoted = payload.StepOutputData
-	// 		}
-
-	// 		// update the job run lookup data
-	// 		err = ec.repo.JobRun().UpdateJobRunLookupData(metadata.TenantId, stepRun.JobRunID, &repository.UpdateJobRunLookupDataOpts{
-	// 			FieldPath: []string{"steps", stepReadableId},
-	// 			Data:      []byte(unquoted),
-	// 		})
-
-	// 		if err != nil {
-	// 			return fmt.Errorf("could not update job run lookup data: %w", err)
-	// 		}
-	// 	}
-	// }
-
 	// queue the next step runs
 	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(metadata.TenantId, jobRun.ID, stepRun.ID)
 
@@ -767,14 +743,6 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 			return fmt.Errorf("could not queue next step run: %w", err)
 		}
 	}
-
-	// if next, ok := stepRun.Next(); ok && next != nil {
-	// 	err := ec.queueStepRun(ctx, metadata.TenantId, next.StepID, next.ID)
-
-	// 	if err != nil {
-	// 		return fmt.Errorf("could not queue next step run: %w", err)
-	// 	}
-	// }
 
 	// cancel the timeout task
 	stepRunTicker, ok := stepRun.Ticker()
@@ -905,13 +873,6 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *t
 	if err != nil {
 		return fmt.Errorf("could not add job assigned task to task queue: %w", err)
 	}
-
-	// // cancel any pending steps for this job run in the database
-	// err = ec.repo.StepRun().CancelPendingStepRuns(metadata.TenantId, payload.JobRunId, "PREVIOUS_STEP_TIMED_OUT")
-
-	// if err != nil {
-	// 	return fmt.Errorf("could not cancel pending step runs: %w", err)
-	// }
 
 	return nil
 }

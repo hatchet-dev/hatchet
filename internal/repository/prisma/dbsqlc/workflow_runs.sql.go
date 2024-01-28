@@ -293,7 +293,7 @@ INSERT INTO "WorkflowRun" (
     NULL, -- assuming error is not set on creation
     NULL, -- assuming startedAt is not set on creation
     NULL  -- assuming finishedAt is not set on creation
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId"
 `
 
 type CreateWorkflowRunParams struct {
@@ -316,6 +316,7 @@ func (q *Queries) CreateWorkflowRun(ctx context.Context, db DBTX, arg CreateWork
 		&i.Error,
 		&i.StartedAt,
 		&i.FinishedAt,
+		&i.ConcurrencyGroupId,
 	)
 	return &i, err
 }
@@ -471,7 +472,7 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 
 const listWorkflowRuns = `-- name: ListWorkflowRuns :many
 SELECT
-    runs.id, runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", 
+    runs.id, runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", 
     workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description, 
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."parentId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", 
     workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.checksum, workflowversion.version, workflowversion."order", workflowversion."workflowId", 
@@ -553,6 +554,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 			&i.WorkflowRun.Error,
 			&i.WorkflowRun.StartedAt,
 			&i.WorkflowRun.FinishedAt,
+			&i.WorkflowRun.ConcurrencyGroupId,
 			&i.Workflow.ID,
 			&i.Workflow.CreatedAt,
 			&i.Workflow.UpdatedAt,
@@ -642,7 +644,7 @@ WHERE "id" = (
     FROM "JobRun"
     WHERE "id" = $1::uuid
 ) AND "tenantId" = $2::uuid
-RETURNING "WorkflowRun".id, "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt"
+RETURNING "WorkflowRun".id, "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId"
 `
 
 type ResolveWorkflowRunStatusParams struct {
@@ -664,6 +666,7 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 		&i.Error,
 		&i.StartedAt,
 		&i.FinishedAt,
+		&i.ConcurrencyGroupId,
 	)
 	return &i, err
 }

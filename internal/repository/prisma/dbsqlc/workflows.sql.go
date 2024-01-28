@@ -549,7 +549,7 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 
 const listWorkflowsLatestRuns = `-- name: ListWorkflowsLatestRuns :many
 SELECT
-    DISTINCT ON (workflow."id") runs.id, runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", workflow."id" as "workflowId"
+    DISTINCT ON (workflow."id") runs.id, runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", workflow."id" as "workflowId"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -618,6 +618,7 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 			&i.WorkflowRun.Error,
 			&i.WorkflowRun.StartedAt,
 			&i.WorkflowRun.FinishedAt,
+			&i.WorkflowRun.ConcurrencyGroupId,
 			&i.WorkflowId,
 		); err != nil {
 			return nil, err

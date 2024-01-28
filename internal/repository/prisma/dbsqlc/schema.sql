@@ -1,4 +1,7 @@
 -- CreateEnum
+CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWEST', 'QUEUE_NEWEST');
+
+-- CreateEnum
 CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
 
 -- CreateEnum
@@ -14,7 +17,7 @@ CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
 CREATE TYPE "WorkerStatus" AS ENUM ('ACTIVE', 'INACTIVE');
 
 -- CreateEnum
-CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED');
+CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED');
 
 -- CreateTable
 CREATE TABLE "APIToken" (
@@ -296,6 +299,19 @@ CREATE TABLE "Workflow" (
 );
 
 -- CreateTable
+CREATE TABLE "WorkflowConcurrency" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "workflowVersionId" UUID NOT NULL,
+    "getConcurrencyGroupId" UUID,
+    "maxRuns" INTEGER NOT NULL DEFAULT 1,
+    "limitStrategy" "ConcurrencyLimitStrategy" NOT NULL DEFAULT 'CANCEL_IN_PROGRESS',
+
+    CONSTRAINT "WorkflowConcurrency_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "WorkflowRun" (
     "id" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -307,6 +323,7 @@ CREATE TABLE "WorkflowRun" (
     "error" TEXT,
     "startedAt" TIMESTAMP(3),
     "finishedAt" TIMESTAMP(3),
+    "concurrencyGroupId" TEXT,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -516,6 +533,12 @@ CREATE UNIQUE INDEX "Workflow_id_key" ON "Workflow"("id" ASC);
 CREATE UNIQUE INDEX "Workflow_tenantId_name_key" ON "Workflow"("tenantId" ASC, "name" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WorkflowConcurrency_id_key" ON "WorkflowConcurrency"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowConcurrency_workflowVersionId_key" ON "WorkflowConcurrency"("workflowVersionId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRun_tenantId_id_key" ON "WorkflowRun"("tenantId" ASC, "id" ASC);
 
 -- CreateIndex
@@ -673,6 +696,12 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantI
 
 -- AddForeignKey
 ALTER TABLE "Workflow" ADD CONSTRAINT "Workflow_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowConcurrency" ADD CONSTRAINT "WorkflowConcurrency_getConcurrencyGroupId_fkey" FOREIGN KEY ("getConcurrencyGroupId") REFERENCES "Action"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowConcurrency" ADD CONSTRAINT "WorkflowConcurrency_workflowVersionId_fkey" FOREIGN KEY ("workflowVersionId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
