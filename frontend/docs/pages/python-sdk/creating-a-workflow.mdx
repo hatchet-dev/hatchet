@@ -85,6 +85,8 @@ class MyWorkflow:
 
 ## Timeouts
 
+**The default timeout on Hatchet is 60 seconds per step run**.
+
 You can declare a timeout for a step by passing `timeout` to the `hatchet.step` decorator. Timeouts are strings in the format of `1h`, `1m`, `1s`, etc. For example, to timeout a step after 5 minutes, you can do the following:
 
 ```py
