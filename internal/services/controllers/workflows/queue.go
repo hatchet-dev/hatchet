@@ -425,11 +425,12 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRun(tenantId, workflowRunId str
 	errGroup := new(errgroup.Group)
 
 	for i := range stepRuns {
+		stepRunCp := stepRuns[i]
 		errGroup.Go(func() error {
 			return wc.tq.AddTask(
 				context.Background(),
 				taskqueue.JOB_PROCESSING_QUEUE,
-				getStepRunNotifyCancelTask(tenantId, stepRuns[i].ID, "CANCELLED_BY_CONCURRENCY_LIMIT"),
+				getStepRunNotifyCancelTask(tenantId, stepRunCp.ID, "CANCELLED_BY_CONCURRENCY_LIMIT"),
 			)
 		})
 	}
