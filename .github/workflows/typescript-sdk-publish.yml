@@ -39,7 +39,7 @@ jobs:
         working-directory: typescript-sdk
 
       - name: Publish SDK
-        run: pnpm publish
+        run: pnpm publish --access public
         working-directory: typescript-sdk
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
