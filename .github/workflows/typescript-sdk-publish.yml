@@ -5,20 +5,17 @@ on:
 jobs:
   run-typescript-sdk-tests:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        run: npm install -g pnpm@8
+
       - uses: actions/setup-node@v3
         with:
           node-version: "20.x"
-          registry-url: "https://npm.pkg.github.com"
-
-      - name: Install pnpm
-        run: npm install -g pnpm@8
+          registry-url: "https://registry.npmjs.org"
 
       - name: Get pnpm store directory
         shell: bash
@@ -45,4 +42,4 @@ jobs:
         run: pnpm publish
         working-directory: typescript-sdk
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
