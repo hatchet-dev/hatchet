@@ -9,7 +9,9 @@ service Dispatcher {
 
     rpc Listen(WorkerListenRequest) returns (stream AssignedAction) {}
 
-    rpc SendActionEvent(ActionEvent) returns (ActionEventResponse) {}
+    rpc SendStepActionEvent(StepActionEvent) returns (ActionEventResponse) {}
+
+    rpc SendGroupKeyActionEvent(GroupKeyActionEvent) returns (ActionEventResponse) {}
 
     rpc Unsubscribe(WorkerUnsubscribeRequest) returns (WorkerUnsubscribeResponse) {}
 }
@@ -39,35 +41,42 @@ message WorkerRegisterResponse {
 enum ActionType {
     START_STEP_RUN = 0;
     CANCEL_STEP_RUN = 1;
+    START_GET_GROUP_KEY = 2;
 }
 
 message AssignedAction {
     // the tenant id
     string tenantId = 1;
 
+    // the workflow run id (optional)
+    string workflowRunId = 2;
+
+    // the get group key run id (optional)
+    string getGroupKeyRunId = 3;
+
     // the job id
-    string jobId = 2;
+    string jobId = 4;
 
     // the job name
-    string jobName = 3;
+    string jobName = 5;
 
     // the job run id
-    string jobRunId = 4;
+    string jobRunId = 6;
 
     // the step id
-    string stepId = 5;
+    string stepId = 7;
 
     // the step run id
-    string stepRunId = 6;
+    string stepRunId = 8;
 
     // the action id
-    string actionId = 7;
+    string actionId = 9;
 
     // the action type
-    ActionType actionType = 8;
+    ActionType actionType = 10;
 
     // the action payload
-    string actionPayload = 9;
+    string actionPayload = 11;
 }
 
 message WorkerListenRequest {
@@ -88,14 +97,42 @@ message WorkerUnsubscribeResponse {
     string workerId = 2;
 }
 
-enum ActionEventType {
+enum GroupKeyActionEventType {
+    GROUP_KEY_EVENT_TYPE_UNKNOWN = 0;
+    GROUP_KEY_EVENT_TYPE_STARTED = 1;
+    GROUP_KEY_EVENT_TYPE_COMPLETED = 2;
+    GROUP_KEY_EVENT_TYPE_FAILED = 3;
+}
+
+message GroupKeyActionEvent {
+    // the id of the worker
+    string workerId = 1;
+
+    // the id of the job
+    string workflowRunId = 2;
+
+    string getGroupKeyRunId = 3;
+
+    // the action id
+    string actionId = 4;
+
+    google.protobuf.Timestamp eventTimestamp = 5;
+
+    // the step event type
+    GroupKeyActionEventType eventType = 6;
+
+    // the event payload
+    string eventPayload = 7;
+}
+
+enum StepActionEventType {
     STEP_EVENT_TYPE_UNKNOWN = 0;
     STEP_EVENT_TYPE_STARTED = 1;
     STEP_EVENT_TYPE_COMPLETED = 2;
     STEP_EVENT_TYPE_FAILED = 3;
 }
 
-message ActionEvent {
+message StepActionEvent {
     // the id of the worker
     string workerId = 1;
 
@@ -117,7 +154,7 @@ message ActionEvent {
     google.protobuf.Timestamp eventTimestamp = 7;
 
     // the step event type
-    ActionEventType eventType = 8;
+    StepActionEventType eventType = 8;
 
     // the event payload
     string eventPayload = 9;

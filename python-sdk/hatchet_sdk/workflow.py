@@ -1,5 +1,5 @@
 from .client import new_client 
-from .workflows_pb2 import CreateWorkflowVersionOpts, CreateWorkflowJobOpts, CreateWorkflowStepOpts
+from .workflows_pb2 import CreateWorkflowVersionOpts, CreateWorkflowJobOpts, CreateWorkflowStepOpts, WorkflowConcurrencyOpts
 from typing import Callable, List, Tuple, Any
 
 stepsType = List[Tuple[str, Callable[..., Any]]]
@@ -8,6 +8,7 @@ class WorkflowMeta(type):
     def __new__(cls, name, bases, attrs):
         serviceName = "default"
 
+        concurrencyActions: stepsType = [(name.lower() + "-" + func_name, attrs.pop(func_name)) for func_name, func in list(attrs.items()) if hasattr(func, '_concurrency_fn_name')]
         steps: stepsType = [(name.lower() + "-" + func_name, attrs.pop(func_name)) for func_name, func in list(attrs.items()) if hasattr(func, '_step_name')]
 
         # Define __init__ and get_step_order methods
@@ -18,7 +19,10 @@ class WorkflowMeta(type):
                 original_init(self, *args, **kwargs)  # Call original __init__
 
         def get_actions(self) -> stepsType:
-            return [(serviceName + ":" + func_name, func) for func_name, func in steps]
+            func_actions = [(serviceName + ":" + func_name, func) for func_name, func in steps]
+            concurrency_actions = [(serviceName + ":" + func_name, func) for func_name, func in concurrencyActions]
+
+            return func_actions + concurrency_actions
         
         # Add these methods and steps to class attributes
         attrs['__init__'] = __init__
@@ -48,6 +52,17 @@ class WorkflowMeta(type):
             for func_name, func in attrs.items() if hasattr(func, '_step_name')
         ]
 
+
+        concurrency : WorkflowConcurrencyOpts | None = None
+
+        if len(concurrencyActions) > 0:
+            action = concurrencyActions[0]
+
+            concurrency = WorkflowConcurrencyOpts(
+                action="default:" + action[0],
+                max_runs=action[1]._concurrency_max_runs,
+            )
+
         client.admin.put_workflow(CreateWorkflowVersionOpts(
             name=name,
             version=version,
@@ -59,7 +74,8 @@ class WorkflowMeta(type):
                     timeout="60s",
                     steps=createStepOpts,
                 )
-            ]
+            ],
+            concurrency=concurrency,
         ))
 
         return super(WorkflowMeta, cls).__new__(cls, name, bases, attrs)

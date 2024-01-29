@@ -122,6 +122,8 @@ type Workflow struct {
 	Jobs []WorkflowJob
 }
 
+type GetWorkflowConcurrencyGroupFn func(ctx HatchetContext) (string, error)
+
 type WorkflowJob struct {
 	// The name of the job
 	Name string
@@ -130,8 +132,32 @@ type WorkflowJob struct {
 
 	Timeout string
 
+	Concurrency *WorkflowConcurrency
+
 	// The steps that are run in the job
 	Steps []*WorkflowStep
+}
+
+type WorkflowConcurrency struct {
+	fn            GetWorkflowConcurrencyGroupFn
+	maxRuns       *int32
+	limitStrategy *types.WorkflowConcurrencyLimitStrategy
+}
+
+func Concurrency(fn GetWorkflowConcurrencyGroupFn) *WorkflowConcurrency {
+	return &WorkflowConcurrency{
+		fn: fn,
+	}
+}
+
+func (c *WorkflowConcurrency) MaxRuns(maxRuns int32) *WorkflowConcurrency {
+	c.maxRuns = &maxRuns
+	return c
+}
+
+func (c *WorkflowConcurrency) LimitStrategy(limitStrategy types.WorkflowConcurrencyLimitStrategy) *WorkflowConcurrency {
+	c.limitStrategy = &limitStrategy
+	return c
 }
 
 func (j *WorkflowJob) ToWorkflow(svcName string) types.Workflow {
@@ -145,10 +171,26 @@ func (j *WorkflowJob) ToWorkflow(svcName string) types.Workflow {
 		j.Name: *apiJob,
 	}
 
-	return types.Workflow{
+	w := types.Workflow{
 		Name: j.Name,
 		Jobs: jobs,
 	}
+
+	if j.Concurrency != nil {
+		w.Concurrency = &types.WorkflowConcurrency{
+			ActionID: "concurrency:" + getFnName(j.Concurrency.fn),
+		}
+
+		if j.Concurrency.maxRuns != nil {
+			w.Concurrency.MaxRuns = *j.Concurrency.maxRuns
+		}
+
+		if j.Concurrency.limitStrategy != nil {
+			w.Concurrency.LimitStrategy = *j.Concurrency.limitStrategy
+		}
+	}
+
+	return w
 }
 
 func (j *WorkflowJob) ToWorkflowJob(svcName string) (*types.WorkflowJob, error) {
@@ -190,6 +232,10 @@ func (j *WorkflowJob) ToActionMap(svcName string) map[string]any {
 		actionId := step.GetActionId(svcName, i)
 
 		res[actionId] = step.Function
+	}
+
+	if j.Concurrency != nil {
+		res["concurrency:"+getFnName(j.Concurrency.fn)] = j.Concurrency.fn
 	}
 
 	return res

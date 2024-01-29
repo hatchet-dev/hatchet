@@ -278,10 +278,10 @@ type WorkflowRunStatus string
 
 const (
 	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
+	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
 	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
 	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
-	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
 )
 
 func (e *WorkflowRunStatus) Scan(src interface{}) error {
@@ -359,6 +359,28 @@ type Event struct {
 	TenantId       pgtype.UUID      `json:"tenantId"`
 	ReplayedFromId pgtype.UUID      `json:"replayedFromId"`
 	Data           []byte           `json:"data"`
+}
+
+type GetGroupKeyRun struct {
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
+	TenantId        pgtype.UUID      `json:"tenantId"`
+	WorkflowRunId   string           `json:"workflowRunId"`
+	WorkerId        pgtype.UUID      `json:"workerId"`
+	TickerId        pgtype.UUID      `json:"tickerId"`
+	Status          StepRunStatus    `json:"status"`
+	Input           []byte           `json:"input"`
+	Output          pgtype.Text      `json:"output"`
+	RequeueAfter    pgtype.Timestamp `json:"requeueAfter"`
+	Error           pgtype.Text      `json:"error"`
+	StartedAt       pgtype.Timestamp `json:"startedAt"`
+	FinishedAt      pgtype.Timestamp `json:"finishedAt"`
+	TimeoutAt       pgtype.Timestamp `json:"timeoutAt"`
+	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
+	CancelledReason pgtype.Text      `json:"cancelledReason"`
+	CancelledError  pgtype.Text      `json:"cancelledError"`
 }
 
 type Job struct {
@@ -577,11 +599,11 @@ type WorkflowRun struct {
 	DeletedAt          pgtype.Timestamp  `json:"deletedAt"`
 	TenantId           pgtype.UUID       `json:"tenantId"`
 	WorkflowVersionId  pgtype.UUID       `json:"workflowVersionId"`
+	ConcurrencyGroupId pgtype.Text       `json:"concurrencyGroupId"`
 	Status             WorkflowRunStatus `json:"status"`
 	Error              pgtype.Text       `json:"error"`
 	StartedAt          pgtype.Timestamp  `json:"startedAt"`
 	FinishedAt         pgtype.Timestamp  `json:"finishedAt"`
-	ConcurrencyGroupId pgtype.Text       `json:"concurrencyGroupId"`
 }
 
 type WorkflowRunTriggeredBy struct {
@@ -615,6 +637,7 @@ type WorkflowTriggerCronRef struct {
 	ParentId pgtype.UUID `json:"parentId"`
 	Cron     string      `json:"cron"`
 	TickerId pgtype.UUID `json:"tickerId"`
+	Input    []byte      `json:"input"`
 }
 
 type WorkflowTriggerEventRef struct {

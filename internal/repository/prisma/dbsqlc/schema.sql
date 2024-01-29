@@ -17,7 +17,7 @@ CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
 CREATE TYPE "WorkerStatus" AS ENUM ('ACTIVE', 'INACTIVE');
 
 -- CreateEnum
-CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED');
+CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED');
 
 -- CreateTable
 CREATE TABLE "APIToken" (
@@ -66,6 +66,31 @@ CREATE TABLE "Event" (
     "data" JSONB,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "GetGroupKeyRun" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    "tenantId" UUID NOT NULL,
+    "workflowRunId" TEXT NOT NULL,
+    "workerId" UUID,
+    "tickerId" UUID,
+    "status" "StepRunStatus" NOT NULL DEFAULT 'PENDING',
+    "input" JSONB,
+    "output" TEXT,
+    "requeueAfter" TIMESTAMP(3),
+    "error" TEXT,
+    "startedAt" TIMESTAMP(3),
+    "finishedAt" TIMESTAMP(3),
+    "timeoutAt" TIMESTAMP(3),
+    "cancelledAt" TIMESTAMP(3),
+    "cancelledReason" TEXT,
+    "cancelledError" TEXT,
+
+    CONSTRAINT "GetGroupKeyRun_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -319,11 +344,11 @@ CREATE TABLE "WorkflowRun" (
     "deletedAt" TIMESTAMP(3),
     "tenantId" UUID NOT NULL,
     "workflowVersionId" UUID NOT NULL,
+    "concurrencyGroupId" TEXT,
     "status" "WorkflowRunStatus" NOT NULL DEFAULT 'PENDING',
     "error" TEXT,
     "startedAt" TIMESTAMP(3),
     "finishedAt" TIMESTAMP(3),
-    "concurrencyGroupId" TEXT,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -360,7 +385,8 @@ CREATE TABLE "WorkflowTag" (
 CREATE TABLE "WorkflowTriggerCronRef" (
     "parentId" UUID NOT NULL,
     "cron" TEXT NOT NULL,
-    "tickerId" UUID
+    "tickerId" UUID,
+    "input" JSONB
 );
 
 -- CreateTable
@@ -450,6 +476,12 @@ CREATE UNIQUE INDEX "Dispatcher_id_key" ON "Dispatcher"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Event_id_key" ON "Event"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GetGroupKeyRun_id_key" ON "GetGroupKeyRun"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GetGroupKeyRun_tenantId_workflowRunId_key" ON "GetGroupKeyRun"("tenantId" ASC, "workflowRunId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Job_id_key" ON "Job"("id" ASC);
@@ -618,6 +650,18 @@ ALTER TABLE "Event" ADD CONSTRAINT "Event_replayedFromId_fkey" FOREIGN KEY ("rep
 
 -- AddForeignKey
 ALTER TABLE "Event" ADD CONSTRAINT "Event_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_tenantId_workflowRunId_fkey" FOREIGN KEY ("tenantId", "workflowRunId") REFERENCES "WorkflowRun"("tenantId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_tickerId_fkey" FOREIGN KEY ("tickerId") REFERENCES "Ticker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Job" ADD CONSTRAINT "Job_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -30,15 +30,18 @@ type Action interface {
 
 	MethodFn() any
 
+	ConcurrencyFn() GetWorkflowConcurrencyGroupFn
+
 	// Service returns the service that the action belongs to
 	Service() string
 }
 
 type actionImpl struct {
-	name    string
-	run     actionFunc
-	method  any
-	service string
+	name                 string
+	run                  actionFunc
+	runConcurrencyAction GetWorkflowConcurrencyGroupFn
+	method               any
+	service              string
 }
 
 func (j *actionImpl) Name() string {
@@ -51,6 +54,10 @@ func (j *actionImpl) Run(args ...interface{}) []interface{} {
 
 func (j *actionImpl) MethodFn() any {
 	return j.method
+}
+
+func (j *actionImpl) ConcurrencyFn() GetWorkflowConcurrencyGroupFn {
+	return j.runConcurrencyAction
 }
 
 func (j *actionImpl) Service() string {
@@ -67,6 +74,8 @@ type Worker struct {
 	l *zerolog.Logger
 
 	cancelMap sync.Map
+
+	cancelConcurrencyMap sync.Map
 
 	services sync.Map
 
@@ -211,13 +220,25 @@ func (w *Worker) RegisterAction(actionId string, method any) error {
 }
 
 func (w *Worker) registerAction(service, verb string, method any) error {
+	actionId := fmt.Sprintf("%s:%s", service, verb)
+
+	// if the service is "concurrency", then this is a special action
+	if service == "concurrency" {
+		w.actions[actionId] = &actionImpl{
+			name:                 actionId,
+			runConcurrencyAction: method.(GetWorkflowConcurrencyGroupFn),
+			method:               method,
+			service:              service,
+		}
+
+		return nil
+	}
+
 	actionFunc, err := getFnFromMethod(method)
 
 	if err != nil {
 		return fmt.Errorf("could not get function from method: %w", err)
 	}
-
-	actionId := fmt.Sprintf("%s:%s", service, verb)
 
 	// if action has already been registered, ensure that the method is the same
 	if currMethod, ok := w.actions[actionId]; ok {
@@ -295,18 +316,21 @@ RunWorker:
 }
 
 func (w *Worker) executeAction(ctx context.Context, assignedAction *client.Action) error {
-	if assignedAction.ActionType == client.ActionTypeStartStepRun {
+	switch assignedAction.ActionType {
+	case client.ActionTypeStartStepRun:
 		return w.startStepRun(ctx, assignedAction)
-	} else if assignedAction.ActionType == client.ActionTypeCancelStepRun {
+	case client.ActionTypeCancelStepRun:
 		return w.cancelStepRun(ctx, assignedAction)
+	case client.ActionTypeStartGetGroupKey:
+		return w.startGetGroupKey(ctx, assignedAction)
+	default:
+		return fmt.Errorf("unknown action type: %s", assignedAction.ActionType)
 	}
-
-	return fmt.Errorf("unknown action type: %s", assignedAction.ActionType)
 }
 
 func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action) error {
 	// send a message that the step run started
-	_, err := w.client.Dispatcher().SendActionEvent(
+	_, err := w.client.Dispatcher().SendStepActionEvent(
 		ctx,
 		w.getActionEvent(assignedAction, client.ActionEventTypeStarted),
 	)
@@ -389,7 +413,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 
 				failureEvent.EventPayload = err.Error()
 
-				_, err := w.client.Dispatcher().SendActionEvent(
+				_, err := w.client.Dispatcher().SendStepActionEvent(
 					ctx,
 					failureEvent,
 				)
@@ -408,7 +432,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 				return fmt.Errorf("could not create finished event: %w", err)
 			}
 
-			_, err = w.client.Dispatcher().SendActionEvent(
+			_, err = w.client.Dispatcher().SendStepActionEvent(
 				ctx,
 				finishedEvent,
 			)
@@ -420,6 +444,84 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 			return nil
 		})
 	})
+}
+
+func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Action) error {
+	// send a message that the step run started
+	_, err := w.client.Dispatcher().SendGroupKeyActionEvent(
+		ctx,
+		w.getActionEvent(assignedAction, client.ActionEventTypeStarted),
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not send action event: %w", err)
+	}
+
+	action, ok := w.actions[assignedAction.ActionId]
+
+	if !ok {
+		return fmt.Errorf("job not found")
+	}
+
+	// action should be concurrency action
+	if action.ConcurrencyFn() == nil {
+		return fmt.Errorf("action %s is not a concurrency action", action.Name())
+	}
+
+	runContext, cancel := context.WithCancel(context.Background())
+
+	w.cancelConcurrencyMap.Store(assignedAction.WorkflowRunId, cancel)
+
+	hCtx, err := newHatchetContext(runContext, assignedAction)
+
+	if err != nil {
+		return fmt.Errorf("could not create hatchet context: %w", err)
+	}
+
+	concurrencyKey, err := action.ConcurrencyFn()(hCtx)
+
+	if err != nil {
+		failureEvent := w.getActionEvent(assignedAction, client.ActionEventTypeFailed)
+
+		w.alerter.SendAlert(context.Background(), err, map[string]interface{}{
+			"actionId":      assignedAction.ActionId,
+			"workerId":      assignedAction.WorkerId,
+			"workflowRunId": assignedAction.WorkflowRunId,
+			"jobName":       assignedAction.JobName,
+			"actionType":    assignedAction.ActionType,
+		})
+
+		failureEvent.EventPayload = err.Error()
+
+		_, err := w.client.Dispatcher().SendGroupKeyActionEvent(
+			ctx,
+			failureEvent,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not send action event: %w", err)
+		}
+
+		return err
+	}
+
+	// send a message that the step run completed
+	finishedEvent, err := w.getGroupKeyActionFinishedEvent(assignedAction, concurrencyKey)
+
+	if err != nil {
+		return fmt.Errorf("could not create finished event: %w", err)
+	}
+
+	_, err = w.client.Dispatcher().SendGroupKeyActionEvent(
+		ctx,
+		finishedEvent,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not send action event: %w", err)
+	}
+
+	return nil
 }
 
 func (w *Worker) cancelStepRun(ctx context.Context, assignedAction *client.Action) error {
@@ -458,6 +560,14 @@ func (w *Worker) getActionFinishedEvent(action *client.Action, output any) (*cli
 	}
 
 	event.EventPayload = string(outputBytes)
+
+	return event, nil
+}
+
+func (w *Worker) getGroupKeyActionFinishedEvent(action *client.Action, output string) (*client.ActionEvent, error) {
+	event := w.getActionEvent(action, client.ActionEventTypeCompleted)
+
+	event.EventPayload = output
 
 	return event, nil
 }

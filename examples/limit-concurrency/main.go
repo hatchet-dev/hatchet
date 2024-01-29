@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -13,10 +12,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-type userCreateEvent struct {
-	Username string            `json:"username"`
-	UserID   string            `json:"user_id"`
-	Data     map[string]string `json:"data"`
+type concurrencyLimitEvent struct {
+	Index int `json:"index"`
 }
 
 type stepOneOutput struct {
@@ -60,44 +57,18 @@ func run(ch <-chan interface{}, events chan<- string) error {
 	testSvc := w.NewService("test")
 
 	err = testSvc.On(
-		worker.Events("user:create:simple"),
+		worker.Events("concurrency-test-event"),
 		&worker.WorkflowJob{
-			Name:        "simple",
-			Description: "This runs after an update to the user model.",
-			Concurrency: worker.Concurrency(getConcurrencyKey),
+			Name:        "concurrency-limit",
+			Description: "This limits concurrency to 1 run at a time.",
+			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(1),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					input := &userCreateEvent{}
-
-					err = ctx.WorkflowInput(input)
-
-					if err != nil {
-						return nil, err
-					}
-
-					log.Printf("step-one")
-					events <- "step-one"
-
-					return &stepOneOutput{
-						Message: "Username is: " + input.Username,
-					}, nil
+					<-ctx.Done()
+					fmt.Println("context done, returning")
+					return nil, nil
 				},
 				).SetName("step-one"),
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					input := &stepOneOutput{}
-					err = ctx.StepOutput("step-one", input)
-
-					if err != nil {
-						return nil, err
-					}
-
-					log.Printf("step-two")
-					events <- "step-two"
-
-					return &stepOneOutput{
-						Message: "Above message is: " + input.Message,
-					}, nil
-				}).SetName("step-two").AddParents("step-one"),
 			},
 		},
 	)
@@ -118,26 +89,50 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		cancel()
 	}()
 
-	testEvent := userCreateEvent{
-		Username: "echo-test",
-		UserID:   "1234",
-		Data: map[string]string{
-			"test": "test",
-		},
-	}
+	go func() {
+		// sleep with interrupt context
+		select {
+		case <-interruptCtx.Done(): // context cancelled
+			fmt.Println("interrupted")
+			return
+		case <-time.After(2 * time.Second): // timeout
+		}
 
-	log.Printf("pushing event user:create:simple")
+		firstEvent := concurrencyLimitEvent{
+			Index: 0,
+		}
 
-	// push an event
-	err = c.Event().Push(
-		context.Background(),
-		"user:create:simple",
-		testEvent,
-	)
+		// push an event
+		err = c.Event().Push(
+			context.Background(),
+			"concurrency-test-event",
+			firstEvent,
+		)
 
-	if err != nil {
-		return fmt.Errorf("error pushing event: %w", err)
-	}
+		if err != nil {
+			panic(err)
+		}
+
+		select {
+		case <-interruptCtx.Done(): // context cancelled
+			fmt.Println("interrupted")
+			return
+		case <-time.After(10 * time.Second): //timeout
+		}
+
+		// push a second event
+		err = c.Event().Push(
+			context.Background(),
+			"concurrency-test-event",
+			concurrencyLimitEvent{
+				Index: 1,
+			},
+		)
+
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	for {
 		select {

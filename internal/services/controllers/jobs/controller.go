@@ -138,6 +138,8 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Ta
 		return ec.handleStepRunFinished(ctx, task)
 	case "step-run-failed":
 		return ec.handleStepRunFailed(ctx, task)
+	case "step-run-cancelled":
+		return ec.handleStepRunCancelled(ctx, task)
 	case "step-run-timed-out":
 		return ec.handleStepRunTimedOut(ctx, task)
 	case "ticker-removed":
@@ -836,12 +838,41 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *t
 		return fmt.Errorf("could not decode step run started task metadata: %w", err)
 	}
 
-	now := time.Now().UTC()
+	return ec.cancelStepRun(ctx, metadata.TenantId, payload.StepRunId, "TIMED_OUT")
+}
+
+func (ec *JobsControllerImpl) handleStepRunCancelled(ctx context.Context, task *taskqueue.Task) error {
+	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-cancelled")
+	defer span.End()
+
+	payload := tasktypes.StepRunNotifyCancelTaskPayload{}
+	metadata := tasktypes.StepRunNotifyCancelTaskMetadata{}
+
+	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode step run notify cancel task payload: %w", err)
+	}
+
+	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode step run notify cancel task metadata: %w", err)
+	}
+
+	return ec.cancelStepRun(ctx, metadata.TenantId, payload.StepRunId, payload.CancelledReason)
+}
+
+func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepRunId, reason string) error {
+	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run")
+	defer span.End()
 
 	// cancel current step run
-	stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
+	now := time.Now().UTC()
+
+	stepRun, err := ec.repo.StepRun().UpdateStepRun(tenantId, stepRunId, &repository.UpdateStepRunOpts{
 		CancelledAt:     &now,
-		CancelledReason: repository.StringPtr("TIMED_OUT"),
+		CancelledReason: repository.StringPtr(reason),
 		Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
 	})
 
@@ -867,7 +898,7 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *t
 	err = ec.tq.AddTask(
 		ctx,
 		taskqueue.QueueTypeFromDispatcherID(worker.Dispatcher().ID),
-		stepRunCancelledTask(metadata.TenantId, payload.StepRunId, "TIMED_OUT", worker),
+		stepRunCancelledTask(tenantId, stepRunId, reason, worker),
 	)
 
 	if err != nil {

@@ -155,6 +155,63 @@ userService.On(
 
 While this is mostly a convenience method at the moment, we plan to add more features to services in the future, like service-level metrics and service-level retries.
 
+## Concurrency Limits and Fairness
+
+> __**Note:** this feature is currently in beta, and currently only supports a concurrency strategy which terminates the oldest running workflow run to make room for the new one. This will be expanded in the future to support other strategies.__
+
+By default, there are no concurrency limits for Hatchet workflows. Workflow runs are immediately executed as soon as they are triggered (by an event, cron, or schedule). However, you can enforce a concurrency limit by setting the `Concurrency` field on the `WorkflowJob` struct. You can use `worker.Concurrency` and pass in a function with a signature `func (ctx worker.HatchetContext) (string, error)`. This function returns a __concurrency group key__, which is a string that is used to group concurrent executions. For example, the following workflow will only allow 5 concurrent executions for any workflow execution of `concurrency-limit`, since the key is statically set to `my-key`:
+
+```go
+func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
+	return "my-key", nil
+}
+
+err = testSvc.On(
+    worker.Events("concurrency-test-event"),
+    &worker.WorkflowJob{
+        Name:        "concurrency-limit",
+        Description: "This limits concurrency to 1 run at a time.",
+        Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(1),
+        Steps: []*worker.WorkflowStep{
+            // your steps here...
+        },
+    },
+)
+```
+
+### Use-Case: Enforcing Per-User Concurrency Limits
+
+You can use the custom concurrency function to enforce per-user concurrency limits. For example, the following workflow will only allow 1 concurrent execution per user:
+
+```go
+type MyUser struct {
+    UserId string `json:"user_id"`
+}
+
+func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
+	event := &MyEvent{}
+    err := ctx.WorkflowInput(event)
+
+    if err != nil {
+        return "", err
+    }
+
+    return event.UserId, nil
+}
+
+err = testSvc.On(
+    worker.Events("concurrency-test-event"),
+    &worker.WorkflowJob{
+        Name:        "concurrency-limit-per-user",
+        Description: "This limits concurrency to 1 run at a time per user.",
+        Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(1),
+        Steps: []*worker.WorkflowStep{
+            // your steps here...
+        },
+    },
+)
+```
+
 ## Cron Schedules
 
 You can declare a cron schedule by passing `worker.Cron` to the `worker.On` method. For example, to trigger a workflow every 5 minutes, you can do the following:

@@ -14,12 +14,24 @@ LEFT JOIN
 WHERE
     runs."tenantId" = $1 AND
     (
+        sqlc.narg('workflowVersionId')::uuid IS NULL OR
+        workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
+    ) AND
+    (
         sqlc.narg('workflowId')::uuid IS NULL OR
         workflow."id" = sqlc.narg('workflowId')::uuid
     ) AND
     (
         sqlc.narg('eventId')::uuid IS NULL OR
         events."id" = sqlc.narg('eventId')::uuid
+    ) AND
+    (
+    sqlc.narg('groupKey')::text IS NULL OR
+    runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
+    ) AND
+    (
+    sqlc.narg('status')::"WorkflowRunStatus" IS NULL OR
+    runs."status" = sqlc.narg('status')::"WorkflowRunStatus"
     );
 
 -- name: ListWorkflowRuns :many
@@ -43,12 +55,24 @@ LEFT JOIN
 WHERE
     runs."tenantId" = $1 AND
     (
+        sqlc.narg('workflowVersionId')::uuid IS NULL OR
+        workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
+    ) AND
+    (
         sqlc.narg('workflowId')::uuid IS NULL OR
         workflow."id" = sqlc.narg('workflowId')::uuid
     ) AND
     (
         sqlc.narg('eventId')::uuid IS NULL OR
         events."id" = sqlc.narg('eventId')::uuid
+    ) AND
+    (
+    sqlc.narg('groupKey')::text IS NULL OR
+    runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
+    ) AND
+    (
+    sqlc.narg('status')::"WorkflowRunStatus" IS NULL OR
+    runs."status" = sqlc.narg('status')::"WorkflowRunStatus"
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
@@ -57,6 +81,37 @@ OFFSET
     COALESCE(sqlc.narg('offset'), 0)
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
+
+-- name: UpdateWorkflowRunGroupKey :one
+WITH groupKeyRun AS (
+    SELECT "id", "status" as groupKeyRunStatus, "output", "workflowRunId"
+    FROM "GetGroupKeyRun" as groupKeyRun
+    WHERE
+        "id" = @groupKeyRunId::uuid AND
+        "tenantId" = @tenantId::uuid
+)
+UPDATE "WorkflowRun" workflowRun
+SET "status" = CASE 
+    -- Final states are final, cannot be updated. We also can't move out of a queued state
+    WHEN "status" IN ('SUCCEEDED', 'FAILED', 'QUEUED') THEN "status"
+    -- When the GetGroupKeyRun failed or been cancelled, then the workflow is failed
+    WHEN groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN 'FAILED'
+    WHEN groupKeyRun.output IS NOT NULL THEN 'QUEUED'
+    ELSE "status"
+END, "finishedAt" = CASE 
+    -- Final states are final, cannot be updated
+    WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
+    -- When one job run has failed or been cancelled, then the workflow is failed
+    WHEN groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN NOW()
+    ELSE "finishedAt"
+END, 
+"concurrencyGroupId" = groupKeyRun."output"
+FROM
+    groupKeyRun
+WHERE 
+workflowRun."id" = groupKeyRun."workflowRunId" AND
+workflowRun."tenantId" = @tenantId::uuid
+RETURNING workflowRun.*;
 
 -- name: ResolveWorkflowRunStatus :one
 WITH jobRuns AS (
@@ -157,6 +212,49 @@ INSERT INTO "WorkflowRunTriggeredBy" (
     sqlc.narg('cronParentId')::uuid, -- NULL if not provided
     sqlc.narg('cron')::text, -- NULL if not provided
     sqlc.narg('scheduledId')::uuid -- NULL if not provided
+) RETURNING *;
+
+-- name: CreateGetGroupKeyRun :one
+INSERT INTO "GetGroupKeyRun" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "tenantId",
+    "workflowRunId",
+    "workerId",
+    "tickerId",
+    "status",
+    "input",
+    "output",
+    "requeueAfter",
+    "error",
+    "startedAt",
+    "finishedAt",
+    "timeoutAt",
+    "cancelledAt",
+    "cancelledReason",
+    "cancelledError"
+) VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL,
+    @tenantId::uuid,
+    @workflowRunId::text,
+    NULL,
+    NULL,
+    'PENDING', -- default status
+    @input::jsonb,
+    NULL,
+    @requeueAfter::timestamp,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL
 ) RETURNING *;
 
 -- name: CreateJobRun :one

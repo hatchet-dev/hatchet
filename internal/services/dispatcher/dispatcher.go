@@ -187,6 +187,8 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 
 func (d *DispatcherImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {
 	switch task.ID {
+	case "group-key-action-assigned":
+		return d.handleGroupKeyActionAssignedTask(ctx, task)
 	case "step-run-assigned":
 		return d.handleStepRunAssignedTask(ctx, task)
 	case "step-run-cancelled":
@@ -196,7 +198,52 @@ func (d *DispatcherImpl) handleTask(ctx context.Context, task *taskqueue.Task) e
 	return fmt.Errorf("unknown task: %s in queue %s", task.ID, string(task.Queue))
 }
 
-// handleJobScheduledTask signals to the connected worker channel that a job should start executing.
+func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, task *taskqueue.Task) error {
+	ctx, span := telemetry.NewSpan(ctx, "group-key-action-assigned")
+	defer span.End()
+
+	payload := tasktypes.GroupKeyActionAssignedTaskPayload{}
+	metadata := tasktypes.GroupKeyActionAssignedTaskMetadata{}
+
+	err := d.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode dispatcher task payload: %w", err)
+	}
+
+	err = d.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode dispatcher task metadata: %w", err)
+	}
+
+	// get the worker for this task
+	w, err := d.GetWorker(payload.WorkerId)
+
+	if err != nil {
+		return fmt.Errorf("could not get worker: %w", err)
+	}
+
+	telemetry.WithAttributes(span, servertel.WorkerId(payload.WorkerId))
+
+	// load the workflow run from the database
+	workflowRun, err := d.repo.WorkflowRun().GetWorkflowRunById(metadata.TenantId, payload.WorkflowRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get workflow run: %w", err)
+	}
+
+	servertel.WithWorkflowRunModel(span, workflowRun)
+
+	err = w.StartGroupKeyAction(ctx, metadata.TenantId, workflowRun)
+
+	if err != nil {
+		return fmt.Errorf("could not send group key action to worker: %w", err)
+	}
+
+	return nil
+}
+
 func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *taskqueue.Task) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-assigned")
 	defer span.End()
@@ -237,7 +284,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ta
 	err = w.StartStepRun(ctx, metadata.TenantId, stepRun)
 
 	if err != nil {
-		return fmt.Errorf("could not send job to worker: %w", err)
+		return fmt.Errorf("could not send step action to worker: %w", err)
 	}
 
 	return nil

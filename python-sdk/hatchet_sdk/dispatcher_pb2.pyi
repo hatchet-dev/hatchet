@@ -11,19 +11,32 @@ class ActionType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     START_STEP_RUN: _ClassVar[ActionType]
     CANCEL_STEP_RUN: _ClassVar[ActionType]
+    START_GET_GROUP_KEY: _ClassVar[ActionType]
 
-class ActionEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+class GroupKeyActionEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
-    STEP_EVENT_TYPE_UNKNOWN: _ClassVar[ActionEventType]
-    STEP_EVENT_TYPE_STARTED: _ClassVar[ActionEventType]
-    STEP_EVENT_TYPE_COMPLETED: _ClassVar[ActionEventType]
-    STEP_EVENT_TYPE_FAILED: _ClassVar[ActionEventType]
+    GROUP_KEY_EVENT_TYPE_UNKNOWN: _ClassVar[GroupKeyActionEventType]
+    GROUP_KEY_EVENT_TYPE_STARTED: _ClassVar[GroupKeyActionEventType]
+    GROUP_KEY_EVENT_TYPE_COMPLETED: _ClassVar[GroupKeyActionEventType]
+    GROUP_KEY_EVENT_TYPE_FAILED: _ClassVar[GroupKeyActionEventType]
+
+class StepActionEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    STEP_EVENT_TYPE_UNKNOWN: _ClassVar[StepActionEventType]
+    STEP_EVENT_TYPE_STARTED: _ClassVar[StepActionEventType]
+    STEP_EVENT_TYPE_COMPLETED: _ClassVar[StepActionEventType]
+    STEP_EVENT_TYPE_FAILED: _ClassVar[StepActionEventType]
 START_STEP_RUN: ActionType
 CANCEL_STEP_RUN: ActionType
-STEP_EVENT_TYPE_UNKNOWN: ActionEventType
-STEP_EVENT_TYPE_STARTED: ActionEventType
-STEP_EVENT_TYPE_COMPLETED: ActionEventType
-STEP_EVENT_TYPE_FAILED: ActionEventType
+START_GET_GROUP_KEY: ActionType
+GROUP_KEY_EVENT_TYPE_UNKNOWN: GroupKeyActionEventType
+GROUP_KEY_EVENT_TYPE_STARTED: GroupKeyActionEventType
+GROUP_KEY_EVENT_TYPE_COMPLETED: GroupKeyActionEventType
+GROUP_KEY_EVENT_TYPE_FAILED: GroupKeyActionEventType
+STEP_EVENT_TYPE_UNKNOWN: StepActionEventType
+STEP_EVENT_TYPE_STARTED: StepActionEventType
+STEP_EVENT_TYPE_COMPLETED: StepActionEventType
+STEP_EVENT_TYPE_FAILED: StepActionEventType
 
 class WorkerRegisterRequest(_message.Message):
     __slots__ = ("workerName", "actions", "services")
@@ -46,8 +59,10 @@ class WorkerRegisterResponse(_message.Message):
     def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ..., workerName: _Optional[str] = ...) -> None: ...
 
 class AssignedAction(_message.Message):
-    __slots__ = ("tenantId", "jobId", "jobName", "jobRunId", "stepId", "stepRunId", "actionId", "actionType", "actionPayload")
+    __slots__ = ("tenantId", "workflowRunId", "getGroupKeyRunId", "jobId", "jobName", "jobRunId", "stepId", "stepRunId", "actionId", "actionType", "actionPayload")
     TENANTID_FIELD_NUMBER: _ClassVar[int]
+    WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
+    GETGROUPKEYRUNID_FIELD_NUMBER: _ClassVar[int]
     JOBID_FIELD_NUMBER: _ClassVar[int]
     JOBNAME_FIELD_NUMBER: _ClassVar[int]
     JOBRUNID_FIELD_NUMBER: _ClassVar[int]
@@ -57,6 +72,8 @@ class AssignedAction(_message.Message):
     ACTIONTYPE_FIELD_NUMBER: _ClassVar[int]
     ACTIONPAYLOAD_FIELD_NUMBER: _ClassVar[int]
     tenantId: str
+    workflowRunId: str
+    getGroupKeyRunId: str
     jobId: str
     jobName: str
     jobRunId: str
@@ -65,7 +82,7 @@ class AssignedAction(_message.Message):
     actionId: str
     actionType: ActionType
     actionPayload: str
-    def __init__(self, tenantId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobName: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., actionType: _Optional[_Union[ActionType, str]] = ..., actionPayload: _Optional[str] = ...) -> None: ...
+    def __init__(self, tenantId: _Optional[str] = ..., workflowRunId: _Optional[str] = ..., getGroupKeyRunId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobName: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., actionType: _Optional[_Union[ActionType, str]] = ..., actionPayload: _Optional[str] = ...) -> None: ...
 
 class WorkerListenRequest(_message.Message):
     __slots__ = ("workerId",)
@@ -87,7 +104,25 @@ class WorkerUnsubscribeResponse(_message.Message):
     workerId: str
     def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ...) -> None: ...
 
-class ActionEvent(_message.Message):
+class GroupKeyActionEvent(_message.Message):
+    __slots__ = ("workerId", "workflowRunId", "getGroupKeyRunId", "actionId", "eventTimestamp", "eventType", "eventPayload")
+    WORKERID_FIELD_NUMBER: _ClassVar[int]
+    WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
+    GETGROUPKEYRUNID_FIELD_NUMBER: _ClassVar[int]
+    ACTIONID_FIELD_NUMBER: _ClassVar[int]
+    EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    EVENTTYPE_FIELD_NUMBER: _ClassVar[int]
+    EVENTPAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    workerId: str
+    workflowRunId: str
+    getGroupKeyRunId: str
+    actionId: str
+    eventTimestamp: _timestamp_pb2.Timestamp
+    eventType: GroupKeyActionEventType
+    eventPayload: str
+    def __init__(self, workerId: _Optional[str] = ..., workflowRunId: _Optional[str] = ..., getGroupKeyRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventType: _Optional[_Union[GroupKeyActionEventType, str]] = ..., eventPayload: _Optional[str] = ...) -> None: ...
+
+class StepActionEvent(_message.Message):
     __slots__ = ("workerId", "jobId", "jobRunId", "stepId", "stepRunId", "actionId", "eventTimestamp", "eventType", "eventPayload")
     WORKERID_FIELD_NUMBER: _ClassVar[int]
     JOBID_FIELD_NUMBER: _ClassVar[int]
@@ -105,9 +140,9 @@ class ActionEvent(_message.Message):
     stepRunId: str
     actionId: str
     eventTimestamp: _timestamp_pb2.Timestamp
-    eventType: ActionEventType
+    eventType: StepActionEventType
     eventPayload: str
-    def __init__(self, workerId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventType: _Optional[_Union[ActionEventType, str]] = ..., eventPayload: _Optional[str] = ...) -> None: ...
+    def __init__(self, workerId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventType: _Optional[_Union[StepActionEventType, str]] = ..., eventPayload: _Optional[str] = ...) -> None: ...
 
 class ActionEventResponse(_message.Message):
     __slots__ = ("tenantId", "workerId")

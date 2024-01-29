@@ -150,6 +150,24 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		CronTriggers:  workflow.Triggers.Cron,
 	}
 
+	if workflow.Concurrency != nil {
+		opts.Concurrency = &admincontracts.WorkflowConcurrencyOpts{
+			Action: workflow.Concurrency.ActionID,
+		}
+
+		switch workflow.Concurrency.LimitStrategy {
+		case types.CancelInProgress:
+			opts.Concurrency.LimitStrategy = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
+		default:
+			opts.Concurrency.LimitStrategy = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
+		}
+
+		// TODO: should be a pointer because users might want to set maxRuns temporarily for disabling
+		if workflow.Concurrency.MaxRuns != 0 {
+			opts.Concurrency.MaxRuns = workflow.Concurrency.MaxRuns
+		}
+	}
+
 	jobOpts := make([]*admincontracts.CreateWorkflowJobOpts, 0)
 
 	for jobName, job := range workflow.Jobs {
