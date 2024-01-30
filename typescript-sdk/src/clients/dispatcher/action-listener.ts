@@ -1,4 +1,4 @@
-import { DispatcherClient as PbDispatcherClient, AssignedAction } from '@protoc/dispatcher';
+import { DispatcherClient as PbDispatcherClient, AssignedAction } from '@hatchet/protoc/dispatcher';
 
 import { Status } from 'nice-grpc';
 import { ClientConfig } from '@clients/hatchet-client/client-config';

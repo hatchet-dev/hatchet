@@ -3,7 +3,7 @@ import {
   EventsServiceClient,
   EventsServiceDefinition,
   PushEventRequest,
-} from '@protoc/events/events';
+} from '@hatchet/protoc/events/events';
 import HatchetError from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 

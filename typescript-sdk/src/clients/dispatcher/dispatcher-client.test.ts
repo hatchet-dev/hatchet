@@ -1,4 +1,4 @@
-import { ActionEventType } from '@protoc/dispatcher';
+import { ActionEventType } from '@hatchet/protoc/dispatcher';
 import { DispatcherClient } from './dispatcher-client';
 import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
 
