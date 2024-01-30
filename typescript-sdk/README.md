@@ -1,4 +1,3 @@
-# Hatchet - Typescript Client
+# Hatchet - Typescript SDK
 
-Required Dependencies:
-https://google.github.io/proto-lens/installing-protoc.html
+Please refer to the [Hatchet Typescript SDK documentation](https://docs.hatchet.run/typescript-sdk/setup) for setup instructions and usage details.
