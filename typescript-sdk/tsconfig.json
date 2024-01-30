@@ -34,7 +34,6 @@
     "paths": {
       // NOTE: also set in jest.config.ts
       "@hatchet/*": ["./src/*"],
-      "@protoc/*": ["./src/protoc/*"],
       "@util/*": ["./src/util/*"],
       "@models/*": ["./src/models/*"],
       "@clients/*": ["./src/clients/*"],

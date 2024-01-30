@@ -178,7 +178,6 @@ const config: Config = {
   },
   moduleNameMapper: {
     '^@hatchet/(.*)$': '<rootDir>/src/$1',
-    '^@protoc/(.*)$': '<rootDir>/src/$1',
     '^@util/(.*)$': '<rootDir>/src/util/$1',
     '^@models/(.*)$': '<rootDir>/src/models/$1',
     '^@clients/(.*)$': '<rootDir>/src/clients/$1',
