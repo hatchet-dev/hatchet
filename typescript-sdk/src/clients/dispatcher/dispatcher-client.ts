@@ -3,7 +3,7 @@ import {
   DispatcherClient as PbDispatcherClient,
   DispatcherDefinition,
   ActionEvent,
-} from '@protoc/dispatcher';
+} from '@hatchet/protoc/dispatcher';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import HatchetError from '@util/errors/hatchet-error';
 import { ActionListener } from './action-listener';

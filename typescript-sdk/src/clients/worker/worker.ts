@@ -1,10 +1,10 @@
 import { HatchetClient } from '@clients/hatchet-client';
 import HatchetError from '@util/errors/hatchet-error';
 import { Action, ActionListener } from '@clients/dispatcher/action-listener';
-import { ActionEvent, ActionEventType, ActionType } from '@protoc/dispatcher';
+import { ActionEvent, ActionEventType, ActionType } from '@hatchet/protoc/dispatcher';
 import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
 import { Workflow } from '@hatchet/workflow';
-import { CreateWorkflowStepOpts } from '@protoc/workflows';
+import { CreateWorkflowStepOpts } from '@hatchet/protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
 import sleep from '@hatchet/util/sleep';
 import { Context } from '../../step';

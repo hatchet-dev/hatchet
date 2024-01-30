@@ -3,7 +3,7 @@ import {
   CreateWorkflowVersionOpts,
   WorkflowServiceClient,
   WorkflowServiceDefinition,
-} from '@protoc/workflows';
+} from '@hatchet/protoc/workflows';
 import HatchetError from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 

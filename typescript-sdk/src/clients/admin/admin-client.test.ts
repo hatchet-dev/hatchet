@@ -1,4 +1,4 @@
-import { CreateWorkflowVersionOpts, WorkflowVersion } from '@protoc/workflows';
+import { CreateWorkflowVersionOpts, WorkflowVersion } from '@hatchet/protoc/workflows';
 import { AdminClient } from './admin-client';
 import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
 
