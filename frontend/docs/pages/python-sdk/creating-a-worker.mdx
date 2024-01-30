@@ -18,3 +18,12 @@ worker.register_workflow(workflow)
 # worker.start() is blocking
 worker.start()
 ```
+
+## Options
+
+The `hatchet.worker()` method takes a number of options:
+
+- `name`: The name of the worker. This is used to identify the worker in the Hatchet UI.
+- `max_threads`: The maximum number of threads to use for the worker. Defaults to 200.
+- `debug`: Whether to enable debug logging. Defaults to `False`.
+- `handle_kill`: Whether to call `sys.exit()` when the worker receives a `SIGTERM` signal after graceful termination. Defaults to `True`.

@@ -12,6 +12,11 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm@8
 
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "20.x"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Get pnpm store directory
         shell: bash
         run: |
@@ -34,7 +39,7 @@ jobs:
         working-directory: typescript-sdk
 
       - name: Publish SDK
-        run: pnpm publish
+        run: pnpm publish --access public
         working-directory: typescript-sdk
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,6 +1,10 @@
+import ctypes
 import json
 import signal
 import sys
+from threading import Thread, current_thread
+import threading
+import time
 
 import grpc
 from typing import Any, Callable, Dict
@@ -17,8 +21,10 @@ from .logger import logger
 class Worker:
     def __init__(self, name: str, max_threads: int = 200, debug=False, handle_kill=True):
         self.name = name
+        self.threads: Dict[str, Thread] = {}  # Store step run ids and threads
         self.thread_pool = ThreadPoolExecutor(max_workers=max_threads)
         self.futures: Dict[str, Future] = {}  # Store step run ids and futures
+        self.contexts: Dict[str, Context] = {}  # Store step run ids and contexts
         self.action_registry : dict[str, Callable[..., Any]] = {} 
 
         signal.signal(signal.SIGINT, self.exit_gracefully)
@@ -30,6 +36,8 @@ class Worker:
     def handle_start_step_run(self, action : Action):
         action_name = action.action_id  # Assuming action object has 'name' attribute
         context = Context(action.action_payload)  # Assuming action object has 'context' attribute
+
+        self.contexts[action.step_run_id] = context
 
         # Find the corresponding action function from the registry
         action_func = self.action_registry.get(action_name)
@@ -65,14 +73,30 @@ class Worker:
                     self.client.dispatcher.send_action_event(event)
 
                 # Remove the future from the dictionary
-                del self.futures[action.step_run_id]
-                del self.futures[action.step_run_id + "_callback"]
+                if action.step_run_id in self.futures:
+                    del self.futures[action.step_run_id]
 
             # Submit the action to the thread pool
-            future = self.thread_pool.submit(action_func, context)
-            callback = self.thread_pool.submit(callback, future)
+            def wrapped_action_func(context):
+                # store the thread id
+                self.threads[action.step_run_id] = current_thread()
+
+                try:
+                    res = action_func(context)
+                    return res
+                except Exception as e:
+                    logger.error(f"Could not execute action: {e}")
+                    raise e
+                finally:
+                    if action.step_run_id in self.threads:
+                        # remove the thread id
+                        logger.debug(f"Removing step run id {action.step_run_id} from threads")
+
+                        del self.threads[action.step_run_id]
+
+            future = self.thread_pool.submit(wrapped_action_func, context)
+            future.add_done_callback(callback)
             self.futures[action.step_run_id] = future
-            self.futures[action.step_run_id + "_callback"] = callback
 
             # send an event that the step run has started
             try:
@@ -82,15 +106,63 @@ class Worker:
 
             # Send the action event to the dispatcher
             self.client.dispatcher.send_action_event(event)
+
+    def force_kill_thread(self, thread):
+        """Terminate a python threading.Thread."""
+        try:
+            if not thread.is_alive():
+                return
+            
+            logger.info(f"Forcefully terminating thread {thread.ident}")
+
+            exc = ctypes.py_object(SystemExit)
+            res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                ctypes.c_long(thread.ident), exc
+            )
+            if res == 0:
+                raise ValueError("Invalid thread ID")
+            elif res != 1:
+                logger.error("PyThreadState_SetAsyncExc failed")
+
+                # Call with exception set to 0 is needed to cleanup properly.
+                ctypes.pythonapi.PyThreadState_SetAsyncExc(thread.ident, 0)
+                raise SystemError("PyThreadState_SetAsyncExc failed")
+            
+            logger.info(f"Successfully terminated thread {thread.ident}")
+
+            # Immediately add a new thread to the thread pool, because we've actually killed a worker
+            # in the ThreadPoolExecutor
+            self.thread_pool.submit(lambda: None)
+        except Exception as e:
+            logger.exception(f"Failed to terminate thread: {e}")
                 
     def handle_cancel_step_run(self, action : Action):
         step_run_id = action.step_run_id
+
+        # call cancel to signal the context to stop
+        context = self.contexts.get(step_run_id)
+        context.cancel()
 
         future = self.futures.get(step_run_id)
 
         if future:
             future.cancel()
-            del self.futures[step_run_id]
+
+            if step_run_id in self.futures:
+                del self.futures[step_run_id]
+
+        # grace period of 1 second
+        time.sleep(1)
+
+        # check if thread is still running, if so, kill it
+        if step_run_id in self.threads:
+            thread = self.threads[step_run_id]
+
+            if thread:
+                self.force_kill_thread(thread)
+
+                if step_run_id in self.threads:
+                    del self.threads[step_run_id]
     
     def get_action_event(self, action : Action, event_type : ActionEventType) -> ActionEvent:
         # timestamp 
@@ -145,7 +217,7 @@ class Worker:
         except Exception as e:
             logger.error(f"Could not unregister worker: {e}")
 
-        # wait for futures to complete
+        # cancel all futures
         for future in self.futures.values():
             try:
                 future.result()
@@ -174,7 +246,7 @@ class Worker:
                 if action.action_type == ActionType.START_STEP_RUN:
                     self.handle_start_step_run(action)
                 elif action.action_type == ActionType.CANCEL_STEP_RUN:
-                    self.handle_cancel_step_run(action)
+                    self.thread_pool.submit(self.handle_cancel_step_run, action)
 
                 pass  # Replace this with your actual processing code
         except grpc.RpcError as rpc_error:

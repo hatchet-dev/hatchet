@@ -82,3 +82,41 @@ class MyWorkflow:
         print("executed step2")
         pass
 ```
+
+## Timeouts
+
+**The default timeout on Hatchet is 60 seconds per step run**.
+
+You can declare a timeout for a step by passing `timeout` to the `hatchet.step` decorator. Timeouts are strings in the format of `1h`, `1m`, `1s`, etc. For example, to timeout a step after 5 minutes, you can do the following:
+
+```py
+@hatchet.step(timeout="5m")
+def step1(self, context):
+    print("executed step1")
+    pass
+```
+
+## Termination, Sleeps and Threads
+
+Hatchet spawns a new thread per step, which means that there is a risk of thread leakage if your code is busy outside of the python interpreter. For example, this can happen if you call `time.sleep` within a step. To avoid this, you can use `context.sleep` instead. For example:
+
+```py
+@hatchet.step()
+def step1(self, context):
+    context.sleep(5)
+    pass
+```
+
+You can also determine whether to exit the thread by calling `context.done()` within a step, which returns true if the step has been cancelled. For example:
+
+```py
+@hatchet.step(timeout="2s")
+def step1(self, context):
+    while True:
+        # this step will gracefully exit after 2 seconds
+        if context.done():
+            break
+        pass
+```
+
+If you need control over cancellation, you can also use `context.cancel()` to cancel the current step, though this is not recommended.
