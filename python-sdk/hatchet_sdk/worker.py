@@ -339,7 +339,7 @@ class Worker:
                 if action.action_type == ActionType.START_STEP_RUN:
                     self.handle_start_step_run(action)
                 elif action.action_type == ActionType.CANCEL_STEP_RUN:
-                    self.thread_pool.submit(self.handle_cancel_step_run, action)
+                    self.thread_pool.submit(self.handle_cancel_action, action.step_run_id)
                 elif action.action_type == ActionType.START_GET_GROUP_KEY:
                     self.handle_start_group_key_run(action)
                 else:
