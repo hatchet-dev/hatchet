@@ -26,10 +26,23 @@ type CreateWorkflowRunOpts struct {
 
 	// (required) the workflow jobs
 	JobRuns []CreateWorkflowJobRunOpts `validate:"required,min=1,dive"`
+
+	GetGroupKeyRun *CreateGroupKeyRunOpts `validate:"omitempty"`
+}
+
+type CreateGroupKeyRunOpts struct {
+	// (optional) the input data
+	Input []byte
 }
 
 func GetCreateWorkflowRunOptsFromEvent(event *db.EventModel, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
 	eventId := event.ID
+
+	opts := &CreateWorkflowRunOpts{
+		WorkflowVersionId: workflowVersion.ID,
+		TriggeringEventId: &eventId,
+	}
+
 	data := event.InnerEvent.Data
 
 	var jobRunData []byte
@@ -38,11 +51,12 @@ func GetCreateWorkflowRunOptsFromEvent(event *db.EventModel, workflowVersion *db
 
 	if data != nil {
 		jobRunData = []byte(json.RawMessage(*data))
-	}
 
-	opts := &CreateWorkflowRunOpts{
-		WorkflowVersionId: workflowVersion.ID,
-		TriggeringEventId: &eventId,
+		if _, hasConcurrency := workflowVersion.Concurrency(); hasConcurrency {
+			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+				Input: jobRunData,
+			}
+		}
 	}
 
 	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, datautils.TriggeredByEvent, jobRunData)
@@ -65,6 +79,11 @@ func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion
 }
 
 func GetCreateWorkflowRunOptsFromSchedule(scheduledTrigger *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
+	opts := &CreateWorkflowRunOpts{
+		WorkflowVersionId:   workflowVersion.ID,
+		ScheduledWorkflowId: &scheduledTrigger.ID,
+	}
+
 	data := scheduledTrigger.InnerWorkflowTriggerScheduledRef.Input
 	var jobRunData []byte
 
@@ -72,11 +91,12 @@ func GetCreateWorkflowRunOptsFromSchedule(scheduledTrigger *db.WorkflowTriggerSc
 
 	if data != nil {
 		jobRunData = []byte(json.RawMessage(*data))
-	}
 
-	opts := &CreateWorkflowRunOpts{
-		WorkflowVersionId:   workflowVersion.ID,
-		ScheduledWorkflowId: &scheduledTrigger.ID,
+		if _, hasConcurrency := workflowVersion.Concurrency(); hasConcurrency {
+			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+				Input: jobRunData,
+			}
+		}
 	}
 
 	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, datautils.TriggeredBySchedule, jobRunData)
@@ -131,17 +151,32 @@ type CreateWorkflowStepRunOpts struct {
 }
 
 type ListWorkflowRunsOpts struct {
-	// (optional) the workflow version id
+	// (optional) the workflow id
 	WorkflowId *string `validate:"omitempty,uuid"`
+
+	// (optional) the workflow version id
+	WorkflowVersionId *string `validate:"omitempty,uuid"`
 
 	// (optional) the event id that triggered the workflow run
 	EventId *string `validate:"omitempty,uuid"`
+
+	// (optional) the group key for the workflow run
+	GroupKey *string
+
+	// (optional) the status of the workflow run
+	Status *db.WorkflowRunStatus
 
 	// (optional) number of events to skip
 	Offset *int
 
 	// (optional) number of events to return
 	Limit *int
+
+	// (optional) the order by field
+	OrderBy *string `validate:"omitempty,oneof=createdAt"`
+
+	// (optional) the order direction
+	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
 }
 
 type ListWorkflowRunsResult struct {

@@ -86,6 +86,7 @@ func New(ctx context.Context, fs ...TaskQueueImplOpt) *TaskQueueImpl {
 
 		t.initQueue(sub, string(taskqueue.EVENT_PROCESSING_QUEUE))
 		t.initQueue(sub, string(taskqueue.JOB_PROCESSING_QUEUE))
+		t.initQueue(sub, string(taskqueue.WORKFLOW_PROCESSING_QUEUE))
 		t.initQueue(sub, string(taskqueue.SCHEDULING_QUEUE))
 		break
 	}
@@ -163,76 +164,6 @@ func (t *TaskQueueImpl) publish() {
 		}
 	}
 }
-
-// func (t *TaskQueueImpl) publish() {
-// 	for session := range t.sessions {
-// 		var (
-// 			running bool
-// 			reading = t.tasks
-// 			pending = make(chan []byte, 1)
-// 			confirm = make(chan amqp.Confirmation, 1)
-// 		)
-
-// 		pub := <-session
-
-// 		// publisher confirms for this channel/connection
-// 		if err := pub.Channel.Confirm(false); err != nil {
-// 			t.l.Info().Msgf("publisher confirms not supported")
-// 			close(confirm) // confirms not supported, simulate by always nacking
-// 		} else {
-// 			pub.NotifyPublish(confirm)
-// 		}
-
-// 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-// 		defer cancel()
-
-// 	Publish:
-// 		for {
-// 			var (
-// 				body []byte
-// 				task *taskqueue.Task
-// 			)
-
-// 			select {
-// 			case confirmed, ok := <-confirm:
-// 				if !ok {
-// 					break Publish
-// 				}
-// 				if !confirmed.Ack {
-// 					t.l.Info().Msgf("nack message %d", confirmed.DeliveryTag)
-// 				}
-// 				reading = t.tasks
-
-// 			case body = <-pending:
-// 				err := pub.PublishWithContext(ctx, "", string(task.Queue), false, false, amqp.Publishing{
-// 					Body: body,
-// 				})
-// 				// Retry failed delivery on the next session
-// 				if err != nil {
-// 					pending <- body
-// 					pub.Channel.Close()
-// 					break Publish
-// 				}
-// 			case task, running = <-reading:
-// 				body, err := json.Marshal(task)
-
-// 				if err != nil {
-// 					t.l.Error().Msgf("error marshaling task queue: %v", err)
-// 					return
-// 				}
-
-// 				// all messages consumed
-// 				if !running {
-// 					return
-// 				}
-
-// 				// work on pending delivery until ack'd
-// 				pending <- body
-// 				reading = nil
-// 			}
-// 		}
-// 	}
-// }
 
 func (t *TaskQueueImpl) subscribe(ctx context.Context, subId, queue string, sessions chan chan session, messages chan *taskqueue.Task, tasks chan<- *taskqueue.Task) {
 	sessionCount := 0

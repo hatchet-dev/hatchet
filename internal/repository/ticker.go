@@ -42,6 +42,9 @@ type TickerRepository interface {
 	// AddStepRun assigns a step run to a ticker.
 	AddStepRun(tickerId, stepRunId string) (*db.TickerModel, error)
 
+	// AddGetGroupKeyRun assigns a get group key run to a ticker.
+	AddGetGroupKeyRun(tickerId, getGroupKeyRunId string) (*db.TickerModel, error)
+
 	// AddCron assigns a cron to a ticker.
 	AddCron(tickerId string, cron *db.WorkflowTriggerCronRefModel) (*db.TickerModel, error)
 

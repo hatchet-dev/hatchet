@@ -35,6 +35,10 @@ func main() {
 	}
 }
 
+func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
+	return "user-create", nil
+}
+
 func run(ch <-chan interface{}, events chan<- string) error {
 	c, err := client.New()
 
@@ -60,6 +64,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		&worker.WorkflowJob{
 			Name:        "simple",
 			Description: "This runs after an update to the user model.",
+			Concurrency: worker.Concurrency(getConcurrencyKey),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					input := &userCreateEvent{}
@@ -142,6 +147,4 @@ func run(ch <-chan interface{}, events chan<- string) error {
 			time.Sleep(time.Second)
 		}
 	}
-
-	return nil
 }

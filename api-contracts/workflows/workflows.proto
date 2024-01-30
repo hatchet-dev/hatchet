@@ -13,6 +13,7 @@ service WorkflowService {
     rpc GetWorkflowByName(GetWorkflowByNameRequest) returns (Workflow);
     rpc ListWorkflowsForEvent(ListWorkflowsForEventRequest) returns (ListWorkflowsResponse);
     rpc DeleteWorkflow(DeleteWorkflowRequest) returns (Workflow);
+    
 }
 
 message PutWorkflowRequest {
@@ -28,6 +29,19 @@ message CreateWorkflowVersionOpts {
     repeated string cron_triggers = 5; // (optional) cron triggers for the workflow
     repeated google.protobuf.Timestamp scheduled_triggers = 6; // (optional) scheduled triggers for the workflow
     repeated CreateWorkflowJobOpts jobs = 7; // (required) the workflow jobs
+    WorkflowConcurrencyOpts concurrency = 8; // (optional) the workflow concurrency options
+}
+
+enum ConcurrencyLimitStrategy {
+    CANCEL_IN_PROGRESS = 0;
+    DROP_NEWEST = 1;
+    QUEUE_NEWEST = 2;
+}
+
+message WorkflowConcurrencyOpts {
+    string action = 1; // (required) the action id for getting the concurrency group
+    int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
+    ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
 }
   
 // CreateWorkflowJobOpts represents options to create a workflow job.

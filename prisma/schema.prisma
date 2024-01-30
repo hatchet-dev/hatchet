@@ -118,6 +118,7 @@ model Tenant {
   services            Service[]
   invites             TenantInviteLink[]
   apiTokens           APIToken[]
+  groupKeyRuns        GetGroupKeyRun[]
 }
 
 enum TenantMemberRole {
@@ -288,6 +289,9 @@ model WorkflowVersion {
   // the declared triggers for the job
   triggers WorkflowTriggers?
 
+  // concurrency limits for the workflow
+  concurrency WorkflowConcurrency?
+
   // the declared jobs 
   jobs Job[]
 
@@ -296,6 +300,39 @@ model WorkflowVersion {
 
   // the scheduled runs for the workflow
   scheduled WorkflowTriggerScheduledRef[]
+}
+
+enum ConcurrencyLimitStrategy {
+  // Cancel the existing runs and start a new one
+  CANCEL_IN_PROGRESS
+
+  // Don't create a new run if concurrency limit has been reached
+  DROP_NEWEST
+
+  // Queue new runs and start them when falling below the concurrency limit
+  QUEUE_NEWEST
+}
+
+model WorkflowConcurrency {
+  // base fields
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // the parent workflow
+  workflow          WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workflowVersionId String          @unique @db.Uuid
+
+  // An action which gets the concurrency group for the WorkflowRun. If this is not set, the concurrency group is
+  // set to a checksum of the workflow input.
+  getConcurrencyGroup   Action? @relation(fields: [getConcurrencyGroupId], references: [id])
+  getConcurrencyGroupId String? @db.Uuid
+
+  // the maximum number of concurrent workflow runs
+  maxRuns Int @default(1)
+
+  // the strategy to use when the concurrency limit is reached
+  limitStrategy ConcurrencyLimitStrategy @default(CANCEL_IN_PROGRESS)
 }
 
 model WorkflowTriggers {
@@ -344,6 +381,9 @@ model WorkflowTriggerCronRef {
   tickerId String? @db.Uuid
 
   triggered WorkflowRunTriggeredBy[]
+
+  // the input parameters to the scheduled workflow
+  input Json?
 
   // cron references must be unique per workflow
   @@unique([parentId, cron])
@@ -421,6 +461,9 @@ model Action {
   // the action's workers
   workers Worker[]
 
+  // the action's concurrency rules
+  concurrency WorkflowConcurrency[]
+
   // actions are unique per tenant
   @@unique([tenantId, actionId])
 }
@@ -464,6 +507,7 @@ model Step {
 
 enum WorkflowRunStatus {
   PENDING
+  QUEUED
   RUNNING
   SUCCEEDED
   FAILED
@@ -484,6 +528,10 @@ model WorkflowRun {
   workflowVersion   WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workflowVersionId String          @db.Uuid
 
+  concurrencyGroupId String?
+
+  getGroupKeyRun GetGroupKeyRun?
+
   status WorkflowRunStatus @default(PENDING)
 
   jobRuns JobRun[]
@@ -501,6 +549,65 @@ model WorkflowRun {
 
   // workflow run ids are unique per tenant
   @@unique([tenantId, id])
+}
+
+model GetGroupKeyRun {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // the parent workflow run
+  workflowRun   WorkflowRun @relation(fields: [tenantId, workflowRunId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
+  workflowRunId String
+
+  // the worker assigned to this group key run
+  worker   Worker? @relation(fields: [workerId], references: [id])
+  workerId String? @db.Uuid
+
+  // the assigned ticker
+  ticker   Ticker? @relation(fields: [tickerId], references: [id])
+  tickerId String? @db.Uuid
+
+  // the run status
+  status StepRunStatus @default(PENDING)
+
+  // the group key run input
+  input Json?
+
+  // the group key as output
+  output String?
+
+  // when the step should be requeued
+  requeueAfter DateTime?
+
+  // the run error
+  error String?
+
+  // the run started at
+  startedAt DateTime?
+
+  // the run finished at
+  finishedAt DateTime?
+
+  // the run timeout at
+  timeoutAt DateTime?
+
+  // the run cancelled at
+  cancelledAt DateTime?
+
+  // the reason for why the run was cancelled
+  cancelledReason String?
+
+  // errors while cancelling the run
+  cancelledError String?
+
+  @@unique([tenantId, workflowRunId])
 }
 
 model WorkflowRunTriggeredBy {
@@ -729,10 +836,11 @@ model Ticker {
   // whether this ticker is active or not
   isActive Boolean @default(true)
 
-  jobRuns   JobRun[]
-  stepRuns  StepRun[]
-  crons     WorkflowTriggerCronRef[]
-  scheduled WorkflowTriggerScheduledRef[]
+  jobRuns      JobRun[]
+  stepRuns     StepRun[]
+  crons        WorkflowTriggerCronRef[]
+  scheduled    WorkflowTriggerScheduledRef[]
+  groupKeyRuns GetGroupKeyRun[]
 }
 
 enum WorkerStatus {
@@ -771,6 +879,9 @@ model Worker {
 
   // the jobs the worker has run
   stepRuns StepRun[]
+
+  // the runs which retrieve the group keys
+  groupKeyRuns GetGroupKeyRun[]
 }
 
 model Service {

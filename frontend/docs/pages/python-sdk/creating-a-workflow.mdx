@@ -96,6 +96,45 @@ def step1(self, context):
     pass
 ```
 
+## Concurrency Limits and Fairness
+
+> __**Note:** this feature is currently in beta, and currently only supports a concurrency strategy which terminates the oldest running workflow run to make room for the new one. This will be expanded in the future to support other strategies.__
+
+By default, there are no concurrency limits for Hatchet workflows. Workflow runs are immediately executed as soon as they are triggered (by an event, cron, or schedule). However, you can enforce a concurrency limit by decorating a custom function with `hatchet.concurrency`. This function returns a __concurrency group key__, which is a string that is used to group concurrent executions. **Note that this function should not also be used as a `hatchet.step`.** For example, the following workflow will only allow 5 concurrent executions for any workflow execution of `ConcurrencyDemoWorkflow`, since the key is statically set to `my-key`:
+
+```py
+@hatchet.workflow(on_events=["concurrency-test"])
+class ConcurrencyDemoWorkflow:
+    def __init__(self):
+        self.my_value = "test"
+
+    @hatchet.concurrency(max_runs=5)
+    def concurrency(self, context) -> str:
+        return "concurrency-key"
+
+    @hatchet.step()
+    def step1(self, context):
+        print("executed step1")
+        pass
+```
+
+### Use-Case: Enforcing Per-User Concurrency Limits
+
+You can use the custom concurrency function to enforce per-user concurrency limits. For example, the following workflow will only allow 1 concurrent execution per user:
+
+```py
+@hatchet.workflow(on_events=["concurrency-test"])
+class ConcurrencyDemoWorkflow:
+    @hatchet.concurrency(max_runs=1)
+    def concurrency(self, context) -> str:
+        return context.workflow_input()["user_id"]
+
+    @hatchet.step()
+    def step1(self, context):
+        print("executed step1")
+        pass
+```
+
 ## Termination, Sleeps and Threads
 
 Hatchet spawns a new thread per step, which means that there is a risk of thread leakage if your code is busy outside of the python interpreter. For example, this can happen if you call `time.sleep` within a step. To avoid this, you can use `context.sleep` instead. For example:

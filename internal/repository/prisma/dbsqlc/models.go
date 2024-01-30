@@ -11,6 +11,49 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ConcurrencyLimitStrategy string
+
+const (
+	ConcurrencyLimitStrategyCANCELINPROGRESS ConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
+	ConcurrencyLimitStrategyDROPNEWEST       ConcurrencyLimitStrategy = "DROP_NEWEST"
+	ConcurrencyLimitStrategyQUEUENEWEST      ConcurrencyLimitStrategy = "QUEUE_NEWEST"
+)
+
+func (e *ConcurrencyLimitStrategy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConcurrencyLimitStrategy(s)
+	case string:
+		*e = ConcurrencyLimitStrategy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConcurrencyLimitStrategy: %T", src)
+	}
+	return nil
+}
+
+type NullConcurrencyLimitStrategy struct {
+	ConcurrencyLimitStrategy ConcurrencyLimitStrategy `json:"ConcurrencyLimitStrategy"`
+	Valid                    bool                     `json:"valid"` // Valid is true if ConcurrencyLimitStrategy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConcurrencyLimitStrategy) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConcurrencyLimitStrategy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConcurrencyLimitStrategy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConcurrencyLimitStrategy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConcurrencyLimitStrategy), nil
+}
+
 type InviteLinkStatus string
 
 const (
@@ -235,6 +278,7 @@ type WorkflowRunStatus string
 
 const (
 	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
+	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
 	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
 	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
@@ -315,6 +359,28 @@ type Event struct {
 	TenantId       pgtype.UUID      `json:"tenantId"`
 	ReplayedFromId pgtype.UUID      `json:"replayedFromId"`
 	Data           []byte           `json:"data"`
+}
+
+type GetGroupKeyRun struct {
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
+	TenantId        pgtype.UUID      `json:"tenantId"`
+	WorkflowRunId   string           `json:"workflowRunId"`
+	WorkerId        pgtype.UUID      `json:"workerId"`
+	TickerId        pgtype.UUID      `json:"tickerId"`
+	Status          StepRunStatus    `json:"status"`
+	Input           []byte           `json:"input"`
+	Output          pgtype.Text      `json:"output"`
+	RequeueAfter    pgtype.Timestamp `json:"requeueAfter"`
+	Error           pgtype.Text      `json:"error"`
+	StartedAt       pgtype.Timestamp `json:"startedAt"`
+	FinishedAt      pgtype.Timestamp `json:"finishedAt"`
+	TimeoutAt       pgtype.Timestamp `json:"timeoutAt"`
+	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
+	CancelledReason pgtype.Text      `json:"cancelledReason"`
+	CancelledError  pgtype.Text      `json:"cancelledError"`
 }
 
 type Job struct {
@@ -516,17 +582,28 @@ type Workflow struct {
 	Description pgtype.Text      `json:"description"`
 }
 
+type WorkflowConcurrency struct {
+	ID                    pgtype.UUID              `json:"id"`
+	CreatedAt             pgtype.Timestamp         `json:"createdAt"`
+	UpdatedAt             pgtype.Timestamp         `json:"updatedAt"`
+	WorkflowVersionId     pgtype.UUID              `json:"workflowVersionId"`
+	GetConcurrencyGroupId pgtype.UUID              `json:"getConcurrencyGroupId"`
+	MaxRuns               int32                    `json:"maxRuns"`
+	LimitStrategy         ConcurrencyLimitStrategy `json:"limitStrategy"`
+}
+
 type WorkflowRun struct {
-	ID                string            `json:"id"`
-	CreatedAt         pgtype.Timestamp  `json:"createdAt"`
-	UpdatedAt         pgtype.Timestamp  `json:"updatedAt"`
-	DeletedAt         pgtype.Timestamp  `json:"deletedAt"`
-	TenantId          pgtype.UUID       `json:"tenantId"`
-	WorkflowVersionId pgtype.UUID       `json:"workflowVersionId"`
-	Status            WorkflowRunStatus `json:"status"`
-	Error             pgtype.Text       `json:"error"`
-	StartedAt         pgtype.Timestamp  `json:"startedAt"`
-	FinishedAt        pgtype.Timestamp  `json:"finishedAt"`
+	ID                 string            `json:"id"`
+	CreatedAt          pgtype.Timestamp  `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp  `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp  `json:"deletedAt"`
+	TenantId           pgtype.UUID       `json:"tenantId"`
+	WorkflowVersionId  pgtype.UUID       `json:"workflowVersionId"`
+	ConcurrencyGroupId pgtype.Text       `json:"concurrencyGroupId"`
+	Status             WorkflowRunStatus `json:"status"`
+	Error              pgtype.Text       `json:"error"`
+	StartedAt          pgtype.Timestamp  `json:"startedAt"`
+	FinishedAt         pgtype.Timestamp  `json:"finishedAt"`
 }
 
 type WorkflowRunTriggeredBy struct {
@@ -560,6 +637,7 @@ type WorkflowTriggerCronRef struct {
 	ParentId pgtype.UUID `json:"parentId"`
 	Cron     string      `json:"cron"`
 	TickerId pgtype.UUID `json:"tickerId"`
+	Input    []byte      `json:"input"`
 }
 
 type WorkflowTriggerEventRef struct {

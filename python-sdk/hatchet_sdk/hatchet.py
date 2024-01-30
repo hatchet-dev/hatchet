@@ -12,6 +12,15 @@ class Hatchet:
         if not debug:
             logger.disable("hatchet_sdk")
 
+    def concurrency(self, name : str='', max_runs : int = 1):
+        def inner(func):
+            func._concurrency_fn_name = name or func.__name__
+            func._concurrency_max_runs = max_runs
+
+            return func
+        
+        return inner
+
     def workflow(self, name : str='', on_events : list=[], on_crons : list=[], version : str=''):
         def inner(cls):
                 cls.on_events = on_events

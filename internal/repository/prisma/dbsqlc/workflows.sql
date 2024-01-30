@@ -165,6 +165,25 @@ INSERT INTO "WorkflowVersion" (
     @workflowId::uuid
 ) RETURNING *;
 
+-- name: CreateWorkflowConcurrency :one
+INSERT INTO "WorkflowConcurrency" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "workflowVersionId",
+    "getConcurrencyGroupId",
+    "maxRuns",
+    "limitStrategy"
+) VALUES (
+    @id::uuid,
+    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
+    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
+    @workflowVersionId::uuid,
+    @getConcurrencyGroupId::uuid,
+    coalesce(sqlc.narg('maxRuns')::integer, 1),
+    coalesce(sqlc.narg('limitStrategy')::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS')
+) RETURNING *;
+
 -- name: CreateJob :one
 INSERT INTO "Job" (
     "id",
@@ -221,7 +240,7 @@ FROM
 JOIN 
     "Step" AS step ON step."readableId" = parent_readable_id AND step."jobId" = @jobId::uuid;
 
--- name: UpsertAction :exec
+-- name: UpsertAction :one
 INSERT INTO "Action" (
     "id",
     "actionId",
@@ -229,14 +248,15 @@ INSERT INTO "Action" (
 )
 VALUES (
     gen_random_uuid(),
-    @action::text,
+    LOWER(@action::text),
     @tenantId::uuid
 )
 ON CONFLICT ("tenantId", "actionId") DO UPDATE 
 SET
     "tenantId" = EXCLUDED."tenantId"
 WHERE
-    "Action"."tenantId" = @tenantId AND "Action"."actionId" = @action::text;
+    "Action"."tenantId" = @tenantId AND "Action"."actionId" = LOWER(@action::text)
+RETURNING *;
 
 -- name: UpsertWorkflowTag :exec
 INSERT INTO "WorkflowTag" (

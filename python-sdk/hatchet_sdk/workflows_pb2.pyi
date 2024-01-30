@@ -1,11 +1,21 @@
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf import wrappers_pb2 as _wrappers_pb2
 from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
+
+class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    CANCEL_IN_PROGRESS: _ClassVar[ConcurrencyLimitStrategy]
+    DROP_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
+    QUEUE_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
+CANCEL_IN_PROGRESS: ConcurrencyLimitStrategy
+DROP_NEWEST: ConcurrencyLimitStrategy
+QUEUE_NEWEST: ConcurrencyLimitStrategy
 
 class PutWorkflowRequest(_message.Message):
     __slots__ = ("opts",)
@@ -14,7 +24,7 @@ class PutWorkflowRequest(_message.Message):
     def __init__(self, opts: _Optional[_Union[CreateWorkflowVersionOpts, _Mapping]] = ...) -> None: ...
 
 class CreateWorkflowVersionOpts(_message.Message):
-    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "scheduled_triggers", "jobs")
+    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "scheduled_triggers", "jobs", "concurrency")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -22,6 +32,7 @@ class CreateWorkflowVersionOpts(_message.Message):
     CRON_TRIGGERS_FIELD_NUMBER: _ClassVar[int]
     SCHEDULED_TRIGGERS_FIELD_NUMBER: _ClassVar[int]
     JOBS_FIELD_NUMBER: _ClassVar[int]
+    CONCURRENCY_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
     version: str
@@ -29,7 +40,18 @@ class CreateWorkflowVersionOpts(_message.Message):
     cron_triggers: _containers.RepeatedScalarFieldContainer[str]
     scheduled_triggers: _containers.RepeatedCompositeFieldContainer[_timestamp_pb2.Timestamp]
     jobs: _containers.RepeatedCompositeFieldContainer[CreateWorkflowJobOpts]
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., scheduled_triggers: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., jobs: _Optional[_Iterable[_Union[CreateWorkflowJobOpts, _Mapping]]] = ...) -> None: ...
+    concurrency: WorkflowConcurrencyOpts
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., scheduled_triggers: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., jobs: _Optional[_Iterable[_Union[CreateWorkflowJobOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[WorkflowConcurrencyOpts, _Mapping]] = ...) -> None: ...
+
+class WorkflowConcurrencyOpts(_message.Message):
+    __slots__ = ("action", "max_runs", "limit_strategy")
+    ACTION_FIELD_NUMBER: _ClassVar[int]
+    MAX_RUNS_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_STRATEGY_FIELD_NUMBER: _ClassVar[int]
+    action: str
+    max_runs: int
+    limit_strategy: ConcurrencyLimitStrategy
+    def __init__(self, action: _Optional[str] = ..., max_runs: _Optional[int] = ..., limit_strategy: _Optional[_Union[ConcurrencyLimitStrategy, str]] = ...) -> None: ...
 
 class CreateWorkflowJobOpts(_message.Message):
     __slots__ = ("name", "description", "timeout", "steps")

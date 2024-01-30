@@ -9,6 +9,7 @@ type Repository interface {
 	WorkflowRun() WorkflowRunRepository
 	JobRun() JobRunRepository
 	StepRun() StepRunRepository
+	GetGroupKeyRun() GetGroupKeyRunRepository
 	Step() StepRepository
 	Dispatcher() DispatcherRepository
 	Ticker() TickerRepository

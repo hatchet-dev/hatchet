@@ -7,10 +7,11 @@ import (
 type QueueType string
 
 const (
-	EVENT_PROCESSING_QUEUE QueueType = "event_processing_queue"
-	JOB_PROCESSING_QUEUE   QueueType = "job_processing_queue"
-	DISPATCHER_POOL_QUEUE  QueueType = "dispatcher_pool_queue"
-	SCHEDULING_QUEUE       QueueType = "scheduling_queue"
+	EVENT_PROCESSING_QUEUE    QueueType = "event_processing_queue"
+	JOB_PROCESSING_QUEUE      QueueType = "job_processing_queue"
+	WORKFLOW_PROCESSING_QUEUE QueueType = "workflow_processing_queue"
+	DISPATCHER_POOL_QUEUE     QueueType = "dispatcher_pool_queue"
+	SCHEDULING_QUEUE          QueueType = "scheduling_queue"
 )
 
 func QueueTypeFromDispatcherID(d string) QueueType {

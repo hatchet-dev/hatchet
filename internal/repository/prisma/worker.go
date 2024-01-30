@@ -336,3 +336,23 @@ func (w *workerRepository) AddStepRun(tenantId, workerId, stepRunId string) erro
 
 	return err
 }
+
+func (w *workerRepository) AddGetGroupKeyRun(tenantId, workerId, getGroupKeyRunId string) error {
+	tx1 := w.client.Worker.FindUnique(
+		db.Worker.ID.Equals(workerId),
+	).Update(
+		db.Worker.GroupKeyRuns.Link(
+			db.GetGroupKeyRun.ID.Equals(getGroupKeyRunId),
+		),
+	).Tx()
+
+	tx2 := w.client.GetGroupKeyRun.FindUnique(
+		db.GetGroupKeyRun.ID.Equals(getGroupKeyRunId),
+	).Update(
+		db.GetGroupKeyRun.Status.Set(db.StepRunStatusAssigned),
+	).Tx()
+
+	err := w.client.Prisma.Transaction(tx1, tx2).Exec(context.Background())
+
+	return err
+}
