@@ -5,7 +5,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "!**/*.test.js",
+    "!**/*.test.d.ts"
   ],
   "repository": {
     "type": "git",
