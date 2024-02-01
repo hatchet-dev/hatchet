@@ -17,7 +17,7 @@ import { JobRunColumns, columns } from './components/job-runs-columns';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { RunStatus } from '../components/run-statuses';
 import { ColumnDef } from '@tanstack/react-table';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Code } from '@/components/ui/code';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
@@ -25,7 +25,6 @@ import WorkflowRunVisualizer from './components/workflow-run-visualizer';
 
 export default function ExpandedWorkflowRun() {
   const [expandedStepRuns, setExpandedStepRuns] = useState<string[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
 
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
@@ -47,18 +46,6 @@ export default function ExpandedWorkflowRun() {
       }
     },
   });
-
-  useEffect(() => {
-    if (
-      runQuery.data?.status != 'SUCCEEDED' &&
-      runQuery.data?.status != 'FAILED' &&
-      runQuery.data?.status != 'CANCELLED'
-    ) {
-      setIsRunning(true);
-    } else {
-      setIsRunning(false);
-    }
-  }, [runQuery.data]);
 
   if (runQuery.isLoading || !runQuery.data) {
     return <Loading />;
