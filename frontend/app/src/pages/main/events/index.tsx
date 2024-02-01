@@ -156,6 +156,7 @@ function EventsTable() {
       limit: pageSize,
       search,
     }),
+    refetchInterval: 800,
   });
 
   const replayEventsMutation = useMutation({
@@ -337,9 +338,12 @@ function EventDataSection({ event }: { event: Event }) {
 
   return (
     <>
-      <Code language="json" className="my-4" maxHeight="400px">
-        {JSON.stringify(JSON.parse(eventData.data), null, 2)}
-      </Code>
+      <Code
+        language="json"
+        className="my-4"
+        maxHeight="400px"
+        code={JSON.stringify(JSON.parse(eventData.data), null, 2)}
+      />
     </>
   );
 }

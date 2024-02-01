@@ -724,6 +724,7 @@ func defaultWorkflowVersionPopulator() []db.WorkflowVersionRelationWith {
 		db.WorkflowVersion.Jobs.Fetch().With(
 			db.Job.Steps.Fetch().With(
 				db.Step.Action.Fetch(),
+				db.Step.Parents.Fetch(),
 			),
 		),
 		db.WorkflowVersion.Scheduled.Fetch().With(

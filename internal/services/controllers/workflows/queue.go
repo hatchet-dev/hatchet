@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
@@ -369,7 +370,8 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 		row := runningWorkflowRuns.Rows[i]
 
 		errGroup.Go(func() error {
-			return wc.cancelWorkflowRun(tenantId, row.WorkflowRun.ID)
+			workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
+			return wc.cancelWorkflowRun(tenantId, workflowRunId)
 		})
 	}
 
@@ -387,7 +389,8 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 		row := queuedWorkflowRuns.Rows[i]
 
 		errGroup.Go(func() error {
-			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(tenantId, row.WorkflowRun.ID)
+			workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
+			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(tenantId, workflowRunId)
 
 			if err != nil {
 				return fmt.Errorf("could not get workflow run: %w", err)

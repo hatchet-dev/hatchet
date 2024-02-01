@@ -11,6 +11,8 @@ WorkflowRun:
       $ref: "./_index.yaml#/WorkflowVersion"
     status:
       $ref: "#/WorkflowRunStatus"
+    displayName:
+      type: string
     jobRuns:
       type: array
       items:
@@ -182,15 +184,23 @@ StepRun:
     startedAt:
       type: string
       format: date-time
+    startedAtEpoch:
+      type: integer
     finishedAt:
       type: string
       format: date-time
+    finishedAtEpoch:
+      type: integer
     timeoutAt:
       type: string
       format: date-time
+    timeoutAtEpoch:
+      type: integer
     cancelledAt:
       type: string
       format: date-time
+    cancelledAtEpoch:
+      type: integer
     cancelledReason:
       type: string
     cancelledError:
