@@ -134,11 +134,26 @@ func runCreateCloudKMSJWTKeyset() error {
 		return err
 	}
 
-	fmt.Println("Private EC256 Keyset:")
-	fmt.Println(string(privateEc256))
+	if encryptionKeyDir != "" {
+		// we write these as .key files so that they're gitignored by default
+		err = os.WriteFile(encryptionKeyDir+"/private_ec256.key", privateEc256, 0600)
 
-	fmt.Println("Public EC256 Keyset:")
-	fmt.Println(string(publicEc256))
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(encryptionKeyDir+"/public_ec256.key", publicEc256, 0600)
+
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("Private EC256 Keyset:")
+		fmt.Println(string(privateEc256))
+
+		fmt.Println("Public EC256 Keyset:")
+		fmt.Println(string(publicEc256))
+	}
 
 	return nil
 }

@@ -75,6 +75,13 @@ func (w *workflowRunRepository) ListWorkflowRuns(tenantId string, opts *reposito
 		countParams.WorkflowId = pgWorkflowId
 	}
 
+	if opts.WorkflowVersionId != nil {
+		pgWorkflowVersionId := sqlchelpers.UUIDFromStr(*opts.WorkflowVersionId)
+
+		queryParams.WorkflowVersionId = pgWorkflowVersionId
+		countParams.WorkflowVersionId = pgWorkflowVersionId
+	}
+
 	if opts.EventId != nil {
 		pgEventId := sqlchelpers.UUIDFromStr(*opts.EventId)
 
@@ -82,8 +89,33 @@ func (w *workflowRunRepository) ListWorkflowRuns(tenantId string, opts *reposito
 		countParams.EventId = pgEventId
 	}
 
+	if opts.GroupKey != nil {
+		queryParams.GroupKey = sqlchelpers.TextFromStr(*opts.GroupKey)
+		countParams.GroupKey = sqlchelpers.TextFromStr(*opts.GroupKey)
+	}
+
+	if opts.Status != nil {
+		var status dbsqlc.NullWorkflowRunStatus
+
+		if err := status.Scan(string(*opts.Status)); err != nil {
+			return nil, err
+		}
+
+		queryParams.Status = status
+		countParams.Status = status
+	}
+
 	orderByField := "createdAt"
+
+	if opts.OrderBy != nil {
+		orderByField = *opts.OrderBy
+	}
+
 	orderByDirection := "DESC"
+
+	if opts.OrderDirection != nil {
+		orderByDirection = *opts.OrderDirection
+	}
 
 	queryParams.Orderby = orderByField + " " + orderByDirection
 
@@ -198,11 +230,30 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 			return nil, err
 		}
 
+		requeueAfter := time.Now().UTC().Add(5 * time.Second)
+
+		if opts.GetGroupKeyRun != nil {
+			params := dbsqlc.CreateGetGroupKeyRunParams{
+				Tenantid:      pgTenantId,
+				Workflowrunid: sqlcWorkflowRun.ID,
+				Input:         opts.GetGroupKeyRun.Input,
+				Requeueafter:  sqlchelpers.TimestampFromTime(requeueAfter),
+			}
+
+			_, err = w.queries.CreateGetGroupKeyRun(
+				tx1Ctx,
+				tx,
+				params,
+			)
+
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		// create the child jobs
 		for _, jobOpts := range opts.JobRuns {
 			jobRunId := uuid.New().String()
-
-			requeueAfter := time.Now().UTC().Add(5 * time.Second)
 
 			if jobOpts.RequeueAfter != nil {
 				requeueAfter = *jobOpts.RequeueAfter
@@ -321,7 +372,11 @@ func defaultWorkflowRunPopulator() []db.WorkflowRunRelationWith {
 	return []db.WorkflowRunRelationWith{
 		db.WorkflowRun.WorkflowVersion.Fetch().With(
 			db.WorkflowVersion.Workflow.Fetch(),
+			db.WorkflowVersion.Concurrency.Fetch().With(
+				db.WorkflowConcurrency.GetConcurrencyGroup.Fetch(),
+			),
 		),
+		db.WorkflowRun.GetGroupKeyRun.Fetch(),
 		db.WorkflowRun.TriggeredBy.Fetch().With(
 			db.WorkflowRunTriggeredBy.Event.Fetch(),
 			db.WorkflowRunTriggeredBy.Cron.Fetch(),

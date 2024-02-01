@@ -102,6 +102,16 @@ func (t *tickerRepository) AddStepRun(tickerId, stepRunId string) (*db.TickerMod
 	).Exec(context.Background())
 }
 
+func (t *tickerRepository) AddGetGroupKeyRun(tickerId, getGroupKeyRunId string) (*db.TickerModel, error) {
+	return t.client.Ticker.FindUnique(
+		db.Ticker.ID.Equals(tickerId),
+	).Update(
+		db.Ticker.GroupKeyRuns.Link(
+			db.GetGroupKeyRun.ID.Equals(getGroupKeyRunId),
+		),
+	).Exec(context.Background())
+}
+
 func (t *tickerRepository) AddCron(tickerId string, cron *db.WorkflowTriggerCronRefModel) (*db.TickerModel, error) {
 	return t.client.Ticker.FindUnique(
 		db.Ticker.ID.Equals(tickerId),

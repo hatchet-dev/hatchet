@@ -1,9 +1,8 @@
-package eventscontroller
+package events
 
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -156,11 +155,7 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *db.Even
 	}
 
 	// create a new workflow run in the database
-	var (
-		g       = new(errgroup.Group)
-		mu      = &sync.Mutex{}
-		jobRuns = make([]*db.JobRunModel, 0)
-	)
+	var g = new(errgroup.Group)
 
 	for _, workflow := range workflows {
 		workflowCp := workflow
@@ -179,32 +174,17 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *db.Even
 				return fmt.Errorf("could not create workflow run: %w", err)
 			}
 
-			for _, jobRun := range workflowRun.JobRuns() {
-				jobRunCp := jobRun
-				mu.Lock()
-				jobRuns = append(jobRuns, &jobRunCp)
-				mu.Unlock()
-			}
-
-			return nil
+			// send to workflow processing queue
+			return ec.tq.AddTask(
+				context.Background(),
+				taskqueue.WORKFLOW_PROCESSING_QUEUE,
+				tasktypes.WorkflowRunQueuedToTask(workflowRun),
+			)
 		})
 	}
 
 	if err := g.Wait(); err != nil {
 		return err
-	}
-
-	// send jobs to the job processing queue
-	for i := range jobRuns {
-		err = ec.tq.AddTask(
-			context.Background(),
-			taskqueue.JOB_PROCESSING_QUEUE,
-			tasktypes.JobRunQueuedToTask(jobRuns[i].Job(), jobRuns[i]),
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not add event to task queue: %w", err)
-		}
 	}
 
 	return nil

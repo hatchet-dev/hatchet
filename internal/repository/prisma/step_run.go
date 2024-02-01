@@ -109,6 +109,12 @@ func (s *stepRunRepository) ListStepRuns(tenantId string, opts *repository.ListS
 		params = append(params, db.StepRun.JobRunID.Equals(*opts.JobRunId))
 	}
 
+	if opts.WorkflowRunId != nil {
+		params = append(params, db.StepRun.JobRun.Where(
+			db.JobRun.WorkflowRunID.Equals(*opts.WorkflowRunId),
+		))
+	}
+
 	return s.client.StepRun.FindMany(
 		params...,
 	).With(

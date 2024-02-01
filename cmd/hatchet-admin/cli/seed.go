@@ -139,6 +139,9 @@ func seedDev(repo repository.Repository, tenantId string) error {
 					Name: "Preview",
 				},
 			},
+			Concurrency: &repository.CreateWorkflowConcurrencyOpts{
+				Action: "test:concurrency",
+			},
 			Jobs: []repository.CreateWorkflowJobOpts{
 				{
 					Name: "job-name",

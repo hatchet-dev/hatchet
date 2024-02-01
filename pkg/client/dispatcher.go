@@ -22,7 +22,9 @@ import (
 type DispatcherClient interface {
 	GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, error)
 
-	SendActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
+	SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
+
+	SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 }
 
 const (
@@ -43,8 +45,9 @@ type ActionPayload func(target interface{}) error
 type ActionType string
 
 const (
-	ActionTypeStartStepRun  ActionType = "START_STEP_RUN"
-	ActionTypeCancelStepRun ActionType = "CANCEL_STEP_RUN"
+	ActionTypeStartStepRun     ActionType = "START_STEP_RUN"
+	ActionTypeCancelStepRun    ActionType = "CANCEL_STEP_RUN"
+	ActionTypeStartGetGroupKey ActionType = "START_GET_GROUP_KEY"
 )
 
 type Action struct {
@@ -53,6 +56,12 @@ type Action struct {
 
 	// the tenant id
 	TenantId string
+
+	// the workflow run id
+	WorkflowRunId string
+
+	// the get group key run id
+	GetGroupKeyRunId string
 
 	// the job id
 	JobId string
@@ -245,6 +254,8 @@ func (a *actionListenerImpl) Actions(ctx context.Context, errCh chan<- error) (<
 				actionType = ActionTypeStartStepRun
 			case dispatchercontracts.ActionType_CANCEL_STEP_RUN:
 				actionType = ActionTypeCancelStepRun
+			case dispatchercontracts.ActionType_START_GET_GROUP_KEY:
+				actionType = ActionTypeStartGetGroupKey
 			default:
 				a.l.Error().Msgf("Unknown action type: %s", assignedAction.ActionType)
 				continue
@@ -255,21 +266,22 @@ func (a *actionListenerImpl) Actions(ctx context.Context, errCh chan<- error) (<
 			unquoted, err := strconv.Unquote(assignedAction.ActionPayload)
 
 			if err != nil {
-				a.l.Err(err).Msgf("Error unquoting payload for action: %s", assignedAction.ActionType)
-				continue
+				unquoted = assignedAction.ActionPayload
 			}
 
 			ch <- &Action{
-				TenantId:      assignedAction.TenantId,
-				WorkerId:      a.workerId,
-				JobId:         assignedAction.JobId,
-				JobName:       assignedAction.JobName,
-				JobRunId:      assignedAction.JobRunId,
-				StepId:        assignedAction.StepId,
-				StepRunId:     assignedAction.StepRunId,
-				ActionId:      assignedAction.ActionId,
-				ActionType:    actionType,
-				ActionPayload: []byte(unquoted),
+				TenantId:         assignedAction.TenantId,
+				WorkflowRunId:    assignedAction.WorkflowRunId,
+				GetGroupKeyRunId: assignedAction.GetGroupKeyRunId,
+				WorkerId:         a.workerId,
+				JobId:            assignedAction.JobId,
+				JobName:          assignedAction.JobName,
+				JobRunId:         assignedAction.JobRunId,
+				StepId:           assignedAction.StepId,
+				StepRunId:        assignedAction.StepRunId,
+				ActionId:         assignedAction.ActionId,
+				ActionType:       actionType,
+				ActionPayload:    []byte(unquoted),
 			}
 		}
 	}()
@@ -320,7 +332,7 @@ func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetAc
 	return d.newActionListener(ctx, req)
 }
 
-func (d *dispatcherClientImpl) SendActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error) {
+func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error) {
 	// validate the request
 	if err := d.v.Validate(in); err != nil {
 		return nil, err
@@ -332,20 +344,20 @@ func (d *dispatcherClientImpl) SendActionEvent(ctx context.Context, in *ActionEv
 		return nil, err
 	}
 
-	var actionEventType dispatchercontracts.ActionEventType
+	var actionEventType dispatchercontracts.StepActionEventType
 
 	switch in.EventType {
 	case ActionEventTypeStarted:
-		actionEventType = dispatchercontracts.ActionEventType_STEP_EVENT_TYPE_STARTED
+		actionEventType = dispatchercontracts.StepActionEventType_STEP_EVENT_TYPE_STARTED
 	case ActionEventTypeCompleted:
-		actionEventType = dispatchercontracts.ActionEventType_STEP_EVENT_TYPE_COMPLETED
+		actionEventType = dispatchercontracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED
 	case ActionEventTypeFailed:
-		actionEventType = dispatchercontracts.ActionEventType_STEP_EVENT_TYPE_FAILED
+		actionEventType = dispatchercontracts.StepActionEventType_STEP_EVENT_TYPE_FAILED
 	default:
-		actionEventType = dispatchercontracts.ActionEventType_STEP_EVENT_TYPE_UNKNOWN
+		actionEventType = dispatchercontracts.StepActionEventType_STEP_EVENT_TYPE_UNKNOWN
 	}
 
-	resp, err := d.client.SendActionEvent(d.ctx.newContext(ctx), &dispatchercontracts.ActionEvent{
+	resp, err := d.client.SendStepActionEvent(d.ctx.newContext(ctx), &dispatchercontracts.StepActionEvent{
 		WorkerId:       in.WorkerId,
 		JobId:          in.JobId,
 		JobRunId:       in.JobRunId,
@@ -355,6 +367,51 @@ func (d *dispatcherClientImpl) SendActionEvent(ctx context.Context, in *ActionEv
 		EventTimestamp: timestamppb.New(*in.EventTimestamp),
 		EventType:      actionEventType,
 		EventPayload:   string(payloadBytes),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &ActionEventResponse{
+		TenantId: resp.TenantId,
+		WorkerId: resp.WorkerId,
+	}, nil
+}
+
+func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error) {
+	// validate the request
+	if err := d.v.Validate(in); err != nil {
+		return nil, err
+	}
+
+	payloadBytes, err := json.Marshal(in.EventPayload)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var actionEventType dispatchercontracts.GroupKeyActionEventType
+
+	switch in.EventType {
+	case ActionEventTypeStarted:
+		actionEventType = dispatchercontracts.GroupKeyActionEventType_GROUP_KEY_EVENT_TYPE_STARTED
+	case ActionEventTypeCompleted:
+		actionEventType = dispatchercontracts.GroupKeyActionEventType_GROUP_KEY_EVENT_TYPE_COMPLETED
+	case ActionEventTypeFailed:
+		actionEventType = dispatchercontracts.GroupKeyActionEventType_GROUP_KEY_EVENT_TYPE_FAILED
+	default:
+		actionEventType = dispatchercontracts.GroupKeyActionEventType_GROUP_KEY_EVENT_TYPE_UNKNOWN
+	}
+
+	resp, err := d.client.SendGroupKeyActionEvent(d.ctx.newContext(ctx), &dispatchercontracts.GroupKeyActionEvent{
+		WorkerId:         in.WorkerId,
+		WorkflowRunId:    in.WorkflowRunId,
+		GetGroupKeyRunId: in.GetGroupKeyRunId,
+		ActionId:         in.ActionId,
+		EventTimestamp:   timestamppb.New(*in.EventTimestamp),
+		EventType:        actionEventType,
+		EventPayload:     string(payloadBytes),
 	})
 
 	if err != nil {

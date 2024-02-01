@@ -1,5 +1,5 @@
 import { HatchetClient } from '@clients/hatchet-client';
-import { ActionEventType, ActionType, AssignedAction } from '@protoc/dispatcher';
+import { ActionEventType, ActionType, AssignedAction } from '@hatchet/protoc/dispatcher';
 import { ActionListener } from '@clients/dispatcher/action-listener';
 import { ServerError, Status } from 'nice-grpc-common';
 import { mockListener } from '@clients/dispatcher/action-listener.test';

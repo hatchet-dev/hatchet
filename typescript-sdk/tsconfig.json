@@ -1,5 +1,5 @@
 {
-  "include": ["hatchet/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["./dist"],
   "compilerOptions": {
     /* Visit https://aka.ms/tsconfig to read more about this file */
@@ -30,14 +30,13 @@
     "module": "commonjs" /* Specify what module code is generated. */,
     // "rootDir": "./",                                  /* Specify the root folder within your source files. */
     // "moduleResolution": "node10",                     /* Specify how TypeScript looks up a file from a given module specifier. */
-    "baseUrl": "./" /* Specify the base directory to resolve non-relative module names. */,
+    "baseUrl": "." /* Specify the base directory to resolve non-relative module names. */,
     "paths": {
       // NOTE: also set in jest.config.ts
-      "@hatchet*": ["./hatchet*"],
-      "@protoc/*": ["./protoc/*"],
-      "@util/*": ["./hatchet/util/*"],
-      "@models/*": ["./hatchet/models/*"],
-      "@clients/*": ["./hatchet/clients/*"],
+      "@hatchet/*": ["./src/*"],
+      "@util/*": ["./src/util/*"],
+      "@models/*": ["./src/models/*"],
+      "@clients/*": ["./src/clients/*"],
     } /* Specify a set of entries that re-map imports to additional lookup locations. */,
     // "rootDirs": [],                                   /* Allow multiple folders to be treated as one when resolving modules. */
     // "typeRoots": [],                                  /* Specify multiple folders that act like './node_modules/@types'. */

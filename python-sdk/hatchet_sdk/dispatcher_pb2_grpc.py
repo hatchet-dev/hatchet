@@ -23,9 +23,14 @@ class DispatcherStub(object):
                 request_serializer=dispatcher__pb2.WorkerListenRequest.SerializeToString,
                 response_deserializer=dispatcher__pb2.AssignedAction.FromString,
                 )
-        self.SendActionEvent = channel.unary_unary(
-                '/Dispatcher/SendActionEvent',
-                request_serializer=dispatcher__pb2.ActionEvent.SerializeToString,
+        self.SendStepActionEvent = channel.unary_unary(
+                '/Dispatcher/SendStepActionEvent',
+                request_serializer=dispatcher__pb2.StepActionEvent.SerializeToString,
+                response_deserializer=dispatcher__pb2.ActionEventResponse.FromString,
+                )
+        self.SendGroupKeyActionEvent = channel.unary_unary(
+                '/Dispatcher/SendGroupKeyActionEvent',
+                request_serializer=dispatcher__pb2.GroupKeyActionEvent.SerializeToString,
                 response_deserializer=dispatcher__pb2.ActionEventResponse.FromString,
                 )
         self.Unsubscribe = channel.unary_unary(
@@ -50,7 +55,13 @@ class DispatcherServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def SendActionEvent(self, request, context):
+    def SendStepActionEvent(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SendGroupKeyActionEvent(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -75,9 +86,14 @@ def add_DispatcherServicer_to_server(servicer, server):
                     request_deserializer=dispatcher__pb2.WorkerListenRequest.FromString,
                     response_serializer=dispatcher__pb2.AssignedAction.SerializeToString,
             ),
-            'SendActionEvent': grpc.unary_unary_rpc_method_handler(
-                    servicer.SendActionEvent,
-                    request_deserializer=dispatcher__pb2.ActionEvent.FromString,
+            'SendStepActionEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendStepActionEvent,
+                    request_deserializer=dispatcher__pb2.StepActionEvent.FromString,
+                    response_serializer=dispatcher__pb2.ActionEventResponse.SerializeToString,
+            ),
+            'SendGroupKeyActionEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendGroupKeyActionEvent,
+                    request_deserializer=dispatcher__pb2.GroupKeyActionEvent.FromString,
                     response_serializer=dispatcher__pb2.ActionEventResponse.SerializeToString,
             ),
             'Unsubscribe': grpc.unary_unary_rpc_method_handler(
@@ -130,7 +146,7 @@ class Dispatcher(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def SendActionEvent(request,
+    def SendStepActionEvent(request,
             target,
             options=(),
             channel_credentials=None,
@@ -140,8 +156,25 @@ class Dispatcher(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/Dispatcher/SendActionEvent',
-            dispatcher__pb2.ActionEvent.SerializeToString,
+        return grpc.experimental.unary_unary(request, target, '/Dispatcher/SendStepActionEvent',
+            dispatcher__pb2.StepActionEvent.SerializeToString,
+            dispatcher__pb2.ActionEventResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def SendGroupKeyActionEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/Dispatcher/SendGroupKeyActionEvent',
+            dispatcher__pb2.GroupKeyActionEvent.SerializeToString,
             dispatcher__pb2.ActionEventResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

@@ -1,5 +1,5 @@
 # relative imports
-from ..dispatcher_pb2 import ActionEvent, ActionEventResponse, ActionType, AssignedAction, WorkerListenRequest, WorkerRegisterRequest, WorkerUnsubscribeRequest, WorkerRegisterResponse
+from ..dispatcher_pb2 import GroupKeyActionEvent, StepActionEvent, ActionEventResponse, ActionType, AssignedAction, WorkerListenRequest, WorkerRegisterRequest, WorkerUnsubscribeRequest, WorkerRegisterResponse
 from ..dispatcher_pb2_grpc import DispatcherStub
 
 import time
@@ -21,7 +21,7 @@ class DispatcherClient:
     def get_action_listener(self, ctx, req):
         raise NotImplementedError
 
-    def send_action_event(self, ctx, in_):
+    def send_step_action_event(self, ctx, in_):
         raise NotImplementedError
 
 DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 1  # seconds
@@ -36,8 +36,10 @@ class GetActionListenerRequest:
         self.actions = actions
 
 class Action:
-    def __init__(self, worker_id: str, tenant_id: str, job_id: str, job_name: str, job_run_id: str, step_id: str, step_run_id: str, action_id: str, action_payload: str, action_type: ActionType):
+    def __init__(self, worker_id: str, tenant_id: str, workflow_run_id: str, get_group_key_run_id: str, job_id: str, job_name: str, job_run_id: str, step_id: str, step_run_id: str, action_id: str, action_payload: str, action_type: ActionType):
         self.worker_id = worker_id
+        self.workflow_run_id = workflow_run_id
+        self.get_group_key_run_id = get_group_key_run_id
         self.tenant_id = tenant_id
         self.job_id = job_id
         self.job_name = job_name
@@ -55,9 +57,9 @@ class WorkerActionListener:
     def unregister(self):
         raise NotImplementedError
 
-# enum for START_STEP_RUN and CANCEL_STEP_RUN
 START_STEP_RUN = 0
 CANCEL_STEP_RUN = 1
+START_GET_GROUP_KEY = 2
 
 class ActionListenerImpl(WorkerActionListener):
     def __init__(self, client : DispatcherStub, token, worker_id):
@@ -88,6 +90,8 @@ class ActionListenerImpl(WorkerActionListener):
                     action = Action(
                         tenant_id=assigned_action.tenantId,
                         worker_id=self.worker_id,
+                        workflow_run_id=assigned_action.workflowRunId,
+                        get_group_key_run_id=assigned_action.getGroupKeyRunId,
                         job_id=assigned_action.jobId,
                         job_name=assigned_action.jobName,
                         job_run_id=assigned_action.jobRunId,
@@ -132,6 +136,8 @@ class ActionListenerImpl(WorkerActionListener):
             return START_STEP_RUN
         elif action_type == ActionType.CANCEL_STEP_RUN:
             return CANCEL_STEP_RUN
+        elif action_type == ActionType.START_GET_GROUP_KEY:
+            return START_GET_GROUP_KEY
         else:
             # self.logger.error(f"Unknown action type: {action_type}")
             return None
@@ -180,8 +186,13 @@ class DispatcherClientImpl(DispatcherClient):
 
         return ActionListenerImpl(self.client, self.token, response.workerId)
 
-    def send_action_event(self, in_: ActionEvent):
-        response : ActionEventResponse = self.client.SendActionEvent(in_, metadata=get_metadata(self.token),)
+    def send_step_action_event(self, in_: StepActionEvent):
+        response : ActionEventResponse = self.client.SendStepActionEvent(in_, metadata=get_metadata(self.token),)
+
+        return response
+    
+    def send_group_key_action_event(self, in_: GroupKeyActionEvent):
+        response : ActionEventResponse = self.client.SendGroupKeyActionEvent(in_, metadata=get_metadata(self.token),)
 
         return response
 

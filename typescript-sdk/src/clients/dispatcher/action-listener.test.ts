@@ -1,4 +1,4 @@
-import { ActionType, AssignedAction } from '@protoc/dispatcher';
+import { ActionType, AssignedAction } from '@hatchet/protoc/dispatcher';
 import sleep from '@util/sleep';
 import { ServerError, Status } from 'nice-grpc-common';
 import { DispatcherClient } from './dispatcher-client';

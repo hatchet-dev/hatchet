@@ -50,6 +50,15 @@ type StepRunRequeueTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
+type StepRunNotifyCancelTaskPayload struct {
+	StepRunId       string `json:"step_run_id" validate:"required,uuid"`
+	CancelledReason string `json:"cancelled_reason" validate:"required"`
+}
+
+type StepRunNotifyCancelTaskMetadata struct {
+	TenantId string `json:"tenant_id" validate:"required,uuid"`
+}
+
 type StepRunStartedTaskPayload struct {
 	StepRunId string `json:"step_run_id" validate:"required,uuid"`
 	StartedAt string `json:"started_at" validate:"required"`

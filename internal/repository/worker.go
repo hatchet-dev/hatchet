@@ -66,4 +66,7 @@ type WorkerRepository interface {
 
 	// AddStepRun assigns a step run to a worker.
 	AddStepRun(tenantId, workerId, stepRunId string) error
+
+	// AddGetGroupKeyRun assigns a get group key run to a worker.
+	AddGetGroupKeyRun(tenantId, workerId, getGroupKeyRunId string) error
 }

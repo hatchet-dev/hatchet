@@ -31,6 +31,7 @@ type TickerImpl struct {
 	scheduledWorkflows sync.Map
 	jobRuns            sync.Map
 	stepRuns           sync.Map
+	getGroupKeyRuns    sync.Map
 
 	dv datautils.DataDecoderValidator
 
@@ -147,6 +148,17 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 	_, err = t.s.NewJob(
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
+			t.runGetGroupKeyRunRequeue(ctx),
+		),
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not schedule get group key run requeue: %w", err)
+	}
+
+	_, err = t.s.NewJob(
+		gocron.DurationJob(time.Second*5),
+		gocron.NewTask(
 			t.runUpdateHeartbeat(ctx),
 		),
 	)
@@ -198,6 +210,10 @@ func (t *TickerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error
 		return t.handleScheduleStepRunTimeout(ctx, task)
 	case "cancel-step-run-timeout":
 		return t.handleCancelStepRunTimeout(ctx, task)
+	case "schedule-get-group-key-run-timeout":
+		return t.handleScheduleGetGroupKeyRunTimeout(ctx, task)
+	case "cancel-get-group-key-run-timeout":
+		return t.handleCancelGetGroupKeyRunTimeout(ctx, task)
 	case "schedule-job-run-timeout":
 		return t.handleScheduleJobRunTimeout(ctx, task)
 	case "cancel-job-run-timeout":
@@ -242,6 +258,34 @@ func (t *TickerImpl) runStepRunRequeue(ctx context.Context) func() {
 
 			if err != nil {
 				t.l.Err(err).Msg("could not add step run requeue task")
+			}
+		}
+	}
+}
+
+func (t *TickerImpl) runGetGroupKeyRunRequeue(ctx context.Context) func() {
+	return func() {
+		t.l.Debug().Msgf("ticker: checking get group key run requeue")
+
+		// list all tenants
+		tenants, err := t.repo.Tenant().ListTenants()
+
+		if err != nil {
+			t.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		for i := range tenants {
+			t.l.Debug().Msgf("adding get group key run requeue task for tenant %s", tenants[i].ID)
+
+			err := t.tq.AddTask(
+				ctx,
+				taskqueue.WORKFLOW_PROCESSING_QUEUE,
+				tasktypes.TenantToGroupKeyActionRequeueTask(tenants[i]),
+			)
+
+			if err != nil {
+				t.l.Err(err).Msg("could not add get group key run requeue task")
 			}
 		}
 	}

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/steebchen/prisma-client-go/runtime/types"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -67,6 +69,67 @@ func (worker *subscribedWorker) StartStepRun(
 		ActionType:    contracts.ActionType_START_STEP_RUN,
 		ActionId:      stepRun.Step().ActionID,
 		ActionPayload: string(inputBytes),
+	})
+}
+
+func (worker *subscribedWorker) StartGroupKeyAction(
+	ctx context.Context,
+	tenantId string,
+	workflowRun *db.WorkflowRunModel,
+) error {
+	ctx, span := telemetry.NewSpan(ctx, "start-group-key-action")
+	defer span.End()
+
+	inputBytes := []byte{}
+
+	concurrency, ok := workflowRun.WorkflowVersion().Concurrency()
+
+	if !ok {
+		return fmt.Errorf("could not get concurrency for workflow version %s", workflowRun.WorkflowVersionID)
+	}
+
+	concurrencyFn, ok := concurrency.GetConcurrencyGroup()
+
+	if !ok {
+		return fmt.Errorf("could not get concurrency group for workflow version %s", workflowRun.WorkflowVersionID)
+	}
+
+	// get the input from the workflow run
+	triggeredBy, ok := workflowRun.TriggeredBy()
+
+	if !ok {
+		return fmt.Errorf("could not get triggered by from workflow run %s", workflowRun.ID)
+	}
+
+	var inputData types.JSON
+
+	if event, ok := triggeredBy.Event(); ok {
+		inputData, _ = event.Data()
+	} else if schedule, ok := triggeredBy.Scheduled(); ok {
+		inputData, _ = schedule.Input()
+	} else if cron, ok := triggeredBy.Cron(); ok {
+		inputData, _ = cron.Input()
+	}
+
+	inputBytes, err := inputData.MarshalJSON()
+
+	if err != nil {
+		return err
+	}
+
+	getGroupKeyRun, ok := workflowRun.GetGroupKeyRun()
+
+	if !ok {
+		return fmt.Errorf("could not get get group key run for workflow run %s", workflowRun.ID)
+	}
+
+	return worker.stream.Send(&contracts.AssignedAction{
+		TenantId:         tenantId,
+		WorkflowRunId:    workflowRun.ID,
+		GetGroupKeyRunId: getGroupKeyRun.ID,
+		ActionType:       contracts.ActionType_START_GET_GROUP_KEY,
+		ActionId:         concurrencyFn.ActionID,
+		ActionPayload:    string(inputBytes),
 	})
 }
 
@@ -213,16 +276,27 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	}
 }
 
-func (s *DispatcherImpl) SendActionEvent(ctx context.Context, request *contracts.ActionEvent) (*contracts.ActionEventResponse, error) {
-	// TODO: auth checks to make sure the worker is allowed to send an action event for this tenant
-
+func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	switch request.EventType {
-	case contracts.ActionEventType_STEP_EVENT_TYPE_STARTED:
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
 		return s.handleStepRunStarted(ctx, request)
-	case contracts.ActionEventType_STEP_EVENT_TYPE_COMPLETED:
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
 		return s.handleStepRunCompleted(ctx, request)
-	case contracts.ActionEventType_STEP_EVENT_TYPE_FAILED:
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
 		return s.handleStepRunFailed(ctx, request)
+	}
+
+	return nil, fmt.Errorf("unknown event type %s", request.EventType)
+}
+
+func (s *DispatcherImpl) SendGroupKeyActionEvent(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
+	switch request.EventType {
+	case contracts.GroupKeyActionEventType_GROUP_KEY_EVENT_TYPE_STARTED:
+		return s.handleGetGroupKeyRunStarted(ctx, request)
+	case contracts.GroupKeyActionEventType_GROUP_KEY_EVENT_TYPE_COMPLETED:
+		return s.handleGetGroupKeyRunCompleted(ctx, request)
+	case contracts.GroupKeyActionEventType_GROUP_KEY_EVENT_TYPE_FAILED:
+		return s.handleGetGroupKeyRunFailed(ctx, request)
 	}
 
 	return nil, fmt.Errorf("unknown event type %s", request.EventType)
@@ -246,7 +320,7 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 	}, nil
 }
 
-func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *contracts.ActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := ctx.Value("tenant").(*db.TenantModel)
 
 	s.l.Debug().Msgf("Received step started event for step run %s", request.StepRunId)
@@ -280,7 +354,7 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 	}, nil
 }
 
-func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *contracts.ActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := ctx.Value("tenant").(*db.TenantModel)
 
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
@@ -315,7 +389,7 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 	}, nil
 }
 
-func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contracts.ActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := ctx.Value("tenant").(*db.TenantModel)
 
 	s.l.Debug().Msgf("Received step failed event for step run %s", request.StepRunId)
@@ -336,6 +410,110 @@ func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contr
 	err := s.tq.AddTask(ctx, taskqueue.JOB_PROCESSING_QUEUE, &taskqueue.Task{
 		ID:       "step-run-failed",
 		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
+		Payload:  payload,
+		Metadata: metadata,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenant.ID,
+		WorkerId: request.WorkerId,
+	}, nil
+}
+
+func (s *DispatcherImpl) handleGetGroupKeyRunStarted(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
+	s.l.Debug().Msgf("Received step started event for step run %s", request.GetGroupKeyRunId)
+
+	startedAt := request.EventTimestamp.AsTime()
+
+	payload, _ := datautils.ToJSONMap(tasktypes.GetGroupKeyRunStartedTaskPayload{
+		GetGroupKeyRunId: request.GetGroupKeyRunId,
+		StartedAt:        startedAt.Format(time.RFC3339),
+	})
+
+	metadata, _ := datautils.ToJSONMap(tasktypes.GetGroupKeyRunStartedTaskMetadata{
+		TenantId: tenant.ID,
+	})
+
+	// send the event to the jobs queue
+	err := s.tq.AddTask(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE, &taskqueue.Task{
+		ID:       "get-group-key-run-started",
+		Queue:    taskqueue.WORKFLOW_PROCESSING_QUEUE,
+		Payload:  payload,
+		Metadata: metadata,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenant.ID,
+		WorkerId: request.WorkerId,
+	}, nil
+}
+
+func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
+	s.l.Debug().Msgf("Received step completed event for step run %s", request.GetGroupKeyRunId)
+
+	finishedAt := request.EventTimestamp.AsTime()
+
+	payload, _ := datautils.ToJSONMap(tasktypes.GetGroupKeyRunFinishedTaskPayload{
+		GetGroupKeyRunId: request.GetGroupKeyRunId,
+		FinishedAt:       finishedAt.Format(time.RFC3339),
+		GroupKey:         request.EventPayload,
+	})
+
+	metadata, _ := datautils.ToJSONMap(tasktypes.GetGroupKeyRunFinishedTaskMetadata{
+		TenantId: tenant.ID,
+	})
+
+	// send the event to the jobs queue
+	err := s.tq.AddTask(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE, &taskqueue.Task{
+		ID:       "get-group-key-run-finished",
+		Queue:    taskqueue.WORKFLOW_PROCESSING_QUEUE,
+		Payload:  payload,
+		Metadata: metadata,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenant.ID,
+		WorkerId: request.WorkerId,
+	}, nil
+}
+
+func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
+	s.l.Debug().Msgf("Received step failed event for step run %s", request.GetGroupKeyRunId)
+
+	failedAt := request.EventTimestamp.AsTime()
+
+	payload, _ := datautils.ToJSONMap(tasktypes.GetGroupKeyRunFailedTaskPayload{
+		GetGroupKeyRunId: request.GetGroupKeyRunId,
+		FailedAt:         failedAt.Format(time.RFC3339),
+		Error:            request.EventPayload,
+	})
+
+	metadata, _ := datautils.ToJSONMap(tasktypes.GetGroupKeyRunFailedTaskMetadata{
+		TenantId: tenant.ID,
+	})
+
+	// send the event to the jobs queue
+	err := s.tq.AddTask(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE, &taskqueue.Task{
+		ID:       "get-group-key-run-failed",
+		Queue:    taskqueue.WORKFLOW_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	})
