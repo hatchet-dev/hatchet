@@ -6,10 +6,10 @@ stepsType = List[Tuple[str, Callable[..., Any]]]
 
 class WorkflowMeta(type):
     def __new__(cls, name, bases, attrs):
-        serviceName = "default"
+        serviceName = name.lower()
 
-        concurrencyActions: stepsType = [(name.lower() + "-" + func_name, attrs.pop(func_name)) for func_name, func in list(attrs.items()) if hasattr(func, '_concurrency_fn_name')]
-        steps: stepsType = [(name.lower() + "-" + func_name, attrs.pop(func_name)) for func_name, func in list(attrs.items()) if hasattr(func, '_step_name')]
+        concurrencyActions: stepsType = [(func_name, attrs.pop(func_name)) for func_name, func in list(attrs.items()) if hasattr(func, '_concurrency_fn_name')]
+        steps: stepsType = [(func_name, attrs.pop(func_name)) for func_name, func in list(attrs.items()) if hasattr(func, '_step_name')]
 
         # Define __init__ and get_step_order methods
         original_init = attrs.get('__init__')  # Get the original __init__ if it exists
@@ -45,14 +45,13 @@ class WorkflowMeta(type):
         createStepOpts: List[CreateWorkflowStepOpts] = [
             CreateWorkflowStepOpts(
                 readable_id=func_name,
-                action="default:" + func_name,
+                action=serviceName + ":" + func_name,
                 timeout=func._step_timeout or "60s",
                 inputs='{}',
-                parents=[x for x in func._step_parents]  # Assuming this is how you get the parents
+                parents=[x for x in func._step_parents]
             ) 
             for func_name, func in attrs.items() if hasattr(func, '_step_name')
         ]
-
 
         concurrency : WorkflowConcurrencyOpts | None = None
 
@@ -60,7 +59,7 @@ class WorkflowMeta(type):
             action = concurrencyActions[0]
 
             concurrency = WorkflowConcurrencyOpts(
-                action="default:" + action[0],
+                action=serviceName + ":" + action[0],
                 max_runs=action[1]._concurrency_max_runs,
             )
 

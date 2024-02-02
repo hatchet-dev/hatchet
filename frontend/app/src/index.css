@@ -78,3 +78,75 @@
 body {
   height: 100vh;
 }
+
+.step-run-card {
+  --transition: 0.25s;
+  --spark: 3s;
+  display: grid;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1000px 0 0 hsl(217.2 32.6% 17.5%) inset;
+  transition: box-shadow var(--transition), background var(--transition),
+    transform var(--transition);
+}
+
+.step-run-card.active .step-run-backdrop {
+  background: 222.2 84% 4.9%;
+}
+
+.step-run-card.active {
+  transform: scale(1.05);
+}
+
+.spark {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  rotate: 0deg;
+  overflow: hidden;
+  mask: linear-gradient(white, transparent 50%);
+  animation: flip calc(var(--spark) * 2) infinite steps(2, end);
+}
+
+@keyframes flip {
+  to {
+    rotate: 360deg;
+  }
+}
+
+.spark:before {
+  content: "";
+  position: absolute;
+  width: 200%;
+  aspect-ratio: 1;
+  inset: 0 auto auto 50%;
+  z-index: -1;
+  translate: -50% -15%;
+  rotate: 0;
+  transform: rotate(-90deg);
+  opacity: 1;
+  background: conic-gradient(from 0deg, transparent 0 340deg, white 360deg);
+  transition: opacity var(--transition);
+  animation: rotate var(--spark) linear infinite both;
+}
+
+.step-run-backdrop {
+  position: absolute;
+  inset: 1px;
+  background: 222.2 84% 4.9%;
+  border-radius: 10px;
+  transition: background var(--transition) opacity var(--transition);
+}
+
+@keyframes rotate {
+  to {
+    transform: rotate(90deg);
+  }
+}
+
+.text {
+  z-index: 1;
+  color: rgb(203 213 225);
+}
+

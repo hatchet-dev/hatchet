@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -27,7 +28,7 @@ var keysetCreateLocalKeysetsCmd = &cobra.Command{
 		err := runCreateLocalKeysets()
 
 		if err != nil {
-			fmt.Printf("Fatal: could not run [keyset create-local-keys] command: %v\n", err)
+			log.Printf("Fatal: could not run [keyset create-local-keys] command: %v", err)
 			os.Exit(1)
 		}
 	},
@@ -40,7 +41,7 @@ var keysetCreateCloudKMSJWTCmd = &cobra.Command{
 		err := runCreateCloudKMSJWTKeyset()
 
 		if err != nil {
-			fmt.Printf("Fatal: could not run [keyset create-cloudkms-jwt] command: %v\n", err)
+			log.Printf("Fatal: could not run [keyset create-cloudkms-jwt] command: %v", err)
 			os.Exit(1)
 		}
 	},

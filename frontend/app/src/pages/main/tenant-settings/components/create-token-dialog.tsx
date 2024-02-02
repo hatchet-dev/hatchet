@@ -55,10 +55,9 @@ export function CreateTokenDialog({
           className="text-sm"
           wrapLines={false}
           maxWidth={'calc(700px - 4rem)'}
+          code={token}
           copy
-        >
-          {token}
-        </Code>
+        />
       </DialogContent>
     );
   }

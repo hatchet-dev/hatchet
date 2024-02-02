@@ -515,10 +515,12 @@ enum WorkflowRunStatus {
 
 model WorkflowRun {
   // base fields
-  id        String    @id @default(uuid())
+  id        String    @id @unique @default(uuid()) @db.Uuid
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
+
+  displayName String?
 
   // the parent tenant
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -546,9 +548,6 @@ model WorkflowRun {
 
   // the run finished at
   finishedAt DateTime?
-
-  // workflow run ids are unique per tenant
-  @@unique([tenantId, id])
 }
 
 model GetGroupKeyRun {
@@ -563,8 +562,8 @@ model GetGroupKeyRun {
   tenantId String @db.Uuid
 
   // the parent workflow run
-  workflowRun   WorkflowRun @relation(fields: [tenantId, workflowRunId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
-  workflowRunId String
+  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workflowRunId String      @unique @db.Uuid
 
   // the worker assigned to this group key run
   worker   Worker? @relation(fields: [workerId], references: [id])
@@ -606,8 +605,6 @@ model GetGroupKeyRun {
 
   // errors while cancelling the run
   cancelledError String?
-
-  @@unique([tenantId, workflowRunId])
 }
 
 model WorkflowRunTriggeredBy {
@@ -622,7 +619,7 @@ model WorkflowRunTriggeredBy {
 
   // the parent workflow run
   parent   WorkflowRun @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  parentId String      @unique
+  parentId String      @unique @db.Uuid
 
   // the parent event
   event   Event?  @relation(fields: [eventId], references: [id])
@@ -636,8 +633,6 @@ model WorkflowRunTriggeredBy {
   // a specific time that triggered this workflow
   scheduled   WorkflowTriggerScheduledRef? @relation(fields: [scheduledId], references: [id])
   scheduledId String?                      @unique @db.Uuid
-
-  @@unique([tenantId, parentId])
 }
 
 enum JobRunStatus {
@@ -661,7 +656,7 @@ model JobRun {
 
   // the parent workflow run
   workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workflowRunId String
+  workflowRunId String      @db.Uuid
 
   // the parent job
   job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)

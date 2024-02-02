@@ -72,6 +72,16 @@ tasks:
     cmds:
       - npx --yes prisma migrate diff --from-empty --to-schema-datasource prisma/schema.prisma --script > internal/repository/prisma/dbsqlc/schema.sql
       - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0 generate --file internal/repository/prisma/dbsqlc/sqlc.yaml
+  lint:
+    cmds:
+      - task: lint-go
+      - task: lint-frontend
+  lint-go:
+    cmds:
+      - golangci-lint run ./... --config .golangci.yml
+  lint-frontend:
+    cmds:
+      - cd frontend/app/ && pnpm run lint:check
   kill-query-engines:
     cmds:
       - ps -A | grep 'prisma-query-engine-darwin-arm64' | grep -v grep | awk '{print $1}' | xargs kill -9 $1

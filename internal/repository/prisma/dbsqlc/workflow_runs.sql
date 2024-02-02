@@ -170,6 +170,7 @@ INSERT INTO "WorkflowRun" (
     "createdAt",
     "updatedAt",
     "deletedAt",
+    "displayName",
     "tenantId",
     "workflowVersionId",
     "status",
@@ -181,6 +182,7 @@ INSERT INTO "WorkflowRun" (
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
     NULL, -- assuming deletedAt is not set on creation
+    sqlc.narg('displayName')::text,
     @tenantId::uuid,
     @workflowVersionId::uuid,
     'PENDING', -- default status
@@ -207,7 +209,7 @@ INSERT INTO "WorkflowRunTriggeredBy" (
     CURRENT_TIMESTAMP,
     NULL, -- assuming deletedAt is not set on creation
     @tenantId::uuid,
-    @workflowRunId::text, -- assuming parentId is the workflowRunId
+    @workflowRunId::uuid, -- assuming parentId is the workflowRunId
     sqlc.narg('eventId')::uuid, -- NULL if not provided
     sqlc.narg('cronParentId')::uuid, -- NULL if not provided
     sqlc.narg('cron')::text, -- NULL if not provided
@@ -241,7 +243,7 @@ INSERT INTO "GetGroupKeyRun" (
     CURRENT_TIMESTAMP,
     NULL,
     @tenantId::uuid,
-    @workflowRunId::text,
+    @workflowRunId::uuid,
     NULL,
     NULL,
     'PENDING', -- default status
@@ -281,7 +283,7 @@ INSERT INTO "JobRun" (
     CURRENT_TIMESTAMP,
     NULL,
     @tenantId::uuid,
-    @workflowRunId::text,
+    @workflowRunId::uuid,
     @jobId::uuid,
     NULL,
     'PENDING', -- default status
