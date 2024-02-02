@@ -27,7 +27,6 @@ func WorkflowRunQueuedToTask(workflowRun *db.WorkflowRunModel) *taskqueue.Task {
 
 	return &taskqueue.Task{
 		ID:       "workflow-run-queued",
-		Queue:    taskqueue.WORKFLOW_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}

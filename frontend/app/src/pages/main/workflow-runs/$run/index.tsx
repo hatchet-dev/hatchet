@@ -18,10 +18,11 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { RunStatus } from '../components/run-statuses';
 import { ColumnDef } from '@tanstack/react-table';
 import { useState } from 'react';
-import { Code } from '@/components/ui/code';
+import { CodeEditor } from '@/components/ui/code-editor';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import WorkflowRunVisualizer from './components/workflow-run-visualizer';
+import { StepInputOutputSection } from './components/step-run-input-output';
 
 export default function ExpandedWorkflowRun() {
   const [expandedStepRuns, setExpandedStepRuns] = useState<string[]>([]);
@@ -215,46 +216,9 @@ function getExpandedStepRunRow({
       <TableCell colSpan={columns.length} className="px-8 py-4">
         <StepStatusSection stepRun={stepRun} />
         <StepConfigurationSection stepRun={stepRun} />
-        <StepInputSection stepRun={stepRun} />
-        <StepOutputSection stepRun={stepRun} />
+        <StepInputOutputSection stepRun={stepRun} />
       </TableCell>
     </TableRow>
-  );
-}
-
-function StepInputSection({ stepRun }: { stepRun: StepRun }) {
-  const input = stepRun.input || '{}';
-
-  return (
-    <>
-      <h3 className="font-semibold leading-tight text-foreground mb-4">
-        Input
-      </h3>
-      <Code
-        language="json"
-        className="my-4"
-        maxHeight="400px"
-        code={JSON.stringify(JSON.parse(input), null, 2)}
-      />
-    </>
-  );
-}
-
-function StepOutputSection({ stepRun }: { stepRun: StepRun }) {
-  const output = stepRun.output || '{}';
-
-  return (
-    <>
-      <h3 className="font-semibold leading-tight text-foreground mb-4">
-        Output
-      </h3>
-      <Code
-        language="json"
-        className="my-4"
-        maxHeight="400px"
-        code={JSON.stringify(JSON.parse(output), null, 2)}
-      />
-    </>
   );
 }
 
@@ -350,10 +314,10 @@ function EventDataSection({ event }: { event: Event }) {
 
   return (
     <>
-      <Code
+      <CodeEditor
         language="json"
         className="my-4"
-        maxHeight="400px"
+        height="400px"
         code={JSON.stringify(JSON.parse(eventData.data), null, 2)}
       />
     </>
@@ -371,7 +335,7 @@ function TriggeringCronSection({ cron }: { cron: string }) {
         Triggered by Cron
       </h3>
       <div className="text-sm text-muted-foreground">{prettyInterval}</div>
-      <Code language="typescript" className="my-4" code={cron} />
+      <CodeEditor language="typescript" className="my-4" code={cron} />
     </>
   );
 }

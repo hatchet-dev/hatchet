@@ -456,7 +456,6 @@ func getGroupActionTask(tenantId, workflowRunId string, worker *db.WorkerModel) 
 
 	return &taskqueue.Task{
 		ID:       "group-key-action-assigned",
-		Queue:    taskqueue.QueueTypeFromDispatcherID(dispatcher.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}
@@ -474,7 +473,6 @@ func getStepRunNotifyCancelTask(tenantId, stepRunId, reason string) *taskqueue.T
 
 	return &taskqueue.Task{
 		ID:       "step-run-cancelled",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}
@@ -504,7 +502,6 @@ func scheduleGetGroupKeyRunTimeoutTask(ticker *db.TickerModel, getGroupKeyRun *d
 
 	return &taskqueue.Task{
 		ID:       "schedule-get-group-key-run-timeout",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil

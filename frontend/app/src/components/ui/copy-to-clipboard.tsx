@@ -17,9 +17,11 @@ const CopyToClipboard: React.FC<Props> = ({ text, className, withText }) => {
     <Button
       className={cn(
         className,
-        withText ? 'w-6 h-6 p-0 cursor-pointer' : 'cursor-pointer',
+        withText
+          ? 'cursor-pointer flex flex-row gap-2 items-center mt-2'
+          : 'w-6 h-6 p-0 cursor-pointer',
       )}
-      variant="ghost"
+      variant={withText ? 'default' : 'ghost'}
       onClick={() => {
         navigator.clipboard.writeText(text);
         setSuccessCopy(true);
@@ -34,7 +36,7 @@ const CopyToClipboard: React.FC<Props> = ({ text, className, withText }) => {
       ) : (
         <CopyIcon className="w-4 h-4" />
       )}
-      {withText && (successCopy ? 'Copied' : 'Copy')}
+      {withText && (successCopy ? 'Copied' : 'Copy to clipboard')}
     </Button>
   );
 };

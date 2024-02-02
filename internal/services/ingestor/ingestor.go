@@ -150,7 +150,6 @@ func eventToTask(e *db.EventModel) *taskqueue.Task {
 
 	return &taskqueue.Task{
 		ID:       "event",
-		Queue:    taskqueue.EVENT_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}

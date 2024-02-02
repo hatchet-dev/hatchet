@@ -70,7 +70,6 @@ func tickerRemoved(tickerId string) *taskqueue.Task {
 
 	return &taskqueue.Task{
 		ID:       "ticker-removed",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}
@@ -161,7 +160,6 @@ func cronScheduleTask(tickerId string, cronTriggerRef *db.WorkflowTriggerCronRef
 
 	return &taskqueue.Task{
 		ID:       "schedule-cron",
-		Queue:    taskqueue.QueueTypeFromTickerID(tickerId),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -180,7 +178,6 @@ func workflowScheduleTask(tickerId string, workflowTriggerRef *db.WorkflowTrigge
 
 	return &taskqueue.Task{
 		ID:       "schedule-workflow",
-		Queue:    taskqueue.QueueTypeFromTickerID(tickerId),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil

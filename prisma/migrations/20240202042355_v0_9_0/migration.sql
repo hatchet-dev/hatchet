@@ -44,7 +44,8 @@ ADD COLUMN     "id" UUID NOT NULL,
 ADD CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id");
 
 -- AlterTable
-ALTER TABLE "WorkflowRunTriggeredBy" DROP COLUMN "parentId",
+ALTER TABLE "WorkflowRunTriggeredBy" ADD COLUMN     "input" JSONB,
+DROP COLUMN "parentId",
 ADD COLUMN     "parentId" UUID NOT NULL;
 
 -- CreateIndex
