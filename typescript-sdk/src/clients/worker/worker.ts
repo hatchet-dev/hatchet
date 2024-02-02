@@ -85,8 +85,6 @@ export class Worker {
   handleStartStepRun(action: Action) {
     const { actionId } = action;
 
-    console.log;
-
     const context = new Context(action.actionPayload);
     this.contexts[action.stepRunId] = context;
 
@@ -310,8 +308,6 @@ export class Worker {
         this.logger.info(`Worker ${this.name} listening for actions`);
 
         for await (const action of generator) {
-          console.log('action', action);
-
           this.logger.info(`Worker ${this.name} received action ${action.actionId}`);
 
           if (action.actionType === ActionType.START_STEP_RUN) {

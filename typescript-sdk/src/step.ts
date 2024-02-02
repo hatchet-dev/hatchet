@@ -20,7 +20,6 @@ export class Context<T = unknown> {
   data: ContextData<T>;
   constructor(payload: string) {
     try {
-      console.log('payload', payload);
       this.data = JSON.parse(JSON.parse(payload));
     } catch (e: any) {
       throw new HatchetError(`Could not parse payload: ${e.message}`);
