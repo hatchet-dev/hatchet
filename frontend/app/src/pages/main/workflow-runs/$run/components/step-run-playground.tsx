@@ -1,4 +1,3 @@
-import { Code } from '@/components/ui/code';
 import {
   Dialog,
   DialogContent,
@@ -7,9 +6,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { StepRun, StepRunStatus } from '@/lib/api';
-import { useEffect, useState } from 'react';
 import { RunStatus } from '../../components/run-statuses';
 import { getTiming } from './step-run-node';
+import { StepInputOutputSection } from './step-run-input-output';
 
 export function StepRunPlayground({
   stepRun,
@@ -18,20 +17,6 @@ export function StepRunPlayground({
   stepRun: StepRun | null;
   setStepRun: (stepRun: StepRun | null) => void;
 }) {
-  const originalInput = JSON.stringify(
-    JSON.parse(stepRun?.input || '{}'),
-    null,
-    2,
-  );
-
-  const output = JSON.stringify(JSON.parse(stepRun?.output || '{}'), null, 2);
-
-  const [stepInput, setStepInput] = useState(originalInput);
-
-  useEffect(() => {
-    setStepInput(JSON.stringify(JSON.parse(stepRun?.input || '{}'), null, 2));
-  }, [stepRun]);
-
   return (
     <Dialog
       open={!!stepRun}
@@ -45,9 +30,7 @@ export function StepRunPlayground({
         <DialogHeader>
           <div className="flex flex-row justify-between items-center">
             <DialogTitle>
-              {'Coding Assistant' ||
-                stepRun?.step?.readableId ||
-                stepRun?.metadata.id}
+              {stepRun?.step?.readableId || stepRun?.metadata.id}
             </DialogTitle>
             <RunStatus status={stepRun?.status || StepRunStatus.PENDING} />
           </div>
@@ -73,25 +56,7 @@ export function StepRunPlayground({
             Rerun Step
           </Button> */}
         </div>
-        {stepInput && (
-          <Code
-            language="json"
-            copy={true}
-            code={stepInput}
-            setCode={setStepInput}
-            wrapLines={false}
-            className="max-w-full"
-          />
-        )}
-        <div className="font-bold">Output</div>
-        <Code
-          language="json"
-          code={output}
-          copy={true}
-          maxHeight="300px"
-          wrapLines={true}
-          className="max-w-full"
-        />
+        {stepRun && <StepInputOutputSection stepRun={stepRun} />}
       </DialogContent>
     </Dialog>
   );

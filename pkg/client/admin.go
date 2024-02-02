@@ -18,12 +18,13 @@ import (
 type AdminClient interface {
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
+
+	// RunWorkflow triggers a workflow run and returns the run id
+	RunWorkflow(workflowName string, input interface{}) (string, error)
 }
 
 type adminClientImpl struct {
 	client admincontracts.WorkflowServiceClient
-
-	tenantId string
 
 	l *zerolog.Logger
 
@@ -34,11 +35,10 @@ type adminClientImpl struct {
 
 func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts) AdminClient {
 	return &adminClientImpl{
-		client:   admincontracts.NewWorkflowServiceClient(conn),
-		tenantId: opts.tenantId,
-		l:        opts.l,
-		v:        opts.v,
-		ctx:      opts.ctxLoader,
+		client: admincontracts.NewWorkflowServiceClient(conn),
+		l:      opts.l,
+		v:      opts.v,
+		ctx:    opts.ctxLoader,
 	}
 }
 
@@ -139,6 +139,25 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 	}
 
 	return nil
+}
+
+func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}) (string, error) {
+	inputBytes, err := json.Marshal(input)
+
+	if err != nil {
+		return "", fmt.Errorf("could not marshal input: %w", err)
+	}
+
+	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.TriggerWorkflowRequest{
+		Name:  workflowName,
+		Input: string(inputBytes),
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("could not trigger workflow: %w", err)
+	}
+
+	return res.WorkflowRunId, nil
 }
 
 func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontracts.PutWorkflowRequest, error) {

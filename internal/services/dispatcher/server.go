@@ -276,6 +276,56 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	}
 }
 
+// SubscribeToWorkflowEvents registers workflow events with the dispatcher
+func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
+	tenant := stream.Context().Value("tenant").(*db.TenantModel)
+
+	s.l.Debug().Msgf("Received subscribe request for workflow: %s", request.WorkflowRunId)
+
+	q, err := taskqueue.TenantEventConsumerQueue(tenant.ID)
+
+	if err != nil {
+		return err
+	}
+
+	ctx := stream.Context()
+
+	// subscribe to the task queue for the tenant
+	taskChan, err := s.tq.Subscribe(ctx, q)
+
+	if err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			// drain the existing connections
+			return nil
+		case task := <-taskChan:
+			go func(task *taskqueue.Task) {
+				e, err := s.tenantTaskToWorkflowEvent(task, tenant.ID, request.WorkflowRunId)
+
+				if err != nil {
+					s.l.Error().Err(err).Msgf("could not convert task to workflow event")
+					return
+				} else if e == nil {
+					return
+				}
+
+				fmt.Println("<><><> SENDING TASK!!", e)
+
+				// send the task to the client
+				err = stream.Send(e)
+
+				if err != nil {
+					s.l.Error().Err(err).Msgf("could not send workflow event to client")
+				}
+			}(task)
+		}
+	}
+}
+
 func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	switch request.EventType {
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
@@ -339,7 +389,6 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 	// send the event to the jobs queue
 	err := s.tq.AddTask(ctx, taskqueue.JOB_PROCESSING_QUEUE, &taskqueue.Task{
 		ID:       "step-run-started",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	})
@@ -374,7 +423,6 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 	// send the event to the jobs queue
 	err := s.tq.AddTask(ctx, taskqueue.JOB_PROCESSING_QUEUE, &taskqueue.Task{
 		ID:       "step-run-finished",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	})
@@ -409,7 +457,6 @@ func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contr
 	// send the event to the jobs queue
 	err := s.tq.AddTask(ctx, taskqueue.JOB_PROCESSING_QUEUE, &taskqueue.Task{
 		ID:       "step-run-failed",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	})
@@ -443,7 +490,6 @@ func (s *DispatcherImpl) handleGetGroupKeyRunStarted(ctx context.Context, reques
 	// send the event to the jobs queue
 	err := s.tq.AddTask(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE, &taskqueue.Task{
 		ID:       "get-group-key-run-started",
-		Queue:    taskqueue.WORKFLOW_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	})
@@ -478,7 +524,6 @@ func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(ctx context.Context, requ
 	// send the event to the jobs queue
 	err := s.tq.AddTask(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE, &taskqueue.Task{
 		ID:       "get-group-key-run-finished",
-		Queue:    taskqueue.WORKFLOW_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	})
@@ -513,7 +558,6 @@ func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request
 	// send the event to the jobs queue
 	err := s.tq.AddTask(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE, &taskqueue.Task{
 		ID:       "get-group-key-run-failed",
-		Queue:    taskqueue.WORKFLOW_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	})
@@ -526,4 +570,57 @@ func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request
 		TenantId: tenant.ID,
 		WorkerId: request.WorkerId,
 	}, nil
+}
+
+func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *taskqueue.Task, tenantId, workflowRunId string) (*contracts.WorkflowEvent, error) {
+	// TODO: eventually process workflows as well, this is just steps
+	workflowEvent := &contracts.WorkflowEvent{
+		ResourceType: contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
+	}
+
+	var stepRunId string
+
+	switch task.ID {
+	case "step-run-started":
+		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceId = stepRunId
+		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STARTED
+	case "step-run-finished":
+		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceId = stepRunId
+		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
+		workflowEvent.EventPayload = task.Payload["step_output_data"].(string)
+	case "step-run-failed":
+		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceId = stepRunId
+		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED
+		workflowEvent.EventPayload = task.Payload["error"].(string)
+	case "step-run-cancelled":
+		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceId = stepRunId
+		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED
+	case "step-run-timed-out":
+		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceId = stepRunId
+		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_TIMED_OUT
+	}
+
+	if stepRunId == "" {
+		// expected because not all tasks have step run ids
+		return nil, nil
+	}
+
+	// determine if this step run matches the workflow run id
+	stepRun, err := s.repo.StepRun().GetStepRunById(tenantId, stepRunId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if stepRun.JobRun().WorkflowRunID != workflowRunId {
+		// this is an expected error, so we don't return it
+		return nil, nil
+	}
+
+	return workflowEvent, nil
 }

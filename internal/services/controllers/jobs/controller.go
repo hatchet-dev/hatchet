@@ -146,7 +146,7 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Ta
 		return ec.handleTickerRemoved(ctx, task)
 	}
 
-	return fmt.Errorf("unknown task: %s in queue %s", task.ID, string(task.Queue))
+	return fmt.Errorf("unknown task: %s", task.ID)
 }
 
 func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *taskqueue.Task) error {
@@ -1052,7 +1052,6 @@ func stepRunAssignedTask(tenantId, stepRunId string, worker *db.WorkerModel) *ta
 
 	return &taskqueue.Task{
 		ID:       "step-run-assigned",
-		Queue:    taskqueue.QueueTypeFromDispatcherID(dispatcher.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}
@@ -1090,7 +1089,6 @@ func scheduleStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel
 
 	return &taskqueue.Task{
 		ID:       "schedule-step-run-timeout",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -1127,7 +1125,6 @@ func scheduleJobRunTimeoutTask(ticker *db.TickerModel, jobRun *db.JobRunModel) (
 
 	return &taskqueue.Task{
 		ID:       "schedule-job-run-timeout",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -1144,7 +1141,6 @@ func cancelStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel) 
 
 	return &taskqueue.Task{
 		ID:       "cancel-step-run-timeout",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}
@@ -1166,7 +1162,6 @@ func stepRunCancelledTask(tenantId, stepRunId, cancelledReason string, worker *d
 
 	return &taskqueue.Task{
 		ID:       "step-run-cancelled",
-		Queue:    taskqueue.QueueTypeFromDispatcherID(dispatcher.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}

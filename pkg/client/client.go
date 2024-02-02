@@ -18,6 +18,7 @@ type Client interface {
 	Admin() AdminClient
 	Dispatcher() DispatcherClient
 	Event() EventClient
+	Run() RunClient
 }
 
 type clientImpl struct {
@@ -26,6 +27,7 @@ type clientImpl struct {
 	admin      AdminClient
 	dispatcher DispatcherClient
 	event      EventClient
+	run        RunClient
 
 	// the tenant id
 	tenantId string
@@ -147,6 +149,7 @@ func New(fs ...ClientOpt) (Client, error) {
 	admin := newAdmin(conn, shared)
 	dispatcher := newDispatcher(conn, shared)
 	event := newEvent(conn, shared)
+	run := newRun(conn, shared)
 
 	// if init workflows is set, then we need to initialize the workflows
 	if opts.initWorkflows {
@@ -161,6 +164,7 @@ func New(fs ...ClientOpt) (Client, error) {
 		l:          opts.l,
 		admin:      admin,
 		dispatcher: dispatcher,
+		run:        run,
 		event:      event,
 		v:          opts.v,
 	}, nil
@@ -176,6 +180,10 @@ func (c *clientImpl) Dispatcher() DispatcherClient {
 
 func (c *clientImpl) Event() EventClient {
 	return c.event
+}
+
+func (c *clientImpl) Run() RunClient {
+	return c.run
 }
 
 func initWorkflows(fl filesLoaderFunc, adminClient AdminClient) error {

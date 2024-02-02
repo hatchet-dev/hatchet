@@ -232,7 +232,7 @@ func (t *TickerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error
 		return t.handleCancelWorkflow(ctx, task)
 	}
 
-	return fmt.Errorf("unknown task: %s in queue %s", task.ID, string(task.Queue))
+	return fmt.Errorf("unknown task: %s", task.ID)
 }
 
 func (t *TickerImpl) runStepRunRequeue(ctx context.Context) func() {
@@ -317,7 +317,6 @@ func tickerRemoved(tickerId string) *taskqueue.Task {
 
 	return &taskqueue.Task{
 		ID:       "ticker-removed",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}
