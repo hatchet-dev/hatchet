@@ -28,7 +28,8 @@
     "exec": "npx dotenv -- ts-node -r tsconfig-paths/register --project tsconfig.json",
     "example:event": "npm run exec -- ./examples/example-event.ts",
     "worker:simple": "npm run exec -- ./examples/simple-worker.ts",
-    "worker:dag": "npm run exec -- ./examples/dag-worker.ts"
+    "worker:dag": "npm run exec -- ./examples/dag-worker.ts",
+    "worker:concurrency": "npm run exec -- ./examples/concurrency-worker.ts"
   },
   "keywords": [],
   "author": "",

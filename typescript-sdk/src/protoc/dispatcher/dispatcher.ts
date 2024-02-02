@@ -8,6 +8,7 @@ export const protobufPackage = "";
 export enum ActionType {
   START_STEP_RUN = 0,
   CANCEL_STEP_RUN = 1,
+  START_GET_GROUP_KEY = 2,
   UNRECOGNIZED = -1,
 }
 
@@ -19,6 +20,9 @@ export function actionTypeFromJSON(object: any): ActionType {
     case 1:
     case "CANCEL_STEP_RUN":
       return ActionType.CANCEL_STEP_RUN;
+    case 2:
+    case "START_GET_GROUP_KEY":
+      return ActionType.START_GET_GROUP_KEY;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -32,13 +36,60 @@ export function actionTypeToJSON(object: ActionType): string {
       return "START_STEP_RUN";
     case ActionType.CANCEL_STEP_RUN:
       return "CANCEL_STEP_RUN";
+    case ActionType.START_GET_GROUP_KEY:
+      return "START_GET_GROUP_KEY";
     case ActionType.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
   }
 }
 
-export enum ActionEventType {
+export enum GroupKeyActionEventType {
+  GROUP_KEY_EVENT_TYPE_UNKNOWN = 0,
+  GROUP_KEY_EVENT_TYPE_STARTED = 1,
+  GROUP_KEY_EVENT_TYPE_COMPLETED = 2,
+  GROUP_KEY_EVENT_TYPE_FAILED = 3,
+  UNRECOGNIZED = -1,
+}
+
+export function groupKeyActionEventTypeFromJSON(object: any): GroupKeyActionEventType {
+  switch (object) {
+    case 0:
+    case "GROUP_KEY_EVENT_TYPE_UNKNOWN":
+      return GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_UNKNOWN;
+    case 1:
+    case "GROUP_KEY_EVENT_TYPE_STARTED":
+      return GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_STARTED;
+    case 2:
+    case "GROUP_KEY_EVENT_TYPE_COMPLETED":
+      return GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_COMPLETED;
+    case 3:
+    case "GROUP_KEY_EVENT_TYPE_FAILED":
+      return GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_FAILED;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return GroupKeyActionEventType.UNRECOGNIZED;
+  }
+}
+
+export function groupKeyActionEventTypeToJSON(object: GroupKeyActionEventType): string {
+  switch (object) {
+    case GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_UNKNOWN:
+      return "GROUP_KEY_EVENT_TYPE_UNKNOWN";
+    case GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_STARTED:
+      return "GROUP_KEY_EVENT_TYPE_STARTED";
+    case GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_COMPLETED:
+      return "GROUP_KEY_EVENT_TYPE_COMPLETED";
+    case GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_FAILED:
+      return "GROUP_KEY_EVENT_TYPE_FAILED";
+    case GroupKeyActionEventType.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
+export enum StepActionEventType {
   STEP_EVENT_TYPE_UNKNOWN = 0,
   STEP_EVENT_TYPE_STARTED = 1,
   STEP_EVENT_TYPE_COMPLETED = 2,
@@ -46,38 +97,38 @@ export enum ActionEventType {
   UNRECOGNIZED = -1,
 }
 
-export function actionEventTypeFromJSON(object: any): ActionEventType {
+export function stepActionEventTypeFromJSON(object: any): StepActionEventType {
   switch (object) {
     case 0:
     case "STEP_EVENT_TYPE_UNKNOWN":
-      return ActionEventType.STEP_EVENT_TYPE_UNKNOWN;
+      return StepActionEventType.STEP_EVENT_TYPE_UNKNOWN;
     case 1:
     case "STEP_EVENT_TYPE_STARTED":
-      return ActionEventType.STEP_EVENT_TYPE_STARTED;
+      return StepActionEventType.STEP_EVENT_TYPE_STARTED;
     case 2:
     case "STEP_EVENT_TYPE_COMPLETED":
-      return ActionEventType.STEP_EVENT_TYPE_COMPLETED;
+      return StepActionEventType.STEP_EVENT_TYPE_COMPLETED;
     case 3:
     case "STEP_EVENT_TYPE_FAILED":
-      return ActionEventType.STEP_EVENT_TYPE_FAILED;
+      return StepActionEventType.STEP_EVENT_TYPE_FAILED;
     case -1:
     case "UNRECOGNIZED":
     default:
-      return ActionEventType.UNRECOGNIZED;
+      return StepActionEventType.UNRECOGNIZED;
   }
 }
 
-export function actionEventTypeToJSON(object: ActionEventType): string {
+export function stepActionEventTypeToJSON(object: StepActionEventType): string {
   switch (object) {
-    case ActionEventType.STEP_EVENT_TYPE_UNKNOWN:
+    case StepActionEventType.STEP_EVENT_TYPE_UNKNOWN:
       return "STEP_EVENT_TYPE_UNKNOWN";
-    case ActionEventType.STEP_EVENT_TYPE_STARTED:
+    case StepActionEventType.STEP_EVENT_TYPE_STARTED:
       return "STEP_EVENT_TYPE_STARTED";
-    case ActionEventType.STEP_EVENT_TYPE_COMPLETED:
+    case StepActionEventType.STEP_EVENT_TYPE_COMPLETED:
       return "STEP_EVENT_TYPE_COMPLETED";
-    case ActionEventType.STEP_EVENT_TYPE_FAILED:
+    case StepActionEventType.STEP_EVENT_TYPE_FAILED:
       return "STEP_EVENT_TYPE_FAILED";
-    case ActionEventType.UNRECOGNIZED:
+    case StepActionEventType.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
   }
@@ -104,6 +155,10 @@ export interface WorkerRegisterResponse {
 export interface AssignedAction {
   /** the tenant id */
   tenantId: string;
+  /** the workflow run id (optional) */
+  workflowRunId: string;
+  /** the get group key run id (optional) */
+  getGroupKeyRunId: string;
   /** the job id */
   jobId: string;
   /** the job name */
@@ -139,7 +194,24 @@ export interface WorkerUnsubscribeResponse {
   workerId: string;
 }
 
-export interface ActionEvent {
+export interface GroupKeyActionEvent {
+  /** the id of the worker */
+  workerId: string;
+  /** the id of the job */
+  workflowRunId: string;
+  getGroupKeyRunId: string;
+  /** the action id */
+  actionId: string;
+  eventTimestamp:
+    | Date
+    | undefined;
+  /** the step event type */
+  eventType: GroupKeyActionEventType;
+  /** the event payload */
+  eventPayload: string;
+}
+
+export interface StepActionEvent {
   /** the id of the worker */
   workerId: string;
   /** the id of the job */
@@ -156,7 +228,7 @@ export interface ActionEvent {
     | Date
     | undefined;
   /** the step event type */
-  eventType: ActionEventType;
+  eventType: StepActionEventType;
   /** the event payload */
   eventPayload: string;
 }
@@ -349,6 +421,8 @@ export const WorkerRegisterResponse = {
 function createBaseAssignedAction(): AssignedAction {
   return {
     tenantId: "",
+    workflowRunId: "",
+    getGroupKeyRunId: "",
     jobId: "",
     jobName: "",
     jobRunId: "",
@@ -365,29 +439,35 @@ export const AssignedAction = {
     if (message.tenantId !== "") {
       writer.uint32(10).string(message.tenantId);
     }
+    if (message.workflowRunId !== "") {
+      writer.uint32(18).string(message.workflowRunId);
+    }
+    if (message.getGroupKeyRunId !== "") {
+      writer.uint32(26).string(message.getGroupKeyRunId);
+    }
     if (message.jobId !== "") {
-      writer.uint32(18).string(message.jobId);
+      writer.uint32(34).string(message.jobId);
     }
     if (message.jobName !== "") {
-      writer.uint32(26).string(message.jobName);
+      writer.uint32(42).string(message.jobName);
     }
     if (message.jobRunId !== "") {
-      writer.uint32(34).string(message.jobRunId);
+      writer.uint32(50).string(message.jobRunId);
     }
     if (message.stepId !== "") {
-      writer.uint32(42).string(message.stepId);
+      writer.uint32(58).string(message.stepId);
     }
     if (message.stepRunId !== "") {
-      writer.uint32(50).string(message.stepRunId);
+      writer.uint32(66).string(message.stepRunId);
     }
     if (message.actionId !== "") {
-      writer.uint32(58).string(message.actionId);
+      writer.uint32(74).string(message.actionId);
     }
     if (message.actionType !== 0) {
-      writer.uint32(64).int32(message.actionType);
+      writer.uint32(80).int32(message.actionType);
     }
     if (message.actionPayload !== "") {
-      writer.uint32(74).string(message.actionPayload);
+      writer.uint32(90).string(message.actionPayload);
     }
     return writer;
   },
@@ -411,52 +491,66 @@ export const AssignedAction = {
             break;
           }
 
-          message.jobId = reader.string();
+          message.workflowRunId = reader.string();
           continue;
         case 3:
           if (tag !== 26) {
             break;
           }
 
-          message.jobName = reader.string();
+          message.getGroupKeyRunId = reader.string();
           continue;
         case 4:
           if (tag !== 34) {
             break;
           }
 
-          message.jobRunId = reader.string();
+          message.jobId = reader.string();
           continue;
         case 5:
           if (tag !== 42) {
             break;
           }
 
-          message.stepId = reader.string();
+          message.jobName = reader.string();
           continue;
         case 6:
           if (tag !== 50) {
             break;
           }
 
-          message.stepRunId = reader.string();
+          message.jobRunId = reader.string();
           continue;
         case 7:
           if (tag !== 58) {
             break;
           }
 
-          message.actionId = reader.string();
+          message.stepId = reader.string();
           continue;
         case 8:
-          if (tag !== 64) {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.stepRunId = reader.string();
+          continue;
+        case 9:
+          if (tag !== 74) {
+            break;
+          }
+
+          message.actionId = reader.string();
+          continue;
+        case 10:
+          if (tag !== 80) {
             break;
           }
 
           message.actionType = reader.int32() as any;
           continue;
-        case 9:
-          if (tag !== 74) {
+        case 11:
+          if (tag !== 90) {
             break;
           }
 
@@ -474,6 +568,8 @@ export const AssignedAction = {
   fromJSON(object: any): AssignedAction {
     return {
       tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
+      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : "",
+      getGroupKeyRunId: isSet(object.getGroupKeyRunId) ? globalThis.String(object.getGroupKeyRunId) : "",
       jobId: isSet(object.jobId) ? globalThis.String(object.jobId) : "",
       jobName: isSet(object.jobName) ? globalThis.String(object.jobName) : "",
       jobRunId: isSet(object.jobRunId) ? globalThis.String(object.jobRunId) : "",
@@ -489,6 +585,12 @@ export const AssignedAction = {
     const obj: any = {};
     if (message.tenantId !== "") {
       obj.tenantId = message.tenantId;
+    }
+    if (message.workflowRunId !== "") {
+      obj.workflowRunId = message.workflowRunId;
+    }
+    if (message.getGroupKeyRunId !== "") {
+      obj.getGroupKeyRunId = message.getGroupKeyRunId;
     }
     if (message.jobId !== "") {
       obj.jobId = message.jobId;
@@ -523,6 +625,8 @@ export const AssignedAction = {
   fromPartial(object: DeepPartial<AssignedAction>): AssignedAction {
     const message = createBaseAssignedAction();
     message.tenantId = object.tenantId ?? "";
+    message.workflowRunId = object.workflowRunId ?? "";
+    message.getGroupKeyRunId = object.getGroupKeyRunId ?? "";
     message.jobId = object.jobId ?? "";
     message.jobName = object.jobName ?? "";
     message.jobRunId = object.jobRunId ?? "";
@@ -723,7 +827,164 @@ export const WorkerUnsubscribeResponse = {
   },
 };
 
-function createBaseActionEvent(): ActionEvent {
+function createBaseGroupKeyActionEvent(): GroupKeyActionEvent {
+  return {
+    workerId: "",
+    workflowRunId: "",
+    getGroupKeyRunId: "",
+    actionId: "",
+    eventTimestamp: undefined,
+    eventType: 0,
+    eventPayload: "",
+  };
+}
+
+export const GroupKeyActionEvent = {
+  encode(message: GroupKeyActionEvent, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.workerId !== "") {
+      writer.uint32(10).string(message.workerId);
+    }
+    if (message.workflowRunId !== "") {
+      writer.uint32(18).string(message.workflowRunId);
+    }
+    if (message.getGroupKeyRunId !== "") {
+      writer.uint32(26).string(message.getGroupKeyRunId);
+    }
+    if (message.actionId !== "") {
+      writer.uint32(34).string(message.actionId);
+    }
+    if (message.eventTimestamp !== undefined) {
+      Timestamp.encode(toTimestamp(message.eventTimestamp), writer.uint32(42).fork()).ldelim();
+    }
+    if (message.eventType !== 0) {
+      writer.uint32(48).int32(message.eventType);
+    }
+    if (message.eventPayload !== "") {
+      writer.uint32(58).string(message.eventPayload);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): GroupKeyActionEvent {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGroupKeyActionEvent();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.workerId = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.workflowRunId = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.getGroupKeyRunId = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.actionId = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.eventTimestamp = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        case 6:
+          if (tag !== 48) {
+            break;
+          }
+
+          message.eventType = reader.int32() as any;
+          continue;
+        case 7:
+          if (tag !== 58) {
+            break;
+          }
+
+          message.eventPayload = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GroupKeyActionEvent {
+    return {
+      workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
+      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : "",
+      getGroupKeyRunId: isSet(object.getGroupKeyRunId) ? globalThis.String(object.getGroupKeyRunId) : "",
+      actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : "",
+      eventTimestamp: isSet(object.eventTimestamp) ? fromJsonTimestamp(object.eventTimestamp) : undefined,
+      eventType: isSet(object.eventType) ? groupKeyActionEventTypeFromJSON(object.eventType) : 0,
+      eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : "",
+    };
+  },
+
+  toJSON(message: GroupKeyActionEvent): unknown {
+    const obj: any = {};
+    if (message.workerId !== "") {
+      obj.workerId = message.workerId;
+    }
+    if (message.workflowRunId !== "") {
+      obj.workflowRunId = message.workflowRunId;
+    }
+    if (message.getGroupKeyRunId !== "") {
+      obj.getGroupKeyRunId = message.getGroupKeyRunId;
+    }
+    if (message.actionId !== "") {
+      obj.actionId = message.actionId;
+    }
+    if (message.eventTimestamp !== undefined) {
+      obj.eventTimestamp = message.eventTimestamp.toISOString();
+    }
+    if (message.eventType !== 0) {
+      obj.eventType = groupKeyActionEventTypeToJSON(message.eventType);
+    }
+    if (message.eventPayload !== "") {
+      obj.eventPayload = message.eventPayload;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<GroupKeyActionEvent>): GroupKeyActionEvent {
+    return GroupKeyActionEvent.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GroupKeyActionEvent>): GroupKeyActionEvent {
+    const message = createBaseGroupKeyActionEvent();
+    message.workerId = object.workerId ?? "";
+    message.workflowRunId = object.workflowRunId ?? "";
+    message.getGroupKeyRunId = object.getGroupKeyRunId ?? "";
+    message.actionId = object.actionId ?? "";
+    message.eventTimestamp = object.eventTimestamp ?? undefined;
+    message.eventType = object.eventType ?? 0;
+    message.eventPayload = object.eventPayload ?? "";
+    return message;
+  },
+};
+
+function createBaseStepActionEvent(): StepActionEvent {
   return {
     workerId: "",
     jobId: "",
@@ -737,8 +998,8 @@ function createBaseActionEvent(): ActionEvent {
   };
 }
 
-export const ActionEvent = {
-  encode(message: ActionEvent, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+export const StepActionEvent = {
+  encode(message: StepActionEvent, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.workerId !== "") {
       writer.uint32(10).string(message.workerId);
     }
@@ -769,10 +1030,10 @@ export const ActionEvent = {
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): ActionEvent {
+  decode(input: _m0.Reader | Uint8Array, length?: number): StepActionEvent {
     const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseActionEvent();
+    const message = createBaseStepActionEvent();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -848,7 +1109,7 @@ export const ActionEvent = {
     return message;
   },
 
-  fromJSON(object: any): ActionEvent {
+  fromJSON(object: any): StepActionEvent {
     return {
       workerId: isSet(object.workerId) ? globalThis.String(object.workerId) : "",
       jobId: isSet(object.jobId) ? globalThis.String(object.jobId) : "",
@@ -857,12 +1118,12 @@ export const ActionEvent = {
       stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : "",
       actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : "",
       eventTimestamp: isSet(object.eventTimestamp) ? fromJsonTimestamp(object.eventTimestamp) : undefined,
-      eventType: isSet(object.eventType) ? actionEventTypeFromJSON(object.eventType) : 0,
+      eventType: isSet(object.eventType) ? stepActionEventTypeFromJSON(object.eventType) : 0,
       eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : "",
     };
   },
 
-  toJSON(message: ActionEvent): unknown {
+  toJSON(message: StepActionEvent): unknown {
     const obj: any = {};
     if (message.workerId !== "") {
       obj.workerId = message.workerId;
@@ -886,7 +1147,7 @@ export const ActionEvent = {
       obj.eventTimestamp = message.eventTimestamp.toISOString();
     }
     if (message.eventType !== 0) {
-      obj.eventType = actionEventTypeToJSON(message.eventType);
+      obj.eventType = stepActionEventTypeToJSON(message.eventType);
     }
     if (message.eventPayload !== "") {
       obj.eventPayload = message.eventPayload;
@@ -894,11 +1155,11 @@ export const ActionEvent = {
     return obj;
   },
 
-  create(base?: DeepPartial<ActionEvent>): ActionEvent {
-    return ActionEvent.fromPartial(base ?? {});
+  create(base?: DeepPartial<StepActionEvent>): StepActionEvent {
+    return StepActionEvent.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<ActionEvent>): ActionEvent {
-    const message = createBaseActionEvent();
+  fromPartial(object: DeepPartial<StepActionEvent>): StepActionEvent {
+    const message = createBaseStepActionEvent();
     message.workerId = object.workerId ?? "";
     message.jobId = object.jobId ?? "";
     message.jobRunId = object.jobRunId ?? "";
@@ -1007,9 +1268,17 @@ export const DispatcherDefinition = {
       responseStream: true,
       options: {},
     },
-    sendActionEvent: {
-      name: "SendActionEvent",
-      requestType: ActionEvent,
+    sendStepActionEvent: {
+      name: "SendStepActionEvent",
+      requestType: StepActionEvent,
+      requestStream: false,
+      responseType: ActionEventResponse,
+      responseStream: false,
+      options: {},
+    },
+    sendGroupKeyActionEvent: {
+      name: "SendGroupKeyActionEvent",
+      requestType: GroupKeyActionEvent,
       requestStream: false,
       responseType: ActionEventResponse,
       responseStream: false,
@@ -1035,8 +1304,12 @@ export interface DispatcherServiceImplementation<CallContextExt = {}> {
     request: WorkerListenRequest,
     context: CallContext & CallContextExt,
   ): ServerStreamingMethodResult<DeepPartial<AssignedAction>>;
-  sendActionEvent(
-    request: ActionEvent,
+  sendStepActionEvent(
+    request: StepActionEvent,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ActionEventResponse>>;
+  sendGroupKeyActionEvent(
+    request: GroupKeyActionEvent,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<ActionEventResponse>>;
   unsubscribe(
@@ -1054,8 +1327,12 @@ export interface DispatcherClient<CallOptionsExt = {}> {
     request: DeepPartial<WorkerListenRequest>,
     options?: CallOptions & CallOptionsExt,
   ): AsyncIterable<AssignedAction>;
-  sendActionEvent(
-    request: DeepPartial<ActionEvent>,
+  sendStepActionEvent(
+    request: DeepPartial<StepActionEvent>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ActionEventResponse>;
+  sendGroupKeyActionEvent(
+    request: DeepPartial<GroupKeyActionEvent>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<ActionEventResponse>;
   unsubscribe(

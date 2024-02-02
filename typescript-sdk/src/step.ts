@@ -1,9 +1,11 @@
 import HatchetError from '@util/errors/hatchet-error';
 import * as z from 'zod';
+import { HatchetTimeoutSchema } from './workflow';
 
 export const CreateStepSchema = z.object({
   name: z.string(),
   parents: z.array(z.string()).optional(),
+  timeout: HatchetTimeoutSchema.optional(),
 });
 
 export type NextStep = { [key: string]: string };
@@ -18,6 +20,7 @@ export class Context<T = unknown> {
   data: ContextData<T>;
   constructor(payload: string) {
     try {
+      console.log('payload', payload);
       this.data = JSON.parse(JSON.parse(payload));
     } catch (e: any) {
       throw new HatchetError(`Could not parse payload: ${e.message}`);

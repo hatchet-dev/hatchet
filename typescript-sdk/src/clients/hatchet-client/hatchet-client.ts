@@ -127,7 +127,7 @@ export class HatchetClient {
     });
 
     if (typeof workflow !== 'string') {
-      await worker.register_workflow(workflow);
+      await worker.registerWorkflow(workflow);
       return worker;
     }
 
