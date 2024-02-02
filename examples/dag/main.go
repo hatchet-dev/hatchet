@@ -65,6 +65,8 @@ func run(ch <-chan interface{}, events chan<- string) error {
 					input := &userCreateEvent{}
 					ctx.WorkflowInput(input)
 
+					time.Sleep(1 * time.Second)
+
 					return &stepOutput{
 						Message: "Step 1 got username: " + input.Username,
 					}, nil
@@ -73,6 +75,8 @@ func run(ch <-chan interface{}, events chan<- string) error {
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
 					input := &userCreateEvent{}
 					ctx.WorkflowInput(input)
+
+					time.Sleep(2 * time.Second)
 
 					return &stepOutput{
 						Message: "Step 2 got username: " + input.Username,
@@ -85,6 +89,8 @@ func run(ch <-chan interface{}, events chan<- string) error {
 					step2Out := &stepOutput{}
 					ctx.StepOutput("step-two", step2Out)
 
+					time.Sleep(3 * time.Second)
+
 					return &stepOutput{
 						Message: "Step 3: has parents 1 and 2:" + step1Out.Message + ", " + step2Out.Message,
 					}, nil
@@ -96,6 +102,8 @@ func run(ch <-chan interface{}, events chan<- string) error {
 					step3Out := &stepOutput{}
 					ctx.StepOutput("step-three", step3Out)
 
+					time.Sleep(4 * time.Second)
+
 					return &stepOutput{
 						Message: "Step 4: has parents 1 and 3" + step1Out.Message + ", " + step3Out.Message,
 					}, nil
@@ -103,6 +111,8 @@ func run(ch <-chan interface{}, events chan<- string) error {
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
 					step4Out := &stepOutput{}
 					ctx.StepOutput("step-four", step4Out)
+
+					time.Sleep(5 * time.Second)
 
 					return &stepOutput{
 						Message: "Step 5: has parent 4" + step4Out.Message,

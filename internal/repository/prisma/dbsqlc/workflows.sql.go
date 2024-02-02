@@ -466,7 +466,7 @@ INSERT INTO "WorkflowVersion" (
     $5::text,
     $6::text,
     $7::uuid
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", checksum, version, "order", "workflowId"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum
 `
 
 type CreateWorkflowVersionParams struct {
@@ -495,10 +495,10 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.Checksum,
 		&i.Version,
 		&i.Order,
 		&i.WorkflowId,
+		&i.Checksum,
 	)
 	return &i, err
 }
@@ -513,7 +513,7 @@ FROM (
         "Workflow" as workflows 
     LEFT JOIN
         (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", checksum, version, "order", "workflowId" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
+            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
         ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
     LEFT JOIN
         "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
@@ -607,7 +607,7 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 
 const listWorkflowsLatestRuns = `-- name: ListWorkflowsLatestRuns :many
 SELECT
-    DISTINCT ON (workflow."id") runs.id, runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs."concurrencyGroupId", runs.status, runs.error, runs."startedAt", runs."finishedAt", workflow."id" as "workflowId"
+    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, workflow."id" as "workflowId"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -666,17 +666,18 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 	for rows.Next() {
 		var i ListWorkflowsLatestRunsRow
 		if err := rows.Scan(
-			&i.WorkflowRun.ID,
 			&i.WorkflowRun.CreatedAt,
 			&i.WorkflowRun.UpdatedAt,
 			&i.WorkflowRun.DeletedAt,
 			&i.WorkflowRun.TenantId,
 			&i.WorkflowRun.WorkflowVersionId,
-			&i.WorkflowRun.ConcurrencyGroupId,
 			&i.WorkflowRun.Status,
 			&i.WorkflowRun.Error,
 			&i.WorkflowRun.StartedAt,
 			&i.WorkflowRun.FinishedAt,
+			&i.WorkflowRun.ConcurrencyGroupId,
+			&i.WorkflowRun.DisplayName,
+			&i.WorkflowRun.ID,
 			&i.WorkflowId,
 		); err != nil {
 			return nil, err
@@ -705,7 +706,7 @@ SET
     "tenantId" = EXCLUDED."tenantId"
 WHERE
     "Action"."tenantId" = $2 AND "Action"."actionId" = LOWER($1::text)
-RETURNING id, "actionId", description, "tenantId"
+RETURNING description, "tenantId", "actionId", id
 `
 
 type UpsertActionParams struct {
@@ -717,10 +718,10 @@ func (q *Queries) UpsertAction(ctx context.Context, db DBTX, arg UpsertActionPar
 	row := db.QueryRow(ctx, upsertAction, arg.Action, arg.Tenantid)
 	var i Action
 	err := row.Scan(
-		&i.ID,
-		&i.ActionId,
 		&i.Description,
 		&i.TenantId,
+		&i.ActionId,
+		&i.ID,
 	)
 	return &i, err
 }

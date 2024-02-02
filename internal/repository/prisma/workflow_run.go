@@ -174,18 +174,23 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 
 		defer deferRollback(context.Background(), w.l, tx.Rollback)
 
-		pgWorkflowRunId := sqlchelpers.UUIDFromStr(workflowRunId)
 		pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+		createParams := dbsqlc.CreateWorkflowRunParams{
+			ID:                sqlchelpers.UUIDFromStr(workflowRunId),
+			Tenantid:          pgTenantId,
+			Workflowversionid: sqlchelpers.UUIDFromStr(opts.WorkflowVersionId),
+		}
+
+		if opts.DisplayName != nil {
+			createParams.DisplayName = sqlchelpers.TextFromStr(*opts.DisplayName)
+		}
 
 		// create a workflow
 		sqlcWorkflowRun, err := w.queries.CreateWorkflowRun(
 			tx1Ctx,
 			tx,
-			dbsqlc.CreateWorkflowRunParams{
-				ID:                pgWorkflowRunId,
-				Tenantid:          pgTenantId,
-				Workflowversionid: sqlchelpers.UUIDFromStr(opts.WorkflowVersionId),
-			},
+			createParams,
 		)
 
 		if err != nil {
@@ -345,7 +350,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 	defer tx2Span.End()
 
 	res, err := w.client.WorkflowRun.FindUnique(
-		db.WorkflowRun.ID.Equals(sqlcWorkflowRun.ID),
+		db.WorkflowRun.ID.Equals(sqlchelpers.UUIDToStr(sqlcWorkflowRun.ID)),
 	).With(
 		defaultWorkflowRunPopulator()...,
 	).Exec(tx2Ctx)
@@ -359,10 +364,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 
 func (w *workflowRunRepository) GetWorkflowRunById(tenantId, id string) (*db.WorkflowRunModel, error) {
 	return w.client.WorkflowRun.FindUnique(
-		db.WorkflowRun.TenantIDID(
-			db.WorkflowRun.TenantID.Equals(tenantId),
-			db.WorkflowRun.ID.Equals(id),
-		),
+		db.WorkflowRun.ID.Equals(id),
 	).With(
 		defaultWorkflowRunPopulator()...,
 	).Exec(context.Background())
@@ -383,11 +385,15 @@ func defaultWorkflowRunPopulator() []db.WorkflowRunRelationWith {
 		),
 		db.WorkflowRun.JobRuns.Fetch().With(
 			db.JobRun.Job.Fetch().With(
-				db.Job.Steps.Fetch(),
+				db.Job.Steps.Fetch().With(
+					db.Step.Action.Fetch(),
+					db.Step.Parents.Fetch(),
+				),
 			),
 			db.JobRun.StepRuns.Fetch().With(
 				db.StepRun.Step.Fetch().With(
 					db.Step.Action.Fetch(),
+					db.Step.Parents.Fetch(),
 				),
 			),
 		),

@@ -1,6 +1,6 @@
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { Separator } from '@/components/ui/separator';
-import api, { Workflow, queries } from '@/lib/api';
+import api, { Workflow, WorkflowVersion, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import {
@@ -13,16 +13,21 @@ import {
 import invariant from 'tiny-invariant';
 import { columns } from '../../workflow-runs/components/workflow-runs-columns';
 import { WorkflowTags } from '../components/workflow-tags';
-import { Code } from '@/components/ui/code';
 import { Badge } from '@/components/ui/badge';
 import { relativeDate } from '@/lib/utils';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
+import WorkflowVisualizer from './components/workflow-visualizer';
+
+type WorkflowWithVersion = {
+  workflow: Workflow;
+  version: WorkflowVersion;
+};
 
 export async function loader({
   params,
-}: LoaderFunctionArgs): Promise<Workflow | null> {
+}: LoaderFunctionArgs): Promise<WorkflowWithVersion | null> {
   const workflowId = params.workflow;
 
   invariant(workflowId);
@@ -31,7 +36,21 @@ export async function loader({
   try {
     const response = await api.workflowGet(workflowId);
 
-    return response.data;
+    // get the latest version
+    if (!response.data.versions) {
+      throw new Error('No versions found');
+    }
+
+    const version = response.data.versions[0];
+
+    const versionResponse = await api.workflowVersionGet(workflowId, {
+      version: version.metadata.id,
+    });
+
+    return {
+      workflow: response.data,
+      version: versionResponse.data,
+    };
   } catch (error) {
     if (error instanceof Response) {
       throw error;
@@ -45,11 +64,13 @@ export async function loader({
 }
 
 export default function ExpandedWorkflow() {
-  const workflow = useLoaderData() as Awaited<ReturnType<typeof loader>>;
+  const loaderData = useLoaderData() as Awaited<ReturnType<typeof loader>>;
 
-  if (!workflow) {
+  if (!loaderData) {
     return <Loading />;
   }
+
+  const { workflow, version } = loaderData;
 
   return (
     <div className="flex-grow h-full w-full">
@@ -85,7 +106,10 @@ export default function ExpandedWorkflow() {
           Workflow Definition
         </h3>
         <Separator className="my-4" />
-        <WorkflowDefinition />
+        <div className="w-full h-[400px]">
+          <WorkflowVisualizer workflow={version} />
+        </div>
+        {/* <WorkflowDefinition /> */}
         <h3 className="text-xl font-bold leading-tight text-foreground mt-8">
           Recent Runs
         </h3>
@@ -93,35 +117,6 @@ export default function ExpandedWorkflow() {
         <RecentRunsList />
       </div>
     </div>
-  );
-}
-
-function WorkflowDefinition() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  const params = useParams();
-  invariant(params.workflow);
-
-  const getWorkflowDefinitionQuery = useQuery({
-    ...queries.workflows.getDefinition(params.workflow),
-  });
-
-  if (
-    getWorkflowDefinitionQuery.isLoading ||
-    !getWorkflowDefinitionQuery.data
-  ) {
-    return <Loading />;
-  }
-
-  const workflowDefinition = getWorkflowDefinitionQuery.data;
-
-  return (
-    <>
-      <Code language="yaml" className="my-4" maxHeight="400px">
-        {workflowDefinition.rawDefinition}
-      </Code>
-    </>
   );
 }
 

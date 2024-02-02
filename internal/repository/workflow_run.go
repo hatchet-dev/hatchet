@@ -6,11 +6,15 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
 
 type CreateWorkflowRunOpts struct {
+	// (optional) the workflow run display name
+	DisplayName *string
+
 	// (required) the workflow version id
 	WorkflowVersionId string `validate:"required,uuid"`
 
@@ -39,6 +43,7 @@ func GetCreateWorkflowRunOptsFromEvent(event *db.EventModel, workflowVersion *db
 	eventId := event.ID
 
 	opts := &CreateWorkflowRunOpts{
+		DisplayName:       StringPtr(getWorkflowRunDisplayName(workflowVersion)),
 		WorkflowVersionId: workflowVersion.ID,
 		TriggeringEventId: &eventId,
 	}
@@ -46,7 +51,6 @@ func GetCreateWorkflowRunOptsFromEvent(event *db.EventModel, workflowVersion *db
 	data := event.InnerEvent.Data
 
 	var jobRunData []byte
-
 	var err error
 
 	if data != nil {
@@ -66,6 +70,7 @@ func GetCreateWorkflowRunOptsFromEvent(event *db.EventModel, workflowVersion *db
 
 func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
+		DisplayName:       StringPtr(getWorkflowRunDisplayName(workflowVersion)),
 		WorkflowVersionId: workflowVersion.ID,
 		Cron:              &cron,
 		CronParentId:      &cronParentId,
@@ -80,6 +85,7 @@ func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion
 
 func GetCreateWorkflowRunOptsFromSchedule(scheduledTrigger *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
+		DisplayName:         StringPtr(getWorkflowRunDisplayName(workflowVersion)),
 		WorkflowVersionId:   workflowVersion.ID,
 		ScheduledWorkflowId: &scheduledTrigger.ID,
 	}
@@ -126,6 +132,12 @@ func getJobsFromWorkflowVersion(workflowVersion *db.WorkflowVersionModel, trigge
 	}
 
 	return resJobRunOpts, nil
+}
+
+func getWorkflowRunDisplayName(workflowVersion *db.WorkflowVersionModel) string {
+	workflowSuffix, _ := encryption.GenerateRandomBytes(3)
+
+	return workflowVersion.Workflow().Name + "-" + workflowSuffix
 }
 
 type CreateWorkflowJobRunOpts struct {
