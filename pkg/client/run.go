@@ -88,7 +88,7 @@ func (r *runClientImpl) On(ctx context.Context, workflowRunId string, handler Ru
 		}
 
 		if err := handler(&StepRunEvent{
-			Type:    StepRunEventType(eventType),
+			Type:    eventType,
 			Payload: []byte(event.EventPayload),
 		}); err != nil {
 			return err

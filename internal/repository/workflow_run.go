@@ -48,7 +48,7 @@ func GetCreateWorkflowRunOptsFromManual(workflowVersion *db.WorkflowVersionModel
 		ManualTriggerInput: StringPtr(string(input)),
 	}
 
-	jobRunData := []byte(input)
+	jobRunData := input
 
 	if _, hasConcurrency := workflowVersion.Concurrency(); hasConcurrency {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{

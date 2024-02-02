@@ -139,14 +139,6 @@ func (t *TaskQueueImpl) AddTask(ctx context.Context, q taskqueue.Queue, task *ta
 func (t *TaskQueueImpl) Subscribe(ctx context.Context, q taskqueue.Queue) (<-chan *taskqueue.Task, error) {
 	t.l.Debug().Msgf("subscribing to queue: %s", q.Name())
 
-	// init the queues in a blocking fashion
-	// for session := range t.sessions {
-	// 	sub := <-session
-
-	// 	t.initQueue(sub, q)
-	// 	break
-	// }
-
 	tasks := make(chan *taskqueue.Task)
 	go t.subscribe(ctx, t.identity, q, t.sessions, t.tasks, tasks)
 	return tasks, nil
