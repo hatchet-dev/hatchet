@@ -411,6 +411,7 @@ export interface WorkflowRun {
   workflowVersionId: string;
   workflowVersion?: WorkflowVersion;
   status: WorkflowRunStatus;
+  displayName?: string;
   jobRuns?: JobRun[];
   triggeredBy: WorkflowRunTriggeredBy;
   input?: Record<string, any>;
@@ -503,12 +504,16 @@ export interface StepRun {
   error?: string;
   /** @format date-time */
   startedAt?: string;
+  startedAtEpoch?: number;
   /** @format date-time */
   finishedAt?: string;
+  finishedAtEpoch?: number;
   /** @format date-time */
   timeoutAt?: string;
+  timeoutAtEpoch?: number;
   /** @format date-time */
   cancelledAt?: string;
+  cancelledAtEpoch?: number;
   cancelledReason?: string;
   cancelledError?: string;
 }

@@ -21,6 +21,8 @@ type ListStepRunsOpts struct {
 
 	JobRunId *string
 
+	WorkflowRunId *string
+
 	Status *db.StepRunStatus
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 )
 
 func ToWorkflowRun(run *db.WorkflowRunModel) (*gen.WorkflowRun, error) {
@@ -17,6 +18,10 @@ func ToWorkflowRun(run *db.WorkflowRunModel) (*gen.WorkflowRun, error) {
 		TenantId:          run.TenantID,
 		Status:            gen.WorkflowRunStatus(run.Status),
 		WorkflowVersionId: run.WorkflowVersionID,
+	}
+
+	if displayName, ok := run.DisplayName(); ok {
+		res.DisplayName = &displayName
 	}
 
 	if startedAt, ok := run.StartedAt(); ok && !startedAt.IsZero() {
@@ -159,14 +164,17 @@ func ToStepRun(stepRun *db.StepRunModel) (*gen.StepRun, error) {
 
 	if startedAt, ok := stepRun.StartedAt(); ok && !startedAt.IsZero() {
 		res.StartedAt = &startedAt
+		res.StartedAtEpoch = getEpochFromTime(startedAt)
 	}
 
 	if finishedAt, ok := stepRun.FinishedAt(); ok && !finishedAt.IsZero() {
 		res.FinishedAt = &finishedAt
+		res.FinishedAtEpoch = getEpochFromTime(finishedAt)
 	}
 
 	if cancelledAt, ok := stepRun.CancelledAt(); ok && !cancelledAt.IsZero() {
 		res.CancelledAt = &cancelledAt
+		res.CancelledAtEpoch = getEpochFromTime(cancelledAt)
 	}
 
 	if cancelledError, ok := stepRun.CancelledError(); ok {
@@ -183,6 +191,7 @@ func ToStepRun(stepRun *db.StepRunModel) (*gen.StepRun, error) {
 
 	if timeoutAt, ok := stepRun.TimeoutAt(); ok && !timeoutAt.IsZero() {
 		res.TimeoutAt = &timeoutAt
+		res.TimeoutAtEpoch = getEpochFromTime(timeoutAt)
 	}
 
 	if workerId, ok := stepRun.WorkerID(); ok {
@@ -214,6 +223,11 @@ func ToStepRun(stepRun *db.StepRunModel) (*gen.StepRun, error) {
 	}
 
 	return res, nil
+}
+
+func getEpochFromTime(t time.Time) *int {
+	epoch := int(t.UnixMilli())
+	return &epoch
 }
 
 func ToWorkflowRunTriggeredBy(triggeredBy *db.WorkflowRunTriggeredByModel) *gen.WorkflowRunTriggeredBy {
@@ -263,15 +277,18 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 
 	triggeredBy := &gen.WorkflowRunTriggeredBy{
 		Metadata: *toAPIMetadata(pgUUIDToStr(runTriggeredBy.ID), runTriggeredBy.CreatedAt.Time, runTriggeredBy.UpdatedAt.Time),
-		ParentId: runTriggeredBy.ParentId,
+		ParentId: sqlchelpers.UUIDToStr(runTriggeredBy.ParentId),
 	}
 
 	if event != nil {
 		triggeredBy.Event = event
 	}
 
+	workflowRunId := sqlchelpers.UUIDToStr(run.ID)
+
 	res := &gen.WorkflowRun{
-		Metadata:          *toAPIMetadata(run.ID, run.CreatedAt.Time, run.UpdatedAt.Time),
+		Metadata:          *toAPIMetadata(workflowRunId, run.CreatedAt.Time, run.UpdatedAt.Time),
+		DisplayName:       &run.DisplayName.String,
 		TenantId:          pgUUIDToStr(run.TenantId),
 		StartedAt:         startedAt,
 		FinishedAt:        finishedAt,

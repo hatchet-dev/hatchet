@@ -9,12 +9,13 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/workflows"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
-	"github.com/hatchet-dev/hatchet/internal/services/eventscontroller"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
 	"github.com/hatchet-dev/hatchet/internal/services/heartbeat"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
-	"github.com/hatchet-dev/hatchet/internal/services/jobscontroller"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
@@ -171,10 +172,10 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 	if sc.HasService("eventscontroller") {
 		// create separate events controller process
 		go func() {
-			ec, err := eventscontroller.New(
-				eventscontroller.WithTaskQueue(sc.TaskQueue),
-				eventscontroller.WithRepository(sc.Repository),
-				eventscontroller.WithLogger(sc.Logger),
+			ec, err := events.New(
+				events.WithTaskQueue(sc.TaskQueue),
+				events.WithRepository(sc.Repository),
+				events.WithLogger(sc.Logger),
 			)
 
 			if err != nil {
@@ -193,10 +194,32 @@ func startEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 	if sc.HasService("jobscontroller") {
 		// create separate jobs controller process
 		go func() {
-			jc, err := jobscontroller.New(
-				jobscontroller.WithTaskQueue(sc.TaskQueue),
-				jobscontroller.WithRepository(sc.Repository),
-				jobscontroller.WithLogger(sc.Logger),
+			jc, err := jobs.New(
+				jobs.WithTaskQueue(sc.TaskQueue),
+				jobs.WithRepository(sc.Repository),
+				jobs.WithLogger(sc.Logger),
+			)
+
+			if err != nil {
+				errCh <- err
+				return
+			}
+
+			err = jc.Start(ctx)
+
+			if err != nil {
+				errCh <- err
+			}
+		}()
+	}
+
+	if sc.HasService("workflowscontroller") {
+		// create separate jobs controller process
+		go func() {
+			jc, err := workflows.New(
+				workflows.WithTaskQueue(sc.TaskQueue),
+				workflows.WithRepository(sc.Repository),
+				workflows.WithLogger(sc.Logger),
 			)
 
 			if err != nil {

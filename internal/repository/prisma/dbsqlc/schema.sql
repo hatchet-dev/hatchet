@@ -1,4 +1,7 @@
 -- CreateEnum
+CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWEST', 'QUEUE_NEWEST');
+
+-- CreateEnum
 CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
 
 -- CreateEnum
@@ -14,7 +17,7 @@ CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
 CREATE TYPE "WorkerStatus" AS ENUM ('ACTIVE', 'INACTIVE');
 
 -- CreateEnum
-CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED');
+CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED');
 
 -- CreateTable
 CREATE TABLE "APIToken" (
@@ -31,10 +34,10 @@ CREATE TABLE "APIToken" (
 
 -- CreateTable
 CREATE TABLE "Action" (
-    "id" UUID NOT NULL,
-    "actionId" TEXT NOT NULL,
     "description" TEXT,
     "tenantId" UUID NOT NULL,
+    "actionId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
 
     CONSTRAINT "Action_pkey" PRIMARY KEY ("id")
 );
@@ -66,6 +69,31 @@ CREATE TABLE "Event" (
 );
 
 -- CreateTable
+CREATE TABLE "GetGroupKeyRun" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    "tenantId" UUID NOT NULL,
+    "workerId" UUID,
+    "tickerId" UUID,
+    "status" "StepRunStatus" NOT NULL DEFAULT 'PENDING',
+    "input" JSONB,
+    "output" TEXT,
+    "requeueAfter" TIMESTAMP(3),
+    "error" TEXT,
+    "startedAt" TIMESTAMP(3),
+    "finishedAt" TIMESTAMP(3),
+    "timeoutAt" TIMESTAMP(3),
+    "cancelledAt" TIMESTAMP(3),
+    "cancelledReason" TEXT,
+    "cancelledError" TEXT,
+    "workflowRunId" UUID NOT NULL,
+
+    CONSTRAINT "GetGroupKeyRun_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Job" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -87,7 +115,6 @@ CREATE TABLE "JobRun" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "tenantId" UUID NOT NULL,
-    "workflowRunId" TEXT NOT NULL,
     "jobId" UUID NOT NULL,
     "tickerId" UUID,
     "status" "JobRunStatus" NOT NULL DEFAULT 'PENDING',
@@ -98,6 +125,7 @@ CREATE TABLE "JobRun" (
     "cancelledAt" TIMESTAMP(3),
     "cancelledReason" TEXT,
     "cancelledError" TEXT,
+    "workflowRunId" UUID NOT NULL,
 
     CONSTRAINT "JobRun_pkey" PRIMARY KEY ("id")
 );
@@ -242,9 +270,9 @@ CREATE TABLE "UserOAuth" (
     "userId" UUID NOT NULL,
     "provider" TEXT NOT NULL,
     "providerUserId" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3),
     "accessToken" BYTEA NOT NULL,
     "refreshToken" BYTEA,
-    "expiresAt" TIMESTAMP(3),
 
     CONSTRAINT "UserOAuth_pkey" PRIMARY KEY ("id")
 );
@@ -296,8 +324,20 @@ CREATE TABLE "Workflow" (
 );
 
 -- CreateTable
+CREATE TABLE "WorkflowConcurrency" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "workflowVersionId" UUID NOT NULL,
+    "getConcurrencyGroupId" UUID,
+    "maxRuns" INTEGER NOT NULL DEFAULT 1,
+    "limitStrategy" "ConcurrencyLimitStrategy" NOT NULL DEFAULT 'CANCEL_IN_PROGRESS',
+
+    CONSTRAINT "WorkflowConcurrency_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "WorkflowRun" (
-    "id" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
@@ -307,6 +347,9 @@ CREATE TABLE "WorkflowRun" (
     "error" TEXT,
     "startedAt" TIMESTAMP(3),
     "finishedAt" TIMESTAMP(3),
+    "concurrencyGroupId" TEXT,
+    "displayName" TEXT,
+    "id" UUID NOT NULL,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -318,11 +361,11 @@ CREATE TABLE "WorkflowRunTriggeredBy" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "tenantId" UUID NOT NULL,
-    "parentId" TEXT NOT NULL,
     "eventId" UUID,
     "cronParentId" UUID,
     "cronSchedule" TEXT,
     "scheduledId" UUID,
+    "parentId" UUID NOT NULL,
 
     CONSTRAINT "WorkflowRunTriggeredBy_pkey" PRIMARY KEY ("id")
 );
@@ -343,7 +386,8 @@ CREATE TABLE "WorkflowTag" (
 CREATE TABLE "WorkflowTriggerCronRef" (
     "parentId" UUID NOT NULL,
     "cron" TEXT NOT NULL,
-    "tickerId" UUID
+    "tickerId" UUID,
+    "input" JSONB
 );
 
 -- CreateTable
@@ -381,18 +425,18 @@ CREATE TABLE "WorkflowVersion" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
-    "checksum" TEXT NOT NULL,
     "version" TEXT,
     "order" SMALLSERIAL NOT NULL,
     "workflowId" UUID NOT NULL,
+    "checksum" TEXT NOT NULL,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "_ActionToWorker" (
-    "A" UUID NOT NULL,
-    "B" UUID NOT NULL
+    "B" UUID NOT NULL,
+    "A" UUID NOT NULL
 );
 
 -- CreateTable
@@ -433,6 +477,12 @@ CREATE UNIQUE INDEX "Dispatcher_id_key" ON "Dispatcher"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Event_id_key" ON "Event"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GetGroupKeyRun_id_key" ON "GetGroupKeyRun"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GetGroupKeyRun_workflowRunId_key" ON "GetGroupKeyRun"("workflowRunId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Job_id_key" ON "Job"("id" ASC);
@@ -516,7 +566,13 @@ CREATE UNIQUE INDEX "Workflow_id_key" ON "Workflow"("id" ASC);
 CREATE UNIQUE INDEX "Workflow_tenantId_name_key" ON "Workflow"("tenantId" ASC, "name" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WorkflowRun_tenantId_id_key" ON "WorkflowRun"("tenantId" ASC, "id" ASC);
+CREATE UNIQUE INDEX "WorkflowConcurrency_id_key" ON "WorkflowConcurrency"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowConcurrency_workflowVersionId_key" ON "WorkflowConcurrency"("workflowVersionId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowRun_id_key" ON "WorkflowRun"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_id_key" ON "WorkflowRunTriggeredBy"("id" ASC);
@@ -526,9 +582,6 @@ CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_parentId_key" ON "WorkflowRunTrigger
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_scheduledId_key" ON "WorkflowRunTriggeredBy"("scheduledId" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_tenantId_parentId_key" ON "WorkflowRunTriggeredBy"("tenantId" ASC, "parentId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTag_id_key" ON "WorkflowTag"("id" ASC);
@@ -595,6 +648,18 @@ ALTER TABLE "Event" ADD CONSTRAINT "Event_replayedFromId_fkey" FOREIGN KEY ("rep
 
 -- AddForeignKey
 ALTER TABLE "Event" ADD CONSTRAINT "Event_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_tickerId_fkey" FOREIGN KEY ("tickerId") REFERENCES "Ticker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Job" ADD CONSTRAINT "Job_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -673,6 +738,12 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantI
 
 -- AddForeignKey
 ALTER TABLE "Workflow" ADD CONSTRAINT "Workflow_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowConcurrency" ADD CONSTRAINT "WorkflowConcurrency_getConcurrencyGroupId_fkey" FOREIGN KEY ("getConcurrencyGroupId") REFERENCES "Action"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowConcurrency" ADD CONSTRAINT "WorkflowConcurrency_workflowVersionId_fkey" FOREIGN KEY ("workflowVersionId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;

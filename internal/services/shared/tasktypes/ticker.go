@@ -18,6 +18,24 @@ type CancelStepRunTimeoutTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
+type ScheduleGetGroupKeyRunTimeoutTaskPayload struct {
+	GetGroupKeyRunId string `json:"get_group_key_run_id" validate:"required,uuid"`
+	WorkflowRunId    string `json:"workflow_run_id" validate:"required,uuid"`
+	TimeoutAt        string `json:"timeout_at" validate:"required"`
+}
+
+type ScheduleGetGroupKeyRunTimeoutTaskMetadata struct {
+	TenantId string `json:"tenant_id" validate:"required,uuid"`
+}
+
+type CancelGetGroupKeyRunTimeoutTaskPayload struct {
+	GetGroupKeyRunId string `json:"get_group_key_run_id" validate:"required,uuid"`
+}
+
+type CancelGetGroupKeyRunTimeoutTaskMetadata struct {
+	TenantId string `json:"tenant_id" validate:"required,uuid"`
+}
+
 type RemoveTickerTaskPayload struct {
 	TickerId string `json:"ticker_id" validate:"required,uuid"`
 }

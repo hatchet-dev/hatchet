@@ -1,18 +1,25 @@
 import React, { useState } from 'react';
 import { Button } from './button';
 import { CopyIcon } from '@radix-ui/react-icons';
-import { CheckCircleIcon } from '@heroicons/react/24/outline';
+import { CheckIcon } from '@heroicons/react/24/outline';
+import { cn } from '@/lib/utils';
 
 type Props = {
   text: string;
+  className?: string;
+  withText?: boolean;
 };
 
-const CopyToClipboard: React.FC<Props> = ({ text }) => {
+const CopyToClipboard: React.FC<Props> = ({ text, className, withText }) => {
   const [successCopy, setSuccessCopy] = useState(false);
 
   return (
     <Button
-      className="max-w-fit"
+      className={cn(
+        className,
+        withText ? 'w-6 h-6 p-0 cursor-pointer' : 'cursor-pointer',
+      )}
+      variant="ghost"
       onClick={() => {
         navigator.clipboard.writeText(text);
         setSuccessCopy(true);
@@ -23,11 +30,11 @@ const CopyToClipboard: React.FC<Props> = ({ text }) => {
       }}
     >
       {successCopy ? (
-        <CheckCircleIcon className="w-4 h-4 mr-2" />
+        <CheckIcon className="w-4 h-4" />
       ) : (
-        <CopyIcon className="w-4 h-4 mr-2" />
+        <CopyIcon className="w-4 h-4" />
       )}
-      {successCopy ? 'Copied!' : 'Copy to clipboard'}
+      {withText && (successCopy ? 'Copied' : 'Copy')}
     </Button>
   );
 };

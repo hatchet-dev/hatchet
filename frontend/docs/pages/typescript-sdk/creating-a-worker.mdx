@@ -1,0 +1,35 @@
+# Creating a Worker
+
+Workers can be created via the `hatchet.run()` method, after instantiating a `hatchet` instance.
+It will automatically read in any `HATCHET_CLIENT` environment variables, which can be set in the process by using something like `dotenv`.
+
+For example:
+
+```ts
+import Hatchet from "@hatchet/sdk";
+import { Workflow } from "@hatchet/sdk";
+
+const hatchet = Hatchet.init();
+
+// workflow code...
+
+hatchet.run(workflow);
+```
+
+## Advanced Usage
+
+The `hatchet.run(workflow)` method will return a reference to the `Worker` object.
+
+You could then stop the worker:
+
+```ts
+const worker = hatchet.run(workflow);
+worker.stop();
+```
+
+Alternatively, you can create a worker object with `hatchet.worker()` and manually start the service.
+
+```ts
+const worker = hatchet.worker(workflow);
+worker.start();
+```

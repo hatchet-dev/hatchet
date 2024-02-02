@@ -543,8 +543,28 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		scheduledTriggers = append(scheduledTriggers, trigger.AsTime())
 	}
 
+	var concurrency *repository.CreateWorkflowConcurrencyOpts
+
+	if req.Opts.Concurrency != nil {
+		var limitStrategy *string
+
+		if req.Opts.Concurrency.LimitStrategy.String() != "" {
+			limitStrategy = repository.StringPtr(req.Opts.Concurrency.LimitStrategy.String())
+		}
+
+		concurrency = &repository.CreateWorkflowConcurrencyOpts{
+			Action:        req.Opts.Concurrency.Action,
+			LimitStrategy: limitStrategy,
+		}
+
+		if req.Opts.Concurrency.MaxRuns != 0 {
+			concurrency.MaxRuns = &req.Opts.Concurrency.MaxRuns
+		}
+	}
+
 	return &repository.CreateWorkflowVersionOpts{
 		Name:              req.Opts.Name,
+		Concurrency:       concurrency,
 		Description:       &req.Opts.Description,
 		Version:           &req.Opts.Version,
 		EventTriggers:     req.Opts.EventTriggers,

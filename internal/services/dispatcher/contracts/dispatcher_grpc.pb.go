@@ -24,7 +24,8 @@ const _ = grpc.SupportPackageIsVersion7
 type DispatcherClient interface {
 	Register(ctx context.Context, in *WorkerRegisterRequest, opts ...grpc.CallOption) (*WorkerRegisterResponse, error)
 	Listen(ctx context.Context, in *WorkerListenRequest, opts ...grpc.CallOption) (Dispatcher_ListenClient, error)
-	SendActionEvent(ctx context.Context, in *ActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
+	SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
+	SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error)
 }
 
@@ -77,9 +78,18 @@ func (x *dispatcherListenClient) Recv() (*AssignedAction, error) {
 	return m, nil
 }
 
-func (c *dispatcherClient) SendActionEvent(ctx context.Context, in *ActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error) {
+func (c *dispatcherClient) SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error) {
 	out := new(ActionEventResponse)
-	err := c.cc.Invoke(ctx, "/Dispatcher/SendActionEvent", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/Dispatcher/SendStepActionEvent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dispatcherClient) SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error) {
+	out := new(ActionEventResponse)
+	err := c.cc.Invoke(ctx, "/Dispatcher/SendGroupKeyActionEvent", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +111,8 @@ func (c *dispatcherClient) Unsubscribe(ctx context.Context, in *WorkerUnsubscrib
 type DispatcherServer interface {
 	Register(context.Context, *WorkerRegisterRequest) (*WorkerRegisterResponse, error)
 	Listen(*WorkerListenRequest, Dispatcher_ListenServer) error
-	SendActionEvent(context.Context, *ActionEvent) (*ActionEventResponse, error)
+	SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error)
+	SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error)
 	Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error)
 	mustEmbedUnimplementedDispatcherServer()
 }
@@ -116,8 +127,11 @@ func (UnimplementedDispatcherServer) Register(context.Context, *WorkerRegisterRe
 func (UnimplementedDispatcherServer) Listen(*WorkerListenRequest, Dispatcher_ListenServer) error {
 	return status.Errorf(codes.Unimplemented, "method Listen not implemented")
 }
-func (UnimplementedDispatcherServer) SendActionEvent(context.Context, *ActionEvent) (*ActionEventResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendActionEvent not implemented")
+func (UnimplementedDispatcherServer) SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendStepActionEvent not implemented")
+}
+func (UnimplementedDispatcherServer) SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendGroupKeyActionEvent not implemented")
 }
 func (UnimplementedDispatcherServer) Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Unsubscribe not implemented")
@@ -174,20 +188,38 @@ func (x *dispatcherListenServer) Send(m *AssignedAction) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _Dispatcher_SendActionEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ActionEvent)
+func _Dispatcher_SendStepActionEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StepActionEvent)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DispatcherServer).SendActionEvent(ctx, in)
+		return srv.(DispatcherServer).SendStepActionEvent(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/Dispatcher/SendActionEvent",
+		FullMethod: "/Dispatcher/SendStepActionEvent",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DispatcherServer).SendActionEvent(ctx, req.(*ActionEvent))
+		return srv.(DispatcherServer).SendStepActionEvent(ctx, req.(*StepActionEvent))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dispatcher_SendGroupKeyActionEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GroupKeyActionEvent)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).SendGroupKeyActionEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/Dispatcher/SendGroupKeyActionEvent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).SendGroupKeyActionEvent(ctx, req.(*GroupKeyActionEvent))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -222,8 +254,12 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Dispatcher_Register_Handler,
 		},
 		{
-			MethodName: "SendActionEvent",
-			Handler:    _Dispatcher_SendActionEvent_Handler,
+			MethodName: "SendStepActionEvent",
+			Handler:    _Dispatcher_SendStepActionEvent_Handler,
+		},
+		{
+			MethodName: "SendGroupKeyActionEvent",
+			Handler:    _Dispatcher_SendGroupKeyActionEvent_Handler,
 		},
 		{
 			MethodName: "Unsubscribe",
