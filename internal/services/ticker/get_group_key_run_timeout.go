@@ -135,7 +135,6 @@ func taskGetGroupKeyRunTimedOut(tenantId, workflowRunId, getGroupKeyRunId string
 
 	return &taskqueue.Task{
 		ID:       "get-group-key-run-timed-out",
-		Queue:    taskqueue.WORKFLOW_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}

@@ -135,7 +135,6 @@ func taskStepRunTimedOut(tenantId, jobRunId, stepRunId string) *taskqueue.Task {
 
 	return &taskqueue.Task{
 		ID:       "step-run-timed-out",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}

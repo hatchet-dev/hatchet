@@ -18,15 +18,17 @@ type CreateWorkflowRunOpts struct {
 	// (required) the workflow version id
 	WorkflowVersionId string `validate:"required,uuid"`
 
+	ManualTriggerInput *string `validate:"omitnil,required_without=TriggeringEventId,required_without=Cron,required_without=ScheduledWorkflowId,excluded_with=TriggeringEventId,excluded_with=Cron,excluded_with=ScheduledWorkflowId"`
+
 	// (optional) the event id that triggered the workflow run
-	TriggeringEventId *string `validate:"omitnil,uuid,required_without=Cron,required_without=ScheduledWorkflowId,excluded_with=Cron,excluded_with=ScheduledWorkflowId"`
+	TriggeringEventId *string `validate:"omitnil,uuid,required_without=ManualTriggerInput,required_without=Cron,required_without=ScheduledWorkflowId,excluded_with=ManualTriggerInput,excluded_with=Cron,excluded_with=ScheduledWorkflowId"`
 
 	// (optional) the cron schedule that triggered the workflow run
-	Cron         *string `validate:"omitnil,cron,required_without=TriggeringEventId,required_without=ScheduledWorkflowId,excluded_with=TriggeringEventId,excluded_with=ScheduledWorkflowId"`
-	CronParentId *string `validate:"omitnil,uuid,required_without=TriggeringEventId,required_without=ScheduledWorkflowId,excluded_with=TriggeringEventId,excluded_with=ScheduledWorkflowId"`
+	Cron         *string `validate:"omitnil,cron,required_without=ManualTriggerInput,required_without=TriggeringEventId,required_without=ScheduledWorkflowId,excluded_with=ManualTriggerInput,excluded_with=TriggeringEventId,excluded_with=ScheduledWorkflowId"`
+	CronParentId *string `validate:"omitnil,uuid,required_without=ManualTriggerInput,required_without=TriggeringEventId,required_without=ScheduledWorkflowId,excluded_with=ManualTriggerInput,excluded_with=TriggeringEventId,excluded_with=ScheduledWorkflowId"`
 
 	// (optional) the scheduled trigger
-	ScheduledWorkflowId *string `validate:"omitnil,uuid,required_without=TriggeringEventId,required_without=Cron,excluded_with=TriggeringEventId,excluded_with=Cron"`
+	ScheduledWorkflowId *string `validate:"omitnil,uuid,required_without=ManualTriggerInput,required_without=TriggeringEventId,required_without=Cron,excluded_with=ManualTriggerInput,excluded_with=TriggeringEventId,excluded_with=Cron"`
 
 	// (required) the workflow jobs
 	JobRuns []CreateWorkflowJobRunOpts `validate:"required,min=1,dive"`
@@ -37,6 +39,27 @@ type CreateWorkflowRunOpts struct {
 type CreateGroupKeyRunOpts struct {
 	// (optional) the input data
 	Input []byte
+}
+
+func GetCreateWorkflowRunOptsFromManual(workflowVersion *db.WorkflowVersionModel, input []byte) (*CreateWorkflowRunOpts, error) {
+	opts := &CreateWorkflowRunOpts{
+		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion)),
+		WorkflowVersionId:  workflowVersion.ID,
+		ManualTriggerInput: StringPtr(string(input)),
+	}
+
+	jobRunData := input
+
+	if _, hasConcurrency := workflowVersion.Concurrency(); hasConcurrency {
+		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+			Input: jobRunData,
+		}
+	}
+
+	var err error
+	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, datautils.TriggeredBySchedule, jobRunData)
+
+	return opts, err
 }
 
 func GetCreateWorkflowRunOptsFromEvent(event *db.EventModel, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {

@@ -134,7 +134,6 @@ func taskJobRunTimedOut(tenantId, jobRunId string) *taskqueue.Task {
 
 	return &taskqueue.Task{
 		ID:       "job-run-timed-out",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}

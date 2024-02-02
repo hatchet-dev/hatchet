@@ -112,7 +112,7 @@ INSERT INTO "GetGroupKeyRun" (
     NULL,
     NULL,
     NULL
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workerId", "tickerId", status, input, output, "requeueAfter", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowRunId", "workerId", "tickerId", status, input, output, "requeueAfter", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError"
 `
 
 type CreateGetGroupKeyRunParams struct {
@@ -138,6 +138,7 @@ func (q *Queries) CreateGetGroupKeyRun(ctx context.Context, db DBTX, arg CreateG
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.TenantId,
+		&i.WorkflowRunId,
 		&i.WorkerId,
 		&i.TickerId,
 		&i.Status,
@@ -151,7 +152,6 @@ func (q *Queries) CreateGetGroupKeyRun(ctx context.Context, db DBTX, arg CreateG
 		&i.CancelledAt,
 		&i.CancelledReason,
 		&i.CancelledError,
-		&i.WorkflowRunId,
 	)
 	return &i, err
 }
@@ -191,7 +191,7 @@ INSERT INTO "JobRun" (
     NULL,
     NULL,
     NULL
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobId", "tickerId", status, result, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowRunId", "jobId", "tickerId", status, result, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError"
 `
 
 type CreateJobRunParams struct {
@@ -215,6 +215,7 @@ func (q *Queries) CreateJobRun(ctx context.Context, db DBTX, arg CreateJobRunPar
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.TenantId,
+		&i.WorkflowRunId,
 		&i.JobId,
 		&i.TickerId,
 		&i.Status,
@@ -225,7 +226,6 @@ func (q *Queries) CreateJobRun(ctx context.Context, db DBTX, arg CreateJobRunPar
 		&i.CancelledAt,
 		&i.CancelledReason,
 		&i.CancelledError,
-		&i.WorkflowRunId,
 	)
 	return &i, err
 }
@@ -402,7 +402,7 @@ INSERT INTO "WorkflowRun" (
     NULL, -- assuming error is not set on creation
     NULL, -- assuming startedAt is not set on creation
     NULL  -- assuming finishedAt is not set on creation
-) RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "displayName", "tenantId", "workflowVersionId", "concurrencyGroupId", status, error, "startedAt", "finishedAt"
 `
 
 type CreateWorkflowRunParams struct {
@@ -421,18 +421,18 @@ func (q *Queries) CreateWorkflowRun(ctx context.Context, db DBTX, arg CreateWork
 	)
 	var i WorkflowRun
 	err := row.Scan(
+		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.DisplayName,
 		&i.TenantId,
 		&i.WorkflowVersionId,
+		&i.ConcurrencyGroupId,
 		&i.Status,
 		&i.Error,
 		&i.StartedAt,
 		&i.FinishedAt,
-		&i.ConcurrencyGroupId,
-		&i.DisplayName,
-		&i.ID,
 	)
 	return &i, err
 }
@@ -460,7 +460,7 @@ INSERT INTO "WorkflowRunTriggeredBy" (
     $4::uuid, -- NULL if not provided
     $5::text, -- NULL if not provided
     $6::uuid -- NULL if not provided
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "eventId", "cronParentId", "cronSchedule", "scheduledId", "parentId"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "parentId", input, "eventId", "cronParentId", "cronSchedule", "scheduledId"
 `
 
 type CreateWorkflowRunTriggeredByParams struct {
@@ -488,11 +488,12 @@ func (q *Queries) CreateWorkflowRunTriggeredBy(ctx context.Context, db DBTX, arg
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.TenantId,
+		&i.ParentId,
+		&i.Input,
 		&i.EventId,
 		&i.CronParentId,
 		&i.CronSchedule,
 		&i.ScheduledId,
-		&i.ParentId,
 	)
 	return &i, err
 }
@@ -588,10 +589,10 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 
 const listWorkflowRuns = `-- name: ListWorkflowRuns :many
 SELECT
-    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, 
+    runs.id, runs."createdAt", runs."updatedAt", runs."deletedAt", runs."displayName", runs."tenantId", runs."workflowVersionId", runs."concurrencyGroupId", runs.status, runs.error, runs."startedAt", runs."finishedAt", 
     workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description, 
-    runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers."parentId", 
-    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, 
+    runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."parentId", runtriggers.input, runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", 
+    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.checksum, workflowversion.version, workflowversion."order", workflowversion."workflowId", 
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable events field
     events.id, events.key, events."createdAt", events."updatedAt"
 FROM
@@ -678,18 +679,18 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 	for rows.Next() {
 		var i ListWorkflowRunsRow
 		if err := rows.Scan(
+			&i.WorkflowRun.ID,
 			&i.WorkflowRun.CreatedAt,
 			&i.WorkflowRun.UpdatedAt,
 			&i.WorkflowRun.DeletedAt,
+			&i.WorkflowRun.DisplayName,
 			&i.WorkflowRun.TenantId,
 			&i.WorkflowRun.WorkflowVersionId,
+			&i.WorkflowRun.ConcurrencyGroupId,
 			&i.WorkflowRun.Status,
 			&i.WorkflowRun.Error,
 			&i.WorkflowRun.StartedAt,
 			&i.WorkflowRun.FinishedAt,
-			&i.WorkflowRun.ConcurrencyGroupId,
-			&i.WorkflowRun.DisplayName,
-			&i.WorkflowRun.ID,
 			&i.Workflow.ID,
 			&i.Workflow.CreatedAt,
 			&i.Workflow.UpdatedAt,
@@ -702,19 +703,20 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 			&i.WorkflowRunTriggeredBy.UpdatedAt,
 			&i.WorkflowRunTriggeredBy.DeletedAt,
 			&i.WorkflowRunTriggeredBy.TenantId,
+			&i.WorkflowRunTriggeredBy.ParentId,
+			&i.WorkflowRunTriggeredBy.Input,
 			&i.WorkflowRunTriggeredBy.EventId,
 			&i.WorkflowRunTriggeredBy.CronParentId,
 			&i.WorkflowRunTriggeredBy.CronSchedule,
 			&i.WorkflowRunTriggeredBy.ScheduledId,
-			&i.WorkflowRunTriggeredBy.ParentId,
 			&i.WorkflowVersion.ID,
 			&i.WorkflowVersion.CreatedAt,
 			&i.WorkflowVersion.UpdatedAt,
 			&i.WorkflowVersion.DeletedAt,
+			&i.WorkflowVersion.Checksum,
 			&i.WorkflowVersion.Version,
 			&i.WorkflowVersion.Order,
 			&i.WorkflowVersion.WorkflowId,
-			&i.WorkflowVersion.Checksum,
 			&i.ID,
 			&i.Key,
 			&i.CreatedAt,
@@ -779,7 +781,7 @@ WHERE "id" = (
     FROM "JobRun"
     WHERE "id" = $1::uuid
 ) AND "tenantId" = $2::uuid
-RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id
+RETURNING "WorkflowRun".id, "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."displayName", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun"."concurrencyGroupId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt"
 `
 
 type ResolveWorkflowRunStatusParams struct {
@@ -791,18 +793,18 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 	row := db.QueryRow(ctx, resolveWorkflowRunStatus, arg.Jobrunid, arg.Tenantid)
 	var i WorkflowRun
 	err := row.Scan(
+		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.DisplayName,
 		&i.TenantId,
 		&i.WorkflowVersionId,
+		&i.ConcurrencyGroupId,
 		&i.Status,
 		&i.Error,
 		&i.StartedAt,
 		&i.FinishedAt,
-		&i.ConcurrencyGroupId,
-		&i.DisplayName,
-		&i.ID,
 	)
 	return &i, err
 }
@@ -836,7 +838,7 @@ FROM
 WHERE 
 workflowRun."id" = groupKeyRun."workflowRunId" AND
 workflowRun."tenantId" = $1::uuid
-RETURNING workflowrun."createdAt", workflowrun."updatedAt", workflowrun."deletedAt", workflowrun."tenantId", workflowrun."workflowVersionId", workflowrun.status, workflowrun.error, workflowrun."startedAt", workflowrun."finishedAt", workflowrun."concurrencyGroupId", workflowrun."displayName", workflowrun.id
+RETURNING workflowrun.id, workflowrun."createdAt", workflowrun."updatedAt", workflowrun."deletedAt", workflowrun."displayName", workflowrun."tenantId", workflowrun."workflowVersionId", workflowrun."concurrencyGroupId", workflowrun.status, workflowrun.error, workflowrun."startedAt", workflowrun."finishedAt"
 `
 
 type UpdateWorkflowRunGroupKeyParams struct {
@@ -848,18 +850,18 @@ func (q *Queries) UpdateWorkflowRunGroupKey(ctx context.Context, db DBTX, arg Up
 	row := db.QueryRow(ctx, updateWorkflowRunGroupKey, arg.Tenantid, arg.Groupkeyrunid)
 	var i WorkflowRun
 	err := row.Scan(
+		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.DisplayName,
 		&i.TenantId,
 		&i.WorkflowVersionId,
+		&i.ConcurrencyGroupId,
 		&i.Status,
 		&i.Error,
 		&i.StartedAt,
 		&i.FinishedAt,
-		&i.ConcurrencyGroupId,
-		&i.DisplayName,
-		&i.ID,
 	)
 	return &i, err
 }

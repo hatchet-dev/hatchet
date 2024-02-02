@@ -35,7 +35,6 @@ func TenantToGroupKeyActionRequeueTask(tenant db.TenantModel) *taskqueue.Task {
 
 	return &taskqueue.Task{
 		ID:       "group-key-action-requeue-ticker",
-		Queue:    taskqueue.WORKFLOW_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}

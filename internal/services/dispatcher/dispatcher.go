@@ -195,7 +195,7 @@ func (d *DispatcherImpl) handleTask(ctx context.Context, task *taskqueue.Task) e
 		return d.handleStepRunCancelled(ctx, task)
 	}
 
-	return fmt.Errorf("unknown task: %s in queue %s", task.ID, string(task.Queue))
+	return fmt.Errorf("unknown task: %s", task.ID)
 }
 
 func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, task *taskqueue.Task) error {
