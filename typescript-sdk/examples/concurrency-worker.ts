@@ -38,4 +38,6 @@ const workflow: Workflow = {
   ],
 };
 
-hatchet.run(workflow);
+const worker = hatchet.worker('example-worker');
+worker.registerWorkflow(workflow);
+worker.start();
