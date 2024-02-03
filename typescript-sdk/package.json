@@ -29,7 +29,8 @@
     "example:event": "npm run exec -- ./examples/example-event.ts",
     "worker:simple": "npm run exec -- ./examples/simple-worker.ts",
     "worker:dag": "npm run exec -- ./examples/dag-worker.ts",
-    "worker:concurrency": "npm run exec -- ./examples/concurrency-worker.ts"
+    "worker:concurrency": "npm run exec -- ./examples/concurrency/concurrency-worker.ts",
+    "event:concurrency": "npm run exec -- ./examples/concurrency/concurrency-event.ts"
   },
   "keywords": [],
   "author": "",

@@ -45,7 +45,7 @@ export class Worker {
     this.logger = new Logger(`Worker/${this.name}`, this.client.config.log_level);
   }
 
-  async registerWorkflow(workflow: Workflow, options?: { autoVersion?: boolean }) {
+  async registerWorkflow(workflow: Workflow) {
     try {
       const concurrency: WorkflowConcurrencyOpts | undefined = undefined;
 
