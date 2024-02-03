@@ -24,6 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 type DispatcherClient interface {
 	Register(ctx context.Context, in *WorkerRegisterRequest, opts ...grpc.CallOption) (*WorkerRegisterResponse, error)
 	Listen(ctx context.Context, in *WorkerListenRequest, opts ...grpc.CallOption) (Dispatcher_ListenClient, error)
+	SubscribeToWorkflowEvents(ctx context.Context, in *SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsClient, error)
 	SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error)
@@ -78,6 +79,38 @@ func (x *dispatcherListenClient) Recv() (*AssignedAction, error) {
 	return m, nil
 }
 
+func (c *dispatcherClient) SubscribeToWorkflowEvents(ctx context.Context, in *SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[1], "/Dispatcher/SubscribeToWorkflowEvents", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dispatcherSubscribeToWorkflowEventsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Dispatcher_SubscribeToWorkflowEventsClient interface {
+	Recv() (*WorkflowEvent, error)
+	grpc.ClientStream
+}
+
+type dispatcherSubscribeToWorkflowEventsClient struct {
+	grpc.ClientStream
+}
+
+func (x *dispatcherSubscribeToWorkflowEventsClient) Recv() (*WorkflowEvent, error) {
+	m := new(WorkflowEvent)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *dispatcherClient) SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error) {
 	out := new(ActionEventResponse)
 	err := c.cc.Invoke(ctx, "/Dispatcher/SendStepActionEvent", in, out, opts...)
@@ -111,6 +144,7 @@ func (c *dispatcherClient) Unsubscribe(ctx context.Context, in *WorkerUnsubscrib
 type DispatcherServer interface {
 	Register(context.Context, *WorkerRegisterRequest) (*WorkerRegisterResponse, error)
 	Listen(*WorkerListenRequest, Dispatcher_ListenServer) error
+	SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error
 	SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error)
 	Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error)
@@ -126,6 +160,9 @@ func (UnimplementedDispatcherServer) Register(context.Context, *WorkerRegisterRe
 }
 func (UnimplementedDispatcherServer) Listen(*WorkerListenRequest, Dispatcher_ListenServer) error {
 	return status.Errorf(codes.Unimplemented, "method Listen not implemented")
+}
+func (UnimplementedDispatcherServer) SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToWorkflowEvents not implemented")
 }
 func (UnimplementedDispatcherServer) SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendStepActionEvent not implemented")
@@ -185,6 +222,27 @@ type dispatcherListenServer struct {
 }
 
 func (x *dispatcherListenServer) Send(m *AssignedAction) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Dispatcher_SubscribeToWorkflowEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeToWorkflowEventsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DispatcherServer).SubscribeToWorkflowEvents(m, &dispatcherSubscribeToWorkflowEventsServer{stream})
+}
+
+type Dispatcher_SubscribeToWorkflowEventsServer interface {
+	Send(*WorkflowEvent) error
+	grpc.ServerStream
+}
+
+type dispatcherSubscribeToWorkflowEventsServer struct {
+	grpc.ServerStream
+}
+
+func (x *dispatcherSubscribeToWorkflowEventsServer) Send(m *WorkflowEvent) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -270,6 +328,11 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Listen",
 			Handler:       _Dispatcher_Listen_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "SubscribeToWorkflowEvents",
+			Handler:       _Dispatcher_SubscribeToWorkflowEvents_Handler,
 			ServerStreams: true,
 		},
 	},

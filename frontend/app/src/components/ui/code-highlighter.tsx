@@ -13,7 +13,7 @@ SyntaxHighlighter.registerLanguage('typescript', typescript);
 SyntaxHighlighter.registerLanguage('yaml', yaml);
 SyntaxHighlighter.registerLanguage('json', json);
 
-export function Code({
+export function CodeHighlighter({
   code,
   setCode,
   language,
@@ -76,12 +76,7 @@ export function Code({
           {code.trim()}
         </SyntaxHighlighter>
       </div>
-      {copy && (
-        <CopyToClipboard
-          className="absolute top-1 right-1"
-          text={code.trim()}
-        />
-      )}
+      {copy && <CopyToClipboard text={code.trim()} withText />}
     </div>
   );
 }

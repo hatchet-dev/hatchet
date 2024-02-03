@@ -27,7 +27,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { relativeDate } from '@/lib/utils';
-import { Code } from '@/components/ui/code';
+import { CodeEditor } from '@/components/ui/code-editor';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -338,10 +338,10 @@ function EventDataSection({ event }: { event: Event }) {
 
   return (
     <>
-      <Code
+      <CodeEditor
         language="json"
         className="my-4"
-        maxHeight="400px"
+        height="400px"
         code={JSON.stringify(JSON.parse(eventData.data), null, 2)}
       />
     </>

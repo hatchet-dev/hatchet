@@ -1,4 +1,3 @@
-import { Code } from '@/components/ui/code';
 import {
   Dialog,
   DialogContent,
@@ -6,10 +5,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { StepRun, StepRunStatus } from '@/lib/api';
+import api, { StepRun, StepRunStatus, queries } from '@/lib/api';
 import { useEffect, useState } from 'react';
 import { RunStatus } from '../../components/run-statuses';
 import { getTiming } from './step-run-node';
+import { StepInputOutputSection } from './step-run-input-output';
+import { Button } from '@/components/ui/button';
+import invariant from 'tiny-invariant';
+import { useApiError } from '@/lib/hooks';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { cn } from '@/lib/utils';
+import { useOutletContext } from 'react-router-dom';
+import { TenantContextType } from '@/lib/outlet';
 
 export function StepRunPlayground({
   stepRun,
@@ -18,19 +26,77 @@ export function StepRunPlayground({
   stepRun: StepRun | null;
   setStepRun: (stepRun: StepRun | null) => void;
 }) {
+  const { tenant } = useOutletContext<TenantContextType>();
+  invariant(tenant);
+
+  const [errors, setErrors] = useState<string[]>([]);
+
+  const { handleApiError } = useApiError({
+    setErrors,
+  });
+
   const originalInput = JSON.stringify(
     JSON.parse(stepRun?.input || '{}'),
     null,
     2,
   );
 
-  const output = JSON.stringify(JSON.parse(stepRun?.output || '{}'), null, 2);
-
   const [stepInput, setStepInput] = useState(originalInput);
 
   useEffect(() => {
-    setStepInput(JSON.stringify(JSON.parse(stepRun?.input || '{}'), null, 2));
-  }, [stepRun]);
+    setStepInput(originalInput);
+  }, [originalInput]);
+
+  const getStepRunQuery = useQuery({
+    ...queries.stepRuns.get(tenant.metadata.id, stepRun?.metadata.id || ''),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+
+      if (
+        data?.status != 'SUCCEEDED' &&
+        data?.status != 'FAILED' &&
+        data?.status != 'CANCELLED'
+      ) {
+        return 1000;
+      }
+    },
+  });
+
+  const rerunStepMutation = useMutation({
+    mutationKey: [
+      'step-run:update:rerun',
+      stepRun?.tenantId,
+      stepRun?.metadata.id,
+    ],
+    mutationFn: async (input: object) => {
+      invariant(stepRun?.tenantId, 'has tenantId');
+
+      const res = await api.stepRunUpdateRerun(
+        stepRun?.tenantId,
+        stepRun?.metadata.id,
+        {
+          input: input,
+        },
+      );
+
+      return res.data;
+    },
+    onMutate: () => {
+      setErrors([]);
+    },
+    onSuccess: (stepRun: StepRun) => {
+      setStepRun(stepRun);
+
+      getStepRunQuery.refetch();
+    },
+    onError: handleApiError,
+  });
+
+  useEffect(() => {
+    if (getStepRunQuery.data) {
+      setStepRun(getStepRunQuery.data);
+    }
+  }, [getStepRunQuery.data, setStepRun]);
 
   return (
     <Dialog
@@ -45,9 +111,7 @@ export function StepRunPlayground({
         <DialogHeader>
           <div className="flex flex-row justify-between items-center">
             <DialogTitle>
-              {'Coding Assistant' ||
-                stepRun?.step?.readableId ||
-                stepRun?.metadata.id}
+              {stepRun?.step?.readableId || stepRun?.metadata.id}
             </DialogTitle>
             <RunStatus status={stepRun?.status || StepRunStatus.PENDING} />
           </div>
@@ -59,39 +123,40 @@ export function StepRunPlayground({
         </DialogHeader>
         <div className="flex flex-row justify-between items-center">
           <div className="font-bold">Input</div>
-          {/* <Button
+          <Button
             className="w-fit"
-            disabled={stepInput === originalInput || isLoading}
+            disabled={rerunStepMutation.isPending}
             onClick={() => {
-              setIsLoading(true);
-              setStatus(StepRunStatus.RUNNING);
+              const inputObj = JSON.parse(stepInput);
+              rerunStepMutation.mutate(inputObj);
             }}
           >
             <ArrowPathIcon
-              className={cn(isLoading ? 'rotate-180' : '', 'h-4 w-4 mr-2')}
+              className={cn(
+                rerunStepMutation.isPending ? 'rotate-180' : '',
+                'h-4 w-4 mr-2',
+              )}
             />
             Rerun Step
-          </Button> */}
+          </Button>
         </div>
-        {stepInput && (
-          <Code
-            language="json"
-            copy={true}
-            code={stepInput}
-            setCode={setStepInput}
-            wrapLines={false}
-            className="max-w-full"
+        {stepRun && (
+          <StepInputOutputSection
+            stepRun={stepRun}
+            onInputChanged={(input: string) => {
+              setStepInput(input);
+            }}
           />
         )}
-        <div className="font-bold">Output</div>
-        <Code
-          language="json"
-          code={output}
-          copy={true}
-          maxHeight="300px"
-          wrapLines={true}
-          className="max-w-full"
-        />
+        {errors.length > 0 && (
+          <div className="mt-4">
+            {errors.map((error, index) => (
+              <div key={index} className="text-red-500 text-sm">
+                {error}
+              </div>
+            ))}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

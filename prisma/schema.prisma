@@ -621,6 +621,9 @@ model WorkflowRunTriggeredBy {
   parent   WorkflowRun @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   parentId String      @unique @db.Uuid
 
+  // the input if this was triggered manually
+  input Json?
+
   // the parent event
   event   Event?  @relation(fields: [eventId], references: [id])
   eventId String? @db.Uuid

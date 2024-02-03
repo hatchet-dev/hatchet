@@ -27,6 +27,8 @@ type ListStepRunsOpts struct {
 }
 
 type UpdateStepRunOpts struct {
+	IsRerun bool
+
 	RequeueAfter *time.Time
 
 	ScheduleTimeoutAt *time.Time
