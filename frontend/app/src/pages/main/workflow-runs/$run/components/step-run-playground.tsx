@@ -16,6 +16,8 @@ import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
+import { useOutletContext } from 'react-router-dom';
+import { TenantContextType } from '@/lib/outlet';
 
 export function StepRunPlayground({
   stepRun,
@@ -24,6 +26,9 @@ export function StepRunPlayground({
   stepRun: StepRun | null;
   setStepRun: (stepRun: StepRun | null) => void;
 }) {
+  const { tenant } = useOutletContext<TenantContextType>();
+  invariant(tenant);
+
   const [errors, setErrors] = useState<string[]>([]);
 
   const { handleApiError } = useApiError({
@@ -42,10 +47,8 @@ export function StepRunPlayground({
     setStepInput(originalInput);
   }, [originalInput]);
 
-  invariant(stepRun?.tenantId, 'stepRun is required');
-
   const getStepRunQuery = useQuery({
-    ...queries.stepRuns.get(stepRun?.tenantId, stepRun?.metadata.id),
+    ...queries.stepRuns.get(tenant.metadata.id, stepRun?.metadata.id || ''),
     refetchInterval: (query) => {
       const data = query.state.data;
 
