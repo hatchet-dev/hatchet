@@ -12,7 +12,7 @@ const workflow: Workflow = {
   id: 'concurrency-example',
   description: 'test',
   on: {
-    event: 'concurrency:create',
+    event: 'concurrency:created',
   },
   concurrency: {
     key: (ctx) => ctx.workflowInput().userId,
@@ -21,10 +21,11 @@ const workflow: Workflow = {
     {
       name: 'step1',
       run: async (ctx) => {
-        console.log('starting step1 and waiting 5 seconds...');
+        const { data } = ctx.workflowInput();
+        console.log('starting step1 and waiting 5 seconds...', data);
         await sleep(5000);
         console.log('executed step1!');
-        return { step1: 'step1 results!' };
+        return { step1: `step1 results for ${data}!` };
       },
     },
     {

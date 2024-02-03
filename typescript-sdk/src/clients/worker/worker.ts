@@ -10,7 +10,11 @@ import {
 } from '@hatchet/protoc/dispatcher';
 import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
 import { Workflow } from '@hatchet/workflow';
-import { CreateWorkflowStepOpts, WorkflowConcurrencyOpts } from '@hatchet/protoc/workflows';
+import {
+  ConcurrencyLimitStrategy,
+  CreateWorkflowStepOpts,
+  WorkflowConcurrencyOpts,
+} from '@hatchet/protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
 import sleep from '@hatchet/util/sleep';
 import { Context } from '../../step';
@@ -25,6 +29,7 @@ export class Worker {
   handle_kill: boolean;
 
   action_registry: ActionRegistry;
+  concurrency_action_registry: ActionRegistry;
   listener: ActionListener | undefined;
   futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
   contexts: Record<Action['stepRunId'], Context<any>> = {};
@@ -35,6 +40,7 @@ export class Worker {
     this.client = client;
     this.name = options.name;
     this.action_registry = {};
+    this.concurrency_action_registry = {};
 
     process.on('SIGTERM', () => this.exitGracefully());
     process.on('SIGINT', () => this.exitGracefully());
@@ -47,7 +53,14 @@ export class Worker {
 
   async registerWorkflow(workflow: Workflow) {
     try {
-      const concurrency: WorkflowConcurrencyOpts | undefined = undefined;
+      const concurrency: WorkflowConcurrencyOpts | undefined = workflow.concurrency?.action
+        ? {
+            action: `${this.serviceName}:${workflow.concurrency.action}`,
+            maxRuns: workflow.concurrency.maxRuns || 1,
+            limitStrategy:
+              workflow.concurrency.limitStrategy || ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+          }
+        : undefined;
 
       await this.client.admin.put_workflow({
         name: workflow.id,
@@ -80,6 +93,12 @@ export class Worker {
       acc[`${this.serviceName}:${step.name}`] = step.run;
       return acc;
     }, {});
+
+    this.concurrency_action_registry = workflow.concurrency?.action
+      ? {
+          [`${this.serviceName}:${workflow.concurrency.action}`]: workflow.concurrency.key,
+        }
+      : {};
   }
 
   handleStartStepRun(action: Action) {
@@ -308,7 +327,9 @@ export class Worker {
         this.logger.info(`Worker ${this.name} listening for actions`);
 
         for await (const action of generator) {
-          this.logger.info(`Worker ${this.name} received action ${action.actionId}`);
+          this.logger.info(
+            `Worker ${this.name} received action ${action.actionId}:${action.actionType}`
+          );
 
           if (action.actionType === ActionType.START_STEP_RUN) {
             this.handleStartStepRun(action);
