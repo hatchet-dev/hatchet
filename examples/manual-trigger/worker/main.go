@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -83,9 +81,6 @@ func run(ch <-chan interface{}, events chan<- string) error {
 					}, nil
 				}).SetName("step-two"),
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
-					input := &userCreateEvent{}
-					ctx.WorkflowInput(input)
-
 					step1Out := &stepOutput{}
 					ctx.StepOutput("step-one", step1Out)
 
@@ -95,7 +90,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 					time.Sleep(3 * time.Second)
 
 					return &stepOutput{
-						Message: "Username was: " + input.Username + ", Step 3: has parents 1 and 2" + step1Out.Message + ", " + step2Out.Message,
+						Message: "Step 3: has parents 1 and 2:" + step1Out.Message + ", " + step2Out.Message,
 					}, nil
 				}).SetName("step-three").AddParents("step-one", "step-two"),
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
@@ -131,43 +126,11 @@ func run(ch <-chan interface{}, events chan<- string) error {
 	interruptCtx, cancel := cmdutils.InterruptContextFromChan(ch)
 	defer cancel()
 
-	go func() {
-		err = w.Start(interruptCtx)
-
-		if err != nil {
-			panic(err)
-		}
-
-		cancel()
-	}()
-
-	testEvent := userCreateEvent{
-		Username: "echo-test",
-		UserID:   "1234",
-		Data: map[string]string{
-			"test": "test",
-		},
-	}
-
-	log.Printf("pushing event user:create:simple")
-
-	// push an event
-	err = c.Event().Push(
-		context.Background(),
-		"user:create:simple",
-		testEvent,
-	)
+	err = w.Start(interruptCtx)
 
 	if err != nil {
-		return fmt.Errorf("error pushing event: %w", err)
+		panic(err)
 	}
 
-	for {
-		select {
-		case <-interruptCtx.Done():
-			return nil
-		default:
-			time.Sleep(time.Second)
-		}
-	}
+	return nil
 }

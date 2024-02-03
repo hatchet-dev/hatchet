@@ -9,6 +9,8 @@ service Dispatcher {
 
     rpc Listen(WorkerListenRequest) returns (stream AssignedAction) {}
 
+    rpc SubscribeToWorkflowEvents(SubscribeToWorkflowEventsRequest) returns (stream WorkflowEvent) {}
+
     rpc SendStepActionEvent(StepActionEvent) returns (ActionEventResponse) {}
 
     rpc SendGroupKeyActionEvent(GroupKeyActionEvent) returns (ActionEventResponse) {}
@@ -166,4 +168,40 @@ message ActionEventResponse {
 
     // the id of the worker
     string workerId = 2;
+}
+
+message SubscribeToWorkflowEventsRequest {
+    // the id of the workflow run
+    string workflowRunId = 1;
+}
+
+enum ResourceType {
+    RESOURCE_TYPE_UNKNOWN = 0;
+    RESOURCE_TYPE_STEP_RUN = 1;
+    RESOURCE_TYPE_WORKFLOW_RUN = 2;
+}
+
+enum ResourceEventType {
+    RESOURCE_EVENT_TYPE_UNKNOWN = 0;
+    RESOURCE_EVENT_TYPE_STARTED = 1;
+    RESOURCE_EVENT_TYPE_COMPLETED = 2;
+    RESOURCE_EVENT_TYPE_FAILED = 3;
+    RESOURCE_EVENT_TYPE_CANCELLED = 4;
+    RESOURCE_EVENT_TYPE_TIMED_OUT = 5;
+}
+
+message WorkflowEvent {
+    // the id of the workflow run
+    string workflowRunId = 1;
+
+    ResourceType resourceType = 2;
+
+    ResourceEventType eventType = 3;
+
+    string resourceId = 4;
+
+    google.protobuf.Timestamp eventTimestamp = 5;
+
+    // the event payload
+    string eventPayload = 6;
 }

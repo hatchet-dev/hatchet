@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -295,6 +296,10 @@ func getUpdateParams(
 	updateParams = dbsqlc.UpdateStepRunParams{
 		ID:       pgStepRunId,
 		Tenantid: pgTenantId,
+		Rerun: pgtype.Bool{
+			Valid: true,
+			Bool:  opts.IsRerun,
+		},
 	}
 
 	if opts.Output != nil {

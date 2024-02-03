@@ -10,10 +10,10 @@ service WorkflowService {
     rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
     rpc PutWorkflow(PutWorkflowRequest) returns (WorkflowVersion);
     rpc ScheduleWorkflow(ScheduleWorkflowRequest) returns (WorkflowVersion);
+    rpc TriggerWorkflow(TriggerWorkflowRequest) returns (TriggerWorkflowResponse);
     rpc GetWorkflowByName(GetWorkflowByNameRequest) returns (Workflow);
     rpc ListWorkflowsForEvent(ListWorkflowsForEventRequest) returns (ListWorkflowsResponse);
     rpc DeleteWorkflow(DeleteWorkflowRequest) returns (Workflow);
-    
 }
 
 message PutWorkflowRequest {
@@ -161,4 +161,15 @@ message DeleteWorkflowRequest {
 
 message GetWorkflowByNameRequest {
     string name = 1;
+}
+
+message TriggerWorkflowRequest {
+    string name = 1;
+
+    // (optional) the input data for the workflow
+    string input = 2;
+}
+
+message TriggerWorkflowResponse {
+    string workflow_run_id = 1;
 }

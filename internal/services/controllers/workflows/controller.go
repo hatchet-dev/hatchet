@@ -134,7 +134,7 @@ func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *taskque
 		// return ec.handleStepRunStarted(ctx, task)
 	}
 
-	return fmt.Errorf("unknown task: %s in queue %s", task.ID, string(task.Queue))
+	return fmt.Errorf("unknown task: %s", task.ID)
 }
 
 func (ec *WorkflowsControllerImpl) handleGroupKeyRunStarted(ctx context.Context, task *taskqueue.Task) error {
@@ -314,7 +314,6 @@ func cancelGetGroupKeyRunTimeoutTask(ticker *db.TickerModel, getGroupKeyRun *db.
 
 	return &taskqueue.Task{
 		ID:       "cancel-get-group-key-run-timeout",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}
