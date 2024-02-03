@@ -12,6 +12,7 @@ import (
 	apitokens "github.com/hatchet-dev/hatchet/api/v1/server/handlers/api-tokens"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
+	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workers"
@@ -31,6 +32,7 @@ type apiService struct {
 	*workers.WorkerService
 	*metadata.MetadataService
 	*apitokens.APITokenService
+	*stepruns.StepRunService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -42,6 +44,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		WorkerService:   workers.NewWorkerService(config),
 		MetadataService: metadata.NewMetadataService(config),
 		APITokenService: apitokens.NewAPITokenService(config),
+		StepRunService:  stepruns.NewStepRunService(config),
 	}
 }
 
@@ -125,6 +128,16 @@ func (t *APIServer) Run(ctx context.Context) error {
 		}
 
 		return workflowRun, workflowRun.TenantID, nil
+	})
+
+	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		stepRun, err := config.Repository.StepRun().GetStepRunById(parentId, id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return stepRun, stepRun.TenantID, nil
 	})
 
 	populatorMW.RegisterGetter("event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {

@@ -72,6 +72,12 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.workflowRunGet(tenant, workflowRun)).data,
     }),
   },
+  stepRuns: {
+    get: (tenant: string, stepRun: string) => ({
+      queryKey: ['step-run:get', tenant, stepRun],
+      queryFn: async () => (await api.stepRunGet(tenant, stepRun)).data,
+    }),
+  },
   events: {
     list: (tenant: string, query: ListEventQuery) => ({
       queryKey: ['event:list', tenant, query],
