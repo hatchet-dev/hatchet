@@ -26,6 +26,23 @@ export class AdminClient {
     }
   }
 
+  async run_workflow(workflowName: string, input: object) {
+    try {
+      const inputStr = JSON.stringify(input);
+
+      const resp = await this.client.triggerWorkflow({
+        name: workflowName,
+        input: inputStr,
+      });
+
+      return resp.workflowRunId;
+    } catch (e: any) {
+      throw new HatchetError(e.message);
+    }
+  }
+
+  // RunWorkflow(workflowName string, input interface{}) (string, error)
+
   schedule_workflow(workflowId: string, options?: { schedules?: Date[] }) {
     try {
       this.client.scheduleWorkflow({

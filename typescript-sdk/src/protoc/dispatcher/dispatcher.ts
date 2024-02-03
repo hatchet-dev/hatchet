@@ -134,6 +134,102 @@ export function stepActionEventTypeToJSON(object: StepActionEventType): string {
   }
 }
 
+export enum ResourceType {
+  RESOURCE_TYPE_UNKNOWN = 0,
+  RESOURCE_TYPE_STEP_RUN = 1,
+  RESOURCE_TYPE_WORKFLOW_RUN = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function resourceTypeFromJSON(object: any): ResourceType {
+  switch (object) {
+    case 0:
+    case "RESOURCE_TYPE_UNKNOWN":
+      return ResourceType.RESOURCE_TYPE_UNKNOWN;
+    case 1:
+    case "RESOURCE_TYPE_STEP_RUN":
+      return ResourceType.RESOURCE_TYPE_STEP_RUN;
+    case 2:
+    case "RESOURCE_TYPE_WORKFLOW_RUN":
+      return ResourceType.RESOURCE_TYPE_WORKFLOW_RUN;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ResourceType.UNRECOGNIZED;
+  }
+}
+
+export function resourceTypeToJSON(object: ResourceType): string {
+  switch (object) {
+    case ResourceType.RESOURCE_TYPE_UNKNOWN:
+      return "RESOURCE_TYPE_UNKNOWN";
+    case ResourceType.RESOURCE_TYPE_STEP_RUN:
+      return "RESOURCE_TYPE_STEP_RUN";
+    case ResourceType.RESOURCE_TYPE_WORKFLOW_RUN:
+      return "RESOURCE_TYPE_WORKFLOW_RUN";
+    case ResourceType.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
+export enum ResourceEventType {
+  RESOURCE_EVENT_TYPE_UNKNOWN = 0,
+  RESOURCE_EVENT_TYPE_STARTED = 1,
+  RESOURCE_EVENT_TYPE_COMPLETED = 2,
+  RESOURCE_EVENT_TYPE_FAILED = 3,
+  RESOURCE_EVENT_TYPE_CANCELLED = 4,
+  RESOURCE_EVENT_TYPE_TIMED_OUT = 5,
+  UNRECOGNIZED = -1,
+}
+
+export function resourceEventTypeFromJSON(object: any): ResourceEventType {
+  switch (object) {
+    case 0:
+    case "RESOURCE_EVENT_TYPE_UNKNOWN":
+      return ResourceEventType.RESOURCE_EVENT_TYPE_UNKNOWN;
+    case 1:
+    case "RESOURCE_EVENT_TYPE_STARTED":
+      return ResourceEventType.RESOURCE_EVENT_TYPE_STARTED;
+    case 2:
+    case "RESOURCE_EVENT_TYPE_COMPLETED":
+      return ResourceEventType.RESOURCE_EVENT_TYPE_COMPLETED;
+    case 3:
+    case "RESOURCE_EVENT_TYPE_FAILED":
+      return ResourceEventType.RESOURCE_EVENT_TYPE_FAILED;
+    case 4:
+    case "RESOURCE_EVENT_TYPE_CANCELLED":
+      return ResourceEventType.RESOURCE_EVENT_TYPE_CANCELLED;
+    case 5:
+    case "RESOURCE_EVENT_TYPE_TIMED_OUT":
+      return ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ResourceEventType.UNRECOGNIZED;
+  }
+}
+
+export function resourceEventTypeToJSON(object: ResourceEventType): string {
+  switch (object) {
+    case ResourceEventType.RESOURCE_EVENT_TYPE_UNKNOWN:
+      return "RESOURCE_EVENT_TYPE_UNKNOWN";
+    case ResourceEventType.RESOURCE_EVENT_TYPE_STARTED:
+      return "RESOURCE_EVENT_TYPE_STARTED";
+    case ResourceEventType.RESOURCE_EVENT_TYPE_COMPLETED:
+      return "RESOURCE_EVENT_TYPE_COMPLETED";
+    case ResourceEventType.RESOURCE_EVENT_TYPE_FAILED:
+      return "RESOURCE_EVENT_TYPE_FAILED";
+    case ResourceEventType.RESOURCE_EVENT_TYPE_CANCELLED:
+      return "RESOURCE_EVENT_TYPE_CANCELLED";
+    case ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT:
+      return "RESOURCE_EVENT_TYPE_TIMED_OUT";
+    case ResourceEventType.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 export interface WorkerRegisterRequest {
   /** the name of the worker */
   workerName: string;
@@ -238,6 +334,24 @@ export interface ActionEventResponse {
   tenantId: string;
   /** the id of the worker */
   workerId: string;
+}
+
+export interface SubscribeToWorkflowEventsRequest {
+  /** the id of the workflow run */
+  workflowRunId: string;
+}
+
+export interface WorkflowEvent {
+  /** the id of the workflow run */
+  workflowRunId: string;
+  resourceType: ResourceType;
+  eventType: ResourceEventType;
+  resourceId: string;
+  eventTimestamp:
+    | Date
+    | undefined;
+  /** the event payload */
+  eventPayload: string;
 }
 
 function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
@@ -1247,6 +1361,204 @@ export const ActionEventResponse = {
   },
 };
 
+function createBaseSubscribeToWorkflowEventsRequest(): SubscribeToWorkflowEventsRequest {
+  return { workflowRunId: "" };
+}
+
+export const SubscribeToWorkflowEventsRequest = {
+  encode(message: SubscribeToWorkflowEventsRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.workflowRunId !== "") {
+      writer.uint32(10).string(message.workflowRunId);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SubscribeToWorkflowEventsRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSubscribeToWorkflowEventsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.workflowRunId = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SubscribeToWorkflowEventsRequest {
+    return { workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : "" };
+  },
+
+  toJSON(message: SubscribeToWorkflowEventsRequest): unknown {
+    const obj: any = {};
+    if (message.workflowRunId !== "") {
+      obj.workflowRunId = message.workflowRunId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<SubscribeToWorkflowEventsRequest>): SubscribeToWorkflowEventsRequest {
+    return SubscribeToWorkflowEventsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<SubscribeToWorkflowEventsRequest>): SubscribeToWorkflowEventsRequest {
+    const message = createBaseSubscribeToWorkflowEventsRequest();
+    message.workflowRunId = object.workflowRunId ?? "";
+    return message;
+  },
+};
+
+function createBaseWorkflowEvent(): WorkflowEvent {
+  return {
+    workflowRunId: "",
+    resourceType: 0,
+    eventType: 0,
+    resourceId: "",
+    eventTimestamp: undefined,
+    eventPayload: "",
+  };
+}
+
+export const WorkflowEvent = {
+  encode(message: WorkflowEvent, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.workflowRunId !== "") {
+      writer.uint32(10).string(message.workflowRunId);
+    }
+    if (message.resourceType !== 0) {
+      writer.uint32(16).int32(message.resourceType);
+    }
+    if (message.eventType !== 0) {
+      writer.uint32(24).int32(message.eventType);
+    }
+    if (message.resourceId !== "") {
+      writer.uint32(34).string(message.resourceId);
+    }
+    if (message.eventTimestamp !== undefined) {
+      Timestamp.encode(toTimestamp(message.eventTimestamp), writer.uint32(42).fork()).ldelim();
+    }
+    if (message.eventPayload !== "") {
+      writer.uint32(50).string(message.eventPayload);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): WorkflowEvent {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseWorkflowEvent();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.workflowRunId = reader.string();
+          continue;
+        case 2:
+          if (tag !== 16) {
+            break;
+          }
+
+          message.resourceType = reader.int32() as any;
+          continue;
+        case 3:
+          if (tag !== 24) {
+            break;
+          }
+
+          message.eventType = reader.int32() as any;
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.resourceId = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.eventTimestamp = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        case 6:
+          if (tag !== 50) {
+            break;
+          }
+
+          message.eventPayload = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): WorkflowEvent {
+    return {
+      workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : "",
+      resourceType: isSet(object.resourceType) ? resourceTypeFromJSON(object.resourceType) : 0,
+      eventType: isSet(object.eventType) ? resourceEventTypeFromJSON(object.eventType) : 0,
+      resourceId: isSet(object.resourceId) ? globalThis.String(object.resourceId) : "",
+      eventTimestamp: isSet(object.eventTimestamp) ? fromJsonTimestamp(object.eventTimestamp) : undefined,
+      eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : "",
+    };
+  },
+
+  toJSON(message: WorkflowEvent): unknown {
+    const obj: any = {};
+    if (message.workflowRunId !== "") {
+      obj.workflowRunId = message.workflowRunId;
+    }
+    if (message.resourceType !== 0) {
+      obj.resourceType = resourceTypeToJSON(message.resourceType);
+    }
+    if (message.eventType !== 0) {
+      obj.eventType = resourceEventTypeToJSON(message.eventType);
+    }
+    if (message.resourceId !== "") {
+      obj.resourceId = message.resourceId;
+    }
+    if (message.eventTimestamp !== undefined) {
+      obj.eventTimestamp = message.eventTimestamp.toISOString();
+    }
+    if (message.eventPayload !== "") {
+      obj.eventPayload = message.eventPayload;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<WorkflowEvent>): WorkflowEvent {
+    return WorkflowEvent.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<WorkflowEvent>): WorkflowEvent {
+    const message = createBaseWorkflowEvent();
+    message.workflowRunId = object.workflowRunId ?? "";
+    message.resourceType = object.resourceType ?? 0;
+    message.eventType = object.eventType ?? 0;
+    message.resourceId = object.resourceId ?? "";
+    message.eventTimestamp = object.eventTimestamp ?? undefined;
+    message.eventPayload = object.eventPayload ?? "";
+    return message;
+  },
+};
+
 export type DispatcherDefinition = typeof DispatcherDefinition;
 export const DispatcherDefinition = {
   name: "Dispatcher",
@@ -1265,6 +1577,14 @@ export const DispatcherDefinition = {
       requestType: WorkerListenRequest,
       requestStream: false,
       responseType: AssignedAction,
+      responseStream: true,
+      options: {},
+    },
+    subscribeToWorkflowEvents: {
+      name: "SubscribeToWorkflowEvents",
+      requestType: SubscribeToWorkflowEventsRequest,
+      requestStream: false,
+      responseType: WorkflowEvent,
       responseStream: true,
       options: {},
     },
@@ -1304,6 +1624,10 @@ export interface DispatcherServiceImplementation<CallContextExt = {}> {
     request: WorkerListenRequest,
     context: CallContext & CallContextExt,
   ): ServerStreamingMethodResult<DeepPartial<AssignedAction>>;
+  subscribeToWorkflowEvents(
+    request: SubscribeToWorkflowEventsRequest,
+    context: CallContext & CallContextExt,
+  ): ServerStreamingMethodResult<DeepPartial<WorkflowEvent>>;
   sendStepActionEvent(
     request: StepActionEvent,
     context: CallContext & CallContextExt,
@@ -1327,6 +1651,10 @@ export interface DispatcherClient<CallOptionsExt = {}> {
     request: DeepPartial<WorkerListenRequest>,
     options?: CallOptions & CallOptionsExt,
   ): AsyncIterable<AssignedAction>;
+  subscribeToWorkflowEvents(
+    request: DeepPartial<SubscribeToWorkflowEventsRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): AsyncIterable<WorkflowEvent>;
   sendStepActionEvent(
     request: DeepPartial<StepActionEvent>,
     options?: CallOptions & CallOptionsExt,
