@@ -14,7 +14,7 @@ export function CodeEditor({
   wrapLines = true,
 }: {
   code: string;
-  setCode?: (code: string) => void;
+  setCode?: (code: string | undefined) => void;
   language: string;
   className?: string;
   height?: string;
@@ -112,6 +112,7 @@ export function CodeEditor({
         beforeMount={setEditorTheme}
         language={language}
         value={code}
+        onChange={setCode}
         width={width || '100%'}
         height={height || '400px'}
         theme="pastels-on-dark"

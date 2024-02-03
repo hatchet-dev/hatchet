@@ -473,50 +473,54 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 		updateStepOpts.ScheduleTimeoutAt = &scheduleTimeoutAt
 	}
 
-	lookupDataModel, ok := stepRun.JobRun().LookupData()
+	// If the step run input is not set, then we should set it. This will be set upstream if we've rerun
+	// the step run manually with new inputs. It will not be set when the step is automatically queued.
+	if in, ok := stepRun.Input(); !ok || string(json.RawMessage(in)) == "{}" {
+		lookupDataModel, ok := stepRun.JobRun().LookupData()
 
-	if ok && lookupDataModel != nil {
-		data, ok := lookupDataModel.Data()
+		if ok && lookupDataModel != nil {
+			data, ok := lookupDataModel.Data()
 
-		if !ok {
-			return fmt.Errorf("job run has no lookup data")
-		}
+			if !ok {
+				return fmt.Errorf("job run has no lookup data")
+			}
 
-		lookupData := &datautils.JobRunLookupData{}
+			lookupData := &datautils.JobRunLookupData{}
 
-		err := datautils.FromJSONType(&data, lookupData)
+			err := datautils.FromJSONType(&data, lookupData)
 
-		if err != nil {
-			return fmt.Errorf("could not get job run lookup data: %w", err)
-		}
+			if err != nil {
+				return fmt.Errorf("could not get job run lookup data: %w", err)
+			}
 
-		// input data is the triggering event data and any parent step data
-		inputData := datautils.StepRunData{
-			Input:       lookupData.Input,
-			TriggeredBy: lookupData.TriggeredBy,
-			Parents:     map[string]datautils.StepData{},
-		}
+			// input data is the triggering event data and any parent step data
+			inputData := datautils.StepRunData{
+				Input:       lookupData.Input,
+				TriggeredBy: lookupData.TriggeredBy,
+				Parents:     map[string]datautils.StepData{},
+			}
 
-		// add all parents to the input data
-		for _, parent := range stepRun.Parents() {
-			readableId, ok := parent.Step().ReadableID()
+			// add all parents to the input data
+			for _, parent := range stepRun.Parents() {
+				readableId, ok := parent.Step().ReadableID()
 
-			if ok && readableId != "" {
-				parentData, exists := lookupData.Steps[readableId]
+				if ok && readableId != "" {
+					parentData, exists := lookupData.Steps[readableId]
 
-				if exists {
-					inputData.Parents[readableId] = parentData
+					if exists {
+						inputData.Parents[readableId] = parentData
+					}
 				}
 			}
+
+			inputDataBytes, err := json.Marshal(inputData)
+
+			if err != nil {
+				return fmt.Errorf("could not convert input data to json: %w", err)
+			}
+
+			updateStepOpts.Input = inputDataBytes
 		}
-
-		inputDataBytes, err := json.Marshal(inputData)
-
-		if err != nil {
-			return fmt.Errorf("could not convert input data to json: %w", err)
-		}
-
-		updateStepOpts.Input = inputDataBytes
 	}
 
 	// begin transaction and make sure step run is in a pending status
@@ -542,7 +546,6 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-run")
 	defer span.End()
 
-	// indicate that the step run is pending assignment
 	stepRun, err := ec.repo.StepRun().GetStepRunById(tenantId, stepRunId)
 
 	if err != nil {
