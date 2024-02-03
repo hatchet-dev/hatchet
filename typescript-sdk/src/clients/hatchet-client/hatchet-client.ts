@@ -120,14 +120,14 @@ export class HatchetClient {
     return worker;
   }
 
-  worker(workflow: string | Workflow): Worker {
+  async worker(workflow: string | Workflow): Promise<Worker> {
     const name = typeof workflow === 'string' ? workflow : workflow.id;
     const worker = new Worker(this, {
       name,
     });
 
     if (typeof workflow !== 'string') {
-      worker.registerWorkflow(workflow);
+      await worker.registerWorkflow(workflow);
       return worker;
     }
 

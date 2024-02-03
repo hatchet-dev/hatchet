@@ -74,6 +74,10 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/workflowRuns"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}:
     $ref: "./paths/workflow/workflow.yaml#/workflowRun"
+  /api/v1/tenants/{tenant}/step-runs/{step-run}:
+    $ref: "./paths/step-run/step-run.yaml#/stepRunScoped"
+  /api/v1/tenants/{tenant}/step-runs/{step-run}/rerun:
+    $ref: "./paths/step-run/step-run.yaml#/rerunStepRun"
   /api/v1/tenants/{tenant}/worker:
     $ref: "./paths/worker/worker.yaml#/withTenant"
   /api/v1/workers/{worker}:

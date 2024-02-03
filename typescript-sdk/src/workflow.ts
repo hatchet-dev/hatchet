@@ -40,7 +40,7 @@ export const CreateWorkflowSchema = z.object({
 
 export interface Workflow extends z.infer<typeof CreateWorkflowSchema> {
   concurrency?: z.infer<typeof WorkflowConcurrency> & {
-    key: string | ((ctx: any) => string);
+    key: (ctx: any) => string;
   };
   steps: CreateStep<any>[];
 }

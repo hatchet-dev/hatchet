@@ -52,6 +52,10 @@ const workflow: Workflow = {
   ],
 };
 
-const worker = hatchet.worker('example-worker');
-worker.registerWorkflow(workflow);
-worker.start();
+async function main() {
+  const worker = await hatchet.worker('example-worker');
+  await worker.registerWorkflow(workflow);
+  worker.start();
+}
+
+main();

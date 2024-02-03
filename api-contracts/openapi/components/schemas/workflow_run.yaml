@@ -211,3 +211,10 @@ StepRun:
     - jobRunId
     - stepId
     - status
+
+RerunStepRunRequest:
+  properties:
+    input:
+      type: object
+  required:
+    - input
