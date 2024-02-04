@@ -25,10 +25,64 @@ The following environment variables are deprecated:
 | -------- | ----------- | ----------- |
 | `HATCHET_CLIENT_TENANT_ID` | The tenant ID to use. | This is now part of the token. |
 
-## Compatibility Matrix
+## Compatibility Matrices
 
-| SDK | DAGs? | Timeouts? | Step cancellation? | Notes |
-| --- | ----- | --------- | ------------------ | ----- |
-| Go SDK | Yes | Yes | Yes | |
-| Python SDK | Yes | No | Unknown/untested | |
-| Typescript SDK | Yes | No | Unknown/untested | |
+### DAGs
+
+Whether the SDKs support full DAG-style execution.
+
+| SDK | DAGs? | Notes |
+| --- | ----- | ----- |
+| Go SDK | Yes | |
+| Python SDK | Yes | |
+| Typescript SDK | Yes | |
+
+### Timeouts
+
+Whether the SDKs support setting timeouts and cancelling after timeouts.
+
+| SDK | Timeouts? | Step cancellation? | Notes |
+| --- | --------- | ------------------ | ----- |
+| Go SDK | Yes | Yes | |
+| Python SDK | Yes | Yes | If thread is blocking, this won't be respected |
+| Typescript SDK | Yes | Unknown | |
+
+### Middleware
+
+Whether the SDKs support setting middleware.
+
+| SDK | Middleware? | Notes |
+| --- | ---------- | ----- |
+| Go SDK | Yes | |
+| Python SDK | No | |
+| Typescript SDK | No | |
+
+### Separately Registering and Calling Actions
+
+Whether the SDKs support separately registering and calling actions, instead of defining them inline in the workflows.
+
+| SDK | Supported? | Notes |
+| --- | ----------------------------------------- | ----- |
+| Go SDK | Yes | |
+| Python SDK | No | |
+| Typescript SDK | No | |
+
+### Custom Services
+
+Whether the SDKs support defining services to logically separate workflows and actions.
+
+| SDK | Supported? | Notes |
+| --- | --------- | ----- |
+| Go SDK | Yes | |
+| Python SDK | No | |
+| Typescript SDK | No | |
+
+### Scheduled Workflows
+
+Whether the SDKs support defining scheduled workflows.
+
+| SDK | Supported? | Notes |
+| --- | --------- | ----- |
+| Go SDK | Yes | |
+| Python SDK | No | |
+| Typescript SDK | No | |

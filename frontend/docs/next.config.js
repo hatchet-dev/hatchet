@@ -8,7 +8,7 @@ module.exports = {
   async redirects() {
     return [
       {
-        source: '/:path((?!home|contributing).*)',
+        source: '/:path((?!home|contributing|favicon\\.ico).*)',
         destination: '/home/:path*',
         permanent: true,
       },
