@@ -3,7 +3,6 @@ package worker
 import (
 	"fmt"
 
-	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -29,7 +28,7 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	apiWorkflow.Triggers = *wt
 
 	// create the workflow via the API
-	err := s.worker.client.Admin().PutWorkflow(&apiWorkflow, client.WithAutoVersion())
+	err := s.worker.client.Admin().PutWorkflow(&apiWorkflow)
 
 	if err != nil {
 		return err
@@ -43,7 +42,14 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 			return err
 		}
 
-		err = s.worker.registerAction(s.Name, parsedAction.Verb, fn)
+		if parsedAction.Service != s.Name {
+			// check that it's concurrency, otherwise throw error
+			if parsedAction.Service != "concurrency" {
+				return fmt.Errorf("action %s does not belong to service %s", actionId, s.Name)
+			}
+		}
+
+		err = s.worker.registerAction(parsedAction.Service, parsedAction.Verb, fn)
 
 		if err != nil {
 			return err

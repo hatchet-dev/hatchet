@@ -28,10 +28,13 @@ import {
   ListAPITokensResponse,
   RejectInviteRequest,
   ReplayEventRequest,
+  RerunStepRunRequest,
+  StepRun,
   Tenant,
   TenantInvite,
   TenantInviteList,
   TenantMemberList,
+  TriggerWorkflowRunRequest,
   UpdateTenantInviteRequest,
   User,
   UserLoginRequest,
@@ -555,6 +558,39 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Trigger a new workflow run for a tenant
+   *
+   * @tags Workflow Run
+   * @name WorkflowRunCreate
+   * @summary Trigger workflow run
+   * @request POST:/api/v1/workflows/{workflow}/trigger
+   * @secure
+   */
+  workflowRunCreate = (
+    workflow: string,
+    data: TriggerWorkflowRunRequest,
+    query?: {
+      /**
+       * The workflow version. If not supplied, the latest version is fetched.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      version?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<WorkflowRun, APIErrors>({
+      path: `/api/v1/workflows/${workflow}/trigger`,
+      method: "POST",
+      query: query,
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Get a workflow version definition for a tenant
    *
    * @tags Workflow
@@ -645,6 +681,42 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a step run by id
+   *
+   * @tags Step Run
+   * @name StepRunGet
+   * @summary Get step run
+   * @request GET:/api/v1/tenants/{tenant}/step-runs/{step-run}
+   * @secure
+   */
+  stepRunGet = (tenant: string, stepRun: string, params: RequestParams = {}) =>
+    this.request<StepRun, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Reruns a step run
+   *
+   * @tags Step Run
+   * @name StepRunUpdateRerun
+   * @summary Rerun step run
+   * @request POST:/api/v1/tenants/{tenant}/step-runs/{step-run}/rerun
+   * @secure
+   */
+  stepRunUpdateRerun = (tenant: string, stepRun: string, data: RerunStepRunRequest, params: RequestParams = {}) =>
+    this.request<StepRun, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}/rerun`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });

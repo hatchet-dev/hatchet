@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -27,7 +28,7 @@ var keysetCreateLocalKeysetsCmd = &cobra.Command{
 		err := runCreateLocalKeysets()
 
 		if err != nil {
-			fmt.Printf("Fatal: could not run [keyset create-local-keys] command: %v\n", err)
+			log.Printf("Fatal: could not run [keyset create-local-keys] command: %v", err)
 			os.Exit(1)
 		}
 	},
@@ -40,7 +41,7 @@ var keysetCreateCloudKMSJWTCmd = &cobra.Command{
 		err := runCreateCloudKMSJWTKeyset()
 
 		if err != nil {
-			fmt.Printf("Fatal: could not run [keyset create-cloudkms-jwt] command: %v\n", err)
+			log.Printf("Fatal: could not run [keyset create-cloudkms-jwt] command: %v", err)
 			os.Exit(1)
 		}
 	},
@@ -134,11 +135,26 @@ func runCreateCloudKMSJWTKeyset() error {
 		return err
 	}
 
-	fmt.Println("Private EC256 Keyset:")
-	fmt.Println(string(privateEc256))
+	if encryptionKeyDir != "" {
+		// we write these as .key files so that they're gitignored by default
+		err = os.WriteFile(encryptionKeyDir+"/private_ec256.key", privateEc256, 0600)
 
-	fmt.Println("Public EC256 Keyset:")
-	fmt.Println(string(publicEc256))
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(encryptionKeyDir+"/public_ec256.key", publicEc256, 0600)
+
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("Private EC256 Keyset:")
+		fmt.Println(string(privateEc256))
+
+		fmt.Println("Public EC256 Keyset:")
+		fmt.Println(string(publicEc256))
+	}
 
 	return nil
 }

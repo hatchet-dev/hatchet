@@ -6,11 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -21,12 +18,13 @@ import (
 type AdminClient interface {
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
+
+	// RunWorkflow triggers a workflow run and returns the run id
+	RunWorkflow(workflowName string, input interface{}) (string, error)
 }
 
 type adminClientImpl struct {
 	client admincontracts.WorkflowServiceClient
-
-	tenantId string
 
 	l *zerolog.Logger
 
@@ -37,25 +35,17 @@ type adminClientImpl struct {
 
 func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts) AdminClient {
 	return &adminClientImpl{
-		client:   admincontracts.NewWorkflowServiceClient(conn),
-		tenantId: opts.tenantId,
-		l:        opts.l,
-		v:        opts.v,
-		ctx:      opts.ctxLoader,
+		client: admincontracts.NewWorkflowServiceClient(conn),
+		l:      opts.l,
+		v:      opts.v,
+		ctx:    opts.ctxLoader,
 	}
 }
 
 type putOpts struct {
-	autoVersion bool
 }
 
 type PutOptFunc func(*putOpts)
-
-func WithAutoVersion() PutOptFunc {
-	return func(opts *putOpts) {
-		opts.autoVersion = true
-	}
-}
 
 func defaultPutOpts() *putOpts {
 	return &putOpts{}
@@ -68,59 +58,16 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 		f(opts)
 	}
 
-	if workflow.Version == "" && !opts.autoVersion {
-		return fmt.Errorf("PutWorkflow error: workflow version is required, or use WithAutoVersion()")
-	}
-
 	req, err := a.getPutRequest(workflow)
 
 	if err != nil {
 		return fmt.Errorf("could not get put opts: %w", err)
 	}
 
-	apiWorkflow, err := a.client.GetWorkflowByName(a.ctx.newContext(context.Background()), &admincontracts.GetWorkflowByNameRequest{
-		Name: req.Opts.Name,
-	})
-
-	shouldPut := opts.autoVersion
+	_, err = a.client.PutWorkflow(a.ctx.newContext(context.Background()), req)
 
 	if err != nil {
-		// if not found, create
-		if statusErr, ok := status.FromError(err); ok && statusErr.Code() == codes.NotFound {
-			shouldPut = true
-		} else {
-			return fmt.Errorf("could not get workflow: %w", err)
-		}
-
-		if workflow.Version == "" && opts.autoVersion {
-			req.Opts.Version = "0.1.0"
-		}
-	} else {
-		// if there are no versions, exit
-		if len(apiWorkflow.Versions) == 0 {
-			return fmt.Errorf("found workflow, but it has no versions")
-		}
-
-		// get the workflow version to determine whether to update
-		if apiWorkflow.Versions[0].Version != workflow.Version {
-			shouldPut = true
-		}
-
-		if workflow.Version == "" && opts.autoVersion {
-			req.Opts.Version, err = bumpMinorVersion(apiWorkflow.Versions[0].Version)
-
-			if err != nil {
-				return fmt.Errorf("could not bump version: %w", err)
-			}
-		}
-	}
-
-	if shouldPut {
-		_, err = a.client.PutWorkflow(a.ctx.newContext(context.Background()), req)
-
-		if err != nil {
-			return fmt.Errorf("could not create workflow: %w", err)
-		}
+		return fmt.Errorf("could not create workflow: %w", err)
 	}
 
 	return nil
@@ -194,6 +141,25 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 	return nil
 }
 
+func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}) (string, error) {
+	inputBytes, err := json.Marshal(input)
+
+	if err != nil {
+		return "", fmt.Errorf("could not marshal input: %w", err)
+	}
+
+	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.TriggerWorkflowRequest{
+		Name:  workflowName,
+		Input: string(inputBytes),
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("could not trigger workflow: %w", err)
+	}
+
+	return res.WorkflowRunId, nil
+}
+
 func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontracts.PutWorkflowRequest, error) {
 	opts := &admincontracts.CreateWorkflowVersionOpts{
 		Name:          workflow.Name,
@@ -201,6 +167,24 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		Description:   workflow.Description,
 		EventTriggers: workflow.Triggers.Events,
 		CronTriggers:  workflow.Triggers.Cron,
+	}
+
+	if workflow.Concurrency != nil {
+		opts.Concurrency = &admincontracts.WorkflowConcurrencyOpts{
+			Action: workflow.Concurrency.ActionID,
+		}
+
+		switch workflow.Concurrency.LimitStrategy {
+		case types.CancelInProgress:
+			opts.Concurrency.LimitStrategy = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
+		default:
+			opts.Concurrency.LimitStrategy = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
+		}
+
+		// TODO: should be a pointer because users might want to set maxRuns temporarily for disabling
+		if workflow.Concurrency.MaxRuns != 0 {
+			opts.Concurrency.MaxRuns = workflow.Concurrency.MaxRuns
+		}
 	}
 
 	jobOpts := make([]*admincontracts.CreateWorkflowJobOpts, 0)
@@ -248,16 +232,4 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 	return &admincontracts.PutWorkflowRequest{
 		Opts: opts,
 	}, nil
-}
-
-func bumpMinorVersion(version string) (string, error) {
-	currVersion, err := semver.NewVersion(version)
-
-	if err != nil {
-		return "", fmt.Errorf("could not parse version: %w", err)
-	}
-
-	newVersion := currVersion.IncMinor()
-
-	return newVersion.String(), nil
 }

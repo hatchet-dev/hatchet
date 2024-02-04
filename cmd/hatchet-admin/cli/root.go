@@ -30,7 +30,7 @@ var rootCmd = &cobra.Command{
 		// sc, err = configLoader.LoadServerConfig()
 
 		// if err != nil {
-		// 	fmt.Printf("Fatal: could not load server config: %v\n", err)
+		// 	log.Printf("Fatal: could not load server config: %v\n", err)
 		// 	os.Exit(1)
 		// }
 	},

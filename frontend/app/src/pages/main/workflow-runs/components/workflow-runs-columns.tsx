@@ -1,5 +1,4 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { Checkbox } from '@/components/ui/checkbox';
 import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { WorkflowRun } from '@/lib/api';
 import { relativeDate } from '@/lib/utils';
@@ -8,30 +7,6 @@ import { RunStatus } from './run-statuses';
 
 export const columns: ColumnDef<WorkflowRun>[] = [
   {
-    id: 'select',
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && 'indeterminate')
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-        className="translate-y-[2px]"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-        className="translate-y-[2px]"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
     accessorKey: 'id',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Run Id" />
@@ -39,7 +14,7 @@ export const columns: ColumnDef<WorkflowRun>[] = [
     cell: ({ row }) => (
       <Link to={'/workflow-runs/' + row.original.metadata.id}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-          {row.original.metadata.id}
+          {row.original.displayName || row.original.metadata.id}
         </div>
       </Link>
     ),

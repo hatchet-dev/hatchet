@@ -45,6 +45,55 @@ func (a *AdminServiceImpl) GetWorkflowByName(ctx context.Context, req *contracts
 	return resp, nil
 }
 
+func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
+	workflow, err := a.repo.Workflow().GetWorkflowByName(
+		tenant.ID,
+		req.Name,
+	)
+
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, status.Error(
+				codes.NotFound,
+				"workflow not found",
+			)
+		}
+
+		return nil, err
+	}
+
+	workflowVersion := &workflow.Versions()[0]
+
+	if workflowVersion == nil {
+		return nil, fmt.Errorf("workflow with id %s has no versions", workflow.ID)
+	}
+
+	createOpts, err := repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input))
+
+	if err != nil {
+		return nil, err
+	}
+
+	workflowRun, err := a.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenant.ID, createOpts)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create workflow run: %w", err)
+	}
+
+	// send to workflow processing queue
+	err = a.tq.AddTask(
+		context.Background(),
+		taskqueue.WORKFLOW_PROCESSING_QUEUE,
+		tasktypes.WorkflowRunQueuedToTask(workflowRun),
+	)
+
+	return &contracts.TriggerWorkflowResponse{
+		WorkflowRunId: workflowRun.ID,
+	}, nil
+}
+
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*db.TenantModel)
 
@@ -63,6 +112,8 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		req.Opts.Name,
 	)
 
+	var noop bool
+
 	if err != nil {
 		if !errors.Is(err, db.ErrNotFound) {
 			return nil, err
@@ -80,192 +131,169 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 	} else {
 		oldWorkflowVersion = &currWorkflow.Versions()[0]
 
-		// workflow exists, create a new version
-		workflowVersion, err = a.repo.Workflow().CreateWorkflowVersion(
-			tenant.ID,
-			createOpts,
-		)
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// if this is a cron-based workflow, assign the workflow run to a ticker
-	triggers, ok := workflowVersion.Triggers()
-
-	if !ok {
-		return nil, status.Error(
-			codes.FailedPrecondition,
-			"workflow version has no triggers",
-		)
-	}
-
-	if crons := triggers.Crons(); len(crons) > 0 {
-		within := time.Now().UTC().Add(-6 * time.Second)
-
-		tickers, err := a.repo.Ticker().ListTickers(&repository.ListTickerOpts{
-			LatestHeartbeatAt: &within,
-			Active:            repository.BoolPtr(true),
-		})
+		// workflow exists, look at checksum
+		newCS, err := createOpts.Checksum()
 
 		if err != nil {
 			return nil, err
 		}
 
-		if len(tickers) == 0 {
-			return nil, status.Error(
-				codes.FailedPrecondition,
-				"no tickers available",
-			)
-		}
-
-		numTickers := len(tickers)
-
-		for i, cronTrigger := range crons {
-			cronTriggerCp := cronTrigger
-			ticker := tickers[i%numTickers]
-
-			_, err := a.repo.Ticker().AddCron(
-				ticker.ID,
-				&cronTriggerCp,
+		if oldWorkflowVersion.Checksum != newCS {
+			workflowVersion, err = a.repo.Workflow().CreateWorkflowVersion(
+				tenant.ID,
+				createOpts,
 			)
 
 			if err != nil {
 				return nil, err
 			}
+		} else {
+			noop = true
 
-			task, err := cronScheduleTask(&ticker, &cronTriggerCp, workflowVersion)
-
-			if err != nil {
-				return nil, err
-			}
-
-			// send to task queue
-			err = a.tq.AddTask(
-				ctx,
-				taskqueue.QueueTypeFromTickerID(ticker.ID),
-				task,
-			)
-
-			if err != nil {
-				return nil, err
-			}
+			workflowVersion = oldWorkflowVersion
 		}
 	}
 
-	if schedules := workflowVersion.Scheduled(); len(schedules) > 0 {
-		within := time.Now().UTC().Add(-6 * time.Second)
-
-		tickers, err := a.repo.Ticker().ListTickers(&repository.ListTickerOpts{
-			LatestHeartbeatAt: &within,
-			Active:            repository.BoolPtr(true),
-		})
-
-		if err != nil {
-			return nil, err
-		}
-
-		if len(tickers) == 0 {
-			return nil, status.Error(
-				codes.FailedPrecondition,
-				"no tickers available",
-			)
-		}
-
-		numTickers := len(tickers)
-
-		for i, scheduledTrigger := range schedules {
-			scheduledTriggerCp := scheduledTrigger
-			ticker := tickers[i%numTickers]
-
-			_, err := a.repo.Ticker().AddScheduledWorkflow(
-				ticker.ID,
-				&scheduledTriggerCp,
-			)
-
-			if err != nil {
-				return nil, err
-			}
-
-			task, err := workflowScheduleTask(&ticker, &scheduledTriggerCp, workflowVersion)
-
-			if err != nil {
-				return nil, err
-			}
-
-			// send to task queue
-			err = a.tq.AddTask(
-				ctx,
-				taskqueue.QueueTypeFromTickerID(ticker.ID),
-				task,
-			)
-
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	// cancel the old workflow version
-	if oldWorkflowVersion != nil {
-		oldTriggers, ok := oldWorkflowVersion.Triggers()
+	if !noop {
+		// if this is a cron-based workflow, assign the workflow run to a ticker
+		triggers, ok := workflowVersion.Triggers()
 
 		if !ok {
 			return nil, status.Error(
 				codes.FailedPrecondition,
-				"old workflow version has no triggers",
+				"workflow version has no triggers",
 			)
 		}
 
-		if crons := oldTriggers.Crons(); len(crons) > 0 {
-			for _, cronTrigger := range crons {
+		if crons := triggers.Crons(); len(crons) > 0 {
+			within := time.Now().UTC().Add(-6 * time.Second)
+
+			tickers, err := a.repo.Ticker().ListTickers(&repository.ListTickerOpts{
+				LatestHeartbeatAt: &within,
+				Active:            repository.BoolPtr(true),
+			})
+
+			if err != nil {
+				return nil, err
+			}
+
+			if len(tickers) == 0 {
+				return nil, status.Error(
+					codes.FailedPrecondition,
+					"no tickers available",
+				)
+			}
+
+			numTickers := len(tickers)
+
+			for i, cronTrigger := range crons {
 				cronTriggerCp := cronTrigger
+				ticker := tickers[i%numTickers]
 
-				if ticker, ok := cronTrigger.Ticker(); ok {
-					task, err := cronCancelTask(ticker, &cronTriggerCp, workflowVersion)
+				_, err := a.repo.Ticker().AddCron(
+					ticker.ID,
+					&cronTriggerCp,
+				)
 
-					if err != nil {
-						return nil, err
-					}
+				if err != nil {
+					return nil, err
+				}
 
-					// send to task queue
-					err = a.tq.AddTask(
-						ctx,
-						taskqueue.QueueTypeFromTickerID(ticker.ID),
-						task,
-					)
+				task, err := cronScheduleTask(&ticker, &cronTriggerCp, workflowVersion)
 
-					if err != nil {
-						return nil, err
-					}
+				if err != nil {
+					return nil, err
+				}
 
-					// remove cron
-					_, err = a.repo.Ticker().RemoveCron(
-						ticker.ID,
-						&cronTriggerCp,
-					)
+				// send to task queue
+				err = a.tq.AddTask(
+					ctx,
+					taskqueue.QueueTypeFromTickerID(ticker.ID),
+					task,
+				)
 
-					if err != nil {
-						return nil, err
-					}
+				if err != nil {
+					return nil, err
 				}
 			}
 		}
 
-		if schedules := oldWorkflowVersion.Scheduled(); len(schedules) > 0 {
-			for _, scheduleTrigger := range schedules {
-				scheduleTriggerCp := scheduleTrigger
+		if schedules := workflowVersion.Scheduled(); len(schedules) > 0 {
+			within := time.Now().UTC().Add(-6 * time.Second)
 
-				if ticker, ok := scheduleTriggerCp.Ticker(); ok {
-					task, err := workflowCancelTask(ticker, &scheduleTriggerCp, workflowVersion)
+			tickers, err := a.repo.Ticker().ListTickers(&repository.ListTickerOpts{
+				LatestHeartbeatAt: &within,
+				Active:            repository.BoolPtr(true),
+			})
 
-					if err != nil {
-						return nil, err
-					}
+			if err != nil {
+				return nil, err
+			}
 
-					// only send to task queue if the trigger is in the future
-					if scheduleTriggerCp.TriggerAt.After(time.Now().UTC()) {
+			if len(tickers) == 0 {
+				return nil, status.Error(
+					codes.FailedPrecondition,
+					"no tickers available",
+				)
+			}
+
+			numTickers := len(tickers)
+
+			for i, scheduledTrigger := range schedules {
+				scheduledTriggerCp := scheduledTrigger
+				ticker := tickers[i%numTickers]
+
+				_, err := a.repo.Ticker().AddScheduledWorkflow(
+					ticker.ID,
+					&scheduledTriggerCp,
+				)
+
+				if err != nil {
+					return nil, err
+				}
+
+				task, err := workflowScheduleTask(&ticker, &scheduledTriggerCp, workflowVersion)
+
+				if err != nil {
+					return nil, err
+				}
+
+				// send to task queue
+				err = a.tq.AddTask(
+					ctx,
+					taskqueue.QueueTypeFromTickerID(ticker.ID),
+					task,
+				)
+
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+
+		// cancel the old workflow version
+		if oldWorkflowVersion != nil {
+			oldTriggers, ok := oldWorkflowVersion.Triggers()
+
+			if !ok {
+				return nil, status.Error(
+					codes.FailedPrecondition,
+					"old workflow version has no triggers",
+				)
+			}
+
+			if crons := oldTriggers.Crons(); len(crons) > 0 {
+				for _, cronTrigger := range crons {
+					cronTriggerCp := cronTrigger
+
+					if ticker, ok := cronTrigger.Ticker(); ok {
+						task, err := cronCancelTask(ticker, &cronTriggerCp, workflowVersion)
+
+						if err != nil {
+							return nil, err
+						}
+
+						// send to task queue
 						err = a.tq.AddTask(
 							ctx,
 							taskqueue.QueueTypeFromTickerID(ticker.ID),
@@ -277,13 +305,50 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 						}
 
 						// remove cron
-						_, err = a.repo.Ticker().RemoveScheduledWorkflow(
+						_, err = a.repo.Ticker().RemoveCron(
 							ticker.ID,
-							&scheduleTriggerCp,
+							&cronTriggerCp,
 						)
 
 						if err != nil {
 							return nil, err
+						}
+					}
+				}
+			}
+
+			if schedules := oldWorkflowVersion.Scheduled(); len(schedules) > 0 {
+				for _, scheduleTrigger := range schedules {
+					scheduleTriggerCp := scheduleTrigger
+
+					if ticker, ok := scheduleTriggerCp.Ticker(); ok {
+						task, err := workflowCancelTask(ticker, &scheduleTriggerCp, workflowVersion)
+
+						if err != nil {
+							return nil, err
+						}
+
+						// only send to task queue if the trigger is in the future
+						if scheduleTriggerCp.TriggerAt.After(time.Now().UTC()) {
+							err = a.tq.AddTask(
+								ctx,
+								taskqueue.QueueTypeFromTickerID(ticker.ID),
+								task,
+							)
+
+							if err != nil {
+								return nil, err
+							}
+
+							// remove cron
+							_, err = a.repo.Ticker().RemoveScheduledWorkflow(
+								ticker.ID,
+								&scheduleTriggerCp,
+							)
+
+							if err != nil {
+								return nil, err
+							}
 						}
 					}
 				}
@@ -527,10 +592,30 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		scheduledTriggers = append(scheduledTriggers, trigger.AsTime())
 	}
 
+	var concurrency *repository.CreateWorkflowConcurrencyOpts
+
+	if req.Opts.Concurrency != nil {
+		var limitStrategy *string
+
+		if req.Opts.Concurrency.LimitStrategy.String() != "" {
+			limitStrategy = repository.StringPtr(req.Opts.Concurrency.LimitStrategy.String())
+		}
+
+		concurrency = &repository.CreateWorkflowConcurrencyOpts{
+			Action:        req.Opts.Concurrency.Action,
+			LimitStrategy: limitStrategy,
+		}
+
+		if req.Opts.Concurrency.MaxRuns != 0 {
+			concurrency.MaxRuns = &req.Opts.Concurrency.MaxRuns
+		}
+	}
+
 	return &repository.CreateWorkflowVersionOpts{
 		Name:              req.Opts.Name,
+		Concurrency:       concurrency,
 		Description:       &req.Opts.Description,
-		Version:           req.Opts.Version,
+		Version:           &req.Opts.Version,
 		EventTriggers:     req.Opts.EventTriggers,
 		CronTriggers:      req.Opts.CronTriggers,
 		ScheduledTriggers: scheduledTriggers,
@@ -569,9 +654,12 @@ func toWorkflowVersion(workflowVersion *db.WorkflowVersionModel) *contracts.Work
 		Id:         workflowVersion.ID,
 		CreatedAt:  timestamppb.New(workflowVersion.CreatedAt),
 		UpdatedAt:  timestamppb.New(workflowVersion.UpdatedAt),
-		Version:    workflowVersion.Version,
 		Order:      int32(workflowVersion.Order),
 		WorkflowId: workflowVersion.WorkflowID,
+	}
+
+	if taggedVersion, ok := workflowVersion.Version(); ok {
+		version.Version = taggedVersion
 	}
 
 	if triggers, ok := workflowVersion.Triggers(); ok {
@@ -697,7 +785,6 @@ func cronScheduleTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTrigger
 
 	return &taskqueue.Task{
 		ID:       "schedule-cron",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -716,7 +803,6 @@ func cronCancelTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTriggerCr
 
 	return &taskqueue.Task{
 		ID:       "cancel-cron",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -735,7 +821,6 @@ func workflowScheduleTask(ticker *db.TickerModel, workflowTriggerRef *db.Workflo
 
 	return &taskqueue.Task{
 		ID:       "schedule-workflow",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -754,7 +839,6 @@ func workflowCancelTask(ticker *db.TickerModel, workflowTriggerRef *db.WorkflowT
 
 	return &taskqueue.Task{
 		ID:       "cancel-workflow",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil

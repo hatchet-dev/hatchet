@@ -12,6 +12,8 @@ import (
 type Workflow struct {
 	Name string `yaml:"name,omitempty"`
 
+	Concurrency *WorkflowConcurrency `yaml:"concurrency,omitempty"`
+
 	Version string `yaml:"version,omitempty"`
 
 	Description string `yaml:"description,omitempty"`
@@ -19,6 +21,20 @@ type Workflow struct {
 	Triggers WorkflowTriggers `yaml:"triggers"`
 
 	Jobs map[string]WorkflowJob `yaml:"jobs"`
+}
+
+type WorkflowConcurrencyLimitStrategy string
+
+const (
+	CancelInProgress WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
+)
+
+type WorkflowConcurrency struct {
+	ActionID string `yaml:"action,omitempty"`
+
+	MaxRuns int32 `yaml:"maxRuns,omitempty"`
+
+	LimitStrategy WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
 }
 
 type WorkflowTriggers struct {

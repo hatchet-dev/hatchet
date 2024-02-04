@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -107,6 +108,12 @@ func (s *stepRunRepository) ListStepRuns(tenantId string, opts *repository.ListS
 
 	if opts.JobRunId != nil {
 		params = append(params, db.StepRun.JobRunID.Equals(*opts.JobRunId))
+	}
+
+	if opts.WorkflowRunId != nil {
+		params = append(params, db.StepRun.JobRun.Where(
+			db.JobRun.WorkflowRunID.Equals(*opts.WorkflowRunId),
+		))
 	}
 
 	return s.client.StepRun.FindMany(
@@ -289,6 +296,10 @@ func getUpdateParams(
 	updateParams = dbsqlc.UpdateStepRunParams{
 		ID:       pgStepRunId,
 		Tenantid: pgTenantId,
+		Rerun: pgtype.Bool{
+			Valid: true,
+			Bool:  opts.IsRerun,
+		},
 	}
 
 	if opts.Output != nil {

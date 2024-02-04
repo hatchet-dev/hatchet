@@ -6,6 +6,7 @@ sql:
       - workflow_runs.sql
       - workflows.sql
       - step_runs.sql
+      - get_group_key_runs.sql
       - job_runs.sql
       - tickers.sql
       - dispatchers.sql

@@ -18,9 +18,11 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { RunStatus } from '../components/run-statuses';
 import { ColumnDef } from '@tanstack/react-table';
 import { useState } from 'react';
-import { Code } from '@/components/ui/code';
+import { CodeEditor } from '@/components/ui/code-editor';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
+import WorkflowRunVisualizer from './components/workflow-run-visualizer';
+import { StepInputOutputSection } from './components/step-run-input-output';
 
 export default function ExpandedWorkflowRun() {
   const [expandedStepRuns, setExpandedStepRuns] = useState<string[]>([]);
@@ -33,6 +35,17 @@ export default function ExpandedWorkflowRun() {
 
   const runQuery = useQuery({
     ...queries.workflowRuns.get(tenant.metadata.id, params.run),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+
+      if (
+        data?.status != 'SUCCEEDED' &&
+        data?.status != 'FAILED' &&
+        data?.status != 'CANCELLED'
+      ) {
+        return 1000;
+      }
+    },
   });
 
   if (runQuery.isLoading || !runQuery.data) {
@@ -48,7 +61,7 @@ export default function ExpandedWorkflowRun() {
           <div className="flex flex-row gap-4 items-center">
             <AdjustmentsHorizontalIcon className="h-6 w-6 text-foreground mt-1" />
             <h2 className="text-2xl font-bold leading-tight text-foreground">
-              {run?.metadata.id}
+              {run?.displayName || run?.metadata.id}
             </h2>
             <Badge className="text-sm mt-1" variant={'secondary'}>
               {/* {workflow.versions && workflow.versions[0].version} */}
@@ -83,6 +96,10 @@ export default function ExpandedWorkflowRun() {
               Finished {relativeDate(run?.startedAt)}
             </div>
           )}
+        </div>
+        <Separator className="my-4" />
+        <div className="w-full h-[400px]">
+          <WorkflowRunVisualizer workflowRun={run} />
         </div>
         <Separator className="my-4" />
         {run.triggeredBy?.event && (
@@ -199,40 +216,9 @@ function getExpandedStepRunRow({
       <TableCell colSpan={columns.length} className="px-8 py-4">
         <StepStatusSection stepRun={stepRun} />
         <StepConfigurationSection stepRun={stepRun} />
-        <StepInputSection stepRun={stepRun} />
-        <StepOutputSection stepRun={stepRun} />
+        <StepInputOutputSection stepRun={stepRun} />
       </TableCell>
     </TableRow>
-  );
-}
-
-function StepInputSection({ stepRun }: { stepRun: StepRun }) {
-  const input = stepRun.input || '{}';
-
-  return (
-    <>
-      <h3 className="font-semibold leading-tight text-foreground mb-4">
-        Input
-      </h3>
-      <Code language="json" className="my-4" maxHeight="400px">
-        {JSON.stringify(JSON.parse(input), null, 2)}
-      </Code>
-    </>
-  );
-}
-
-function StepOutputSection({ stepRun }: { stepRun: StepRun }) {
-  const output = stepRun.output || '{}';
-
-  return (
-    <>
-      <h3 className="font-semibold leading-tight text-foreground mb-4">
-        Output
-      </h3>
-      <Code language="json" className="my-4" maxHeight="400px">
-        {JSON.stringify(JSON.parse(output), null, 2)}
-      </Code>
-    </>
   );
 }
 
@@ -328,9 +314,12 @@ function EventDataSection({ event }: { event: Event }) {
 
   return (
     <>
-      <Code language="json" className="my-4" maxHeight="400px">
-        {JSON.stringify(JSON.parse(eventData.data), null, 2)}
-      </Code>
+      <CodeEditor
+        language="json"
+        className="my-4"
+        height="400px"
+        code={JSON.stringify(JSON.parse(eventData.data), null, 2)}
+      />
     </>
   );
 }
@@ -346,9 +335,7 @@ function TriggeringCronSection({ cron }: { cron: string }) {
         Triggered by Cron
       </h3>
       <div className="text-sm text-muted-foreground">{prettyInterval}</div>
-      <Code language="typescript" className="my-4">
-        {cron}
-      </Code>
+      <CodeEditor language="typescript" className="my-4" code={cron} />
     </>
   );
 }

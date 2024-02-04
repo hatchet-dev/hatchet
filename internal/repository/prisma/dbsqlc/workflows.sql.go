@@ -275,6 +275,59 @@ func (q *Queries) CreateWorkflow(ctx context.Context, db DBTX, arg CreateWorkflo
 	return &i, err
 }
 
+const createWorkflowConcurrency = `-- name: CreateWorkflowConcurrency :one
+INSERT INTO "WorkflowConcurrency" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "workflowVersionId",
+    "getConcurrencyGroupId",
+    "maxRuns",
+    "limitStrategy"
+) VALUES (
+    $1::uuid,
+    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $4::uuid,
+    $5::uuid,
+    coalesce($6::integer, 1),
+    coalesce($7::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS')
+) RETURNING id, "createdAt", "updatedAt", "workflowVersionId", "getConcurrencyGroupId", "maxRuns", "limitStrategy"
+`
+
+type CreateWorkflowConcurrencyParams struct {
+	ID                    pgtype.UUID                  `json:"id"`
+	CreatedAt             pgtype.Timestamp             `json:"createdAt"`
+	UpdatedAt             pgtype.Timestamp             `json:"updatedAt"`
+	Workflowversionid     pgtype.UUID                  `json:"workflowversionid"`
+	Getconcurrencygroupid pgtype.UUID                  `json:"getconcurrencygroupid"`
+	MaxRuns               pgtype.Int4                  `json:"maxRuns"`
+	LimitStrategy         NullConcurrencyLimitStrategy `json:"limitStrategy"`
+}
+
+func (q *Queries) CreateWorkflowConcurrency(ctx context.Context, db DBTX, arg CreateWorkflowConcurrencyParams) (*WorkflowConcurrency, error) {
+	row := db.QueryRow(ctx, createWorkflowConcurrency,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Workflowversionid,
+		arg.Getconcurrencygroupid,
+		arg.MaxRuns,
+		arg.LimitStrategy,
+	)
+	var i WorkflowConcurrency
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkflowVersionId,
+		&i.GetConcurrencyGroupId,
+		&i.MaxRuns,
+		&i.LimitStrategy,
+	)
+	return &i, err
+}
+
 const createWorkflowTriggerCronRef = `-- name: CreateWorkflowTriggerCronRef :one
 INSERT INTO "WorkflowTriggerCronRef" (
     "parentId",
@@ -282,7 +335,7 @@ INSERT INTO "WorkflowTriggerCronRef" (
 ) VALUES (
     $1::uuid,
     $2::text
-) RETURNING "parentId", cron, "tickerId"
+) RETURNING "parentId", cron, "tickerId", input
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
@@ -293,7 +346,12 @@ type CreateWorkflowTriggerCronRefParams struct {
 func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefParams) (*WorkflowTriggerCronRef, error) {
 	row := db.QueryRow(ctx, createWorkflowTriggerCronRef, arg.Workflowtriggersid, arg.Crontrigger)
 	var i WorkflowTriggerCronRef
-	err := row.Scan(&i.ParentId, &i.Cron, &i.TickerId)
+	err := row.Scan(
+		&i.ParentId,
+		&i.Cron,
+		&i.TickerId,
+		&i.Input,
+	)
 	return &i, err
 }
 
@@ -397,6 +455,7 @@ INSERT INTO "WorkflowVersion" (
     "createdAt",
     "updatedAt",
     "deletedAt",
+    "checksum",
     "version",
     "workflowId"
 ) VALUES (
@@ -405,8 +464,9 @@ INSERT INTO "WorkflowVersion" (
     coalesce($3::timestamp, CURRENT_TIMESTAMP),
     $4::timestamp,
     $5::text,
-    $6::uuid
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId"
+    $6::text,
+    $7::uuid
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", checksum, version, "order", "workflowId"
 `
 
 type CreateWorkflowVersionParams struct {
@@ -414,7 +474,8 @@ type CreateWorkflowVersionParams struct {
 	CreatedAt  pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
 	Deletedat  pgtype.Timestamp `json:"deletedat"`
-	Version    string           `json:"version"`
+	Checksum   string           `json:"checksum"`
+	Version    pgtype.Text      `json:"version"`
 	Workflowid pgtype.UUID      `json:"workflowid"`
 }
 
@@ -424,6 +485,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.Deletedat,
+		arg.Checksum,
 		arg.Version,
 		arg.Workflowid,
 	)
@@ -433,6 +495,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Checksum,
 		&i.Version,
 		&i.Order,
 		&i.WorkflowId,
@@ -450,7 +513,7 @@ FROM (
         "Workflow" as workflows 
     LEFT JOIN
         (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
+            SELECT id, "createdAt", "updatedAt", "deletedAt", checksum, version, "order", "workflowId" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
         ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
     LEFT JOIN
         "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
@@ -544,7 +607,7 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 
 const listWorkflowsLatestRuns = `-- name: ListWorkflowsLatestRuns :many
 SELECT
-    DISTINCT ON (workflow."id") runs.id, runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", workflow."id" as "workflowId"
+    DISTINCT ON (workflow."id") runs.id, runs."createdAt", runs."updatedAt", runs."deletedAt", runs."displayName", runs."tenantId", runs."workflowVersionId", runs."concurrencyGroupId", runs.status, runs.error, runs."startedAt", runs."finishedAt", workflow."id" as "workflowId"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -607,8 +670,10 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 			&i.WorkflowRun.CreatedAt,
 			&i.WorkflowRun.UpdatedAt,
 			&i.WorkflowRun.DeletedAt,
+			&i.WorkflowRun.DisplayName,
 			&i.WorkflowRun.TenantId,
 			&i.WorkflowRun.WorkflowVersionId,
+			&i.WorkflowRun.ConcurrencyGroupId,
 			&i.WorkflowRun.Status,
 			&i.WorkflowRun.Error,
 			&i.WorkflowRun.StartedAt,
@@ -625,7 +690,7 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 	return items, nil
 }
 
-const upsertAction = `-- name: UpsertAction :exec
+const upsertAction = `-- name: UpsertAction :one
 INSERT INTO "Action" (
     "id",
     "actionId",
@@ -633,14 +698,15 @@ INSERT INTO "Action" (
 )
 VALUES (
     gen_random_uuid(),
-    $1::text,
+    LOWER($1::text),
     $2::uuid
 )
 ON CONFLICT ("tenantId", "actionId") DO UPDATE 
 SET
     "tenantId" = EXCLUDED."tenantId"
 WHERE
-    "Action"."tenantId" = $2 AND "Action"."actionId" = $1::text
+    "Action"."tenantId" = $2 AND "Action"."actionId" = LOWER($1::text)
+RETURNING id, "actionId", description, "tenantId"
 `
 
 type UpsertActionParams struct {
@@ -648,9 +714,16 @@ type UpsertActionParams struct {
 	Tenantid pgtype.UUID `json:"tenantid"`
 }
 
-func (q *Queries) UpsertAction(ctx context.Context, db DBTX, arg UpsertActionParams) error {
-	_, err := db.Exec(ctx, upsertAction, arg.Action, arg.Tenantid)
-	return err
+func (q *Queries) UpsertAction(ctx context.Context, db DBTX, arg UpsertActionParams) (*Action, error) {
+	row := db.QueryRow(ctx, upsertAction, arg.Action, arg.Tenantid)
+	var i Action
+	err := row.Scan(
+		&i.ID,
+		&i.ActionId,
+		&i.Description,
+		&i.TenantId,
+	)
+	return &i, err
 }
 
 const upsertWorkflowTag = `-- name: UpsertWorkflowTag :exec

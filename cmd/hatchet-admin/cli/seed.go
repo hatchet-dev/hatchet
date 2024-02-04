@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -23,7 +24,7 @@ var seedCmd = &cobra.Command{
 		err = runSeed(configLoader)
 
 		if err != nil {
-			fmt.Printf("Fatal: could not run seed command: %v\n", err)
+			log.Printf("Fatal: could not run seed command: %v", err)
 			os.Exit(1)
 		}
 	},
@@ -130,7 +131,7 @@ func seedDev(repo repository.Repository, tenantId string) error {
 		wf, err := repo.Workflow().CreateNewWorkflow(tenantId, &repository.CreateWorkflowVersionOpts{
 			Name:        "test-workflow",
 			Description: repository.StringPtr("This is a test workflow."),
-			Version:     "v0.1.0",
+			Version:     repository.StringPtr("v0.1.0"),
 			EventTriggers: []string{
 				"user:create",
 			},
@@ -138,6 +139,9 @@ func seedDev(repo repository.Repository, tenantId string) error {
 				{
 					Name: "Preview",
 				},
+			},
+			Concurrency: &repository.CreateWorkflowConcurrencyOpts{
+				Action: "test:concurrency",
 			},
 			Jobs: []repository.CreateWorkflowJobOpts{
 				{

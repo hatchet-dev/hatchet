@@ -50,6 +50,15 @@ type StepRunRequeueTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
+type StepRunNotifyCancelTaskPayload struct {
+	StepRunId       string `json:"step_run_id" validate:"required,uuid"`
+	CancelledReason string `json:"cancelled_reason" validate:"required"`
+}
+
+type StepRunNotifyCancelTaskMetadata struct {
+	TenantId string `json:"tenant_id" validate:"required,uuid"`
+}
+
 type StepRunStartedTaskPayload struct {
 	StepRunId string `json:"step_run_id" validate:"required,uuid"`
 	StartedAt string `json:"started_at" validate:"required"`
@@ -99,7 +108,6 @@ func TenantToStepRunRequeueTask(tenant db.TenantModel) *taskqueue.Task {
 
 	return &taskqueue.Task{
 		ID:       "step-run-requeue-ticker",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}
@@ -122,7 +130,6 @@ func StepRunQueuedToTask(job *db.JobModel, stepRun *db.StepRunModel) *taskqueue.
 
 	return &taskqueue.Task{
 		ID:       "step-run-queued",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}

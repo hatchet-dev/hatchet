@@ -447,18 +447,81 @@ func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts) (string, error) {
 	workflowVersionId := uuid.New().String()
 
+	var version pgtype.Text
+
+	if opts.Version != nil {
+		version = sqlchelpers.TextFromStr(*opts.Version)
+	}
+
+	cs, err := opts.Checksum()
+
+	if err != nil {
+		return "", err
+	}
+
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		context.Background(),
 		tx,
 		dbsqlc.CreateWorkflowVersionParams{
 			ID:         sqlchelpers.UUIDFromStr(workflowVersionId),
-			Version:    opts.Version,
+			Checksum:   cs,
+			Version:    version,
 			Workflowid: workflowId,
 		},
 	)
 
 	if err != nil {
 		return "", err
+	}
+
+	// create concurrency group
+	if opts.Concurrency != nil {
+		// upsert the action
+		action, err := r.queries.UpsertAction(
+			context.Background(),
+			tx,
+			dbsqlc.UpsertActionParams{
+				Action:   opts.Concurrency.Action,
+				Tenantid: tenantId,
+			},
+		)
+
+		if err != nil {
+			return "", fmt.Errorf("could not upsert action: %w", err)
+		}
+
+		params := dbsqlc.CreateWorkflowConcurrencyParams{
+			ID:                    sqlchelpers.UUIDFromStr(uuid.New().String()),
+			Workflowversionid:     sqlcWorkflowVersion.ID,
+			Getconcurrencygroupid: action.ID,
+		}
+
+		if opts.Concurrency.MaxRuns != nil {
+			params.MaxRuns = sqlchelpers.ToInt(*opts.Concurrency.MaxRuns)
+		}
+
+		var ls dbsqlc.ConcurrencyLimitStrategy
+
+		if opts.Concurrency.LimitStrategy != nil && *opts.Concurrency.LimitStrategy != "" {
+			ls = dbsqlc.ConcurrencyLimitStrategy(*opts.Concurrency.LimitStrategy)
+		} else {
+			ls = dbsqlc.ConcurrencyLimitStrategyCANCELINPROGRESS
+		}
+
+		params.LimitStrategy = dbsqlc.NullConcurrencyLimitStrategy{
+			Valid:                    true,
+			ConcurrencyLimitStrategy: ls,
+		}
+
+		_, err = r.queries.CreateWorkflowConcurrency(
+			context.Background(),
+			tx,
+			params,
+		)
+
+		if err != nil {
+			return "", fmt.Errorf("could not create concurrency group: %w", err)
+		}
 	}
 
 	// create the workflow jobs
@@ -506,7 +569,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pg
 			}
 
 			// upsert the action
-			err := r.queries.UpsertAction(
+			_, err := r.queries.UpsertAction(
 				context.Background(),
 				tx,
 				dbsqlc.UpsertActionParams{
@@ -655,9 +718,13 @@ func defaultWorkflowVersionPopulator() []db.WorkflowVersionRelationWith {
 				db.WorkflowTriggerCronRef.Ticker.Fetch(),
 			),
 		),
+		db.WorkflowVersion.Concurrency.Fetch().With(
+			db.WorkflowConcurrency.GetConcurrencyGroup.Fetch(),
+		),
 		db.WorkflowVersion.Jobs.Fetch().With(
 			db.Job.Steps.Fetch().With(
 				db.Step.Action.Fetch(),
+				db.Step.Parents.Fetch(),
 			),
 		),
 		db.WorkflowVersion.Scheduled.Fetch().With(

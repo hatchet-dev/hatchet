@@ -149,20 +149,42 @@ SET
     "requeueAfter" = COALESCE($1::timestamp, "requeueAfter"),
     "scheduleTimeoutAt" = COALESCE($2::timestamp, "scheduleTimeoutAt"),
     "startedAt" = COALESCE($3::timestamp, "startedAt"),
-    "finishedAt" = COALESCE($4::timestamp, "finishedAt"),
+    "finishedAt" = CASE
+        -- if this is a rerun, we clear the finishedAt
+        WHEN $4::boolean THEN NULL
+        ELSE  COALESCE($5::timestamp, "finishedAt")
+    END,
     "status" = CASE 
+        -- if this is a rerun, we permit status updates
+        WHEN $4::boolean THEN COALESCE($6, "status")
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
-        ELSE COALESCE($5, "status")
+        ELSE COALESCE($6, "status")
     END,
-    "input" = COALESCE($6::jsonb, "input"),
-    "output" = COALESCE($7::jsonb, "output"),
-    "error" = COALESCE($8::text, "error"),
-    "cancelledAt" = COALESCE($9::timestamp, "cancelledAt"),
-    "cancelledReason" = COALESCE($10::text, "cancelledReason")
+    "input" = COALESCE($7::jsonb, "input"),
+    "output" = CASE
+        -- if this is a rerun, we clear the output
+        WHEN $4::boolean THEN NULL
+        ELSE COALESCE($8::jsonb, "output")
+    END,
+    "error" = CASE
+        -- if this is a rerun, we clear the error
+        WHEN $4::boolean THEN NULL
+        ELSE COALESCE($9::text, "error")
+    END,
+    "cancelledAt" = CASE
+        -- if this is a rerun, we clear the cancelledAt
+        WHEN $4::boolean THEN NULL
+        ELSE COALESCE($10::timestamp, "cancelledAt")
+    END,
+    "cancelledReason" = CASE
+        -- if this is a rerun, we clear the cancelledReason
+        WHEN $4::boolean THEN NULL
+        ELSE COALESCE($11::text, "cancelledReason")
+    END
 WHERE 
-  "id" = $11::uuid AND
-  "tenantId" = $12::uuid
+  "id" = $12::uuid AND
+  "tenantId" = $13::uuid
 RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError"
 `
 
@@ -170,6 +192,7 @@ type UpdateStepRunParams struct {
 	RequeueAfter      pgtype.Timestamp  `json:"requeueAfter"`
 	ScheduleTimeoutAt pgtype.Timestamp  `json:"scheduleTimeoutAt"`
 	StartedAt         pgtype.Timestamp  `json:"startedAt"`
+	Rerun             pgtype.Bool       `json:"rerun"`
 	FinishedAt        pgtype.Timestamp  `json:"finishedAt"`
 	Status            NullStepRunStatus `json:"status"`
 	Input             []byte            `json:"input"`
@@ -186,6 +209,7 @@ func (q *Queries) UpdateStepRun(ctx context.Context, db DBTX, arg UpdateStepRunP
 		arg.RequeueAfter,
 		arg.ScheduleTimeoutAt,
 		arg.StartedAt,
+		arg.Rerun,
 		arg.FinishedAt,
 		arg.Status,
 		arg.Input,

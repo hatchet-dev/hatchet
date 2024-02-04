@@ -21,10 +21,14 @@ type ListStepRunsOpts struct {
 
 	JobRunId *string
 
+	WorkflowRunId *string
+
 	Status *db.StepRunStatus
 }
 
 type UpdateStepRunOpts struct {
+	IsRerun bool
+
 	RequeueAfter *time.Time
 
 	ScheduleTimeoutAt *time.Time

@@ -1,6 +1,6 @@
 package defaults
 
 const (
-	DefaultJobRunTimeout  = "300s"
+	DefaultJobRunTimeout  = "60m"
 	DefaultStepRunTimeout = "300s"
 )

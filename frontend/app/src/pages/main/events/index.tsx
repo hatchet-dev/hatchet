@@ -27,7 +27,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { relativeDate } from '@/lib/utils';
-import { Code } from '@/components/ui/code';
+import { CodeEditor } from '@/components/ui/code-editor';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -156,6 +156,7 @@ function EventsTable() {
       limit: pageSize,
       search,
     }),
+    refetchInterval: 800,
   });
 
   const replayEventsMutation = useMutation({
@@ -337,9 +338,12 @@ function EventDataSection({ event }: { event: Event }) {
 
   return (
     <>
-      <Code language="json" className="my-4" maxHeight="400px">
-        {JSON.stringify(JSON.parse(eventData.data), null, 2)}
-      </Code>
+      <CodeEditor
+        language="json"
+        className="my-4"
+        height="400px"
+        code={JSON.stringify(JSON.parse(eventData.data), null, 2)}
+      />
     </>
   );
 }

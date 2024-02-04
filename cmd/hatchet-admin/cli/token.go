@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"log"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -25,7 +27,8 @@ var tokenCreateAPICmd = &cobra.Command{
 		err := runCreateAPIToken()
 
 		if err != nil {
-			fmt.Printf("Fatal: could not run [token create] command: %v\n", err)
+			log.Printf("Fatal: could not run [token create] command: %v", err)
+			os.Exit(1)
 		}
 	},
 }

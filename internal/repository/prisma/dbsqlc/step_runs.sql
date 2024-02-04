@@ -14,17 +14,39 @@ SET
     "requeueAfter" = COALESCE(sqlc.narg('requeueAfter')::timestamp, "requeueAfter"),
     "scheduleTimeoutAt" = COALESCE(sqlc.narg('scheduleTimeoutAt')::timestamp, "scheduleTimeoutAt"),
     "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
-    "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt"),
+    "finishedAt" = CASE
+        -- if this is a rerun, we clear the finishedAt
+        WHEN sqlc.narg('rerun')::boolean THEN NULL
+        ELSE  COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt")
+    END,
     "status" = CASE 
+        -- if this is a rerun, we permit status updates
+        WHEN sqlc.narg('rerun')::boolean THEN COALESCE(sqlc.narg('status'), "status")
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
         ELSE COALESCE(sqlc.narg('status'), "status")
     END,
     "input" = COALESCE(sqlc.narg('input')::jsonb, "input"),
-    "output" = COALESCE(sqlc.narg('output')::jsonb, "output"),
-    "error" = COALESCE(sqlc.narg('error')::text, "error"),
-    "cancelledAt" = COALESCE(sqlc.narg('cancelledAt')::timestamp, "cancelledAt"),
-    "cancelledReason" = COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
+    "output" = CASE
+        -- if this is a rerun, we clear the output
+        WHEN sqlc.narg('rerun')::boolean THEN NULL
+        ELSE COALESCE(sqlc.narg('output')::jsonb, "output")
+    END,
+    "error" = CASE
+        -- if this is a rerun, we clear the error
+        WHEN sqlc.narg('rerun')::boolean THEN NULL
+        ELSE COALESCE(sqlc.narg('error')::text, "error")
+    END,
+    "cancelledAt" = CASE
+        -- if this is a rerun, we clear the cancelledAt
+        WHEN sqlc.narg('rerun')::boolean THEN NULL
+        ELSE COALESCE(sqlc.narg('cancelledAt')::timestamp, "cancelledAt")
+    END,
+    "cancelledReason" = CASE
+        -- if this is a rerun, we clear the cancelledReason
+        WHEN sqlc.narg('rerun')::boolean THEN NULL
+        ELSE COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
+    END
 WHERE 
   "id" = @id::uuid AND
   "tenantId" = @tenantId::uuid

@@ -12,6 +12,7 @@ const (
 	TriggeredByEvent    TriggeredBy = "event"
 	TriggeredByCron     TriggeredBy = "cron"
 	TriggeredBySchedule TriggeredBy = "schedule"
+	TriggeredByManual   TriggeredBy = "manual"
 )
 
 type JobRunLookupData struct {

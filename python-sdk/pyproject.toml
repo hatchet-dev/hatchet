@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "hatchet-sdk"
+version = "0.8.0"
+description = ""
+authors = ["Alexander Belanger <alexander@hatchet.run>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+grpcio = "^1.60.0"
+python-dotenv = "^1.0.0"
+protobuf = "^4.25.2"
+pyyaml = "^6.0.1"
+grpcio-tools = "^1.60.0"
+loguru = "^0.7.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

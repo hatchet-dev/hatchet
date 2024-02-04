@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
@@ -15,10 +17,10 @@ type CreateWorkflowVersionOpts struct {
 	Tags []CreateWorkflowTagOpts `validate:"dive"`
 
 	// (optional) the workflow description
-	Description *string
+	Description *string `json:"description,omitempty"`
 
-	// (required) the workflow version
-	Version string `validate:"required,semver"`
+	// (optional) the workflow version
+	Version *string `json:"version,omitempty"`
 
 	// (optional) event triggers for the workflow
 	EventTriggers []string
@@ -31,6 +33,37 @@ type CreateWorkflowVersionOpts struct {
 
 	// (required) the workflow jobs
 	Jobs []CreateWorkflowJobOpts `validate:"required,min=1,dive"`
+
+	// (optional) the workflow concurrency groups
+	Concurrency *CreateWorkflowConcurrencyOpts `json:"concurrency,omitempty" validator:"omitnil"`
+}
+
+type CreateWorkflowConcurrencyOpts struct {
+	// (required) the action id for getting the concurrency group
+	Action string `validate:"required,actionId"`
+
+	// (optional) the maximum number of concurrent workflow runs, default 1
+	MaxRuns *int32
+
+	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS DROP_NEWEST QUEUE_NEWEST"`
+}
+
+func (o *CreateWorkflowVersionOpts) Checksum() (string, error) {
+	// compute a checksum for the workflow
+	declaredValues, err := datautils.ToJSONMap(o)
+
+	if err != nil {
+		return "", err
+	}
+
+	workflowChecksum, err := digest.DigestValues(declaredValues)
+
+	if err != nil {
+		return "", err
+	}
+
+	return workflowChecksum.String(), nil
 }
 
 type CreateWorkflowSchedulesOpts struct {
