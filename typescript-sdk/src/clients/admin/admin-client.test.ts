@@ -51,9 +51,10 @@ describe('AdminClient', () => {
         cronTriggers: [],
         scheduledTriggers: [],
         jobs: [],
+        concurrency: undefined,
       };
 
-      expect(() => client.put_workflow(workflow, { autoVersion: false })).rejects.toThrow(
+      expect(() => client.put_workflow(workflow)).rejects.toThrow(
         'PutWorkflow error: workflow version is required, or use autoVersion'
       );
     });
@@ -67,6 +68,7 @@ describe('AdminClient', () => {
         cronTriggers: [],
         scheduledTriggers: [],
         jobs: [],
+        concurrency: undefined,
       };
 
       const putSpy = jest.spyOn(client.client, 'putWorkflow').mockResolvedValue({

@@ -19,6 +19,8 @@ export interface Action {
   actionId: string;
   actionType: number;
   actionPayload: string;
+  workflowRunId: string;
+  getGroupKeyRunId: string;
 }
 
 export class ActionListener {
