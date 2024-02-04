@@ -32,7 +32,9 @@ const workflow: Workflow = {
 
         if (signal.aborted) throw new Error('step1 was aborted');
 
-        // TODO add example using signal with fetch or axios
+        // NOTE: the AbortController signal can be passed to many http libraries to cancel active requests
+        // fetch(url, { signal })
+        // axios.get(url, { signal })
 
         console.log('executed step1!');
         return { step1: `step1 results for ${data}!` };
