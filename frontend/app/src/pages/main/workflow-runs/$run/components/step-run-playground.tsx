@@ -49,6 +49,7 @@ export function StepRunPlayground({
 
   const getStepRunQuery = useQuery({
     ...queries.stepRuns.get(tenant.metadata.id, stepRun?.metadata.id || ''),
+    enabled: !!stepRun,
     refetchInterval: (query) => {
       const data = query.state.data;
 

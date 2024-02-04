@@ -218,3 +218,10 @@ RerunStepRunRequest:
       type: object
   required:
     - input
+
+TriggerWorkflowRunRequest:
+  properties:
+    input:
+      type: object
+  required:
+    - input
