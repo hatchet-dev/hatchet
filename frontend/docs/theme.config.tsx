@@ -24,6 +24,9 @@ const config: DocsThemeConfig = {
       <title>Hatchet Documentation</title>{" "}
     </>
   ),
+  sidebar: {
+    defaultMenuCollapseLevel: 1,
+  },
 };
 
 export default config;

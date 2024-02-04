@@ -1,0 +1,104 @@
+import { Callout, Card, Cards, Steps, Tabs } from 'nextra/components'
+
+# Quickstart
+
+Welcome to Hatchet! This guide walks you through getting set up on Hatchet Cloud. If you'd like to self-host Hatchet, please see the [self-hosted quickstart](/self-hosting/quickstart) instead.
+
+## Step 1 - Request Access
+
+If you haven't already requested access to Hatchet Cloud, please fill out the form [here](https://hatchet.run/request-access). We'll get back to you within 1 business day.
+
+## Step 2 - Set up your Development Tenant
+
+Each Hatchet instance runs on a unique subdomain for your organization (e.g. `mycompany.onhatchet.run`). Within each instance, you can create multiple tenants to logically separate your environments (e.g. `dev`, `staging`, `production`). Each tenant has its own set of users who can access it.
+
+When you get access to Hatchet, you'll be given a development tenant to use. This will allow you to create your development workflows and invite your team members to collaborate. We recommend utilizing a different development tenant for each engineer on your team.
+
+When you get access to the tenant, navigate to your Hatchet dashboard and to your settings tab. You should see a section called "API Keys". Click "Create API Key", input a name for the key and copy the key. Then set the following environment variables:
+
+```sh
+HATCHET_CLIENT_HOST_PORT=<hatchet-domain>:443
+HATCHET_CLIENT_TOKEN="<your-api-key>"
+```
+
+## Step 3 - Execute your first workflow
+
+<Tabs items={['Python', 'Typescript']}>
+  <Tabs.Tab>
+Make sure you have the following dependencies installed:
+
+```sh
+pip install python-dotenv
+pip install hatchet-sdk
+```
+
+Then run the following code:
+
+```python filename="worker.py" copy
+from hatchet_sdk import Hatchet
+from dotenv import load_dotenv
+
+load_dotenv()
+
+hatchet = Hatchet(debug=True)
+
+@hatchet.workflow(name="first-python-workflow",on_events=["user:create"])
+class MyWorkflow:
+    @hatchet.step()
+    def step1(self, context):
+        return {
+            "result": "success"
+        }
+
+worker = hatchet.worker('first-worker')
+worker.register_workflow(MyWorkflow())
+
+worker.start()
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+Make sure you install `@hatchet-dev/typescript-sdk` via:
+
+```sh npm2yarn
+npm i @hatchet-dev/typescript-sdk
+```
+
+Then run the following code:
+
+
+```typescript filename="worker.ts" copy
+import Hatchet from '@hatchet-dev/typescript-sdk';
+import { Workflow } from '@hatchet-dev/typescript-sdk/dist/workflow';
+
+const hatchet = Hatchet.init();
+
+const workflow: Workflow = {
+  id: 'first-typescript-workflow',
+  description: 'This is my first workflow',
+  on: {
+    event: 'user:create',
+  },
+  steps: [
+    {
+      name: 'step1',
+      run: async (ctx) => {
+        console.log('starting step1 with the following input', ctx.workflowInput());
+        return { 
+            result: 'success!' };
+      },
+    },
+  ],
+};
+
+hatchet.run(workflow);
+```
+  </Tabs.Tab>
+</Tabs>
+
+After running your worker, you should see your first workflow registered in the Hatchet dashboard:
+
+![Quickstart 1](/quickstart-1.png)
+
+You can now trigger this workflow by clicking the top right "Trigger workflow" button when viewing the workflow:
+
+![Quickstart 2](/quickstart-2.png)

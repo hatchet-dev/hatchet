@@ -68,6 +68,8 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/withWorkflow"
   /api/v1/workflows/{workflow}/versions:
     $ref: "./paths/workflow/workflow.yaml#/workflowVersion"
+  /api/v1/workflows/{workflow}/trigger:
+    $ref: "./paths/workflow/workflow.yaml#/triggerWorkflow"
   /api/v1/workflows/{workflow}/versions/definition:
     $ref: "./paths/workflow/workflow.yaml#/workflowVersionDefinition"
   /api/v1/tenants/{tenant}/workflows/runs:

@@ -34,6 +34,7 @@ import {
   TenantInvite,
   TenantInviteList,
   TenantMemberList,
+  TriggerWorkflowRunRequest,
   UpdateTenantInviteRequest,
   User,
   UserLoginRequest,
@@ -553,6 +554,39 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       method: "GET",
       query: query,
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Trigger a new workflow run for a tenant
+   *
+   * @tags Workflow Run
+   * @name WorkflowRunCreate
+   * @summary Trigger workflow run
+   * @request POST:/api/v1/workflows/{workflow}/trigger
+   * @secure
+   */
+  workflowRunCreate = (
+    workflow: string,
+    data: TriggerWorkflowRunRequest,
+    query?: {
+      /**
+       * The workflow version. If not supplied, the latest version is fetched.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      version?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<WorkflowRun, APIErrors>({
+      path: `/api/v1/workflows/${workflow}/trigger`,
+      method: "POST",
+      query: query,
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });

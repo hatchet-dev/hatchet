@@ -3,4 +3,15 @@ const withNextra = require('nextra')({
   themeConfig: './theme.config.tsx',
 })
 
-module.exports = withNextra()
+module.exports = {
+  ...withNextra(),
+  async redirects() {
+    return [
+      {
+        source: '/:path((?!home|contributing|favicon\\.ico|hatchet_logo\\.png).*)',
+        destination: '/home/:path*',
+        permanent: true,
+      },
+    ];
+  },
+}
