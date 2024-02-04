@@ -280,7 +280,6 @@ export class Worker {
       const future = this.futures[stepRunId];
       const context = this.contexts[stepRunId];
 
-      //  TODO send cancel signal to context
       if (context && context.controller) {
         context.controller.abort('Cancelled by worker');
         delete this.contexts[stepRunId];
