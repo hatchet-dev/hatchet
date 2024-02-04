@@ -32,7 +32,9 @@ pip install python-dotenv
 pip install hatchet-sdk
 ```
 
-Then run the following code:
+We are using [`python-dotenv`](https://pypi.org/project/python-dotenv/) to load the environment variables from a `.env` file. This isn't required, and you can use your own method to load environment variables.
+
+Create a `worker.py` file with the following contents:
 
 ```python filename="worker.py" copy
 from hatchet_sdk import Hatchet
@@ -55,6 +57,12 @@ worker.register_workflow(MyWorkflow())
 
 worker.start()
 ```
+
+Open a new terminal and start the worker with:
+
+```sh
+python3 worker.py
+```
   </Tabs.Tab>
   <Tabs.Tab>
 Make sure you install `@hatchet-dev/typescript-sdk` via:
@@ -63,8 +71,7 @@ Make sure you install `@hatchet-dev/typescript-sdk` via:
 npm i @hatchet-dev/typescript-sdk
 ```
 
-Then run the following code:
-
+Copy the following code into a `worker.ts` file:
 
 ```typescript filename="worker.ts" copy
 import Hatchet from '@hatchet-dev/typescript-sdk';
@@ -83,6 +90,7 @@ const workflow: Workflow = {
       name: 'step1',
       run: async (ctx) => {
         console.log('starting step1 with the following input', ctx.workflowInput());
+
         return { 
             result: 'success!' };
       },
@@ -92,13 +100,39 @@ const workflow: Workflow = {
 
 hatchet.run(workflow);
 ```
+
+Next, modify your `package.json` to include a script to start:
+
+```json
+{
+    // ...rest of your `package.json`
+    "scripts": {
+        // ...existing scripts
+        "worker": "npx dotenv -- ts-node <path-to-worker.ts>"
+    }
+}
+```
+
+Now to start the worker, in a new terminal run:
+```sh
+npx run worker
+```
   </Tabs.Tab>
 </Tabs>
 
-After running your worker, you should see your first workflow registered in the Hatchet dashboard:
+The worker is now running and listening for steps to execute. You should see your first worker registered in the `Workers` tab of the Hatchet dashboard:
 
 ![Quickstart 1](/quickstart-1.png)
 
 You can now trigger this workflow by clicking the top right "Trigger workflow" button when viewing the workflow:
 
 ![Quickstart 2](/quickstart-2.png)
+
+There are multiple ways you can interact with Hatchet workflows:
+- Trigger workflows from your existing APIs
+- Trigger workflows from the dashboard
+- Replay steps in workflows from the dashboard
+
+## Next Steps
+
+Now that you have your first workflow running, you can start to build more complex workflows and integrate them into your existing systems. Check out the language-specific SDKs for more information on how to build workflows.
