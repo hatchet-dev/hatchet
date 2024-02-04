@@ -1,0 +1,74 @@
+package main
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/joho/godotenv"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+)
+
+type userCreateEvent struct {
+	Username string            `json:"username"`
+	UserID   string            `json:"user_id"`
+	Data     map[string]string `json:"data"`
+}
+
+type stepOutput struct {
+	Message string `json:"message"`
+}
+
+func main() {
+	err := godotenv.Load()
+	if err != nil {
+		panic(err)
+	}
+
+	events := make(chan string, 50)
+	if err := run(cmdutils.InterruptChan(), events); err != nil {
+		panic(err)
+	}
+}
+
+func run(ch <-chan interface{}, events chan<- string) error {
+	c, err := client.New()
+
+	if err != nil {
+		return fmt.Errorf("error creating client: %w", err)
+	}
+
+	time.Sleep(1 * time.Second)
+
+	// trigger workflow
+	workflowRunId, err := c.Admin().RunWorkflow(
+		"post-user-update",
+		&userCreateEvent{
+			Username: "echo-test",
+			UserID:   "1234",
+			Data: map[string]string{
+				"test": "test",
+			},
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("error running workflow: %w", err)
+	}
+
+	fmt.Println("workflow run id:", workflowRunId)
+
+	interruptCtx, cancel := cmdutils.InterruptContextFromChan(ch)
+	defer cancel()
+
+	err = c.Run().On(interruptCtx, workflowRunId, func(event *client.StepRunEvent) error {
+		if event.Type == client.StepRunEventTypeCompleted {
+			fmt.Println(string(event.Payload))
+		}
+
+		return nil
+	})
+
+	return err
+}

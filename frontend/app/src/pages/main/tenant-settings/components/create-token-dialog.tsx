@@ -3,7 +3,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Code } from '@/components/ui/code';
 import { Button } from '@/components/ui/button';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -12,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/loading';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
 
 const schema = z.object({
   name: z.string().min(1).max(255),
@@ -50,7 +50,7 @@ export function CreateTokenDialog({
           This is the only time we will show you this token. Make sure to copy
           it somewhere safe.
         </p>
-        <Code
+        <CodeHighlighter
           language="typescript"
           className="text-sm"
           wrapLines={false}

@@ -108,7 +108,6 @@ func TenantToStepRunRequeueTask(tenant db.TenantModel) *taskqueue.Task {
 
 	return &taskqueue.Task{
 		ID:       "step-run-requeue-ticker",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}
@@ -131,7 +130,6 @@ func StepRunQueuedToTask(job *db.JobModel, stepRun *db.StepRunModel) *taskqueue.
 
 	return &taskqueue.Task{
 		ID:       "step-run-queued",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}

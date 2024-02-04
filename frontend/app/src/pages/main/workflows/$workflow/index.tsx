@@ -19,6 +19,9 @@ import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import WorkflowVisualizer from './components/workflow-visualizer';
+import { TriggerWorkflowForm } from './components/trigger-workflow-form';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -64,6 +67,7 @@ export async function loader({
 }
 
 export default function ExpandedWorkflow() {
+  const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const loaderData = useLoaderData() as Awaited<ReturnType<typeof loader>>;
 
   if (!loaderData) {
@@ -86,6 +90,14 @@ export default function ExpandedWorkflow() {
             </Badge>
           </div>
           <WorkflowTags tags={workflow.tags || []} />
+          <Button className="text-sm" onClick={() => setTriggerWorkflow(true)}>
+            Trigger Workflow
+          </Button>
+          <TriggerWorkflowForm
+            show={triggerWorkflow}
+            workflow={workflow}
+            onClose={() => setTriggerWorkflow(false)}
+          />
         </div>
         <div className="flex flex-row justify-start items-center mt-4">
           <div className="text-sm text-muted-foreground">

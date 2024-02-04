@@ -45,6 +45,55 @@ func (a *AdminServiceImpl) GetWorkflowByName(ctx context.Context, req *contracts
 	return resp, nil
 }
 
+func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
+	workflow, err := a.repo.Workflow().GetWorkflowByName(
+		tenant.ID,
+		req.Name,
+	)
+
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, status.Error(
+				codes.NotFound,
+				"workflow not found",
+			)
+		}
+
+		return nil, err
+	}
+
+	workflowVersion := &workflow.Versions()[0]
+
+	if workflowVersion == nil {
+		return nil, fmt.Errorf("workflow with id %s has no versions", workflow.ID)
+	}
+
+	createOpts, err := repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input))
+
+	if err != nil {
+		return nil, err
+	}
+
+	workflowRun, err := a.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenant.ID, createOpts)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create workflow run: %w", err)
+	}
+
+	// send to workflow processing queue
+	err = a.tq.AddTask(
+		context.Background(),
+		taskqueue.WORKFLOW_PROCESSING_QUEUE,
+		tasktypes.WorkflowRunQueuedToTask(workflowRun),
+	)
+
+	return &contracts.TriggerWorkflowResponse{
+		WorkflowRunId: workflowRun.ID,
+	}, nil
+}
+
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*db.TenantModel)
 
@@ -736,7 +785,6 @@ func cronScheduleTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTrigger
 
 	return &taskqueue.Task{
 		ID:       "schedule-cron",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -755,7 +803,6 @@ func cronCancelTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTriggerCr
 
 	return &taskqueue.Task{
 		ID:       "cancel-cron",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -774,7 +821,6 @@ func workflowScheduleTask(ticker *db.TickerModel, workflowTriggerRef *db.Workflo
 
 	return &taskqueue.Task{
 		ID:       "schedule-workflow",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
@@ -793,7 +839,6 @@ func workflowCancelTask(ticker *db.TickerModel, workflowTriggerRef *db.WorkflowT
 
 	return &taskqueue.Task{
 		ID:       "cancel-workflow",
-		Queue:    taskqueue.QueueTypeFromTickerID(ticker.ID),
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil

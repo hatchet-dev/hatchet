@@ -570,3 +570,11 @@ export interface ListAPITokensResponse {
   pagination?: PaginationResponse;
   rows?: APIToken[];
 }
+
+export interface RerunStepRunRequest {
+  input: object;
+}
+
+export interface TriggerWorkflowRunRequest {
+  input: object;
+}

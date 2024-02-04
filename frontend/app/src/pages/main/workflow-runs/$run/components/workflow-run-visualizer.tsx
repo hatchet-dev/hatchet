@@ -45,10 +45,12 @@ const WorkflowRunVisualizer = ({
               return (
                 stepRun.step.parents
                   ?.map((parent) => {
+                    invariant(stepRun.step, 'has step');
+
                     return {
-                      id: `${parent}-${stepRun.metadata.id}`,
+                      id: `${parent}-${stepRun.step.metadata.id}`,
                       source: parent,
-                      target: stepRun.metadata.id,
+                      target: stepRun.step.metadata.id,
                       animated: stepRun.status === StepRunStatus.RUNNING,
                       style: { stroke: '#fff' },
                       markerEnd: {
@@ -69,14 +71,16 @@ const WorkflowRunVisualizer = ({
           invariant(jobRun.stepRuns, 'has stepRuns');
 
           return jobRun.stepRuns.map((stepRun) => {
-            const hasChild = stepEdges.some(
-              (edge) => edge?.source === stepRun.metadata.id,
-            );
+            invariant(stepRun.step, 'has step');
+            const hasChild = stepEdges.some((edge) => {
+              invariant(stepRun.step, 'has step');
+              return edge?.source === stepRun.step.metadata.id;
+            });
             const hasParent =
               stepRun.step?.parents?.length && stepRun.step.parents.length > 0;
 
             return {
-              id: stepRun.metadata.id,
+              id: stepRun.step.metadata.id,
               selectable: false,
               type: 'stepNode',
               position: { x: 0, y: 0 }, // positioning gets set by dagre later

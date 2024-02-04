@@ -32,7 +32,6 @@ func JobRunQueuedToTask(job *db.JobModel, jobRun *db.JobRunModel) *taskqueue.Tas
 
 	return &taskqueue.Task{
 		ID:       "job-run-queued",
-		Queue:    taskqueue.JOB_PROCESSING_QUEUE,
 		Payload:  payload,
 		Metadata: metadata,
 	}
