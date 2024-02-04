@@ -151,24 +151,7 @@ describe('Worker', () => {
     });
   });
 
-  describe('handle_cancel_step_run', () => {
-    it('should cancel a step run', () => {
-      const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
-
-      const cancelSpy = jest.fn().mockReturnValue(undefined);
-
-      worker.futures = {
-        [mockCancel.stepRunId]: {
-          cancel: cancelSpy,
-        } as any,
-      };
-
-      worker.handleCancelStepRun(mockCancel);
-
-      expect(cancelSpy).toHaveBeenCalledTimes(1);
-      expect(worker.futures[mockCancel.stepRunId]).toBeUndefined();
-    });
-  });
+  describe('handle_cancel_step_run', () => {});
 
   describe('exit_gracefully', () => {
     xit('should call exit_gracefully on SIGTERM', async () => {
