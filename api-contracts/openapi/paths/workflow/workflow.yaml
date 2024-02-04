@@ -176,6 +176,65 @@ workflowVersionDefinition:
     summary: Get workflow version definition
     tags:
       - Workflow
+triggerWorkflow:
+  post:
+    x-resources: ["tenant", "workflow"]
+    description: Trigger a new workflow run for a tenant
+    operationId: workflow-run:create
+    parameters:
+      - description: The workflow id
+        in: path
+        name: workflow
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The workflow version. If not supplied, the latest version is fetched.
+        in: query
+        name: version
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/TriggerWorkflowRunRequest"
+      description: The input to the workflow run
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WorkflowRun"
+        description: Successfully created the workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Trigger workflow run
+    tags:
+      - Workflow Run
 workflowRuns:
   get:
     x-resources: ["tenant"]

@@ -574,3 +574,7 @@ export interface ListAPITokensResponse {
 export interface RerunStepRunRequest {
   input: object;
 }
+
+export interface TriggerWorkflowRunRequest {
+  input: object;
+}
