@@ -1,4 +1,4 @@
-import Hatchet from '@hatchet/sdk';
+import Hatchet from '@hatchet-dev/typescript-sdk';
 
 const hatchet = Hatchet.init();
 

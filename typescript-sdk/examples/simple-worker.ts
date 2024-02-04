@@ -1,4 +1,4 @@
-import Hatchet from '@hatchet/sdk';
+import Hatchet from '@hatchet-dev/typescript-sdk';
 import { Workflow } from '@hatchet/workflow';
 
 const hatchet = Hatchet.init();
