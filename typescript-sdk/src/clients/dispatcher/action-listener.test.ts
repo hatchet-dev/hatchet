@@ -21,6 +21,8 @@ const mockAssignedActions: AssignActionMock[] = [
     actionId: 'action1',
     actionType: ActionType.START_STEP_RUN,
     actionPayload: 'payload1',
+    workflowRunId: 'workflowRun1',
+    getGroupKeyRunId: 'groupKeyRun1',
   },
   // ... Add more mock AssignedAction objects as needed
 ];
@@ -90,6 +92,8 @@ describe('ActionListener', () => {
         actionId: 'action1',
         actionType: ActionType.START_STEP_RUN,
         actionPayload: 'payload1',
+        workflowRunId: 'workflowRun1',
+        getGroupKeyRunId: 'groupKeyRun1',
       });
     });
 

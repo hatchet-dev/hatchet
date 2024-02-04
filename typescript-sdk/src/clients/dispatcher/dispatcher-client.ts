@@ -2,10 +2,12 @@ import { Channel, ClientFactory } from 'nice-grpc';
 import {
   DispatcherClient as PbDispatcherClient,
   DispatcherDefinition,
-  ActionEvent,
+  StepActionEvent,
+  GroupKeyActionEvent,
 } from '@hatchet/protoc/dispatcher';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import HatchetError from '@util/errors/hatchet-error';
+import { Logger } from '@hatchet/util/logger';
 import { ActionListener } from './action-listener';
 
 interface GetActionListenerOptions {
@@ -18,12 +20,15 @@ export class DispatcherClient {
   config: ClientConfig;
   client: PbDispatcherClient;
 
+  logger: Logger;
+
   constructor(config: ClientConfig, channel: Channel, factory: ClientFactory) {
     this.config = config;
     this.client = factory.create(DispatcherDefinition, channel);
+    this.logger = new Logger(`Dispatcher`, config.log_level);
   }
 
-  async get_action_listener(options: GetActionListenerOptions) {
+  async getActionListener(options: GetActionListenerOptions) {
     // Register the worker
     const registration = await this.client.register({
       ...options,
@@ -37,9 +42,17 @@ export class DispatcherClient {
     return new ActionListener(this, listener, registration.workerId);
   }
 
-  async send_action_event(in_: ActionEvent) {
+  async sendStepActionEvent(in_: StepActionEvent) {
     try {
-      return this.client.sendActionEvent(in_);
+      return this.client.sendStepActionEvent(in_);
+    } catch (e: any) {
+      throw new HatchetError(e.message);
+    }
+  }
+
+  async sendGroupKeyActionEvent(in_: GroupKeyActionEvent) {
+    try {
+      return this.client.sendGroupKeyActionEvent(in_);
     } catch (e: any) {
       throw new HatchetError(e.message);
     }
