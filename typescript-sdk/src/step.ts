@@ -18,6 +18,8 @@ interface ContextData<T = unknown> {
 
 export class Context<T = unknown> {
   data: ContextData<T>;
+  controller = new AbortController();
+
   constructor(payload: string) {
     try {
       this.data = JSON.parse(JSON.parse(payload));

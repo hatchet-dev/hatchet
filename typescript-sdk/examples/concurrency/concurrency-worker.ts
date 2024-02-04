@@ -23,8 +23,17 @@ const workflow: Workflow = {
       name: 'step1',
       run: async (ctx) => {
         const { data } = ctx.workflowInput();
+        const { signal } = ctx.controller;
+
+        if (signal.aborted) throw new Error('step1 was aborted');
+
         console.log('starting step1 and waiting 5 seconds...', data);
         await sleep(5000);
+
+        if (signal.aborted) throw new Error('step1 was aborted');
+
+        // TODO add example using signal with fetch or axios
+
         console.log('executed step1!');
         return { step1: `step1 results for ${data}!` };
       },

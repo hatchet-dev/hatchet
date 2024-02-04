@@ -281,10 +281,10 @@ export class Worker {
       const context = this.contexts[stepRunId];
 
       //  TODO send cancel signal to context
-      // if (context && context.cancel) {
-      //   context.cancel();
-      //   delete this.contexts[stepRunId];
-      // }
+      if (context && context.controller) {
+        context.controller.abort('Cancelled by worker');
+        delete this.contexts[stepRunId];
+      }
 
       if (future) {
         future.promise.catch(() => {
