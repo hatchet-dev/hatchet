@@ -8,8 +8,9 @@ const sleep = (ms: number) =>
   });
 
 async function main() {
-  hatchet.event.push('concurrency:created', {
+  hatchet.event.push('concurrency:create', {
     data: 'event 1',
+    userId: 'user1',
   });
 
   // step 1 will wait 5000 ms,
@@ -20,6 +21,7 @@ async function main() {
 
   hatchet.event.push('concurrency:create', {
     data: 'event 2',
+    userId: 'user1',
   });
 }
 

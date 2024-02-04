@@ -29,7 +29,6 @@ export class Worker {
   handle_kill: boolean;
 
   action_registry: ActionRegistry;
-  concurrency_action_registry: ActionRegistry;
   listener: ActionListener | undefined;
   futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
   contexts: Record<Action['stepRunId'], Context<any>> = {};
@@ -40,7 +39,6 @@ export class Worker {
     this.client = client;
     this.name = options.name;
     this.action_registry = {};
-    this.concurrency_action_registry = {};
 
     process.on('SIGTERM', () => this.exitGracefully());
     process.on('SIGINT', () => this.exitGracefully());
@@ -53,9 +51,9 @@ export class Worker {
 
   async registerWorkflow(workflow: Workflow) {
     try {
-      const concurrency: WorkflowConcurrencyOpts | undefined = workflow.concurrency?.action
+      const concurrency: WorkflowConcurrencyOpts | undefined = workflow.concurrency?.name
         ? {
-            action: `${this.serviceName}:${workflow.concurrency.action}`,
+            action: `${this.serviceName}:${workflow.concurrency.name}`,
             maxRuns: workflow.concurrency.maxRuns || 1,
             limitStrategy:
               workflow.concurrency.limitStrategy || ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
@@ -94,11 +92,14 @@ export class Worker {
       return acc;
     }, {});
 
-    this.concurrency_action_registry = workflow.concurrency?.action
+    this.action_registry = workflow.concurrency?.name
       ? {
-          [`${this.serviceName}:${workflow.concurrency.action}`]: workflow.concurrency.key,
+          ...this.action_registry,
+          [`${this.serviceName}:${workflow.concurrency.name}`]: workflow.concurrency.key,
         }
-      : {};
+      : {
+          ...this.action_registry,
+        };
   }
 
   handleStartStepRun(action: Action) {
@@ -174,6 +175,9 @@ export class Worker {
     const key = action.getGroupKeyRunId;
 
     this.contexts[key] = context;
+
+    this.logger.debug(`Starting group key run ${key}`);
+
     const step = this.action_registry[actionId];
 
     if (!step) {
@@ -269,19 +273,28 @@ export class Worker {
   }
 
   handleCancelStepRun(action: Action) {
-    const { stepRunId } = action;
-    const future = this.futures[stepRunId];
-    const context = this.contexts[stepRunId];
+    try {
+      this.logger.info(`Cancelling step run ${action.stepRunId}`);
 
-    //  TODO send cancel signal to context
-    // if (context && context.cancel) {
-    //   context.cancel();
-    //   delete this.contexts[stepRunId];
-    // }
+      const { stepRunId } = action;
+      const future = this.futures[stepRunId];
+      const context = this.contexts[stepRunId];
 
-    if (future) {
-      future.cancel();
-      delete this.futures[stepRunId];
+      //  TODO send cancel signal to context
+      // if (context && context.cancel) {
+      //   context.cancel();
+      //   delete this.contexts[stepRunId];
+      // }
+
+      if (future) {
+        future.promise.catch(() => {
+          this.logger.info(`Cancelled step run ${action.stepRunId}`);
+        });
+        future.cancel('Cancelled by worker');
+        delete this.futures[stepRunId];
+      }
+    } catch (e: any) {
+      this.logger.error(`Could not cancel step run: ${e.message}`);
     }
   }
 

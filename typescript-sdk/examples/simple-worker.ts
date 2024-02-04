@@ -9,7 +9,7 @@ const sleep = (ms: number) =>
   });
 
 const workflow: Workflow = {
-  id: 'example',
+  id: 'simple-workflow',
   description: 'test',
   on: {
     event: 'user:create',

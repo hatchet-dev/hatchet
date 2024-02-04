@@ -22,7 +22,7 @@ export type Steps = z.infer<typeof StepsSchema>;
 export const ConcurrencyLimitStrategy = PbConcurrencyLimitStrategy;
 
 export const WorkflowConcurrency = z.object({
-  action: z.string().optional(),
+  name: z.string(),
   maxRuns: z.number().optional(),
   limitStrategy: z.nativeEnum(ConcurrencyLimitStrategy).optional(),
 });

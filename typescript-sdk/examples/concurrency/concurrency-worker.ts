@@ -12,9 +12,10 @@ const workflow: Workflow = {
   id: 'concurrency-example',
   description: 'test',
   on: {
-    event: 'concurrency:created',
+    event: 'concurrency:create',
   },
   concurrency: {
+    name: 'user-concurrency',
     key: (ctx) => ctx.workflowInput().userId,
   },
   steps: [
