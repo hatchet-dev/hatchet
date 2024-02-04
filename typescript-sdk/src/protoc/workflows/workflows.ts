@@ -213,6 +213,16 @@ export interface GetWorkflowByNameRequest {
   name: string;
 }
 
+export interface TriggerWorkflowRequest {
+  name: string;
+  /** (optional) the input data for the workflow */
+  input: string;
+}
+
+export interface TriggerWorkflowResponse {
+  workflowRunId: string;
+}
+
 function createBasePutWorkflowRequest(): PutWorkflowRequest {
   return { opts: undefined };
 }
@@ -2172,6 +2182,137 @@ export const GetWorkflowByNameRequest = {
   },
 };
 
+function createBaseTriggerWorkflowRequest(): TriggerWorkflowRequest {
+  return { name: "", input: "" };
+}
+
+export const TriggerWorkflowRequest = {
+  encode(message: TriggerWorkflowRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.input !== "") {
+      writer.uint32(18).string(message.input);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): TriggerWorkflowRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTriggerWorkflowRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.input = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TriggerWorkflowRequest {
+    return {
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      input: isSet(object.input) ? globalThis.String(object.input) : "",
+    };
+  },
+
+  toJSON(message: TriggerWorkflowRequest): unknown {
+    const obj: any = {};
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.input !== "") {
+      obj.input = message.input;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<TriggerWorkflowRequest>): TriggerWorkflowRequest {
+    return TriggerWorkflowRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<TriggerWorkflowRequest>): TriggerWorkflowRequest {
+    const message = createBaseTriggerWorkflowRequest();
+    message.name = object.name ?? "";
+    message.input = object.input ?? "";
+    return message;
+  },
+};
+
+function createBaseTriggerWorkflowResponse(): TriggerWorkflowResponse {
+  return { workflowRunId: "" };
+}
+
+export const TriggerWorkflowResponse = {
+  encode(message: TriggerWorkflowResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.workflowRunId !== "") {
+      writer.uint32(10).string(message.workflowRunId);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): TriggerWorkflowResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTriggerWorkflowResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.workflowRunId = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TriggerWorkflowResponse {
+    return { workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : "" };
+  },
+
+  toJSON(message: TriggerWorkflowResponse): unknown {
+    const obj: any = {};
+    if (message.workflowRunId !== "") {
+      obj.workflowRunId = message.workflowRunId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<TriggerWorkflowResponse>): TriggerWorkflowResponse {
+    return TriggerWorkflowResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<TriggerWorkflowResponse>): TriggerWorkflowResponse {
+    const message = createBaseTriggerWorkflowResponse();
+    message.workflowRunId = object.workflowRunId ?? "";
+    return message;
+  },
+};
+
 /** WorkflowService represents a set of RPCs for managing workflows. */
 export type WorkflowServiceDefinition = typeof WorkflowServiceDefinition;
 export const WorkflowServiceDefinition = {
@@ -2199,6 +2340,14 @@ export const WorkflowServiceDefinition = {
       requestType: ScheduleWorkflowRequest,
       requestStream: false,
       responseType: WorkflowVersion,
+      responseStream: false,
+      options: {},
+    },
+    triggerWorkflow: {
+      name: "TriggerWorkflow",
+      requestType: TriggerWorkflowRequest,
+      requestStream: false,
+      responseType: TriggerWorkflowResponse,
       responseStream: false,
       options: {},
     },
@@ -2242,6 +2391,10 @@ export interface WorkflowServiceImplementation<CallContextExt = {}> {
     request: ScheduleWorkflowRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<WorkflowVersion>>;
+  triggerWorkflow(
+    request: TriggerWorkflowRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<TriggerWorkflowResponse>>;
   getWorkflowByName(
     request: GetWorkflowByNameRequest,
     context: CallContext & CallContextExt,
@@ -2266,6 +2419,10 @@ export interface WorkflowServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<ScheduleWorkflowRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<WorkflowVersion>;
+  triggerWorkflow(
+    request: DeepPartial<TriggerWorkflowRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<TriggerWorkflowResponse>;
   getWorkflowByName(
     request: DeepPartial<GetWorkflowByNameRequest>,
     options?: CallOptions & CallOptionsExt,
