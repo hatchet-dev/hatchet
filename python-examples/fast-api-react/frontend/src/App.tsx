@@ -1,8 +1,35 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { useEffect } from "react";
+import logo from "./logo.svg";
+import "./App.css";
 
 function App() {
+  useEffect(() => {
+    const sse = new EventSource("http://localhost:8000", {
+      withCredentials: true,
+    });
+
+    function getRealtimeData(data: any) {
+      console.log(data);
+      // Process the data here
+      // Then pass it to state to be rendered
+    }
+
+    sse.onmessage = (e) => {
+      console.log(e);
+      return getRealtimeData(e);
+    };
+
+    sse.onerror = () => {
+      // Error log here
+
+      sse.close();
+    };
+
+    return () => {
+      sse.close();
+    };
+  }, []);
+
   return (
     <div className="App">
       <header className="App-header">

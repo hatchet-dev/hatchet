@@ -7,6 +7,21 @@ import requests
 openai = OpenAI()
 
 
+@hatchet.workflow(on_events=["trigger:create"])
+class ManualTriggerWorkflow:
+    @hatchet.step()
+    def step1(self, context):
+        print("executed step1")
+        return {"step1": "data1"}
+
+    @hatchet.step(parents=["step1"], timeout='4s')
+    def step2(self, context):
+        print("started step2")
+        context.sleep(1)
+        print("finished step2")
+        return {"step2": "data2"}
+
+
 @hatchet.workflow(on_events=["question:create"])
 class GenerateWorkflow:
     def __init__(self):
