@@ -4,6 +4,7 @@ import grpc
 
 from . import workflows_pb2 as workflows__pb2
 
+
 class WorkflowServiceStub(object):
     """WorkflowService represents a set of RPCs for managing workflows.
     """
@@ -28,6 +29,11 @@ class WorkflowServiceStub(object):
                 '/WorkflowService/ScheduleWorkflow',
                 request_serializer=workflows__pb2.ScheduleWorkflowRequest.SerializeToString,
                 response_deserializer=workflows__pb2.WorkflowVersion.FromString,
+                )
+        self.TriggerWorkflow = channel.unary_unary(
+                '/WorkflowService/TriggerWorkflow',
+                request_serializer=workflows__pb2.TriggerWorkflowRequest.SerializeToString,
+                response_deserializer=workflows__pb2.TriggerWorkflowResponse.FromString,
                 )
         self.GetWorkflowByName = channel.unary_unary(
                 '/WorkflowService/GetWorkflowByName',
@@ -68,6 +74,12 @@ class WorkflowServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def TriggerWorkflow(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def GetWorkflowByName(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -103,6 +115,11 @@ def add_WorkflowServiceServicer_to_server(servicer, server):
                     servicer.ScheduleWorkflow,
                     request_deserializer=workflows__pb2.ScheduleWorkflowRequest.FromString,
                     response_serializer=workflows__pb2.WorkflowVersion.SerializeToString,
+            ),
+            'TriggerWorkflow': grpc.unary_unary_rpc_method_handler(
+                    servicer.TriggerWorkflow,
+                    request_deserializer=workflows__pb2.TriggerWorkflowRequest.FromString,
+                    response_serializer=workflows__pb2.TriggerWorkflowResponse.SerializeToString,
             ),
             'GetWorkflowByName': grpc.unary_unary_rpc_method_handler(
                     servicer.GetWorkflowByName,
@@ -178,6 +195,23 @@ class WorkflowService(object):
         return grpc.experimental.unary_unary(request, target, '/WorkflowService/ScheduleWorkflow',
             workflows__pb2.ScheduleWorkflowRequest.SerializeToString,
             workflows__pb2.WorkflowVersion.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def TriggerWorkflow(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/WorkflowService/TriggerWorkflow',
+            workflows__pb2.TriggerWorkflowRequest.SerializeToString,
+            workflows__pb2.TriggerWorkflowResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

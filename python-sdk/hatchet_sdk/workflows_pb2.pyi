@@ -234,3 +234,17 @@ class GetWorkflowByNameRequest(_message.Message):
     NAME_FIELD_NUMBER: _ClassVar[int]
     name: str
     def __init__(self, name: _Optional[str] = ...) -> None: ...
+
+class TriggerWorkflowRequest(_message.Message):
+    __slots__ = ("name", "input")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    INPUT_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    input: str
+    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ...) -> None: ...
+
+class TriggerWorkflowResponse(_message.Message):
+    __slots__ = ("workflow_run_id",)
+    WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    workflow_run_id: str
+    def __init__(self, workflow_run_id: _Optional[str] = ...) -> None: ...
