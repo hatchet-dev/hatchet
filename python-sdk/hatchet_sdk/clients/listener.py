@@ -2,7 +2,7 @@ from typing import List
 import grpc
 from ..dispatcher_pb2_grpc import DispatcherStub
 
-from ..dispatcher_pb2 import SubscribeToWorkflowEventsRequest, WorkflowEvent
+from ..dispatcher_pb2 import SubscribeToWorkflowEventsRequest, ResourceEventType
 from ..loader import ClientConfig
 from ..metadata import get_metadata
 import json
@@ -19,6 +19,15 @@ class StepRunEventType:
     STEP_RUN_EVENT_TYPE_FAILED = 'STEP_RUN_EVENT_TYPE_FAILED'
     STEP_RUN_EVENT_TYPE_CANCELLED = 'STEP_RUN_EVENT_TYPE_CANCELLED'
     STEP_RUN_EVENT_TYPE_TIMED_OUT = 'STEP_RUN_EVENT_TYPE_TIMED_OUT'
+
+
+event_type_mapping = {
+    ResourceEventType.RESOURCE_EVENT_TYPE_STARTED: StepRunEventType.STEP_RUN_EVENT_TYPE_STARTED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_COMPLETED: StepRunEventType.STEP_RUN_EVENT_TYPE_COMPLETED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_FAILED: StepRunEventType.STEP_RUN_EVENT_TYPE_FAILED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_CANCELLED: StepRunEventType.STEP_RUN_EVENT_TYPE_CANCELLED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT: StepRunEventType.STEP_RUN_EVENT_TYPE_TIMED_OUT,
+}
 
 
 class StepRunEvent:
@@ -42,13 +51,23 @@ class ListenerClientImpl:
     def on(self, workflowRunId: str, handler: callable):
         listener = self.retry_subscribe(workflowRunId)
 
-        print('x', listener)
-
         while True:
             try:
                 for workflow_event in listener:
-                    print('y', workflow_event)
-                    # TODO handler()
+                    eventType = None
+
+                    if workflow_event.eventType in event_type_mapping:
+                        eventType = event_type_mapping[workflow_event.eventType]
+                    else:
+                        raise Exception(
+                            f"Unknown event type: {workflow_event.eventType}")
+
+                    payload = None
+                    if workflow_event.eventPayload:
+                        payload = json.loads(workflow_event.eventPayload)
+
+                    # call the handler
+                    handler(StepRunEvent(type=eventType, payload=payload))
 
             except grpc.RpcError as e:
                 # Handle different types of errors
