@@ -34,7 +34,7 @@ export class ListenerClient {
   constructor(config: ClientConfig, channel: Channel, factory: ClientFactory) {
     this.config = config;
     this.client = factory.create(DispatcherDefinition, channel);
-    this.logger = new Logger(`Dispatcher`, config.log_level);
+    this.logger = new Logger(`Listener`, config.log_level);
   }
 
   async on(workflowRunId: string, handler: (event: StepRunEvent) => Promise<void>) {
