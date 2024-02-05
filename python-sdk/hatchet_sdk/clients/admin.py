@@ -34,7 +34,6 @@ class AdminClientImpl:
     def schedule_workflow(self, workflow_id : str, schedules : List[timestamp_pb2.Timestamp]):
         try:
             self.client.ScheduleWorkflow(ScheduleWorkflowRequest(
-                tenant_id=self.tenant_id,
                 workflow_id=workflow_id,
                 schedules=schedules,
             ), metadata=get_metadata(self.token))
