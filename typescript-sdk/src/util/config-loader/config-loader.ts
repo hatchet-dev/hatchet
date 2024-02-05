@@ -11,6 +11,7 @@ type EnvVars =
   | 'HATCHET_CLIENT_TOKEN'
   | 'HATCHET_CLIENT_TLS_STRATEGY'
   | 'HATCHET_CLIENT_HOST_PORT'
+  | 'HATCHET_CLIENT_API_URL'
   | 'HATCHET_CLIENT_TLS_CERT_FILE'
   | 'HATCHET_CLIENT_TLS_KEY_FILE'
   | 'HATCHET_CLIENT_TLS_ROOT_CA_FILE'
@@ -41,19 +42,24 @@ export class ConfigLoader {
 
     const token = yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN');
     let grpcBroadcastAddress: string | undefined;
+    let apiUrl: string | undefined;
 
     try {
       const addresses = getAddressesFromJWT(token!);
 
       grpcBroadcastAddress =
         yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT') ?? addresses.grpcBroadcastAddress;
+
+      apiUrl = yaml?.api_url ?? this.env('HATCHET_CLIENT_API_URL') ?? addresses.serverUrl;
     } catch (e) {
       grpcBroadcastAddress = yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT');
+      apiUrl = yaml?.api_url ?? this.env('HATCHET_CLIENT_API_URL');
     }
 
     return {
       token: yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN'),
       host_port: grpcBroadcastAddress,
+      api_url: apiUrl,
       tls_config: tlsConfig,
       log_level: yaml?.log_level ?? (this.env('HATCHET_CLIENT_LOG_LEVEL') as LogLevel) ?? 'INFO',
     };

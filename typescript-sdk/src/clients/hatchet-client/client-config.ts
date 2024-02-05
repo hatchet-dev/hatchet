@@ -13,6 +13,7 @@ export const ClientConfigSchema = z.object({
   token: z.string(),
   tls_config: ClientTLSConfigSchema,
   host_port: z.string(),
+  api_url: z.string(),
   log_level: z.enum(['OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR']).optional(),
 });
 
