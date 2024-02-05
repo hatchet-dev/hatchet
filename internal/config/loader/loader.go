@@ -207,8 +207,10 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	// create a new JWT manager
 	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.Repository.APIToken(), &token.TokenOpts{
-		Issuer:   cf.Runtime.ServerURL,
-		Audience: cf.Runtime.ServerURL,
+		Issuer:               cf.Runtime.ServerURL,
+		Audience:             cf.Runtime.ServerURL,
+		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
+		ServerURL:            cf.Runtime.ServerURL,
 	})
 
 	if err != nil {

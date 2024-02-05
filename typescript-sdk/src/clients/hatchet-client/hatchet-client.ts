@@ -62,7 +62,7 @@ export class HatchetClient {
     // Initializes a new Client instance.
     // Loads config in the following order: config param > yaml file > env vars
 
-    const loaded = ConfigLoader.load_client_config({
+    const loaded = ConfigLoader.loadClientConfig({
       path: options?.config_path,
     });
 

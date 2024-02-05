@@ -49,6 +49,9 @@ type ConfigFileRuntime struct {
 	// GRPCBindAddress is the address that the grpc server binds to. Should set to 0.0.0.0 if binding in docker container.
 	GRPCBindAddress string `mapstructure:"grpcBindAddress" json:"grpcBindAddress,omitempty" default:"127.0.0.1"`
 
+	// GRPCBroadcastAddress is the address that the grpc server broadcasts to, which is what clients should use when connecting.
+	GRPCBroadcastAddress string `mapstructure:"grpcBroadcastAddress" json:"grpcBroadcastAddress,omitempty" default:"127.0.0.1:7070"`
+
 	// GRPCInsecure controls whether the grpc server is insecure or uses certs
 	GRPCInsecure bool `mapstructure:"grpcInsecure" json:"grpcInsecure,omitempty" default:"false"`
 }
@@ -190,6 +193,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.url", "SERVER_URL")
 	_ = v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
 	_ = v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
+	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
 
