@@ -3,8 +3,9 @@ from .generate import GenerateWorkflow
 
 
 def start():
-    workflow = GenerateWorkflow()
-    worker = hatchet.worker('test-worker')
-    worker.register_workflow(workflow)
+    worker = hatchet.worker('example-worker')
+
+    generate = GenerateWorkflow()
+    worker.register_workflow(generate)
 
     worker.start()

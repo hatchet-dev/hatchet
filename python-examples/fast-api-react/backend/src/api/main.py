@@ -1,18 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from hatchet_sdk import new_client
+from hatchet_sdk import Hatchet
 import uvicorn
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = FastAPI()
-hatchet = new_client()
+hatchet = Hatchet()
 
 
 origins = [
-    "http://localhost:3000",
-    "localhost:3000"
+    "http://localhost:3001",
+    "localhost:3001"
 ]
 
 
@@ -27,13 +27,7 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    hatchet.event.create("poem:create", {"test": "test"})
-    return {"message": "Hello World"}
-
-
-@app.get("/fail")
-async def root():
-    hatchet.event.create("failure:create", {"test": "test"})
+    hatchet.event.push("question:create", {"test": "test"})
     return {"message": "Hello World"}
 
 
