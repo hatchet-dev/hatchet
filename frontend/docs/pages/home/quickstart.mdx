@@ -65,34 +65,43 @@ python3 worker.py
 ```
   </Tabs.Tab>
   <Tabs.Tab>
-Make sure you install `@hatchet-dev/typescript-sdk` via:
+First, install `@hatchet-dev/typescript-sdk` via:
 
 ```sh npm2yarn
 npm i @hatchet-dev/typescript-sdk
+npm i dotenv
 ```
 
-Copy the following code into a `worker.ts` file:
+We also use `dotenv` to load the environment variables from a `.env` file. This isn't required, and you can use your own method to load environment variables.
+
+Next, copy the following code into a `worker.ts` file:
 
 ```typescript filename="worker.ts" copy
-import Hatchet from '@hatchet-dev/typescript-sdk';
-import { Workflow } from '@hatchet-dev/typescript-sdk/dist/workflow';
+import Hatchet, { Workflow } from "@hatchet-dev/typescript-sdk";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const hatchet = Hatchet.init();
 
 const workflow: Workflow = {
-  id: 'first-typescript-workflow',
-  description: 'This is my first workflow',
+  id: "first-typescript-workflow",
+  description: "This is my first workflow",
   on: {
-    event: 'user:create',
+    event: "user:create",
   },
   steps: [
     {
-      name: 'step1',
+      name: "step1",
       run: async (ctx) => {
-        console.log('starting step1 with the following input', ctx.workflowInput());
+        console.log(
+          "starting step1 with the following input",
+          ctx.workflowInput()
+        );
 
-        return { 
-            result: 'success!' };
+        return {
+          result: "success!",
+        };
       },
     },
   ],
@@ -108,12 +117,13 @@ Next, modify your `package.json` to include a script to start:
     // ...rest of your `package.json`
     "scripts": {
         // ...existing scripts
-        "worker": "npx dotenv -- ts-node <path-to-worker.ts>"
+        "worker": "npx ts-node worker.ts"
     }
 }
 ```
 
 Now to start the worker, in a new terminal run:
+
 ```sh
 npx run worker
 ```
