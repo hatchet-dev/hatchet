@@ -1,10 +1,5 @@
-from hatchet_sdk import Hatchet, Context
-from dotenv import load_dotenv
+from .hatchet import hatchet
 from .generate import GenerateWorkflow
-
-load_dotenv()
-
-hatchet = Hatchet()
 
 
 def start():

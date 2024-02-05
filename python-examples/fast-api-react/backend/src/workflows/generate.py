@@ -1,6 +1,5 @@
-from hatchet_sdk import Hatchet, Context
-
-hatchet = Hatchet()
+from .hatchet import hatchet
+from hatchet_sdk import Context
 
 
 @hatchet.workflow(on_events=["failure:create"])
