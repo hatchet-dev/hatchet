@@ -10,7 +10,7 @@ fdescribe('ConfigLoader', () => {
   });
 
   it('should load from environment variables', () => {
-    const config = ConfigLoader.load_client_config();
+    const config = ConfigLoader.loadClientConfig();
     expect(config).toEqual({
       host_port: 'HOST_PORT',
       log_level: 'INFO',
@@ -26,7 +26,7 @@ fdescribe('ConfigLoader', () => {
 
   it('should throw an error if the file is not found', () => {
     expect(() =>
-      ConfigLoader.load_client_config({
+      ConfigLoader.loadClientConfig({
         path: './fixtures/not-found.yaml',
       })
     ).toThrow();
@@ -35,14 +35,14 @@ fdescribe('ConfigLoader', () => {
   xit('should throw an error if the yaml file fails validation', () => {
     expect(() =>
       // This test is failing because there is no invalid state of the yaml file, need to update with tls and mtls settings
-      ConfigLoader.load_client_config({
+      ConfigLoader.loadClientConfig({
         path: './fixtures/.hatchet-invalid.yaml',
       })
     ).toThrow();
   });
 
   it('should favor yaml config over env vars', () => {
-    const config = ConfigLoader.load_client_config({
+    const config = ConfigLoader.loadClientConfig({
       path: './fixtures/.hatchet.yaml',
     });
     expect(config).toEqual({
@@ -61,7 +61,7 @@ fdescribe('ConfigLoader', () => {
 
   xit('should attempt to load the root .hatchet.yaml config', () => {
     //  i'm not sure the best way to test this, maybe spy on readFileSync called with
-    const config = ConfigLoader.load_client_config({
+    const config = ConfigLoader.loadClientConfig({
       path: './fixtures/.hatchet.yaml',
     });
     expect(config).toEqual({

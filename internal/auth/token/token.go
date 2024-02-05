@@ -17,8 +17,10 @@ type JWTManager interface {
 }
 
 type TokenOpts struct {
-	Issuer   string
-	Audience string
+	Issuer               string
+	Audience             string
+	ServerURL            string
+	GRPCBroadcastAddress string
 }
 
 type jwtManagerImpl struct {
@@ -112,6 +114,31 @@ func (j *jwtManagerImpl) ValidateTenantToken(token string) (tenantId string, err
 		return "", fmt.Errorf("failed to read token_id claim: %v", err)
 	}
 
+	// ensure the current server url and grpc broadcast address match the token, if present
+	if hasServerURL := verifiedJwt.HasStringClaim("server_url"); hasServerURL {
+		serverURL, err := verifiedJwt.StringClaim("server_url")
+
+		if err != nil {
+			return "", fmt.Errorf("failed to read server_url claim: %v", err)
+		}
+
+		if serverURL != j.opts.ServerURL {
+			return "", fmt.Errorf("server_url claim does not match")
+		}
+	}
+
+	if hasGRPCBroadcastAddress := verifiedJwt.HasStringClaim("grpc_broadcast_address"); hasGRPCBroadcastAddress {
+		grpcBroadcastAddress, err := verifiedJwt.StringClaim("grpc_broadcast_address")
+
+		if err != nil {
+			return "", fmt.Errorf("failed to read grpc_broadcast_address claim: %v", err)
+		}
+
+		if grpcBroadcastAddress != j.opts.GRPCBroadcastAddress {
+			return "", fmt.Errorf("grpc_broadcast_address claim does not match")
+		}
+	}
+
 	// read the token from the database
 	dbToken, err := j.tokenRepo.GetAPITokenById(tokenId)
 
@@ -155,7 +182,9 @@ func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId string) (tokenId string
 		ExpiresAt: &expiresAt,
 		Issuer:    &issuer,
 		CustomClaims: map[string]interface{}{
-			"token_id": tokenId,
+			"token_id":               tokenId,
+			"server_url":             j.opts.ServerURL,
+			"grpc_broadcast_address": j.opts.GRPCBroadcastAddress,
 		},
 	}
 

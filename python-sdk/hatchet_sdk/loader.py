@@ -1,6 +1,7 @@
 import os
 import yaml
 from typing import Any, Optional, Dict
+from .token import get_addresses_from_jwt
 
 class ClientTLSConfig:
     def __init__(self, tls_strategy: str, cert_file: str, key_file: str, ca_file: str, server_name: str):
@@ -34,8 +35,19 @@ class ConfigLoader:
                 config_data = yaml.safe_load(file)
         
         tenant_id = config_data['tenantId'] if 'tenantId' in config_data else self._get_env_var('HATCHET_CLIENT_TENANT_ID')
-        host_port = config_data['hostPort'] if 'hostPort' in config_data else self._get_env_var('HATCHET_CLIENT_HOST_PORT')
         token = config_data['token'] if 'token' in config_data else self._get_env_var('HATCHET_CLIENT_TOKEN')
+
+        if not token:
+            raise ValueError('Token must be set via HATCHET_CLIENT_TOKEN environment variable')
+
+        host_port = config_data['hostPort'] if 'hostPort' in config_data else self._get_env_var('HATCHET_CLIENT_HOST_PORT')
+
+        if not host_port:
+            # extract host and port from token
+            server_url, grpc_broadcast_address = get_addresses_from_jwt(token)
+
+            host_port = grpc_broadcast_address
+
         tls_config = self._load_tls_config(config_data['tls'], host_port)
 
         return ClientConfig(tenant_id, tls_config, token, host_port)
