@@ -2,10 +2,11 @@ from typing import List
 import grpc
 from google.protobuf import timestamp_pb2
 from ..workflows_pb2_grpc import WorkflowServiceStub
-from ..workflows_pb2 import CreateWorkflowVersionOpts, ScheduleWorkflowRequest, PutWorkflowRequest, GetWorkflowByNameRequest, Workflow
+from ..workflows_pb2 import CreateWorkflowVersionOpts, ScheduleWorkflowRequest, TriggerWorkflowRequest, PutWorkflowRequest, GetWorkflowByNameRequest, Workflow
 from ..loader import ClientConfig
 from ..semver import bump_minor_version
 from ..metadata import get_metadata
+import json
 
 
 def new_admin(conn, config: ClientConfig):
@@ -39,3 +40,16 @@ class AdminClientImpl:
             ), metadata=get_metadata(self.token))
         except grpc.RpcError as e:
             raise ValueError(f"gRPC error: {e}")
+
+    def run_workflow(self, workflow_name: str, input: any):
+        try:
+            payload_data = json.dumps(input)
+
+            self.client.TriggerWorkflow(TriggerWorkflowRequest(
+                name=workflow_name,
+                input=payload_data,
+            ), metadata=get_metadata(self.token))
+        except grpc.RpcError as e:
+            raise ValueError(f"gRPC error: {e}")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Error encoding payload: {e}")
