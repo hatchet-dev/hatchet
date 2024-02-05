@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/steebchen/prisma-client-go/runtime/types"
@@ -313,8 +314,6 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 					return
 				}
 
-				fmt.Println("<><><> SENDING TASK!!", e)
-
 				// send the task to the client
 				err = stream.Send(e)
 
@@ -621,6 +620,15 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *taskqueue.Task, tenantI
 		// this is an expected error, so we don't return it
 		return nil, nil
 	}
+
+	// attempt to unquote the payload
+	unquoted, err := strconv.Unquote(workflowEvent.EventPayload)
+
+	if err != nil {
+		unquoted = workflowEvent.EventPayload
+	}
+
+	workflowEvent.EventPayload = unquoted
 
 	return workflowEvent, nil
 }
