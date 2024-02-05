@@ -48,7 +48,7 @@ class ListenerClientImpl:
         self.client = client
         self.token = token
 
-    def on(self, workflowRunId: str, handler: callable):
+    def generator(self, workflowRunId: str) -> List[StepRunEvent]:
         listener = self.retry_subscribe(workflowRunId)
 
         while True:
@@ -67,7 +67,8 @@ class ListenerClientImpl:
                         payload = json.loads(workflow_event.eventPayload)
 
                     # call the handler
-                    handler(StepRunEvent(type=eventType, payload=payload))
+                    event = StepRunEvent(type=eventType, payload=payload)
+                    yield event
 
             except grpc.RpcError as e:
                 # Handle different types of errors
@@ -85,6 +86,12 @@ class ListenerClientImpl:
                     # Unknown error, report and break
                     logger.error(f"Failed to receive message: {e}")
                     break
+
+    def on(self, workflowRunId: str, handler: callable = None):
+        for event in self.generator(workflowRunId):
+            # call the handler if provided
+            if handler:
+                handler(event)
 
     def retry_subscribe(self, workflowRunId: str):
         retries = 0
