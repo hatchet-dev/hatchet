@@ -100,14 +100,11 @@ def step1(self, context):
 
 > __**Note:** this feature is currently in beta, and currently only supports a concurrency strategy which terminates the oldest running workflow run to make room for the new one. This will be expanded in the future to support other strategies.__
 
-By default, there are no concurrency limits for Hatchet workflows. Workflow runs are immediately executed as soon as they are triggered (by an event, cron, or schedule). However, you can enforce a concurrency limit by decorating a custom function with `hatchet.concurrency`. This function returns a __concurrency group key__, which is a string that is used to group concurrent executions. **Note that this function should not also be used as a `hatchet.step`.** For example, the following workflow will only allow 5 concurrent executions for any workflow execution of `ConcurrencyDemoWorkflow`, since the key is statically set to `my-key`:
+By default, there are no concurrency limits for Hatchet workflows. Workflow runs are immediately executed as soon as they are triggered (by an event, cron, or schedule). However, you can enforce a concurrency limit by decorating a custom function with `hatchet.concurrency`. This function returns a __concurrency group key__, which is a string that is used to group concurrent executions. **Note that this function should not also be used as a `hatchet.step`.** For example, the following workflow will only allow 5 concurrent executions for any workflow execution of `ConcurrencyDemoWorkflow`, since the key is statically set to `concurrency-key`:
 
 ```py
 @hatchet.workflow(on_events=["concurrency-test"])
 class ConcurrencyDemoWorkflow:
-    def __init__(self):
-        self.my_value = "test"
-
     @hatchet.concurrency(max_runs=5)
     def concurrency(self, context) -> str:
         return "concurrency-key"
@@ -134,6 +131,11 @@ class ConcurrencyDemoWorkflow:
         print("executed step1")
         pass
 ```
+
+This same approach can be used for:
+- Setting concurrency for a specific user session by `session_id` (i.e. multiple chat messages sent)
+- Limiting data or document ingestion by setting an input hash or on-file key.
+- Rudimentary fairness rules by limiting groups per tenant to a certain number of concurrent executions.
 
 ## Termination, Sleeps and Threads
 

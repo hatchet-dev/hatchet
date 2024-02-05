@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { ClientConfig, ClientConfigSchema } from '@clients/hatchet-client';
 import { ChannelCredentials } from 'nice-grpc';
 import { LogLevel } from '../logger/logger';
+import { getAddressesFromJWT } from './token';
 
 type EnvVars =
   | 'HATCHET_CLIENT_TOKEN'
@@ -25,8 +26,8 @@ interface LoadClientConfigOptions {
 const DEFAULT_CONFIG_FILE = '.hatchet.yaml';
 
 export class ConfigLoader {
-  static load_client_config(config?: LoadClientConfigOptions): Partial<ClientConfig> {
-    const yaml = this.load_yaml_config(config?.path);
+  static loadClientConfig(config?: LoadClientConfigOptions): Partial<ClientConfig> {
+    const yaml = this.loadYamlConfig(config?.path);
     const tlsConfig = {
       tls_strategy:
         yaml?.tls_config?.tls_strategy ??
@@ -38,9 +39,21 @@ export class ConfigLoader {
       server_name: yaml?.tls_config?.server_name ?? this.env('HATCHET_CLIENT_TLS_SERVER_NAME')!,
     };
 
+    const token = yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN');
+    let grpcBroadcastAddress: string | undefined;
+
+    try {
+      const addresses = getAddressesFromJWT(token!);
+
+      grpcBroadcastAddress =
+        yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT') ?? addresses.grpcBroadcastAddress;
+    } catch (e) {
+      grpcBroadcastAddress = yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT');
+    }
+
     return {
       token: yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN'),
-      host_port: yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT'),
+      host_port: grpcBroadcastAddress,
       tls_config: tlsConfig,
       log_level: yaml?.log_level ?? (this.env('HATCHET_CLIENT_LOG_LEVEL') as LogLevel) ?? 'INFO',
     };
@@ -62,7 +75,7 @@ export class ConfigLoader {
     return ChannelCredentials.createSsl(rootCerts, privateKey, certChain);
   }
 
-  static load_yaml_config(path?: string): ClientConfig | undefined {
+  static loadYamlConfig(path?: string): ClientConfig | undefined {
     try {
       const configFile = readFileSync(
         p.join(__dirname, path ?? this.default_yaml_config_path),

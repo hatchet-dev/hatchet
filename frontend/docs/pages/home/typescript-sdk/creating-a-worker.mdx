@@ -1,0 +1,26 @@
+# Creating a Worker
+
+Workers can be created via the `hatchet.run()` method, after instantiating a `hatchet` instance.
+It will automatically read in any `HATCHET_CLIENT` environment variables, which can be set in the process by using something like `dotenv`.
+
+For example:
+
+```ts
+import Hatchet, { Workflow } from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+// workflow code...
+
+async function main() {
+  const worker = await hatchet.worker("example-worker");
+  await worker.registerWorkflow(workflow);
+  worker.start();
+}
+
+main();
+```
+
+## Options
+
+The `hatchet.worker()` method takes a simple name parameter which can be used to identify the worker on the Hatchet dashboard.

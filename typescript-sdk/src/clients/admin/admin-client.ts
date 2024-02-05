@@ -16,11 +16,7 @@ export class AdminClient {
     this.client = factory.create(WorkflowServiceDefinition, channel);
   }
 
-  async put_workflow(workflow: CreateWorkflowVersionOpts, options?: { autoVersion?: boolean }) {
-    if (workflow.version === '' && !options?.autoVersion) {
-      throw new HatchetError('PutWorkflow error: workflow version is required, or use autoVersion');
-    }
-
+  async put_workflow(workflow: CreateWorkflowVersionOpts) {
     try {
       await this.client.putWorkflow({
         opts: workflow,
@@ -29,6 +25,23 @@ export class AdminClient {
       throw new HatchetError(e.message);
     }
   }
+
+  async run_workflow(workflowName: string, input: object) {
+    try {
+      const inputStr = JSON.stringify(input);
+
+      const resp = await this.client.triggerWorkflow({
+        name: workflowName,
+        input: inputStr,
+      });
+
+      return resp.workflowRunId;
+    } catch (e: any) {
+      throw new HatchetError(e.message);
+    }
+  }
+
+  // RunWorkflow(workflowName string, input interface{}) (string, error)
 
   schedule_workflow(workflowId: string, options?: { schedules?: Date[] }) {
     try {

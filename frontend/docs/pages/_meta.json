@@ -1,7 +1,14 @@
 {
-  "index": "Introduction",
-  "quickstart": "Quickstart",
-  "python-sdk": "Python SDK",
-  "typescript-sdk": "TypeScript SDK",
-  "go-sdk": "Go SDK"
+    "home": {
+        "title": "Home",
+        "type": "page"
+    },
+    "self-hosting": {
+        "title": "Self Hosting",
+        "type": "page"
+    },
+    "contributing": {
+        "title": "Contributing",
+        "type": "page"
+    }
 }

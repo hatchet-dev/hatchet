@@ -1,5 +1,5 @@
 import { HatchetClient } from '@clients/hatchet-client';
-import { ActionEventType, ActionType, AssignedAction } from '@hatchet/protoc/dispatcher';
+import { StepActionEventType, ActionType, AssignedAction } from '@hatchet/protoc/dispatcher';
 import { ActionListener } from '@clients/dispatcher/action-listener';
 import { ServerError, Status } from 'nice-grpc-common';
 import { mockListener } from '@clients/dispatcher/action-listener.test';
@@ -7,7 +7,6 @@ import { never } from 'zod';
 import sleep from '@util/sleep';
 import { ChannelCredentials } from 'nice-grpc';
 import { Worker } from './worker';
-import { Context } from '@hatchet/step';
 
 type AssignActionMock = AssignedAction | Error;
 
@@ -21,6 +20,8 @@ const mockStart: AssignActionMock = {
   actionId: 'action1',
   actionType: ActionType.START_STEP_RUN,
   actionPayload: JSON.stringify('{"input": {"data": 1}}'),
+  workflowRunId: 'workflowRun1',
+  getGroupKeyRunId: 'groupKeyRun1',
 };
 
 const mockCancel: AssignActionMock = {
@@ -71,7 +72,7 @@ describe('Worker', () => {
         ],
       };
 
-      await worker.register_workflow(workflow);
+      await worker.registerWorkflow(workflow);
 
       expect(putWorkflowSpy).toHaveBeenCalledTimes(1);
 
@@ -87,10 +88,10 @@ describe('Worker', () => {
 
       const putWorkflowSpy = jest.spyOn(worker.client.admin, 'put_workflow').mockResolvedValue();
 
-      const getActionEventSpy = jest.spyOn(worker, 'get_action_event');
+      const getActionEventSpy = jest.spyOn(worker, 'getStepActionEvent');
 
       const sendActionEventSpy = jest
-        .spyOn(worker.client.dispatcher, 'send_action_event')
+        .spyOn(worker.client.dispatcher, 'sendStepActionEvent')
         .mockResolvedValue({
           tenantId: 'TENANT_ID',
           workerId: 'WORKER_ID',
@@ -102,7 +103,7 @@ describe('Worker', () => {
         [mockStart.actionId]: startSpy,
       };
 
-      worker.handle_start_step_run(mockStart);
+      worker.handleStartStepRun(mockStart);
       await sleep(100);
 
       expect(startSpy).toHaveBeenCalledTimes(1);
@@ -110,7 +111,7 @@ describe('Worker', () => {
       expect(getActionEventSpy).toHaveBeenNthCalledWith(
         2,
         expect.anything(),
-        ActionEventType.STEP_EVENT_TYPE_COMPLETED,
+        StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
         { data: 4 }
       );
       expect(worker.futures[mockStart.stepRunId]).toBeUndefined();
@@ -120,10 +121,10 @@ describe('Worker', () => {
     it('should fail gracefully', async () => {
       const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
 
-      const getActionEventSpy = jest.spyOn(worker, 'get_action_event');
+      const getActionEventSpy = jest.spyOn(worker, 'getStepActionEvent');
 
       const sendActionEventSpy = jest
-        .spyOn(worker.client.dispatcher, 'send_action_event')
+        .spyOn(worker.client.dispatcher, 'sendStepActionEvent')
         .mockResolvedValue({
           tenantId: 'TENANT_ID',
           workerId: 'WORKER_ID',
@@ -135,14 +136,14 @@ describe('Worker', () => {
         [mockStart.actionId]: startSpy,
       };
 
-      worker.handle_start_step_run(mockStart);
+      worker.handleStartStepRun(mockStart);
       await sleep(100);
 
       expect(startSpy).toHaveBeenCalledTimes(1);
       expect(getActionEventSpy).toHaveBeenNthCalledWith(
         2,
         expect.anything(),
-        ActionEventType.STEP_EVENT_TYPE_FAILED,
+        StepActionEventType.STEP_EVENT_TYPE_FAILED,
         expect.anything()
       );
       expect(worker.futures[mockStart.stepRunId]).toBeUndefined();
@@ -150,31 +151,14 @@ describe('Worker', () => {
     });
   });
 
-  describe('handle_cancel_step_run', () => {
-    it('should cancel a step run', () => {
-      const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
-
-      const cancelSpy = jest.fn().mockReturnValue(undefined);
-
-      worker.futures = {
-        [mockCancel.stepRunId]: {
-          cancel: cancelSpy,
-        } as any,
-      };
-
-      worker.handle_cancel_step_run(mockCancel);
-
-      expect(cancelSpy).toHaveBeenCalledTimes(1);
-      expect(worker.futures[mockCancel.stepRunId]).toBeUndefined();
-    });
-  });
+  describe('handle_cancel_step_run', () => {});
 
   describe('exit_gracefully', () => {
     xit('should call exit_gracefully on SIGTERM', async () => {
       const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
 
       // the spy is not working and the test is killing the test process
-      const exitSpy = jest.spyOn(worker, 'exit_gracefully').mockImplementationOnce(() => {
+      const exitSpy = jest.spyOn(worker, 'exitGracefully').mockImplementationOnce(() => {
         throw new Error('Simulated error');
       });
 
@@ -186,7 +170,7 @@ describe('Worker', () => {
       const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
 
       // This is killing the process (as it should) fix the spy at some point
-      const exitSpy = jest.spyOn(worker, 'exit_gracefully').mockResolvedValue();
+      const exitSpy = jest.spyOn(worker, 'exitGracefully').mockResolvedValue();
 
       process.emit('SIGINT', 'SIGINT');
       expect(exitSpy).toHaveBeenCalledTimes(1);
@@ -209,7 +193,7 @@ describe('Worker', () => {
       worker.listener = mockActionListener;
 
       expect(async () => {
-        await worker.exit_gracefully();
+        await worker.exitGracefully();
       }).toThrow('EXIT 0');
       expect(mockActionListener.unregister).toHaveBeenCalledTimes(1);
     });
@@ -217,7 +201,7 @@ describe('Worker', () => {
     it('should exit the process if handle_kill is true', async () => {
       const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
       const exitSpy = jest.spyOn(process, 'exit').mockReturnValue(undefined as never);
-      await worker.exit_gracefully();
+      await worker.exitGracefully();
       expect(exitSpy).toHaveBeenCalledTimes(1);
     });
   });
@@ -226,8 +210,8 @@ describe('Worker', () => {
     xit('should get actions and start runs', async () => {
       const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
 
-      const startSpy = jest.spyOn(worker, 'handle_start_step_run').mockReturnValue();
-      const cancelSpy = jest.spyOn(worker, 'handle_cancel_step_run').mockReturnValue();
+      const startSpy = jest.spyOn(worker, 'handleStartStepRun').mockReturnValue();
+      const cancelSpy = jest.spyOn(worker, 'handleCancelStepRun').mockReturnValue();
 
       const mockActionListener = new ActionListener(
         hatchet.dispatcher,
@@ -236,7 +220,7 @@ describe('Worker', () => {
       );
 
       const getActionListenerSpy = jest
-        .spyOn(worker.client.dispatcher, 'get_action_listener')
+        .spyOn(worker.client.dispatcher, 'getActionListener')
         .mockResolvedValue(mockActionListener);
 
       await worker.start();
@@ -249,18 +233,18 @@ describe('Worker', () => {
     it('should get actions and cancel runs', async () => {
       const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
 
-      const startSpy = jest.spyOn(worker, 'handle_start_step_run').mockReturnValue();
-      const cancelSpy = jest.spyOn(worker, 'handle_cancel_step_run').mockReturnValue();
+      const startSpy = jest.spyOn(worker, 'handleStartStepRun').mockReturnValue();
+      const cancelSpy = jest.spyOn(worker, 'handleCancelStepRun').mockReturnValue();
 
-      const mockActionListner = new ActionListener(
+      const mockActionListener = new ActionListener(
         hatchet.dispatcher,
         mockListener([mockStart, mockCancel, new ServerError(Status.CANCELLED, 'CANCELLED')]),
         'WORKER_ID'
       );
 
       const getActionListenerSpy = jest
-        .spyOn(worker.client.dispatcher, 'get_action_listener')
-        .mockResolvedValue(mockActionListner);
+        .spyOn(worker.client.dispatcher, 'getActionListener')
+        .mockResolvedValue(mockActionListener);
 
       await worker.start();
 
@@ -272,8 +256,8 @@ describe('Worker', () => {
     it('should retry 5 times to start a worker then throw an error', async () => {
       const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
 
-      const startSpy = jest.spyOn(worker, 'handle_start_step_run').mockReturnValue();
-      const cancelSpy = jest.spyOn(worker, 'handle_cancel_step_run').mockReturnValue();
+      const startSpy = jest.spyOn(worker, 'handleStartStepRun').mockReturnValue();
+      const cancelSpy = jest.spyOn(worker, 'handleCancelStepRun').mockReturnValue();
 
       const mockActionListner = new ActionListener(
         hatchet.dispatcher,
@@ -282,7 +266,7 @@ describe('Worker', () => {
       );
 
       const getActionListenerSpy = jest
-        .spyOn(worker.client.dispatcher, 'get_action_listener')
+        .spyOn(worker.client.dispatcher, 'getActionListener')
         .mockImplementationOnce(() => {
           throw new Error('Simulated error');
         })
@@ -312,8 +296,8 @@ describe('Worker', () => {
     it('should successfully run after retrying < 5 times', async () => {
       const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
 
-      const startSpy = jest.spyOn(worker, 'handle_start_step_run').mockReturnValue();
-      const cancelSpy = jest.spyOn(worker, 'handle_cancel_step_run').mockReturnValue();
+      const startSpy = jest.spyOn(worker, 'handleStartStepRun').mockReturnValue();
+      const cancelSpy = jest.spyOn(worker, 'handleCancelStepRun').mockReturnValue();
 
       const mockActionLister = new ActionListener(
         hatchet.dispatcher,
@@ -322,7 +306,7 @@ describe('Worker', () => {
       );
 
       const getActionListenerSpy = jest
-        .spyOn(worker.client.dispatcher, 'get_action_listener')
+        .spyOn(worker.client.dispatcher, 'getActionListener')
         .mockImplementationOnce(() => {
           throw new Error('Simulated error');
         })

@@ -34,12 +34,8 @@ jobs:
         run: pnpm install
         working-directory: typescript-sdk
 
-      - name: Build SDK
-        run: pnpm build
-        working-directory: typescript-sdk
-
-      - name: Publish SDK
-        run: pnpm publish --access public
+      - name: Build and Publish SDK
+        run: pnpm publish:ci
         working-directory: typescript-sdk
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

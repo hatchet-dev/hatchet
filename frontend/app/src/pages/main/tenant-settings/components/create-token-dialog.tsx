@@ -55,7 +55,7 @@ export function CreateTokenDialog({
           className="text-sm"
           wrapLines={false}
           maxWidth={'calc(700px - 4rem)'}
-          code={token}
+          code={'HATCHET_CLIENT_TOKEN="' + token + '"'}
           copy
         />
       </DialogContent>

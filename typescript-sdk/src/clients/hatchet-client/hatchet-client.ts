@@ -16,6 +16,7 @@ import { Workflow } from '@hatchet/workflow';
 import { Worker } from '@clients/worker';
 import Logger from '@hatchet/util/logger/logger';
 import { ClientConfig, ClientConfigSchema } from './client-config';
+import { ListenerClient } from '../listener/listener-client';
 
 export interface HatchetClientOptions {
   config_path?: string;
@@ -53,6 +54,7 @@ export class HatchetClient {
   event: EventClient;
   dispatcher: DispatcherClient;
   admin: AdminClient;
+  listener: ListenerClient;
 
   logger: Logger;
 
@@ -60,7 +62,7 @@ export class HatchetClient {
     // Initializes a new Client instance.
     // Loads config in the following order: config param > yaml file > env vars
 
-    const loaded = ConfigLoader.load_client_config({
+    const loaded = ConfigLoader.loadClientConfig({
       path: options?.config_path,
     });
 
@@ -89,6 +91,7 @@ export class HatchetClient {
     this.event = new EventClient(this.config, this.channel, clientFactory);
     this.dispatcher = new DispatcherClient(this.config, this.channel, clientFactory);
     this.admin = new AdminClient(this.config, this.channel, clientFactory);
+    this.listener = new ListenerClient(this.config, this.channel, clientFactory);
 
     this.logger = new Logger('HatchetClient', this.config.log_level);
 
@@ -127,7 +130,7 @@ export class HatchetClient {
     });
 
     if (typeof workflow !== 'string') {
-      await worker.register_workflow(workflow);
+      await worker.registerWorkflow(workflow);
       return worker;
     }
 

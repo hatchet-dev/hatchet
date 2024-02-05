@@ -1,5 +1,5 @@
 # Directory to write generated code to (.js and .d.ts files)
-OUT_DIR="./protoc"
+OUT_DIR="./src/protoc"
 
 # Generate code
 ./node_modules/.bin/grpc_tools_node_protoc \

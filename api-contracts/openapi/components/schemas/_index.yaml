@@ -118,3 +118,5 @@ ListAPITokensResponse:
   $ref: "./api_tokens.yaml#/ListAPITokensResponse"
 RerunStepRunRequest:
   $ref: "./workflow_run.yaml#/RerunStepRunRequest"
+TriggerWorkflowRunRequest:
+  $ref: "./workflow_run.yaml#/TriggerWorkflowRunRequest"

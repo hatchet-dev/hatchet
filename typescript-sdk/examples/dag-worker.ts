@@ -1,5 +1,5 @@
-import Hatchet from '@hatchet/sdk';
-import { Workflow } from '@hatchet/workflow';
+import Hatchet from '../src/sdk';
+import { Workflow } from '../src/workflow';
 
 const hatchet = Hatchet.init({
   log_level: 'OFF',
@@ -52,4 +52,10 @@ const workflow: Workflow = {
   ],
 };
 
-hatchet.run(workflow);
+async function main() {
+  const worker = await hatchet.worker('example-worker');
+  await worker.registerWorkflow(workflow);
+  worker.start();
+}
+
+main();
