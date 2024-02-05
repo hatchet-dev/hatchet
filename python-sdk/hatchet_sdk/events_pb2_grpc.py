@@ -4,6 +4,7 @@ import grpc
 
 from . import events_pb2 as events__pb2
 
+
 class EventsServiceStub(object):
     """Missing associated documentation comment in .proto file."""
 
@@ -14,20 +15,20 @@ class EventsServiceStub(object):
             channel: A grpc.Channel.
         """
         self.Push = channel.unary_unary(
-                '/EventsService/Push',
-                request_serializer=events__pb2.PushEventRequest.SerializeToString,
-                response_deserializer=events__pb2.Event.FromString,
-                )
+            '/EventsService/Push',
+            request_serializer=events__pb2.PushEventRequest.SerializeToString,
+            response_deserializer=events__pb2.Event.FromString,
+        )
         self.List = channel.unary_unary(
-                '/EventsService/List',
-                request_serializer=events__pb2.ListEventRequest.SerializeToString,
-                response_deserializer=events__pb2.ListEventResponse.FromString,
-                )
+            '/EventsService/List',
+            request_serializer=events__pb2.ListEventRequest.SerializeToString,
+            response_deserializer=events__pb2.ListEventResponse.FromString,
+        )
         self.ReplaySingleEvent = channel.unary_unary(
-                '/EventsService/ReplaySingleEvent',
-                request_serializer=events__pb2.ReplayEventRequest.SerializeToString,
-                response_deserializer=events__pb2.Event.FromString,
-                )
+            '/EventsService/ReplaySingleEvent',
+            request_serializer=events__pb2.ReplayEventRequest.SerializeToString,
+            response_deserializer=events__pb2.Event.FromString,
+        )
 
 
 class EventsServiceServicer(object):
@@ -54,78 +55,79 @@ class EventsServiceServicer(object):
 
 def add_EventsServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'Push': grpc.unary_unary_rpc_method_handler(
-                    servicer.Push,
-                    request_deserializer=events__pb2.PushEventRequest.FromString,
-                    response_serializer=events__pb2.Event.SerializeToString,
-            ),
-            'List': grpc.unary_unary_rpc_method_handler(
-                    servicer.List,
-                    request_deserializer=events__pb2.ListEventRequest.FromString,
-                    response_serializer=events__pb2.ListEventResponse.SerializeToString,
-            ),
-            'ReplaySingleEvent': grpc.unary_unary_rpc_method_handler(
-                    servicer.ReplaySingleEvent,
-                    request_deserializer=events__pb2.ReplayEventRequest.FromString,
-                    response_serializer=events__pb2.Event.SerializeToString,
-            ),
+        'Push': grpc.unary_unary_rpc_method_handler(
+            servicer.Push,
+            request_deserializer=events__pb2.PushEventRequest.FromString,
+            response_serializer=events__pb2.Event.SerializeToString,
+        ),
+        'List': grpc.unary_unary_rpc_method_handler(
+            servicer.List,
+            request_deserializer=events__pb2.ListEventRequest.FromString,
+            response_serializer=events__pb2.ListEventResponse.SerializeToString,
+        ),
+        'ReplaySingleEvent': grpc.unary_unary_rpc_method_handler(
+            servicer.ReplaySingleEvent,
+            request_deserializer=events__pb2.ReplayEventRequest.FromString,
+            response_serializer=events__pb2.Event.SerializeToString,
+        ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'EventsService', rpc_method_handlers)
+        'EventsService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
-
  # This class is part of an EXPERIMENTAL API.
+
+
 class EventsService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
     def Push(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
+             target,
+             options=(),
+             channel_credentials=None,
+             call_credentials=None,
+             insecure=False,
+             compression=None,
+             wait_for_ready=None,
+             timeout=None,
+             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/EventsService/Push',
-            events__pb2.PushEventRequest.SerializeToString,
-            events__pb2.Event.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+                                             events__pb2.PushEventRequest.SerializeToString,
+                                             events__pb2.Event.FromString,
+                                             options, channel_credentials,
+                                             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def List(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
+             target,
+             options=(),
+             channel_credentials=None,
+             call_credentials=None,
+             insecure=False,
+             compression=None,
+             wait_for_ready=None,
+             timeout=None,
+             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/EventsService/List',
-            events__pb2.ListEventRequest.SerializeToString,
-            events__pb2.ListEventResponse.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+                                             events__pb2.ListEventRequest.SerializeToString,
+                                             events__pb2.ListEventResponse.FromString,
+                                             options, channel_credentials,
+                                             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def ReplaySingleEvent(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
+                          target,
+                          options=(),
+                          channel_credentials=None,
+                          call_credentials=None,
+                          insecure=False,
+                          compression=None,
+                          wait_for_ready=None,
+                          timeout=None,
+                          metadata=None):
         return grpc.experimental.unary_unary(request, target, '/EventsService/ReplaySingleEvent',
-            events__pb2.ReplayEventRequest.SerializeToString,
-            events__pb2.Event.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+                                             events__pb2.ReplayEventRequest.SerializeToString,
+                                             events__pb2.Event.FromString,
+                                             options, channel_credentials,
+                                             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
