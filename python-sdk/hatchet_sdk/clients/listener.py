@@ -48,7 +48,7 @@ class ListenerClientImpl:
         self.client = client
         self.token = token
 
-    def generator(self, workflowRunId: str) -> List[StepRunEvent]:
+    async def generator(self, workflowRunId: str) -> List[StepRunEvent]:
         listener = self.retry_subscribe(workflowRunId)
 
         while True:
