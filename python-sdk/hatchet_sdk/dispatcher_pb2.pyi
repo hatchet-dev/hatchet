@@ -26,6 +26,21 @@ class StepActionEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     STEP_EVENT_TYPE_STARTED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_COMPLETED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_FAILED: _ClassVar[StepActionEventType]
+
+class ResourceType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    RESOURCE_TYPE_UNKNOWN: _ClassVar[ResourceType]
+    RESOURCE_TYPE_STEP_RUN: _ClassVar[ResourceType]
+    RESOURCE_TYPE_WORKFLOW_RUN: _ClassVar[ResourceType]
+
+class ResourceEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    RESOURCE_EVENT_TYPE_UNKNOWN: _ClassVar[ResourceEventType]
+    RESOURCE_EVENT_TYPE_STARTED: _ClassVar[ResourceEventType]
+    RESOURCE_EVENT_TYPE_COMPLETED: _ClassVar[ResourceEventType]
+    RESOURCE_EVENT_TYPE_FAILED: _ClassVar[ResourceEventType]
+    RESOURCE_EVENT_TYPE_CANCELLED: _ClassVar[ResourceEventType]
+    RESOURCE_EVENT_TYPE_TIMED_OUT: _ClassVar[ResourceEventType]
 START_STEP_RUN: ActionType
 CANCEL_STEP_RUN: ActionType
 START_GET_GROUP_KEY: ActionType
@@ -37,6 +52,15 @@ STEP_EVENT_TYPE_UNKNOWN: StepActionEventType
 STEP_EVENT_TYPE_STARTED: StepActionEventType
 STEP_EVENT_TYPE_COMPLETED: StepActionEventType
 STEP_EVENT_TYPE_FAILED: StepActionEventType
+RESOURCE_TYPE_UNKNOWN: ResourceType
+RESOURCE_TYPE_STEP_RUN: ResourceType
+RESOURCE_TYPE_WORKFLOW_RUN: ResourceType
+RESOURCE_EVENT_TYPE_UNKNOWN: ResourceEventType
+RESOURCE_EVENT_TYPE_STARTED: ResourceEventType
+RESOURCE_EVENT_TYPE_COMPLETED: ResourceEventType
+RESOURCE_EVENT_TYPE_FAILED: ResourceEventType
+RESOURCE_EVENT_TYPE_CANCELLED: ResourceEventType
+RESOURCE_EVENT_TYPE_TIMED_OUT: ResourceEventType
 
 class WorkerRegisterRequest(_message.Message):
     __slots__ = ("workerName", "actions", "services")
@@ -151,3 +175,25 @@ class ActionEventResponse(_message.Message):
     tenantId: str
     workerId: str
     def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ...) -> None: ...
+
+class SubscribeToWorkflowEventsRequest(_message.Message):
+    __slots__ = ("workflowRunId",)
+    WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
+    workflowRunId: str
+    def __init__(self, workflowRunId: _Optional[str] = ...) -> None: ...
+
+class WorkflowEvent(_message.Message):
+    __slots__ = ("workflowRunId", "resourceType", "eventType", "resourceId", "eventTimestamp", "eventPayload")
+    WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
+    RESOURCETYPE_FIELD_NUMBER: _ClassVar[int]
+    EVENTTYPE_FIELD_NUMBER: _ClassVar[int]
+    RESOURCEID_FIELD_NUMBER: _ClassVar[int]
+    EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    EVENTPAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    workflowRunId: str
+    resourceType: ResourceType
+    eventType: ResourceEventType
+    resourceId: str
+    eventTimestamp: _timestamp_pb2.Timestamp
+    eventPayload: str
+    def __init__(self, workflowRunId: _Optional[str] = ..., resourceType: _Optional[_Union[ResourceType, str]] = ..., eventType: _Optional[_Union[ResourceEventType, str]] = ..., resourceId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventPayload: _Optional[str] = ...) -> None: ...
