@@ -5,6 +5,8 @@ load_dotenv()
 
 client = new_client()
 
-client.admin.run_workflow("ManualTriggerWorkflow", {
+workflowRunId = client.admin.run_workflow("ManualTriggerWorkflow", {
     "test": "test"
 })
+
+client.listener.on(workflowRunId, lambda event: print('YO ' + event))
