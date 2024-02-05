@@ -8,9 +8,6 @@ hatchet = Hatchet(debug=True)
 
 @hatchet.workflow(on_events=["user:create"])
 class ManualTriggerWorkflow:
-    def __init__(self):
-        self.my_value = "test"
-
     @hatchet.step()
     def step1(self, context):
         print("executed step1")
