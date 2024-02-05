@@ -6,6 +6,45 @@ import { StringValue } from "../google/protobuf/wrappers";
 
 export const protobufPackage = "";
 
+export enum ConcurrencyLimitStrategy {
+  CANCEL_IN_PROGRESS = 0,
+  DROP_NEWEST = 1,
+  QUEUE_NEWEST = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function concurrencyLimitStrategyFromJSON(object: any): ConcurrencyLimitStrategy {
+  switch (object) {
+    case 0:
+    case "CANCEL_IN_PROGRESS":
+      return ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS;
+    case 1:
+    case "DROP_NEWEST":
+      return ConcurrencyLimitStrategy.DROP_NEWEST;
+    case 2:
+    case "QUEUE_NEWEST":
+      return ConcurrencyLimitStrategy.QUEUE_NEWEST;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ConcurrencyLimitStrategy.UNRECOGNIZED;
+  }
+}
+
+export function concurrencyLimitStrategyToJSON(object: ConcurrencyLimitStrategy): string {
+  switch (object) {
+    case ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS:
+      return "CANCEL_IN_PROGRESS";
+    case ConcurrencyLimitStrategy.DROP_NEWEST:
+      return "DROP_NEWEST";
+    case ConcurrencyLimitStrategy.QUEUE_NEWEST:
+      return "QUEUE_NEWEST";
+    case ConcurrencyLimitStrategy.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 export interface PutWorkflowRequest {
   opts: CreateWorkflowVersionOpts | undefined;
 }
@@ -26,6 +65,17 @@ export interface CreateWorkflowVersionOpts {
   scheduledTriggers: Date[];
   /** (required) the workflow jobs */
   jobs: CreateWorkflowJobOpts[];
+  /** (optional) the workflow concurrency options */
+  concurrency: WorkflowConcurrencyOpts | undefined;
+}
+
+export interface WorkflowConcurrencyOpts {
+  /** (required) the action id for getting the concurrency group */
+  action: string;
+  /** (optional) the maximum number of concurrent workflow runs, default 1 */
+  maxRuns: number;
+  /** (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS */
+  limitStrategy: ConcurrencyLimitStrategy;
 }
 
 /** CreateWorkflowJobOpts represents options to create a workflow job. */
@@ -163,6 +213,16 @@ export interface GetWorkflowByNameRequest {
   name: string;
 }
 
+export interface TriggerWorkflowRequest {
+  name: string;
+  /** (optional) the input data for the workflow */
+  input: string;
+}
+
+export interface TriggerWorkflowResponse {
+  workflowRunId: string;
+}
+
 function createBasePutWorkflowRequest(): PutWorkflowRequest {
   return { opts: undefined };
 }
@@ -231,6 +291,7 @@ function createBaseCreateWorkflowVersionOpts(): CreateWorkflowVersionOpts {
     cronTriggers: [],
     scheduledTriggers: [],
     jobs: [],
+    concurrency: undefined,
   };
 }
 
@@ -256,6 +317,9 @@ export const CreateWorkflowVersionOpts = {
     }
     for (const v of message.jobs) {
       CreateWorkflowJobOpts.encode(v!, writer.uint32(58).fork()).ldelim();
+    }
+    if (message.concurrency !== undefined) {
+      WorkflowConcurrencyOpts.encode(message.concurrency, writer.uint32(66).fork()).ldelim();
     }
     return writer;
   },
@@ -316,6 +380,13 @@ export const CreateWorkflowVersionOpts = {
 
           message.jobs.push(CreateWorkflowJobOpts.decode(reader, reader.uint32()));
           continue;
+        case 8:
+          if (tag !== 66) {
+            break;
+          }
+
+          message.concurrency = WorkflowConcurrencyOpts.decode(reader, reader.uint32());
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -342,6 +413,7 @@ export const CreateWorkflowVersionOpts = {
       jobs: globalThis.Array.isArray(object?.jobs)
         ? object.jobs.map((e: any) => CreateWorkflowJobOpts.fromJSON(e))
         : [],
+      concurrency: isSet(object.concurrency) ? WorkflowConcurrencyOpts.fromJSON(object.concurrency) : undefined,
     };
   },
 
@@ -368,6 +440,9 @@ export const CreateWorkflowVersionOpts = {
     if (message.jobs?.length) {
       obj.jobs = message.jobs.map((e) => CreateWorkflowJobOpts.toJSON(e));
     }
+    if (message.concurrency !== undefined) {
+      obj.concurrency = WorkflowConcurrencyOpts.toJSON(message.concurrency);
+    }
     return obj;
   },
 
@@ -383,6 +458,98 @@ export const CreateWorkflowVersionOpts = {
     message.cronTriggers = object.cronTriggers?.map((e) => e) || [];
     message.scheduledTriggers = object.scheduledTriggers?.map((e) => e) || [];
     message.jobs = object.jobs?.map((e) => CreateWorkflowJobOpts.fromPartial(e)) || [];
+    message.concurrency = (object.concurrency !== undefined && object.concurrency !== null)
+      ? WorkflowConcurrencyOpts.fromPartial(object.concurrency)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseWorkflowConcurrencyOpts(): WorkflowConcurrencyOpts {
+  return { action: "", maxRuns: 0, limitStrategy: 0 };
+}
+
+export const WorkflowConcurrencyOpts = {
+  encode(message: WorkflowConcurrencyOpts, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.action !== "") {
+      writer.uint32(10).string(message.action);
+    }
+    if (message.maxRuns !== 0) {
+      writer.uint32(16).int32(message.maxRuns);
+    }
+    if (message.limitStrategy !== 0) {
+      writer.uint32(24).int32(message.limitStrategy);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): WorkflowConcurrencyOpts {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseWorkflowConcurrencyOpts();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.action = reader.string();
+          continue;
+        case 2:
+          if (tag !== 16) {
+            break;
+          }
+
+          message.maxRuns = reader.int32();
+          continue;
+        case 3:
+          if (tag !== 24) {
+            break;
+          }
+
+          message.limitStrategy = reader.int32() as any;
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): WorkflowConcurrencyOpts {
+    return {
+      action: isSet(object.action) ? globalThis.String(object.action) : "",
+      maxRuns: isSet(object.maxRuns) ? globalThis.Number(object.maxRuns) : 0,
+      limitStrategy: isSet(object.limitStrategy) ? concurrencyLimitStrategyFromJSON(object.limitStrategy) : 0,
+    };
+  },
+
+  toJSON(message: WorkflowConcurrencyOpts): unknown {
+    const obj: any = {};
+    if (message.action !== "") {
+      obj.action = message.action;
+    }
+    if (message.maxRuns !== 0) {
+      obj.maxRuns = Math.round(message.maxRuns);
+    }
+    if (message.limitStrategy !== 0) {
+      obj.limitStrategy = concurrencyLimitStrategyToJSON(message.limitStrategy);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<WorkflowConcurrencyOpts>): WorkflowConcurrencyOpts {
+    return WorkflowConcurrencyOpts.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<WorkflowConcurrencyOpts>): WorkflowConcurrencyOpts {
+    const message = createBaseWorkflowConcurrencyOpts();
+    message.action = object.action ?? "";
+    message.maxRuns = object.maxRuns ?? 0;
+    message.limitStrategy = object.limitStrategy ?? 0;
     return message;
   },
 };
@@ -2015,6 +2182,137 @@ export const GetWorkflowByNameRequest = {
   },
 };
 
+function createBaseTriggerWorkflowRequest(): TriggerWorkflowRequest {
+  return { name: "", input: "" };
+}
+
+export const TriggerWorkflowRequest = {
+  encode(message: TriggerWorkflowRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.input !== "") {
+      writer.uint32(18).string(message.input);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): TriggerWorkflowRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTriggerWorkflowRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.input = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TriggerWorkflowRequest {
+    return {
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      input: isSet(object.input) ? globalThis.String(object.input) : "",
+    };
+  },
+
+  toJSON(message: TriggerWorkflowRequest): unknown {
+    const obj: any = {};
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.input !== "") {
+      obj.input = message.input;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<TriggerWorkflowRequest>): TriggerWorkflowRequest {
+    return TriggerWorkflowRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<TriggerWorkflowRequest>): TriggerWorkflowRequest {
+    const message = createBaseTriggerWorkflowRequest();
+    message.name = object.name ?? "";
+    message.input = object.input ?? "";
+    return message;
+  },
+};
+
+function createBaseTriggerWorkflowResponse(): TriggerWorkflowResponse {
+  return { workflowRunId: "" };
+}
+
+export const TriggerWorkflowResponse = {
+  encode(message: TriggerWorkflowResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.workflowRunId !== "") {
+      writer.uint32(10).string(message.workflowRunId);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): TriggerWorkflowResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTriggerWorkflowResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.workflowRunId = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TriggerWorkflowResponse {
+    return { workflowRunId: isSet(object.workflowRunId) ? globalThis.String(object.workflowRunId) : "" };
+  },
+
+  toJSON(message: TriggerWorkflowResponse): unknown {
+    const obj: any = {};
+    if (message.workflowRunId !== "") {
+      obj.workflowRunId = message.workflowRunId;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<TriggerWorkflowResponse>): TriggerWorkflowResponse {
+    return TriggerWorkflowResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<TriggerWorkflowResponse>): TriggerWorkflowResponse {
+    const message = createBaseTriggerWorkflowResponse();
+    message.workflowRunId = object.workflowRunId ?? "";
+    return message;
+  },
+};
+
 /** WorkflowService represents a set of RPCs for managing workflows. */
 export type WorkflowServiceDefinition = typeof WorkflowServiceDefinition;
 export const WorkflowServiceDefinition = {
@@ -2042,6 +2340,14 @@ export const WorkflowServiceDefinition = {
       requestType: ScheduleWorkflowRequest,
       requestStream: false,
       responseType: WorkflowVersion,
+      responseStream: false,
+      options: {},
+    },
+    triggerWorkflow: {
+      name: "TriggerWorkflow",
+      requestType: TriggerWorkflowRequest,
+      requestStream: false,
+      responseType: TriggerWorkflowResponse,
       responseStream: false,
       options: {},
     },
@@ -2085,6 +2391,10 @@ export interface WorkflowServiceImplementation<CallContextExt = {}> {
     request: ScheduleWorkflowRequest,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<WorkflowVersion>>;
+  triggerWorkflow(
+    request: TriggerWorkflowRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<TriggerWorkflowResponse>>;
   getWorkflowByName(
     request: GetWorkflowByNameRequest,
     context: CallContext & CallContextExt,
@@ -2109,6 +2419,10 @@ export interface WorkflowServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<ScheduleWorkflowRequest>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<WorkflowVersion>;
+  triggerWorkflow(
+    request: DeepPartial<TriggerWorkflowRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<TriggerWorkflowResponse>;
   getWorkflowByName(
     request: DeepPartial<GetWorkflowByNameRequest>,
     options?: CallOptions & CallOptionsExt,

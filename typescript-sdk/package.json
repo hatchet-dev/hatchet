@@ -1,11 +1,11 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "0.0.3",
+  "version": "0.1.11",
   "description": "Background task orchestration & visibility for developers",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist",
+    "*",
     "!**/*.test.js",
     "!**/*.test.d.ts"
   ],
@@ -14,8 +14,9 @@
     "url": "https://github.com/hatchet-dev/hatchet.git"
   },
   "scripts": {
+    "build": "echo 'build hatchet sdk with `npn run tsc:build` to ensure it is not build during the publish step' && exit 0",
     "prepare": "npm run build",
-    "build": "tsc && resolve-tspaths",
+    "tsc:build": "tsc && resolve-tspaths",
     "test": "jest",
     "test:watch": "jest --watch",
     "generate": "./generate-protoc.sh",
@@ -28,7 +29,12 @@
     "exec": "npx dotenv -- ts-node -r tsconfig-paths/register --project tsconfig.json",
     "example:event": "npm run exec -- ./examples/example-event.ts",
     "worker:simple": "npm run exec -- ./examples/simple-worker.ts",
-    "worker:dag": "npm run exec -- ./examples/dag-worker.ts"
+    "manual:trigger": "npm run exec -- ./examples/manual-trigger.ts",
+    "worker:dag": "npm run exec -- ./examples/dag-worker.ts",
+    "worker:concurrency": "npm run exec -- ./examples/concurrency/concurrency-worker.ts",
+    "event:concurrency": "npm run exec -- ./examples/concurrency/concurrency-event.ts",
+    "prepublish": "cp package.json dist/package.json;",
+    "publish:ci": "rm -rf ./dist && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks"
   },
   "keywords": [],
   "author": "",

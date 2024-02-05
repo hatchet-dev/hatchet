@@ -6,30 +6,21 @@ It will automatically read in any `HATCHET_CLIENT` environment variables, which 
 For example:
 
 ```ts
-import Hatchet from "@hatchet/sdk";
-import { Workflow } from "@hatchet/sdk";
+import Hatchet, { Workflow } from "@hatchet-dev/typescript-sdk";
 
 const hatchet = Hatchet.init();
 
 // workflow code...
 
-hatchet.run(workflow);
+async function main() {
+  const worker = await hatchet.worker("example-worker");
+  await worker.registerWorkflow(workflow);
+  worker.start();
+}
+
+main();
 ```
 
-## Advanced Usage
+## Options
 
-The `hatchet.run(workflow)` method will return a reference to the `Worker` object.
-
-You could then stop the worker:
-
-```ts
-const worker = hatchet.run(workflow);
-worker.stop();
-```
-
-Alternatively, you can create a worker object with `hatchet.worker()` and manually start the service.
-
-```ts
-const worker = hatchet.worker(workflow);
-worker.start();
-```
+The `hatchet.worker()` method takes a simple name parameter which can be used to identify the worker on the Hatchet dashboard.

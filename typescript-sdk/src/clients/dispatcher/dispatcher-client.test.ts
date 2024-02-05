@@ -1,4 +1,4 @@
-import { ActionEventType } from '@hatchet/protoc/dispatcher';
+import { StepActionEventType } from '@hatchet/protoc/dispatcher';
 import { DispatcherClient } from './dispatcher-client';
 import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
 
@@ -55,7 +55,7 @@ describe('DispatcherClient', () => {
 
       const listenerSpy = jest.spyOn(client.client, 'listen');
 
-      const listener = await client.get_action_listener({
+      const listener = await client.getActionListener({
         workerName: 'WORKER_NAME',
         services: ['SERVICE'],
         actions: ['ACTION'],
@@ -78,15 +78,15 @@ describe('DispatcherClient', () => {
 
   describe('send_action_event', () => {
     it('should send action events', () => {
-      const clientSpy = jest.spyOn(client.client, 'sendActionEvent').mockResolvedValue({
+      const clientSpy = jest.spyOn(client.client, 'sendStepActionEvent').mockResolvedValue({
         tenantId: 'TENANT_ID',
         workerId: 'WORKER_ID',
       });
 
-      client.send_action_event({
+      client.sendStepActionEvent({
         workerId: 'WORKER_ID',
         actionId: 'ACTION_ID',
-        eventType: ActionEventType.STEP_EVENT_TYPE_COMPLETED,
+        eventType: StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
         eventPayload: '{"foo":"bar"}',
         eventTimestamp: new Date(),
         jobId: 'a',
@@ -98,7 +98,7 @@ describe('DispatcherClient', () => {
       expect(clientSpy).toHaveBeenCalledWith({
         workerId: 'WORKER_ID',
         actionId: 'ACTION_ID',
-        eventType: ActionEventType.STEP_EVENT_TYPE_COMPLETED,
+        eventType: StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
         eventPayload: '{"foo":"bar"}',
         jobId: 'a',
         jobRunId: 'b',

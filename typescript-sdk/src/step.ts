@@ -1,9 +1,11 @@
 import HatchetError from '@util/errors/hatchet-error';
 import * as z from 'zod';
+import { HatchetTimeoutSchema } from './workflow';
 
 export const CreateStepSchema = z.object({
   name: z.string(),
   parents: z.array(z.string()).optional(),
+  timeout: HatchetTimeoutSchema.optional(),
 });
 
 export type NextStep = { [key: string]: string };
@@ -16,6 +18,8 @@ interface ContextData<T = unknown> {
 
 export class Context<T = unknown> {
   data: ContextData<T>;
+  controller = new AbortController();
+
   constructor(payload: string) {
     try {
       this.data = JSON.parse(JSON.parse(payload));
