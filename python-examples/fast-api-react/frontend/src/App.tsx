@@ -1,8 +1,18 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import logo from "./logo.svg";
 import "./App.css";
 
+interface Messages {
+  role: "user" | "assistant";
+  message: string;
+}
+
 function App() {
+  const [messages, setMessages] = useState<Messages[]>([
+    { role: "user", message: "Hello, how are you?" },
+    { role: "assistant", message: "Good how are you?" },
+  ]);
+
   useEffect(() => {
     const sse = new EventSource("http://localhost:8000", {
       withCredentials: true,
@@ -20,8 +30,6 @@ function App() {
     };
 
     sse.onerror = () => {
-      // Error log here
-
       sse.close();
     };
 
@@ -32,19 +40,15 @@ function App() {
 
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+      <header>
+        {messages.map(({ role, message }, i) => (
+          <p key={i}>
+            {role}: {message}.
+          </p>
+        ))}
+
+        <textarea></textarea>
+        <button>Ask</button>
       </header>
     </div>
   );

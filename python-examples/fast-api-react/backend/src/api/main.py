@@ -29,18 +29,21 @@ app.add_middleware(
 )
 
 
+async def event_stream_generator(workflowRunId):
+    async for event in hatchet.client.listener.generator(workflowRunId):
+        print(event.payload)
+        yield "data: " + '{"test": "1"}' + "\n\n"
+
+
 @app.get("/")
 async def root():
-    # hatchet.event.push("question:create", {"test": "test"})
     workflowRunId = hatchet.client.admin.run_workflow("ManualTriggerWorkflow", {
         "test": "test"
     })
 
-    async def event_stream_generator():
-        async for event in hatchet.client.listener.on(workflowRunId):
-            yield "data: " + json.dumps(event) + "\n\n"
+    print(workflowRunId)
 
-    return StreamingResponse(event_stream_generator(), media_type='text/event-stream')
+    return StreamingResponse(event_stream_generator(workflowRunId), media_type='text/event-stream')
 
 
 def start():
