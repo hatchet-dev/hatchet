@@ -71,7 +71,7 @@ func defaultClientOpts() *ClientOpts {
 		l:           &logger,
 		v:           validator.NewDefaultValidator(),
 		tls:         clientConfig.TLSConfig,
-		hostPort:    "localhost:7070",
+		hostPort:    clientConfig.GRPCBroadcastAddress,
 		filesLoader: types.DefaultLoader,
 	}
 }

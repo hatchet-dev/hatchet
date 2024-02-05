@@ -28,6 +28,9 @@ type ClientConfig struct {
 	TenantId string
 	Token    string
 
+	ServerURL            string
+	GRPCBroadcastAddress string
+
 	TLSConfig *tls.Config
 }
 
