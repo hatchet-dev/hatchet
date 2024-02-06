@@ -12,7 +12,6 @@ openai = OpenAI()
 class ManualTriggerWorkflow:
     @hatchet.step()
     def step1(self, context):
-
         messages = context.workflow_input()['request']['messages']
         print("> starting step1", messages)
         return {"status": "thinking"}
@@ -20,7 +19,7 @@ class ManualTriggerWorkflow:
     @hatchet.step(parents=["step1"])
     def step2(self, context):
         print("starting step2")
-        time.sleep(5)
+        time.sleep(3)
         return {"status": "writing a response"}
 
     @hatchet.step(parents=["step2"])

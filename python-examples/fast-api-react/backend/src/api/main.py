@@ -33,9 +33,13 @@ app.add_middleware(
 def event_stream_generator(workflowRunId):
     events = hatchet.client.listener.generator(workflowRunId, 'complete')
     for event in events:
-        if event.payload:
-            print(event.payload)
-            yield "data: " + json.dumps(event.payload) + "\n\n"
+        data = json.dumps({
+            "type": event.type,
+            "payload": event.payload,
+            "workflowRunId": event.workflowRunId
+        })
+        print(data)
+        yield "data: " + data + "\n\n"
 
 
 @app.get("/stream/{workflowRunId}")

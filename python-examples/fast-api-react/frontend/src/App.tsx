@@ -4,6 +4,7 @@ import "./App.css";
 interface Messages {
   role: "user" | "assistant";
   content: string;
+  hatchetRunId?: string;
 }
 
 const API_URL = "http://localhost:8000";
@@ -12,8 +13,7 @@ function App() {
   const [openRequest, setOpenRequest] = useState<string>();
 
   const [messages, setMessages] = useState<Messages[]>([
-    { role: "user", content: "Hello, how are you?" },
-    { role: "assistant", content: "Good how are you?" },
+    { role: "assistant", content: "How can I help you?" },
   ]);
 
   const [status, setStatus] = useState("idle");
@@ -28,11 +28,17 @@ function App() {
     function getMessageStream(data: any) {
       console.log(data);
       if (data === null) return;
-      setStatus(data.status);
-      if (data.message) {
+      if (data.payload?.status) {
+        setStatus(data.payload?.status);
+      }
+      if (data.payload?.message) {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: data.message },
+          {
+            role: "assistant",
+            content: data.payload.message,
+            hatchetRunId: data.workflowRunId,
+          },
         ]);
       }
     }
@@ -84,16 +90,33 @@ function App() {
   return (
     <div className="App">
       <header>
-        {messages.map(({ role, content }, i) => (
+        {messages.map(({ role, content, hatchetRunId }, i) => (
           <p key={i}>
-            {role}: {content}.
+            {role}: {content}.{" "}
+            {hatchetRunId && (
+              <a
+                target="_blank"
+                rel="noreferrer"
+                href={`https://app.dev.hatchet-tools.com/workflow-runs/${hatchetRunId}?tenant=707d0855-80ab-4e1f-a156-f1c4546cbf52`}
+              >
+                🪓
+              </a>
+            )}
           </p>
         ))}
 
-        {status}
         <textarea></textarea>
         <button onClick={() => sendMessage("Your message")}>Ask</button>
       </header>
+      {openRequest && (
+        <a
+          target="_blank"
+          rel="noreferrer"
+          href={`https://app.dev.hatchet-tools.com/workflow-runs/${openRequest}?tenant=707d0855-80ab-4e1f-a156-f1c4546cbf52`}
+        >
+          {status}
+        </a>
+      )}
     </div>
   );
 }
