@@ -492,6 +492,9 @@ model Step {
 
   timeout String?
 
+  // customUserData is a JSON object that can be used to store arbitrary data for the step
+  customUserData Json?
+
   // a list of dependents for this step
   children Step[] @relation("StepOrder")
 

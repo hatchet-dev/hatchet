@@ -169,7 +169,8 @@ INSERT INTO "Step" (
     "tenantId",
     "jobId",
     "actionId",
-    "timeout"
+    "timeout",
+    "customUserData"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -179,20 +180,22 @@ INSERT INTO "Step" (
     $6::uuid,
     $7::uuid,
     $8::text,
-    $9::text
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout
+    $9::text,
+    coalesce($10::jsonb, '{}')
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData"
 `
 
 type CreateStepParams struct {
-	ID         pgtype.UUID      `json:"id"`
-	CreatedAt  pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
-	Deletedat  pgtype.Timestamp `json:"deletedat"`
-	Readableid string           `json:"readableid"`
-	Tenantid   pgtype.UUID      `json:"tenantid"`
-	Jobid      pgtype.UUID      `json:"jobid"`
-	Actionid   string           `json:"actionid"`
-	Timeout    string           `json:"timeout"`
+	ID             pgtype.UUID      `json:"id"`
+	CreatedAt      pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
+	Deletedat      pgtype.Timestamp `json:"deletedat"`
+	Readableid     string           `json:"readableid"`
+	Tenantid       pgtype.UUID      `json:"tenantid"`
+	Jobid          pgtype.UUID      `json:"jobid"`
+	Actionid       string           `json:"actionid"`
+	Timeout        string           `json:"timeout"`
+	CustomUserData []byte           `json:"customUserData"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -206,6 +209,7 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.Jobid,
 		arg.Actionid,
 		arg.Timeout,
+		arg.CustomUserData,
 	)
 	var i Step
 	err := row.Scan(
@@ -218,6 +222,7 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.JobId,
 		&i.ActionId,
 		&i.Timeout,
+		&i.CustomUserData,
 	)
 	return &i, err
 }

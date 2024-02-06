@@ -440,15 +440,16 @@ type ServiceToWorker struct {
 }
 
 type Step struct {
-	ID         pgtype.UUID      `json:"id"`
-	CreatedAt  pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt  pgtype.Timestamp `json:"deletedAt"`
-	ReadableId pgtype.Text      `json:"readableId"`
-	TenantId   pgtype.UUID      `json:"tenantId"`
-	JobId      pgtype.UUID      `json:"jobId"`
-	ActionId   string           `json:"actionId"`
-	Timeout    pgtype.Text      `json:"timeout"`
+	ID             pgtype.UUID      `json:"id"`
+	CreatedAt      pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt      pgtype.Timestamp `json:"deletedAt"`
+	ReadableId     pgtype.Text      `json:"readableId"`
+	TenantId       pgtype.UUID      `json:"tenantId"`
+	JobId          pgtype.UUID      `json:"jobId"`
+	ActionId       string           `json:"actionId"`
+	Timeout        pgtype.Text      `json:"timeout"`
+	CustomUserData []byte           `json:"customUserData"`
 }
 
 type StepOrder struct {

@@ -493,11 +493,22 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 				return fmt.Errorf("could not get job run lookup data: %w", err)
 			}
 
+			userData := map[string]interface{}{}
+
+			if setUserData, ok := stepRun.Step().CustomUserData(); ok {
+				err := json.Unmarshal(setUserData, &userData)
+
+				if err != nil {
+					return fmt.Errorf("could not unmarshal custom user data: %w", err)
+				}
+			}
+
 			// input data is the triggering event data and any parent step data
 			inputData := datautils.StepRunData{
 				Input:       lookupData.Input,
 				TriggeredBy: lookupData.TriggeredBy,
 				Parents:     map[string]datautils.StepData{},
+				UserData:    userData,
 			}
 
 			// add all parents to the input data

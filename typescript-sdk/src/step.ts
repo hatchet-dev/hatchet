@@ -10,14 +10,15 @@ export const CreateStepSchema = z.object({
 
 export type NextStep = { [key: string]: string };
 
-interface ContextData<T = unknown> {
+interface ContextData<T, K> {
   input: T;
   parents: Record<string, any>;
-  triggered_by_event: string;
+  triggered_by: string;
+  user_data: K;
 }
 
-export class Context<T = unknown> {
-  data: ContextData<T>;
+export class Context<T, K> {
+  data: ContextData<T, K>;
   controller = new AbortController();
 
   constructor(payload: string) {
@@ -39,14 +40,20 @@ export class Context<T = unknown> {
   }
 
   triggeredByEvent(): boolean {
-    return this.data?.triggered_by_event === 'event';
+    return this.data?.triggered_by === 'event';
   }
 
-  workflowInput(): any {
-    return this.data?.input || {};
+  workflowInput(): T {
+    return this.data?.input;
+  }
+
+  userData(): K {
+    return this.data?.user_data;
   }
 }
 
-export interface CreateStep<T> extends z.infer<typeof CreateStepSchema> {
-  run: (ctx: Context) => Promise<NextStep> | NextStep | void;
+export type StepRunFunction<T, K> = (ctx: Context<T, K>) => Promise<NextStep> | NextStep | void;
+
+export interface CreateStep<T, K> extends z.infer<typeof CreateStepSchema> {
+  run: StepRunFunction<T, K>;
 }

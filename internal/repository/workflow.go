@@ -106,6 +106,9 @@ type CreateWorkflowStepOpts struct {
 
 	// (optional) the parents that this step depends on
 	Parents []string `validate:"dive,hatchetName"`
+
+	// (optional) the custom user data for the step, serialized as a json string
+	UserData *string `validate:"omitnil,json"`
 }
 
 type ListWorkflowsOpts struct {

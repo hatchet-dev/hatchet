@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"encoding/json"
 	"regexp"
 	"unicode"
 
@@ -50,6 +51,10 @@ func newValidator() *validator.Validate {
 		return err == nil
 	})
 
+	_ = validate.RegisterValidation("json", func(fl validator.FieldLevel) bool {
+		return isValidJSON(fl.Field().String())
+	})
+
 	return validate
 }
 
@@ -74,4 +79,9 @@ func passwordValidation(pw string) bool {
 func IsValidUUID(u string) bool {
 	_, err := uuid.Parse(u)
 	return err == nil
+}
+
+func isValidJSON(s string) bool {
+	var js map[string]interface{}
+	return json.Unmarshal([]byte(s), &js) == nil
 }

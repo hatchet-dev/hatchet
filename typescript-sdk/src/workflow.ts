@@ -42,5 +42,5 @@ export interface Workflow extends z.infer<typeof CreateWorkflowSchema> {
   concurrency?: z.infer<typeof WorkflowConcurrency> & {
     key: (ctx: any) => string;
   };
-  steps: CreateStep<any>[];
+  steps: CreateStep<any, any>[];
 }
