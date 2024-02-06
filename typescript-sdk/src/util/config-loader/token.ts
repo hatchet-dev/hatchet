@@ -1,3 +1,8 @@
+export function getTenantIdFromJWT(token: string): string {
+  const claims = extractClaimsFromJWT(token);
+  return claims.sub;
+}
+
 export function getAddressesFromJWT(token: string): {
   serverUrl: string;
   grpcBroadcastAddress: string;

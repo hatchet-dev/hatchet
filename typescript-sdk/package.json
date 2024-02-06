@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Background task orchestration & visibility for developers",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -33,6 +33,7 @@
     "worker:dag": "npm run exec -- ./examples/dag-worker.ts",
     "worker:concurrency": "npm run exec -- ./examples/concurrency/concurrency-worker.ts",
     "event:concurrency": "npm run exec -- ./examples/concurrency/concurrency-event.ts",
+    "api": "npm run exec -- ./examples/api.ts",
     "prepublish": "cp package.json dist/package.json;",
     "publish:ci": "rm -rf ./dist && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks"
   },
@@ -40,6 +41,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@types/node": "^20.11.16",
     "@types/jest": "^29.5.11",
     "@typescript-eslint/eslint-plugin": "^6.4.0",
     "autoprefixer": "^10.4.16",
@@ -65,10 +67,13 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "@types/qs": "^6.9.11",
+    "axios": "^1.6.7",
     "long": "^5.2.3",
     "nice-grpc": "^2.1.7",
     "nice-grpc-common": "^2.0.2",
     "protobufjs": "^7.2.6",
+    "qs": "^6.11.2",
     "yaml": "^2.3.4",
     "zod": "^3.22.4"
   }
