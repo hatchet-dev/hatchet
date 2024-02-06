@@ -108,10 +108,14 @@ class GenerateWorkflow:
         message = ctx.workflow_input()['request']["messages"][-1]
         docs = ctx.step_output("load_docs")['docs']
 
-        prompt = f"The user is asking the following question:\
-        {message['content']}\
-        What are the most relevant sentences in the following document?\
-        {docs}"
+        prompt = ctx.overrides(
+            'reason:prompt',
+            "The user is asking the following question:\
+            {{message}}\
+            What are the most relevant sentences in the following document?\
+            {{docs}}")
+
+        prompt = prompt.format(message=message['content'], docs=docs)
 
         model = "gpt-3.5-turbo"  # ctx.override("gpt-3.5-turbo", options=[''])
 
@@ -132,17 +136,23 @@ class GenerateWorkflow:
     def generate_response(self, ctx: Context):
         messages = ctx.workflow_input()['request']["messages"]
         research = ctx.step_output("reason_docs")['research']
-        prompt = f"You are a sales engineer for a company called Hatchet.\
+
+        prompt = ctx.overrides(
+            'answer:prompt',
+            "You are a sales engineer for a company called Hatchet.\
             Help address the user's question. \
             Use the following context:\
-            {research}"
-        model = "gpt-3.5-turbo"
+            {{research}}")
+
+        prompt = prompt.format(research=research)
+
+        model = ctx.overrides('answer:model', "gpt-3.5-turbo")
 
         completion = openai.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": prompt},
-            ]+messages
+            ] + messages
         )
 
         return {
