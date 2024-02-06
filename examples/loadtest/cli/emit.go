@@ -13,7 +13,7 @@ type Event struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func emit(ctx context.Context, sleep time.Duration, delay time.Duration, amount int, runFor time.Duration) int {
+func emit(ctx context.Context, amountPerSecond int, runFor time.Duration) int {
 	c, err := client.New()
 
 	if err != nil {
@@ -22,23 +22,24 @@ func emit(ctx context.Context, sleep time.Duration, delay time.Duration, amount 
 
 	var id uint64
 	go func() {
+		ticker := time.NewTicker(time.Second / time.Duration(amountPerSecond))
+		defer ticker.Stop()
+
+		timer := time.After(runFor)
+
 		for {
 			select {
-			case <-time.After(runFor):
-				return
-			case <-time.After(sleep):
-				for i := 0; i < amount; i++ {
-					id++
+			case <-ticker.C:
+				id++
 
-					ev := Event{CreatedAt: time.Now(), ID: id}
-					fmt.Println("pushed event", ev.ID)
-					err = c.Event().Push(context.Background(), "test:event", ev)
-					if err != nil {
-						panic(err)
-					}
-
-					time.Sleep(delay)
+				ev := Event{CreatedAt: time.Now(), ID: id}
+				fmt.Println("pushed event", ev.ID)
+				err = c.Event().Push(context.Background(), "test:event", ev)
+				if err != nil {
+					panic(err)
 				}
+			case <-timer:
+				return
 			case <-ctx.Done():
 				return
 			}
@@ -47,8 +48,6 @@ func emit(ctx context.Context, sleep time.Duration, delay time.Duration, amount 
 
 	for {
 		select {
-		case <-time.After(sleep):
-			return int(id)
 		case <-ctx.Done():
 			return int(id)
 		default:
