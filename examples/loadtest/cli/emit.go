@@ -13,7 +13,7 @@ type Event struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func emit(ctx context.Context, amountPerSecond int, runFor time.Duration) int {
+func emit(ctx context.Context, amountPerSecond int, duration time.Duration) int {
 	c, err := client.New()
 
 	if err != nil {
@@ -25,7 +25,7 @@ func emit(ctx context.Context, amountPerSecond int, runFor time.Duration) int {
 		ticker := time.NewTicker(time.Second / time.Duration(amountPerSecond))
 		defer ticker.Stop()
 
-		timer := time.After(runFor)
+		timer := time.After(duration)
 
 		for {
 			select {
