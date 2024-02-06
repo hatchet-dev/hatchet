@@ -2,7 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-import time
+from .models import MessageList
+
 from hatchet_sdk import Hatchet
 import uvicorn
 from dotenv import load_dotenv
@@ -35,15 +36,20 @@ async def event_stream_generator(workflowRunId):
         yield "data: " + '{"test": "1"}' + "\n\n"
 
 
-@app.get("/")
-async def root():
+@app.get("/stream/{workflowRunId}")
+async def stream(workflowRunId: str):
+    return StreamingResponse(event_stream_generator(workflowRunId), media_type='text/event-stream')
+
+
+@app.post("/message")
+async def message(data: MessageList):
+    print(data.messages)
+
     workflowRunId = hatchet.client.admin.run_workflow("ManualTriggerWorkflow", {
         "test": "test"
     })
 
-    print(workflowRunId)
-
-    return StreamingResponse(event_stream_generator(workflowRunId), media_type='text/event-stream')
+    return {"workflowRunId": workflowRunId}
 
 
 def start():

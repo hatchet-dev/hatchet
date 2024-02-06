@@ -1,32 +1,33 @@
-import React, { useEffect, useState } from "react";
-import logo from "./logo.svg";
+import { useEffect, useState } from "react";
 import "./App.css";
 
 interface Messages {
   role: "user" | "assistant";
-  message: string;
+  content: string;
 }
 
 function App() {
+  const [openRequest, setOpenRequest] = useState<string>();
+
   const [messages, setMessages] = useState<Messages[]>([
-    { role: "user", message: "Hello, how are you?" },
-    { role: "assistant", message: "Good how are you?" },
+    { role: "user", content: "Hello, how are you?" },
+    { role: "assistant", content: "Good how are you?" },
   ]);
 
   useEffect(() => {
-    const sse = new EventSource("http://localhost:8000", {
+    if (!openRequest) return;
+
+    const sse = new EventSource(`http://localhost:8000/stream/${openRequest}`, {
       withCredentials: true,
     });
 
-    function getRealtimeData(data: any) {
+    function getMessageStream(data: any) {
       console.log(data);
-      // Process the data here
-      // Then pass it to state to be rendered
     }
 
     sse.onmessage = (e) => {
       console.log(e);
-      return getRealtimeData(e);
+      return getMessageStream(e);
     };
 
     sse.onerror = () => {
@@ -36,19 +37,48 @@ function App() {
     return () => {
       sse.close();
     };
-  }, []);
+  }, [openRequest]);
+
+  const sendMessage = async (content: string) => {
+    try {
+      const response = await fetch("http://localhost:8000/message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [
+            ...messages,
+            {
+              role: "user",
+              content,
+            },
+          ],
+        }),
+      });
+
+      if (response.ok) {
+        // Handle successful response
+        setOpenRequest((await response.json()).workflowRunId);
+      } else {
+        // Handle error response
+      }
+    } catch (error) {
+      // Handle network error
+    }
+  };
 
   return (
     <div className="App">
       <header>
-        {messages.map(({ role, message }, i) => (
+        {messages.map(({ role, content }, i) => (
           <p key={i}>
-            {role}: {message}.
+            {role}: {content}.
           </p>
         ))}
 
         <textarea></textarea>
-        <button>Ask</button>
+        <button onClick={() => sendMessage("Your message")}>Ask</button>
       </header>
     </div>
   );
