@@ -11,6 +11,7 @@ const API_URL = "http://localhost:8000";
 
 function App() {
   const [openRequest, setOpenRequest] = useState<string>();
+  const [message, setMessage] = useState<string>("");
 
   const [messages, setMessages] = useState<Messages[]>([
     { role: "assistant", content: "How can I help you?" },
@@ -40,6 +41,7 @@ function App() {
             hatchetRunId: data.workflowRunId,
           },
         ]);
+        setOpenRequest(undefined);
       }
     }
 
@@ -93,7 +95,7 @@ function App() {
       <div className="Messages">
         {messages.map(({ role, content, hatchetRunId }, i) => (
           <p key={i}>
-            <b>{role === "assistant" ? "Agent" : "You"}</b>: {content}.{" "}
+            <b>{role === "assistant" ? "Agent" : "You"}</b>: {content}
             {hatchetRunId && (
               <a
                 target="_blank"
@@ -118,8 +120,11 @@ function App() {
       </div>
 
       <div className="Input">
-        <textarea></textarea>
-        <button onClick={() => sendMessage("Your message")}>Ask</button>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+        ></textarea>
+        <button onClick={() => sendMessage(message)}>Ask</button>
       </div>
     </div>
   );
