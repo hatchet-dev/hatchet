@@ -32,12 +32,14 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration) int 
 			case <-ticker.C:
 				id++
 
-				ev := Event{CreatedAt: time.Now(), ID: id}
-				fmt.Println("pushed event", ev.ID)
-				err = c.Event().Push(context.Background(), "test:event", ev)
-				if err != nil {
-					panic(err)
-				}
+				go func(id uint64) {
+					ev := Event{CreatedAt: time.Now(), ID: id}
+					fmt.Println("pushed event", ev.ID)
+					err = c.Event().Push(context.Background(), "test:event", ev)
+					if err != nil {
+						panic(err)
+					}
+				}(id)
 			case <-timer:
 				return
 			case <-ctx.Done():

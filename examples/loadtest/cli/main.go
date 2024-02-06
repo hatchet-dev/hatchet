@@ -20,7 +20,7 @@ func main() {
 	loadtest.Flags().IntVarP(&events, "events", "e", 10, "events per second")
 	loadtest.Flags().DurationVarP(&duration, "duration", "d", 20*time.Second, "runFor specifies the total time to run the load test")
 
-	var rootCmd = &cobra.Command{Use: "app"}
-	rootCmd.AddCommand(loadtest)
-	rootCmd.Execute()
+	cmd := &cobra.Command{Use: "app"}
+	cmd.AddCommand(loadtest)
+	cmd.Execute()
 }
