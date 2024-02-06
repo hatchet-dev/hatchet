@@ -66,6 +66,7 @@ function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          url: "https://docs.hatchet.run/home/quickstart",
           messages: [
             ...messages,
             {
@@ -89,10 +90,10 @@ function App() {
 
   return (
     <div className="App">
-      <header>
+      <div className="Messages">
         {messages.map(({ role, content, hatchetRunId }, i) => (
           <p key={i}>
-            {role}: {content}.{" "}
+            <b>{role === "assistant" ? "Agent" : "You"}</b>: {content}.{" "}
             {hatchetRunId && (
               <a
                 target="_blank"
@@ -105,18 +106,21 @@ function App() {
           </p>
         ))}
 
+        {openRequest && (
+          <a
+            target="_blank"
+            rel="noreferrer"
+            href={`https://app.dev.hatchet-tools.com/workflow-runs/${openRequest}?tenant=707d0855-80ab-4e1f-a156-f1c4546cbf52`}
+          >
+            {status}
+          </a>
+        )}
+      </div>
+
+      <div className="Input">
         <textarea></textarea>
         <button onClick={() => sendMessage("Your message")}>Ask</button>
-      </header>
-      {openRequest && (
-        <a
-          target="_blank"
-          rel="noreferrer"
-          href={`https://app.dev.hatchet-tools.com/workflow-runs/${openRequest}?tenant=707d0855-80ab-4e1f-a156-f1c4546cbf52`}
-        >
-          {status}
-        </a>
-      )}
+      </div>
     </div>
   );
 }

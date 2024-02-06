@@ -7,5 +7,6 @@ class Message(BaseModel):
     content: str
 
 
-class MessageList(BaseModel):
+class MessageRequest(BaseModel):
     messages: List[Message]
+    url: str

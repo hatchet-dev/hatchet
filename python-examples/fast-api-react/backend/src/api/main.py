@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from .models import MessageList
+from .models import MessageRequest
 
 from hatchet_sdk import Hatchet
 import uvicorn
@@ -31,32 +31,46 @@ app.add_middleware(
 
 
 def event_stream_generator(workflowRunId):
-    events = hatchet.client.listener.generator(workflowRunId, 'complete')
-    for event in events:
+    stream = hatchet.client.listener.generator(workflowRunId, 'complete')
+
+    # TODO hatchet stream class
+    # __iter__ = stream.__iter__()
+
+    for event in stream:
         data = json.dumps({
             "type": event.type,
             "payload": event.payload,
             "workflowRunId": event.workflowRunId
         })
+        # if something:
+        #     stream.abort()
         print(data)
         yield "data: " + data + "\n\n"
 
 
-@app.get("/stream/{workflowRunId}")
-async def stream(workflowRunId: str):
+@app.get("/stream/{messageId}")
+async def stream(messageId: str):
+    # message id -> workflowRunId
+    workflowRunId = messageId
+    # stream = hatchet.stream(workflowRunId)
     return StreamingResponse(event_stream_generator(workflowRunId), media_type='text/event-stream')
+    # TODO how does client hangup
 
 
 @app.post("/message")
-def message(data: MessageList):
+def message(data: MessageRequest):
     print(data.model_dump())
 
-    workflowRunId = hatchet.client.admin.run_workflow("ManualTriggerWorkflow", {
+    messageId = hatchet.client.admin.run_workflow("GenerateWorkflow", {
         "request": data.model_dump()
     })
 
-    return {"workflowRunId": workflowRunId}
+    # save step message id -> workflowRunId
 
+    return {"workflowRunId": messageId}
+
+
+# TODO context is retry to not save data?
 
 def start():
     """Launched with `poetry run start` at root level"""
