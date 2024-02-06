@@ -15,6 +15,7 @@ export const ClientConfigSchema = z.object({
   host_port: z.string(),
   api_url: z.string(),
   log_level: z.enum(['OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR']).optional(),
+  tenant_id: z.string(),
 });
 
 export type ClientConfig = z.infer<typeof ClientConfigSchema> & {

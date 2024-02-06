@@ -59,6 +59,7 @@ export class HatchetClient {
   admin: AdminClient;
   api: Api;
   listener: ListenerClient;
+  tenantId: string;
 
   logger: Logger;
 
@@ -96,10 +97,11 @@ export class HatchetClient {
 
     const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
 
+    this.tenantId = this.config.tenant_id;
+    this.api = api(this.config.api_url, this.config.token, axiosOpts);
     this.event = new EventClient(this.config, this.channel, clientFactory);
     this.dispatcher = new DispatcherClient(this.config, this.channel, clientFactory);
-    this.admin = new AdminClient(this.config, this.channel, clientFactory);
-    this.api = api(this.config.api_url, this.config.token, axiosOpts);
+    this.admin = new AdminClient(this.config, this.channel, clientFactory, this.api, this.tenantId);
     this.listener = new ListenerClient(this.config, this.channel, clientFactory);
 
     this.logger = new Logger('HatchetClient', this.config.log_level);

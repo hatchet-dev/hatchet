@@ -8,6 +8,6 @@ cd frontend && (npx swagger-typescript-api -p ../bin/oas/openapi.yaml -o ./app/s
 
 cd $ROOT_DIR
 
-cd typescript-sdk && (npx swagger-typescript-api -p ../bin/oas/openapi.yaml -o ./src/rest/generated -n hatchet.ts --modular --axios)
+cd typescript-sdk && (npx swagger-typescript-api -p ../bin/oas/openapi.yaml -o ./src/clients/rest/generated -n hatchet.ts --modular --axios)
 
 cd $ROOT_DIR

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { ClientConfig, ClientConfigSchema } from '@clients/hatchet-client';
 import { ChannelCredentials } from 'nice-grpc';
 import { LogLevel } from '../logger/logger';
-import { getAddressesFromJWT } from './token';
+import { getAddressesFromJWT, getTenantIdFromJWT } from './token';
 
 type EnvVars =
   | 'HATCHET_CLIENT_TOKEN'
@@ -43,6 +43,11 @@ export class ConfigLoader {
     const token = yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN');
     let grpcBroadcastAddress: string | undefined;
     let apiUrl: string | undefined;
+    const tenantId = getTenantIdFromJWT(token!);
+
+    if (!tenantId) {
+      throw new Error('Tenant ID not found in subject claim of token');
+    }
 
     try {
       const addresses = getAddressesFromJWT(token!);
@@ -62,6 +67,7 @@ export class ConfigLoader {
       api_url: apiUrl,
       tls_config: tlsConfig,
       log_level: yaml?.log_level ?? (this.env('HATCHET_CLIENT_LOG_LEVEL') as LogLevel) ?? 'INFO',
+      tenant_id: tenantId,
     };
   }
 

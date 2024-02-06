@@ -1,5 +1,6 @@
 import https from 'https';
-import Hatchet, { Api } from '../src';
+import Hatchet from '../src';
+import { AdminClient } from '../src/clients/admin/admin-client';
 
 const hatchet = Hatchet.init(
   {
@@ -14,9 +15,9 @@ const hatchet = Hatchet.init(
   }
 );
 
-const api = hatchet.api as Api;
+const admin = hatchet.admin as AdminClient;
 
-api.workflowList('707d0855-80ab-4e1f-a156-f1c4546cbf52').then((res) => {
+admin.list_workflows().then((res) => {
   res.data.rows?.forEach((row) => {
     console.log(row);
   });
