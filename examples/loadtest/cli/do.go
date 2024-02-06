@@ -9,19 +9,19 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 )
 
-func main() {
+func do(runFor time.Duration, sleep time.Duration, delay time.Duration, amount int) {
 	err := godotenv.Load()
 	if err != nil {
 		panic(err)
 	}
 
-	runFor := 20 * time.Second
+	log.Printf("testing with runFor=%s, sleep=%s, delay=%s, amount=%d", runFor, sleep, delay, amount)
 
 	ctx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
 	defer cancel()
 
 	go func() {
-		time.Sleep(runFor + 10*time.Second)
+		time.Sleep(runFor + 5*time.Second)
 		cancel()
 	}()
 
@@ -33,7 +33,7 @@ func main() {
 
 	time.Sleep(10 * time.Second)
 
-	emitted := emit(ctx, 1*time.Second, 50, runFor)
+	emitted := emit(ctx, sleep, delay, amount, runFor)
 	executed := <-ex
 
 	log.Printf("emitted %d, executed %d", emitted, executed)

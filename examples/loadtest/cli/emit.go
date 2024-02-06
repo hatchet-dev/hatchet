@@ -13,7 +13,7 @@ type Event struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func emit(ctx context.Context, sleep time.Duration, amount int, runFor time.Duration) int {
+func emit(ctx context.Context, sleep time.Duration, delay time.Duration, amount int, runFor time.Duration) int {
 	c, err := client.New()
 
 	if err != nil {
@@ -36,6 +36,8 @@ func emit(ctx context.Context, sleep time.Duration, amount int, runFor time.Dura
 					if err != nil {
 						panic(err)
 					}
+
+					time.Sleep(delay)
 				}
 			case <-ctx.Done():
 				return
