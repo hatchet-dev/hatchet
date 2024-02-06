@@ -48,7 +48,7 @@ class ListenerClientImpl:
         self.client = client
         self.token = token
 
-    def generator(self, workflowRunId: str) -> List[StepRunEvent]:
+    async def generator(self, workflowRunId: str) -> List[StepRunEvent]:
         listener = self.retry_subscribe(workflowRunId)
 
         while True:
@@ -77,14 +77,14 @@ class ListenerClientImpl:
                     break
                 elif e.code() == grpc.StatusCode.UNAVAILABLE:
                     # Retry logic
-                    logger.info("Could not connect to Hatchet, retrying...")
+                    # logger.info("Could not connect to Hatchet, retrying...")
                     listener = self.retry_subscribe(workflowRunId)
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
-                    logger.info("Deadline exceeded, retrying subscription")
+                    # logger.info("Deadline exceeded, retrying subscription")
                     continue
                 else:
                     # Unknown error, report and break
-                    logger.error(f"Failed to receive message: {e}")
+                    # logger.error(f"Failed to receive message: {e}")
                     break
 
     def on(self, workflowRunId: str, handler: callable = None):
