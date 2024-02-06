@@ -48,10 +48,10 @@ class ListenerClientImpl:
         self.client = client
         self.token = token
 
-    def on(self, workflowRunId: str, handler: callable):
+    def generator(self, workflowRunId: str, stop: str = None) -> List[StepRunEvent]:
         listener = self.retry_subscribe(workflowRunId)
 
-        while True:
+        while listener:
             try:
                 for workflow_event in listener:
                     eventType = None
@@ -64,10 +64,25 @@ class ListenerClientImpl:
 
                     payload = None
                     if workflow_event.eventPayload:
-                        payload = json.loads(workflow_event.eventPayload)
+                        try:
+                            payload = json.loads(workflow_event.eventPayload)
+                        except json.JSONDecodeError:
+                            payload = None
 
                     # call the handler
-                    handler(StepRunEvent(type=eventType, payload=payload))
+                    event = StepRunEvent(type=eventType, payload=payload)
+                    yield event
+
+                    # stop the listener if the stop event is received
+                    if eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_FAILED or eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_CANCELLED or eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_TIMED_OUT:
+                        listener = None
+                        print('failure stopping listener...')
+                        break
+
+                    if payload and stop and stop in payload and eventType != StepRunEventType.STEP_RUN_EVENT_TYPE_STARTED:
+                        listener = None
+                        print('stopping listener...')
+                        break
 
             except grpc.RpcError as e:
                 # Handle different types of errors
@@ -76,15 +91,21 @@ class ListenerClientImpl:
                     break
                 elif e.code() == grpc.StatusCode.UNAVAILABLE:
                     # Retry logic
-                    logger.info("Could not connect to Hatchet, retrying...")
+                    # logger.info("Could not connect to Hatchet, retrying...")
                     listener = self.retry_subscribe(workflowRunId)
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
-                    logger.info("Deadline exceeded, retrying subscription")
+                    # logger.info("Deadline exceeded, retrying subscription")
                     continue
                 else:
                     # Unknown error, report and break
-                    logger.error(f"Failed to receive message: {e}")
+                    # logger.error(f"Failed to receive message: {e}")
                     break
+
+    def on(self, workflowRunId: str, handler: callable = None):
+        for event in self.generator(workflowRunId):
+            # call the handler if provided
+            if handler:
+                handler(event)
 
     def retry_subscribe(self, workflowRunId: str):
         retries = 0

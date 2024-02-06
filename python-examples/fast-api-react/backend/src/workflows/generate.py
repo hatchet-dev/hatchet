@@ -3,6 +3,7 @@ from hatchet_sdk import Context
 from bs4 import BeautifulSoup
 from openai import OpenAI
 import requests
+import time
 
 openai = OpenAI()
 
@@ -11,15 +12,23 @@ openai = OpenAI()
 class ManualTriggerWorkflow:
     @hatchet.step()
     def step1(self, context):
-        print("executed step1")
-        return {"step1": "data1"}
 
-    @hatchet.step(parents=["step1"], timeout='4s')
+        messages = context.workflow_input()['request']['messages']
+        print("> starting step1", messages)
+        return {"status": "thinking"}
+
+    @hatchet.step(parents=["step1"])
     def step2(self, context):
-        print("started step2")
-        context.sleep(1)
-        print("finished step2")
-        return {"step2": "data2"}
+        print("starting step2")
+        time.sleep(5)
+        return {"status": "writing a response"}
+
+    @hatchet.step(parents=["step2"])
+    def step3(self, context):
+        print("starting step3")
+        time.sleep(5)
+        print("finished!")
+        return {"complete": "true", "status": "idle", "message": "step2 complete"}
 
 
 @hatchet.workflow(on_events=["question:create"])

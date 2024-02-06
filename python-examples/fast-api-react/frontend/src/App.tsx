@@ -6,6 +6,8 @@ interface Messages {
   content: string;
 }
 
+const API_URL = "http://localhost:8000";
+
 function App() {
   const [openRequest, setOpenRequest] = useState<string>();
 
@@ -14,34 +16,45 @@ function App() {
     { role: "assistant", content: "Good how are you?" },
   ]);
 
+  const [status, setStatus] = useState("idle");
+
   useEffect(() => {
     if (!openRequest) return;
 
-    const sse = new EventSource(`http://localhost:8000/stream/${openRequest}`, {
+    const sse = new EventSource(`${API_URL}/stream/${openRequest}`, {
       withCredentials: true,
     });
 
     function getMessageStream(data: any) {
       console.log(data);
+      if (data === null) return;
+      setStatus(data.status);
+      if (data.message) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.message },
+        ]);
+      }
     }
 
-    sse.onmessage = (e) => {
-      console.log(e);
-      return getMessageStream(e);
-    };
+    sse.onmessage = (e) => getMessageStream(JSON.parse(e.data));
 
     sse.onerror = () => {
+      setOpenRequest(undefined);
       sse.close();
     };
 
     return () => {
+      setOpenRequest(undefined);
       sse.close();
     };
   }, [openRequest]);
 
   const sendMessage = async (content: string) => {
     try {
-      const response = await fetch("http://localhost:8000/message", {
+      setMessages((prev) => [...prev, { role: "user", content }]);
+
+      const response = await fetch(`${API_URL}/message`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -77,6 +90,7 @@ function App() {
           </p>
         ))}
 
+        {status}
         <textarea></textarea>
         <button onClick={() => sendMessage("Your message")}>Ask</button>
       </header>
