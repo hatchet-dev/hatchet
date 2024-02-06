@@ -68,7 +68,7 @@ function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          url: "https://docs.hatchet.run/home/quickstart",
+          url: "https://docs.hatchet.run/home",
           messages: [
             ...messages,
             {

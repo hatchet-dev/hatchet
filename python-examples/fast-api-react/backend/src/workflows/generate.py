@@ -111,9 +111,9 @@ class GenerateWorkflow:
         prompt = ctx.overrides(
             'reason:prompt',
             "The user is asking the following question:\
-            {{message}}\
+            {message}\
             What are the most relevant sentences in the following document?\
-            {{docs}}")
+            {docs}")
 
         prompt = prompt.format(message=message['content'], docs=docs)
 
@@ -142,7 +142,7 @@ class GenerateWorkflow:
             "You are a sales engineer for a company called Hatchet.\
             Help address the user's question. \
             Use the following context:\
-            {{research}}")
+            {research}")
 
         prompt = prompt.format(research=research)
 
