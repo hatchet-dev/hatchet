@@ -25,6 +25,7 @@ dump.rdb
 *.cert
 generated
 .next
+.venv
 
 node_modules
 
