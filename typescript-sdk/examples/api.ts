@@ -54,7 +54,7 @@ const opts: CreateWorkflowVersionOpts = {
 admin.put_workflow(opts);
 
 admin.list_workflows().then((res) => {
-  res.data.rows?.forEach((row) => {
+  res.rows?.forEach((row) => {
     console.log(row);
   });
 });
