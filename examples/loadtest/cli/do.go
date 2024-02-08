@@ -27,20 +27,25 @@ func do(duration time.Duration, eventsPerSecond int, wait time.Duration) {
 		cancel()
 	}()
 
-	ex := make(chan int64, 1)
+	ch := make(chan int64, 1)
 	go func() {
-		count := run(ctx)
-		ex <- count
+		count, uniques := run(ctx)
+		ch <- count
+		ch <- uniques
 	}()
 
 	time.Sleep(after)
 
 	emitted := emit(ctx, eventsPerSecond, duration)
-	executed := <-ex
+	executed := <-ch
+	uniques := <-ch
 
-	log.Printf("emitted %d, executed %d, using %d events/s", emitted, executed, eventsPerSecond)
+	log.Printf("emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, eventsPerSecond)
 
+	if emitted != uniques {
+		log.Fatal("emitted and unique executed counts do not match")
+	}
 	if emitted != executed {
-		log.Fatal("emitted and executed counts do not match")
+		log.Printf("warning: emitted and executed counts do not match")
 	}
 }
