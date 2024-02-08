@@ -24,5 +24,7 @@ func main() {
 
 	cmd := &cobra.Command{Use: "app"}
 	cmd.AddCommand(loadtest)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		panic(err)
+	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
@@ -13,7 +14,7 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func run(ctx context.Context) int {
+func run(ctx context.Context) int64 {
 	c, err := client.New()
 
 	if err != nil {
@@ -32,7 +33,8 @@ func run(ctx context.Context) int {
 		panic(err)
 	}
 
-	var count int
+	mx := sync.Mutex{}
+	var count int64
 
 	err = w.On(
 		worker.Event("test:event"),
@@ -41,7 +43,10 @@ func run(ctx context.Context) int {
 			Description: "This runs at a scheduled time.",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					mx.Lock()
 					count += 1
+					mx.Unlock()
+
 					var input Event
 					err = ctx.WorkflowInput(&input)
 					if err != nil {
@@ -51,7 +56,7 @@ func run(ctx context.Context) int {
 					fmt.Println(input.ID, "delay", time.Since(input.CreatedAt))
 
 					return &stepOneOutput{
-						Message: "This ran at: " + time.Now().Format(time.RubyDate),
+						Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
 					}, nil
 				}).SetName("step-one"),
 			},
@@ -73,6 +78,8 @@ func run(ctx context.Context) int {
 	for {
 		select {
 		case <-ctx.Done():
+			mx.Lock()
+			defer mx.Unlock()
 			return count
 		default:
 			time.Sleep(time.Second)

@@ -27,7 +27,7 @@ func do(duration time.Duration, eventsPerSecond int, wait time.Duration) {
 		cancel()
 	}()
 
-	ex := make(chan int, 1)
+	ex := make(chan int64, 1)
 	go func() {
 		count := run(ctx)
 		ex <- count
