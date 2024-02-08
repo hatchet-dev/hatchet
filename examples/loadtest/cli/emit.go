@@ -27,7 +27,7 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration) int6
 		ticker := time.NewTicker(time.Second / time.Duration(amountPerSecond))
 		defer ticker.Stop()
 
-		timer := time.After(duration)
+		timer := time.After(duration + 10)
 
 		for {
 			select {
@@ -38,7 +38,7 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration) int6
 
 				go func(id int64) {
 					ev := Event{CreatedAt: time.Now(), ID: id}
-					fmt.Println("pushed event", ev.ID+1)
+					fmt.Println("pushed event", ev.ID)
 					err = c.Event().Push(context.Background(), "test:event", ev)
 					if err != nil {
 						panic(fmt.Errorf("error pushing event: %w", err))

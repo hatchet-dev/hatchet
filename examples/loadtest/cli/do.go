@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 )
 
-func do(duration time.Duration, eventsPerSecond int, wait time.Duration) {
+func do(duration time.Duration, eventsPerSecond int, wait time.Duration) error {
 	err := godotenv.Load()
 	if err != nil {
 		panic(err)
@@ -40,12 +41,15 @@ func do(duration time.Duration, eventsPerSecond int, wait time.Duration) {
 	executed := <-ch
 	uniques := <-ch
 
-	log.Printf("emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, eventsPerSecond)
+	log.Printf("ℹ️ emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, eventsPerSecond)
+
+	if emitted != executed {
+		log.Printf("⚠️ warning: emitted and executed counts do not match")
+	}
 
 	if emitted != uniques {
-		log.Fatal("emitted and unique executed counts do not match")
+		return fmt.Errorf("❌ emitted and unique executed counts do not match")
 	}
-	if emitted != executed {
-		log.Printf("warning: emitted and executed counts do not match")
-	}
+
+	return nil
 }

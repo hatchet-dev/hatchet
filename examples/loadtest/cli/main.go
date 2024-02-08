@@ -14,7 +14,9 @@ func main() {
 	var loadtest = &cobra.Command{
 		Use: "loadtest",
 		Run: func(cmd *cobra.Command, args []string) {
-			do(duration, events, wait)
+			if err := do(duration, events, wait); err != nil {
+				panic(err)
+			}
 		},
 	}
 
