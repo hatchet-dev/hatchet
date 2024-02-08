@@ -14,7 +14,7 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func run(ctx context.Context) (int64, int64) {
+func run(ctx context.Context, executions chan<- time.Duration) (int64, int64) {
 	c, err := client.New()
 
 	if err != nil {
@@ -51,9 +51,11 @@ func run(ctx context.Context) (int64, int64) {
 						return nil, err
 					}
 
-					fmt.Println(input.ID, "delay", time.Since(input.CreatedAt))
+					delay := time.Since(input.CreatedAt)
+					fmt.Println(input.ID, "delay", delay)
 
 					mx.Lock()
+					executions <- delay
 					// detect duplicate in executed slice
 					var duplicate bool
 					for i := 0; i < len(executed)-1; i++ {
