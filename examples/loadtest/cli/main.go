@@ -3,6 +3,7 @@ package main
 import (
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +15,11 @@ func main() {
 	var loadtest = &cobra.Command{
 		Use: "loadtest",
 		Run: func(cmd *cobra.Command, args []string) {
+			err := godotenv.Load()
+			if err != nil {
+				panic(err)
+			}
+
 			if err := do(duration, events, wait); err != nil {
 				panic(err)
 			}

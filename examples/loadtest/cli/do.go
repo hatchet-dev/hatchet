@@ -5,17 +5,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/joho/godotenv"
-
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 )
 
 func do(duration time.Duration, eventsPerSecond int, wait time.Duration) error {
-	err := godotenv.Load()
-	if err != nil {
-		panic(err)
-	}
-
 	log.Printf("testing with runFor=%s, eventsPerSecond=%d, wait=%s", duration, eventsPerSecond, wait)
 
 	ctx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
