@@ -1,10 +1,4 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import api, { StepRun, StepRunStatus, queries } from '@/lib/api';
 import { useEffect, useState } from 'react';
 import { RunStatus } from '../../components/run-statuses';
@@ -100,65 +94,54 @@ export function StepRunPlayground({
   }, [getStepRunQuery.data, setStepRun]);
 
   return (
-    <Dialog
-      open={!!stepRun}
-      onOpenChange={(open) => {
-        if (!open) {
-          setStepRun(null);
-        }
-      }}
-    >
-      <DialogContent className="sm:max-w-[625px] py-12">
-        <DialogHeader>
-          <div className="flex flex-row justify-between items-center">
-            <DialogTitle>
-              {stepRun?.step?.readableId || stepRun?.metadata.id}
-            </DialogTitle>
-            <RunStatus status={stepRun?.status || StepRunStatus.PENDING} />
-          </div>
-          {stepRun && getTiming({ stepRun })}
-          <DialogDescription>
+    <div className="sm:max-w-[625px] py-12">
+      <div>
+        <div className="flex flex-row justify-between items-center">
+          <div>{stepRun?.step?.readableId || stepRun?.metadata.id}</div>
+          <RunStatus status={stepRun?.status || StepRunStatus.PENDING} />
+        </div>
+        {stepRun && getTiming({ stepRun })}
+        {/* <DialogDescription>
             You can change the input to your step and see the output here. By
             default, this will trigger all child steps.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-row justify-between items-center">
-          <div className="font-bold">Input</div>
-          <Button
-            className="w-fit"
-            disabled={rerunStepMutation.isPending}
-            onClick={() => {
-              const inputObj = JSON.parse(stepInput);
-              rerunStepMutation.mutate(inputObj);
-            }}
-          >
-            <ArrowPathIcon
-              className={cn(
-                rerunStepMutation.isPending ? 'rotate-180' : '',
-                'h-4 w-4 mr-2',
-              )}
-            />
-            Rerun Step
-          </Button>
-        </div>
-        {stepRun && (
-          <StepInputOutputSection
-            stepRun={stepRun}
-            onInputChanged={(input: string) => {
-              setStepInput(input);
-            }}
+          </DialogDescription> */}
+      </div>
+      <div className="flex flex-row justify-between items-center">
+        <div className="font-bold">Input</div>
+        <Button
+          className="w-fit"
+          disabled={rerunStepMutation.isPending}
+          onClick={() => {
+            const inputObj = JSON.parse(stepInput);
+            rerunStepMutation.mutate(inputObj);
+          }}
+        >
+          <ArrowPathIcon
+            className={cn(
+              rerunStepMutation.isPending ? 'rotate-180' : '',
+              'h-4 w-4 mr-2',
+            )}
           />
-        )}
-        {errors.length > 0 && (
-          <div className="mt-4">
-            {errors.map((error, index) => (
-              <div key={index} className="text-red-500 text-sm">
-                {error}
-              </div>
-            ))}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+          Rerun Step
+        </Button>
+      </div>
+      {stepRun && (
+        <StepInputOutputSection
+          stepRun={stepRun}
+          onInputChanged={(input: string) => {
+            setStepInput(input);
+          }}
+        />
+      )}
+      {errors.length > 0 && (
+        <div className="mt-4">
+          {errors.map((error, index) => (
+            <div key={index} className="text-red-500 text-sm">
+              {error}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -2,6 +2,7 @@ import { StepRun } from '@/lib/api';
 import { CodeEditor } from '@/components/ui/code-editor';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loading } from '@/components/ui/loading';
+import { JsonForm } from '@/components/ui/json-form';
 
 export function StepInputOutputSection({
   stepRun,
@@ -25,7 +26,8 @@ export function StepInputOutputSection({
         <TabsTrigger value="output">Output</TabsTrigger>
       </TabsList>
       <TabsContent value="input">
-        <CodeEditor
+        <JsonForm json={JSON.parse(input)} />
+        {/* <CodeEditor
           language="json"
           className="my-4"
           height="400px"
@@ -35,7 +37,7 @@ export function StepInputOutputSection({
               onInputChanged(code);
             }
           }}
-        />
+        /> */}
       </TabsContent>
       <TabsContent value="output">
         {isLoading && <Loading />}

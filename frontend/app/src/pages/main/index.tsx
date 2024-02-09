@@ -61,7 +61,7 @@ function Main() {
   return (
     <div className="flex flex-row flex-1 w-full h-full">
       <Sidebar memberships={memberships} currTenant={currTenant} />
-      <div className="pt-12 flex-grow overflow-y-auto overflow-x-hidden">
+      <div className="pt-6 flex-grow overflow-y-auto overflow-x-hidden">
         <Outlet context={childCtx} />
       </div>
     </div>
