@@ -639,6 +639,10 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *taskqueue.Task, tenantI
 
 		workflowEvent.EventPayload = unquoted
 	} else if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN {
+		if workflowEvent.ResourceId != workflowRunId {
+			return nil, nil
+		}
+
 		workflowEvent.Hangup = true
 	}
 
