@@ -184,16 +184,12 @@ func (s *Server) startGRPC(ctx context.Context) error {
 	}
 
 	serverOpts = append(serverOpts, grpc.ChainStreamInterceptor(
-		grpc.StreamServerInterceptor(
-			auth.StreamServerInterceptor(authMiddleware.Middleware),
-		),
+		auth.StreamServerInterceptor(authMiddleware.Middleware),
 		recovery.StreamServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
 
 	serverOpts = append(serverOpts, grpc.ChainUnaryInterceptor(
-		grpc.UnaryServerInterceptor(
-			auth.UnaryServerInterceptor(authMiddleware.Middleware),
-		),
+		auth.UnaryServerInterceptor(authMiddleware.Middleware),
 		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
 
