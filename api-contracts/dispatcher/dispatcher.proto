@@ -204,4 +204,8 @@ message WorkflowEvent {
 
     // the event payload
     string eventPayload = 6;
+
+    // whether this is the last event for the workflow run - server 
+    // will hang up the connection but clients might want to case
+    bool hangup = 7;
 }

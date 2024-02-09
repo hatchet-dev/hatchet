@@ -289,7 +289,8 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		return err
 	}
 
-	ctx := stream.Context()
+	ctx, cancel := context.WithCancel(stream.Context())
+	defer cancel()
 
 	// subscribe to the task queue for the tenant
 	taskChan, err := s.tq.Subscribe(ctx, q)
@@ -319,6 +320,10 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 
 				if err != nil {
 					s.l.Error().Err(err).Msgf("could not send workflow event to client")
+				}
+
+				if e.Hangup {
+					cancel()
 				}
 			}(task)
 		}
@@ -619,6 +624,10 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *taskqueue.Task, tenantI
 	if stepRun.JobRun().WorkflowRunID != workflowRunId {
 		// this is an expected error, so we don't return it
 		return nil, nil
+	}
+
+	if stepRun.JobRun().WorkflowRun().Status != db.WorkflowRunStatusRunning {
+		workflowEvent.Hangup = true
 	}
 
 	// attempt to unquote the payload
