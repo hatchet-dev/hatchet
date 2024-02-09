@@ -9,7 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 )
 
-func do(duration time.Duration, eventsPerSecond int, wait time.Duration) error {
+func do(duration time.Duration, eventsPerSecond int, delay, wait time.Duration) error {
 	log.Printf("testing with runFor=%s, eventsPerSecond=%d, wait=%s", duration, eventsPerSecond, wait)
 
 	ctx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
@@ -25,7 +25,7 @@ func do(duration time.Duration, eventsPerSecond int, wait time.Duration) error {
 	ch := make(chan int64, 1)
 	durations := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*3)
 	go func() {
-		count, uniques := run(ctx, durations)
+		count, uniques := run(ctx, delay, durations)
 		ch <- count
 		ch <- uniques
 	}()

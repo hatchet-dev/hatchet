@@ -16,7 +16,8 @@ func TestCLI(t *testing.T) {
 	eventsPerSecond := 10
 	duration := 10 * time.Second
 	wait := 10 * time.Second
-	if err := do(duration, eventsPerSecond, wait); err != nil {
+	delay := 0 * time.Second
+	if err := do(duration, eventsPerSecond, delay, wait); err != nil {
 		t.Fatalf("do() error = %v", err)
 	}
 }
