@@ -22,11 +22,12 @@ export default memo(({ data }: { data: StepRunNodeProps }) => {
   return (
     <Card
       className={cn(
-        selected == 'selected' ? 'selected' : '',
         data.stepRun.status == StepRunStatus.RUNNING ? 'active' : '',
         selected === 'none' || selected === 'selected'
           ? 'opacity-100'
           : 'opacity-20',
+
+        selected === 'selected' ? 'border-primary' : '',
         'step-run-card p-3 cursor-pointer bg-[#020817] shadow-[0_1000px_0_0_hsl(0_0%_20%)_inset] transition-colors duration-200',
       )}
       onClick={data.onClick}
