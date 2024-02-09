@@ -9,8 +9,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 )
 
-func do(duration time.Duration, eventsPerSecond int, delay, wait time.Duration) error {
-	log.Printf("testing with runFor=%s, eventsPerSecond=%d, wait=%s", duration, eventsPerSecond, wait)
+func do(duration time.Duration, eventsPerSecond int, delay, wait time.Duration, concurrency int) error {
+	log.Printf("testing with duration=%s, eventsPerSecond=%d, wait=%s, concurrency=%d", duration, eventsPerSecond, wait, concurrency)
 
 	ctx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
 	defer cancel()
@@ -22,10 +22,10 @@ func do(duration time.Duration, eventsPerSecond int, delay, wait time.Duration) 
 		cancel()
 	}()
 
-	ch := make(chan int64, 1)
+	ch := make(chan int64, 2)
 	durations := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*3)
 	go func() {
-		count, uniques := run(ctx, delay, durations)
+		count, uniques := run(ctx, delay, durations, concurrency)
 		ch <- count
 		ch <- uniques
 	}()
@@ -49,11 +49,11 @@ func do(duration time.Duration, eventsPerSecond int, delay, wait time.Duration) 
 	log.Printf("ℹ️ num goroutines: %d", runtime.NumGoroutine())
 
 	if emitted != executed {
-		log.Printf("⚠️ warning: emitted and executed counts do not match")
+		log.Printf("⚠️ warning: emitted and executed counts do not match: %d != %d", emitted, executed)
 	}
 
 	if emitted != uniques {
-		return fmt.Errorf("❌ emitted and unique executed counts do not match")
+		return fmt.Errorf("❌ emitted and unique executed counts do not match: %d != %d", emitted, uniques)
 	}
 
 	log.Printf("✅ success")

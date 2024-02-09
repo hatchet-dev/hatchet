@@ -9,10 +9,11 @@ import (
 )
 
 func main() {
+	var events int
+	var concurrency int
 	var duration time.Duration
 	var wait time.Duration
 	var delay time.Duration
-	var events int
 
 	var loadtest = &cobra.Command{
 		Use: "loadtest",
@@ -22,7 +23,7 @@ func main() {
 				panic(err)
 			}
 
-			if err := do(duration, events, delay, wait); err != nil {
+			if err := do(duration, events, delay, wait, concurrency); err != nil {
 				log.Println(err)
 				panic("load test failed")
 			}
@@ -30,6 +31,7 @@ func main() {
 	}
 
 	loadtest.Flags().IntVarP(&events, "events", "e", 10, "events per second")
+	loadtest.Flags().IntVarP(&concurrency, "concurrency", "c", 1, "concurrency specifies the maximum events to run at the same time")
 	loadtest.Flags().DurationVarP(&duration, "duration", "d", 10*time.Second, "duration specifies the total time to run the load test")
 	loadtest.Flags().DurationVarP(&delay, "delay", "D", 0, "delay specifies the time to wait in each event to simulate slow tasks")
 	loadtest.Flags().DurationVarP(&wait, "wait", "w", 10*time.Second, "wait specifies the total time to wait until events complete")

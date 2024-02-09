@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -14,7 +15,11 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func run(ctx context.Context, delay time.Duration, executions chan<- time.Duration) (int64, int64) {
+func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
+	return "my-key", nil
+}
+
+func run(ctx context.Context, delay time.Duration, executions chan<- time.Duration, concurrency int) (int64, int64) {
 	c, err := client.New()
 
 	if err != nil {
@@ -43,6 +48,7 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 		&worker.WorkflowJob{
 			Name:        "scheduled-workflow",
 			Description: "This runs at a scheduled time.",
+			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency)).LimitStrategy(types.CancelInProgress),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					var input Event
