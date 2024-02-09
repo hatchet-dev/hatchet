@@ -28,6 +28,9 @@ type StepRunData struct {
 
 	// custom-set user data for the step
 	UserData map[string]interface{} `json:"user_data"`
+
+	// overrides set from the playground
+	Overrides map[string]interface{} `json:"overrides"`
 }
 
 type StepData map[string]interface{}

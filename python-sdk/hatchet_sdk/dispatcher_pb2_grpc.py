@@ -15,35 +15,40 @@ class DispatcherStub(object):
             channel: A grpc.Channel.
         """
         self.Register = channel.unary_unary(
-            '/Dispatcher/Register',
-            request_serializer=dispatcher__pb2.WorkerRegisterRequest.SerializeToString,
-            response_deserializer=dispatcher__pb2.WorkerRegisterResponse.FromString,
-        )
+                '/Dispatcher/Register',
+                request_serializer=dispatcher__pb2.WorkerRegisterRequest.SerializeToString,
+                response_deserializer=dispatcher__pb2.WorkerRegisterResponse.FromString,
+                )
         self.Listen = channel.unary_stream(
-            '/Dispatcher/Listen',
-            request_serializer=dispatcher__pb2.WorkerListenRequest.SerializeToString,
-            response_deserializer=dispatcher__pb2.AssignedAction.FromString,
-        )
+                '/Dispatcher/Listen',
+                request_serializer=dispatcher__pb2.WorkerListenRequest.SerializeToString,
+                response_deserializer=dispatcher__pb2.AssignedAction.FromString,
+                )
         self.SubscribeToWorkflowEvents = channel.unary_stream(
-            '/Dispatcher/SubscribeToWorkflowEvents',
-            request_serializer=dispatcher__pb2.SubscribeToWorkflowEventsRequest.SerializeToString,
-            response_deserializer=dispatcher__pb2.WorkflowEvent.FromString,
-        )
+                '/Dispatcher/SubscribeToWorkflowEvents',
+                request_serializer=dispatcher__pb2.SubscribeToWorkflowEventsRequest.SerializeToString,
+                response_deserializer=dispatcher__pb2.WorkflowEvent.FromString,
+                )
         self.SendStepActionEvent = channel.unary_unary(
-            '/Dispatcher/SendStepActionEvent',
-            request_serializer=dispatcher__pb2.StepActionEvent.SerializeToString,
-            response_deserializer=dispatcher__pb2.ActionEventResponse.FromString,
-        )
+                '/Dispatcher/SendStepActionEvent',
+                request_serializer=dispatcher__pb2.StepActionEvent.SerializeToString,
+                response_deserializer=dispatcher__pb2.ActionEventResponse.FromString,
+                )
         self.SendGroupKeyActionEvent = channel.unary_unary(
-            '/Dispatcher/SendGroupKeyActionEvent',
-            request_serializer=dispatcher__pb2.GroupKeyActionEvent.SerializeToString,
-            response_deserializer=dispatcher__pb2.ActionEventResponse.FromString,
-        )
+                '/Dispatcher/SendGroupKeyActionEvent',
+                request_serializer=dispatcher__pb2.GroupKeyActionEvent.SerializeToString,
+                response_deserializer=dispatcher__pb2.ActionEventResponse.FromString,
+                )
+        self.PutOverridesData = channel.unary_unary(
+                '/Dispatcher/PutOverridesData',
+                request_serializer=dispatcher__pb2.OverridesData.SerializeToString,
+                response_deserializer=dispatcher__pb2.OverridesDataResponse.FromString,
+                )
         self.Unsubscribe = channel.unary_unary(
-            '/Dispatcher/Unsubscribe',
-            request_serializer=dispatcher__pb2.WorkerUnsubscribeRequest.SerializeToString,
-            response_deserializer=dispatcher__pb2.WorkerUnsubscribeResponse.FromString,
-        )
+                '/Dispatcher/Unsubscribe',
+                request_serializer=dispatcher__pb2.WorkerUnsubscribeRequest.SerializeToString,
+                response_deserializer=dispatcher__pb2.WorkerUnsubscribeResponse.FromString,
+                )
 
 
 class DispatcherServicer(object):
@@ -79,6 +84,12 @@ class DispatcherServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def PutOverridesData(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Unsubscribe(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -88,145 +99,166 @@ class DispatcherServicer(object):
 
 def add_DispatcherServicer_to_server(servicer, server):
     rpc_method_handlers = {
-        'Register': grpc.unary_unary_rpc_method_handler(
-            servicer.Register,
-            request_deserializer=dispatcher__pb2.WorkerRegisterRequest.FromString,
-            response_serializer=dispatcher__pb2.WorkerRegisterResponse.SerializeToString,
-        ),
-        'Listen': grpc.unary_stream_rpc_method_handler(
-            servicer.Listen,
-            request_deserializer=dispatcher__pb2.WorkerListenRequest.FromString,
-            response_serializer=dispatcher__pb2.AssignedAction.SerializeToString,
-        ),
-        'SubscribeToWorkflowEvents': grpc.unary_stream_rpc_method_handler(
-            servicer.SubscribeToWorkflowEvents,
-            request_deserializer=dispatcher__pb2.SubscribeToWorkflowEventsRequest.FromString,
-            response_serializer=dispatcher__pb2.WorkflowEvent.SerializeToString,
-        ),
-        'SendStepActionEvent': grpc.unary_unary_rpc_method_handler(
-            servicer.SendStepActionEvent,
-            request_deserializer=dispatcher__pb2.StepActionEvent.FromString,
-            response_serializer=dispatcher__pb2.ActionEventResponse.SerializeToString,
-        ),
-        'SendGroupKeyActionEvent': grpc.unary_unary_rpc_method_handler(
-            servicer.SendGroupKeyActionEvent,
-            request_deserializer=dispatcher__pb2.GroupKeyActionEvent.FromString,
-            response_serializer=dispatcher__pb2.ActionEventResponse.SerializeToString,
-        ),
-        'Unsubscribe': grpc.unary_unary_rpc_method_handler(
-            servicer.Unsubscribe,
-            request_deserializer=dispatcher__pb2.WorkerUnsubscribeRequest.FromString,
-            response_serializer=dispatcher__pb2.WorkerUnsubscribeResponse.SerializeToString,
-        ),
+            'Register': grpc.unary_unary_rpc_method_handler(
+                    servicer.Register,
+                    request_deserializer=dispatcher__pb2.WorkerRegisterRequest.FromString,
+                    response_serializer=dispatcher__pb2.WorkerRegisterResponse.SerializeToString,
+            ),
+            'Listen': grpc.unary_stream_rpc_method_handler(
+                    servicer.Listen,
+                    request_deserializer=dispatcher__pb2.WorkerListenRequest.FromString,
+                    response_serializer=dispatcher__pb2.AssignedAction.SerializeToString,
+            ),
+            'SubscribeToWorkflowEvents': grpc.unary_stream_rpc_method_handler(
+                    servicer.SubscribeToWorkflowEvents,
+                    request_deserializer=dispatcher__pb2.SubscribeToWorkflowEventsRequest.FromString,
+                    response_serializer=dispatcher__pb2.WorkflowEvent.SerializeToString,
+            ),
+            'SendStepActionEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendStepActionEvent,
+                    request_deserializer=dispatcher__pb2.StepActionEvent.FromString,
+                    response_serializer=dispatcher__pb2.ActionEventResponse.SerializeToString,
+            ),
+            'SendGroupKeyActionEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendGroupKeyActionEvent,
+                    request_deserializer=dispatcher__pb2.GroupKeyActionEvent.FromString,
+                    response_serializer=dispatcher__pb2.ActionEventResponse.SerializeToString,
+            ),
+            'PutOverridesData': grpc.unary_unary_rpc_method_handler(
+                    servicer.PutOverridesData,
+                    request_deserializer=dispatcher__pb2.OverridesData.FromString,
+                    response_serializer=dispatcher__pb2.OverridesDataResponse.SerializeToString,
+            ),
+            'Unsubscribe': grpc.unary_unary_rpc_method_handler(
+                    servicer.Unsubscribe,
+                    request_deserializer=dispatcher__pb2.WorkerUnsubscribeRequest.FromString,
+                    response_serializer=dispatcher__pb2.WorkerUnsubscribeResponse.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-        'Dispatcher', rpc_method_handlers)
+            'Dispatcher', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
+
  # This class is part of an EXPERIMENTAL API.
-
-
 class Dispatcher(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
     def Register(request,
-                 target,
-                 options=(),
-                 channel_credentials=None,
-                 call_credentials=None,
-                 insecure=False,
-                 compression=None,
-                 wait_for_ready=None,
-                 timeout=None,
-                 metadata=None):
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(request, target, '/Dispatcher/Register',
-                                             dispatcher__pb2.WorkerRegisterRequest.SerializeToString,
-                                             dispatcher__pb2.WorkerRegisterResponse.FromString,
-                                             options, channel_credentials,
-                                             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+            dispatcher__pb2.WorkerRegisterRequest.SerializeToString,
+            dispatcher__pb2.WorkerRegisterResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def Listen(request,
-               target,
-               options=(),
-               channel_credentials=None,
-               call_credentials=None,
-               insecure=False,
-               compression=None,
-               wait_for_ready=None,
-               timeout=None,
-               metadata=None):
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_stream(request, target, '/Dispatcher/Listen',
-                                              dispatcher__pb2.WorkerListenRequest.SerializeToString,
-                                              dispatcher__pb2.AssignedAction.FromString,
-                                              options, channel_credentials,
-                                              insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+            dispatcher__pb2.WorkerListenRequest.SerializeToString,
+            dispatcher__pb2.AssignedAction.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def SubscribeToWorkflowEvents(request,
-                                  target,
-                                  options=(),
-                                  channel_credentials=None,
-                                  call_credentials=None,
-                                  insecure=False,
-                                  compression=None,
-                                  wait_for_ready=None,
-                                  timeout=None,
-                                  metadata=None):
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_stream(request, target, '/Dispatcher/SubscribeToWorkflowEvents',
-                                              dispatcher__pb2.SubscribeToWorkflowEventsRequest.SerializeToString,
-                                              dispatcher__pb2.WorkflowEvent.FromString,
-                                              options, channel_credentials,
-                                              insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+            dispatcher__pb2.SubscribeToWorkflowEventsRequest.SerializeToString,
+            dispatcher__pb2.WorkflowEvent.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def SendStepActionEvent(request,
-                            target,
-                            options=(),
-                            channel_credentials=None,
-                            call_credentials=None,
-                            insecure=False,
-                            compression=None,
-                            wait_for_ready=None,
-                            timeout=None,
-                            metadata=None):
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(request, target, '/Dispatcher/SendStepActionEvent',
-                                             dispatcher__pb2.StepActionEvent.SerializeToString,
-                                             dispatcher__pb2.ActionEventResponse.FromString,
-                                             options, channel_credentials,
-                                             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+            dispatcher__pb2.StepActionEvent.SerializeToString,
+            dispatcher__pb2.ActionEventResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def SendGroupKeyActionEvent(request,
-                                target,
-                                options=(),
-                                channel_credentials=None,
-                                call_credentials=None,
-                                insecure=False,
-                                compression=None,
-                                wait_for_ready=None,
-                                timeout=None,
-                                metadata=None):
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(request, target, '/Dispatcher/SendGroupKeyActionEvent',
-                                             dispatcher__pb2.GroupKeyActionEvent.SerializeToString,
-                                             dispatcher__pb2.ActionEventResponse.FromString,
-                                             options, channel_credentials,
-                                             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+            dispatcher__pb2.GroupKeyActionEvent.SerializeToString,
+            dispatcher__pb2.ActionEventResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def PutOverridesData(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/Dispatcher/PutOverridesData',
+            dispatcher__pb2.OverridesData.SerializeToString,
+            dispatcher__pb2.OverridesDataResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def Unsubscribe(request,
-                    target,
-                    options=(),
-                    channel_credentials=None,
-                    call_credentials=None,
-                    insecure=False,
-                    compression=None,
-                    wait_for_ready=None,
-                    timeout=None,
-                    metadata=None):
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(request, target, '/Dispatcher/Unsubscribe',
-                                             dispatcher__pb2.WorkerUnsubscribeRequest.SerializeToString,
-                                             dispatcher__pb2.WorkerUnsubscribeResponse.FromString,
-                                             options, channel_credentials,
-                                             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+            dispatcher__pb2.WorkerUnsubscribeRequest.SerializeToString,
+            dispatcher__pb2.WorkerUnsubscribeResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

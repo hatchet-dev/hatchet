@@ -54,6 +54,14 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		), nil
 	}
 
+	inputBytes, err = json.Marshal(data)
+
+	if err != nil {
+		return gen.StepRunUpdateRerun400JSONResponse(
+			apierrors.NewAPIErrors("Invalid input"),
+		), nil
+	}
+
 	// update step run
 	_, err = t.config.Repository.StepRun().UpdateStepRun(tenant.ID, stepRun.ID, &repository.UpdateStepRunOpts{
 		Input:   inputBytes,

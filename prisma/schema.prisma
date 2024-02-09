@@ -780,6 +780,9 @@ model StepRun {
   // the run output
   output Json?
 
+  // inputSchema is a JSON object which declares a JSON schema for the input data 
+  inputSchema Json?
+
   // when the step should be requeued
   requeueAfter DateTime?
 

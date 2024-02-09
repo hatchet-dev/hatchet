@@ -509,6 +509,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 				TriggeredBy: lookupData.TriggeredBy,
 				Parents:     map[string]datautils.StepData{},
 				UserData:    userData,
+				Overrides:   map[string]interface{}{},
 			}
 
 			// add all parents to the input data

@@ -15,6 +15,8 @@ service Dispatcher {
 
     rpc SendGroupKeyActionEvent(GroupKeyActionEvent) returns (ActionEventResponse) {}
 
+    rpc PutOverridesData(OverridesData) returns (OverridesDataResponse) {}
+
     rpc Unsubscribe(WorkerUnsubscribeRequest) returns (WorkerUnsubscribeResponse) {}
 }
 
@@ -205,3 +207,16 @@ message WorkflowEvent {
     // the event payload
     string eventPayload = 6;
 }
+
+message OverridesData {
+    // the step run id
+    string stepRunId = 1;
+
+    // the path of the data to set
+    string path = 2;
+
+    // the value to set
+    string value = 3;
+}
+
+message OverridesDataResponse {}

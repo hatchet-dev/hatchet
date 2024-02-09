@@ -34,8 +34,8 @@ class Worker:
         self.handle_kill = handle_kill
 
     def handle_start_step_run(self, action : Action):
-        action_name = action.action_id  # Assuming action object has 'name' attribute
-        context = Context(action.action_payload)  # Assuming action object has 'context' attribute
+        action_name = action.action_id  
+        context = Context(action, self.client.dispatcher)  
 
         self.contexts[action.step_run_id] = context
 
@@ -108,8 +108,8 @@ class Worker:
             self.client.dispatcher.send_step_action_event(event)
 
     def handle_start_group_key_run(self, action : Action):
-        action_name = action.action_id  # Assuming action object has 'name' attribute
-        context = Context(action.action_payload)  # Assuming action object has 'context' attribute
+        action_name = action.action_id
+        context = Context(action, self.client.dispatcher)
 
         self.contexts[action.get_group_key_run_id] = context
 

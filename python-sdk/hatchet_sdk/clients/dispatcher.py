@@ -1,5 +1,5 @@
 # relative imports
-from ..dispatcher_pb2 import GroupKeyActionEvent, StepActionEvent, ActionEventResponse, ActionType, AssignedAction, WorkerListenRequest, WorkerRegisterRequest, WorkerUnsubscribeRequest, WorkerRegisterResponse
+from ..dispatcher_pb2 import GroupKeyActionEvent, StepActionEvent, ActionEventResponse, ActionType, AssignedAction, WorkerListenRequest, WorkerRegisterRequest, WorkerUnsubscribeRequest, WorkerRegisterResponse, OverridesData
 from ..dispatcher_pb2_grpc import DispatcherStub
 
 import time
@@ -195,4 +195,8 @@ class DispatcherClientImpl(DispatcherClient):
         response : ActionEventResponse = self.client.SendGroupKeyActionEvent(in_, metadata=get_metadata(self.token),)
 
         return response
+    
+    def put_overrides_data(self, data: OverridesData):
+        response : ActionEventResponse = self.client.PutOverridesData(data, metadata=get_metadata(self.token),)
 
+        return response

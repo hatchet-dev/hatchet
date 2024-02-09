@@ -17,7 +17,7 @@ CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
 CREATE TYPE "WorkerStatus" AS ENUM ('ACTIVE', 'INACTIVE');
 
 -- CreateEnum
-CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED');
+CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED');
 
 -- CreateTable
 CREATE TABLE "APIToken" (
@@ -34,10 +34,10 @@ CREATE TABLE "APIToken" (
 
 -- CreateTable
 CREATE TABLE "Action" (
-    "id" UUID NOT NULL,
-    "actionId" TEXT NOT NULL,
     "description" TEXT,
     "tenantId" UUID NOT NULL,
+    "actionId" TEXT NOT NULL,
+    "id" UUID NOT NULL,
 
     CONSTRAINT "Action_pkey" PRIMARY KEY ("id")
 );
@@ -75,7 +75,6 @@ CREATE TABLE "GetGroupKeyRun" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "tenantId" UUID NOT NULL,
-    "workflowRunId" UUID NOT NULL,
     "workerId" UUID,
     "tickerId" UUID,
     "status" "StepRunStatus" NOT NULL DEFAULT 'PENDING',
@@ -89,6 +88,7 @@ CREATE TABLE "GetGroupKeyRun" (
     "cancelledAt" TIMESTAMP(3),
     "cancelledReason" TEXT,
     "cancelledError" TEXT,
+    "workflowRunId" UUID NOT NULL,
 
     CONSTRAINT "GetGroupKeyRun_pkey" PRIMARY KEY ("id")
 );
@@ -115,7 +115,6 @@ CREATE TABLE "JobRun" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "tenantId" UUID NOT NULL,
-    "workflowRunId" UUID NOT NULL,
     "jobId" UUID NOT NULL,
     "tickerId" UUID,
     "status" "JobRunStatus" NOT NULL DEFAULT 'PENDING',
@@ -126,6 +125,7 @@ CREATE TABLE "JobRun" (
     "cancelledAt" TIMESTAMP(3),
     "cancelledReason" TEXT,
     "cancelledError" TEXT,
+    "workflowRunId" UUID NOT NULL,
 
     CONSTRAINT "JobRun_pkey" PRIMARY KEY ("id")
 );
@@ -196,6 +196,7 @@ CREATE TABLE "StepRun" (
     "cancelledAt" TIMESTAMP(3),
     "cancelledReason" TEXT,
     "cancelledError" TEXT,
+    "inputSchema" JSONB,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );
@@ -271,9 +272,9 @@ CREATE TABLE "UserOAuth" (
     "userId" UUID NOT NULL,
     "provider" TEXT NOT NULL,
     "providerUserId" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3),
     "accessToken" BYTEA NOT NULL,
     "refreshToken" BYTEA,
-    "expiresAt" TIMESTAMP(3),
 
     CONSTRAINT "UserOAuth_pkey" PRIMARY KEY ("id")
 );
@@ -339,18 +340,18 @@ CREATE TABLE "WorkflowConcurrency" (
 
 -- CreateTable
 CREATE TABLE "WorkflowRun" (
-    "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
-    "displayName" TEXT,
     "tenantId" UUID NOT NULL,
     "workflowVersionId" UUID NOT NULL,
-    "concurrencyGroupId" TEXT,
     "status" "WorkflowRunStatus" NOT NULL DEFAULT 'PENDING',
     "error" TEXT,
     "startedAt" TIMESTAMP(3),
     "finishedAt" TIMESTAMP(3),
+    "concurrencyGroupId" TEXT,
+    "displayName" TEXT,
+    "id" UUID NOT NULL,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -362,12 +363,12 @@ CREATE TABLE "WorkflowRunTriggeredBy" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "tenantId" UUID NOT NULL,
-    "parentId" UUID NOT NULL,
-    "input" JSONB,
     "eventId" UUID,
     "cronParentId" UUID,
     "cronSchedule" TEXT,
     "scheduledId" UUID,
+    "input" JSONB,
+    "parentId" UUID NOT NULL,
 
     CONSTRAINT "WorkflowRunTriggeredBy_pkey" PRIMARY KEY ("id")
 );
@@ -427,18 +428,18 @@ CREATE TABLE "WorkflowVersion" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
-    "checksum" TEXT NOT NULL,
     "version" TEXT,
     "order" SMALLSERIAL NOT NULL,
     "workflowId" UUID NOT NULL,
+    "checksum" TEXT NOT NULL,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "_ActionToWorker" (
-    "A" UUID NOT NULL,
-    "B" UUID NOT NULL
+    "B" UUID NOT NULL,
+    "A" UUID NOT NULL
 );
 
 -- CreateTable

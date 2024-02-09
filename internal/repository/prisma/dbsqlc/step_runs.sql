@@ -88,3 +88,25 @@ WHERE
     ) AND
     sr."tenantId" = @tenantId::uuid
 RETURNING sr.*;
+
+-- name: UpdateStepRunOverridesData :one
+UPDATE
+    "StepRun" as sr
+SET 
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "input" = jsonb_set("input", @fieldPath::text[], @jsonData::jsonb, true)
+WHERE
+    sr."tenantId" = @tenantId::uuid AND
+    sr."id" = @stepRunId::uuid
+RETURNING "input";
+
+-- name: UpdateStepRunInputSchema :one
+UPDATE
+    "StepRun" sr
+SET
+    "inputSchema" = coalesce(sqlc.narg('inputSchema')::jsonb, '{}'),
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    sr."tenantId" = @tenantId::uuid AND
+    sr."id" = @stepRunId::uuid
+RETURNING "inputSchema";

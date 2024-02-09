@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/schema"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
@@ -349,6 +350,38 @@ func (s *DispatcherImpl) SendGroupKeyActionEvent(ctx context.Context, request *c
 	}
 
 	return nil, fmt.Errorf("unknown event type %s", request.EventType)
+}
+
+func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contracts.OverridesData) (*contracts.OverridesDataResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
+	// ensure step run id
+	if request.StepRunId == "" {
+		return nil, fmt.Errorf("step run id is required")
+	}
+
+	input, err := s.repo.StepRun().UpdateStepRunOverridesData(tenant.ID, request.StepRunId, &repository.UpdateStepRunOverridesDataOpts{
+		OverrideKey: request.Path,
+		Data:        []byte(request.Value),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	jsonSchemaBytes, err := schema.SchemaBytesFromBytes(input)
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = s.repo.StepRun().UpdateStepRunInputSchema(tenant.ID, request.StepRunId, jsonSchemaBytes)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.OverridesDataResponse{}, nil
 }
 
 func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.WorkerUnsubscribeRequest) (*contracts.WorkerUnsubscribeResponse, error) {

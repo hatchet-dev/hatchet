@@ -52,6 +52,11 @@ type UpdateStepRunOpts struct {
 	Output []byte
 }
 
+type UpdateStepRunOverridesDataOpts struct {
+	OverrideKey string
+	Data        []byte
+}
+
 func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
 	return &status
 }
@@ -66,6 +71,12 @@ type StepRunRepository interface {
 	ListStepRuns(tenantId string, opts *ListStepRunsOpts) ([]db.StepRunModel, error)
 
 	UpdateStepRun(tenantId, stepRunId string, opts *UpdateStepRunOpts) (*db.StepRunModel, error)
+
+	// UpdateStepRunOverridesData updates the overrides data field in the input for a step run. This returns the input
+	// bytes.
+	UpdateStepRunOverridesData(tenantId, stepRunId string, opts *UpdateStepRunOverridesDataOpts) ([]byte, error)
+
+	UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error)
 
 	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
 

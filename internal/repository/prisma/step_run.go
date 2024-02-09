@@ -217,6 +217,88 @@ func (s *stepRunRepository) UpdateStepRun(tenantId, stepRunId string, opts *repo
 	).Exec(context.Background())
 }
 
+func (s *stepRunRepository) UpdateStepRunOverridesData(tenantId, stepRunId string, opts *repository.UpdateStepRunOverridesDataOpts) ([]byte, error) {
+	if err := s.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	tx, err := s.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), s.l, tx.Rollback)
+
+	if err != nil {
+		return nil, err
+	}
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
+
+	input, err := s.queries.UpdateStepRunOverridesData(
+		context.Background(),
+		tx,
+		dbsqlc.UpdateStepRunOverridesDataParams{
+			Steprunid: pgStepRunId,
+			Tenantid:  pgTenantId,
+			Fieldpath: []string{
+				"overrides",
+				opts.OverrideKey,
+			},
+			Jsondata: opts.Data,
+		},
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not update step run overrides data: %w", err)
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return input, nil
+}
+
+func (s *stepRunRepository) UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error) {
+	tx, err := s.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), s.l, tx.Rollback)
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
+
+	inputSchema, err := s.queries.UpdateStepRunInputSchema(
+		context.Background(),
+		tx,
+		dbsqlc.UpdateStepRunInputSchemaParams{
+			Steprunid:   pgStepRunId,
+			Tenantid:    pgTenantId,
+			InputSchema: schema,
+		},
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not update step run input schema: %w", err)
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return inputSchema, nil
+}
+
 func (s *stepRunRepository) QueueStepRun(tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*db.StepRunModel, error) {
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err
