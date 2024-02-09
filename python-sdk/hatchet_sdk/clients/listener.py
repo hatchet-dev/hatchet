@@ -93,17 +93,6 @@ class HatchetListener:
                         # call the handler
                         event = StepRunEvent(type=eventType, payload=payload)
                         yield event
-
-                        # stop the listener if the stop event is received
-                        if eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_FAILED or eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_CANCELLED or eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_TIMED_OUT:
-                            listener = None
-                            print('failure stopping listener...')
-                            break
-
-                        if payload and stop_step and stop_step in payload and eventType != StepRunEventType.STEP_RUN_EVENT_TYPE_STARTED:
-                            listener = None
-                            print('stopping listener...')
-                            break
                     elif workflow_event.resourceType == RESOURCE_TYPE_WORKFLOW_RUN:
                         if workflow_event.eventType in workflow_run_event_type_mapping:
                             eventType = workflow_run_event_type_mapping[workflow_event.eventType]
@@ -114,8 +103,6 @@ class HatchetListener:
                         payload = None
                         if workflow_event.eventPayload:
                             payload = json.loads(workflow_event.eventPayload)
-
-                        # TODO: eventually call a handler here
                         
                     if workflow_event.hangup:
                         listener = None
