@@ -577,67 +577,71 @@ func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request
 }
 
 func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *taskqueue.Task, tenantId, workflowRunId string) (*contracts.WorkflowEvent, error) {
-	// TODO: eventually process workflows as well, this is just steps
-	workflowEvent := &contracts.WorkflowEvent{
-		ResourceType: contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-	}
+	workflowEvent := &contracts.WorkflowEvent{}
 
 	var stepRunId string
 
 	switch task.ID {
 	case "step-run-started":
 		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STARTED
 	case "step-run-finished":
 		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
 		workflowEvent.EventPayload = task.Payload["step_output_data"].(string)
 	case "step-run-failed":
 		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED
 		workflowEvent.EventPayload = task.Payload["error"].(string)
 	case "step-run-cancelled":
 		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED
 	case "step-run-timed-out":
 		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_TIMED_OUT
-	}
-
-	if stepRunId == "" {
-		// expected because not all tasks have step run ids
-		return nil, nil
-	}
-
-	// determine if this step run matches the workflow run id
-	stepRun, err := s.repo.StepRun().GetStepRunById(tenantId, stepRunId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if stepRun.JobRun().WorkflowRunID != workflowRunId {
-		// this is an expected error, so we don't return it
-		return nil, nil
-	}
-
-	if stepRun.JobRun().WorkflowRun().Status != db.WorkflowRunStatusRunning {
+	case "workflow-run-finished":
+		workflowRunId := task.Payload["workflow_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN
+		workflowEvent.ResourceId = workflowRunId
+		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
 		workflowEvent.Hangup = true
 	}
 
-	// attempt to unquote the payload
-	unquoted, err := strconv.Unquote(workflowEvent.EventPayload)
+	if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_STEP_RUN {
+		// determine if this step run matches the workflow run id
+		stepRun, err := s.repo.StepRun().GetStepRunById(tenantId, stepRunId)
 
-	if err != nil {
-		unquoted = workflowEvent.EventPayload
+		if err != nil {
+			return nil, err
+		}
+
+		if stepRun.JobRun().WorkflowRunID != workflowRunId {
+			// this is an expected error, so we don't return it
+			return nil, nil
+		}
+
+		// attempt to unquote the payload
+		unquoted, err := strconv.Unquote(workflowEvent.EventPayload)
+
+		if err != nil {
+			unquoted = workflowEvent.EventPayload
+		}
+
+		workflowEvent.EventPayload = unquoted
+	} else if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN {
+		workflowEvent.Hangup = true
 	}
 
-	workflowEvent.EventPayload = unquoted
-
 	return workflowEvent, nil
+
 }

@@ -2,7 +2,7 @@ from typing import List
 import grpc
 from ..dispatcher_pb2_grpc import DispatcherStub
 
-from ..dispatcher_pb2 import SubscribeToWorkflowEventsRequest, ResourceEventType
+from ..dispatcher_pb2 import SubscribeToWorkflowEventsRequest, ResourceEventType, WorkflowEvent, RESOURCE_TYPE_STEP_RUN, RESOURCE_TYPE_WORKFLOW_RUN
 from ..loader import ClientConfig
 from ..metadata import get_metadata
 import json
@@ -20,8 +20,14 @@ class StepRunEventType:
     STEP_RUN_EVENT_TYPE_CANCELLED = 'STEP_RUN_EVENT_TYPE_CANCELLED'
     STEP_RUN_EVENT_TYPE_TIMED_OUT = 'STEP_RUN_EVENT_TYPE_TIMED_OUT'
 
+class WorkflowRunEventType:
+    WORKFLOW_RUN_EVENT_TYPE_STARTED = 'WORKFLOW_RUN_EVENT_TYPE_STARTED'
+    WORKFLOW_RUN_EVENT_TYPE_COMPLETED = 'WORKFLOW_RUN_EVENT_TYPE_COMPLETED'
+    WORKFLOW_RUN_EVENT_TYPE_FAILED = 'WORKFLOW_RUN_EVENT_TYPE_FAILED'
+    WORKFLOW_RUN_EVENT_TYPE_CANCELLED = 'WORKFLOW_RUN_EVENT_TYPE_CANCELLED'
+    WORKFLOW_RUN_EVENT_TYPE_TIMED_OUT = 'WORKFLOW_RUN_EVENT_TYPE_TIMED_OUT'
 
-event_type_mapping = {
+step_run_event_type_mapping = {
     ResourceEventType.RESOURCE_EVENT_TYPE_STARTED: StepRunEventType.STEP_RUN_EVENT_TYPE_STARTED,
     ResourceEventType.RESOURCE_EVENT_TYPE_COMPLETED: StepRunEventType.STEP_RUN_EVENT_TYPE_COMPLETED,
     ResourceEventType.RESOURCE_EVENT_TYPE_FAILED: StepRunEventType.STEP_RUN_EVENT_TYPE_FAILED,
@@ -29,6 +35,13 @@ event_type_mapping = {
     ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT: StepRunEventType.STEP_RUN_EVENT_TYPE_TIMED_OUT,
 }
 
+workflow_run_event_type_mapping = {
+    ResourceEventType.RESOURCE_EVENT_TYPE_STARTED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_STARTED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_COMPLETED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_COMPLETED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_FAILED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FAILED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_CANCELLED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_CANCELLED,
+    ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_TIMED_OUT,
+}
 
 class StepRunEvent:
     def __init__(self, type: StepRunEventType, payload: str):
@@ -65,35 +78,49 @@ class HatchetListener:
 
             try:
                 for workflow_event in listener:
-                    print('workflow_event:', workflow_event)
                     eventType = None
 
-                    if workflow_event.eventType in event_type_mapping:
-                        eventType = event_type_mapping[workflow_event.eventType]
-                    else:
-                        raise Exception(
-                            f"Unknown event type: {workflow_event.eventType}")
+                    if workflow_event.resourceType == RESOURCE_TYPE_STEP_RUN:
+                        if workflow_event.eventType in step_run_event_type_mapping:
+                            eventType = step_run_event_type_mapping[workflow_event.eventType]
+                        else:
+                            raise Exception(
+                                f"Unknown event type: {workflow_event.eventType}")
+                        payload = None
+                        if workflow_event.eventPayload:
+                            payload = json.loads(workflow_event.eventPayload)
 
-                    payload = None
-                    if workflow_event.eventPayload:
-                        payload = json.loads(workflow_event.eventPayload)
+                        # call the handler
+                        event = StepRunEvent(type=eventType, payload=payload)
+                        yield event
 
-                    # call the handler
-                    event = StepRunEvent(
-                        type=eventType, payload=payload, workflowRunId=self.workflow_run_id)
-                    yield event
+                        # stop the listener if the stop event is received
+                        if eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_FAILED or eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_CANCELLED or eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_TIMED_OUT:
+                            listener = None
+                            print('failure stopping listener...')
+                            break
 
-                    # stop the listener if the stop event is received
-                    if eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_FAILED or eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_CANCELLED or eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_TIMED_OUT:
+                        if payload and stop_step and stop_step in payload and eventType != StepRunEventType.STEP_RUN_EVENT_TYPE_STARTED:
+                            listener = None
+                            print('stopping listener...')
+                            break
+                    elif workflow_event.resourceType == RESOURCE_TYPE_WORKFLOW_RUN:
+                        if workflow_event.eventType in workflow_run_event_type_mapping:
+                            eventType = workflow_run_event_type_mapping[workflow_event.eventType]
+                        else:
+                            raise Exception(
+                                f"Unknown event type: {workflow_event.eventType}")
+                        
+                        payload = None
+                        if workflow_event.eventPayload:
+                            payload = json.loads(workflow_event.eventPayload)
+
+                        # TODO: eventually call a handler here
+                        
+                    if workflow_event.hangup:
                         listener = None
-                        print('failure stopping listener...')
+                        print('hangup stopping listener...')
                         break
-
-                    if payload and stop_step and stop_step in payload and eventType != StepRunEventType.STEP_RUN_EVENT_TYPE_STARTED:
-                        listener = None
-                        print('stopping listener...')
-                        break
-                    # TODO the stream is closed
 
             except grpc.RpcError as e:
                 # Handle different types of errors
