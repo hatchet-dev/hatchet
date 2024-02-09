@@ -23,8 +23,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepRunPlayground } from './components/step-run-playground';
 
 export default function ExpandedWorkflowRun() {
-  const [expandedStepRuns, setExpandedStepRuns] = useState<string[]>([]);
-
   const [selectedStepRun, setSelectedStepRun] = useState<StepRun | undefined>();
 
   const { tenant } = useOutletContext<TenantContextType>();
@@ -104,7 +102,6 @@ export default function ExpandedWorkflowRun() {
             workflowRun={run}
             selectedStepRun={selectedStepRun}
             setSelectedStepRun={(step) => {
-              console.log(step);
               setSelectedStepRun(
                 step.stepId === selectedStepRun?.stepId ? undefined : step,
               );
@@ -148,26 +145,17 @@ export default function ExpandedWorkflowRun() {
                               kind: 'step',
                               isExpandable: true,
                               onClick: () => {
-                                if (
-                                  expandedStepRuns.includes(stepRun.metadata.id)
-                                ) {
-                                  setExpandedStepRuns(
-                                    expandedStepRuns.filter(
-                                      (id) => id != stepRun.metadata.id,
-                                    ),
-                                  );
-                                } else {
-                                  setExpandedStepRuns([
-                                    ...expandedStepRuns,
-                                    stepRun.metadata.id,
-                                  ]);
-                                }
+                                setSelectedStepRun(
+                                  stepRun.stepId === selectedStepRun?.stepId
+                                    ? undefined
+                                    : stepRun,
+                                );
                               },
                               ...stepRun,
                             },
                           ];
 
-                          if (expandedStepRuns.includes(stepRun.metadata.id)) {
+                          if (selectedStepRun?.stepId == stepRun.stepId) {
                             res.push({
                               kind: 'step',
                               isExpandable: false,
