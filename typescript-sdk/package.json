@@ -35,7 +35,8 @@
     "event:concurrency": "npm run exec -- ./examples/concurrency/concurrency-event.ts",
     "api": "npm run exec -- ./examples/api.ts",
     "prepublish": "cp package.json dist/package.json;",
-    "publish:ci": "rm -rf ./dist && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks"
+    "publish:ci": "rm -rf ./dist && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks",
+    "generate-docs": "typedoc"
   },
   "keywords": [],
   "author": "",
@@ -43,6 +44,7 @@
   "devDependencies": {
     "@types/node": "^20.11.16",
     "@types/jest": "^29.5.11",
+    "@types/node": "^20.11.16",
     "@typescript-eslint/eslint-plugin": "^6.4.0",
     "autoprefixer": "^10.4.16",
     "dotenv-cli": "^7.3.0",
@@ -64,6 +66,8 @@
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2",
     "ts-proto": "^1.167.0",
+    "typedoc": "^0.25.7",
+    "typedoc-plugin-markdown": "^3.17.1",
     "typescript": "^5.3.3"
   },
   "dependencies": {

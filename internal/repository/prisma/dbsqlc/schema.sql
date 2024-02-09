@@ -167,6 +167,7 @@ CREATE TABLE "Step" (
     "jobId" UUID NOT NULL,
     "actionId" TEXT NOT NULL,
     "timeout" TEXT,
+    "customUserData" JSONB,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );

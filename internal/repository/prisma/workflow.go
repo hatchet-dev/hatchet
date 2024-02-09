@@ -561,11 +561,16 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pg
 			stepId := uuid.New().String()
 
 			var (
-				timeout string
+				timeout        string
+				customUserData []byte
 			)
 
 			if stepOpts.Timeout != nil {
 				timeout = *stepOpts.Timeout
+			}
+
+			if stepOpts.UserData != nil {
+				customUserData = []byte(*stepOpts.UserData)
 			}
 
 			// upsert the action
@@ -586,12 +591,13 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pg
 				context.Background(),
 				tx,
 				dbsqlc.CreateStepParams{
-					ID:         sqlchelpers.UUIDFromStr(stepId),
-					Tenantid:   tenantId,
-					Jobid:      sqlchelpers.UUIDFromStr(jobId),
-					Actionid:   stepOpts.Action,
-					Timeout:    timeout,
-					Readableid: stepOpts.ReadableId,
+					ID:             sqlchelpers.UUIDFromStr(stepId),
+					Tenantid:       tenantId,
+					Jobid:          sqlchelpers.UUIDFromStr(jobId),
+					Actionid:       stepOpts.Action,
+					Timeout:        timeout,
+					Readableid:     stepOpts.ReadableId,
+					CustomUserData: customUserData,
 				},
 			)
 
