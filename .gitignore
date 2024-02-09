@@ -24,6 +24,7 @@ dump.rdb
 *.pfx
 *.cert
 .next
+.venv
 
 node_modules
 

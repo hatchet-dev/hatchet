@@ -183,17 +183,19 @@ class SubscribeToWorkflowEventsRequest(_message.Message):
     def __init__(self, workflowRunId: _Optional[str] = ...) -> None: ...
 
 class WorkflowEvent(_message.Message):
-    __slots__ = ("workflowRunId", "resourceType", "eventType", "resourceId", "eventTimestamp", "eventPayload")
+    __slots__ = ("workflowRunId", "resourceType", "eventType", "resourceId", "eventTimestamp", "eventPayload", "hangup")
     WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
     RESOURCETYPE_FIELD_NUMBER: _ClassVar[int]
     EVENTTYPE_FIELD_NUMBER: _ClassVar[int]
     RESOURCEID_FIELD_NUMBER: _ClassVar[int]
     EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     EVENTPAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    HANGUP_FIELD_NUMBER: _ClassVar[int]
     workflowRunId: str
     resourceType: ResourceType
     eventType: ResourceEventType
     resourceId: str
     eventTimestamp: _timestamp_pb2.Timestamp
     eventPayload: str
-    def __init__(self, workflowRunId: _Optional[str] = ..., resourceType: _Optional[_Union[ResourceType, str]] = ..., eventType: _Optional[_Union[ResourceEventType, str]] = ..., resourceId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventPayload: _Optional[str] = ...) -> None: ...
+    hangup: bool
+    def __init__(self, workflowRunId: _Optional[str] = ..., resourceType: _Optional[_Union[ResourceType, str]] = ..., eventType: _Optional[_Union[ResourceEventType, str]] = ..., resourceId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventPayload: _Optional[str] = ..., hangup: bool = ...) -> None: ...
