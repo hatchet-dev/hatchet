@@ -6,7 +6,7 @@ load_dotenv()
 hatchet = Hatchet(debug=True)
 
 
-@hatchet.workflow(on_events=["user:create"])
+@hatchet.workflow(on_events=["man:create"])
 class ManualTriggerWorkflow:
     @hatchet.step()
     def step1(self, context):
@@ -22,7 +22,7 @@ class ManualTriggerWorkflow:
 
 
 workflow = ManualTriggerWorkflow()
-worker = hatchet.worker('test-worker', max_threads=4)
+worker = hatchet.worker('manual-worker', max_threads=4)
 worker.register_workflow(workflow)
 
 worker.start()

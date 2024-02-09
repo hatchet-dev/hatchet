@@ -43,17 +43,29 @@ def new_listener(conn, config: ClientConfig):
     )
 
 
-class ListenerClientImpl:
-    def __init__(self, client: DispatcherStub, token):
+class HatchetListener:
+    def __init__(self, client: DispatcherStub, workflow_run_id: str, token: str):
         self.client = client
+        self.stop_signal = False
+        self.workflow_run_id = workflow_run_id
         self.token = token
 
-    async def generator(self, workflowRunId: str) -> List[StepRunEvent]:
-        listener = self.retry_subscribe(workflowRunId)
+    def __iter__(self):
+        return self._generator()
 
-        while True:
+    def abort(self):
+        self.stop_signal = True
+
+    def _generator(self, stop_step: str = None) -> List[StepRunEvent]:
+        listener = self.retry_subscribe()
+        while listener:
+            if self.stop_signal:
+                listener = None
+                break
+
             try:
                 for workflow_event in listener:
+                    print('workflow_event:', workflow_event)
                     eventType = None
 
                     if workflow_event.eventType in event_type_mapping:
@@ -67,8 +79,21 @@ class ListenerClientImpl:
                         payload = json.loads(workflow_event.eventPayload)
 
                     # call the handler
-                    event = StepRunEvent(type=eventType, payload=payload)
+                    event = StepRunEvent(
+                        type=eventType, payload=payload, workflowRunId=self.workflow_run_id)
                     yield event
+
+                    # stop the listener if the stop event is received
+                    if eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_FAILED or eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_CANCELLED or eventType == StepRunEventType.STEP_RUN_EVENT_TYPE_TIMED_OUT:
+                        listener = None
+                        print('failure stopping listener...')
+                        break
+
+                    if payload and stop_step and stop_step in payload and eventType != StepRunEventType.STEP_RUN_EVENT_TYPE_STARTED:
+                        listener = None
+                        print('stopping listener...')
+                        break
+                    # TODO the stream is closed
 
             except grpc.RpcError as e:
                 # Handle different types of errors
@@ -78,7 +103,7 @@ class ListenerClientImpl:
                 elif e.code() == grpc.StatusCode.UNAVAILABLE:
                     # Retry logic
                     # logger.info("Could not connect to Hatchet, retrying...")
-                    listener = self.retry_subscribe(workflowRunId)
+                    listener = self.retry_subscribe()
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                     # logger.info("Deadline exceeded, retrying subscription")
                     continue
@@ -87,13 +112,7 @@ class ListenerClientImpl:
                     # logger.error(f"Failed to receive message: {e}")
                     break
 
-    def on(self, workflowRunId: str, handler: callable = None):
-        for event in self.generator(workflowRunId):
-            # call the handler if provided
-            if handler:
-                handler(event)
-
-    def retry_subscribe(self, workflowRunId: str):
+    def retry_subscribe(self):
         retries = 0
 
         while retries < DEFAULT_ACTION_LISTENER_RETRY_COUNT:
@@ -103,7 +122,7 @@ class ListenerClientImpl:
 
                 listener = self.client.SubscribeToWorkflowEvents(
                     SubscribeToWorkflowEventsRequest(
-                        workflowRunId=workflowRunId,
+                        workflowRunId=self.workflow_run_id,
                     ), metadata=get_metadata(self.token))
                 return listener
             except grpc.RpcError as e:
@@ -111,3 +130,18 @@ class ListenerClientImpl:
                     retries = retries + 1
                 else:
                     raise ValueError(f"gRPC error: {e}")
+
+
+class ListenerClientImpl:
+    def __init__(self, client: DispatcherStub, token: str):
+        self.client = client
+        self.token = token
+
+    def stream(self, workflow_run_id: str):
+        return HatchetListener(self.client, workflow_run_id, self.token)
+
+    def on(self, workflow_run_id: str, handler: callable = None):
+        for event in self.stream(workflow_run_id):
+            # call the handler if provided
+            if handler:
+                handler(event)
