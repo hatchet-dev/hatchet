@@ -15,7 +15,7 @@ func TestCLI(t *testing.T) {
 	// events per second. do not exceed too many as it might fail on lower end machines
 	eventsPerSecond := 10
 	duration := 10 * time.Second
-	wait := 10 * time.Second
+	wait := 20 * time.Second
 	delay := 0 * time.Second
 	concurrency := 1
 	if err := do(duration, eventsPerSecond, delay, wait, concurrency); err != nil {

@@ -39,7 +39,7 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration) int6
 				go func(id int64) {
 					ev := Event{CreatedAt: time.Now(), ID: id}
 					fmt.Println("pushed event", ev.ID)
-					err = c.Event().Push(context.Background(), "test:event", ev)
+					err = c.Event().Push(context.Background(), "load-test:event", ev)
 					if err != nil {
 						panic(fmt.Errorf("error pushing event: %w", err))
 					}

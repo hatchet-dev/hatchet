@@ -44,10 +44,10 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 	var executed []int64
 
 	err = w.On(
-		worker.Event("test:event"),
+		worker.Event("load-test:event"),
 		&worker.WorkflowJob{
-			Name:        "scheduled-workflow",
-			Description: "This runs at a scheduled time.",
+			Name:        "load-test",
+			Description: "Load testing",
 			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency)).LimitStrategy(types.CancelInProgress),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
