@@ -32,18 +32,30 @@ func do(duration time.Duration, eventsPerSecond int, delay, wait time.Duration, 
 
 	time.Sleep(after)
 
-	emitted := emit(ctx, eventsPerSecond, duration)
+	scheduled := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*2)
+	emitted := emit(ctx, eventsPerSecond, duration, scheduled)
 	executed := <-ch
 	uniques := <-ch
 
-	var total time.Duration
-	for i := 0; i < int(executed); i++ {
-		total += <-durations
-	}
-	durationPerEvent := total / time.Duration(executed)
-	log.Printf("ℹ️ average duration per event: %s", durationPerEvent)
-
 	log.Printf("ℹ️ emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, eventsPerSecond)
+
+	if executed == 0 {
+		return fmt.Errorf("❌ no events executed")
+	}
+
+	var totalDurationExecuted time.Duration
+	for i := 0; i < int(executed); i++ {
+		totalDurationExecuted += <-durations
+	}
+	durationPerEventExecuted := totalDurationExecuted / time.Duration(executed)
+	log.Printf("ℹ️ average duration per executed event: %s", durationPerEventExecuted)
+
+	var totalDurationScheduled time.Duration
+	for i := 0; i < int(emitted); i++ {
+		totalDurationScheduled += <-scheduled
+	}
+	scheduleTimePerEvent := totalDurationScheduled / time.Duration(emitted)
+	log.Printf("ℹ️ average scheduling time per event: %s", scheduleTimePerEvent)
 
 	// num goroutines
 	log.Printf("ℹ️ num goroutines: %d", runtime.NumGoroutine())

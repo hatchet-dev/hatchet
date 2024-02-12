@@ -15,7 +15,7 @@ type Event struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func emit(ctx context.Context, amountPerSecond int, duration time.Duration) int64 {
+func emit(ctx context.Context, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration) int64 {
 	c, err := client.New()
 
 	if err != nil {
@@ -44,6 +44,9 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration) int6
 					if err != nil {
 						panic(fmt.Errorf("error pushing event: %w", err))
 					}
+					took := time.Since(ev.CreatedAt)
+					fmt.Println("pushed event", ev.ID, "took", took)
+					scheduled <- took
 				}(id)
 			case <-timer:
 				log.Println("done emitting events due to timer at", id)
