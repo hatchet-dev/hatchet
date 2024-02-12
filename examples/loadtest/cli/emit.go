@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -27,7 +28,7 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration) int6
 		ticker := time.NewTicker(time.Second / time.Duration(amountPerSecond))
 		defer ticker.Stop()
 
-		timer := time.After(duration + 10)
+		timer := time.After(duration)
 
 		for {
 			select {
@@ -45,8 +46,10 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration) int6
 					}
 				}(id)
 			case <-timer:
+				log.Println("done emitting events due to timer at", id)
 				return
 			case <-ctx.Done():
+				log.Println("done emitting events due to interruption at", id)
 				return
 			}
 		}
