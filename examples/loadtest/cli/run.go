@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -43,12 +42,17 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 	var uniques int64
 	var executed []int64
 
+	var concurrencyOpts *worker.WorkflowConcurrency
+	if concurrency > 0 {
+		concurrencyOpts = worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency))
+	}
+
 	err = w.On(
 		worker.Event("load-test:event"),
 		&worker.WorkflowJob{
 			Name:        "load-test",
 			Description: "Load testing",
-			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency)).LimitStrategy(types.CancelInProgress),
+			Concurrency: concurrencyOpts,
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					var input Event
