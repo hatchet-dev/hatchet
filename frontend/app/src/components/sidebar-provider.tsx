@@ -40,10 +40,8 @@ export function SidebarProvider({
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 768) {
-        console.log('open');
         setSidebarOpen('open');
       } else {
-        console.log('closed');
         setSidebarOpen('closed');
       }
     };
