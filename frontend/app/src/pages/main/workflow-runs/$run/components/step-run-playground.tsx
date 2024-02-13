@@ -1,4 +1,3 @@
-import { DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import api, { StepRun, StepRunStatus, queries } from '@/lib/api';
 import { useEffect, useState } from 'react';
 import { RunStatus } from '../../components/run-statuses';
@@ -12,13 +11,14 @@ import { TenantContextType } from '@/lib/outlet';
 import { PlayIcon } from '@radix-ui/react-icons';
 import { JsonForm } from '@/components/ui/json-form';
 import { StepRunOutput } from './step-run-output';
+import { StepRunInputs } from './step-run-inputs';
 
 export function StepRunPlayground({
   stepRun,
   setStepRun,
 }: {
-  stepRun: StepRun | null;
-  setStepRun: (stepRun: StepRun | null) => void;
+  stepRun: StepRun | undefined;
+  setStepRun: (stepRun: StepRun | undefined) => void;
 }) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
@@ -112,23 +112,12 @@ export function StepRunPlayground({
         <>
           <div className="flex flex-row gap-4 mt-4">
             <div className="flex-grow w-1/2">
-              <JsonForm
-                json={JSON.parse(input)}
+              <StepRunInputs
+                input={stepInput}
                 setInput={setStepInput}
-                onSubmit={handleOnPlay}
                 disabled={rerunStepMutation.isPending}
+                handleOnPlay={handleOnPlay}
               />
-              {/* <CodeEditor
-            language="json"
-            className="my-4"
-            height="400px"
-            code={JSON.stringify(JSON.parse(input), null, 2)}
-            setCode={(code: string | undefined) => {
-              if (onInputChanged && code) {
-                onInputChanged(code);
-              }
-            }}
-          /> */}
             </div>
             <div className="flex-grow flex-col flex gap-4 w-1/2">
               <div className="flex flex-row justify-between items-center">

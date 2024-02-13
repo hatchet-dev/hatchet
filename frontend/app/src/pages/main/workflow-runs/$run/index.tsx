@@ -120,7 +120,14 @@ export default function ExpandedWorkflowRun() {
             <TabsTrigger value="details">Run Details</TabsTrigger>
           </TabsList>
           <TabsContent value="playground">
-            <StepRunPlayground stepRun={run} />
+            {!selectedStepRun ? (
+              'Select a step to play with'
+            ) : (
+              <StepRunPlayground
+                stepRun={selectedStepRun}
+                setStepRun={setSelectedStepRun}
+              />
+            )}
           </TabsContent>
           <TabsContent value="details">
             <DataTable
