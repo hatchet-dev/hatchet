@@ -17,7 +17,7 @@ import {
 } from '@hatchet/protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
 import sleep from '@hatchet/util/sleep';
-import { Context } from '../../step';
+import { Context, StepRunFunction } from '../../step';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
@@ -31,7 +31,7 @@ export class Worker {
   action_registry: ActionRegistry;
   listener: ActionListener | undefined;
   futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
-  contexts: Record<Action['stepRunId'], Context<any>> = {};
+  contexts: Record<Action['stepRunId'], Context<any, any>> = {};
 
   logger: Logger;
 
@@ -79,6 +79,7 @@ export class Worker {
               timeout: step.timeout || '60s',
               inputs: '{}',
               parents: step.parents ?? [],
+              userData: '{}',
             })),
           },
         ],
@@ -100,6 +101,10 @@ export class Worker {
       : {
           ...this.action_registry,
         };
+  }
+
+  registerAction<T, K>(actionId: string, action: StepRunFunction<T, K>) {
+    this.action_registry[actionId] = action;
   }
 
   handleStartStepRun(action: Action) {

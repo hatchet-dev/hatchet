@@ -58,6 +58,13 @@ func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
 
 var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
 
+type StepRunUpdateInfo struct {
+	JobRunFinalState      bool
+	WorkflowRunFinalState bool
+	WorkflowRunId         string
+	WorkflowRunStatus     string
+}
+
 type StepRunRepository interface {
 	// ListAllStepRuns returns a list of all step runs which match the given options.
 	ListAllStepRuns(opts *ListAllStepRunsOpts) ([]db.StepRunModel, error)
@@ -65,7 +72,7 @@ type StepRunRepository interface {
 	// ListStepRuns returns a list of step runs for a tenant which match the given options.
 	ListStepRuns(tenantId string, opts *ListStepRunsOpts) ([]db.StepRunModel, error)
 
-	UpdateStepRun(tenantId, stepRunId string, opts *UpdateStepRunOpts) (*db.StepRunModel, error)
+	UpdateStepRun(tenantId, stepRunId string, opts *UpdateStepRunOpts) (*db.StepRunModel, *StepRunUpdateInfo, error)
 
 	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
 

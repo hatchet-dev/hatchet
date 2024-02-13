@@ -15,8 +15,11 @@ import {
 import { Workflow } from '@hatchet/workflow';
 import { Worker } from '@clients/worker';
 import Logger from '@hatchet/util/logger/logger';
+import { AxiosRequestConfig } from 'axios';
 import { ClientConfig, ClientConfigSchema } from './client-config';
 import { ListenerClient } from '../listener/listener-client';
+import { Api } from '../rest/generated/Api';
+import api from '../rest';
 
 export interface HatchetClientOptions {
   config_path?: string;
@@ -54,11 +57,17 @@ export class HatchetClient {
   event: EventClient;
   dispatcher: DispatcherClient;
   admin: AdminClient;
+  api: Api;
   listener: ListenerClient;
+  tenantId: string;
 
   logger: Logger;
 
-  constructor(config?: Partial<ClientConfig>, options?: HatchetClientOptions) {
+  constructor(
+    config?: Partial<ClientConfig>,
+    options?: HatchetClientOptions,
+    axiosOpts?: AxiosRequestConfig
+  ) {
     // Initializes a new Client instance.
     // Loads config in the following order: config param > yaml file > env vars
 
@@ -88,9 +97,11 @@ export class HatchetClient {
 
     const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
 
+    this.tenantId = this.config.tenant_id;
+    this.api = api(this.config.api_url, this.config.token, axiosOpts);
     this.event = new EventClient(this.config, this.channel, clientFactory);
     this.dispatcher = new DispatcherClient(this.config, this.channel, clientFactory);
-    this.admin = new AdminClient(this.config, this.channel, clientFactory);
+    this.admin = new AdminClient(this.config, this.channel, clientFactory, this.api, this.tenantId);
     this.listener = new ListenerClient(this.config, this.channel, clientFactory);
 
     this.logger = new Logger('HatchetClient', this.config.log_level);
@@ -113,8 +124,12 @@ export class HatchetClient {
     );
   }
 
-  static init(config?: Partial<ClientConfig>, options?: HatchetClientOptions): HatchetClient {
-    return new HatchetClient(config, options);
+  static init(
+    config?: Partial<ClientConfig>,
+    options?: HatchetClientOptions,
+    axiosConfig?: AxiosRequestConfig
+  ): HatchetClient {
+    return new HatchetClient(config, options, axiosConfig);
   }
 
   async run(workflow: string | Workflow): Promise<Worker> {

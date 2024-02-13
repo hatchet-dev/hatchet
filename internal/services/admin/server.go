@@ -576,6 +576,10 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 				Timeout:    &stepCp.Timeout,
 				Parents:    stepCp.Parents,
 			}
+
+			if stepCp.UserData != "" {
+				steps[j].UserData = &stepCp.UserData
+			}
 		}
 
 		jobs[i] = repository.CreateWorkflowJobOpts{

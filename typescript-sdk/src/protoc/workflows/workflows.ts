@@ -102,6 +102,8 @@ export interface CreateWorkflowStepOpts {
   inputs: string;
   /** (optional) the step parents. if none are passed in, this is a root step */
   parents: string[];
+  /** (optional) the custom step user data, assuming string representation of JSON */
+  userData: string;
 }
 
 /** ListWorkflowsRequest is the request for ListWorkflows. */
@@ -661,7 +663,7 @@ export const CreateWorkflowJobOpts = {
 };
 
 function createBaseCreateWorkflowStepOpts(): CreateWorkflowStepOpts {
-  return { readableId: "", action: "", timeout: "", inputs: "", parents: [] };
+  return { readableId: "", action: "", timeout: "", inputs: "", parents: [], userData: "" };
 }
 
 export const CreateWorkflowStepOpts = {
@@ -680,6 +682,9 @@ export const CreateWorkflowStepOpts = {
     }
     for (const v of message.parents) {
       writer.uint32(42).string(v!);
+    }
+    if (message.userData !== "") {
+      writer.uint32(50).string(message.userData);
     }
     return writer;
   },
@@ -726,6 +731,13 @@ export const CreateWorkflowStepOpts = {
 
           message.parents.push(reader.string());
           continue;
+        case 6:
+          if (tag !== 50) {
+            break;
+          }
+
+          message.userData = reader.string();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -742,6 +754,7 @@ export const CreateWorkflowStepOpts = {
       timeout: isSet(object.timeout) ? globalThis.String(object.timeout) : "",
       inputs: isSet(object.inputs) ? globalThis.String(object.inputs) : "",
       parents: globalThis.Array.isArray(object?.parents) ? object.parents.map((e: any) => globalThis.String(e)) : [],
+      userData: isSet(object.userData) ? globalThis.String(object.userData) : "",
     };
   },
 
@@ -762,6 +775,9 @@ export const CreateWorkflowStepOpts = {
     if (message.parents?.length) {
       obj.parents = message.parents;
     }
+    if (message.userData !== "") {
+      obj.userData = message.userData;
+    }
     return obj;
   },
 
@@ -775,6 +791,7 @@ export const CreateWorkflowStepOpts = {
     message.timeout = object.timeout ?? "";
     message.inputs = object.inputs ?? "";
     message.parents = object.parents?.map((e) => e) || [];
+    message.userData = object.userData ?? "";
     return message;
   },
 };

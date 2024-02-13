@@ -23,8 +23,8 @@ dump.rdb
 *.csr
 *.pfx
 *.cert
-generated
 .next
+.venv
 
 node_modules
 

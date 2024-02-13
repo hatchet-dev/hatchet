@@ -59,6 +59,7 @@ message CreateWorkflowStepOpts {
     string timeout = 3; // (optional) the step timeout
     string inputs = 4; // (optional) the step inputs, assuming string representation of JSON
     repeated string parents = 5; // (optional) the step parents. if none are passed in, this is a root step
+    string user_data = 6; // (optional) the custom step user data, assuming string representation of JSON
 }
 
 // ListWorkflowsRequest is the request for ListWorkflows.

@@ -16,9 +16,13 @@ describe('AdminClient', () => {
           ca_file: 'TLS_ROOT_CA_FILE',
           server_name: 'TLS_SERVER_NAME',
         },
+        api_url: 'API_URL',
+        tenant_id: 'tenantId',
       },
       mockChannel,
-      mockFactory
+      mockFactory,
+      {} as any,
+      'tenantId'
     );
 
     expect(x).toBeDefined();
@@ -35,9 +39,13 @@ describe('AdminClient', () => {
           ca_file: 'TLS_ROOT_CA_FILE',
           server_name: 'TLS_SERVER_NAME',
         },
+        api_url: 'API_URL',
+        tenant_id: 'tenantId',
       },
       mockChannel,
-      mockFactory
+      mockFactory,
+      {} as any,
+      'tenantId'
     );
   });
 

@@ -16,6 +16,8 @@ describe('EventClient', () => {
           ca_file: 'TLS_ROOT_CA_FILE',
           server_name: 'TLS_SERVER_NAME',
         },
+        api_url: 'API_URL',
+        tenant_id: 'tenantId',
       },
       mockChannel,
       mockFactory
@@ -35,6 +37,8 @@ describe('EventClient', () => {
           ca_file: 'TLS_ROOT_CA_FILE',
           server_name: 'TLS_SERVER_NAME',
         },
+        api_url: 'API_URL',
+        tenant_id: 'tenantId',
       },
       mockChannel,
       mockFactory
