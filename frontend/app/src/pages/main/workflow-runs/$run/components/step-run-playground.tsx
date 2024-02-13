@@ -94,6 +94,8 @@ export function StepRunPlayground({
 
   const output = stepRun?.output || '{}';
 
+  console.log(stepRun);
+
   const isLoading =
     stepRun?.status != 'SUCCEEDED' &&
     stepRun?.status != 'FAILED' &&
@@ -148,7 +150,9 @@ export function StepRunPlayground({
                 <StepRunOutput
                   output={output}
                   isLoading={isLoading}
-                  errors={errors}
+                  errors={
+                    [...errors, stepRun.error].filter((e) => !!e) as string[]
+                  }
                 />
               </div>
             </div>
