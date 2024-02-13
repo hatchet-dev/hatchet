@@ -9,8 +9,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 )
 
-func do(duration time.Duration, eventsPerSecond int, delay, wait time.Duration, concurrency int) error {
-	log.Printf("testing with duration=%s, eventsPerSecond=%d, wait=%s, concurrency=%d", duration, eventsPerSecond, wait, concurrency)
+func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int) error {
+	log.Printf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
 
 	ctx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
 	defer cancel()

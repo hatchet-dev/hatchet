@@ -62,7 +62,7 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 					}
 
 					took := time.Since(input.CreatedAt)
-					fmt.Println("running", input.ID, "took", took)
+					fmt.Println("executing", input.ID, "took", took)
 
 					mx.Lock()
 					executions <- took
