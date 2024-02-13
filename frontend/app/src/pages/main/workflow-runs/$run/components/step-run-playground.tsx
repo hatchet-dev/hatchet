@@ -9,7 +9,6 @@ import { cn } from '@/lib/utils';
 import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 import { PlayIcon } from '@radix-ui/react-icons';
-import { JsonForm } from '@/components/ui/json-form';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
 

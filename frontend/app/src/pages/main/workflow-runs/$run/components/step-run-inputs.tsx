@@ -1,6 +1,7 @@
 import { CodeEditor } from '@/components/ui/code-editor';
 import { JsonForm } from '@/components/ui/json-form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { VscNote, VscJson } from 'react-icons/vsc';
 
 export interface StepRunOutputProps {
   input: string;
@@ -17,9 +18,13 @@ export const StepRunInputs: React.FC<StepRunOutputProps> = ({
 }) => {
   return (
     <Tabs defaultValue="output" className="w-full">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="form">Form</TabsTrigger>
-        <TabsTrigger value="code">Code</TabsTrigger>
+      <TabsList className="grid w-1/3 grid-cols-2">
+        <TabsTrigger value="form" aria-label="Form Editor">
+          <VscNote />
+        </TabsTrigger>
+        <TabsTrigger value="json" aria-label="JSON Editor">
+          <VscJson />
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="form">
         <JsonForm
@@ -29,7 +34,7 @@ export const StepRunInputs: React.FC<StepRunOutputProps> = ({
           disabled={disabled}
         />
       </TabsContent>
-      <TabsContent value="code">
+      <TabsContent value="json">
         <CodeEditor
           language="json"
           className="my-4"
