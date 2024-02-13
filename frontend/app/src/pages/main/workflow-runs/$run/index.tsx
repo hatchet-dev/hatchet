@@ -5,12 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { Badge } from '@/components/ui/badge';
-import { relativeDate } from '@/lib/utils';
-import {
-  AdjustmentsHorizontalIcon,
-  BoltIcon,
-  Square3Stack3DIcon,
-} from '@heroicons/react/24/outline';
+import { relativeDate, timeBetween } from '@/lib/utils';
+import { ArrowLeftCircleIcon, BoltIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { JobRunColumns, columns } from './components/job-runs-columns';
@@ -22,10 +18,11 @@ import { CodeEditor } from '@/components/ui/code-editor';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import WorkflowRunVisualizer from './components/workflow-run-visualizer';
-import { StepInputOutputSection } from './components/step-run-input-output';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { StepRunPlayground } from './components/step-run-playground';
 
 export default function ExpandedWorkflowRun() {
-  const [expandedStepRuns, setExpandedStepRuns] = useState<string[]>([]);
+  const [selectedStepRun, setSelectedStepRun] = useState<StepRun | undefined>();
 
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
@@ -56,50 +53,59 @@ export default function ExpandedWorkflowRun() {
 
   return (
     <div className="flex-grow h-full w-full">
-      <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
-            <AdjustmentsHorizontalIcon className="h-6 w-6 text-foreground mt-1" />
-            <h2 className="text-2xl font-bold leading-tight text-foreground">
-              {run?.displayName || run?.metadata.id}
+            <h2 className="text-2xl font-bold leading-tight text-foreground flex flex-row items-center">
+              {run?.workflowVersion?.workflow && (
+                <Link
+                  to={`/workflows/${run?.workflowVersion?.workflow?.metadata.id}`}
+                >
+                  <Button
+                    variant="ghost"
+                    className="flex flex-row items-center text-2xl gap-2 text-foreground hover:bg-muted"
+                  >
+                    <ArrowLeftCircleIcon className="h-4 w-4" />
+                  </Button>
+                </Link>
+              )}
+              {run?.workflowVersion?.workflow?.name}-
+              {run?.displayName?.split('-')[1] || run?.metadata.id}/
+              {selectedStepRun?.step?.readableId || '*'}
             </h2>
-            <Badge className="text-sm mt-1" variant={'secondary'}>
-              {/* {workflow.versions && workflow.versions[0].version} */}
-              {run.status}
-            </Badge>
           </div>
         </div>
         <div className="flex flex-row justify-start items-center mt-4 gap-2">
-          {run?.workflowVersion?.workflow && (
-            <Link
-              to={`/workflows/${run?.workflowVersion?.workflow?.metadata.id}`}
-            >
-              <Button
-                variant="ghost"
-                className="flex flex-row items-center gap-2 text-sm text-foreground hover:bg-muted"
-              >
-                <Square3Stack3DIcon className="h-4 w-4" />
-                {run?.workflowVersion?.workflow?.name}
-              </Button>
-            </Link>
-          )}
           <div className="text-sm text-muted-foreground">
             Created {relativeDate(run?.metadata.createdAt)}
           </div>
           {run?.startedAt && (
             <div className="text-sm text-muted-foreground">
-              Started {relativeDate(run?.startedAt)}
+              Started {relativeDate(run.startedAt)}
             </div>
           )}
-          {run?.finishedAt && (
+          {run?.startedAt && run?.finishedAt && (
             <div className="text-sm text-muted-foreground">
-              Finished {relativeDate(run?.startedAt)}
+              Duration {timeBetween(run.startedAt, run.finishedAt)}
             </div>
           )}
+
+          <Badge className="text-sm mt-1" variant={'secondary'}>
+            {/* {workflow.versions && workflow.versions[0].version} */}
+            {run.status}
+          </Badge>
         </div>
         <Separator className="my-4" />
-        <div className="w-full h-[400px]">
-          <WorkflowRunVisualizer workflowRun={run} />
+        <div className="w-full h-[150px]">
+          <WorkflowRunVisualizer
+            workflowRun={run}
+            selectedStepRun={selectedStepRun}
+            setSelectedStepRun={(step) => {
+              setSelectedStepRun(
+                step.stepId === selectedStepRun?.stepId ? undefined : step,
+              );
+            }}
+          />
         </div>
         <Separator className="my-4" />
         {run.triggeredBy?.event && (
@@ -108,70 +114,79 @@ export default function ExpandedWorkflowRun() {
         {run.triggeredBy?.cronSchedule && (
           <TriggeringCronSection cron={run.triggeredBy.cronSchedule} />
         )}
-        <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-          Job Runs
-        </h3>
-        <DataTable
-          columns={columns}
-          data={
-            run.jobRuns
-              ?.map((jobRun): JobRunColumns[] => {
-                return [
-                  {
-                    kind: 'job',
-                    isExpandable: false,
-                    getRow: () => {
-                      return getJobRunRow({ jobRun, columns });
-                    },
-                    ...jobRun,
-                  },
-                  ...(jobRun.stepRuns
-                    ?.map((stepRun): JobRunColumns[] => {
-                      const res: JobRunColumns[] = [
-                        {
-                          kind: 'step',
-                          isExpandable: true,
-                          onClick: () => {
-                            if (
-                              expandedStepRuns.includes(stepRun.metadata.id)
-                            ) {
-                              setExpandedStepRuns(
-                                expandedStepRuns.filter(
-                                  (id) => id != stepRun.metadata.id,
-                                ),
-                              );
-                            } else {
-                              setExpandedStepRuns([
-                                ...expandedStepRuns,
-                                stepRun.metadata.id,
-                              ]);
-                            }
-                          },
-                          ...stepRun,
+        <Tabs defaultValue="playground" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="playground">Playground</TabsTrigger>
+            <TabsTrigger value="details">Run Details</TabsTrigger>
+          </TabsList>
+          <TabsContent value="playground">
+            {!selectedStepRun ? (
+              'Select a step to play with'
+            ) : (
+              <StepRunPlayground
+                stepRun={selectedStepRun}
+                setStepRun={setSelectedStepRun}
+              />
+            )}
+          </TabsContent>
+          <TabsContent value="details">
+            <DataTable
+              columns={columns}
+              data={
+                run.jobRuns
+                  ?.map((jobRun): JobRunColumns[] => {
+                    return [
+                      {
+                        kind: 'job',
+                        isExpandable: false,
+                        getRow: () => {
+                          return getJobRunRow({ jobRun, columns });
                         },
-                      ];
+                        ...jobRun,
+                      },
+                      ...(jobRun.stepRuns
+                        ?.map((stepRun): JobRunColumns[] => {
+                          const res: JobRunColumns[] = [
+                            {
+                              kind: 'step',
+                              isExpandable: true,
+                              onClick: () => {
+                                setSelectedStepRun(
+                                  stepRun.stepId === selectedStepRun?.stepId
+                                    ? undefined
+                                    : stepRun,
+                                );
+                              },
+                              ...stepRun,
+                            },
+                          ];
 
-                      if (expandedStepRuns.includes(stepRun.metadata.id)) {
-                        res.push({
-                          kind: 'step',
-                          isExpandable: false,
+                          if (selectedStepRun?.stepId == stepRun.stepId) {
+                            res.push({
+                              kind: 'step',
+                              isExpandable: false,
 
-                          getRow: () => {
-                            return getExpandedStepRunRow({ stepRun, columns });
-                          },
-                          ...stepRun,
-                        });
-                      }
+                              getRow: () => {
+                                return getExpandedStepRunRow({
+                                  stepRun,
+                                  columns,
+                                });
+                              },
+                              ...stepRun,
+                            });
+                          }
 
-                      return res;
-                    })
-                    .flat() || []),
-                ];
-              })
-              .flat() || []
-          }
-          filters={[]}
-        />
+                          return res;
+                        })
+                        .flat() || []),
+                    ];
+                  })
+                  .flat() || []
+              }
+              filters={[]}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
@@ -216,7 +231,6 @@ function getExpandedStepRunRow({
       <TableCell colSpan={columns.length} className="px-8 py-4">
         <StepStatusSection stepRun={stepRun} />
         <StepConfigurationSection stepRun={stepRun} />
-        <StepInputOutputSection stepRun={stepRun} />
       </TableCell>
     </TableRow>
   );

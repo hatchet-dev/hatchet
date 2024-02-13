@@ -287,11 +287,13 @@ func (ec *JobsControllerImpl) handleJobRunTimedOut(ctx context.Context, task *ta
 		now := time.Now().UTC()
 
 		// cancel current step run
-		stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, currStepRun.ID, &repository.UpdateStepRunOpts{
+		stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, currStepRun.ID, &repository.UpdateStepRunOpts{
 			CancelledAt:     &now,
 			CancelledReason: repository.StringPtr("JOB_RUN_TIMED_OUT"),
 			Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
 		})
+
+		defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 		if err != nil {
 			return fmt.Errorf("could not update step run: %w", err)
@@ -421,11 +423,13 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 
 			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
 			if scheduleTimeoutAt, ok := stepRunCp.ScheduleTimeoutAt(); ok && scheduleTimeoutAt.Before(now) {
-				_, err = ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunCp.ID, &repository.UpdateStepRunOpts{
+				stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunCp.ID, &repository.UpdateStepRunOpts{
 					CancelledAt:     &now,
 					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
 					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
 				})
+
+				defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 				if err != nil {
 					return fmt.Errorf("could not update step run %s: %w", stepRunCp.ID, err)
@@ -436,7 +440,7 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 
 			requeueAfter := time.Now().UTC().Add(time.Second * 5)
 
-			stepRun, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunCp.ID, &repository.UpdateStepRunOpts{
+			stepRun, _, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunCp.ID, &repository.UpdateStepRunOpts{
 				RequeueAfter: &requeueAfter,
 			})
 
@@ -680,10 +684,12 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ta
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	_, err = ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
+	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
 		StartedAt: &startedAt,
 		Status:    repository.StepRunStatusPtr(db.StepRunStatusRunning),
 	})
+
+	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	return err
 }
@@ -726,11 +732,13 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 		stepOutput = []byte(stepOutputStr)
 	}
 
-	stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
+	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
 		FinishedAt: &finishedAt,
 		Status:     repository.StepRunStatusPtr(db.StepRunStatusSucceeded),
 		Output:     stepOutput,
 	})
+
+	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
@@ -804,11 +812,13 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *tas
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	stepRun, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
+	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
 		FinishedAt: &failedAt,
 		Error:      &payload.Error,
 		Status:     repository.StepRunStatusPtr(db.StepRunStatusFailed),
 	})
+
+	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
@@ -885,11 +895,13 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	// cancel current step run
 	now := time.Now().UTC()
 
-	stepRun, err := ec.repo.StepRun().UpdateStepRun(tenantId, stepRunId, &repository.UpdateStepRunOpts{
+	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(tenantId, stepRunId, &repository.UpdateStepRunOpts{
 		CancelledAt:     &now,
 		CancelledReason: repository.StringPtr(reason),
 		Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
 	})
+
+	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
@@ -921,6 +933,20 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	}
 
 	return nil
+}
+
+func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *db.StepRunModel, updateInfo *repository.StepRunUpdateInfo) {
+	if updateInfo.WorkflowRunFinalState {
+		err := ec.tq.AddTask(
+			context.Background(),
+			taskqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunFinishedToTask(stepRun.TenantID, updateInfo.WorkflowRunId, updateInfo.WorkflowRunStatus),
+		)
+
+		if err != nil {
+			ec.l.Error().Err(err).Msg("could not add workflow run finished task to task queue")
+		}
+	}
 }
 
 func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *taskqueue.Task) error {

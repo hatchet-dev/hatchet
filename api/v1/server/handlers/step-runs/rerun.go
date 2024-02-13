@@ -63,7 +63,7 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 	}
 
 	// update step run
-	_, err = t.config.Repository.StepRun().UpdateStepRun(tenant.ID, stepRun.ID, &repository.UpdateStepRunOpts{
+	_, _, err = t.config.Repository.StepRun().UpdateStepRun(tenant.ID, stepRun.ID, &repository.UpdateStepRunOpts{
 		Input:   inputBytes,
 		Status:  repository.StepRunStatusPtr(db.StepRunStatusPending),
 		IsRerun: true,
