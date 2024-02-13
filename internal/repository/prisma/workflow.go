@@ -704,9 +704,44 @@ func (r *workflowRepository) GetWorkflowVersionById(tenantId, workflowVersionId 
 	).Exec(context.Background())
 }
 
+func (r *workflowRepository) UpsertWorkflowDeploymentConfig(workflowId string, opts *repository.UpsertWorkflowDeploymentConfigOpts) (*db.WorkflowDeploymentConfigModel, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	// upsert the deployment config
+	deploymentConfig, err := r.client.WorkflowDeploymentConfig.UpsertOne(
+		db.WorkflowDeploymentConfig.WorkflowID.Equals(workflowId),
+	).Create(
+		db.WorkflowDeploymentConfig.Workflow.Link(
+			db.Workflow.ID.Equals(workflowId),
+		),
+		db.WorkflowDeploymentConfig.GitRepoName.Set(opts.GitRepoName),
+		db.WorkflowDeploymentConfig.GitRepoOwner.Set(opts.GitRepoOwner),
+		db.WorkflowDeploymentConfig.GitRepoBranch.Set(opts.GitRepoBranch),
+		db.WorkflowDeploymentConfig.GithubAppInstallation.Link(
+			db.GithubAppInstallation.ID.Equals(opts.GithubAppInstallationId),
+		),
+	).Update(
+		db.WorkflowDeploymentConfig.GitRepoName.Set(opts.GitRepoName),
+		db.WorkflowDeploymentConfig.GitRepoOwner.Set(opts.GitRepoOwner),
+		db.WorkflowDeploymentConfig.GitRepoBranch.Set(opts.GitRepoBranch),
+		db.WorkflowDeploymentConfig.GithubAppInstallation.Link(
+			db.GithubAppInstallation.ID.Equals(opts.GithubAppInstallationId),
+		),
+	).Exec(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return deploymentConfig, nil
+}
+
 func defaultWorkflowPopulator() []db.WorkflowRelationWith {
 	return []db.WorkflowRelationWith{
 		db.Workflow.Tags.Fetch(),
+		db.Workflow.DeploymentConfig.Fetch(),
 		db.Workflow.Versions.Fetch().OrderBy(
 			db.WorkflowVersion.Order.Order(db.SortOrderDesc),
 		).With(

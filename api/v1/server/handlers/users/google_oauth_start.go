@@ -8,8 +8,8 @@ import (
 )
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
-func (u *UserService) UserUpdateOauthStart(ctx echo.Context, _ gen.UserUpdateOauthStartRequestObject) (gen.UserUpdateOauthStartResponseObject, error) {
-	state, err := authn.NewSessionHelpers(u.config).SaveOAuthState(ctx)
+func (u *UserService) UserUpdateGoogleOauthStart(ctx echo.Context, _ gen.UserUpdateGoogleOauthStartRequestObject) (gen.UserUpdateGoogleOauthStartResponseObject, error) {
+	state, err := authn.NewSessionHelpers(u.config).SaveOAuthState(ctx, "google")
 
 	if err != nil {
 		return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
@@ -17,8 +17,8 @@ func (u *UserService) UserUpdateOauthStart(ctx echo.Context, _ gen.UserUpdateOau
 
 	url := u.config.Auth.GoogleOAuthConfig.AuthCodeURL(state)
 
-	return gen.UserUpdateOauthStart302Response{
-		Headers: gen.UserUpdateOauthStart302ResponseHeaders{
+	return gen.UserUpdateGoogleOauthStart302Response{
+		Headers: gen.UserUpdateGoogleOauthStart302ResponseHeaders{
 			Location: url,
 		},
 	}, nil

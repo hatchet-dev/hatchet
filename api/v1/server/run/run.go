@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	apitokens "github.com/hatchet-dev/hatchet/api/v1/server/handlers/api-tokens"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
+	githubapp "github.com/hatchet-dev/hatchet/api/v1/server/handlers/github-app"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
@@ -33,18 +34,20 @@ type apiService struct {
 	*metadata.MetadataService
 	*apitokens.APITokenService
 	*stepruns.StepRunService
+	*githubapp.GithubAppService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
 	return &apiService{
-		UserService:     users.NewUserService(config),
-		TenantService:   tenants.NewTenantService(config),
-		EventService:    events.NewEventService(config),
-		WorkflowService: workflows.NewWorkflowService(config),
-		WorkerService:   workers.NewWorkerService(config),
-		MetadataService: metadata.NewMetadataService(config),
-		APITokenService: apitokens.NewAPITokenService(config),
-		StepRunService:  stepruns.NewStepRunService(config),
+		UserService:      users.NewUserService(config),
+		TenantService:    tenants.NewTenantService(config),
+		EventService:     events.NewEventService(config),
+		WorkflowService:  workflows.NewWorkflowService(config),
+		WorkerService:    workers.NewWorkerService(config),
+		MetadataService:  metadata.NewMetadataService(config),
+		APITokenService:  apitokens.NewAPITokenService(config),
+		StepRunService:   stepruns.NewStepRunService(config),
+		GithubAppService: githubapp.NewGithubAppService(config),
 	}
 }
 
@@ -158,6 +161,16 @@ func (t *APIServer) Run(ctx context.Context) error {
 		}
 
 		return worker, worker.TenantID, nil
+	})
+
+	populatorMW.RegisterGetter("gh-installation", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		ghInstallation, err := config.Repository.Github().ReadGithubAppInstallationByID(id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return ghInstallation, "", nil
 	})
 
 	authnMW := authn.NewAuthN(t.config)

@@ -19,6 +19,7 @@ import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/invites-columns';
 import { columns as membersColumns } from './components/members-columns';
 import { columns as apiTokensColumns } from './components/api-tokens-columns';
+import { columns as githubInstallationsColumns } from './components/github-installations-columns';
 import { UpdateInviteForm } from './components/update-invite-form';
 import { DeleteInviteForm } from './components/delete-invite-form';
 import { CreateTokenDialog } from './components/create-token-dialog';
@@ -39,6 +40,8 @@ export default function TenantSettings() {
         <InvitesList />
         <Separator className="my-4" />
         <TokensList />
+        <Separator className="my-4" />
+        <GithubInstallationsList />
       </div>
     </div>
   );
@@ -386,5 +389,34 @@ function RevokeToken({
         onCancel={() => setShowTokenRevoke(false)}
       />
     </Dialog>
+  );
+}
+
+function GithubInstallationsList() {
+  const listInstallationsQuery = useQuery({
+    ...queries.github.listInstallations,
+  });
+
+  const cols = githubInstallationsColumns();
+
+  return (
+    <div>
+      <div className="flex flex-row justify-between items-center">
+        <h3 className="text-xl font-semibold leading-tight text-foreground">
+          Github Accounts
+        </h3>
+        <a href="/api/v1/users/github/start">
+          <Button key="create-api-token">Link new account</Button>
+        </a>
+      </div>
+      <Separator className="my-4" />
+      <DataTable
+        isLoading={listInstallationsQuery.isLoading}
+        columns={cols}
+        data={listInstallationsQuery.data?.rows || []}
+        filters={[]}
+        getRowId={(row) => row.metadata.id}
+      />
+    </div>
   );
 }

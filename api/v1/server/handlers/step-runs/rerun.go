@@ -37,6 +37,12 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		), nil
 	}
 
+	err = t.config.Repository.StepRun().ArchiveStepRunResult(tenant.ID, stepRun.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not archive step run result: %w", err)
+	}
+
 	// make sure input can be marshalled and unmarshalled to input type
 	inputBytes, err := json.Marshal(request.Body.Input)
 

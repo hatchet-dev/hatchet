@@ -141,6 +141,20 @@ func (e *JobRunHasCycleError) Error() string {
 	return fmt.Sprintf("job %s has a cycle", e.JobName)
 }
 
+type UpsertWorkflowDeploymentConfigOpts struct {
+	// (required) the github app installation id
+	GithubAppInstallationId string `validate:"required,uuid"`
+
+	// (required) the github repository name
+	GitRepoName string `validate:"required"`
+
+	// (required) the github repository owner
+	GitRepoOwner string `validate:"required"`
+
+	// (required) the github repository branch
+	GitRepoBranch string `validate:"required"`
+}
+
 type WorkflowRepository interface {
 	// ListWorkflows returns all workflows for a given tenant.
 	ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
@@ -175,4 +189,6 @@ type WorkflowRepository interface {
 
 	// DeleteWorkflow deletes a workflow for a given tenant.
 	DeleteWorkflow(tenantId, workflowId string) (*db.WorkflowModel, error)
+
+	UpsertWorkflowDeploymentConfig(workflowId string, opts *UpsertWorkflowDeploymentConfigOpts) (*db.WorkflowDeploymentConfigModel, error)
 }

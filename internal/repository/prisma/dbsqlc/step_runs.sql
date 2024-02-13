@@ -91,10 +91,11 @@ RETURNING sr.*;
 
 -- name: UpdateStepRunOverridesData :one
 UPDATE
-    "StepRun" as sr
+    "StepRun" AS sr
 SET 
     "updatedAt" = CURRENT_TIMESTAMP,
-    "input" = jsonb_set("input", @fieldPath::text[], @jsonData::jsonb, true)
+    "input" = jsonb_set("input", @fieldPath::text[], @jsonData::jsonb, true),
+    "callerFiles" = jsonb_set("callerFiles", @overridesKey::text[], to_jsonb(@callerFile::text), true)
 WHERE
     sr."tenantId" = @tenantId::uuid AND
     sr."id" = @stepRunId::uuid
@@ -110,3 +111,57 @@ WHERE
     sr."tenantId" = @tenantId::uuid AND
     sr."id" = @stepRunId::uuid
 RETURNING "inputSchema";
+
+-- name: ArchiveStepRunResultFromStepRun :one
+WITH step_run_data AS (
+    SELECT
+        "id" AS step_run_id,
+        "createdAt",
+        "updatedAt",
+        "deletedAt",
+        "order",
+        "input",
+        "output",
+        "error",
+        "startedAt",
+        "finishedAt",
+        "timeoutAt",
+        "cancelledAt",
+        "cancelledReason",
+        "cancelledError"
+    FROM "StepRun"
+    WHERE "id" = @stepRunId::uuid AND "tenantId" = @tenantId::uuid
+)
+INSERT INTO "StepRunResultArchive" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "stepRunId",
+    "input",
+    "output",
+    "error",
+    "startedAt",
+    "finishedAt",
+    "timeoutAt",
+    "cancelledAt",
+    "cancelledReason",
+    "cancelledError"
+)
+SELECT
+    COALESCE(sqlc.arg('id')::uuid, gen_random_uuid()),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    step_run_data."deletedAt",
+    step_run_data.step_run_id,
+    step_run_data."input",
+    step_run_data."output",
+    step_run_data."error",
+    step_run_data."startedAt",
+    step_run_data."finishedAt",
+    step_run_data."timeoutAt",
+    step_run_data."cancelledAt",
+    step_run_data."cancelledReason",
+    step_run_data."cancelledError"
+FROM step_run_data
+RETURNING *;

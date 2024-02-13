@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/hatchet-dev/hatchet/internal/config/client"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/client/loader"
@@ -53,14 +54,27 @@ type ClientOpts struct {
 	initWorkflows bool
 }
 
-func defaultClientOpts() *ClientOpts {
-	// read from environment variables and hostname by default
+func defaultClientOpts(cf *client.ClientConfigFile) *ClientOpts {
+	var clientConfig *client.ClientConfig
+	var err error
+
 	configLoader := &loader.ConfigLoader{}
 
-	clientConfig, err := configLoader.LoadClientConfig()
+	if cf == nil {
+		// read from environment variables and hostname by default
 
-	if err != nil {
-		panic(err)
+		clientConfig, err = configLoader.LoadClientConfig()
+
+		if err != nil {
+			panic(err)
+		}
+
+	} else {
+		clientConfig, err = loader.GetClientConfigFromConfigFile(cf)
+
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	logger := logger.NewDefaultLogger("client")
@@ -85,6 +99,12 @@ func WithTenantId(tenantId string) ClientOpt {
 func WithHostPort(host string, port int) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.hostPort = fmt.Sprintf("%s:%d", host, port)
+	}
+}
+
+func WithToken(token string) ClientOpt {
+	return func(opts *ClientOpts) {
+		opts.token = token
 	}
 }
 
@@ -113,12 +133,26 @@ type sharedClientOpts struct {
 
 // New creates a new client instance.
 func New(fs ...ClientOpt) (Client, error) {
-	opts := defaultClientOpts()
+	opts := defaultClientOpts(nil)
 
 	for _, f := range fs {
 		f(opts)
 	}
 
+	return newFromOpts(opts)
+}
+
+func NewFromConfigFile(cf *client.ClientConfigFile, fs ...ClientOpt) (Client, error) {
+	opts := defaultClientOpts(cf)
+
+	for _, f := range fs {
+		f(opts)
+	}
+
+	return newFromOpts(opts)
+}
+
+func newFromOpts(opts *ClientOpts) (Client, error) {
 	// if no TLS, exit
 	if opts.tls == nil {
 		return nil, fmt.Errorf("tls config is required")

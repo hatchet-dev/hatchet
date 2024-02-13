@@ -16,6 +16,7 @@ import {
   AcceptInviteRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
+  CreatePullRequestFromStepRun,
   CreateTenantInviteRequest,
   CreateTenantRequest,
   EventData,
@@ -25,7 +26,11 @@ import {
   EventOrderByDirection,
   EventOrderByField,
   EventSearch,
+  LinkGithubRepositoryRequest,
   ListAPITokensResponse,
+  ListGithubAppInstallationsResponse,
+  ListGithubBranchesResponse,
+  ListGithubReposResponse,
   RejectInviteRequest,
   ReplayEventRequest,
   RerunStepRunRequest,
@@ -89,11 +94,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description Starts the OAuth flow
    *
    * @tags User
-   * @name UserUpdateOauthStart
+   * @name UserUpdateGoogleOauthStart
    * @summary Start OAuth flow
    * @request GET:/api/v1/users/google/start
    */
-  userUpdateOauthStart = (params: RequestParams = {}) =>
+  userUpdateGoogleOauthStart = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/google/start`,
       method: "GET",
@@ -103,14 +108,74 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description Completes the OAuth flow
    *
    * @tags User
-   * @name UserUpdateOauthCallback
+   * @name UserUpdateGoogleOauthCallback
    * @summary Complete OAuth flow
    * @request GET:/api/v1/users/google/callback
    */
-  userUpdateOauthCallback = (params: RequestParams = {}) =>
+  userUpdateGoogleOauthCallback = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/google/callback`,
       method: "GET",
+      ...params,
+    });
+  /**
+   * @description Starts the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateGithubOauthStart
+   * @summary Start OAuth flow
+   * @request GET:/api/v1/users/github/start
+   * @secure
+   */
+  userUpdateGithubOauthStart = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/github/start`,
+      method: "GET",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description Completes the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateGithubOauthCallback
+   * @summary Complete OAuth flow
+   * @request GET:/api/v1/users/github/callback
+   * @secure
+   */
+  userUpdateGithubOauthCallback = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/github/callback`,
+      method: "GET",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description Github App global webhook
+   *
+   * @tags Github
+   * @name GithubUpdateGlobalWebhook
+   * @summary Github app global webhook
+   * @request POST:/api/v1/github/webhook
+   */
+  githubUpdateGlobalWebhook = (params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/github/webhook`,
+      method: "POST",
+      ...params,
+    });
+  /**
+   * @description Github App tenant webhook
+   *
+   * @tags Github
+   * @name GithubUpdateTenantWebhook
+   * @summary Github app tenant webhook
+   * @request POST:/api/v1/github/webhook/{webhook}
+   */
+  githubUpdateTenantWebhook = (webhook: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/github/webhook/${webhook}`,
+      method: "POST",
       ...params,
     });
   /**
@@ -621,6 +686,44 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Link a github repository to a workflow
+   *
+   * @tags Workflow
+   * @name WorkflowUpdateLinkGithub
+   * @summary Link github repository
+   * @request POST:/api/v1/workflows/{workflow}/link-github
+   * @secure
+   */
+  workflowUpdateLinkGithub = (workflow: string, data: LinkGithubRepositoryRequest, params: RequestParams = {}) =>
+    this.request<Workflow, APIErrors>({
+      path: `/api/v1/workflows/${workflow}/link-github`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a pull request for a workflow
+   *
+   * @tags Workflow
+   * @name StepRunUpdateCreatePr
+   * @summary Create pull request
+   * @request POST:/api/v1/step-runs/{step-run}/create-pr
+   * @secure
+   */
+  stepRunUpdateCreatePr = (stepRun: string, data: CreatePullRequestFromStepRun, params: RequestParams = {}) =>
+    this.request<CreatePullRequestFromStepRun, APIErrors>({
+      path: `/api/v1/step-runs/${stepRun}/create-pr`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Get all workflow runs for a tenant
    *
    * @tags Workflow
@@ -749,6 +852,62 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   workerGet = (worker: string, params: RequestParams = {}) =>
     this.request<Worker, APIErrors>({
       path: `/api/v1/workers/${worker}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List Github App installations
+   *
+   * @tags Github
+   * @name GithubAppListInstallations
+   * @summary List Github App installations
+   * @request GET:/api/v1/github-app/installations
+   * @secure
+   */
+  githubAppListInstallations = (params: RequestParams = {}) =>
+    this.request<ListGithubAppInstallationsResponse, APIErrors>({
+      path: `/api/v1/github-app/installations`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List Github App repositories
+   *
+   * @tags Github
+   * @name GithubAppListRepos
+   * @summary List Github App repositories
+   * @request GET:/api/v1/github-app/installations/{gh-installation}/repos
+   * @secure
+   */
+  githubAppListRepos = (ghInstallation: string, params: RequestParams = {}) =>
+    this.request<ListGithubReposResponse, APIErrors>({
+      path: `/api/v1/github-app/installations/${ghInstallation}/repos`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List Github App branches
+   *
+   * @tags Github
+   * @name GithubAppListBranches
+   * @summary List Github App branches
+   * @request GET:/api/v1/github-app/installations/{gh-installation}/repos/{gh-repo-owner}/{gh-repo-name}/branches
+   * @secure
+   */
+  githubAppListBranches = (
+    ghInstallation: string,
+    ghRepoOwner: string,
+    ghRepoName: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<ListGithubBranchesResponse, APIErrors>({
+      path: `/api/v1/github-app/installations/${ghInstallation}/repos/${ghRepoOwner}/${ghRepoName}/branches`,
       method: "GET",
       secure: true,
       format: "json",

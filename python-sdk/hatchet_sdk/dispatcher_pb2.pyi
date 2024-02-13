@@ -199,14 +199,16 @@ class WorkflowEvent(_message.Message):
     def __init__(self, workflowRunId: _Optional[str] = ..., resourceType: _Optional[_Union[ResourceType, str]] = ..., eventType: _Optional[_Union[ResourceEventType, str]] = ..., resourceId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventPayload: _Optional[str] = ...) -> None: ...
 
 class OverridesData(_message.Message):
-    __slots__ = ("stepRunId", "path", "value")
+    __slots__ = ("stepRunId", "path", "value", "callerFilename")
     STEPRUNID_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
+    CALLERFILENAME_FIELD_NUMBER: _ClassVar[int]
     stepRunId: str
     path: str
     value: str
-    def __init__(self, stepRunId: _Optional[str] = ..., path: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    callerFilename: str
+    def __init__(self, stepRunId: _Optional[str] = ..., path: _Optional[str] = ..., value: _Optional[str] = ..., callerFilename: _Optional[str] = ...) -> None: ...
 
 class OverridesDataResponse(_message.Message):
     __slots__ = ()

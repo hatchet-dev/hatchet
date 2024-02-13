@@ -18,8 +18,8 @@ import (
 )
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
-func (u *UserService) UserUpdateOauthCallback(ctx echo.Context, _ gen.UserUpdateOauthCallbackRequestObject) (gen.UserUpdateOauthCallbackResponseObject, error) {
-	isValid, _, err := authn.NewSessionHelpers(u.config).ValidateOAuthState(ctx)
+func (u *UserService) UserUpdateGoogleOauthCallback(ctx echo.Context, _ gen.UserUpdateGoogleOauthCallbackRequestObject) (gen.UserUpdateGoogleOauthCallbackResponseObject, error) {
+	isValid, _, err := authn.NewSessionHelpers(u.config).ValidateOAuthState(ctx, "google")
 
 	if err != nil || !isValid {
 		return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Could not log in. Please try again and make sure cookies are enabled.")
@@ -47,8 +47,8 @@ func (u *UserService) UserUpdateOauthCallback(ctx echo.Context, _ gen.UserUpdate
 		return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
 
-	return gen.UserUpdateOauthCallback302Response{
-		Headers: gen.UserUpdateOauthCallback302ResponseHeaders{
+	return gen.UserUpdateGoogleOauthCallback302Response{
+		Headers: gen.UserUpdateGoogleOauthCallback302ResponseHeaders{
 			Location: u.config.Runtime.ServerURL,
 		},
 	}, nil

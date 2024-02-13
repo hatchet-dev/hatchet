@@ -12,9 +12,11 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/shared"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
+	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
 type ServerConfigFile struct {
@@ -33,6 +35,8 @@ type ServerConfigFile struct {
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
 
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
+
+	VCS ConfigFileVCS `mapstructure:"vcs" json:"vcs,omitempty"`
 }
 
 // General server runtime options
@@ -116,6 +120,20 @@ type ConfigFileAuth struct {
 	Google ConfigFileAuthGoogle `mapstructure:"google" json:"google,omitempty"`
 }
 
+type ConfigFileVCS struct {
+	Github ConfigFileGithub `mapstructure:"github" json:"github,omitempty"`
+}
+
+type ConfigFileGithub struct {
+	Enabled                bool   `mapstructure:"enabled" json:"enabled"`
+	GithubAppClientID      string `mapstructure:"appClientID" json:"appClientID,omitempty"`
+	GithubAppClientSecret  string `mapstructure:"appClientSecret" json:"appClientSecret,omitempty"`
+	GithubAppName          string `mapstructure:"appName" json:"appName,omitempty"`
+	GithubAppWebhookSecret string `mapstructure:"appWebhookSecret" json:"appWebhookSecret,omitempty"`
+	GithubAppID            string `mapstructure:"appID" json:"appID,omitempty"`
+	GithubAppSecretPath    string `mapstructure:"appSecretPath" json:"appSecretPath,omitempty"`
+}
+
 type ConfigFileAuthGoogle struct {
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 
@@ -175,6 +193,10 @@ type ServerConfig struct {
 	Ingestor ingestor.Ingestor
 
 	OpenTelemetry shared.OpenTelemetryConfigFile
+
+	VCSProviders map[vcs.VCSRepositoryKind]vcs.VCSProvider
+
+	InternalClient client.Client
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -242,4 +264,14 @@ func BindAllEnv(v *viper.Viper) {
 	// otel options
 	_ = v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
+
+	// vcs options
+	v.BindEnv("vcs.kind", "SERVER_VCS_KIND")
+	v.BindEnv("vcs.github.enabled", "SERVER_VCS_GITHUB_ENABLED")
+	v.BindEnv("vcs.github.appClientID", "SERVER_VCS_GITHUB_APP_CLIENT_ID")
+	v.BindEnv("vcs.github.appClientSecret", "SERVER_VCS_GITHUB_APP_CLIENT_SECRET")
+	v.BindEnv("vcs.github.appName", "SERVER_VCS_GITHUB_APP_NAME")
+	v.BindEnv("vcs.github.appWebhookSecret", "SERVER_VCS_GITHUB_APP_WEBHOOK_SECRET")
+	v.BindEnv("vcs.github.appID", "SERVER_VCS_GITHUB_APP_ID")
+	v.BindEnv("vcs.github.appSecretPath", "SERVER_VCS_GITHUB_APP_SECRET_PATH")
 }

@@ -33,7 +33,8 @@ model User {
   // the user sessions
   sessions UserSession[]
 
-  memberships TenantMember[]
+  memberships     TenantMember[]
+  githubAppOAuths GithubAppOAuth[]
 }
 
 model UserOAuth {
@@ -101,24 +102,29 @@ model Tenant {
   name String
   slug String @unique
 
-  events              Event[]
-  workflows           Workflow[]
-  jobs                Job[]
-  steps               Step[]
-  triggers            WorkflowTriggers[]
-  workflowRuns        WorkflowRun[]
-  workflowRunTriggers WorkflowRunTriggeredBy[]
-  jobRuns             JobRun[]
-  jobRunLookupDatas   JobRunLookupData[]
-  stepRuns            StepRun[]
-  workers             Worker[]
-  members             TenantMember[]
-  workflowTags        WorkflowTag[]
-  actions             Action[]
-  services            Service[]
-  invites             TenantInviteLink[]
-  apiTokens           APIToken[]
-  groupKeyRuns        GetGroupKeyRun[]
+  events                    Event[]
+  workflows                 Workflow[]
+  jobs                      Job[]
+  steps                     Step[]
+  triggers                  WorkflowTriggers[]
+  workflowRuns              WorkflowRun[]
+  workflowRunTriggers       WorkflowRunTriggeredBy[]
+  jobRuns                   JobRun[]
+  jobRunLookupDatas         JobRunLookupData[]
+  stepRuns                  StepRun[]
+  workers                   Worker[]
+  members                   TenantMember[]
+  workflowTags              WorkflowTag[]
+  actions                   Action[]
+  services                  Service[]
+  invites                   TenantInviteLink[]
+  apiTokens                 APIToken[]
+  groupKeyRuns              GetGroupKeyRun[]
+  vcsProviders              TenantVcsProvider[]
+  githubAppInstallations    GithubAppInstallation[]
+  githubPullRequests        GithubPullRequest[]
+  githubPullRequestComments GithubPullRequestComment[]
+  githubWebhooks            GithubWebhook[]
 }
 
 enum TenantMemberRole {
@@ -263,10 +269,31 @@ model Workflow {
   versions WorkflowVersion[]
 
   // the tags for this workflow
-  tags WorkflowTag[]
+  tags             WorkflowTag[]
+  deploymentConfig WorkflowDeploymentConfig?
 
   // workflow names are unique per tenant
   @@unique([tenantId, name])
+}
+
+model WorkflowDeploymentConfig {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the parent workflow
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workflowId String   @unique @db.Uuid
+
+  gitRepoName   String
+  gitRepoOwner  String
+  gitRepoBranch String
+
+  // Github-related deployment config
+  githubAppInstallation   GithubAppInstallation? @relation(fields: [githubAppInstallationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  githubAppInstallationId String?                @db.Uuid
 }
 
 model WorkflowVersion {
@@ -551,6 +578,11 @@ model WorkflowRun {
 
   // the run finished at
   finishedAt DateTime?
+
+  // (optional) the branch for the github repo
+  gitRepoBranch String?
+
+  pullRequests GithubPullRequest[]
 }
 
 model GetGroupKeyRun {
@@ -809,6 +841,54 @@ model StepRun {
 
   // errors while cancelling the run
   cancelledError String?
+
+  // a map of override values to caller files for the step run
+  callerFiles Json?
+
+  // the github branch that this is running on
+  gitRepoBranch String?
+
+  archivedResults StepRunResultArchive[]
+}
+
+model StepRunResultArchive {
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the parent step run
+  stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepRunId String  @db.Uuid
+
+  order Int @default(autoincrement()) @db.SmallInt
+
+  // the run input
+  input Json?
+
+  // the run output
+  output Json?
+
+  // the run error
+  error String?
+
+  // the run started at
+  startedAt DateTime?
+
+  // the run finished at
+  finishedAt DateTime?
+
+  // the run timeout at
+  timeoutAt DateTime?
+
+  // the run cancelled at
+  cancelledAt DateTime?
+
+  // the reason for why the run was cancelled
+  cancelledReason String?
+
+  // errors while cancelling the run
+  cancelledError String?
 }
 
 model Dispatcher {
@@ -908,4 +988,178 @@ model Service {
   workers Worker[]
 
   @@unique([tenantId, name])
+}
+
+enum VcsProvider {
+  GITHUB
+}
+
+model TenantVcsProvider {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  vcsProvider VcsProvider
+
+  // the provider name
+  ghInstallations GithubAppInstallation[]
+
+  // the provider's configuration
+  config Json?
+
+  @@unique([tenantId, vcsProvider])
+}
+
+model GithubAppInstallation {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the oauth id for the user that linked this installation
+  githubAppOAuth   GithubAppOAuth @relation(fields: [githubAppOAuthId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  githubAppOAuthId String         @db.Uuid
+
+  // the installation id
+  installationId Int
+  accountName    String
+  accountId      Int
+
+  // optionals
+  accountAvatarURL        String?
+  installationSettingsURL String?
+
+  // the installation's configuration
+  config Json?
+
+  webhooks            GithubWebhook[]
+  deploymentConfigs   WorkflowDeploymentConfig[]
+  Tenant              Tenant?                    @relation(fields: [tenantId], references: [id])
+  tenantId            String?                    @db.Uuid
+  TenantVcsProvider   TenantVcsProvider?         @relation(fields: [tenantVcsProviderId], references: [id])
+  tenantVcsProviderId String?                    @db.Uuid
+
+  @@unique([installationId, accountId])
+}
+
+model GithubAppOAuth {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the oauth provider's user id
+  githubUserID Int @unique
+
+  // a list of users this github account is linked to
+  users User[]
+
+  // a list of installations this github account is linked to
+  installations GithubAppInstallation[]
+
+  // the oauth provider's access token
+  accessToken Bytes @db.ByteA
+
+  // the oauth provider's refresh token
+  refreshToken Bytes? @db.ByteA
+
+  // the oauth provider's expiry time
+  expiresAt DateTime?
+}
+
+model GithubPullRequest {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // the repository owner
+  repositoryOwner String
+
+  // the repository name
+  repositoryName String
+
+  // the pull request id
+  pullRequestID Int
+
+  // the pull request title
+  pullRequestTitle String
+
+  // the pull request number
+  pullRequestNumber Int
+
+  // the pull request head branch
+  pullRequestHeadBranch String
+
+  // the pull request base branch
+  pullRequestBaseBranch String
+
+  // the pull request state
+  pullRequestState String
+
+  // the pull request comments
+  pullRequestComments GithubPullRequestComment[]
+  workflowRuns        WorkflowRun[]
+
+  @@unique([tenantId, repositoryOwner, repositoryName, pullRequestNumber])
+}
+
+model GithubPullRequestComment {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  pullRequest   GithubPullRequest @relation(fields: [pullRequestID], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  pullRequestID String            @db.Uuid
+
+  // the module id
+  moduleID String
+
+  // the comment id
+  commentID Int
+}
+
+model GithubWebhook {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // the repository owner
+  repositoryOwner String
+
+  // the repository name
+  repositoryName String
+
+  // the webhook signing secret
+  signingSecret Bytes @db.ByteA
+
+  // the webhook's installations
+  installations GithubAppInstallation[]
+
+  @@unique([tenantId, repositoryOwner, repositoryName])
 }

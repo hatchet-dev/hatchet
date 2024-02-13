@@ -28,6 +28,14 @@ paths:
     $ref: "./paths/user/user.yaml#/oauth-start-google"
   /api/v1/users/google/callback:
     $ref: "./paths/user/user.yaml#/oauth-callback-google"
+  /api/v1/users/github/start:
+    $ref: "./paths/user/user.yaml#/oauth-start-github"
+  /api/v1/users/github/callback:
+    $ref: "./paths/user/user.yaml#/oauth-callback-github"
+  /api/v1/github/webhook:
+    $ref: "./paths/github-app/github-app.yaml#/globalWebhook"
+  /api/v1/github/webhook/{webhook}:
+    $ref: "./paths/github-app/github-app.yaml#/tenantWebhook"
   /api/v1/users/current:
     $ref: "./paths/user/user.yaml#/current"
   /api/v1/users/register:
@@ -72,6 +80,10 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/triggerWorkflow"
   /api/v1/workflows/{workflow}/versions/definition:
     $ref: "./paths/workflow/workflow.yaml#/workflowVersionDefinition"
+  /api/v1/workflows/{workflow}/link-github:
+    $ref: "./paths/workflow/workflow.yaml#/linkGithub"
+  /api/v1/step-runs/{step-run}/create-pr:
+    $ref: "./paths/workflow/workflow.yaml#/createPullRequest"
   /api/v1/tenants/{tenant}/workflows/runs:
     $ref: "./paths/workflow/workflow.yaml#/workflowRuns"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}:
@@ -84,3 +96,9 @@ paths:
     $ref: "./paths/worker/worker.yaml#/withTenant"
   /api/v1/workers/{worker}:
     $ref: "./paths/worker/worker.yaml#/withWorker"
+  /api/v1/github-app/installations:
+    $ref: "./paths/github-app/github-app.yaml#/installations"
+  /api/v1/github-app/installations/{gh-installation}/repos:
+    $ref: "./paths/github-app/github-app.yaml#/repos"
+  /api/v1/github-app/installations/{gh-installation}/repos/{gh-repo-owner}/{gh-repo-name}/branches:
+    $ref: "./paths/github-app/github-app.yaml#/branches"

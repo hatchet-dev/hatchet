@@ -227,3 +227,10 @@ TriggerWorkflowRunRequest:
       type: object
   required:
     - input
+
+CreatePullRequestFromStepRun:
+  properties:
+    branchName:
+      type: string
+  required:
+    - branchName
