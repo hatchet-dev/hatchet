@@ -11,7 +11,6 @@ import 'reactflow/dist/style.css';
 import StepRunNode, { StepRunNodeProps } from './step-run-node';
 import { StepRun, StepRunStatus, WorkflowRun } from '@/lib/api';
 import dagre from 'dagre';
-import { StepRunPlayground } from './step-run-playground';
 import invariant from 'tiny-invariant';
 
 const initBgColor = '#050c1c';

@@ -92,7 +92,7 @@ export function StepRunPlayground({
     }
   }, [getStepRunQuery.data, setStepRun]);
 
-  const input = stepRun?.input || '{}';
+  // const input = stepRun?.input || '{}';
   const output = stepRun?.output || '{}';
 
   const isLoading =

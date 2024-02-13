@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { Badge } from '@/components/ui/badge';
-import { relativeDate, timeBetween, timeFrom } from '@/lib/utils';
+import { relativeDate, timeBetween } from '@/lib/utils';
 import { ArrowLeftCircleIcon, BoltIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/molecules/data-table/data-table';

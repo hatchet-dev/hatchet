@@ -31,7 +31,7 @@ import {
   Popover,
   PopoverContent,
 } from '@radix-ui/react-popover';
-import React, { useState } from 'react';
+import React from 'react';
 import {
   MembershipsContextType,
   UserContextType,

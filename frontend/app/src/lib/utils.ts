@@ -71,7 +71,7 @@ export function timeBetween(start: string | number, end: string | number) {
   }
 
   // Calculate difference
-  let difference = endUnixTime - startUnixTime;
+  const difference = endUnixTime - startUnixTime;
 
   console.log('difference', difference);
 

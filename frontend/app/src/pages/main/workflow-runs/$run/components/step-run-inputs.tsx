@@ -41,7 +41,9 @@ export const StepRunInputs: React.FC<StepRunOutputProps> = ({
           height="400px"
           code={JSON.stringify(JSON.parse(input), null, 2)}
           setCode={(code: string | undefined) => {
-            if (!code) return;
+            if (!code) {
+              return;
+            }
             setInput(code);
           }}
         />

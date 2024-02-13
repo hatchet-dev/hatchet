@@ -1,29 +1,15 @@
-import CopyToClipboard from './copy-to-clipboard';
 import { cn } from '@/lib/utils';
 import { RJSFSchema } from '@rjsf/utils';
 import validator from '@rjsf/validator-ajv8';
 import Form from '@rjsf/core';
-import { set } from 'react-hook-form';
 import { PlayIcon } from '@radix-ui/react-icons';
 import { Button } from './button';
-
-const schema: RJSFSchema = {
-  title: 'Todo',
-  type: 'object',
-  required: ['title'],
-  properties: {
-    title: { type: 'string', title: 'Title', default: 'A new task' },
-    done: { type: 'boolean', title: 'Done?', default: false },
-  },
-};
-
-const log = (type) => console.log.bind(console, type);
 
 type JSONPrimitive = string | number | boolean | null;
 type JSONType = { [key: string]: JSONType | JSONPrimitive };
 
 export function JsonForm({
-  json,
+  // json,
   className,
   setInput,
   disabled,
@@ -35,7 +21,7 @@ export function JsonForm({
   disabled?: boolean;
   onSubmit: () => void;
 }) {
-  const input = !!json ? json['input'] : json || ({} as JSONType);
+  // const input = json ? json.input : json || ({} as JSONType);
 
   const schema: RJSFSchema = {
     type: 'object',
@@ -107,7 +93,9 @@ export function JsonForm({
           setInput(JSON.stringify(data.formData));
         }}
         onSubmit={onSubmit}
-        onError={log('errors')}
+        onError={(e) => {
+          console.error(e);
+        }}
       >
         <Button className="w-fit" disabled={disabled}>
           <PlayIcon

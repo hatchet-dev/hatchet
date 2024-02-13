@@ -13,7 +13,9 @@ export const StepRunOutput: React.FC<StepRunOutputProps> = ({
   isLoading,
   errors,
 }) => {
-  if (isLoading) return <Loading />;
+  if (isLoading) {
+    return <Loading />;
+  }
 
   return (
     <Tabs defaultValue="output" className="w-full">
