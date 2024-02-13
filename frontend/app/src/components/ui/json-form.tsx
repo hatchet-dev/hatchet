@@ -9,7 +9,7 @@ type JSONPrimitive = string | number | boolean | null;
 type JSONType = { [key: string]: JSONType | JSONPrimitive };
 
 export function JsonForm({
-  // json,
+  json,
   className,
   setInput,
   disabled,
@@ -21,53 +21,7 @@ export function JsonForm({
   disabled?: boolean;
   onSubmit: () => void;
 }) {
-  // const input = json ? json.input : json || ({} as JSONType);
-
-  const schema: RJSFSchema = {
-    type: 'object',
-    properties: {
-      input: {
-        type: 'object',
-        properties: {
-          test: {
-            type: 'string',
-            default: 'test',
-          },
-        },
-        additionalProperties: false,
-      },
-      parents: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false,
-      },
-      overrides: {
-        type: 'object',
-        required: ['test', 'test2'],
-        properties: {
-          test: {
-            type: 'string',
-            default: 'test',
-          },
-          test2: {
-            type: 'integer',
-            default: 100,
-          },
-        },
-        additionalProperties: false,
-      },
-      user_data: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false,
-      },
-      triggered_by: {
-        type: 'string',
-        default: 'schedule',
-      },
-    },
-    additionalProperties: false,
-  };
+  const schema = json as RJSFSchema;
 
   const uiSchema = {
     input: {
@@ -76,6 +30,8 @@ export function JsonForm({
       },
     },
   };
+
+  console.log('schema', schema);
 
   return (
     <div

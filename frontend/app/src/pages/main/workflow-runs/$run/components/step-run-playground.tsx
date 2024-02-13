@@ -92,7 +92,6 @@ export function StepRunPlayground({
     }
   }, [getStepRunQuery.data, setStepRun]);
 
-  // const input = stepRun?.input || '{}';
   const output = stepRun?.output || '{}';
 
   const isLoading =
@@ -111,12 +110,15 @@ export function StepRunPlayground({
         <>
           <div className="flex flex-row gap-4 mt-4">
             <div className="flex-grow w-1/2">
-              <StepRunInputs
-                input={stepInput}
-                setInput={setStepInput}
-                disabled={rerunStepMutation.isPending}
-                handleOnPlay={handleOnPlay}
-              />
+              {stepInput && (
+                <StepRunInputs
+                  schema={stepRun.inputSchema || ''}
+                  input={stepInput}
+                  setInput={setStepInput}
+                  disabled={rerunStepMutation.isPending}
+                  handleOnPlay={handleOnPlay}
+                />
+              )}
             </div>
             <div className="flex-grow flex-col flex gap-4 w-1/2 ">
               <div className="flex flex-col sticky top-0">

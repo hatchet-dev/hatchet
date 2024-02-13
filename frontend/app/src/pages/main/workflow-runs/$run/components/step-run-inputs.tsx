@@ -5,6 +5,7 @@ import { VscNote, VscJson } from 'react-icons/vsc';
 
 export interface StepRunOutputProps {
   input: string;
+  schema: string;
   setInput: (input: string) => void;
   disabled: boolean;
   handleOnPlay: () => void;
@@ -12,12 +13,13 @@ export interface StepRunOutputProps {
 
 export const StepRunInputs: React.FC<StepRunOutputProps> = ({
   input,
+  schema,
   disabled,
   handleOnPlay,
   setInput,
 }) => {
   return (
-    <Tabs defaultValue="output" className="w-full">
+    <Tabs defaultValue="form" className="w-full">
       <TabsList className="grid w-1/3 grid-cols-2">
         <TabsTrigger value="form" aria-label="Form Editor">
           <VscNote />
@@ -27,12 +29,16 @@ export const StepRunInputs: React.FC<StepRunOutputProps> = ({
         </TabsTrigger>
       </TabsList>
       <TabsContent value="form">
-        <JsonForm
-          json={JSON.parse(input)}
-          setInput={setInput}
-          onSubmit={handleOnPlay}
-          disabled={disabled}
-        />
+        {schema === '' ? (
+          <>No Schema</>
+        ) : (
+          <JsonForm
+            json={JSON.parse(schema)}
+            setInput={setInput}
+            onSubmit={handleOnPlay}
+            disabled={disabled}
+          />
+        )}
       </TabsContent>
       <TabsContent value="json">
         <CodeEditor
