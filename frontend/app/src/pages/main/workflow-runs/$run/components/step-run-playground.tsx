@@ -2,16 +2,16 @@ import { DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import api, { StepRun, StepRunStatus, queries } from '@/lib/api';
 import { useEffect, useState } from 'react';
 import { RunStatus } from '../../components/run-statuses';
-import { getTiming } from './step-run-node';
-import { StepInputOutputSection } from './step-run-input-output';
 import { Button } from '@/components/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
+import { PlayIcon } from '@radix-ui/react-icons';
+import { JsonForm } from '@/components/ui/json-form';
+import { StepRunOutput } from './step-run-output';
 
 export function StepRunPlayground({
   stepRun,
@@ -93,55 +93,77 @@ export function StepRunPlayground({
     }
   }, [getStepRunQuery.data, setStepRun]);
 
+  const input = stepRun?.input || '{}';
+  const output = stepRun?.output || '{}';
+
+  const isLoading =
+    stepRun?.status != 'SUCCEEDED' &&
+    stepRun?.status != 'FAILED' &&
+    stepRun?.status != 'CANCELLED';
+
+  const handleOnPlay = () => {
+    const inputObj = JSON.parse(stepInput);
+    rerunStepMutation.mutate(inputObj);
+  };
+
   return (
-    <div className="sm:max-w-[625px] py-12">
-      <div>
-        <div className="flex flex-row justify-between items-center">
-          <div>{stepRun?.step?.readableId || stepRun?.metadata.id}</div>
-          <RunStatus status={stepRun?.status || StepRunStatus.PENDING} />
-        </div>
-        {stepRun && getTiming({ stepRun })}
-        {/* <DialogDescription>
-            You can change the input to your step and see the output here. By
-            default, this will trigger all child steps.
-          </DialogDescription> */}
-      </div>
-      <div className="flex flex-row justify-between items-center">
-        <div className="font-bold">Input</div>
-        <Button
-          className="w-fit"
-          disabled={rerunStepMutation.isPending}
-          onClick={() => {
-            const inputObj = JSON.parse(stepInput);
-            rerunStepMutation.mutate(inputObj);
-          }}
-        >
-          <ArrowPathIcon
-            className={cn(
-              rerunStepMutation.isPending ? 'rotate-180' : '',
-              'h-4 w-4 mr-2',
-            )}
-          />
-          Rerun Step
-        </Button>
-      </div>
+    <div className="">
       {stepRun && (
-        <StepInputOutputSection
-          stepRun={stepRun}
-          onInputChanged={(input: string) => {
-            setStepInput(input);
-          }}
-        />
-      )}
-      {errors.length > 0 && (
-        <div className="mt-4">
-          {errors.map((error, index) => (
-            <div key={index} className="text-red-500 text-sm">
-              {error}
+        <>
+          <div className="flex flex-row gap-4 mt-4">
+            <div className="flex-grow w-1/2">
+              <JsonForm
+                json={JSON.parse(input)}
+                setInput={setStepInput}
+                onSubmit={handleOnPlay}
+                disabled={rerunStepMutation.isPending}
+              />
+              {/* <CodeEditor
+            language="json"
+            className="my-4"
+            height="400px"
+            code={JSON.stringify(JSON.parse(input), null, 2)}
+            setCode={(code: string | undefined) => {
+              if (onInputChanged && code) {
+                onInputChanged(code);
+              }
+            }}
+          /> */}
             </div>
-          ))}
-        </div>
+            <div className="flex-grow flex-col flex gap-4 w-1/2">
+              <div className="flex flex-row justify-between items-center">
+                <Button
+                  className="w-fit"
+                  disabled={rerunStepMutation.isPending}
+                  onClick={handleOnPlay}
+                >
+                  <PlayIcon
+                    className={cn(
+                      rerunStepMutation.isPending ? 'rotate-180' : '',
+                      'h-4 w-4 mr-2',
+                    )}
+                  />
+                  Play Step
+                </Button>
+
+                <RunStatus
+                  status={
+                    errors.length > 0
+                      ? StepRunStatus.FAILED
+                      : stepRun?.status || StepRunStatus.PENDING
+                  }
+                />
+              </div>
+              <StepRunOutput
+                output={output}
+                isLoading={isLoading}
+                errors={errors}
+              />
+            </div>
+          </div>
+        </>
       )}
+      {errors.length > 0 && <div className="mt-4"></div>}
     </div>
   );
 }
