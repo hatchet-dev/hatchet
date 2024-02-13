@@ -224,7 +224,6 @@ function getExpandedStepRunRow({
       <TableCell colSpan={columns.length} className="px-8 py-4">
         <StepStatusSection stepRun={stepRun} />
         <StepConfigurationSection stepRun={stepRun} />
-        <StepInputOutputSection stepRun={stepRun} />
       </TableCell>
     </TableRow>
   );
