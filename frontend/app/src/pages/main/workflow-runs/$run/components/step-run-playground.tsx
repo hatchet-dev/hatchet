@@ -118,35 +118,37 @@ export function StepRunPlayground({
                 handleOnPlay={handleOnPlay}
               />
             </div>
-            <div className="flex-grow flex-col flex gap-4 w-1/2">
-              <div className="flex flex-row justify-between items-center">
-                <Button
-                  className="w-fit"
-                  disabled={rerunStepMutation.isPending}
-                  onClick={handleOnPlay}
-                >
-                  <PlayIcon
-                    className={cn(
-                      rerunStepMutation.isPending ? 'rotate-180' : '',
-                      'h-4 w-4 mr-2',
-                    )}
-                  />
-                  Play Step
-                </Button>
+            <div className="flex-grow flex-col flex gap-4 w-1/2 ">
+              <div className="flex flex-col sticky top-0">
+                <div className="flex flex-row justify-between items-center mb-4">
+                  <Button
+                    className="w-fit"
+                    disabled={rerunStepMutation.isPending}
+                    onClick={handleOnPlay}
+                  >
+                    <PlayIcon
+                      className={cn(
+                        rerunStepMutation.isPending ? 'rotate-180' : '',
+                        'h-4 w-4 mr-2',
+                      )}
+                    />
+                    Play Step
+                  </Button>
 
-                <RunStatus
-                  status={
-                    errors.length > 0
-                      ? StepRunStatus.FAILED
-                      : stepRun?.status || StepRunStatus.PENDING
-                  }
+                  <RunStatus
+                    status={
+                      errors.length > 0
+                        ? StepRunStatus.FAILED
+                        : stepRun?.status || StepRunStatus.PENDING
+                    }
+                  />
+                </div>
+                <StepRunOutput
+                  output={output}
+                  isLoading={isLoading}
+                  errors={errors}
                 />
               </div>
-              <StepRunOutput
-                output={output}
-                isLoading={isLoading}
-                errors={errors}
-              />
             </div>
           </div>
         </>
