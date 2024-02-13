@@ -60,9 +60,6 @@ export function relativeDate(date?: string | number) {
 }
 
 export function timeBetween(start: string | number, end: string | number) {
-  console.log('start', start);
-  console.log('end', end);
-
   const startUnixTime = new Date(start).getTime();
   const endUnixTime = new Date(end).getTime();
 
@@ -72,8 +69,6 @@ export function timeBetween(start: string | number, end: string | number) {
 
   // Calculate difference
   const difference = endUnixTime - startUnixTime;
-
-  console.log('difference', difference);
 
   return formatDuration(difference);
 }
