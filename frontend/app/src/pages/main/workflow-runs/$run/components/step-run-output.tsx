@@ -16,7 +16,7 @@ export const StepRunOutput: React.FC<StepRunOutputProps> = ({
   if (isLoading) return <Loading />;
 
   return (
-    <Tabs defaultValue="playground" className="w-full">
+    <Tabs defaultValue="output" className="w-full">
       <TabsList className="grid w-full grid-cols-4">
         <TabsTrigger value="output">Output</TabsTrigger>
         <TabsTrigger value="logs">Logs</TabsTrigger>
