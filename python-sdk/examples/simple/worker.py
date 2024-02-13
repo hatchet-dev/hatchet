@@ -1,4 +1,4 @@
-from hatchet_sdk import Hatchet
+from hatchet_sdk import Hatchet, Context
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,7 +11,14 @@ class MyWorkflow:
         self.my_value = "test"
 
     @hatchet.step()
-    def step1(self, context):
+    def step1(self, context: Context):
+        test = context.overrides("test", "test")
+        test2 = context.overrides("test2", 100)
+        test3 = context.overrides("test3", None)
+
+        print(test)
+        print(test2)
+
         print("executed step1")
         pass
 

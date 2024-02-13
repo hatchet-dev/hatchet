@@ -8,7 +8,8 @@ describe('DispatcherClient', () => {
   it('should create a client', () => {
     const x = new DispatcherClient(
       {
-        token: 'TOKEN',
+        token:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
 
         host_port: 'HOST_PORT',
         log_level: 'OFF',
@@ -31,7 +32,8 @@ describe('DispatcherClient', () => {
   beforeEach(() => {
     client = new DispatcherClient(
       {
-        token: 'TOKEN',
+        token:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
 
         host_port: 'HOST_PORT',
         log_level: 'OFF',

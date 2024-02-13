@@ -13,7 +13,7 @@ import (
 
 const getStepRun = `-- name: GetStepRun :one
 SELECT
-    "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError"
+    "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema"
 FROM
     "StepRun"
 WHERE
@@ -52,13 +52,14 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, arg GetStepRunParams)
 		&i.CancelledAt,
 		&i.CancelledReason,
 		&i.CancelledError,
+		&i.InputSchema,
 	)
 	return &i, err
 }
 
 const resolveLaterStepRuns = `-- name: ResolveLaterStepRuns :many
 WITH currStepRun AS (
-  SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError"
+  SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema"
   FROM "StepRun"
   WHERE
     "id" = $1::uuid AND
@@ -91,7 +92,7 @@ WHERE
         WHERE "id" = $1::uuid
     ) AND
     sr."tenantId" = $2::uuid
-RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError"
+RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema"
 `
 
 type ResolveLaterStepRunsParams struct {
@@ -131,6 +132,7 @@ func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg Resolve
 			&i.CancelledAt,
 			&i.CancelledReason,
 			&i.CancelledError,
+			&i.InputSchema,
 		); err != nil {
 			return nil, err
 		}
@@ -185,7 +187,7 @@ SET
 WHERE 
   "id" = $12::uuid AND
   "tenantId" = $13::uuid
-RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError"
+RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema"
 `
 
 type UpdateStepRunParams struct {
@@ -244,6 +246,63 @@ func (q *Queries) UpdateStepRun(ctx context.Context, db DBTX, arg UpdateStepRunP
 		&i.CancelledAt,
 		&i.CancelledReason,
 		&i.CancelledError,
+		&i.InputSchema,
 	)
 	return &i, err
+}
+
+const updateStepRunInputSchema = `-- name: UpdateStepRunInputSchema :one
+UPDATE
+    "StepRun" sr
+SET
+    "inputSchema" = coalesce($1::jsonb, '{}'),
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    sr."tenantId" = $2::uuid AND
+    sr."id" = $3::uuid
+RETURNING "inputSchema"
+`
+
+type UpdateStepRunInputSchemaParams struct {
+	InputSchema []byte      `json:"inputSchema"`
+	Tenantid    pgtype.UUID `json:"tenantid"`
+	Steprunid   pgtype.UUID `json:"steprunid"`
+}
+
+func (q *Queries) UpdateStepRunInputSchema(ctx context.Context, db DBTX, arg UpdateStepRunInputSchemaParams) ([]byte, error) {
+	row := db.QueryRow(ctx, updateStepRunInputSchema, arg.InputSchema, arg.Tenantid, arg.Steprunid)
+	var inputSchema []byte
+	err := row.Scan(&inputSchema)
+	return inputSchema, err
+}
+
+const updateStepRunOverridesData = `-- name: UpdateStepRunOverridesData :one
+UPDATE
+    "StepRun" as sr
+SET 
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "input" = jsonb_set("input", $1::text[], $2::jsonb, true)
+WHERE
+    sr."tenantId" = $3::uuid AND
+    sr."id" = $4::uuid
+RETURNING "input"
+`
+
+type UpdateStepRunOverridesDataParams struct {
+	Fieldpath []string    `json:"fieldpath"`
+	Jsondata  []byte      `json:"jsondata"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+	Steprunid pgtype.UUID `json:"steprunid"`
+}
+
+func (q *Queries) UpdateStepRunOverridesData(ctx context.Context, db DBTX, arg UpdateStepRunOverridesDataParams) ([]byte, error) {
+	row := db.QueryRow(ctx, updateStepRunOverridesData,
+		arg.Fieldpath,
+		arg.Jsondata,
+		arg.Tenantid,
+		arg.Steprunid,
+	)
+	var input []byte
+	err := row.Scan(&input)
+	return input, err
 }
