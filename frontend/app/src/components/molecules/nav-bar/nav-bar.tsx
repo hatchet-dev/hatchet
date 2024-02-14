@@ -16,6 +16,7 @@ import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
 import { useSidebar } from '@/components/sidebar-provider';
+import { HamburgerMenuIcon } from '@radix-ui/react-icons';
 
 interface MainNavProps {
   user: User;
@@ -40,7 +41,10 @@ export default function MainNav({ user }: MainNavProps) {
   return (
     <div className="fixed top-0 w-screen h-16 border-b">
       <div className="flex h-16 items-center pr-4 pl-4">
-        <button onClick={() => toggleSidebarOpen()}>
+        <button
+          onClick={() => toggleSidebarOpen()}
+          className="flex flex-row gap-4 items-center"
+        >
           <img src={hatchet} alt="Hatchet" className="h-9 rounded" />
         </button>
         <div className="ml-auto flex items-center space-x-4">
