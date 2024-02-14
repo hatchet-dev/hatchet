@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/internal/schema"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
@@ -534,6 +535,23 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			if err != nil {
 				return fmt.Errorf("could not convert input data to json: %w", err)
 			}
+
+			// defer the update of the input schema to the step run
+			defer func() {
+				jsonSchemaBytes, err := schema.SchemaBytesFromBytes(inputDataBytes)
+
+				if err != nil {
+					ec.l.Err(err).Msgf("could not get schema bytes from bytes: %s", err.Error())
+					return
+				}
+
+				_, err = ec.repo.StepRun().UpdateStepRunInputSchema(stepRun.TenantID, stepRun.ID, jsonSchemaBytes)
+
+				if err != nil {
+					ec.l.Err(err).Msgf("could not update step run input schema: %s", err.Error())
+					return
+				}
+			}()
 
 			updateStepOpts.Input = inputDataBytes
 		}

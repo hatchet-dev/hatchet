@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/schema"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
@@ -66,6 +67,19 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		return gen.StepRunUpdateRerun400JSONResponse(
 			apierrors.NewAPIErrors("Invalid input"),
 		), nil
+	}
+
+	// update the input schema for the step run based on the new input
+	jsonSchemaBytes, err := schema.SchemaBytesFromBytes(inputBytes)
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = t.config.Repository.StepRun().UpdateStepRunInputSchema(tenant.ID, stepRun.ID, jsonSchemaBytes)
+
+	if err != nil {
+		return nil, err
 	}
 
 	// update step run
