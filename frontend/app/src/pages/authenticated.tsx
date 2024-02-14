@@ -109,7 +109,7 @@ export default function Authenticated() {
   return (
     <div className="flex flex-row flex-1 w-full h-full">
       <MainNav user={user} />
-      <div className="pt-12 flex-grow overflow-y-auto overflow-x-hidden">
+      <div className="pt-16 flex-grow overflow-y-auto overflow-x-hidden">
         <Outlet context={ctx} />
       </div>
     </div>

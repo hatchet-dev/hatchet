@@ -150,3 +150,89 @@ body {
   color: rgb(203 213 225);
 }
 
+
+
+/* rjsf JSON Schema Form style hack */
+.rjsf {
+  /* Left side is not needed due to fieldset left margin */
+  @apply mr-2;
+}
+/* Aka sections */
+.rjsf fieldset > legend {
+  /* Display block doesn't work for some reason. Does not fill parent width which is still a div, not sure why */
+  @apply mb-3 pb-1 w-full border-b pt-4 text-xl font-semibold;
+}
+.rjsf fieldset > div {
+  /* Offset to indicate hierarchy */
+  @apply ml-3;
+}
+/* Label + component = group */
+.rjsf .form-group {
+  @apply mb-2;
+}
+.rjsf label.control-label {
+  @apply block mb-1 font-bold;
+}
+.rjsf p.field-description {
+  @apply mb-1;
+}
+/* Select component, and maybe other .form-control too */
+.rjsf .form-control {
+  @apply block w-full rounded-md border border-input p-2;
+}
+/* Input component */
+.rjsf input {
+  @apply flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+/* Array elements */
+.rjsf .array-item {
+  /* @apply grid grid-cols-12; */
+  @apply flex flex-row items-end gap-4;
+}
+.rjsf .array-item .col-xs-9 {
+  /* @apply col-span-9; */
+  @apply grow;
+}
+.rjsf .array-item .col-xs-3 {
+  /* @apply col-span-3; */
+  @apply shrink-0;
+}
+.rjsf .array-item .array-item-toolbox {
+  /* mb-4 to match .form-group */
+  @apply mb-4 flex items-center justify-end;
+}
+/* Icons */
+.rjsf .glyphicon {
+  @apply font-normal not-italic;
+}
+.rjsf .glyphicon-remove::before {
+  content: 'Remove';
+}
+.rjsf .glyphicon-arrow-up::before {
+  content: 'Up';
+}
+.rjsf .glyphicon-arrow-down::before {
+  content: 'Down';
+}
+.rjsf .glyphicon-plus::before {
+  content: 'Add';
+}
+/* Buttons (tends to be icon buttons */
+.rjsf .btn {
+  @apply rounded-md p-2 border mx-1;
+}
+.rjsf .btn-danger {
+  @apply border-red-200;
+}
+.rjsf .btn-add {
+  @apply border-blue-200;
+}
+.rjsf button[type='submit'] {
+  @apply bg-primary text-primary-foreground hover:bg-primary/90;
+}
+
+.rjsf textarea{
+  @apply flex h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+}
+/* END rjsf JSON Schema Form style hack */

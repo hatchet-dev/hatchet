@@ -14,6 +14,8 @@ import { useNavigate } from 'react-router-dom';
 import api, { User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
+import hatchet from '@/assets/hatchet_logo.png';
+import { useSidebar } from '@/components/sidebar-provider';
 
 interface MainNavProps {
   user: User;
@@ -22,6 +24,7 @@ interface MainNavProps {
 export default function MainNav({ user }: MainNavProps) {
   const navigate = useNavigate();
   const { handleApiError } = useApiError({});
+  const { toggleSidebarOpen } = useSidebar();
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -35,8 +38,11 @@ export default function MainNav({ user }: MainNavProps) {
   });
 
   return (
-    <div className="fixed top-0 w-screen h-16">
-      <div className="flex h-16 items-center pr-4 pl-7">
+    <div className="fixed top-0 w-screen h-16 border-b">
+      <div className="flex h-16 items-center pr-4 pl-4">
+        <button onClick={() => toggleSidebarOpen()}>
+          <img src={hatchet} alt="Hatchet" className="h-9 rounded" />
+        </button>
         <div className="ml-auto flex items-center space-x-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
