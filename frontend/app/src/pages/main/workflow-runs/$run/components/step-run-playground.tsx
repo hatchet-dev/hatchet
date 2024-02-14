@@ -11,6 +11,7 @@ import { TenantContextType } from '@/lib/outlet';
 import { PlayIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
+import { Loading } from '@/components/ui/loading';
 
 export function StepRunPlayground({
   stepRun,
@@ -89,7 +90,7 @@ export function StepRunPlayground({
       });
 
       setStepRun(stepRun);
-      getStepRunQuery.refetch(); // TODO figure out if this is actually refreshing
+      getStepRunQuery.refetch();
     },
     onError: handleApiError,
   });
@@ -102,10 +103,8 @@ export function StepRunPlayground({
 
   const output = stepRun?.output || '{}';
 
-  const isLoading =
-    stepRun?.status != 'SUCCEEDED' &&
-    stepRun?.status != 'FAILED' &&
-    stepRun?.status != 'CANCELLED';
+  const COMPLETED = ['SUCCEEDED', 'FAILED', 'CANCELLED'];
+  const isLoading = !COMPLETED.includes(stepRun?.status || '');
 
   const handleOnPlay = () => {
     const inputObj = JSON.parse(stepInput);
@@ -123,7 +122,7 @@ export function StepRunPlayground({
                   schema={stepRun.inputSchema || ''}
                   input={stepInput}
                   setInput={setStepInput}
-                  disabled={rerunStepMutation.isPending}
+                  disabled={isLoading || rerunStepMutation.isPending}
                   handleOnPlay={handleOnPlay}
                 />
               )}
@@ -133,16 +132,20 @@ export function StepRunPlayground({
                 <div className="flex flex-row justify-between items-center mb-4">
                   <Button
                     className="w-fit"
-                    disabled={rerunStepMutation.isPending}
+                    disabled={isLoading || rerunStepMutation.isPending}
                     onClick={handleOnPlay}
                   >
-                    <PlayIcon
-                      className={cn(
-                        rerunStepMutation.isPending ? 'rotate-180' : '',
-                        'h-4 w-4 mr-2',
-                      )}
-                    />
-                    Play Step
+                    {isLoading || rerunStepMutation.isPending ? (
+                      <>
+                        <Loading />
+                        Playing
+                      </>
+                    ) : (
+                      <>
+                        <PlayIcon className={cn('h-4 w-4 mr-2')} />
+                        Play Step
+                      </>
+                    )}
                   </Button>
 
                   <RunStatus

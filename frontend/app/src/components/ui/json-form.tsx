@@ -14,6 +14,7 @@ import Form from '@rjsf/core';
 import { PlayIcon } from '@radix-ui/react-icons';
 import { Button } from './button';
 import { useState } from 'react';
+import { Loading } from './loading';
 
 type JSONPrimitive = string | number | boolean | null;
 type JSONType = { [key: string]: JSONType | JSONPrimitive };
@@ -176,10 +177,19 @@ export function JsonForm({
         }}
       >
         <Button className="w-fit" disabled={disabled}>
-          <PlayIcon
-            className={cn(disabled ? 'rotate-180' : '', 'h-4 w-4 mr-2')}
-          />
-          Play Step
+          {disabled ? (
+            <>
+              <Loading />
+              Playing
+            </>
+          ) : (
+            <>
+              <PlayIcon
+                className={cn(disabled ? 'rotate-180' : '', 'h-4 w-4 mr-2')}
+              />
+              Play Step
+            </>
+          )}
         </Button>
       </Form>
     </div>
