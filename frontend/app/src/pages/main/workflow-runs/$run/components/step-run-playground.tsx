@@ -102,8 +102,6 @@ export function StepRunPlayground({
 
   const output = stepRun?.output || '{}';
 
-  console.log(stepRun);
-
   const isLoading =
     stepRun?.status != 'SUCCEEDED' &&
     stepRun?.status != 'FAILED' &&
