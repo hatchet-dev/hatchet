@@ -125,7 +125,7 @@ export default function ExpandedWorkflowRun() {
   );
 }
 
-export function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
+export const StepStatusDetails = ({ stepRun }: { stepRun: StepRun }) => {
   let statusText = 'Unknown';
 
   switch (stepRun.status) {
@@ -169,6 +169,12 @@ export function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
     default:
       break;
   }
+
+  return statusText;
+};
+
+export function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
+  const statusText = StepStatusDetails({ stepRun });
 
   return (
     <div className="mb-4">

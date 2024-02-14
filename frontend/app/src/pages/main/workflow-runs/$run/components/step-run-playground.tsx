@@ -12,6 +12,7 @@ import { PlayIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
 import { Loading } from '@/components/ui/loading';
+import { StepStatusDetails } from '..';
 
 export function StepRunPlayground({
   stepRun,
@@ -161,7 +162,12 @@ export function StepRunPlayground({
                   output={output}
                   isLoading={isLoading}
                   errors={
-                    [...errors, stepRun.error].filter((e) => !!e) as string[]
+                    [
+                      ...errors,
+                      stepRun.error
+                        ? StepStatusDetails({ stepRun })
+                        : undefined,
+                    ].filter((e) => !!e) as string[]
                   }
                 />
               </div>
