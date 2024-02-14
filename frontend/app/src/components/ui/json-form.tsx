@@ -52,31 +52,33 @@ export const CollapsibleSection = (props: ObjectFieldTemplateProps) => {
 };
 
 export function JsonForm({
-  json,
+  inputSchema,
+  inputData,
   className,
   setInput,
   disabled,
   onSubmit,
 }: {
-  json: JSONType;
+  inputSchema: JSONType;
   className?: string;
+  inputData: JSONType;
   setInput: React.Dispatch<React.SetStateAction<string>>;
   disabled?: boolean;
   onSubmit: () => void;
 }) {
   const schema = {
-    ...json,
+    ...inputSchema,
     required: undefined,
     $schema: undefined,
     properties: {
-      ...(json.properties as any),
+      ...(inputSchema.properties as any),
       triggered_by: undefined,
       advanced: {
         // Transform the schema to wrap the triggered by field
         type: 'object',
         properties: {
-          triggered_by: json.properties
-            ? (json.properties as any).triggered_by
+          triggered_by: inputSchema.properties
+            ? (inputSchema.properties as any).triggered_by
             : undefined,
         },
       },
@@ -109,6 +111,7 @@ export function JsonForm({
       )}
     >
       <Form
+        formData={inputData}
         schema={schema}
         disabled={disabled}
         templates={{

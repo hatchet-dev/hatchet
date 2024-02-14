@@ -6,7 +6,7 @@ import { VscNote, VscJson } from 'react-icons/vsc';
 export interface StepRunOutputProps {
   input: string;
   schema: string;
-  setInput: (input: string) => void;
+  setInput: React.Dispatch<React.SetStateAction<string>>;
   disabled: boolean;
   handleOnPlay: () => void;
 }
@@ -33,8 +33,9 @@ export const StepRunInputs: React.FC<StepRunOutputProps> = ({
           <>No Schema</>
         ) : (
           <JsonForm
-            json={JSON.parse(schema)}
+            inputSchema={JSON.parse(schema)}
             setInput={setInput}
+            inputData={JSON.parse(input)}
             onSubmit={handleOnPlay}
             disabled={disabled}
           />
