@@ -1,6 +1,15 @@
 import { cn } from '@/lib/utils';
-import { ObjectFieldTemplateProps, RJSFSchema, UiSchema } from '@rjsf/utils';
-import validator from '@rjsf/validator-ajv8';
+import {
+  CustomValidator,
+  ErrorSchema,
+  ErrorTransformer,
+  ObjectFieldTemplateProps,
+  RJSFSchema,
+  RJSFValidationError,
+  UiSchema,
+  ValidationData,
+  ValidatorType,
+} from '@rjsf/utils';
 import Form from '@rjsf/core';
 import { PlayIcon } from '@radix-ui/react-icons';
 import { Button } from './button';
@@ -10,6 +19,36 @@ type JSONPrimitive = string | number | boolean | null;
 type JSONType = { [key: string]: JSONType | JSONPrimitive };
 
 const DEFAULT_COLLAPSED = ['advanced', 'user data'];
+
+class NoValidation implements ValidatorType {
+  validateFormData(
+    formData: any,
+    schema: RJSFSchema,
+    customValidate?: CustomValidator<any, RJSFSchema, any> | undefined,
+    transformErrors?: ErrorTransformer<any, RJSFSchema, any> | undefined,
+    uiSchema?: UiSchema<any, RJSFSchema, any> | undefined,
+  ): ValidationData<any> {
+    return { errors: [], errorSchema: {} };
+  }
+
+  toErrorList(
+    errorSchema?: ErrorSchema<any> | undefined,
+    fieldPath?: string[] | undefined,
+  ): RJSFValidationError[] {
+    return [];
+  }
+
+  isValid(schema: RJSFSchema, formData: any, rootSchema: RJSFSchema): boolean {
+    return true;
+  }
+
+  rawValidation<Result = any>(
+    schema: RJSFSchema,
+    formData?: any,
+  ): { errors?: Result[] | undefined; validationError?: Error | undefined } {
+    return {};
+  }
+}
 
 export const CollapsibleSection = (props: ObjectFieldTemplateProps) => {
   const [open, setOpen] = useState(!DEFAULT_COLLAPSED.includes(props.title));
@@ -118,7 +157,8 @@ export function JsonForm({
           ObjectFieldTemplate: CollapsibleSection,
         }}
         uiSchema={uiSchema}
-        validator={validator}
+        validator={new NoValidation()}
+        noHtml5Validate={true}
         onChange={(data) => {
           // Transform the data to unwrap the advanced fields
           const formData = { ...data.formData, ...data.formData.advanced };
