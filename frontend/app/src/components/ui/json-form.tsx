@@ -9,15 +9,17 @@ import { useState } from 'react';
 type JSONPrimitive = string | number | boolean | null;
 type JSONType = { [key: string]: JSONType | JSONPrimitive };
 
+const DEFAULT_COLLAPSED = ['advanced', 'user data'];
+
 export const CollapsibleSection = (props: ObjectFieldTemplateProps) => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(!DEFAULT_COLLAPSED.includes(props.title));
 
   return (
     <div>
       {props.title && (
         <div
           onClick={() => setOpen((x) => !x)}
-          className="border-b-2 mb-2 border-gray-500 pb-2 text-2xl font-bold flex items-center cursor-pointer"
+          className="border-b-2 mb-2 border-gray-500 pb-2 text-xl font-bold flex items-center cursor-pointer"
         >
           <svg
             className={`mr-2 h-6 w-6 ${open ? 'rotate-180' : ''}`}
@@ -36,10 +38,14 @@ export const CollapsibleSection = (props: ObjectFieldTemplateProps) => {
       )}
       {props.description}
       {open &&
-        props.properties.map((element, i) => (
-          <div className="property-wrapper ml-4" key={i}>
-            {element.content}
-          </div>
+        (props.properties.length > 0 ? (
+          props.properties.map((element, i) => (
+            <div className="property-wrapper ml-4" key={i}>
+              {element.content}
+            </div>
+          ))
+        ) : (
+          <div className="ml-4">empty state</div>
         ))}
     </div>
   );
@@ -65,8 +71,19 @@ export function JsonForm({
     properties: {
       ...(json.properties as any),
       triggered_by: undefined,
+      advanced: {
+        // Transform the schema to wrap the triggered by field
+        type: 'object',
+        properties: {
+          triggered_by: json.properties
+            ? (json.properties as any)['triggered_by']
+            : undefined,
+        },
+      },
     },
   } as RJSFSchema;
+
+  delete schema.properties?.triggered_by;
 
   const uiSchema: UiSchema<any, RJSFSchema, any> = {
     input: {
@@ -74,6 +91,12 @@ export function JsonForm({
     },
     parents: {
       'ui:title': 'parent step data',
+    },
+    overrides: {
+      'ui:title': 'step overrides',
+    },
+    user_data: {
+      'ui:title': 'user data',
     },
     'ui:order': ['input', 'overrides', 'parents', '*'],
   };
@@ -94,7 +117,10 @@ export function JsonForm({
         uiSchema={uiSchema}
         validator={validator}
         onChange={(data) => {
-          setInput(JSON.stringify(data.formData));
+          // Transform the data to unwrap the advanced fields
+          const formData = { ...data.formData, ...data.formData.advanced };
+          delete formData.advanced;
+          setInput(JSON.stringify(formData));
         }}
         onSubmit={onSubmit}
         onError={(e) => {
