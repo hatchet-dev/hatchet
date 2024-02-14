@@ -76,7 +76,7 @@ export function JsonForm({
         type: 'object',
         properties: {
           triggered_by: json.properties
-            ? (json.properties as any)['triggered_by']
+            ? (json.properties as any).triggered_by
             : undefined,
         },
       },
