@@ -4,7 +4,7 @@ import { RunStatus } from '../../components/run-statuses';
 import { Button } from '@/components/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
@@ -15,9 +15,11 @@ import { StepRunInputs } from './step-run-inputs';
 export function StepRunPlayground({
   stepRun,
   setStepRun,
+  workflowRunId,
 }: {
   stepRun: StepRun | undefined;
   setStepRun: (stepRun: StepRun | undefined) => void;
+  workflowRunId: string;
 }) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
@@ -56,6 +58,8 @@ export function StepRunPlayground({
     },
   });
 
+  const queryClient = useQueryClient();
+
   const rerunStepMutation = useMutation({
     mutationKey: [
       'step-run:update:rerun',
@@ -79,9 +83,13 @@ export function StepRunPlayground({
       setErrors([]);
     },
     onSuccess: (stepRun: StepRun) => {
-      setStepRun(stepRun);
+      queryClient.invalidateQueries({
+        queryKey: queries.workflowRuns.get(tenant.metadata.id, workflowRunId)
+          .queryKey,
+      });
 
-      getStepRunQuery.refetch();
+      setStepRun(stepRun);
+      getStepRunQuery.refetch(); // TODO figure out if this is actually refreshing
     },
     onError: handleApiError,
   });

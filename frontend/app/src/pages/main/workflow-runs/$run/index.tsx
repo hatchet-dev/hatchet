@@ -33,6 +33,8 @@ export default function ExpandedWorkflowRun() {
   const runQuery = useQuery({
     ...queries.workflowRuns.get(tenant.metadata.id, params.run),
     refetchInterval: (query) => {
+      return 1000; // FIXME - this is a hack to keep the query running since re-running a step doesn't update the status on the workflow run
+
       const data = query.state.data;
 
       if (
@@ -126,6 +128,7 @@ export default function ExpandedWorkflowRun() {
               <StepRunPlayground
                 stepRun={selectedStepRun}
                 setStepRun={setSelectedStepRun}
+                workflowRunId={run.metadata.id}
               />
             )}
           </TabsContent>
