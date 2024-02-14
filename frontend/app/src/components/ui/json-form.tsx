@@ -60,7 +60,7 @@ export function JsonForm({
 }: {
   json: JSONType;
   className?: string;
-  setInput: (input: string) => void;
+  setInput: React.Dispatch<React.SetStateAction<string>>;
   disabled?: boolean;
   onSubmit: () => void;
 }) {
@@ -120,7 +120,12 @@ export function JsonForm({
           // Transform the data to unwrap the advanced fields
           const formData = { ...data.formData, ...data.formData.advanced };
           delete formData.advanced;
-          setInput(JSON.stringify(formData));
+          setInput((prev) =>
+            JSON.stringify({
+              ...JSON.parse(prev),
+              ...formData,
+            }),
+          );
         }}
         onSubmit={onSubmit}
         onError={(e) => {
