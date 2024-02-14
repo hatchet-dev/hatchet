@@ -157,6 +157,7 @@ export function StepRunPlayground({
                   />
                 </div>
                 <StepRunOutput
+                  stepRun={stepRun}
                   output={output}
                   isLoading={isLoading}
                   errors={
