@@ -1,5 +1,5 @@
 import api, { StepRun, StepRunStatus, queries } from '@/lib/api';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RunStatus } from '../../components/run-statuses';
 import { Button } from '@/components/ui/button';
 import invariant from 'tiny-invariant';
@@ -32,10 +32,9 @@ export function StepRunPlayground({
     setErrors,
   });
 
-  const originalInput = JSON.stringify(
-    JSON.parse(stepRun?.input || '{}'),
-    null,
-    2,
+  const originalInput = useMemo(
+    () => JSON.stringify(JSON.parse(stepRun?.input || '{}'), null, 2),
+    [stepRun?.input],
   );
 
   const [stepInput, setStepInput] = useState(originalInput);
