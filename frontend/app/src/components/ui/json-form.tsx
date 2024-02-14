@@ -36,8 +36,10 @@ export const CollapsibleSection = (props: ObjectFieldTemplateProps) => {
       )}
       {props.description}
       {open &&
-        props.properties.map((element) => (
-          <div className="property-wrapper ml-4">{element.content}</div>
+        props.properties.map((element, i) => (
+          <div className="property-wrapper ml-4" key={i}>
+            {element.content}
+          </div>
         ))}
     </div>
   );
