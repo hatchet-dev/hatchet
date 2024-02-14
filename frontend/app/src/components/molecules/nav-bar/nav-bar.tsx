@@ -16,7 +16,6 @@ import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
 import { useSidebar } from '@/components/sidebar-provider';
-import { HamburgerMenuIcon } from '@radix-ui/react-icons';
 
 interface MainNavProps {
   user: User;
