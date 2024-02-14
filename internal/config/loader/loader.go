@@ -18,12 +18,17 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
+	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
+	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/github"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/hatchet-dev/hatchet/pkg/client"
+
+	clientconfig "github.com/hatchet-dev/hatchet/internal/config/client"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -217,19 +222,77 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil, fmt.Errorf("could not create JWT manager: %w", err)
 	}
 
+	vcsProviders := make(map[vcs.VCSRepositoryKind]vcs.VCSProvider)
+
+	if cf.VCS.Github.Enabled {
+		var err error
+
+		githubAppConf, err := github.NewGithubAppConf(&oauth.Config{
+			ClientID:     cf.VCS.Github.GithubAppClientID,
+			ClientSecret: cf.VCS.Github.GithubAppClientSecret,
+			Scopes:       []string{"read:user"},
+			BaseURL:      cf.Runtime.ServerURL,
+		}, cf.VCS.Github.GithubAppName, cf.VCS.Github.GithubAppSecretPath, cf.VCS.Github.GithubAppWebhookSecret, cf.VCS.Github.GithubAppID)
+
+		if err != nil {
+			return nil, err
+		}
+
+		githubProvider := github.NewGithubVCSProvider(githubAppConf, dc.Repository, cf.Runtime.ServerURL, encryptionSvc)
+
+		vcsProviders[vcs.VCSRepositoryKindGithub] = githubProvider
+	}
+
+	var internalClient client.Client
+
+	if cf.Runtime.WorkerEnabled {
+		// get the internal tenant or create if it doesn't exist
+		internalTenant, err := dc.Repository.Tenant().GetTenantBySlug("internal")
+
+		if err != nil {
+			return nil, fmt.Errorf("could not get internal tenant: %w", err)
+		}
+
+		tokenSuffix, err := encryption.GenerateRandomBytes(4)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not generate token suffix: %w", err)
+		}
+
+		// generate a token for the internal client
+		token, err := auth.JWTManager.GenerateTenantToken(internalTenant.ID, fmt.Sprintf("internal-%s", tokenSuffix))
+
+		if err != nil {
+			return nil, fmt.Errorf("could not generate internal token: %w", err)
+		}
+
+		internalClient, err = client.NewFromConfigFile(
+			&clientconfig.ClientConfigFile{
+				Token:    token,
+				HostPort: cf.Runtime.GRPCBroadcastAddress,
+			},
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create internal client: %w", err)
+		}
+	}
+
 	return &server.ServerConfig{
-		Runtime:       cf.Runtime,
-		Auth:          auth,
-		Encryption:    encryptionSvc,
-		Config:        dc,
-		TaskQueue:     tq,
-		Services:      cf.Services,
-		Logger:        &l,
-		TLSConfig:     tls,
-		SessionStore:  ss,
-		Validator:     validator.NewDefaultValidator(),
-		Ingestor:      ingestor,
-		OpenTelemetry: cf.OpenTelemetry,
+		Runtime:        cf.Runtime,
+		Auth:           auth,
+		Encryption:     encryptionSvc,
+		Config:         dc,
+		TaskQueue:      tq,
+		Services:       cf.Services,
+		Logger:         &l,
+		TLSConfig:      tls,
+		SessionStore:   ss,
+		Validator:      validator.NewDefaultValidator(),
+		Ingestor:       ingestor,
+		OpenTelemetry:  cf.OpenTelemetry,
+		VCSProviders:   vcsProviders,
+		InternalClient: internalClient,
 	}, nil
 }
 

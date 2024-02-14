@@ -143,6 +143,11 @@ type CreateAPITokenResponse struct {
 	Token string `json:"token"`
 }
 
+// CreatePullRequestFromStepRun defines model for CreatePullRequestFromStepRun.
+type CreatePullRequestFromStepRun struct {
+	BranchName string `json:"branchName"`
+}
+
 // CreateTenantInviteRequest defines model for CreateTenantInviteRequest.
 type CreateTenantInviteRequest struct {
 	// Email The email of the user to invite.
@@ -216,6 +221,26 @@ type EventWorkflowRunSummary struct {
 	Succeeded *int64 `json:"succeeded,omitempty"`
 }
 
+// GithubAppInstallation defines model for GithubAppInstallation.
+type GithubAppInstallation struct {
+	AccountAvatarUrl        string          `json:"account_avatar_url"`
+	AccountName             string          `json:"account_name"`
+	InstallationSettingsUrl string          `json:"installation_settings_url"`
+	Metadata                APIResourceMeta `json:"metadata"`
+}
+
+// GithubBranch defines model for GithubBranch.
+type GithubBranch struct {
+	BranchName string `json:"branch_name"`
+	IsDefault  bool   `json:"is_default"`
+}
+
+// GithubRepo defines model for GithubRepo.
+type GithubRepo struct {
+	RepoName  string `json:"repo_name"`
+	RepoOwner string `json:"repo_owner"`
+}
+
 // Job defines model for Job.
 type Job struct {
 	// Description The description of the job.
@@ -253,11 +278,38 @@ type JobRun struct {
 // JobRunStatus defines model for JobRunStatus.
 type JobRunStatus string
 
+// LinkGithubRepositoryRequest defines model for LinkGithubRepositoryRequest.
+type LinkGithubRepositoryRequest struct {
+	// GitRepoBranch The repository branch.
+	GitRepoBranch string `json:"gitRepoBranch"`
+
+	// GitRepoName The repository name.
+	GitRepoName string `json:"gitRepoName"`
+
+	// GitRepoOwner The repository owner.
+	GitRepoOwner string `json:"gitRepoOwner"`
+
+	// InstallationId The repository name.
+	InstallationId string `json:"installationId"`
+}
+
 // ListAPITokensResponse defines model for ListAPITokensResponse.
 type ListAPITokensResponse struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]APIToken         `json:"rows,omitempty"`
 }
+
+// ListGithubAppInstallationsResponse defines model for ListGithubAppInstallationsResponse.
+type ListGithubAppInstallationsResponse struct {
+	Pagination PaginationResponse      `json:"pagination"`
+	Rows       []GithubAppInstallation `json:"rows"`
+}
+
+// ListGithubBranchesResponse defines model for ListGithubBranchesResponse.
+type ListGithubBranchesResponse = []GithubBranch
+
+// ListGithubReposResponse defines model for ListGithubReposResponse.
+type ListGithubReposResponse = []GithubRepo
 
 // PaginationResponse defines model for PaginationResponse.
 type PaginationResponse struct {
@@ -313,6 +365,7 @@ type StepRun struct {
 	FinishedAt       *time.Time              `json:"finishedAt,omitempty"`
 	FinishedAtEpoch  *int                    `json:"finishedAtEpoch,omitempty"`
 	Input            *string                 `json:"input,omitempty"`
+	InputSchema      *string                 `json:"inputSchema,omitempty"`
 	JobRun           *JobRun                 `json:"jobRun,omitempty"`
 	JobRunId         string                  `json:"jobRunId"`
 	Metadata         APIResourceMeta         `json:"metadata"`
@@ -468,6 +521,8 @@ type WorkerList struct {
 
 // Workflow defines model for Workflow.
 type Workflow struct {
+	Deployment *WorkflowDeploymentConfig `json:"deployment,omitempty"`
+
 	// Description The description of the workflow.
 	Description *string `json:"description,omitempty"`
 
@@ -482,6 +537,23 @@ type Workflow struct {
 	// Tags The tags of the workflow.
 	Tags     *[]WorkflowTag         `json:"tags,omitempty"`
 	Versions *[]WorkflowVersionMeta `json:"versions,omitempty"`
+}
+
+// WorkflowDeploymentConfig defines model for WorkflowDeploymentConfig.
+type WorkflowDeploymentConfig struct {
+	// GitRepoBranch The repository branch.
+	GitRepoBranch string `json:"gitRepoBranch"`
+
+	// GitRepoName The repository name.
+	GitRepoName string `json:"gitRepoName"`
+
+	// GitRepoOwner The repository owner.
+	GitRepoOwner          string                 `json:"gitRepoOwner"`
+	GithubAppInstallation *GithubAppInstallation `json:"githubAppInstallation,omitempty"`
+
+	// GithubAppInstallationId The id of the Github App installation.
+	GithubAppInstallationId openapi_types.UUID `json:"githubAppInstallationId"`
+	Metadata                APIResourceMeta    `json:"metadata"`
 }
 
 // WorkflowID A workflow ID.
@@ -646,6 +718,9 @@ type WorkflowVersionGetDefinitionParams struct {
 	Version *openapi_types.UUID `form:"version,omitempty" json:"version,omitempty"`
 }
 
+// StepRunUpdateCreatePrJSONRequestBody defines body for StepRunUpdateCreatePr for application/json ContentType.
+type StepRunUpdateCreatePrJSONRequestBody = CreatePullRequestFromStepRun
+
 // TenantCreateJSONRequestBody defines body for TenantCreate for application/json ContentType.
 type TenantCreateJSONRequestBody = CreateTenantRequest
 
@@ -676,6 +751,9 @@ type UserUpdateLoginJSONRequestBody = UserLoginRequest
 // UserCreateJSONRequestBody defines body for UserCreate for application/json ContentType.
 type UserCreateJSONRequestBody = UserRegisterRequest
 
+// WorkflowUpdateLinkGithubJSONRequestBody defines body for WorkflowUpdateLinkGithub for application/json ContentType.
+type WorkflowUpdateLinkGithubJSONRequestBody = LinkGithubRepositoryRequest
+
 // WorkflowRunCreateJSONRequestBody defines body for WorkflowRunCreate for application/json ContentType.
 type WorkflowRunCreateJSONRequestBody = TriggerWorkflowRunRequest
 
@@ -687,9 +765,27 @@ type ServerInterface interface {
 	// Get event data
 	// (GET /api/v1/events/{event}/data)
 	EventDataGet(ctx echo.Context, event openapi_types.UUID) error
+	// List Github App installations
+	// (GET /api/v1/github-app/installations)
+	GithubAppListInstallations(ctx echo.Context) error
+	// List Github App repositories
+	// (GET /api/v1/github-app/installations/{gh-installation}/repos)
+	GithubAppListRepos(ctx echo.Context, ghInstallation openapi_types.UUID) error
+	// List Github App branches
+	// (GET /api/v1/github-app/installations/{gh-installation}/repos/{gh-repo-owner}/{gh-repo-name}/branches)
+	GithubAppListBranches(ctx echo.Context, ghInstallation openapi_types.UUID, ghRepoOwner string, ghRepoName string) error
+	// Github app global webhook
+	// (POST /api/v1/github/webhook)
+	GithubUpdateGlobalWebhook(ctx echo.Context) error
+	// Github app tenant webhook
+	// (POST /api/v1/github/webhook/{webhook})
+	GithubUpdateTenantWebhook(ctx echo.Context, webhook openapi_types.UUID) error
 	// Get metadata
 	// (GET /api/v1/meta)
 	MetadataGet(ctx echo.Context) error
+	// Create pull request
+	// (POST /api/v1/step-runs/{step-run}/create-pr)
+	StepRunUpdateCreatePr(ctx echo.Context, stepRun openapi_types.UUID) error
 	// Create tenant
 	// (POST /api/v1/tenants)
 	TenantCreate(ctx echo.Context) error
@@ -745,11 +841,17 @@ type ServerInterface interface {
 	// (GET /api/v1/users/current)
 	UserGetCurrent(ctx echo.Context) error
 	// Complete OAuth flow
+	// (GET /api/v1/users/github/callback)
+	UserUpdateGithubOauthCallback(ctx echo.Context) error
+	// Start OAuth flow
+	// (GET /api/v1/users/github/start)
+	UserUpdateGithubOauthStart(ctx echo.Context) error
+	// Complete OAuth flow
 	// (GET /api/v1/users/google/callback)
-	UserUpdateOauthCallback(ctx echo.Context) error
+	UserUpdateGoogleOauthCallback(ctx echo.Context) error
 	// Start OAuth flow
 	// (GET /api/v1/users/google/start)
-	UserUpdateOauthStart(ctx echo.Context) error
+	UserUpdateGoogleOauthStart(ctx echo.Context) error
 	// List tenant invites
 	// (GET /api/v1/users/invites)
 	UserListTenantInvites(ctx echo.Context) error
@@ -777,6 +879,9 @@ type ServerInterface interface {
 	// Get workflow
 	// (GET /api/v1/workflows/{workflow})
 	WorkflowGet(ctx echo.Context, workflow openapi_types.UUID) error
+	// Link github repository
+	// (POST /api/v1/workflows/{workflow}/link-github)
+	WorkflowUpdateLinkGithub(ctx echo.Context, workflow openapi_types.UUID) error
 	// Trigger workflow run
 	// (POST /api/v1/workflows/{workflow}/trigger)
 	WorkflowRunCreate(ctx echo.Context, workflow openapi_types.UUID, params WorkflowRunCreateParams) error
@@ -833,12 +938,120 @@ func (w *ServerInterfaceWrapper) EventDataGet(ctx echo.Context) error {
 	return err
 }
 
+// GithubAppListInstallations converts echo context to params.
+func (w *ServerInterfaceWrapper) GithubAppListInstallations(ctx echo.Context) error {
+	var err error
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GithubAppListInstallations(ctx)
+	return err
+}
+
+// GithubAppListRepos converts echo context to params.
+func (w *ServerInterfaceWrapper) GithubAppListRepos(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "gh-installation" -------------
+	var ghInstallation openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "gh-installation", runtime.ParamLocationPath, ctx.Param("gh-installation"), &ghInstallation)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter gh-installation: %s", err))
+	}
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GithubAppListRepos(ctx, ghInstallation)
+	return err
+}
+
+// GithubAppListBranches converts echo context to params.
+func (w *ServerInterfaceWrapper) GithubAppListBranches(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "gh-installation" -------------
+	var ghInstallation openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "gh-installation", runtime.ParamLocationPath, ctx.Param("gh-installation"), &ghInstallation)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter gh-installation: %s", err))
+	}
+
+	// ------------- Path parameter "gh-repo-owner" -------------
+	var ghRepoOwner string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "gh-repo-owner", runtime.ParamLocationPath, ctx.Param("gh-repo-owner"), &ghRepoOwner)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter gh-repo-owner: %s", err))
+	}
+
+	// ------------- Path parameter "gh-repo-name" -------------
+	var ghRepoName string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "gh-repo-name", runtime.ParamLocationPath, ctx.Param("gh-repo-name"), &ghRepoName)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter gh-repo-name: %s", err))
+	}
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GithubAppListBranches(ctx, ghInstallation, ghRepoOwner, ghRepoName)
+	return err
+}
+
+// GithubUpdateGlobalWebhook converts echo context to params.
+func (w *ServerInterfaceWrapper) GithubUpdateGlobalWebhook(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GithubUpdateGlobalWebhook(ctx)
+	return err
+}
+
+// GithubUpdateTenantWebhook converts echo context to params.
+func (w *ServerInterfaceWrapper) GithubUpdateTenantWebhook(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "webhook" -------------
+	var webhook openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "webhook", runtime.ParamLocationPath, ctx.Param("webhook"), &webhook)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter webhook: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GithubUpdateTenantWebhook(ctx, webhook)
+	return err
+}
+
 // MetadataGet converts echo context to params.
 func (w *ServerInterfaceWrapper) MetadataGet(ctx echo.Context) error {
 	var err error
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.MetadataGet(ctx)
+	return err
+}
+
+// StepRunUpdateCreatePr converts echo context to params.
+func (w *ServerInterfaceWrapper) StepRunUpdateCreatePr(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "step-run" -------------
+	var stepRun openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "step-run", runtime.ParamLocationPath, ctx.Param("step-run"), &stepRun)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter step-run: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.StepRunUpdateCreatePr(ctx, stepRun)
 	return err
 }
 
@@ -1307,21 +1520,43 @@ func (w *ServerInterfaceWrapper) UserGetCurrent(ctx echo.Context) error {
 	return err
 }
 
-// UserUpdateOauthCallback converts echo context to params.
-func (w *ServerInterfaceWrapper) UserUpdateOauthCallback(ctx echo.Context) error {
+// UserUpdateGithubOauthCallback converts echo context to params.
+func (w *ServerInterfaceWrapper) UserUpdateGithubOauthCallback(ctx echo.Context) error {
 	var err error
 
+	ctx.Set(CookieAuthScopes, []string{})
+
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UserUpdateOauthCallback(ctx)
+	err = w.Handler.UserUpdateGithubOauthCallback(ctx)
 	return err
 }
 
-// UserUpdateOauthStart converts echo context to params.
-func (w *ServerInterfaceWrapper) UserUpdateOauthStart(ctx echo.Context) error {
+// UserUpdateGithubOauthStart converts echo context to params.
+func (w *ServerInterfaceWrapper) UserUpdateGithubOauthStart(ctx echo.Context) error {
+	var err error
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UserUpdateGithubOauthStart(ctx)
+	return err
+}
+
+// UserUpdateGoogleOauthCallback converts echo context to params.
+func (w *ServerInterfaceWrapper) UserUpdateGoogleOauthCallback(ctx echo.Context) error {
 	var err error
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UserUpdateOauthStart(ctx)
+	err = w.Handler.UserUpdateGoogleOauthCallback(ctx)
+	return err
+}
+
+// UserUpdateGoogleOauthStart converts echo context to params.
+func (w *ServerInterfaceWrapper) UserUpdateGoogleOauthStart(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UserUpdateGoogleOauthStart(ctx)
 	return err
 }
 
@@ -1442,6 +1677,26 @@ func (w *ServerInterfaceWrapper) WorkflowGet(ctx echo.Context) error {
 	return err
 }
 
+// WorkflowUpdateLinkGithub converts echo context to params.
+func (w *ServerInterfaceWrapper) WorkflowUpdateLinkGithub(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "workflow" -------------
+	var workflow openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "workflow", runtime.ParamLocationPath, ctx.Param("workflow"), &workflow)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter workflow: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.WorkflowUpdateLinkGithub(ctx, workflow)
+	return err
+}
+
 // WorkflowRunCreate converts echo context to params.
 func (w *ServerInterfaceWrapper) WorkflowRunCreate(ctx echo.Context) error {
 	var err error
@@ -1559,7 +1814,13 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 
 	router.POST(baseURL+"/api/v1/api-tokens/:api-token", wrapper.ApiTokenUpdateRevoke)
 	router.GET(baseURL+"/api/v1/events/:event/data", wrapper.EventDataGet)
+	router.GET(baseURL+"/api/v1/github-app/installations", wrapper.GithubAppListInstallations)
+	router.GET(baseURL+"/api/v1/github-app/installations/:gh-installation/repos", wrapper.GithubAppListRepos)
+	router.GET(baseURL+"/api/v1/github-app/installations/:gh-installation/repos/:gh-repo-owner/:gh-repo-name/branches", wrapper.GithubAppListBranches)
+	router.POST(baseURL+"/api/v1/github/webhook", wrapper.GithubUpdateGlobalWebhook)
+	router.POST(baseURL+"/api/v1/github/webhook/:webhook", wrapper.GithubUpdateTenantWebhook)
 	router.GET(baseURL+"/api/v1/meta", wrapper.MetadataGet)
+	router.POST(baseURL+"/api/v1/step-runs/:step-run/create-pr", wrapper.StepRunUpdateCreatePr)
 	router.POST(baseURL+"/api/v1/tenants", wrapper.TenantCreate)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/api-tokens", wrapper.ApiTokenList)
 	router.POST(baseURL+"/api/v1/tenants/:tenant/api-tokens", wrapper.ApiTokenCreate)
@@ -1578,8 +1839,10 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows", wrapper.WorkflowList)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/runs", wrapper.WorkflowRunList)
 	router.GET(baseURL+"/api/v1/users/current", wrapper.UserGetCurrent)
-	router.GET(baseURL+"/api/v1/users/google/callback", wrapper.UserUpdateOauthCallback)
-	router.GET(baseURL+"/api/v1/users/google/start", wrapper.UserUpdateOauthStart)
+	router.GET(baseURL+"/api/v1/users/github/callback", wrapper.UserUpdateGithubOauthCallback)
+	router.GET(baseURL+"/api/v1/users/github/start", wrapper.UserUpdateGithubOauthStart)
+	router.GET(baseURL+"/api/v1/users/google/callback", wrapper.UserUpdateGoogleOauthCallback)
+	router.GET(baseURL+"/api/v1/users/google/start", wrapper.UserUpdateGoogleOauthStart)
 	router.GET(baseURL+"/api/v1/users/invites", wrapper.UserListTenantInvites)
 	router.POST(baseURL+"/api/v1/users/invites/accept", wrapper.TenantInviteAccept)
 	router.POST(baseURL+"/api/v1/users/invites/reject", wrapper.TenantInviteReject)
@@ -1589,6 +1852,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.POST(baseURL+"/api/v1/users/register", wrapper.UserCreate)
 	router.GET(baseURL+"/api/v1/workers/:worker", wrapper.WorkerGet)
 	router.GET(baseURL+"/api/v1/workflows/:workflow", wrapper.WorkflowGet)
+	router.POST(baseURL+"/api/v1/workflows/:workflow/link-github", wrapper.WorkflowUpdateLinkGithub)
 	router.POST(baseURL+"/api/v1/workflows/:workflow/trigger", wrapper.WorkflowRunCreate)
 	router.GET(baseURL+"/api/v1/workflows/:workflow/versions", wrapper.WorkflowVersionGet)
 	router.GET(baseURL+"/api/v1/workflows/:workflow/versions/definition", wrapper.WorkflowVersionGetDefinition)
@@ -1664,6 +1928,224 @@ func (response EventDataGet403JSONResponse) VisitEventDataGetResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GithubAppListInstallationsRequestObject struct {
+}
+
+type GithubAppListInstallationsResponseObject interface {
+	VisitGithubAppListInstallationsResponse(w http.ResponseWriter) error
+}
+
+type GithubAppListInstallations200JSONResponse ListGithubAppInstallationsResponse
+
+func (response GithubAppListInstallations200JSONResponse) VisitGithubAppListInstallationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubAppListInstallations400JSONResponse APIErrors
+
+func (response GithubAppListInstallations400JSONResponse) VisitGithubAppListInstallationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubAppListInstallations401JSONResponse APIErrors
+
+func (response GithubAppListInstallations401JSONResponse) VisitGithubAppListInstallationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubAppListInstallations405JSONResponse APIErrors
+
+func (response GithubAppListInstallations405JSONResponse) VisitGithubAppListInstallationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(405)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubAppListReposRequestObject struct {
+	GhInstallation openapi_types.UUID `json:"gh-installation"`
+}
+
+type GithubAppListReposResponseObject interface {
+	VisitGithubAppListReposResponse(w http.ResponseWriter) error
+}
+
+type GithubAppListRepos200JSONResponse ListGithubReposResponse
+
+func (response GithubAppListRepos200JSONResponse) VisitGithubAppListReposResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubAppListRepos400JSONResponse APIErrors
+
+func (response GithubAppListRepos400JSONResponse) VisitGithubAppListReposResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubAppListRepos401JSONResponse APIErrors
+
+func (response GithubAppListRepos401JSONResponse) VisitGithubAppListReposResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubAppListRepos405JSONResponse APIErrors
+
+func (response GithubAppListRepos405JSONResponse) VisitGithubAppListReposResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(405)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubAppListBranchesRequestObject struct {
+	GhInstallation openapi_types.UUID `json:"gh-installation"`
+	GhRepoOwner    string             `json:"gh-repo-owner"`
+	GhRepoName     string             `json:"gh-repo-name"`
+}
+
+type GithubAppListBranchesResponseObject interface {
+	VisitGithubAppListBranchesResponse(w http.ResponseWriter) error
+}
+
+type GithubAppListBranches200JSONResponse ListGithubBranchesResponse
+
+func (response GithubAppListBranches200JSONResponse) VisitGithubAppListBranchesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubAppListBranches400JSONResponse APIErrors
+
+func (response GithubAppListBranches400JSONResponse) VisitGithubAppListBranchesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubAppListBranches401JSONResponse APIErrors
+
+func (response GithubAppListBranches401JSONResponse) VisitGithubAppListBranchesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubAppListBranches405JSONResponse APIErrors
+
+func (response GithubAppListBranches405JSONResponse) VisitGithubAppListBranchesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(405)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubUpdateGlobalWebhookRequestObject struct {
+}
+
+type GithubUpdateGlobalWebhookResponseObject interface {
+	VisitGithubUpdateGlobalWebhookResponse(w http.ResponseWriter) error
+}
+
+type GithubUpdateGlobalWebhook200Response struct {
+}
+
+func (response GithubUpdateGlobalWebhook200Response) VisitGithubUpdateGlobalWebhookResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type GithubUpdateGlobalWebhook400JSONResponse APIErrors
+
+func (response GithubUpdateGlobalWebhook400JSONResponse) VisitGithubUpdateGlobalWebhookResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubUpdateGlobalWebhook401JSONResponse APIErrors
+
+func (response GithubUpdateGlobalWebhook401JSONResponse) VisitGithubUpdateGlobalWebhookResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubUpdateGlobalWebhook405JSONResponse APIErrors
+
+func (response GithubUpdateGlobalWebhook405JSONResponse) VisitGithubUpdateGlobalWebhookResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(405)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubUpdateTenantWebhookRequestObject struct {
+	Webhook openapi_types.UUID `json:"webhook"`
+}
+
+type GithubUpdateTenantWebhookResponseObject interface {
+	VisitGithubUpdateTenantWebhookResponse(w http.ResponseWriter) error
+}
+
+type GithubUpdateTenantWebhook200Response struct {
+}
+
+func (response GithubUpdateTenantWebhook200Response) VisitGithubUpdateTenantWebhookResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type GithubUpdateTenantWebhook400JSONResponse APIErrors
+
+func (response GithubUpdateTenantWebhook400JSONResponse) VisitGithubUpdateTenantWebhookResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubUpdateTenantWebhook401JSONResponse APIErrors
+
+func (response GithubUpdateTenantWebhook401JSONResponse) VisitGithubUpdateTenantWebhookResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GithubUpdateTenantWebhook405JSONResponse APIErrors
+
+func (response GithubUpdateTenantWebhook405JSONResponse) VisitGithubUpdateTenantWebhookResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(405)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type MetadataGetRequestObject struct {
 }
 
@@ -1685,6 +2167,51 @@ type MetadataGet400JSONResponse APIErrors
 func (response MetadataGet400JSONResponse) VisitMetadataGetResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StepRunUpdateCreatePrRequestObject struct {
+	StepRun openapi_types.UUID `json:"step-run"`
+	Body    *StepRunUpdateCreatePrJSONRequestBody
+}
+
+type StepRunUpdateCreatePrResponseObject interface {
+	VisitStepRunUpdateCreatePrResponse(w http.ResponseWriter) error
+}
+
+type StepRunUpdateCreatePr200JSONResponse CreatePullRequestFromStepRun
+
+func (response StepRunUpdateCreatePr200JSONResponse) VisitStepRunUpdateCreatePrResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StepRunUpdateCreatePr400JSONResponse APIErrors
+
+func (response StepRunUpdateCreatePr400JSONResponse) VisitStepRunUpdateCreatePrResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StepRunUpdateCreatePr403JSONResponse APIErrors
+
+func (response StepRunUpdateCreatePr403JSONResponse) VisitStepRunUpdateCreatePrResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StepRunUpdateCreatePr404JSONResponse APIErrors
+
+func (response StepRunUpdateCreatePr404JSONResponse) VisitStepRunUpdateCreatePrResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -2330,43 +2857,85 @@ func (response UserGetCurrent405JSONResponse) VisitUserGetCurrentResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
-type UserUpdateOauthCallbackRequestObject struct {
+type UserUpdateGithubOauthCallbackRequestObject struct {
 }
 
-type UserUpdateOauthCallbackResponseObject interface {
-	VisitUserUpdateOauthCallbackResponse(w http.ResponseWriter) error
+type UserUpdateGithubOauthCallbackResponseObject interface {
+	VisitUserUpdateGithubOauthCallbackResponse(w http.ResponseWriter) error
 }
 
-type UserUpdateOauthCallback302ResponseHeaders struct {
+type UserUpdateGithubOauthCallback302ResponseHeaders struct {
 	Location string
 }
 
-type UserUpdateOauthCallback302Response struct {
-	Headers UserUpdateOauthCallback302ResponseHeaders
+type UserUpdateGithubOauthCallback302Response struct {
+	Headers UserUpdateGithubOauthCallback302ResponseHeaders
 }
 
-func (response UserUpdateOauthCallback302Response) VisitUserUpdateOauthCallbackResponse(w http.ResponseWriter) error {
+func (response UserUpdateGithubOauthCallback302Response) VisitUserUpdateGithubOauthCallbackResponse(w http.ResponseWriter) error {
 	w.Header().Set("location", fmt.Sprint(response.Headers.Location))
 	w.WriteHeader(302)
 	return nil
 }
 
-type UserUpdateOauthStartRequestObject struct {
+type UserUpdateGithubOauthStartRequestObject struct {
 }
 
-type UserUpdateOauthStartResponseObject interface {
-	VisitUserUpdateOauthStartResponse(w http.ResponseWriter) error
+type UserUpdateGithubOauthStartResponseObject interface {
+	VisitUserUpdateGithubOauthStartResponse(w http.ResponseWriter) error
 }
 
-type UserUpdateOauthStart302ResponseHeaders struct {
+type UserUpdateGithubOauthStart302ResponseHeaders struct {
 	Location string
 }
 
-type UserUpdateOauthStart302Response struct {
-	Headers UserUpdateOauthStart302ResponseHeaders
+type UserUpdateGithubOauthStart302Response struct {
+	Headers UserUpdateGithubOauthStart302ResponseHeaders
 }
 
-func (response UserUpdateOauthStart302Response) VisitUserUpdateOauthStartResponse(w http.ResponseWriter) error {
+func (response UserUpdateGithubOauthStart302Response) VisitUserUpdateGithubOauthStartResponse(w http.ResponseWriter) error {
+	w.Header().Set("location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(302)
+	return nil
+}
+
+type UserUpdateGoogleOauthCallbackRequestObject struct {
+}
+
+type UserUpdateGoogleOauthCallbackResponseObject interface {
+	VisitUserUpdateGoogleOauthCallbackResponse(w http.ResponseWriter) error
+}
+
+type UserUpdateGoogleOauthCallback302ResponseHeaders struct {
+	Location string
+}
+
+type UserUpdateGoogleOauthCallback302Response struct {
+	Headers UserUpdateGoogleOauthCallback302ResponseHeaders
+}
+
+func (response UserUpdateGoogleOauthCallback302Response) VisitUserUpdateGoogleOauthCallbackResponse(w http.ResponseWriter) error {
+	w.Header().Set("location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(302)
+	return nil
+}
+
+type UserUpdateGoogleOauthStartRequestObject struct {
+}
+
+type UserUpdateGoogleOauthStartResponseObject interface {
+	VisitUserUpdateGoogleOauthStartResponse(w http.ResponseWriter) error
+}
+
+type UserUpdateGoogleOauthStart302ResponseHeaders struct {
+	Location string
+}
+
+type UserUpdateGoogleOauthStart302Response struct {
+	Headers UserUpdateGoogleOauthStart302ResponseHeaders
+}
+
+func (response UserUpdateGoogleOauthStart302Response) VisitUserUpdateGoogleOauthStartResponse(w http.ResponseWriter) error {
 	w.Header().Set("location", fmt.Sprint(response.Headers.Location))
 	w.WriteHeader(302)
 	return nil
@@ -2709,6 +3278,51 @@ func (response WorkflowGet403JSONResponse) VisitWorkflowGetResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type WorkflowUpdateLinkGithubRequestObject struct {
+	Workflow openapi_types.UUID `json:"workflow"`
+	Body     *WorkflowUpdateLinkGithubJSONRequestBody
+}
+
+type WorkflowUpdateLinkGithubResponseObject interface {
+	VisitWorkflowUpdateLinkGithubResponse(w http.ResponseWriter) error
+}
+
+type WorkflowUpdateLinkGithub200JSONResponse Workflow
+
+func (response WorkflowUpdateLinkGithub200JSONResponse) VisitWorkflowUpdateLinkGithubResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowUpdateLinkGithub400JSONResponse APIErrors
+
+func (response WorkflowUpdateLinkGithub400JSONResponse) VisitWorkflowUpdateLinkGithubResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowUpdateLinkGithub403JSONResponse APIErrors
+
+func (response WorkflowUpdateLinkGithub403JSONResponse) VisitWorkflowUpdateLinkGithubResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowUpdateLinkGithub404JSONResponse APIErrors
+
+func (response WorkflowUpdateLinkGithub404JSONResponse) VisitWorkflowUpdateLinkGithubResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type WorkflowRunCreateRequestObject struct {
 	Workflow openapi_types.UUID `json:"workflow"`
 	Params   WorkflowRunCreateParams
@@ -2850,7 +3464,19 @@ type StrictServerInterface interface {
 
 	EventDataGet(ctx echo.Context, request EventDataGetRequestObject) (EventDataGetResponseObject, error)
 
+	GithubAppListInstallations(ctx echo.Context, request GithubAppListInstallationsRequestObject) (GithubAppListInstallationsResponseObject, error)
+
+	GithubAppListRepos(ctx echo.Context, request GithubAppListReposRequestObject) (GithubAppListReposResponseObject, error)
+
+	GithubAppListBranches(ctx echo.Context, request GithubAppListBranchesRequestObject) (GithubAppListBranchesResponseObject, error)
+
+	GithubUpdateGlobalWebhook(ctx echo.Context, request GithubUpdateGlobalWebhookRequestObject) (GithubUpdateGlobalWebhookResponseObject, error)
+
+	GithubUpdateTenantWebhook(ctx echo.Context, request GithubUpdateTenantWebhookRequestObject) (GithubUpdateTenantWebhookResponseObject, error)
+
 	MetadataGet(ctx echo.Context, request MetadataGetRequestObject) (MetadataGetResponseObject, error)
+
+	StepRunUpdateCreatePr(ctx echo.Context, request StepRunUpdateCreatePrRequestObject) (StepRunUpdateCreatePrResponseObject, error)
 
 	TenantCreate(ctx echo.Context, request TenantCreateRequestObject) (TenantCreateResponseObject, error)
 
@@ -2888,9 +3514,13 @@ type StrictServerInterface interface {
 
 	UserGetCurrent(ctx echo.Context, request UserGetCurrentRequestObject) (UserGetCurrentResponseObject, error)
 
-	UserUpdateOauthCallback(ctx echo.Context, request UserUpdateOauthCallbackRequestObject) (UserUpdateOauthCallbackResponseObject, error)
+	UserUpdateGithubOauthCallback(ctx echo.Context, request UserUpdateGithubOauthCallbackRequestObject) (UserUpdateGithubOauthCallbackResponseObject, error)
 
-	UserUpdateOauthStart(ctx echo.Context, request UserUpdateOauthStartRequestObject) (UserUpdateOauthStartResponseObject, error)
+	UserUpdateGithubOauthStart(ctx echo.Context, request UserUpdateGithubOauthStartRequestObject) (UserUpdateGithubOauthStartResponseObject, error)
+
+	UserUpdateGoogleOauthCallback(ctx echo.Context, request UserUpdateGoogleOauthCallbackRequestObject) (UserUpdateGoogleOauthCallbackResponseObject, error)
+
+	UserUpdateGoogleOauthStart(ctx echo.Context, request UserUpdateGoogleOauthStartRequestObject) (UserUpdateGoogleOauthStartResponseObject, error)
 
 	UserListTenantInvites(ctx echo.Context, request UserListTenantInvitesRequestObject) (UserListTenantInvitesResponseObject, error)
 
@@ -2909,6 +3539,8 @@ type StrictServerInterface interface {
 	WorkerGet(ctx echo.Context, request WorkerGetRequestObject) (WorkerGetResponseObject, error)
 
 	WorkflowGet(ctx echo.Context, request WorkflowGetRequestObject) (WorkflowGetResponseObject, error)
+
+	WorkflowUpdateLinkGithub(ctx echo.Context, request WorkflowUpdateLinkGithubRequestObject) (WorkflowUpdateLinkGithubResponseObject, error)
 
 	WorkflowRunCreate(ctx echo.Context, request WorkflowRunCreateRequestObject) (WorkflowRunCreateResponseObject, error)
 
@@ -2978,6 +3610,129 @@ func (sh *strictHandler) EventDataGet(ctx echo.Context, event openapi_types.UUID
 	return nil
 }
 
+// GithubAppListInstallations operation middleware
+func (sh *strictHandler) GithubAppListInstallations(ctx echo.Context) error {
+	var request GithubAppListInstallationsRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GithubAppListInstallations(ctx, request.(GithubAppListInstallationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GithubAppListInstallations")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(GithubAppListInstallationsResponseObject); ok {
+		return validResponse.VisitGithubAppListInstallationsResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// GithubAppListRepos operation middleware
+func (sh *strictHandler) GithubAppListRepos(ctx echo.Context, ghInstallation openapi_types.UUID) error {
+	var request GithubAppListReposRequestObject
+
+	request.GhInstallation = ghInstallation
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GithubAppListRepos(ctx, request.(GithubAppListReposRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GithubAppListRepos")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(GithubAppListReposResponseObject); ok {
+		return validResponse.VisitGithubAppListReposResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// GithubAppListBranches operation middleware
+func (sh *strictHandler) GithubAppListBranches(ctx echo.Context, ghInstallation openapi_types.UUID, ghRepoOwner string, ghRepoName string) error {
+	var request GithubAppListBranchesRequestObject
+
+	request.GhInstallation = ghInstallation
+	request.GhRepoOwner = ghRepoOwner
+	request.GhRepoName = ghRepoName
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GithubAppListBranches(ctx, request.(GithubAppListBranchesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GithubAppListBranches")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(GithubAppListBranchesResponseObject); ok {
+		return validResponse.VisitGithubAppListBranchesResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// GithubUpdateGlobalWebhook operation middleware
+func (sh *strictHandler) GithubUpdateGlobalWebhook(ctx echo.Context) error {
+	var request GithubUpdateGlobalWebhookRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GithubUpdateGlobalWebhook(ctx, request.(GithubUpdateGlobalWebhookRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GithubUpdateGlobalWebhook")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(GithubUpdateGlobalWebhookResponseObject); ok {
+		return validResponse.VisitGithubUpdateGlobalWebhookResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// GithubUpdateTenantWebhook operation middleware
+func (sh *strictHandler) GithubUpdateTenantWebhook(ctx echo.Context, webhook openapi_types.UUID) error {
+	var request GithubUpdateTenantWebhookRequestObject
+
+	request.Webhook = webhook
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GithubUpdateTenantWebhook(ctx, request.(GithubUpdateTenantWebhookRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GithubUpdateTenantWebhook")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(GithubUpdateTenantWebhookResponseObject); ok {
+		return validResponse.VisitGithubUpdateTenantWebhookResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // MetadataGet operation middleware
 func (sh *strictHandler) MetadataGet(ctx echo.Context) error {
 	var request MetadataGetRequestObject
@@ -2995,6 +3750,37 @@ func (sh *strictHandler) MetadataGet(ctx echo.Context) error {
 		return err
 	} else if validResponse, ok := response.(MetadataGetResponseObject); ok {
 		return validResponse.VisitMetadataGetResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// StepRunUpdateCreatePr operation middleware
+func (sh *strictHandler) StepRunUpdateCreatePr(ctx echo.Context, stepRun openapi_types.UUID) error {
+	var request StepRunUpdateCreatePrRequestObject
+
+	request.StepRun = stepRun
+
+	var body StepRunUpdateCreatePrJSONRequestBody
+	if err := ctx.Bind(&body); err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.StepRunUpdateCreatePr(ctx, request.(StepRunUpdateCreatePrRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StepRunUpdateCreatePr")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(StepRunUpdateCreatePrResponseObject); ok {
+		return validResponse.VisitStepRunUpdateCreatePrResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -3490,46 +4276,92 @@ func (sh *strictHandler) UserGetCurrent(ctx echo.Context) error {
 	return nil
 }
 
-// UserUpdateOauthCallback operation middleware
-func (sh *strictHandler) UserUpdateOauthCallback(ctx echo.Context) error {
-	var request UserUpdateOauthCallbackRequestObject
+// UserUpdateGithubOauthCallback operation middleware
+func (sh *strictHandler) UserUpdateGithubOauthCallback(ctx echo.Context) error {
+	var request UserUpdateGithubOauthCallbackRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.UserUpdateOauthCallback(ctx, request.(UserUpdateOauthCallbackRequestObject))
+		return sh.ssi.UserUpdateGithubOauthCallback(ctx, request.(UserUpdateGithubOauthCallbackRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserUpdateOauthCallback")
+		handler = middleware(handler, "UserUpdateGithubOauthCallback")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(UserUpdateOauthCallbackResponseObject); ok {
-		return validResponse.VisitUserUpdateOauthCallbackResponse(ctx.Response())
+	} else if validResponse, ok := response.(UserUpdateGithubOauthCallbackResponseObject); ok {
+		return validResponse.VisitUserUpdateGithubOauthCallbackResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
 	return nil
 }
 
-// UserUpdateOauthStart operation middleware
-func (sh *strictHandler) UserUpdateOauthStart(ctx echo.Context) error {
-	var request UserUpdateOauthStartRequestObject
+// UserUpdateGithubOauthStart operation middleware
+func (sh *strictHandler) UserUpdateGithubOauthStart(ctx echo.Context) error {
+	var request UserUpdateGithubOauthStartRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.UserUpdateOauthStart(ctx, request.(UserUpdateOauthStartRequestObject))
+		return sh.ssi.UserUpdateGithubOauthStart(ctx, request.(UserUpdateGithubOauthStartRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserUpdateOauthStart")
+		handler = middleware(handler, "UserUpdateGithubOauthStart")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(UserUpdateOauthStartResponseObject); ok {
-		return validResponse.VisitUserUpdateOauthStartResponse(ctx.Response())
+	} else if validResponse, ok := response.(UserUpdateGithubOauthStartResponseObject); ok {
+		return validResponse.VisitUserUpdateGithubOauthStartResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// UserUpdateGoogleOauthCallback operation middleware
+func (sh *strictHandler) UserUpdateGoogleOauthCallback(ctx echo.Context) error {
+	var request UserUpdateGoogleOauthCallbackRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UserUpdateGoogleOauthCallback(ctx, request.(UserUpdateGoogleOauthCallbackRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UserUpdateGoogleOauthCallback")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(UserUpdateGoogleOauthCallbackResponseObject); ok {
+		return validResponse.VisitUserUpdateGoogleOauthCallbackResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// UserUpdateGoogleOauthStart operation middleware
+func (sh *strictHandler) UserUpdateGoogleOauthStart(ctx echo.Context) error {
+	var request UserUpdateGoogleOauthStartRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UserUpdateGoogleOauthStart(ctx, request.(UserUpdateGoogleOauthStartRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UserUpdateGoogleOauthStart")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(UserUpdateGoogleOauthStartResponseObject); ok {
+		return validResponse.VisitUserUpdateGoogleOauthStartResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -3771,6 +4603,37 @@ func (sh *strictHandler) WorkflowGet(ctx echo.Context, workflow openapi_types.UU
 	return nil
 }
 
+// WorkflowUpdateLinkGithub operation middleware
+func (sh *strictHandler) WorkflowUpdateLinkGithub(ctx echo.Context, workflow openapi_types.UUID) error {
+	var request WorkflowUpdateLinkGithubRequestObject
+
+	request.Workflow = workflow
+
+	var body WorkflowUpdateLinkGithubJSONRequestBody
+	if err := ctx.Bind(&body); err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WorkflowUpdateLinkGithub(ctx, request.(WorkflowUpdateLinkGithubRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WorkflowUpdateLinkGithub")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(WorkflowUpdateLinkGithubResponseObject); ok {
+		return validResponse.VisitWorkflowUpdateLinkGithubResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // WorkflowRunCreate operation middleware
 func (sh *strictHandler) WorkflowRunCreate(ctx echo.Context, workflow openapi_types.UUID, params WorkflowRunCreateParams) error {
 	var request WorkflowRunCreateRequestObject
@@ -3858,88 +4721,102 @@ func (sh *strictHandler) WorkflowVersionGetDefinition(ctx echo.Context, workflow
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

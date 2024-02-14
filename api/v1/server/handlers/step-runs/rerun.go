@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/schema"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
@@ -37,6 +38,12 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		), nil
 	}
 
+	err = t.config.Repository.StepRun().ArchiveStepRunResult(tenant.ID, stepRun.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not archive step run result: %w", err)
+	}
+
 	// make sure input can be marshalled and unmarshalled to input type
 	inputBytes, err := json.Marshal(request.Body.Input)
 
@@ -52,6 +59,27 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		return gen.StepRunUpdateRerun400JSONResponse(
 			apierrors.NewAPIErrors("Invalid input"),
 		), nil
+	}
+
+	inputBytes, err = json.Marshal(data)
+
+	if err != nil {
+		return gen.StepRunUpdateRerun400JSONResponse(
+			apierrors.NewAPIErrors("Invalid input"),
+		), nil
+	}
+
+	// update the input schema for the step run based on the new input
+	jsonSchemaBytes, err := schema.SchemaBytesFromBytes(inputBytes)
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = t.config.Repository.StepRun().UpdateStepRunInputSchema(tenant.ID, stepRun.ID, jsonSchemaBytes)
+
+	if err != nil {
+		return nil, err
 	}
 
 	// update step run

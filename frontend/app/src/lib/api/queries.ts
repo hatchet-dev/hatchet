@@ -1,6 +1,7 @@
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 
 import api from './api';
+import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
@@ -100,6 +101,38 @@ export const queries = createQueryKeyStore({
     get: (worker: string) => ({
       queryKey: ['worker:get', worker],
       queryFn: async () => (await api.workerGet(worker)).data,
+    }),
+  },
+  github: {
+    listInstallations: {
+      queryKey: ['github-app:list:installations'],
+      queryFn: async () => (await api.githubAppListInstallations()).data,
+    },
+    listRepos: (installation?: string) => ({
+      queryKey: ['github-app:list:repos', installation],
+      queryFn: async () => {
+        invariant(installation, 'Installation must be set');
+        const res = (await api.githubAppListRepos(installation)).data;
+        return res;
+      },
+      enabled: !!installation,
+    }),
+    listBranches: (
+      installation?: string,
+      repoOwner?: string,
+      repoName?: string,
+    ) => ({
+      queryKey: ['github-app:list:branches', installation, repoOwner, repoName],
+      queryFn: async () => {
+        invariant(installation, 'Installation must be set');
+        invariant(repoOwner, 'Repo owner must be set');
+        invariant(repoName, 'Repo name must be set');
+        const res = (
+          await api.githubAppListBranches(installation, repoOwner, repoName)
+        ).data;
+        return res;
+      },
+      enabled: !!installation && !!repoOwner && !!repoName,
     }),
   },
 });

@@ -68,6 +68,8 @@ ReplayEventRequest:
   $ref: "./event.yaml#/ReplayEventRequest"
 Workflow:
   $ref: "./workflow.yaml#/Workflow"
+WorkflowDeploymentConfig:
+  $ref: "./workflow.yaml#/WorkflowDeploymentConfig"
 WorkflowVersionMeta:
   $ref: "./workflow.yaml#/WorkflowVersionMeta"
 WorkflowVersion:
@@ -120,3 +122,19 @@ RerunStepRunRequest:
   $ref: "./workflow_run.yaml#/RerunStepRunRequest"
 TriggerWorkflowRunRequest:
   $ref: "./workflow_run.yaml#/TriggerWorkflowRunRequest"
+LinkGithubRepositoryRequest:
+  $ref: "./workflow.yaml#/LinkGithubRepositoryRequest"
+GithubBranch:
+  $ref: "./github_app.yaml#/GithubBranch"
+GithubRepo:
+  $ref: "./github_app.yaml#/GithubRepo"
+GithubAppInstallation:
+  $ref: "./github_app.yaml#/GithubAppInstallation"
+ListGithubAppInstallationsResponse:
+  $ref: "./github_app.yaml#/ListGithubAppInstallationsResponse"
+ListGithubReposResponse:
+  $ref: "./github_app.yaml#/ListGithubReposResponse"
+ListGithubBranchesResponse:
+  $ref: "./github_app.yaml#/ListGithubBranchesResponse"
+CreatePullRequestFromStepRun:
+  $ref: "./workflow_run.yaml#/CreatePullRequestFromStepRun"

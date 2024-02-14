@@ -8,10 +8,9 @@ import ReactFlow, {
   Edge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import StepRunNode from './step-run-node';
+import StepRunNode, { StepRunNodeProps } from './step-run-node';
 import { StepRun, StepRunStatus, WorkflowRun } from '@/lib/api';
 import dagre from 'dagre';
-import { StepRunPlayground } from './step-run-playground';
 import invariant from 'tiny-invariant';
 
 const initBgColor = '#050c1c';
@@ -23,12 +22,15 @@ const nodeTypes = {
 
 const WorkflowRunVisualizer = ({
   workflowRun,
+  selectedStepRun,
+  setSelectedStepRun,
 }: {
   workflowRun: WorkflowRun;
+  selectedStepRun?: StepRun;
+  setSelectedStepRun: (stepRun: StepRun) => void;
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [selectedStepRun, setSelectedStepRun] = useState<StepRun | null>(null);
   const [bgColor] = useState(initBgColor);
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
@@ -79,23 +81,32 @@ const WorkflowRunVisualizer = ({
             const hasParent =
               stepRun.step?.parents?.length && stepRun.step.parents.length > 0;
 
+            const data: StepRunNodeProps = {
+              stepRun: stepRun,
+              onClick: () => {
+                console.log('clicked');
+                console.log(setSelectedStepRun);
+                setSelectedStepRun(stepRun);
+              },
+              variant:
+                hasParent && hasChild
+                  ? 'default'
+                  : hasChild
+                    ? 'output_only'
+                    : 'input_only',
+              selected: !selectedStepRun
+                ? 'none'
+                : selectedStepRun.stepId === stepRun.stepId
+                  ? 'selected'
+                  : 'not_selected',
+            };
+
             return {
               id: stepRun.step.metadata.id,
               selectable: false,
               type: 'stepNode',
               position: { x: 0, y: 0 }, // positioning gets set by dagre later
-              data: {
-                stepRun: stepRun,
-                onClick: () => {
-                  setSelectedStepRun(stepRun);
-                },
-                variant:
-                  hasParent && hasChild
-                    ? 'default'
-                    : hasChild
-                      ? 'output_only'
-                      : 'input_only',
-              },
+              data,
             };
           });
         })
@@ -103,7 +114,7 @@ const WorkflowRunVisualizer = ({
 
     setNodes(stepNodes);
     setEdges(stepEdges);
-  }, [workflowRun, setNodes, setEdges]);
+  }, [workflowRun, setNodes, setEdges, setSelectedStepRun, selectedStepRun]);
 
   const nodeWidth = 230;
   const nodeHeight = 70;
@@ -166,10 +177,6 @@ const WorkflowRunVisualizer = ({
         }}
         className="border-1 border-gray-800 rounded-lg"
         maxZoom={1}
-      />
-      <StepRunPlayground
-        stepRun={selectedStepRun}
-        setStepRun={setSelectedStepRun}
       />
     </>
   );

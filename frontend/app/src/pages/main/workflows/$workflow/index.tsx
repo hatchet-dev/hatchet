@@ -9,6 +9,7 @@ import {
   useLoaderData,
   useOutletContext,
   useParams,
+  useRevalidator,
 } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { columns } from '../../workflow-runs/components/workflow-runs-columns';
@@ -22,6 +23,7 @@ import WorkflowVisualizer from './components/workflow-visualizer';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { DeploymentSettingsForm } from './components/deployment-settings-form';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -69,6 +71,7 @@ export async function loader({
 export default function ExpandedWorkflow() {
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const loaderData = useLoaderData() as Awaited<ReturnType<typeof loader>>;
+  const revalidator = useRevalidator();
 
   if (!loaderData) {
     return <Loading />;
@@ -127,6 +130,14 @@ export default function ExpandedWorkflow() {
         </h3>
         <Separator className="my-4" />
         <RecentRunsList />
+        <h3 className="text-xl font-bold leading-tight text-foreground mt-8">
+          Deployment Settings
+        </h3>
+        <Separator className="my-4" />
+        <DeploymentSettings
+          workflow={workflow}
+          refetch={revalidator.revalidate}
+        />
       </div>
     </div>
   );
@@ -158,5 +169,35 @@ function RecentRunsList() {
       }}
       isLoading={listWorkflowRunsQuery.isLoading}
     />
+  );
+}
+
+function DeploymentSettings({
+  workflow,
+  refetch,
+}: {
+  workflow: Workflow;
+  refetch?: () => void;
+}) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div>
+      <Button
+        className="text-sm"
+        onClick={() => setShow(true)}
+        variant="outline"
+      >
+        Change settings
+      </Button>
+      <DeploymentSettingsForm
+        workflow={workflow}
+        show={show}
+        onClose={() => {
+          setShow(false);
+          refetch?.();
+        }}
+      />
+    </div>
   );
 }

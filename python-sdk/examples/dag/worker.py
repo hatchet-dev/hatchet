@@ -12,6 +12,8 @@ class MyWorkflow:
 
     @hatchet.step()
     def step1(self, context : Context):
+        context.overrides("test", "test")
+
         print("executed step1", context.workflow_input())
         return {
             "step1": "step1",

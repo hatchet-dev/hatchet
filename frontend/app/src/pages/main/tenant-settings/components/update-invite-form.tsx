@@ -51,8 +51,7 @@ export function UpdateInviteForm({
     },
   });
 
-  const roleError =
-    errors.role?.message?.toString() || props.fieldErrors?.password;
+  const roleError = errors.role?.message?.toString() || props.fieldErrors?.role;
 
   return (
     <DialogContent className="w-fit max-w-[80%] min-w-[500px]">

@@ -212,6 +212,10 @@ func ToStepRun(stepRun *db.StepRunModel) (*gen.StepRun, error) {
 		res.Output = repository.StringPtr(string(json.RawMessage(outputData)))
 	}
 
+	if inputSchema, ok := stepRun.InputSchema(); ok {
+		res.InputSchema = repository.StringPtr(string(json.RawMessage(inputSchema)))
+	}
+
 	if jobRun := stepRun.RelationsStepRun.JobRun; jobRun != nil {
 		var err error
 

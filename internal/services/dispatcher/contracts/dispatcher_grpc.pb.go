@@ -27,6 +27,7 @@ type DispatcherClient interface {
 	SubscribeToWorkflowEvents(ctx context.Context, in *SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsClient, error)
 	SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
+	PutOverridesData(ctx context.Context, in *OverridesData, opts ...grpc.CallOption) (*OverridesDataResponse, error)
 	Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error)
 }
 
@@ -129,6 +130,15 @@ func (c *dispatcherClient) SendGroupKeyActionEvent(ctx context.Context, in *Grou
 	return out, nil
 }
 
+func (c *dispatcherClient) PutOverridesData(ctx context.Context, in *OverridesData, opts ...grpc.CallOption) (*OverridesDataResponse, error) {
+	out := new(OverridesDataResponse)
+	err := c.cc.Invoke(ctx, "/Dispatcher/PutOverridesData", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dispatcherClient) Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error) {
 	out := new(WorkerUnsubscribeResponse)
 	err := c.cc.Invoke(ctx, "/Dispatcher/Unsubscribe", in, out, opts...)
@@ -147,6 +157,7 @@ type DispatcherServer interface {
 	SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error
 	SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error)
+	PutOverridesData(context.Context, *OverridesData) (*OverridesDataResponse, error)
 	Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error)
 	mustEmbedUnimplementedDispatcherServer()
 }
@@ -169,6 +180,9 @@ func (UnimplementedDispatcherServer) SendStepActionEvent(context.Context, *StepA
 }
 func (UnimplementedDispatcherServer) SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendGroupKeyActionEvent not implemented")
+}
+func (UnimplementedDispatcherServer) PutOverridesData(context.Context, *OverridesData) (*OverridesDataResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutOverridesData not implemented")
 }
 func (UnimplementedDispatcherServer) Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Unsubscribe not implemented")
@@ -282,6 +296,24 @@ func _Dispatcher_SendGroupKeyActionEvent_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dispatcher_PutOverridesData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OverridesData)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).PutOverridesData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/Dispatcher/PutOverridesData",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).PutOverridesData(ctx, req.(*OverridesData))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Dispatcher_Unsubscribe_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(WorkerUnsubscribeRequest)
 	if err := dec(in); err != nil {
@@ -318,6 +350,10 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendGroupKeyActionEvent",
 			Handler:    _Dispatcher_SendGroupKeyActionEvent_Handler,
+		},
+		{
+			MethodName: "PutOverridesData",
+			Handler:    _Dispatcher_PutOverridesData_Handler,
 		},
 		{
 			MethodName: "Unsubscribe",

@@ -43,6 +43,14 @@ func LoadClientConfigFile(files ...[]byte) (*client.ClientConfigFile, error) {
 }
 
 func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.ClientConfig, err error) {
+	f := client.BindAllEnv
+
+	_, err = loaderutils.LoadConfigFromViper(f, cf)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not load config from viper: %w", err)
+	}
+
 	// if token is empty, throw an error
 	if cf.Token == "" {
 		return nil, fmt.Errorf("API token is required. Set it via the HATCHET_CLIENT_TOKEN environment variable.")
