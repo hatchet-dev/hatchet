@@ -80,10 +80,19 @@ jobs:
         with:
           version: "25.1"
 
+      - name: Install Task
+        uses: arduino/setup-task@v1
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.21"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
 
       - name: Compose
         run: docker compose up -d
@@ -123,6 +132,12 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.21"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
 
       - name: Compose
         run: docker compose up -d
