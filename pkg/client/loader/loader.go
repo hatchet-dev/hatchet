@@ -81,7 +81,7 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 	// if the tls server name is empty, parse the domain from the host:port
 	if tlsServerName == "" {
 		// parse the domain from the host:port
-		domain, err := parseDomain(cf.HostPort)
+		domain, err := parseDomain(grpcBroadcastAddress)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not parse domain: %w", err)
