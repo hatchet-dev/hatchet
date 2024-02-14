@@ -1,8 +1,15 @@
+import inspect
 from multiprocessing import Event
+import os
 from .clients.dispatcher import Action, DispatcherClient
 from .dispatcher_pb2 import OverridesData
 from .logger import logger
 import json
+
+def get_caller_file_path():
+    caller_frame = inspect.stack()[2]
+
+    return caller_frame.filename
 
 class Context:
     def __init__(self, action: Action, client: DispatcherClient):
@@ -46,11 +53,14 @@ class Context:
         if name in self.overrides_data:
             return self.overrides_data[name]
         
+        caller_file = get_caller_file_path()
+        
         self.client.put_overrides_data(
             OverridesData(
                 stepRunId=self.stepRunId,
                 path=name,
-                value=json.dumps(default)
+                value=json.dumps(default),
+                callerFilename=caller_file
             )
         )
 

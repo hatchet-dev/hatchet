@@ -365,10 +365,16 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 		return nil, fmt.Errorf("step run id is required")
 	}
 
-	input, err := s.repo.StepRun().UpdateStepRunOverridesData(tenant.ID, request.StepRunId, &repository.UpdateStepRunOverridesDataOpts{
+	opts := &repository.UpdateStepRunOverridesDataOpts{
 		OverrideKey: request.Path,
 		Data:        []byte(request.Value),
-	})
+	}
+
+	if request.CallerFilename != "" {
+		opts.CallerFile = &request.CallerFilename
+	}
+
+	input, err := s.repo.StepRun().UpdateStepRunOverridesData(tenant.ID, request.StepRunId, opts)
 
 	if err != nil {
 		return nil, err

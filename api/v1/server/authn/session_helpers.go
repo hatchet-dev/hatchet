@@ -55,6 +55,7 @@ func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
 
 func (s *SessionHelpers) SaveOAuthState(
 	c echo.Context,
+	integration string,
 ) (string, error) {
 	state, err := encryption.GenerateRandomBytes(16)
 
@@ -68,8 +69,10 @@ func (s *SessionHelpers) SaveOAuthState(
 		return "", err
 	}
 
+	stateKey := fmt.Sprintf("oauth_state_%s", integration)
+
 	// need state parameter to validate when redirected
-	session.Values["state"] = state
+	session.Values[stateKey] = state
 
 	// need a parameter to indicate that this was triggered through the oauth flow
 	session.Values["oauth_triggered"] = true
@@ -83,18 +86,21 @@ func (s *SessionHelpers) SaveOAuthState(
 
 func (s *SessionHelpers) ValidateOAuthState(
 	c echo.Context,
+	integration string,
 ) (isValidated bool, isOAuthTriggered bool, err error) {
+	stateKey := fmt.Sprintf("oauth_state_%s", integration)
+
 	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
 
 	if err != nil {
 		return false, false, err
 	}
 
-	if _, ok := session.Values["state"]; !ok {
+	if _, ok := session.Values[stateKey]; !ok {
 		return false, false, fmt.Errorf("state parameter not found in session")
 	}
 
-	if c.Request().URL.Query().Get("state") != session.Values["state"] {
+	if c.Request().URL.Query().Get("state") != session.Values[stateKey] {
 		return false, false, fmt.Errorf("state parameters do not match")
 	}
 
@@ -107,7 +113,7 @@ func (s *SessionHelpers) ValidateOAuthState(
 	}
 
 	// need state parameter to validate when redirected
-	session.Values["state"] = ""
+	session.Values[stateKey] = ""
 	session.Values["oauth_triggered"] = false
 
 	if err := session.Save(c.Request(), c.Response()); err != nil {

@@ -245,6 +245,12 @@ func (s *stepRunRepository) UpdateStepRunOverridesData(tenantId, stepRunId strin
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
 
+	callerFile := ""
+
+	if opts.CallerFile != nil {
+		callerFile = *opts.CallerFile
+	}
+
 	input, err := s.queries.UpdateStepRunOverridesData(
 		context.Background(),
 		tx,
@@ -256,6 +262,10 @@ func (s *stepRunRepository) UpdateStepRunOverridesData(tenantId, stepRunId strin
 				opts.OverrideKey,
 			},
 			Jsondata: opts.Data,
+			Overrideskey: []string{
+				opts.OverrideKey,
+			},
+			Callerfile: callerFile,
 		},
 	)
 
@@ -580,4 +590,53 @@ func (s *stepRunRepository) ListStartableStepRuns(tenantId, jobRunId, parentStep
 	}
 
 	return stepRuns, nil
+}
+
+func (s *stepRunRepository) ArchiveStepRunResult(tenantId, stepRunId string) error {
+	tx, err := s.pool.Begin(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	defer deferRollback(context.Background(), s.l, tx.Rollback)
+
+	_, err = s.queries.ArchiveStepRunResultFromStepRun(context.Background(), tx, dbsqlc.ArchiveStepRunResultFromStepRunParams{
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *stepRunRepository) ListArchivedStepRunResults(tenantId, stepRunId string) ([]db.StepRunResultArchiveModel, error) {
+	return s.client.StepRunResultArchive.FindMany(
+		db.StepRunResultArchive.StepRunID.Equals(stepRunId),
+		db.StepRunResultArchive.StepRun.Where(
+			db.StepRun.TenantID.Equals(tenantId),
+		),
+	).OrderBy(
+		db.StepRunResultArchive.Order.Order(db.DESC),
+	).Exec(context.Background())
+}
+
+func (s *stepRunRepository) GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error) {
+	return s.client.StepRunResultArchive.FindFirst(
+		db.StepRunResultArchive.StepRunID.Equals(stepRunId),
+		db.StepRunResultArchive.StepRun.Where(
+			db.StepRun.TenantID.Equals(tenantId),
+		),
+	).OrderBy(
+		db.StepRunResultArchive.Order.Order(db.ASC),
+	).Exec(context.Background())
 }

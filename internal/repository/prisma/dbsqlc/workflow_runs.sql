@@ -341,7 +341,8 @@ INSERT INTO "StepRun" (
     "timeoutAt",
     "cancelledAt",
     "cancelledReason",
-    "cancelledError"
+    "cancelledError",
+    "callerFiles"
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -363,7 +364,8 @@ INSERT INTO "StepRun" (
     NULL,
     NULL,
     NULL,
-    NULL
+    NULL,
+    '{}'
 ) RETURNING *;
 
 -- name: LinkStepRunParents :exec

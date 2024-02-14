@@ -55,6 +55,7 @@ type UpdateStepRunOpts struct {
 type UpdateStepRunOverridesDataOpts struct {
 	OverrideKey string
 	Data        []byte
+	CallerFile  *string
 }
 
 func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
@@ -94,4 +95,10 @@ type StepRunRepository interface {
 	CancelPendingStepRuns(tenantId, jobRunId, reason string) error
 
 	ListStartableStepRuns(tenantId, jobRunId, parentStepRunId string) ([]*dbsqlc.StepRun, error)
+
+	ArchiveStepRunResult(tenantId, stepRunId string) error
+
+	ListArchivedStepRunResults(tenantId, stepRunId string) ([]db.StepRunResultArchiveModel, error)
+
+	GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error)
 }
