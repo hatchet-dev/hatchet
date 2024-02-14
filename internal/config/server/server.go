@@ -58,6 +58,9 @@ type ConfigFileRuntime struct {
 
 	// GRPCInsecure controls whether the grpc server is insecure or uses certs
 	GRPCInsecure bool `mapstructure:"grpcInsecure" json:"grpcInsecure,omitempty" default:"false"`
+
+	// Whether the internal worker is enabled for this instance
+	WorkerEnabled bool `mapstructure:"workerEnabled" json:"workerEnabled,omitempty" default:"false"`
 }
 
 // Encryption options
@@ -217,6 +220,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
+	_ = v.BindEnv("runtime.workerEnabled", "SERVER_WORKER_ENABLED")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
 
 	// encryption options

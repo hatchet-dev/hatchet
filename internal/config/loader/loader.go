@@ -245,35 +245,37 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	var internalClient client.Client
 
-	// get the internal tenant or create if it doesn't exist
-	internalTenant, err := dc.Repository.Tenant().GetTenantBySlug("internal")
+	if cf.Runtime.WorkerEnabled {
+		// get the internal tenant or create if it doesn't exist
+		internalTenant, err := dc.Repository.Tenant().GetTenantBySlug("internal")
 
-	if err != nil {
-		return nil, fmt.Errorf("could not get internal tenant: %w", err)
-	}
+		if err != nil {
+			return nil, fmt.Errorf("could not get internal tenant: %w", err)
+		}
 
-	tokenSuffix, err := encryption.GenerateRandomBytes(4)
+		tokenSuffix, err := encryption.GenerateRandomBytes(4)
 
-	if err != nil {
-		return nil, fmt.Errorf("could not generate token suffix: %w", err)
-	}
+		if err != nil {
+			return nil, fmt.Errorf("could not generate token suffix: %w", err)
+		}
 
-	// generate a token for the internal client
-	token, err := auth.JWTManager.GenerateTenantToken(internalTenant.ID, fmt.Sprintf("internal-%s", tokenSuffix))
+		// generate a token for the internal client
+		token, err := auth.JWTManager.GenerateTenantToken(internalTenant.ID, fmt.Sprintf("internal-%s", tokenSuffix))
 
-	if err != nil {
-		return nil, fmt.Errorf("could not generate internal token: %w", err)
-	}
+		if err != nil {
+			return nil, fmt.Errorf("could not generate internal token: %w", err)
+		}
 
-	internalClient, err = client.NewFromConfigFile(
-		&clientconfig.ClientConfigFile{
-			Token:    token,
-			HostPort: cf.Runtime.GRPCBroadcastAddress,
-		},
-	)
+		internalClient, err = client.NewFromConfigFile(
+			&clientconfig.ClientConfigFile{
+				Token:    token,
+				HostPort: cf.Runtime.GRPCBroadcastAddress,
+			},
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("could not create internal client: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("could not create internal client: %w", err)
+		}
 	}
 
 	return &server.ServerConfig{
