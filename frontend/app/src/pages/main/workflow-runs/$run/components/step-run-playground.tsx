@@ -132,6 +132,22 @@ export function StepRunPlayground({
 
   const disabled = rerunStepMutation.isPending || isLoading;
 
+  // Function to detect the operating system
+  const getOS = () => {
+    const userAgent = window.navigator.userAgent;
+    // Simple checks for platform; these could be extended as needed
+    if (userAgent.includes('Mac')) {
+      return 'MacOS';
+    } else if (userAgent.includes('Win')) {
+      return 'Windows';
+    } else {
+      // Default or other OS
+      return 'unknown';
+    }
+  };
+  // Determine the appropriate shortcut based on the OS
+  const shortcut = getOS() === 'MacOS' ? 'Cmd + Enter' : 'Ctrl + Enter';
+
   return (
     <div className="">
       {stepRun && (
@@ -159,24 +175,30 @@ export function StepRunPlayground({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-
-              <Button
-                className="w-fit"
-                disabled={disabled}
-                onClick={handleOnPlay}
-              >
-                {disabled ? (
-                  <>
-                    <Loading />
-                    Playing
-                  </>
-                ) : (
-                  <>
-                    <PlayIcon className={cn('h-4 w-4 mr-2')} />
-                    Replay Step
-                  </>
-                )}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      className="w-fit"
+                      disabled={disabled}
+                      onClick={handleOnPlay}
+                    >
+                      {disabled ? (
+                        <>
+                          <Loading />
+                          Playing
+                        </>
+                      ) : (
+                        <>
+                          <PlayIcon className={cn('h-4 w-4 mr-2')} />
+                          Replay Step
+                        </>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{shortcut}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
           <div className="flex flex-row gap-4 mt-4">
