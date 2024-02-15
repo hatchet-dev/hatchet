@@ -186,6 +186,21 @@ export function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
   );
 }
 
+export function StepDurationSection({ stepRun }: { stepRun: StepRun }) {
+  return (
+    <div className="mb-4">
+      <h3 className="font-semibold leading-tight text-foreground mb-4">
+        Duration
+      </h3>
+      <div className="text-sm text-muted-foreground">
+        {stepRun.startedAt &&
+          stepRun.finishedAt &&
+          timeBetween(stepRun.startedAt, stepRun.finishedAt)}
+      </div>
+    </div>
+  );
+}
+
 export function StepConfigurationSection({ stepRun }: { stepRun: StepRun }) {
   return (
     <div className="mb-4">
