@@ -1,18 +1,5 @@
-import { Button } from '@/components/ui/button';
 import { CodeEditor } from '@/components/ui/code-editor';
 import { JsonForm } from '@/components/ui/json-form';
-import { Loading } from '@/components/ui/loading';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
-import { PlayIcon } from '@radix-ui/react-icons';
-import { useEffect, useState } from 'react';
-import { VscNote, VscJson } from 'react-icons/vsc';
 
 export interface StepRunOutputProps {
   input: string;
