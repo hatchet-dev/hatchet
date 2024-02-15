@@ -280,7 +280,7 @@ model WorkflowVersion {
   // declaration, which can be the same for multiple versions (e.g. on revert)
   checksum String
   version  String?
-  order    Int     @default(autoincrement()) @db.SmallInt
+  order    BigInt  @default(autoincrement()) @db.BigInt
 
   // the parent workflow
   workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -761,7 +761,7 @@ model StepRun {
   // a list of dependencies for this step
   parents StepRun[] @relation("StepRunOrder")
 
-  order Int @default(autoincrement()) @db.SmallInt
+  order BigInt @default(autoincrement()) @db.BigInt
 
   // the worker assigned to this job
   worker   Worker? @relation(fields: [workerId], references: [id])
