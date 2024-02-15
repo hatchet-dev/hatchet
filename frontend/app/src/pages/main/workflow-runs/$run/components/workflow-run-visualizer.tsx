@@ -84,8 +84,6 @@ const WorkflowRunVisualizer = ({
             const data: StepRunNodeProps = {
               stepRun: stepRun,
               onClick: () => {
-                console.log('clicked');
-                console.log(setSelectedStepRun);
                 setSelectedStepRun(stepRun);
               },
               variant:

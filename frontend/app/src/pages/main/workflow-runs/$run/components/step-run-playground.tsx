@@ -1,23 +1,27 @@
 import api, { StepRun, StepRunStatus, queries } from '@/lib/api';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RunStatus } from '../../components/run-statuses';
 import { Button } from '@/components/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 import { PlayIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
+import { Loading } from '@/components/ui/loading';
+import { StepStatusDetails } from '..';
 
 export function StepRunPlayground({
   stepRun,
   setStepRun,
+  workflowRunId,
 }: {
   stepRun: StepRun | undefined;
   setStepRun: (stepRun: StepRun | undefined) => void;
+  workflowRunId: string;
 }) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
@@ -28,10 +32,9 @@ export function StepRunPlayground({
     setErrors,
   });
 
-  const originalInput = JSON.stringify(
-    JSON.parse(stepRun?.input || '{}'),
-    null,
-    2,
+  const originalInput = useMemo(
+    () => JSON.stringify(JSON.parse(stepRun?.input || '{}'), null, 2),
+    [stepRun?.input],
   );
 
   const [stepInput, setStepInput] = useState(originalInput);
@@ -56,6 +59,8 @@ export function StepRunPlayground({
     },
   });
 
+  const queryClient = useQueryClient();
+
   const rerunStepMutation = useMutation({
     mutationKey: [
       'step-run:update:rerun',
@@ -79,8 +84,12 @@ export function StepRunPlayground({
       setErrors([]);
     },
     onSuccess: (stepRun: StepRun) => {
-      setStepRun(stepRun);
+      queryClient.invalidateQueries({
+        queryKey: queries.workflowRuns.get(tenant.metadata.id, workflowRunId)
+          .queryKey,
+      });
 
+      setStepRun(stepRun);
       getStepRunQuery.refetch();
     },
     onError: handleApiError,
@@ -94,12 +103,8 @@ export function StepRunPlayground({
 
   const output = stepRun?.output || '{}';
 
-  console.log(stepRun);
-
-  const isLoading =
-    stepRun?.status != 'SUCCEEDED' &&
-    stepRun?.status != 'FAILED' &&
-    stepRun?.status != 'CANCELLED';
+  const COMPLETED = ['SUCCEEDED', 'FAILED', 'CANCELLED'];
+  const isLoading = !COMPLETED.includes(stepRun?.status || '');
 
   const handleOnPlay = () => {
     const inputObj = JSON.parse(stepInput);
@@ -117,7 +122,7 @@ export function StepRunPlayground({
                   schema={stepRun.inputSchema || ''}
                   input={stepInput}
                   setInput={setStepInput}
-                  disabled={rerunStepMutation.isPending}
+                  disabled={isLoading || rerunStepMutation.isPending}
                   handleOnPlay={handleOnPlay}
                 />
               )}
@@ -127,16 +132,20 @@ export function StepRunPlayground({
                 <div className="flex flex-row justify-between items-center mb-4">
                   <Button
                     className="w-fit"
-                    disabled={rerunStepMutation.isPending}
+                    disabled={isLoading || rerunStepMutation.isPending}
                     onClick={handleOnPlay}
                   >
-                    <PlayIcon
-                      className={cn(
-                        rerunStepMutation.isPending ? 'rotate-180' : '',
-                        'h-4 w-4 mr-2',
-                      )}
-                    />
-                    Play Step
+                    {isLoading || rerunStepMutation.isPending ? (
+                      <>
+                        <Loading />
+                        Playing
+                      </>
+                    ) : (
+                      <>
+                        <PlayIcon className={cn('h-4 w-4 mr-2')} />
+                        Play Step
+                      </>
+                    )}
                   </Button>
 
                   <RunStatus
@@ -148,10 +157,16 @@ export function StepRunPlayground({
                   />
                 </div>
                 <StepRunOutput
+                  stepRun={stepRun}
                   output={output}
                   isLoading={isLoading}
                   errors={
-                    [...errors, stepRun.error].filter((e) => !!e) as string[]
+                    [
+                      ...errors,
+                      stepRun.error
+                        ? StepStatusDetails({ stepRun })
+                        : undefined,
+                    ].filter((e) => !!e) as string[]
                   }
                 />
               </div>
