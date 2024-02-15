@@ -52,26 +52,22 @@ export default function ExpandedWorkflowRun() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
-            <h2 className="text-2xl font-bold leading-tight text-foreground flex flex-row items-center">
-              {run?.workflowVersion?.workflow && (
-                <Link
-                  to={`/workflows/${run?.workflowVersion?.workflow?.metadata.id}`}
-                >
-                  <Button
-                    variant="ghost"
-                    className="flex flex-row items-center text-2xl gap-2 text-foreground hover:bg-muted"
-                  >
-                    <ArrowLeftCircleIcon className="h-4 w-4" />
-                  </Button>
-                </Link>
-              )}
-              {run?.workflowVersion?.workflow?.name}-
-              {run?.displayName?.split('-')[1] || run?.metadata.id}/
-              {selectedStepRun?.step?.readableId || '*'}
+            <h2 className="text-2xl font-bold leading-tight text-foreground flex flex-row  items-center">
+              <Link
+                to={`/workflows/${run?.workflowVersion?.workflow?.metadata.id}`}
+              >
+                {run?.workflowVersion?.workflow?.name}-
+                {run?.displayName?.split('-')[1] || run?.metadata.id}
+              </Link>
+              /{selectedStepRun?.step?.readableId || '*'}
             </h2>
           </div>
+          <Badge className="text-sm mt-1" variant={'secondary'}>
+            {/* {workflow.versions && workflow.versions[0].version} */}
+            {run.status}
+          </Badge>
         </div>
-        <div className="flex flex-row justify-start items-center mt-4 gap-2">
+        <div className="flex flex-row justify-start items-center gap-2">
           <div className="text-sm text-muted-foreground">
             Created {relativeDate(run?.metadata.createdAt)}
           </div>
@@ -85,11 +81,6 @@ export default function ExpandedWorkflowRun() {
               Duration {timeBetween(run.startedAt, run.finishedAt)}
             </div>
           )}
-
-          <Badge className="text-sm mt-1" variant={'secondary'}>
-            {/* {workflow.versions && workflow.versions[0].version} */}
-            {run.status}
-          </Badge>
         </div>
         <Separator className="my-4" />
         <div className="w-full h-[150px]">
