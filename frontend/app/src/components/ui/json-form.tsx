@@ -3,7 +3,6 @@ import {
   CustomValidator,
   ErrorSchema,
   ErrorTransformer,
-  ObjectFieldTemplateProps,
   RJSFSchema,
   RJSFValidationError,
   UiSchema,
@@ -13,13 +12,14 @@ import {
 import Form from '@rjsf/core';
 import { PlayIcon } from '@radix-ui/react-icons';
 import { Button } from './button';
-import { useState } from 'react';
 import { Loading } from './loading';
+import { CollapsibleSection } from './form-inputs/collapsible-section';
+import { DynamicSizeInputTemplate } from './form-inputs/dynamic-size-input-template';
 
 type JSONPrimitive = string | number | boolean | null;
 type JSONType = { [key: string]: JSONType | JSONPrimitive };
 
-const DEFAULT_COLLAPSED = ['advanced', 'user data'];
+export const DEFAULT_COLLAPSED = ['advanced', 'user data'];
 
 class NoValidation implements ValidatorType {
   validateFormData(
@@ -50,46 +50,6 @@ class NoValidation implements ValidatorType {
     return {};
   }
 }
-
-export const CollapsibleSection = (props: ObjectFieldTemplateProps) => {
-  const [open, setOpen] = useState(!DEFAULT_COLLAPSED.includes(props.title));
-
-  return (
-    <div>
-      {props.title && (
-        <div
-          onClick={() => setOpen((x) => !x)}
-          className="border-b-2 mb-2 border-gray-500 pb-2 text-xl font-bold flex items-center cursor-pointer"
-        >
-          <svg
-            className={`mr-2 h-6 w-6 ${open ? 'rotate-180' : ''}`}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M19 9l-7 7-7-7" />
-          </svg>
-
-          {props.title}
-        </div>
-      )}
-      {props.description}
-      {open &&
-        (props.properties.length > 0 ? (
-          props.properties.map((element, i) => (
-            <div className="property-wrapper ml-4" key={i}>
-              {element.content}
-            </div>
-          ))
-        ) : (
-          <div className="ml-4">empty state</div>
-        ))}
-    </div>
-  );
-};
 
 export function JsonForm({
   inputSchema,
@@ -155,6 +115,7 @@ export function JsonForm({
         schema={schema}
         disabled={disabled}
         templates={{
+          BaseInputTemplate: DynamicSizeInputTemplate,
           ObjectFieldTemplate: CollapsibleSection,
         }}
         uiSchema={uiSchema}
