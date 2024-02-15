@@ -15,6 +15,7 @@ import { Button } from './button';
 import { Loading } from './loading';
 import { CollapsibleSection } from './form-inputs/collapsible-section';
 import { DynamicSizeInputTemplate } from './form-inputs/dynamic-size-input-template';
+import { createContext, useRef } from 'react';
 
 type JSONPrimitive = string | number | boolean | null;
 type JSONType = { [key: string]: JSONType | JSONPrimitive };
@@ -51,6 +52,14 @@ class NoValidation implements ValidatorType {
   }
 }
 
+interface JSONFormContextSchema {
+  form?: React.RefObject<Form>;
+}
+
+export const JSONFormContext = createContext<JSONFormContextSchema>({
+  form: undefined,
+});
+
 export function JsonForm({
   inputSchema,
   inputData,
@@ -66,6 +75,8 @@ export function JsonForm({
   disabled?: boolean;
   onSubmit: () => void;
 }) {
+  const formRef = useRef<Form>(null);
+
   const schema = {
     ...inputSchema,
     required: undefined,
@@ -104,55 +115,58 @@ export function JsonForm({
   };
 
   return (
-    <div
-      className={cn(
-        className,
-        'w-full h-fit relative rounded-lg overflow-hidden',
-      )}
-    >
-      <Form
-        formData={inputData}
-        schema={schema}
-        disabled={disabled}
-        templates={{
-          BaseInputTemplate: DynamicSizeInputTemplate,
-          ObjectFieldTemplate: CollapsibleSection,
-        }}
-        uiSchema={uiSchema}
-        validator={new NoValidation()}
-        noHtml5Validate={true}
-        onChange={(data) => {
-          // Transform the data to unwrap the advanced fields
-          const formData = { ...data.formData, ...data.formData.advanced };
-          delete formData.advanced;
-          setInput((prev) =>
-            JSON.stringify({
-              ...JSON.parse(prev),
-              ...formData,
-            }),
-          );
-        }}
-        onSubmit={onSubmit}
-        onError={(e) => {
-          console.error(e);
-        }}
+    <JSONFormContext.Provider value={{ form: formRef }}>
+      <div
+        className={cn(
+          className,
+          'w-full h-fit relative rounded-lg overflow-hidden',
+        )}
       >
-        <Button className="w-fit" disabled={disabled}>
-          {disabled ? (
-            <>
-              <Loading />
-              Playing
-            </>
-          ) : (
-            <>
-              <PlayIcon
-                className={cn(disabled ? 'rotate-180' : '', 'h-4 w-4 mr-2')}
-              />
-              Play Step
-            </>
-          )}
-        </Button>
-      </Form>
-    </div>
+        <Form
+          ref={formRef}
+          formData={inputData}
+          schema={schema}
+          disabled={disabled}
+          templates={{
+            BaseInputTemplate: DynamicSizeInputTemplate,
+            ObjectFieldTemplate: CollapsibleSection,
+          }}
+          uiSchema={uiSchema}
+          validator={new NoValidation()}
+          noHtml5Validate={true}
+          onChange={(data) => {
+            // Transform the data to unwrap the advanced fields
+            const formData = { ...data.formData, ...data.formData.advanced };
+            delete formData.advanced;
+            setInput((prev) =>
+              JSON.stringify({
+                ...JSON.parse(prev),
+                ...formData,
+              }),
+            );
+          }}
+          onSubmit={onSubmit}
+          onError={(e) => {
+            console.error(e);
+          }}
+        >
+          <Button className="w-fit invisible" disabled={disabled}>
+            {disabled ? (
+              <>
+                <Loading />
+                Playing
+              </>
+            ) : (
+              <>
+                <PlayIcon
+                  className={cn(disabled ? 'rotate-180' : '', 'h-4 w-4 mr-2')}
+                />
+                Play Step
+              </>
+            )}
+          </Button>
+        </Form>
+      </div>
+    </JSONFormContext.Provider>
   );
 }

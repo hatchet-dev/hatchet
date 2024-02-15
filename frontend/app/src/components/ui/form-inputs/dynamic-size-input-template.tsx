@@ -1,5 +1,13 @@
 import { BaseInputTemplateProps, getInputProps } from '@rjsf/utils';
-import { ChangeEvent, FocusEvent, useEffect, useRef } from 'react';
+import {
+  ChangeEvent,
+  FocusEvent,
+  KeyboardEvent,
+  useContext,
+  useEffect,
+  useRef,
+} from 'react';
+import { JSONFormContext } from '../json-form';
 
 export function DynamicSizeInputTemplate(props: BaseInputTemplateProps) {
   const {
@@ -27,6 +35,7 @@ export function DynamicSizeInputTemplate(props: BaseInputTemplateProps) {
   } = props;
 
   const ref = useRef<HTMLTextAreaElement>(null);
+  const { form } = useContext(JSONFormContext);
 
   const onTextChange = ({
     target: { value: val },
@@ -56,6 +65,16 @@ export function DynamicSizeInputTemplate(props: BaseInputTemplateProps) {
     setHeight(ref.current);
   }, [ref.current, ref.current?.value]);
 
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!form?.current) {
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      form.current.submit();
+    }
+  };
+
   return (
     <textarea
       ref={ref}
@@ -66,6 +85,7 @@ export function DynamicSizeInputTemplate(props: BaseInputTemplateProps) {
       readOnly={readonly}
       autoFocus={autofocus}
       className="overflow-y-hidden"
+      onKeyDown={handleKeyDown}
       onChange={
         (onChangeOverride as
           | ((event: ChangeEvent<HTMLTextAreaElement>) => void)
