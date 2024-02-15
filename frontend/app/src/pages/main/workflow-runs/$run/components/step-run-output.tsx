@@ -28,7 +28,7 @@ export const StepRunOutput: React.FC<StepRunOutputProps> = ({
     <>
       <CodeEditor
         language="json"
-        className="my-4"
+        className="mb-4"
         height="400px"
         code={JSON.stringify(
           errors.length > 0 ? errors : JSON.parse(output),

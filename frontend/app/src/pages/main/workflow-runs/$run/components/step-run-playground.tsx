@@ -13,6 +13,13 @@ import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
 import { Loading } from '@/components/ui/loading';
 import { StepStatusDetails } from '..';
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip';
+import { VscNote, VscJson } from 'react-icons/vsc';
 
 export function StepRunPlayground({
   stepRun,
@@ -111,43 +118,85 @@ export function StepRunPlayground({
     rerunStepMutation.mutate(inputObj);
   };
 
+  const [mode, setMode] = useState<'form' | 'json'>(
+    (localStorage.getItem('mode') as 'form' | 'json') || 'form',
+  );
+
+  useEffect(() => {
+    localStorage.setItem('mode', mode);
+  }, [mode]);
+
+  const handleModeSwitch = () => {
+    setMode((prev) => (prev === 'json' ? 'form' : 'json'));
+  };
+
+  const disabled = rerunStepMutation.isPending || isLoading;
+
   return (
     <div className="">
       {stepRun && (
         <>
+          <div className="flex flex-row gap-2 justify-between items-center sticky top-0 z-50">
+            <div className="text-2xl">
+              Playground/{stepRun?.step?.readableId}
+            </div>
+            <div className="flex flex-row gap-2 justify-end items-center">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleModeSwitch}
+                    >
+                      {mode === 'json' && <VscNote className="h-4 w-4" />}
+                      {mode === 'form' && <VscJson className="h-4 w-4" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {mode === 'json' && 'Switch to Form Mode'}
+                    {mode === 'form' && 'Switch to JSON Mode'}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <Button
+                className="w-fit"
+                disabled={disabled}
+                onClick={handleOnPlay}
+              >
+                {disabled ? (
+                  <>
+                    <Loading />
+                    Playing
+                  </>
+                ) : (
+                  <>
+                    <PlayIcon className={cn('h-4 w-4 mr-2')} />
+                    Replay Step
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
           <div className="flex flex-row gap-4 mt-4">
             <div className="flex-grow w-1/2">
+              Inputs
               {stepInput && (
                 <StepRunInputs
                   schema={stepRun.inputSchema || ''}
                   input={stepInput}
                   setInput={setStepInput}
-                  disabled={isLoading || rerunStepMutation.isPending}
+                  disabled={disabled}
                   handleOnPlay={handleOnPlay}
+                  mode={mode}
                 />
               )}
             </div>
             <div className="flex-grow flex-col flex gap-4 w-1/2 ">
-              <div className="flex flex-col sticky top-0">
+              <div className="flex flex-col">
                 <div className="flex flex-row justify-between items-center mb-4">
-                  <Button
-                    className="w-fit"
-                    disabled={isLoading || rerunStepMutation.isPending}
-                    onClick={handleOnPlay}
-                  >
-                    {isLoading || rerunStepMutation.isPending ? (
-                      <>
-                        <Loading />
-                        Playing
-                      </>
-                    ) : (
-                      <>
-                        <PlayIcon className={cn('h-4 w-4 mr-2')} />
-                        Play Step
-                      </>
-                    )}
-                  </Button>
-
+                  <div>Outputs</div>
                   <RunStatus
                     status={
                       errors.length > 0
