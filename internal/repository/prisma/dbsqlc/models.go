@@ -586,7 +586,7 @@ type StepRun struct {
 	TenantId          pgtype.UUID      `json:"tenantId"`
 	JobRunId          pgtype.UUID      `json:"jobRunId"`
 	StepId            pgtype.UUID      `json:"stepId"`
-	Order             int16            `json:"order"`
+	Order             int64            `json:"order"`
 	WorkerId          pgtype.UUID      `json:"workerId"`
 	TickerId          pgtype.UUID      `json:"tickerId"`
 	Status            StepRunStatus    `json:"status"`
@@ -617,7 +617,7 @@ type StepRunResultArchive struct {
 	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
 	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
 	StepRunId       pgtype.UUID      `json:"stepRunId"`
-	Order           int16            `json:"order"`
+	Order           int64            `json:"order"`
 	Input           []byte           `json:"input"`
 	Output          []byte           `json:"output"`
 	Error           pgtype.Text      `json:"error"`
@@ -836,7 +836,7 @@ type WorkflowVersion struct {
 	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
 	DeletedAt  pgtype.Timestamp `json:"deletedAt"`
 	Version    pgtype.Text      `json:"version"`
-	Order      int16            `json:"order"`
+	Order      int64            `json:"order"`
 	WorkflowId pgtype.UUID      `json:"workflowId"`
 	Checksum   string           `json:"checksum"`
 }

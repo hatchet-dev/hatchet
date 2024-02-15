@@ -30,7 +30,7 @@ CREATE TABLE "StepRunResultArchive" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "stepRunId" UUID NOT NULL,
-    "order" SMALLSERIAL NOT NULL,
+    "order" BIGSERIAL NOT NULL,
     "input" JSONB,
     "output" JSONB,
     "error" TEXT,

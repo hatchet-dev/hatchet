@@ -686,5 +686,4 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *taskqueue.Task, tenantI
 	}
 
 	return workflowEvent, nil
-
 }
