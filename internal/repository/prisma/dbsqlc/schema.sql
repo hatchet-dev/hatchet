@@ -251,6 +251,7 @@ CREATE TABLE "Step" (
     "actionId" TEXT NOT NULL,
     "timeout" TEXT,
     "customUserData" JSONB,
+    "retries" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );
@@ -282,6 +283,7 @@ CREATE TABLE "StepRun" (
     "inputSchema" JSONB,
     "callerFiles" JSONB,
     "gitRepoBranch" TEXT,
+    "retryCount" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );

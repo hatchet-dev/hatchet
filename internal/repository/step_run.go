@@ -50,6 +50,8 @@ type UpdateStepRunOpts struct {
 	Input []byte
 
 	Output []byte
+
+	RetryCount *int
 }
 
 type UpdateStepRunOverridesDataOpts struct {

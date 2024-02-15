@@ -109,6 +109,9 @@ type CreateWorkflowStepOpts struct {
 
 	// (optional) the custom user data for the step, serialized as a json string
 	UserData *string `validate:"omitnil,json"`
+
+	// (optional) the step retry max
+	Retries *int `validate:"omitempty,min=0"`
 }
 
 type ListWorkflowsOpts struct {

@@ -519,6 +519,8 @@ model Step {
 
   timeout String?
 
+  retries Int @default(0)
+
   // customUserData is a JSON object that can be used to store arbitrary data for the step
   customUserData Json?
 
@@ -820,6 +822,9 @@ model StepRun {
 
   // when the step run times out due to a scheduling timeout (no workers available)
   scheduleTimeoutAt DateTime?
+
+  // which retry we're on for this step run
+  retryCount Int @default(0)
 
   // the run error
   error String?

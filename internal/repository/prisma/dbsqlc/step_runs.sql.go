@@ -97,7 +97,7 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 
 const getStepRun = `-- name: GetStepRun :one
 SELECT
-    "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch"
+    "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount"
 FROM
     "StepRun"
 WHERE
@@ -139,13 +139,14 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, arg GetStepRunParams)
 		&i.InputSchema,
 		&i.CallerFiles,
 		&i.GitRepoBranch,
+		&i.RetryCount,
 	)
 	return &i, err
 }
 
 const resolveLaterStepRuns = `-- name: ResolveLaterStepRuns :many
 WITH currStepRun AS (
-  SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch"
+  SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount"
   FROM "StepRun"
   WHERE
     "id" = $1::uuid AND
@@ -178,7 +179,7 @@ WHERE
         WHERE "id" = $1::uuid
     ) AND
     sr."tenantId" = $2::uuid
-RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch"
+RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount"
 `
 
 type ResolveLaterStepRunsParams struct {
@@ -221,6 +222,7 @@ func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg Resolve
 			&i.InputSchema,
 			&i.CallerFiles,
 			&i.GitRepoBranch,
+			&i.RetryCount,
 		); err != nil {
 			return nil, err
 		}
@@ -271,11 +273,12 @@ SET
         -- if this is a rerun, we clear the cancelledReason
         WHEN $4::boolean THEN NULL
         ELSE COALESCE($11::text, "cancelledReason")
-    END
+    END,
+    "retryCount" = COALESCE($12::int, "retryCount")
 WHERE 
-  "id" = $12::uuid AND
-  "tenantId" = $13::uuid
-RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch"
+  "id" = $13::uuid AND
+  "tenantId" = $14::uuid
+RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount"
 `
 
 type UpdateStepRunParams struct {
@@ -290,6 +293,7 @@ type UpdateStepRunParams struct {
 	Error             pgtype.Text       `json:"error"`
 	CancelledAt       pgtype.Timestamp  `json:"cancelledAt"`
 	CancelledReason   pgtype.Text       `json:"cancelledReason"`
+	RetryCount        pgtype.Int4       `json:"retryCount"`
 	ID                pgtype.UUID       `json:"id"`
 	Tenantid          pgtype.UUID       `json:"tenantid"`
 }
@@ -307,6 +311,7 @@ func (q *Queries) UpdateStepRun(ctx context.Context, db DBTX, arg UpdateStepRunP
 		arg.Error,
 		arg.CancelledAt,
 		arg.CancelledReason,
+		arg.RetryCount,
 		arg.ID,
 		arg.Tenantid,
 	)
@@ -337,6 +342,7 @@ func (q *Queries) UpdateStepRun(ctx context.Context, db DBTX, arg UpdateStepRunP
 		&i.InputSchema,
 		&i.CallerFiles,
 		&i.GitRepoBranch,
+		&i.RetryCount,
 	)
 	return &i, err
 }

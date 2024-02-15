@@ -13,7 +13,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/internal/schema"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
@@ -36,12 +35,6 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		return gen.StepRunUpdateRerun400JSONResponse(
 			apierrors.NewAPIErrors("There are no workers available to execute this step run."),
 		), nil
-	}
-
-	err = t.config.Repository.StepRun().ArchiveStepRunResult(tenant.ID, stepRun.ID)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not archive step run result: %w", err)
 	}
 
 	// make sure input can be marshalled and unmarshalled to input type
@@ -69,52 +62,31 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		), nil
 	}
 
-	// update the input schema for the step run based on the new input
-	jsonSchemaBytes, err := schema.SchemaBytesFromBytes(inputBytes)
-
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = t.config.Repository.StepRun().UpdateStepRunInputSchema(tenant.ID, stepRun.ID, jsonSchemaBytes)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// update step run
-	_, _, err = t.config.Repository.StepRun().UpdateStepRun(tenant.ID, stepRun.ID, &repository.UpdateStepRunOpts{
-		Input:   inputBytes,
-		Status:  repository.StepRunStatusPtr(db.StepRunStatusPending),
-		IsRerun: true,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("could not update step run: %w", err)
-	}
-
-	// requeue the step run in the task queue
-	jobRun, err := t.config.Repository.JobRun().GetJobRunById(tenant.ID, stepRun.JobRunID)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not get job run: %w", err)
-	}
-
 	// send a task to the taskqueue
 	err = t.config.TaskQueue.AddTask(
 		ctx.Request().Context(),
 		taskqueue.JOB_PROCESSING_QUEUE,
-		tasktypes.StepRunQueuedToTask(jobRun.Job(), stepRun),
+		tasktypes.StepRunRetryToTask(stepRun, inputBytes),
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not add step queued task to task queue: %w", err)
 	}
 
-	stepRun, err = t.config.Repository.StepRun().GetStepRunById(tenant.ID, stepRun.ID)
+	// wait for a short period of time
+	for i := 0; i < 5; i++ {
+		newStepRun, err := t.config.Repository.StepRun().GetStepRunById(tenant.ID, stepRun.ID)
 
-	if err != nil {
-		return nil, fmt.Errorf("could not get step run: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("could not get step run: %w", err)
+		}
+
+		if newStepRun.Status != stepRun.Status {
+			stepRun = newStepRun
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	res, err := transformers.ToStepRun(stepRun)

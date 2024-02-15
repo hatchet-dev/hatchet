@@ -330,7 +330,7 @@ INSERT INTO "StepRun" (
     NULL,
     NULL,
     '{}'
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount"
 `
 
 type CreateStepRunParams struct {
@@ -378,6 +378,7 @@ func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunP
 		&i.InputSchema,
 		&i.CallerFiles,
 		&i.GitRepoBranch,
+		&i.RetryCount,
 	)
 	return &i, err
 }
@@ -524,7 +525,7 @@ func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, jobrunid pgty
 
 const listStartableStepRuns = `-- name: ListStartableStepRuns :many
 SELECT 
-    child_run.id, child_run."createdAt", child_run."updatedAt", child_run."deletedAt", child_run."tenantId", child_run."jobRunId", child_run."stepId", child_run."order", child_run."workerId", child_run."tickerId", child_run.status, child_run.input, child_run.output, child_run."requeueAfter", child_run."scheduleTimeoutAt", child_run.error, child_run."startedAt", child_run."finishedAt", child_run."timeoutAt", child_run."cancelledAt", child_run."cancelledReason", child_run."cancelledError", child_run."inputSchema", child_run."callerFiles", child_run."gitRepoBranch"
+    child_run.id, child_run."createdAt", child_run."updatedAt", child_run."deletedAt", child_run."tenantId", child_run."jobRunId", child_run."stepId", child_run."order", child_run."workerId", child_run."tickerId", child_run.status, child_run.input, child_run.output, child_run."requeueAfter", child_run."scheduleTimeoutAt", child_run.error, child_run."startedAt", child_run."finishedAt", child_run."timeoutAt", child_run."cancelledAt", child_run."cancelledReason", child_run."cancelledError", child_run."inputSchema", child_run."callerFiles", child_run."gitRepoBranch", child_run."retryCount"
 FROM 
     "StepRun" AS child_run
 JOIN 
@@ -585,6 +586,7 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 			&i.InputSchema,
 			&i.CallerFiles,
 			&i.GitRepoBranch,
+			&i.RetryCount,
 		); err != nil {
 			return nil, err
 		}

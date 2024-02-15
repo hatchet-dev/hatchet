@@ -571,6 +571,7 @@ type Step struct {
 	ActionId       string           `json:"actionId"`
 	Timeout        pgtype.Text      `json:"timeout"`
 	CustomUserData []byte           `json:"customUserData"`
+	Retries        int32            `json:"retries"`
 }
 
 type StepOrder struct {
@@ -604,6 +605,7 @@ type StepRun struct {
 	InputSchema       []byte           `json:"inputSchema"`
 	CallerFiles       []byte           `json:"callerFiles"`
 	GitRepoBranch     pgtype.Text      `json:"gitRepoBranch"`
+	RetryCount        int32            `json:"retryCount"`
 }
 
 type StepRunOrder struct {
