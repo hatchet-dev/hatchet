@@ -117,7 +117,7 @@ export default function ExpandedWorkflowRun() {
           <StepRunPlayground
             stepRun={selectedStepRun}
             setStepRun={setSelectedStepRun}
-            workflowRunId={run.metadata.id}
+            workflowRun={run}
           />
         )}
       </div>

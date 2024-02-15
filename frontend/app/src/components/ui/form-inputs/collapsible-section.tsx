@@ -28,7 +28,7 @@ export const CollapsibleSection = (props: ObjectFieldTemplateProps) => {
         <AccordionTrigger>{props.title}</AccordionTrigger>
         <AccordionContent>
           {props.description}
-          {props.properties.length > 0 ? (
+          {props.properties?.length > 0 ? (
             props.properties.map((element, i) => (
               <div className="property-wrapper ml-4" key={i}>
                 {element.content}

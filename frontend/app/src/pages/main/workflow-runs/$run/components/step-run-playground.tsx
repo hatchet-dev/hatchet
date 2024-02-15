@@ -1,4 +1,4 @@
-import api, { StepRun, StepRunStatus, queries } from '@/lib/api';
+import api, { StepRun, StepRunStatus, WorkflowRun, queries } from '@/lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import { RunStatus } from '../../components/run-statuses';
 import { Button } from '@/components/ui/button';
@@ -24,11 +24,11 @@ import { VscNote, VscJson } from 'react-icons/vsc';
 export function StepRunPlayground({
   stepRun,
   setStepRun,
-  workflowRunId,
+  workflowRun,
 }: {
   stepRun: StepRun | undefined;
   setStepRun: (stepRun: StepRun | undefined) => void;
-  workflowRunId: string;
+  workflowRun: WorkflowRun;
 }) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
@@ -39,10 +39,44 @@ export function StepRunPlayground({
     setErrors,
   });
 
-  const originalInput = useMemo(
-    () => JSON.stringify(JSON.parse(stepRun?.input || '{}'), null, 2),
-    [stepRun?.input],
-  );
+  const updateParentData = (input: any, workflowRun: WorkflowRun) => {
+    // HACK this is a temporary solution to get the parent data from the previous run
+    // this should be handled by the backend
+    const parents = Object.keys(input.parents);
+    if (!workflowRun.jobRuns || !workflowRun.jobRuns[0]) {
+      return input;
+    }
+
+    return workflowRun.jobRuns[0].stepRuns?.reduce((acc, stepRun) => {
+      if (!stepRun.step || !parents.includes(stepRun.step.readableId)) {
+        return acc;
+      }
+
+      return {
+        ...acc,
+        [stepRun.step.readableId]: JSON.parse(stepRun.output || '{}'),
+      };
+    }, {});
+  };
+
+  const originalInput = useMemo(() => {
+    const input = JSON.parse(stepRun?.input || '{}');
+    const previousRunData = updateParentData(input, workflowRun);
+
+    const modifiedInput = JSON.stringify(
+      {
+        ...input,
+        parents: {
+          ...input.parents,
+          ...previousRunData,
+        },
+      },
+      null,
+      2,
+    );
+
+    return modifiedInput;
+  }, [stepRun?.input, workflowRun?.jobRuns]);
 
   const [stepInput, setStepInput] = useState(originalInput);
 
@@ -92,8 +126,10 @@ export function StepRunPlayground({
     },
     onSuccess: (stepRun: StepRun) => {
       queryClient.invalidateQueries({
-        queryKey: queries.workflowRuns.get(tenant.metadata.id, workflowRunId)
-          .queryKey,
+        queryKey: queries.workflowRuns.get(
+          tenant.metadata.id,
+          workflowRun.metadata.id,
+        ).queryKey,
       });
 
       setStepRun(stepRun);

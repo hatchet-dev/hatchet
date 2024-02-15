@@ -51,6 +51,7 @@ export function DynamicSizeInputTemplate(props: BaseInputTemplateProps) {
   }: FocusEvent<HTMLTextAreaElement>) => onFocus(id, val);
 
   const inputProps = { ...rest, ...getInputProps(schema, type, options) };
+  delete inputProps.hideLabel; // hideLabel is not a valid prop for textarea
 
   const setHeight = (e: HTMLTextAreaElement) => {
     e.style.height = 'auto';
