@@ -62,7 +62,7 @@ WHERE "id" = (
     FROM "StepRun"
     WHERE "id" = $1::uuid
 ) AND "tenantId" = $2::uuid
-RETURNING "JobRun".id, "JobRun"."createdAt", "JobRun"."updatedAt", "JobRun"."deletedAt", "JobRun"."tenantId", "JobRun"."workflowRunId", "JobRun"."jobId", "JobRun"."tickerId", "JobRun".status, "JobRun".result, "JobRun"."startedAt", "JobRun"."finishedAt", "JobRun"."timeoutAt", "JobRun"."cancelledAt", "JobRun"."cancelledReason", "JobRun"."cancelledError"
+RETURNING "JobRun".id, "JobRun"."createdAt", "JobRun"."updatedAt", "JobRun"."deletedAt", "JobRun"."tenantId", "JobRun"."jobId", "JobRun"."tickerId", "JobRun".status, "JobRun".result, "JobRun"."startedAt", "JobRun"."finishedAt", "JobRun"."timeoutAt", "JobRun"."cancelledAt", "JobRun"."cancelledReason", "JobRun"."cancelledError", "JobRun"."workflowRunId"
 `
 
 type ResolveJobRunStatusParams struct {
@@ -79,7 +79,6 @@ func (q *Queries) ResolveJobRunStatus(ctx context.Context, db DBTX, arg ResolveJ
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.TenantId,
-		&i.WorkflowRunId,
 		&i.JobId,
 		&i.TickerId,
 		&i.Status,
@@ -90,6 +89,7 @@ func (q *Queries) ResolveJobRunStatus(ctx context.Context, db DBTX, arg ResolveJ
 		&i.CancelledAt,
 		&i.CancelledReason,
 		&i.CancelledError,
+		&i.WorkflowRunId,
 	)
 	return &i, err
 }
@@ -105,7 +105,7 @@ END
 WHERE
     "id" = $2::uuid AND
     "tenantId" = $3::uuid
-RETURNING "JobRun".id, "JobRun"."createdAt", "JobRun"."updatedAt", "JobRun"."deletedAt", "JobRun"."tenantId", "JobRun"."workflowRunId", "JobRun"."jobId", "JobRun"."tickerId", "JobRun".status, "JobRun".result, "JobRun"."startedAt", "JobRun"."finishedAt", "JobRun"."timeoutAt", "JobRun"."cancelledAt", "JobRun"."cancelledReason", "JobRun"."cancelledError"
+RETURNING "JobRun".id, "JobRun"."createdAt", "JobRun"."updatedAt", "JobRun"."deletedAt", "JobRun"."tenantId", "JobRun"."jobId", "JobRun"."tickerId", "JobRun".status, "JobRun".result, "JobRun"."startedAt", "JobRun"."finishedAt", "JobRun"."timeoutAt", "JobRun"."cancelledAt", "JobRun"."cancelledReason", "JobRun"."cancelledError", "JobRun"."workflowRunId"
 `
 
 type UpdateJobRunParams struct {
@@ -123,7 +123,6 @@ func (q *Queries) UpdateJobRun(ctx context.Context, db DBTX, arg UpdateJobRunPar
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.TenantId,
-		&i.WorkflowRunId,
 		&i.JobId,
 		&i.TickerId,
 		&i.Status,
@@ -134,6 +133,7 @@ func (q *Queries) UpdateJobRun(ctx context.Context, db DBTX, arg UpdateJobRunPar
 		&i.CancelledAt,
 		&i.CancelledReason,
 		&i.CancelledError,
+		&i.WorkflowRunId,
 	)
 	return &i, err
 }
