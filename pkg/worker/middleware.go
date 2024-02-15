@@ -26,9 +26,6 @@ func (m *middlewares) add(mws ...MiddlewareFunc) {
 }
 
 func (m *middlewares) runAll(ctx HatchetContext, next func(HatchetContext) error) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	return run(ctx, m.middlewares, next)
 }
 
