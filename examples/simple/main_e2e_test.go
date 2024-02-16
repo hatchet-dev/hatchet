@@ -20,6 +20,7 @@ func TestSimple(t *testing.T) {
 		if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
 			t.Fatalf("syscall.Kill() error = %v", err)
 		}
+		time.Sleep(1 * time.Second)
 	}()
 
 	ch := make(chan interface{}, 1)
