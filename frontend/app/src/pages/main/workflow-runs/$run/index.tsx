@@ -93,13 +93,6 @@ export default function ExpandedWorkflowRun() {
           />
         </div>
         <Separator className="my-4" />
-        {run.triggeredBy?.event && (
-          <TriggeringEventSection event={run.triggeredBy.event} />
-        )}
-        {run.triggeredBy?.cronSchedule && (
-          <TriggeringCronSection cron={run.triggeredBy.cronSchedule} />
-        )}
-
         {!selectedStepRun ? (
           'Select a step to play with'
         ) : (
