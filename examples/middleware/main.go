@@ -6,10 +6,11 @@ import (
 	"log"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/joho/godotenv"
 )
 
 type userCreateEvent struct {
@@ -29,12 +30,13 @@ func main() {
 	}
 
 	events := make(chan string, 50)
-	if err := run(cmdutils.InterruptChan(), events); err != nil {
+	ctx, _ := cmdutils.NewInterruptContext()
+	if err := run(ctx, events); err != nil {
 		panic(err)
 	}
 }
 
-func run(ch <-chan interface{}, events chan<- string) error {
+func run(interruptCtx context.Context, events chan<- string) error {
 	c, err := client.New()
 	if err != nil {
 		return fmt.Errorf("error creating client: %w", err)
@@ -128,37 +130,32 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		return fmt.Errorf("error registering workflow: %w", err)
 	}
 
-	interruptCtx, cancel := cmdutils.InterruptContextFromChan(ch)
-	defer cancel()
-
 	go func() {
-		err = w.Start(interruptCtx)
+		log.Printf("pushing event user:create:middleware")
 
-		if err != nil {
-			panic(err)
+		testEvent := userCreateEvent{
+			Username: "echo-test",
+			UserID:   "1234",
+			Data: map[string]string{
+				"test": "test",
+			},
 		}
 
-		cancel()
+		// push an event
+		err = c.Event().Push(
+			context.Background(),
+			"user:create:middleware",
+			testEvent,
+		)
+		if err != nil {
+			panic(fmt.Errorf("error pushing event: %w", err))
+		}
 	}()
 
-	testEvent := userCreateEvent{
-		Username: "echo-test",
-		UserID:   "1234",
-		Data: map[string]string{
-			"test": "test",
-		},
-	}
+	err = w.Start(interruptCtx)
 
-	log.Printf("pushing event user:create:middleware")
-
-	// push an event
-	err = c.Event().Push(
-		context.Background(),
-		"user:create:middleware",
-		testEvent,
-	)
 	if err != nil {
-		return fmt.Errorf("error pushing event: %w", err)
+		panic(err)
 	}
 
 	for {

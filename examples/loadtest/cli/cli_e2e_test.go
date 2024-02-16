@@ -3,7 +3,6 @@
 package main
 
 import (
-	"syscall"
 	"testing"
 	"time"
 
@@ -48,10 +47,6 @@ func TestLoadCLI(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			defer func() {
-				if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
-					t.Fatalf("syscall.Kill() error = %v", err)
-				}
-
 				time.Sleep(1 * time.Second)
 
 				goleak.VerifyNone(

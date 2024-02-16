@@ -3,8 +3,8 @@
 package main
 
 import (
-	"log"
-	"syscall"
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,31 +16,27 @@ import (
 func TestSimple(t *testing.T) {
 	testutils.Prepare(t)
 
-	defer func() {
-		if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
-			t.Fatalf("syscall.Kill() error = %v", err)
-		}
-		time.Sleep(1 * time.Second)
-	}()
-
-	ch := make(chan interface{}, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
 
 	events := make(chan string, 50)
 
 	go func() {
-		time.Sleep(20 * time.Second)
-		ch <- struct{}{}
-		close(events)
-		log.Printf("sent interrupt")
+		if err := run(ctx, events); err != nil {
+			panic(fmt.Errorf("run() error = %v", err))
+		}
 	}()
 
-	if err := run(ch, events); err != nil {
-		t.Fatalf("run() error = %v", err)
-	}
-
 	var items []string
-	for item := range events {
-		items = append(items, item)
+
+outer:
+	for {
+		select {
+		case item := <-events:
+			items = append(items, item)
+		case <-ctx.Done():
+			break outer
+		}
 	}
 
 	assert.Equal(t, []string{
