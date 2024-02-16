@@ -64,7 +64,7 @@ export function DynamicSizeInputTemplate(props: BaseInputTemplateProps) {
       return;
     }
     setHeight(ref.current);
-  }, [ref.current, ref.current?.value]);
+  }, [ref.current?.value]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!form?.current) {

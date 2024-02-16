@@ -76,7 +76,7 @@ export function StepRunPlayground({
     );
 
     return modifiedInput;
-  }, [stepRun?.input, workflowRun?.jobRuns]);
+  }, [stepRun?.input, workflowRun]);
 
   const [stepInput, setStepInput] = useState(originalInput);
 

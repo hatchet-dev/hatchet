@@ -6,8 +6,6 @@ import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { Badge } from '@/components/ui/badge';
 import { relativeDate, timeBetween } from '@/lib/utils';
-import { ArrowLeftCircleIcon } from '@heroicons/react/24/outline';
-import { Button } from '@/components/ui/button';
 import { CodeEditor } from '@/components/ui/code-editor';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';

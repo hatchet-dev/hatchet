@@ -1,8 +1,5 @@
 import { cn } from '@/lib/utils';
 import {
-  CustomValidator,
-  ErrorSchema,
-  ErrorTransformer,
   RJSFSchema,
   RJSFValidationError,
   UiSchema,
@@ -23,31 +20,19 @@ type JSONType = { [key: string]: JSONType | JSONPrimitive };
 export const DEFAULT_COLLAPSED = ['advanced', 'user data'];
 
 class NoValidation implements ValidatorType {
-  validateFormData(
-    formData: any,
-    schema: RJSFSchema,
-    customValidate?: CustomValidator<any, RJSFSchema, any> | undefined,
-    transformErrors?: ErrorTransformer<any, RJSFSchema, any> | undefined,
-    uiSchema?: UiSchema<any, RJSFSchema, any> | undefined,
-  ): ValidationData<any> {
+  validateFormData(): ValidationData<any> {
     return { errors: [], errorSchema: {} };
   }
 
-  toErrorList(
-    errorSchema?: ErrorSchema<any> | undefined,
-    fieldPath?: string[] | undefined,
-  ): RJSFValidationError[] {
+  toErrorList(): RJSFValidationError[] {
     return [];
   }
 
-  isValid(schema: RJSFSchema, formData: any, rootSchema: RJSFSchema): boolean {
+  isValid(): boolean {
     return true;
   }
 
-  rawValidation<Result = any>(
-    schema: RJSFSchema,
-    formData?: any,
-  ): { errors?: Result[] | undefined; validationError?: Error | undefined } {
+  rawValidation() {
     return {};
   }
 }
