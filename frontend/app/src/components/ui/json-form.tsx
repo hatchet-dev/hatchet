@@ -1,70 +1,87 @@
 import { cn } from '@/lib/utils';
-import { ObjectFieldTemplateProps, RJSFSchema, UiSchema } from '@rjsf/utils';
-import validator from '@rjsf/validator-ajv8';
+import {
+  RJSFSchema,
+  RJSFValidationError,
+  UiSchema,
+  ValidationData,
+  ValidatorType,
+} from '@rjsf/utils';
 import Form from '@rjsf/core';
 import { PlayIcon } from '@radix-ui/react-icons';
 import { Button } from './button';
-import { useState } from 'react';
+import { Loading } from './loading';
+import { CollapsibleSection } from './form-inputs/collapsible-section';
+import { DynamicSizeInputTemplate } from './form-inputs/dynamic-size-input-template';
+import { createContext, useRef } from 'react';
 
 type JSONPrimitive = string | number | boolean | null;
 type JSONType = { [key: string]: JSONType | JSONPrimitive };
 
-export const CollapsibleSection = (props: ObjectFieldTemplateProps) => {
-  const [open, setOpen] = useState(true);
+export const DEFAULT_COLLAPSED = ['advanced', 'user data'];
 
-  return (
-    <div>
-      {props.title && (
-        <div
-          onClick={() => setOpen((x) => !x)}
-          className="border-b-2 mb-2 border-gray-500 pb-2 text-2xl font-bold flex items-center cursor-pointer"
-        >
-          <svg
-            className={`mr-2 h-6 w-6 ${open ? 'rotate-180' : ''}`}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M19 9l-7 7-7-7" />
-          </svg>
+class NoValidation implements ValidatorType {
+  validateFormData(): ValidationData<any> {
+    return { errors: [], errorSchema: {} };
+  }
 
-          {props.title}
-        </div>
-      )}
-      {props.description}
-      {open &&
-        props.properties.map((element) => (
-          <div className="property-wrapper ml-4">{element.content}</div>
-        ))}
-    </div>
-  );
-};
+  toErrorList(): RJSFValidationError[] {
+    return [];
+  }
+
+  isValid(): boolean {
+    return true;
+  }
+
+  rawValidation() {
+    return {};
+  }
+}
+
+interface JSONFormContextSchema {
+  form?: React.RefObject<Form>;
+}
+
+export const JSONFormContext = createContext<JSONFormContextSchema>({
+  form: undefined,
+});
 
 export function JsonForm({
-  json,
+  inputSchema,
+  inputData,
   className,
   setInput,
   disabled,
   onSubmit,
 }: {
-  json: JSONType;
+  inputSchema: JSONType;
   className?: string;
-  setInput: (input: string) => void;
+  inputData: JSONType;
+  setInput: React.Dispatch<React.SetStateAction<string>>;
   disabled?: boolean;
   onSubmit: () => void;
 }) {
+  const formRef = useRef<Form>(null);
+
   const schema = {
-    ...json,
+    ...inputSchema,
     required: undefined,
     $schema: undefined,
     properties: {
-      ...(json.properties as any),
+      ...(inputSchema.properties as any),
       triggered_by: undefined,
+      advanced: {
+        // Transform the schema to wrap the triggered by field
+        type: 'object',
+        properties: {
+          triggered_by: inputSchema.properties
+            ? (inputSchema.properties as any).triggered_by
+            : undefined,
+        },
+      },
     },
   } as RJSFSchema;
+
+  delete schema.properties?.triggered_by;
 
   const uiSchema: UiSchema<any, RJSFSchema, any> = {
     input: {
@@ -73,39 +90,68 @@ export function JsonForm({
     parents: {
       'ui:title': 'parent step data',
     },
+    overrides: {
+      'ui:title': 'step overrides',
+    },
+    user_data: {
+      'ui:title': 'user data',
+    },
     'ui:order': ['input', 'overrides', 'parents', '*'],
   };
 
   return (
-    <div
-      className={cn(
-        className,
-        'w-full h-fit relative rounded-lg overflow-hidden',
-      )}
-    >
-      <Form
-        schema={schema}
-        disabled={disabled}
-        templates={{
-          ObjectFieldTemplate: CollapsibleSection,
-        }}
-        uiSchema={uiSchema}
-        validator={validator}
-        onChange={(data) => {
-          setInput(JSON.stringify(data.formData));
-        }}
-        onSubmit={onSubmit}
-        onError={(e) => {
-          console.error(e);
-        }}
+    <JSONFormContext.Provider value={{ form: formRef }}>
+      <div
+        className={cn(
+          className,
+          'w-full h-fit relative rounded-lg overflow-hidden',
+        )}
       >
-        <Button className="w-fit" disabled={disabled}>
-          <PlayIcon
-            className={cn(disabled ? 'rotate-180' : '', 'h-4 w-4 mr-2')}
-          />
-          Play Step
-        </Button>
-      </Form>
-    </div>
+        <Form
+          ref={formRef}
+          formData={inputData}
+          schema={schema}
+          disabled={disabled}
+          templates={{
+            BaseInputTemplate: DynamicSizeInputTemplate,
+            ObjectFieldTemplate: CollapsibleSection,
+          }}
+          uiSchema={uiSchema}
+          validator={new NoValidation()}
+          noHtml5Validate={true}
+          onChange={(data) => {
+            // Transform the data to unwrap the advanced fields
+            const formData = { ...data.formData, ...data.formData.advanced };
+            delete formData.advanced;
+            setInput((prev) =>
+              JSON.stringify({
+                ...JSON.parse(prev),
+                ...formData,
+              }),
+            );
+          }}
+          onSubmit={onSubmit}
+          onError={(e) => {
+            console.error(e);
+          }}
+        >
+          <Button className="w-fit invisible" disabled={disabled}>
+            {disabled ? (
+              <>
+                <Loading />
+                Playing
+              </>
+            ) : (
+              <>
+                <PlayIcon
+                  className={cn(disabled ? 'rotate-180' : '', 'h-4 w-4 mr-2')}
+                />
+                Play Step
+              </>
+            )}
+          </Button>
+        </Form>
+      </div>
+    </JSONFormContext.Provider>
   );
 }

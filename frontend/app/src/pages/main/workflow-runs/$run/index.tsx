@@ -1,24 +1,16 @@
 import { Separator } from '@/components/ui/separator';
-import { JobRun, StepRun, StepRunStatus, queries, Event } from '@/lib/api';
+import { StepRun, StepRunStatus, queries, Event } from '@/lib/api';
 import CronPrettifier from 'cronstrue';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { Badge } from '@/components/ui/badge';
 import { relativeDate, timeBetween } from '@/lib/utils';
-import { ArrowLeftCircleIcon, BoltIcon } from '@heroicons/react/24/outline';
-import { Button } from '@/components/ui/button';
-import { DataTable } from '@/components/molecules/data-table/data-table';
-import { JobRunColumns, columns } from './components/job-runs-columns';
-import { TableCell, TableRow } from '@/components/ui/table';
-import { RunStatus } from '../components/run-statuses';
-import { ColumnDef } from '@tanstack/react-table';
-import { useState } from 'react';
 import { CodeEditor } from '@/components/ui/code-editor';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import WorkflowRunVisualizer from './components/workflow-run-visualizer';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState } from 'react';
 import { StepRunPlayground } from './components/step-run-playground';
 
 export default function ExpandedWorkflowRun() {
@@ -33,6 +25,8 @@ export default function ExpandedWorkflowRun() {
   const runQuery = useQuery({
     ...queries.workflowRuns.get(tenant.metadata.id, params.run),
     refetchInterval: (query) => {
+      return 1000; // FIXME - this is a hack to keep the query running since re-running a step doesn't update the status on the workflow run
+
       const data = query.state.data;
 
       if (
@@ -56,26 +50,22 @@ export default function ExpandedWorkflowRun() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
-            <h2 className="text-2xl font-bold leading-tight text-foreground flex flex-row items-center">
-              {run?.workflowVersion?.workflow && (
-                <Link
-                  to={`/workflows/${run?.workflowVersion?.workflow?.metadata.id}`}
-                >
-                  <Button
-                    variant="ghost"
-                    className="flex flex-row items-center text-2xl gap-2 text-foreground hover:bg-muted"
-                  >
-                    <ArrowLeftCircleIcon className="h-4 w-4" />
-                  </Button>
-                </Link>
-              )}
-              {run?.workflowVersion?.workflow?.name}-
-              {run?.displayName?.split('-')[1] || run?.metadata.id}/
-              {selectedStepRun?.step?.readableId || '*'}
+            <h2 className="text-2xl font-bold leading-tight text-foreground flex flex-row  items-center">
+              <Link
+                to={`/workflows/${run?.workflowVersion?.workflow?.metadata.id}`}
+              >
+                {run?.workflowVersion?.workflow?.name}-
+                {run?.displayName?.split('-')[1] || run?.metadata.id}
+              </Link>
+              /{selectedStepRun?.step?.readableId || '*'}
             </h2>
           </div>
+          <Badge className="text-sm mt-1" variant={'secondary'}>
+            {/* {workflow.versions && workflow.versions[0].version} */}
+            {run.status}
+          </Badge>
         </div>
-        <div className="flex flex-row justify-start items-center mt-4 gap-2">
+        <div className="flex flex-row justify-start items-center gap-2">
           <div className="text-sm text-muted-foreground">
             Created {relativeDate(run?.metadata.createdAt)}
           </div>
@@ -89,11 +79,6 @@ export default function ExpandedWorkflowRun() {
               Duration {timeBetween(run.startedAt, run.finishedAt)}
             </div>
           )}
-
-          <Badge className="text-sm mt-1" variant={'secondary'}>
-            {/* {workflow.versions && workflow.versions[0].version} */}
-            {run.status}
-          </Badge>
         </div>
         <Separator className="my-4" />
         <div className="w-full h-[150px]">
@@ -114,129 +99,22 @@ export default function ExpandedWorkflowRun() {
         {run.triggeredBy?.cronSchedule && (
           <TriggeringCronSection cron={run.triggeredBy.cronSchedule} />
         )}
-        <Tabs defaultValue="playground" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="playground">Playground</TabsTrigger>
-            <TabsTrigger value="details">Run Details</TabsTrigger>
-          </TabsList>
-          <TabsContent value="playground">
-            {!selectedStepRun ? (
-              'Select a step to play with'
-            ) : (
-              <StepRunPlayground
-                stepRun={selectedStepRun}
-                setStepRun={setSelectedStepRun}
-              />
-            )}
-          </TabsContent>
-          <TabsContent value="details">
-            <DataTable
-              columns={columns}
-              data={
-                run.jobRuns
-                  ?.map((jobRun): JobRunColumns[] => {
-                    return [
-                      {
-                        kind: 'job',
-                        isExpandable: false,
-                        getRow: () => {
-                          return getJobRunRow({ jobRun, columns });
-                        },
-                        ...jobRun,
-                      },
-                      ...(jobRun.stepRuns
-                        ?.map((stepRun): JobRunColumns[] => {
-                          const res: JobRunColumns[] = [
-                            {
-                              kind: 'step',
-                              isExpandable: true,
-                              onClick: () => {
-                                setSelectedStepRun(
-                                  stepRun.stepId === selectedStepRun?.stepId
-                                    ? undefined
-                                    : stepRun,
-                                );
-                              },
-                              ...stepRun,
-                            },
-                          ];
 
-                          if (selectedStepRun?.stepId == stepRun.stepId) {
-                            res.push({
-                              kind: 'step',
-                              isExpandable: false,
-
-                              getRow: () => {
-                                return getExpandedStepRunRow({
-                                  stepRun,
-                                  columns,
-                                });
-                              },
-                              ...stepRun,
-                            });
-                          }
-
-                          return res;
-                        })
-                        .flat() || []),
-                    ];
-                  })
-                  .flat() || []
-              }
-              filters={[]}
-            />
-          </TabsContent>
-        </Tabs>
+        {!selectedStepRun ? (
+          'Select a step to play with'
+        ) : (
+          <StepRunPlayground
+            stepRun={selectedStepRun}
+            setStepRun={setSelectedStepRun}
+            workflowRun={run}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-function getJobRunRow({
-  jobRun,
-}: {
-  jobRun: JobRun;
-  columns: ColumnDef<JobRunColumns>[];
-}) {
-  return (
-    <TableRow key={jobRun.metadata.id} className="bg-muted">
-      <TableCell colSpan={1}>
-        <div className="flex flex-row gap-2 items-center justify-start">
-          <BoltIcon className="h-4 w-4" />
-          {jobRun.job?.name}
-        </div>
-      </TableCell>
-      <TableCell colSpan={1}>
-        <RunStatus status={jobRun.status} />
-      </TableCell>
-      <TableCell colSpan={1}>
-        <div>{relativeDate(jobRun.startedAt)}</div>
-      </TableCell>
-      <TableCell colSpan={1}>
-        <div>{relativeDate(jobRun.finishedAt)}</div>
-      </TableCell>
-    </TableRow>
-  );
-}
-
-function getExpandedStepRunRow({
-  stepRun,
-  columns,
-}: {
-  stepRun: StepRun;
-  columns: ColumnDef<JobRunColumns>[];
-}) {
-  return (
-    <TableRow key={stepRun.metadata.id}>
-      <TableCell colSpan={columns.length} className="px-8 py-4">
-        <StepStatusSection stepRun={stepRun} />
-        <StepConfigurationSection stepRun={stepRun} />
-      </TableCell>
-    </TableRow>
-  );
-}
-
-function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
+export const StepStatusDetails = ({ stepRun }: { stepRun: StepRun }) => {
   let statusText = 'Unknown';
 
   switch (stepRun.status) {
@@ -281,6 +159,12 @@ function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
       break;
   }
 
+  return statusText;
+};
+
+export function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
+  const statusText = StepStatusDetails({ stepRun });
+
   return (
     <div className="mb-4">
       <h3 className="font-semibold leading-tight text-foreground mb-4">
@@ -291,7 +175,22 @@ function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
   );
 }
 
-function StepConfigurationSection({ stepRun }: { stepRun: StepRun }) {
+export function StepDurationSection({ stepRun }: { stepRun: StepRun }) {
+  return (
+    <div className="mb-4">
+      <h3 className="font-semibold leading-tight text-foreground mb-4">
+        Duration
+      </h3>
+      <div className="text-sm text-muted-foreground">
+        {stepRun.startedAt &&
+          stepRun.finishedAt &&
+          timeBetween(stepRun.startedAt, stepRun.finishedAt)}
+      </div>
+    </div>
+  );
+}
+
+export function StepConfigurationSection({ stepRun }: { stepRun: StepRun }) {
   return (
     <div className="mb-4">
       <h3 className="font-semibold leading-tight text-foreground mb-4">

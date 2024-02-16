@@ -37,13 +37,11 @@ export function SidebarProvider({
     () => defaultSidebarOpen,
   );
 
+  const [isWide, setIsWide] = useState(false);
+
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 768) {
-        setSidebarOpen('open');
-      } else {
-        setSidebarOpen('closed');
-      }
+      setIsWide(window.innerWidth >= 768);
     };
 
     handleResize();
@@ -54,6 +52,14 @@ export function SidebarProvider({
       window.removeEventListener('resize', handleResize);
     };
   }, []);
+
+  useEffect(() => {
+    if (isWide) {
+      setSidebarOpen((prev) => (prev ? 'open' : 'closed'));
+    } else {
+      setSidebarOpen('closed');
+    }
+  }, [isWide]);
 
   return (
     <SidebarProviderContext.Provider

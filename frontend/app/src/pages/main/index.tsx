@@ -83,7 +83,12 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   }
 
   return (
-    <div className={cn('h-full border-r w-80 top-0', className)}>
+    <div
+      className={cn(
+        'h-full border-r w-full md:w-80 top-16 absolute z-50 md:relative md:top-0 md:bg-[unset] bg-slate-900',
+        className,
+      )}
+    >
       <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full">
         <div className="grow">
           <div className="py-2">
