@@ -2,8 +2,12 @@
 CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
 
 -- AlterTable
+ALTER TABLE "Step" ADD COLUMN     "retries" INTEGER NOT NULL DEFAULT 0;
+
+-- AlterTable
 ALTER TABLE "StepRun" ADD COLUMN     "callerFiles" JSONB,
-ADD COLUMN     "gitRepoBranch" TEXT;
+ADD COLUMN     "gitRepoBranch" TEXT,
+ADD COLUMN     "retryCount" INTEGER NOT NULL DEFAULT 0;
 
 -- AlterTable
 ALTER TABLE "WorkflowRun" ADD COLUMN     "gitRepoBranch" TEXT;

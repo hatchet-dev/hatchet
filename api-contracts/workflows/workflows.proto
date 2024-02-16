@@ -60,6 +60,7 @@ message CreateWorkflowStepOpts {
     string inputs = 4; // (optional) the step inputs, assuming string representation of JSON
     repeated string parents = 5; // (optional) the step parents. if none are passed in, this is a root step
     string user_data = 6; // (optional) the custom step user data, assuming string representation of JSON
+    int32 retries = 7; // (optional) the number of retries for the step, default 0
 }
 
 // ListWorkflowsRequest is the request for ListWorkflows.

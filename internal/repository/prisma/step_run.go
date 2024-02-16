@@ -466,6 +466,13 @@ func getUpdateParams(
 		updateParams.CancelledReason = sqlchelpers.TextFromStr(*opts.CancelledReason)
 	}
 
+	if opts.RetryCount != nil {
+		updateParams.RetryCount = pgtype.Int4{
+			Valid: true,
+			Int32: int32(*opts.RetryCount),
+		}
+	}
+
 	return updateParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams, nil
 }
 

@@ -563,6 +563,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pg
 			var (
 				timeout        string
 				customUserData []byte
+				retries        pgtype.Int4
 			)
 
 			if stepOpts.Timeout != nil {
@@ -571,6 +572,13 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pg
 
 			if stepOpts.UserData != nil {
 				customUserData = []byte(*stepOpts.UserData)
+			}
+
+			if stepOpts.Retries != nil {
+				retries = pgtype.Int4{
+					Valid: true,
+					Int32: int32(*stepOpts.Retries),
+				}
 			}
 
 			// upsert the action
@@ -598,6 +606,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pg
 					Timeout:        timeout,
 					Readableid:     stepOpts.ReadableId,
 					CustomUserData: customUserData,
+					Retries:        retries,
 				},
 			)
 

@@ -46,7 +46,8 @@ SET
         -- if this is a rerun, we clear the cancelledReason
         WHEN sqlc.narg('rerun')::boolean THEN NULL
         ELSE COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
-    END
+    END,
+    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount")
 WHERE 
   "id" = @id::uuid AND
   "tenantId" = @tenantId::uuid

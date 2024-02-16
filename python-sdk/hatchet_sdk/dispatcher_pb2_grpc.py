@@ -4,7 +4,6 @@ import grpc
 
 from . import dispatcher_pb2 as dispatcher__pb2
 
-
 class DispatcherStub(object):
     """Missing associated documentation comment in .proto file."""
 

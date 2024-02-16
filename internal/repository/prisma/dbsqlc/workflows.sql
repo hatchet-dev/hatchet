@@ -218,7 +218,8 @@ INSERT INTO "Step" (
     "jobId",
     "actionId",
     "timeout",
-    "customUserData"
+    "customUserData",
+    "retries"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -229,7 +230,8 @@ INSERT INTO "Step" (
     @jobId::uuid,
     @actionId::text,
     @timeout::text,
-    coalesce(sqlc.narg('customUserData')::jsonb, '{}')
+    coalesce(sqlc.narg('customUserData')::jsonb, '{}'),
+    coalesce(sqlc.narg('retries')::integer, 0)
 ) RETURNING *;
 
 -- name: AddStepParents :exec

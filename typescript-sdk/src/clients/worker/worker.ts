@@ -80,6 +80,7 @@ export class Worker {
               inputs: '{}',
               parents: step.parents ?? [],
               userData: '{}',
+              retries: step.retries || 0,
             })),
           },
         ],

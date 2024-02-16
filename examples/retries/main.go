@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -12,8 +13,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-type concurrencyLimitEvent struct {
-	Index int `json:"index"`
+type userCreateEvent struct {
+	Username string            `json:"username"`
+	UserID   string            `json:"user_id"`
+	Data     map[string]string `json:"data"`
 }
 
 type stepOneOutput struct {
@@ -36,6 +39,30 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "user-create", nil
 }
 
+type retryWorkflow struct {
+	retries int
+}
+
+func (r *retryWorkflow) StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+	input := &userCreateEvent{}
+
+	err = ctx.WorkflowInput(input)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if r.retries < 5 {
+		r.retries++
+		return nil, fmt.Errorf("error")
+	}
+
+	log.Printf("finished step-one")
+	return &stepOneOutput{
+		Message: "Username is: " + input.Username,
+	}, nil
+}
+
 func run(ch <-chan interface{}, events chan<- string) error {
 	c, err := client.New()
 
@@ -54,19 +81,16 @@ func run(ch <-chan interface{}, events chan<- string) error {
 
 	testSvc := w.NewService("test")
 
+	wk := &retryWorkflow{}
+
 	err = testSvc.On(
-		worker.Events("concurrency-test-event"),
+		worker.Events("user:create:simple"),
 		&worker.WorkflowJob{
-			Name:        "concurrency-limit",
-			Description: "This limits concurrency to 1 run at a time.",
-			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(1),
+			Name:        "simple",
+			Description: "This runs after an update to the user model.",
+			Concurrency: worker.Concurrency(getConcurrencyKey),
 			Steps: []*worker.WorkflowStep{
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					<-ctx.Done()
-					fmt.Println("context done, returning")
-					return nil, nil
-				},
-				).SetName("step-one"),
+				worker.Fn(wk.StepOne).SetName("step-one").SetRetries(3),
 			},
 		},
 	)
@@ -87,50 +111,26 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		cancel()
 	}()
 
-	go func() {
-		// sleep with interrupt context
-		select {
-		case <-interruptCtx.Done(): // context cancelled
-			fmt.Println("interrupted")
-			return
-		case <-time.After(2 * time.Second): // timeout
-		}
+	testEvent := userCreateEvent{
+		Username: "echo-test",
+		UserID:   "1234",
+		Data: map[string]string{
+			"test": "test",
+		},
+	}
 
-		firstEvent := concurrencyLimitEvent{
-			Index: 0,
-		}
+	log.Printf("pushing event user:create:simple")
 
-		// push an event
-		err = c.Event().Push(
-			context.Background(),
-			"concurrency-test-event",
-			firstEvent,
-		)
+	// push an event
+	err = c.Event().Push(
+		context.Background(),
+		"user:create:simple",
+		testEvent,
+	)
 
-		if err != nil {
-			panic(err)
-		}
-
-		select {
-		case <-interruptCtx.Done(): // context cancelled
-			fmt.Println("interrupted")
-			return
-		case <-time.After(10 * time.Second): //timeout
-		}
-
-		// push a second event
-		err = c.Event().Push(
-			context.Background(),
-			"concurrency-test-event",
-			concurrencyLimitEvent{
-				Index: 1,
-			},
-		)
-
-		if err != nil {
-			panic(err)
-		}
-	}()
+	if err != nil {
+		return fmt.Errorf("error pushing event: %w", err)
+	}
 
 	for {
 		select {
