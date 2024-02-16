@@ -174,8 +174,6 @@ func (t *tickerRepository) GetTickerById(tickerId string) (*db.TickerModel, erro
 				db.WorkflowVersion.Workflow.Fetch(),
 			),
 		),
-		db.Ticker.JobRuns.Fetch(),
-		db.Ticker.StepRuns.Fetch(),
 	).Exec(context.Background())
 }
 
