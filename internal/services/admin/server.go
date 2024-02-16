@@ -570,7 +570,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 				return nil, err
 			}
 
-			retries := 5
+			retries := int(stepCp.Retries)
 
 			steps[j] = repository.CreateWorkflowStepOpts{
 				ReadableId: stepCp.ReadableId,

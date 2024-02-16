@@ -6,6 +6,7 @@ export const CreateStepSchema = z.object({
   name: z.string(),
   parents: z.array(z.string()).optional(),
   timeout: HatchetTimeoutSchema.optional(),
+  retries: z.number().optional(),
 });
 
 export type NextStep = { [key: string]: string };

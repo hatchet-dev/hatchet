@@ -352,6 +352,25 @@ export interface WorkflowEvent {
     | undefined;
   /** the event payload */
   eventPayload: string;
+  /**
+   * whether this is the last event for the workflow run - server
+   * will hang up the connection but clients might want to case
+   */
+  hangup: boolean;
+}
+
+export interface OverridesData {
+  /** the step run id */
+  stepRunId: string;
+  /** the path of the data to set */
+  path: string;
+  /** the value to set */
+  value: string;
+  /** the filename of the caller */
+  callerFilename: string;
+}
+
+export interface OverridesDataResponse {
 }
 
 function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
@@ -1426,6 +1445,7 @@ function createBaseWorkflowEvent(): WorkflowEvent {
     resourceId: "",
     eventTimestamp: undefined,
     eventPayload: "",
+    hangup: false,
   };
 }
 
@@ -1448,6 +1468,9 @@ export const WorkflowEvent = {
     }
     if (message.eventPayload !== "") {
       writer.uint32(50).string(message.eventPayload);
+    }
+    if (message.hangup === true) {
+      writer.uint32(56).bool(message.hangup);
     }
     return writer;
   },
@@ -1501,6 +1524,13 @@ export const WorkflowEvent = {
 
           message.eventPayload = reader.string();
           continue;
+        case 7:
+          if (tag !== 56) {
+            break;
+          }
+
+          message.hangup = reader.bool();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1518,6 +1548,7 @@ export const WorkflowEvent = {
       resourceId: isSet(object.resourceId) ? globalThis.String(object.resourceId) : "",
       eventTimestamp: isSet(object.eventTimestamp) ? fromJsonTimestamp(object.eventTimestamp) : undefined,
       eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : "",
+      hangup: isSet(object.hangup) ? globalThis.Boolean(object.hangup) : false,
     };
   },
 
@@ -1541,6 +1572,9 @@ export const WorkflowEvent = {
     if (message.eventPayload !== "") {
       obj.eventPayload = message.eventPayload;
     }
+    if (message.hangup === true) {
+      obj.hangup = message.hangup;
+    }
     return obj;
   },
 
@@ -1555,6 +1589,154 @@ export const WorkflowEvent = {
     message.resourceId = object.resourceId ?? "";
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.eventPayload = object.eventPayload ?? "";
+    message.hangup = object.hangup ?? false;
+    return message;
+  },
+};
+
+function createBaseOverridesData(): OverridesData {
+  return { stepRunId: "", path: "", value: "", callerFilename: "" };
+}
+
+export const OverridesData = {
+  encode(message: OverridesData, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.stepRunId !== "") {
+      writer.uint32(10).string(message.stepRunId);
+    }
+    if (message.path !== "") {
+      writer.uint32(18).string(message.path);
+    }
+    if (message.value !== "") {
+      writer.uint32(26).string(message.value);
+    }
+    if (message.callerFilename !== "") {
+      writer.uint32(34).string(message.callerFilename);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): OverridesData {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseOverridesData();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.stepRunId = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.path = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.value = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.callerFilename = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): OverridesData {
+    return {
+      stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : "",
+      path: isSet(object.path) ? globalThis.String(object.path) : "",
+      value: isSet(object.value) ? globalThis.String(object.value) : "",
+      callerFilename: isSet(object.callerFilename) ? globalThis.String(object.callerFilename) : "",
+    };
+  },
+
+  toJSON(message: OverridesData): unknown {
+    const obj: any = {};
+    if (message.stepRunId !== "") {
+      obj.stepRunId = message.stepRunId;
+    }
+    if (message.path !== "") {
+      obj.path = message.path;
+    }
+    if (message.value !== "") {
+      obj.value = message.value;
+    }
+    if (message.callerFilename !== "") {
+      obj.callerFilename = message.callerFilename;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<OverridesData>): OverridesData {
+    return OverridesData.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<OverridesData>): OverridesData {
+    const message = createBaseOverridesData();
+    message.stepRunId = object.stepRunId ?? "";
+    message.path = object.path ?? "";
+    message.value = object.value ?? "";
+    message.callerFilename = object.callerFilename ?? "";
+    return message;
+  },
+};
+
+function createBaseOverridesDataResponse(): OverridesDataResponse {
+  return {};
+}
+
+export const OverridesDataResponse = {
+  encode(_: OverridesDataResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): OverridesDataResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseOverridesDataResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): OverridesDataResponse {
+    return {};
+  },
+
+  toJSON(_: OverridesDataResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create(base?: DeepPartial<OverridesDataResponse>): OverridesDataResponse {
+    return OverridesDataResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<OverridesDataResponse>): OverridesDataResponse {
+    const message = createBaseOverridesDataResponse();
     return message;
   },
 };
@@ -1604,6 +1786,14 @@ export const DispatcherDefinition = {
       responseStream: false,
       options: {},
     },
+    putOverridesData: {
+      name: "PutOverridesData",
+      requestType: OverridesData,
+      requestStream: false,
+      responseType: OverridesDataResponse,
+      responseStream: false,
+      options: {},
+    },
     unsubscribe: {
       name: "Unsubscribe",
       requestType: WorkerUnsubscribeRequest,
@@ -1636,6 +1826,10 @@ export interface DispatcherServiceImplementation<CallContextExt = {}> {
     request: GroupKeyActionEvent,
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<ActionEventResponse>>;
+  putOverridesData(
+    request: OverridesData,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<OverridesDataResponse>>;
   unsubscribe(
     request: WorkerUnsubscribeRequest,
     context: CallContext & CallContextExt,
@@ -1663,6 +1857,10 @@ export interface DispatcherClient<CallOptionsExt = {}> {
     request: DeepPartial<GroupKeyActionEvent>,
     options?: CallOptions & CallOptionsExt,
   ): Promise<ActionEventResponse>;
+  putOverridesData(
+    request: DeepPartial<OverridesData>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<OverridesDataResponse>;
   unsubscribe(
     request: DeepPartial<WorkerUnsubscribeRequest>,
     options?: CallOptions & CallOptionsExt,

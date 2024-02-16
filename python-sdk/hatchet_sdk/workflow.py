@@ -48,8 +48,9 @@ class WorkflowMeta(type):
                 action=serviceName + ":" + func_name,
                 timeout=func._step_timeout or "60s",
                 inputs='{}',
-                parents=[x for x in func._step_parents]
-            ) 
+                parents=[x for x in func._step_parents],
+                retries=func._step_retries,
+            )
             for func_name, func in attrs.items() if hasattr(func, '_step_name')
         ]
 
