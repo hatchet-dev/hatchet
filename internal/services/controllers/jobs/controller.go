@@ -296,11 +296,11 @@ func (ec *JobsControllerImpl) handleJobRunTimedOut(ctx context.Context, task *ta
 			Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
 		})
 
-		defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
-
 		if err != nil {
 			return fmt.Errorf("could not update step run: %w", err)
 		}
+
+		defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 		workerId, ok := stepRun.WorkerID()
 
@@ -507,11 +507,11 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
 				})
 
-				defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
-
 				if err != nil {
 					return fmt.Errorf("could not update step run %s: %w", stepRunCp.ID, err)
 				}
+
+				defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 				return nil
 			}
@@ -784,9 +784,13 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ta
 		Status:    repository.StepRunStatusPtr(db.StepRunStatusRunning),
 	})
 
+	if err != nil {
+		return fmt.Errorf("could not update step run: %w", err)
+	}
+
 	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
-	return err
+	return nil
 }
 
 func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *taskqueue.Task) error {
@@ -833,11 +837,11 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 		Output:     stepOutput,
 	})
 
-	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
-
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
 	}
+
+	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	servertel.WithStepRunModel(span, stepRun)
 
@@ -928,11 +932,11 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *tas
 		Status:     repository.StepRunStatusPtr(status),
 	})
 
-	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
-
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
 	}
+
+	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	servertel.WithStepRunModel(span, stepRun)
 
@@ -1020,11 +1024,11 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 		Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
 	})
 
-	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
-
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
 	}
+
+	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	servertel.WithStepRunModel(span, stepRun)
 

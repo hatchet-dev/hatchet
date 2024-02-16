@@ -1,18 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
-	"runtime"
 	"time"
-
-	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 )
 
 func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int) error {
 	log.Printf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
 
-	ctx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	after := 10 * time.Second
@@ -56,9 +54,6 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	}
 	scheduleTimePerEvent := totalDurationScheduled / time.Duration(emitted)
 	log.Printf("ℹ️ average scheduling time per event: %s", scheduleTimePerEvent)
-
-	// num goroutines
-	log.Printf("ℹ️ num goroutines: %d", runtime.NumGoroutine())
 
 	if emitted != executed {
 		log.Printf("⚠️ warning: emitted and executed counts do not match: %d != %d", emitted, executed)
