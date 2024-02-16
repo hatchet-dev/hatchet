@@ -30,7 +30,8 @@ func main() {
 	}
 
 	events := make(chan string, 50)
-	if err := run(cmdutils.InterruptChan(), events); err != nil {
+	ctx, _ := cmdutils.NewInterruptContext()
+	if err := run(ctx, events); err != nil {
 		panic(err)
 	}
 }
@@ -39,7 +40,7 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "user-create", nil
 }
 
-func run(ch <-chan interface{}, events chan<- string) error {
+func run(interruptCtx context.Context, events chan<- string) error {
 	c, err := client.New()
 
 	if err != nil {
@@ -105,38 +106,31 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		return fmt.Errorf("error registering workflow: %w", err)
 	}
 
-	interruptCtx, cancel := cmdutils.InterruptContextFromChan(ch)
-	defer cancel()
-
 	go func() {
-		err = w.Start(interruptCtx)
-
-		if err != nil {
-			panic(err)
+		testEvent := userCreateEvent{
+			Username: "echo-test",
+			UserID:   "1234",
+			Data: map[string]string{
+				"test": "test",
+			},
 		}
 
-		cancel()
+		log.Printf("pushing event user:create:simple")
+		// push an event
+		err := c.Event().Push(
+			context.Background(),
+			"user:create:simple",
+			testEvent,
+		)
+		if err != nil {
+			panic(fmt.Errorf("error pushing event: %w", err))
+		}
 	}()
 
-	testEvent := userCreateEvent{
-		Username: "echo-test",
-		UserID:   "1234",
-		Data: map[string]string{
-			"test": "test",
-		},
-	}
-
-	log.Printf("pushing event user:create:simple")
-
-	// push an event
-	err = c.Event().Push(
-		context.Background(),
-		"user:create:simple",
-		testEvent,
-	)
+	err = w.Start(interruptCtx)
 
 	if err != nil {
-		return fmt.Errorf("error pushing event: %w", err)
+		panic(err)
 	}
 
 	for {
