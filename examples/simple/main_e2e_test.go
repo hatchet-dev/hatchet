@@ -4,15 +4,23 @@ package main
 
 import (
 	"log"
+	"syscall"
 	"testing"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/testutils"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/hatchet-dev/hatchet/internal/testutils"
 )
 
 func TestSimple(t *testing.T) {
 	testutils.Prepare(t)
+
+	defer func() {
+		if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
+			t.Fatalf("syscall.Kill() error = %v", err)
+		}
+	}()
 
 	ch := make(chan interface{}, 1)
 
