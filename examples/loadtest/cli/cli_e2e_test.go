@@ -57,7 +57,6 @@ func TestLoadCLI(t *testing.T) {
 				goleak.VerifyNone(
 					t,
 					goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
-					goleak.IgnoreTopFunction("github.com/hatchet-dev/hatchet/pkg/cmdutils.InterruptChan.func1()"),
 					goleak.IgnoreTopFunction("google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run"),
 					goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
 					goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*controlBuffer).get"),
