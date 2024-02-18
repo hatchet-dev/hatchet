@@ -1,16 +1,15 @@
 import { Separator } from '@/components/ui/separator';
-import { StepRun, StepRunStatus, queries, Event } from '@/lib/api';
+import { StepRun, StepRunStatus, queries } from '@/lib/api';
 import CronPrettifier from 'cronstrue';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { Badge } from '@/components/ui/badge';
 import { relativeDate, timeBetween } from '@/lib/utils';
-import { CodeEditor } from '@/components/ui/code-editor';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import WorkflowRunVisualizer from './components/workflow-run-visualizer';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StepRunPlayground } from './components/step-run-playground';
 
 export default function ExpandedWorkflowRun() {
@@ -39,6 +38,21 @@ export default function ExpandedWorkflowRun() {
     },
   });
 
+  // select the first step run by default
+  useEffect(() => {
+    if (
+      runQuery.data &&
+      runQuery.data.jobRuns &&
+      runQuery.data.jobRuns[0].stepRuns
+    ) {
+      setSelectedStepRun(runQuery.data.jobRuns[0].stepRuns[0]);
+    }
+
+    return () => {
+      setSelectedStepRun(undefined);
+    };
+  }, [runQuery.data]);
+
   if (runQuery.isLoading || !runQuery.data) {
     return <Loading />;
   }
@@ -47,7 +61,7 @@ export default function ExpandedWorkflowRun() {
 
   return (
     <div className="flex-grow h-full w-full">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="flex flex-col mx-auto gap-2 max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
             <h2 className="text-2xl font-bold leading-tight text-foreground flex flex-row  items-center">
@@ -80,6 +94,9 @@ export default function ExpandedWorkflowRun() {
             </div>
           )}
         </div>
+        {run.triggeredBy?.cronSchedule && (
+          <TriggeringCronSection cron={run.triggeredBy.cronSchedule} />
+        )}
         <Separator className="my-4" />
         <div className="w-full h-[150px]">
           <WorkflowRunVisualizer
@@ -94,7 +111,7 @@ export default function ExpandedWorkflowRun() {
         </div>
         <Separator className="my-4" />
         {!selectedStepRun ? (
-          'Select a step to play with'
+          'Select a step to rerun and view details.'
         ) : (
           <StepRunPlayground
             stepRun={selectedStepRun}
@@ -196,54 +213,14 @@ export function StepConfigurationSection({ stepRun }: { stepRun: StepRun }) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function TriggeringEventSection({ event }: { event: Event }) {
-  return (
-    <>
-      <h3 className="text-xl font-semibold leading-tight text-foreground mb-4">
-        Triggered by {event.key}
-      </h3>
-      <EventDataSection event={event} />
-    </>
-  );
-}
-
-function EventDataSection({ event }: { event: Event }) {
-  const getEventDataQuery = useQuery({
-    ...queries.events.getData(event.metadata.id),
-  });
-
-  if (getEventDataQuery.isLoading || !getEventDataQuery.data) {
-    return <Loading />;
-  }
-
-  const eventData = getEventDataQuery.data;
-
-  return (
-    <>
-      <CodeEditor
-        language="json"
-        className="my-4"
-        height="400px"
-        code={JSON.stringify(JSON.parse(eventData.data), null, 2)}
-      />
-    </>
-  );
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function TriggeringCronSection({ cron }: { cron: string }) {
-  const prettyInterval = `Runs ${CronPrettifier.toString(
+  const prettyInterval = `runs ${CronPrettifier.toString(
     cron,
   ).toLowerCase()} UTC`;
 
   return (
-    <>
-      <h3 className="text-xl font-semibold leading-tight text-foreground mb-4">
-        Triggered by Cron
-      </h3>
-      <div className="text-sm text-muted-foreground">{prettyInterval}</div>
-      <CodeEditor language="typescript" className="my-4" code={cron} />
-    </>
+    <div className="text-sm text-muted-foreground">
+      Triggered by cron {cron} which {prettyInterval}
+    </div>
   );
 }

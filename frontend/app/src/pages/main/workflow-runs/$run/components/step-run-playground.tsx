@@ -189,7 +189,7 @@ export function StepRunPlayground({
       {stepRun && (
         <>
           <div className="flex flex-row gap-2 justify-between items-center sticky top-0 z-50">
-            <div className="text-2xl">
+            <div className="text-2xl font-semibold tracking-tight">
               Playground/{stepRun?.step?.readableId}
             </div>
             <div className="flex flex-row gap-2 justify-end items-center">
