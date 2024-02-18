@@ -196,6 +196,7 @@ export function StepConfigurationSection({ stepRun }: { stepRun: StepRun }) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function TriggeringEventSection({ event }: { event: Event }) {
   return (
     <>
@@ -230,6 +231,7 @@ function EventDataSection({ event }: { event: Event }) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function TriggeringCronSection({ cron }: { cron: string }) {
   const prettyInterval = `Runs ${CronPrettifier.toString(
     cron,

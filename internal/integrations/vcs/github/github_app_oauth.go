@@ -2,8 +2,8 @@ package github
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
@@ -35,7 +35,7 @@ func NewGithubAppConf(cfg *oauth.Config, appName, appSecretPath, appWebhookSecre
 		return nil, err
 	}
 
-	appSecret, err := ioutil.ReadFile(appSecretPath)
+	appSecret, err := os.ReadFile(appSecretPath)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not read github app secret: %s", err)

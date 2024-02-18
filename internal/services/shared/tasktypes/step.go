@@ -102,7 +102,7 @@ type StepRunRetryTaskPayload struct {
 	JobRunId  string `json:"job_run_id" validate:"required,uuid"`
 
 	// optional - if not provided, the step run will be retried with the same input
-	InputData string `json:"omitempty,input_data"`
+	InputData string `json:"input_data,omitempty"`
 }
 
 type StepRunRetryTaskMetadata struct {

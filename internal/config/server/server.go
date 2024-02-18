@@ -270,12 +270,12 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
 
 	// vcs options
-	v.BindEnv("vcs.kind", "SERVER_VCS_KIND")
-	v.BindEnv("vcs.github.enabled", "SERVER_VCS_GITHUB_ENABLED")
-	v.BindEnv("vcs.github.appClientID", "SERVER_VCS_GITHUB_APP_CLIENT_ID")
-	v.BindEnv("vcs.github.appClientSecret", "SERVER_VCS_GITHUB_APP_CLIENT_SECRET")
-	v.BindEnv("vcs.github.appName", "SERVER_VCS_GITHUB_APP_NAME")
-	v.BindEnv("vcs.github.appWebhookSecret", "SERVER_VCS_GITHUB_APP_WEBHOOK_SECRET")
-	v.BindEnv("vcs.github.appID", "SERVER_VCS_GITHUB_APP_ID")
-	v.BindEnv("vcs.github.appSecretPath", "SERVER_VCS_GITHUB_APP_SECRET_PATH")
+	_ = v.BindEnv("vcs.kind", "SERVER_VCS_KIND")
+	_ = v.BindEnv("vcs.github.enabled", "SERVER_VCS_GITHUB_ENABLED")
+	_ = v.BindEnv("vcs.github.appClientID", "SERVER_VCS_GITHUB_APP_CLIENT_ID")
+	_ = v.BindEnv("vcs.github.appClientSecret", "SERVER_VCS_GITHUB_APP_CLIENT_SECRET")
+	_ = v.BindEnv("vcs.github.appName", "SERVER_VCS_GITHUB_APP_NAME")
+	_ = v.BindEnv("vcs.github.appWebhookSecret", "SERVER_VCS_GITHUB_APP_WEBHOOK_SECRET")
+	_ = v.BindEnv("vcs.github.appID", "SERVER_VCS_GITHUB_APP_ID")
+	_ = v.BindEnv("vcs.github.appSecretPath", "SERVER_VCS_GITHUB_APP_SECRET_PATH")
 }

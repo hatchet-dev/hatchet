@@ -100,8 +100,8 @@ func toExportedName(key string) string {
 	return nameRegex.ReplaceAllStringFunc(key, func(t string) string {
 		if len(t) == 1 {
 			return strings.ToUpper(t)
-		} else {
-			return strings.ToUpper(string(t[1]))
 		}
+
+		return strings.ToUpper(string(t[1]))
 	})
 }
