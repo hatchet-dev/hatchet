@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/invopop/jsonschema"
@@ -92,7 +93,15 @@ func parseArray(arr []interface{}) reflect.Type {
 	return reflect.SliceOf(elemType)
 }
 
+var nameRegex = regexp.MustCompile(`(\b|-|_|\.)[a-z]`)
+
 // toExportedName converts a JSON key into an exported Go field name.
 func toExportedName(key string) string {
-	return fmt.Sprintf("%s%s", strings.ToUpper(key[:1]), key[1:])
+	return nameRegex.ReplaceAllStringFunc(key, func(t string) string {
+		if len(t) == 1 {
+			return strings.ToUpper(t)
+		} else {
+			return strings.ToUpper(string(t[1]))
+		}
+	})
 }
