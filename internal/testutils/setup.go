@@ -1,0 +1,62 @@
+package testutils
+
+import (
+	"context"
+	"log"
+	"os"
+	"path"
+	"path/filepath"
+	"runtime"
+	"testing"
+	"time"
+
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
+	"github.com/hatchet-dev/hatchet/internal/config/loader"
+)
+
+func Setup(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	_, b, _, _ := runtime.Caller(0)
+	testPath := filepath.Dir(b)
+	dir := path.Join(testPath, "../..")
+
+	log.Printf("dir: %s", dir)
+
+	_ = os.Setenv("DATABASE_URL", "postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet")
+	_ = os.Setenv("SERVER_TLS_CERT_FILE", path.Join(dir, "hack/dev/certs/cluster.pem"))
+	_ = os.Setenv("SERVER_TLS_KEY_FILE", path.Join(dir, "hack/dev/certs/cluster.key"))
+	_ = os.Setenv("SERVER_TLS_ROOT_CA_FILE", path.Join(dir, "hack/dev/certs/ca.cert"))
+	_ = os.Setenv("SERVER_ENCRYPTION_MASTER_KEYSET_FILE", path.Join(dir, "hack/dev/encryption-keys/master.key"))
+	_ = os.Setenv("SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE", path.Join(dir, "hack/dev/encryption-keys/private_ec256.key"))
+	_ = os.Setenv("SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE", path.Join(dir, "hack/dev/encryption-keys/public_ec256.key"))
+	_ = os.Setenv("SERVER_PORT", "8080")
+	_ = os.Setenv("SERVER_URL", "https://app.dev.hatchet-tools.com")
+	_ = os.Setenv("SERVER_AUTH_COOKIE_SECRETS", "something something")
+	_ = os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "app.dev.hatchet-tools.com")
+	_ = os.Setenv("SERVER_AUTH_COOKIE_INSECURE", "false")
+	_ = os.Setenv("SERVER_AUTH_SET_EMAIL_VERIFIED", "true")
+	_ = os.Setenv("SERVER_LOGGER_LEVEL", "debug")
+	_ = os.Setenv("SERVER_LOGGER_FORMAT", "console")
+	_ = os.Setenv("DATABASE_LOGGER_LEVEL", "debug")
+	_ = os.Setenv("DATABASE_LOGGER_FORMAT", "console")
+
+	cf := loader.NewConfigLoader(path.Join(dir, "./generated/"))
+	ch := make(chan interface{}, 1)
+	go func() {
+		engine.StartEngineOrDie(cf, ch)
+
+		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("ctx.Done() called")
+				ch <- struct{}{}
+				return
+			}
+		}
+	}()
+
+	time.Sleep(10 * time.Second)
+
+	log.Printf("setup complete")
+}

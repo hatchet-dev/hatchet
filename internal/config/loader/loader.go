@@ -5,6 +5,7 @@ package loader
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,7 +80,9 @@ func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
 
 // LoadServerConfig loads the server configuration
 func (c *ConfigLoader) LoadServerConfig() (res *server.ServerConfig, err error) {
+	log.Printf("Loading server config from %s", c.directory)
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
+	log.Printf("Shared file path: %s", sharedFilePath)
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
 
 	if err != nil {
