@@ -25,6 +25,9 @@ tasks:
   start-frontend:
     cmds:
       - sh ./hack/dev/start-frontend.sh
+  start-ngrok:
+    cmds:
+      - ngrok http 8080
   generate:
     cmds:
       - task: deps
