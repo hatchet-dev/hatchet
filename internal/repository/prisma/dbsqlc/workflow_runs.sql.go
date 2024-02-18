@@ -822,6 +822,57 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 	return &i, err
 }
 
+const updateWorkflowRun = `-- name: UpdateWorkflowRun :one
+UPDATE
+    "WorkflowRun"
+SET
+    "status" = COALESCE($1::"WorkflowRunStatus", "status"),
+    "error" = COALESCE($2::text, "error"),
+    "startedAt" = COALESCE($3::timestamp, "startedAt"),
+    "finishedAt" = COALESCE($4::timestamp, "finishedAt")
+WHERE 
+    "id" = $5::uuid AND
+    "tenantId" = $6::uuid
+RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."gitRepoBranch"
+`
+
+type UpdateWorkflowRunParams struct {
+	Status     NullWorkflowRunStatus `json:"status"`
+	Error      pgtype.Text           `json:"error"`
+	StartedAt  pgtype.Timestamp      `json:"startedAt"`
+	FinishedAt pgtype.Timestamp      `json:"finishedAt"`
+	ID         pgtype.UUID           `json:"id"`
+	Tenantid   pgtype.UUID           `json:"tenantid"`
+}
+
+func (q *Queries) UpdateWorkflowRun(ctx context.Context, db DBTX, arg UpdateWorkflowRunParams) (*WorkflowRun, error) {
+	row := db.QueryRow(ctx, updateWorkflowRun,
+		arg.Status,
+		arg.Error,
+		arg.StartedAt,
+		arg.FinishedAt,
+		arg.ID,
+		arg.Tenantid,
+	)
+	var i WorkflowRun
+	err := row.Scan(
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.WorkflowVersionId,
+		&i.Status,
+		&i.Error,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.ConcurrencyGroupId,
+		&i.DisplayName,
+		&i.ID,
+		&i.GitRepoBranch,
+	)
+	return &i, err
+}
+
 const updateWorkflowRunGroupKey = `-- name: UpdateWorkflowRunGroupKey :one
 WITH groupKeyRun AS (
     SELECT "id", "status" as groupKeyRunStatus, "output", "workflowRunId"

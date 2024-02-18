@@ -164,6 +164,19 @@ WHERE "id" = (
 ) AND "tenantId" = @tenantId::uuid
 RETURNING "WorkflowRun".*;
 
+-- name: UpdateWorkflowRun :one
+UPDATE
+    "WorkflowRun"
+SET
+    "status" = COALESCE(sqlc.narg('status')::"WorkflowRunStatus", "status"),
+    "error" = COALESCE(sqlc.narg('error')::text, "error"),
+    "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
+    "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt")
+WHERE 
+    "id" = @id::uuid AND
+    "tenantId" = @tenantId::uuid
+RETURNING "WorkflowRun".*;
+
 -- name: CreateWorkflowRun :one
 INSERT INTO "WorkflowRun" (
     "id",

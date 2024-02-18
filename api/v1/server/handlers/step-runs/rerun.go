@@ -62,6 +62,13 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		), nil
 	}
 
+	// set the job run and workflow run to running status
+	err = t.config.Repository.JobRun().SetJobRunStatusRunning(tenant.ID, stepRun.JobRunID)
+
+	if err != nil {
+		return nil, err
+	}
+
 	// send a task to the taskqueue
 	err = t.config.TaskQueue.AddTask(
 		ctx.Request().Context(),
