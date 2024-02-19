@@ -24,11 +24,14 @@ type GithubAppConf struct {
 
 	appName       string
 	webhookSecret string
+	webhookURL    string
 	secret        []byte
 	appID         int64
 }
 
-func NewGithubAppConf(cfg *oauth.Config, appName, appSecretPath, appWebhookSecret, appID string) (*GithubAppConf, error) {
+func NewGithubAppConf(
+	cfg *oauth.Config,
+	appName, appSecretPath, appWebhookSecret, appWebhookURL, appID string) (*GithubAppConf, error) {
 	intAppID, err := strconv.ParseInt(appID, 10, 64)
 
 	if err != nil {
@@ -44,6 +47,7 @@ func NewGithubAppConf(cfg *oauth.Config, appName, appSecretPath, appWebhookSecre
 	return &GithubAppConf{
 		appName:       appName,
 		webhookSecret: appWebhookSecret,
+		webhookURL:    appWebhookURL,
 		secret:        appSecret,
 		appID:         intAppID,
 		Config: oauth2.Config{
@@ -76,6 +80,10 @@ func (g *GithubAppConf) GetGithubClient(installationID int64) (*githubsdk.Client
 
 func (g *GithubAppConf) GetWebhookSecret() string {
 	return g.webhookSecret
+}
+
+func (g *GithubAppConf) GetWebhookURL() string {
+	return g.webhookURL
 }
 
 func (g *GithubAppConf) GetAppName() string {

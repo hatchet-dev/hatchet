@@ -22,6 +22,8 @@ components:
 paths:
   /api/v1/meta:
     $ref: "./paths/metadata/metadata.yaml#/metadata"
+  /api/v1/meta/integrations:
+    $ref: "./paths/metadata/metadata.yaml#/listIntegrations"
   /api/v1/users/login:
     $ref: "./paths/user/user.yaml#/login"
   /api/v1/users/google/start:
@@ -84,10 +86,14 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/linkGithub"
   /api/v1/step-runs/{step-run}/create-pr:
     $ref: "./paths/workflow/workflow.yaml#/createPullRequest"
+  /api/v1/step-runs/{step-run}/diff:
+    $ref: "./paths/workflow/workflow.yaml#/getDiff"
   /api/v1/tenants/{tenant}/workflows/runs:
     $ref: "./paths/workflow/workflow.yaml#/workflowRuns"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}:
     $ref: "./paths/workflow/workflow.yaml#/workflowRun"
+  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/prs:
+    $ref: "./paths/workflow/workflow.yaml#/listPullRequests"
   /api/v1/tenants/{tenant}/step-runs/{step-run}:
     $ref: "./paths/step-run/step-run.yaml#/stepRunScoped"
   /api/v1/tenants/{tenant}/step-runs/{step-run}/rerun:

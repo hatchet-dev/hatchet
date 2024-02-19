@@ -2,6 +2,7 @@ import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 
 import api from './api';
 import invariant from 'tiny-invariant';
+import { PullRequestState } from '.';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
@@ -44,6 +45,10 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow:list', tenant],
       queryFn: async () => (await api.workflowList(tenant)).data,
     }),
+    get: (workflow: string) => ({
+      queryKey: ['workflow:get', workflow],
+      queryFn: async () => (await api.workflowGet(workflow)).data,
+    }),
     getVersion: (workflow: string, version?: string) => ({
       queryKey: ['workflow-version:get', workflow, version],
       queryFn: async () =>
@@ -72,11 +77,32 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow-run:get', tenant, workflowRun],
       queryFn: async () => (await api.workflowRunGet(tenant, workflowRun)).data,
     }),
+    listPullRequests: (
+      tenant: string,
+      workflowRun: string,
+      query: {
+        state?: PullRequestState;
+      },
+    ) => ({
+      queryKey: [
+        'workflow-run:list:pull-requests',
+        tenant,
+        workflowRun,
+        query.state,
+      ],
+      queryFn: async () =>
+        (await api.workflowRunListPullRequests(tenant, workflowRun, query))
+          .data,
+    }),
   },
   stepRuns: {
     get: (tenant: string, stepRun: string) => ({
       queryKey: ['step-run:get', tenant, stepRun],
       queryFn: async () => (await api.stepRunGet(tenant, stepRun)).data,
+    }),
+    getDiff: (stepRun: string) => ({
+      queryKey: ['step-run:get:diff', stepRun],
+      queryFn: async () => (await api.stepRunGetDiff(stepRun)).data,
     }),
   },
   events: {

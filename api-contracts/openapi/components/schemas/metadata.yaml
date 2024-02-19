@@ -14,6 +14,23 @@ APIMetaAuth:
       example:
         - basic
         - google
+ListAPIMetaIntegration:
+  type: array
+  items:
+    $ref: "#/APIMetaIntegration"
+APIMetaIntegration:
+  type: object
+  properties:
+    name:
+      type: string
+      description: the name of the integration
+      example: github
+    enabled:
+      type: boolean
+      description: whether this integration is enabled on the instance
+  required:
+    - name
+    - enabled
 APIError:
   type: object
   properties:

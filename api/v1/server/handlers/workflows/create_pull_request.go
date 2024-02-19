@@ -1,8 +1,6 @@
 package workflows
 
 import (
-	"fmt"
-
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -24,5 +22,5 @@ func (t *WorkflowService) StepRunUpdateCreatePr(ctx echo.Context, request gen.St
 		return nil, err
 	}
 
-	return nil, fmt.Errorf("not implemented")
+	return gen.StepRunUpdateCreatePr200JSONResponse{}, nil
 }

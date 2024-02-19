@@ -24,6 +24,7 @@ import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { DeploymentSettingsForm } from './components/deployment-settings-form';
+import { useApiMetaIntegrations } from '@/lib/hooks';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -73,11 +74,15 @@ export default function ExpandedWorkflow() {
   const loaderData = useLoaderData() as Awaited<ReturnType<typeof loader>>;
   const revalidator = useRevalidator();
 
+  const integrations = useApiMetaIntegrations();
+
   if (!loaderData) {
     return <Loading />;
   }
 
   const { workflow, version } = loaderData;
+
+  const hasGithubIntegration = integrations?.find((i) => i.name === 'github');
 
   return (
     <div className="flex-grow h-full w-full">
@@ -130,14 +135,18 @@ export default function ExpandedWorkflow() {
         </h3>
         <Separator className="my-4" />
         <RecentRunsList />
-        <h3 className="text-xl font-bold leading-tight text-foreground mt-8">
-          Deployment Settings
-        </h3>
-        <Separator className="my-4" />
-        <DeploymentSettings
-          workflow={workflow}
-          refetch={revalidator.revalidate}
-        />
+        {hasGithubIntegration && (
+          <>
+            <h3 className="text-xl font-bold leading-tight text-foreground mt-8">
+              Deployment Settings
+            </h3>
+            <Separator className="my-4" />
+            <DeploymentSettings
+              workflow={workflow}
+              refetch={revalidator.revalidate}
+            />
+          </>
+        )}
       </div>
     </div>
   );

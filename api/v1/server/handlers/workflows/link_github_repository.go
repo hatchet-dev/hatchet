@@ -6,6 +6,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
@@ -40,6 +41,19 @@ func (t *WorkflowService) WorkflowUpdateLinkGithub(ctx echo.Context, request gen
 			GitRepoBranch:           request.Body.GitRepoBranch,
 		},
 	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	vcsProvider := t.config.VCSProviders[vcs.VCSRepositoryKindGithub]
+	vcs, err := vcsProvider.GetVCSRepositoryFromWorkflow(workflow)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = vcs.SetupRepository(workflow.TenantID)
 
 	if err != nil {
 		return nil, err

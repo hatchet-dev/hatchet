@@ -26,11 +26,15 @@ import {
   EventOrderByDirection,
   EventOrderByField,
   EventSearch,
+  GetStepRunDiffResponse,
   LinkGithubRepositoryRequest,
+  ListAPIMetaIntegration,
   ListAPITokensResponse,
   ListGithubAppInstallationsResponse,
   ListGithubBranchesResponse,
   ListGithubReposResponse,
+  ListPullRequestsResponse,
+  PullRequestState,
   RejectInviteRequest,
   ReplayEventRequest,
   RerunStepRunRequest,
@@ -70,6 +74,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<APIMeta, APIErrors>({
       path: `/api/v1/meta`,
       method: 'GET',
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description List all integrations
+   *
+   * @tags Metadata
+   * @name MetadataListIntegrations
+   * @summary List integrations
+   * @request GET:/api/v1/meta/integrations
+   * @secure
+   */
+  metadataListIntegrations = (params: RequestParams = {}) =>
+    this.request<ListAPIMetaIntegration, APIErrors>({
+      path: `/api/v1/meta/integrations`,
+      method: 'GET',
+      secure: true,
       format: 'json',
       ...params,
     });
@@ -736,6 +757,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Get the diff for a step run between the most recent run and the first run.
+   *
+   * @tags Workflow
+   * @name StepRunGetDiff
+   * @summary Get diff
+   * @request GET:/api/v1/step-runs/{step-run}/diff
+   * @secure
+   */
+  stepRunGetDiff = (stepRun: string, params: RequestParams = {}) =>
+    this.request<GetStepRunDiffResponse, APIErrors>({
+      path: `/api/v1/step-runs/${stepRun}/diff`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Get all workflow runs for a tenant
    *
    * @tags Workflow
@@ -795,6 +833,32 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<WorkflowRun, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}`,
       method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description List all pull requests for a workflow run
+   *
+   * @tags Workflow
+   * @name WorkflowRunListPullRequests
+   * @summary List pull requests
+   * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/prs
+   * @secure
+   */
+  workflowRunListPullRequests = (
+    tenant: string,
+    workflowRun: string,
+    query?: {
+      /** The pull request state */
+      state?: PullRequestState;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<ListPullRequestsResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/prs`,
+      method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,

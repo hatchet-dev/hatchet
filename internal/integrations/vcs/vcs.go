@@ -70,7 +70,7 @@ type VCSRepository interface {
 	GetRepoName() string
 
 	// SetupRepository sets up a VCS repository on Hatchet.
-	SetupRepository(teamID string) error
+	SetupRepository(tenantId string) error
 
 	// GetArchiveLink returns an archive link for a specific repo SHA
 	GetArchiveLink(ref string) (*url.URL, error)

@@ -12,7 +12,6 @@ import (
 	githubsdk "github.com/google/go-github/v57/github"
 )
 
-// Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
 func (g *GithubAppService) GithubUpdateTenantWebhook(ctx echo.Context, req gen.GithubUpdateTenantWebhookRequestObject) (gen.GithubUpdateTenantWebhookResponseObject, error) {
 	webhookId := req.Webhook.String()
 

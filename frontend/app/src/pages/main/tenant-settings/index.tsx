@@ -4,7 +4,7 @@ import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { CreateInviteForm } from './components/create-invite-form';
-import { useApiError } from '@/lib/hooks';
+import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api, {
   APIToken,
@@ -28,6 +28,10 @@ import { RevokeTokenForm } from './components/revoke-token-form';
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
 
+  const integrations = useApiMetaIntegrations();
+
+  const hasGithubIntegration = integrations?.find((i) => i.name === 'github');
+
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
@@ -40,8 +44,8 @@ export default function TenantSettings() {
         <InvitesList />
         <Separator className="my-4" />
         <TokensList />
-        <Separator className="my-4" />
-        <GithubInstallationsList />
+        {hasGithubIntegration && <Separator className="my-4" />}
+        {hasGithubIntegration && <GithubInstallationsList />}
       </div>
     </div>
   );

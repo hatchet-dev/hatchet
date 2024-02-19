@@ -7,19 +7,15 @@ import (
 	"io"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/steebchen/prisma-client-go/runtime/types"
-
-	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
+	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/vcsutils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -204,7 +200,7 @@ func (w *WorkerImpl) handleStartPullRequest(ctx worker.HatchetContext) error {
 				return fmt.Errorf("could not search for files: %w", err)
 			}
 
-			diffs, err := w.getStepRunOverrideDiffs(stepRun)
+			diffs, _, err := vcsutils.GetStepRunOverrideDiffs(w.repo.StepRun(), stepRun)
 
 			if err != nil {
 				return fmt.Errorf("could not get step run override diffs: %w", err)
@@ -257,77 +253,6 @@ func (w *WorkerImpl) handleStartPullRequest(ctx worker.HatchetContext) error {
 	}
 
 	return nil
-}
-
-func (w *WorkerImpl) getStepRunOverrideDiffs(stepRun *db.StepRunModel) (map[string]string, error) {
-	// get the first step run archived result, there will be at least one
-	archivedResult, err := w.repo.StepRun().GetFirstArchivedStepRunResult(stepRun.TenantID, stepRun.ID)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not get first archived step run result: %w", err)
-	}
-
-	firstInput, err := getStepRunInput(archivedResult)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not get input from archived result: %w", err)
-	}
-
-	secondInput, err := getStepRunInput(stepRun)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not get input from step run: %w", err)
-	}
-
-	// compare the data
-	diff := map[string]string{}
-
-	for key, value := range firstInput.Overrides {
-		if secondValue, ok := secondInput.Overrides[key]; ok {
-			if value != secondValue {
-				newValue := formatNewValue(secondValue)
-
-				if newValue != "" {
-					diff[key] = newValue
-				}
-			}
-		}
-	}
-
-	return diff, nil
-}
-
-func formatNewValue(val interface{}) string {
-	switch v := val.(type) {
-	case string:
-		return strconv.Quote(v)
-	case float64, bool:
-		return fmt.Sprintf("%v", v)
-	case nil:
-		return "null"
-	default:
-		return ""
-	}
-}
-
-type inputtable interface {
-	Input() (value types.JSON, ok bool)
-}
-
-func getStepRunInput(in inputtable) (*datautils.StepRunData, error) {
-	input, ok := in.Input()
-
-	if !ok {
-		return nil, fmt.Errorf("could not get input from inputtable")
-	}
-
-	data := &datautils.StepRunData{}
-
-	if err := json.Unmarshal(input, data); err != nil || data == nil {
-		return nil, fmt.Errorf("could not unmarshal input: %w", err)
-	}
-
-	return data, nil
 }
 
 func searchForFile(targetPath string, vcs vcs.VCSRepository, ref string) (string, io.ReadCloser, error) {

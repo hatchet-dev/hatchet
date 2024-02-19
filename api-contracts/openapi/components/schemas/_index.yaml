@@ -2,6 +2,10 @@ APIMeta:
   $ref: "./metadata.yaml#/APIMeta"
 APIMetaAuth:
   $ref: "./metadata.yaml#/APIMetaAuth"
+ListAPIMetaIntegration:
+  $ref: "./metadata.yaml#/ListAPIMetaIntegration"
+APIMetaIntegration:
+  $ref: "./metadata.yaml#/APIMetaIntegration"
 APIErrors:
   $ref: "./metadata.yaml#/APIErrors"
 APIError:
@@ -138,3 +142,13 @@ ListGithubBranchesResponse:
   $ref: "./github_app.yaml#/ListGithubBranchesResponse"
 CreatePullRequestFromStepRun:
   $ref: "./workflow_run.yaml#/CreatePullRequestFromStepRun"
+GetStepRunDiffResponse:
+  $ref: "./workflow_run.yaml#/GetStepRunDiffResponse"
+StepRunDiff:
+  $ref: "./workflow_run.yaml#/StepRunDiff"
+ListPullRequestsResponse:
+  $ref: "./workflow_run.yaml#/ListPullRequestsResponse"
+PullRequest:
+  $ref: "./workflow_run.yaml#/PullRequest"
+PullRequestState:
+  $ref: "./workflow_run.yaml#/PullRequestState"

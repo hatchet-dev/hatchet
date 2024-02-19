@@ -227,12 +227,19 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	if cf.VCS.Github.Enabled {
 		var err error
 
-		githubAppConf, err := github.NewGithubAppConf(&oauth.Config{
-			ClientID:     cf.VCS.Github.GithubAppClientID,
-			ClientSecret: cf.VCS.Github.GithubAppClientSecret,
-			Scopes:       []string{"read:user"},
-			BaseURL:      cf.Runtime.ServerURL,
-		}, cf.VCS.Github.GithubAppName, cf.VCS.Github.GithubAppSecretPath, cf.VCS.Github.GithubAppWebhookSecret, cf.VCS.Github.GithubAppID)
+		githubAppConf, err := github.NewGithubAppConf(
+			&oauth.Config{
+				ClientID:     cf.VCS.Github.GithubAppClientID,
+				ClientSecret: cf.VCS.Github.GithubAppClientSecret,
+				Scopes:       []string{"read:user"},
+				BaseURL:      cf.Runtime.ServerURL,
+			},
+			cf.VCS.Github.GithubAppName,
+			cf.VCS.Github.GithubAppSecretPath,
+			cf.VCS.Github.GithubAppWebhookSecret,
+			cf.VCS.Github.GithubAppWebhookURL,
+			cf.VCS.Github.GithubAppID,
+		)
 
 		if err != nil {
 			return nil, err

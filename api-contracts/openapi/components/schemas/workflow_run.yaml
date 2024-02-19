@@ -234,3 +234,68 @@ CreatePullRequestFromStepRun:
       type: string
   required:
     - branchName
+
+PullRequestState:
+  type: string
+  enum:
+    - open
+    - closed
+
+ListPullRequestsResponse:
+  properties:
+    pullRequests:
+      type: array
+      items:
+        $ref: "#/PullRequest"
+  required:
+    - pullRequests
+
+PullRequest:
+  properties:
+    repositoryOwner:
+      type: string
+    repositoryName:
+      type: string
+    pullRequestID:
+      type: integer
+    pullRequestTitle:
+      type: string
+    pullRequestNumber:
+      type: integer
+    pullRequestHeadBranch:
+      type: string
+    pullRequestBaseBranch:
+      type: string
+    pullRequestState:
+      $ref: "#/PullRequestState"
+  required:
+    - repositoryOwner
+    - repositoryName
+    - pullRequestID
+    - pullRequestTitle
+    - pullRequestNumber
+    - pullRequestHeadBranch
+    - pullRequestBaseBranch
+    - pullRequestState
+
+GetStepRunDiffResponse:
+  properties:
+    diffs:
+      type: array
+      items:
+        $ref: "#/StepRunDiff"
+  required:
+    - diffs
+
+StepRunDiff:
+  properties:
+    key:
+      type: string
+    original:
+      type: string
+    modified:
+      type: string
+  required:
+    - key
+    - original
+    - modified

@@ -72,7 +72,7 @@ func createNewBranch(
 	if err == nil {
 		return fmt.Errorf("branch %s already exists", headBranch)
 	} else if resp.StatusCode != http.StatusNotFound {
-		return err
+		return fmt.Errorf("could not get branch: %w", err)
 	}
 
 	base, _, err := client.Repositories.GetBranch(
@@ -80,7 +80,7 @@ func createNewBranch(
 	)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not get base branch %s: %w", baseBranch, err)
 	}
 
 	_, _, err = client.Git.CreateRef(
@@ -93,7 +93,7 @@ func createNewBranch(
 	)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not create branch: %w", err)
 	}
 
 	return nil

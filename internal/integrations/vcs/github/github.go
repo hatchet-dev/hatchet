@@ -69,23 +69,22 @@ func (g GithubVCSProvider) GetVCSRepositoryFromWorkflow(workflow *db.WorkflowMod
 	}
 
 	return &GithubVCSRepository{
-		repoOwner: deploymentConf.GitRepoOwner,
-		repoName:  deploymentConf.GitRepoName,
-		serverURL: g.serverURL,
-		client:    client,
-		repo:      g.repo,
-		enc:       g.enc,
+		repoOwner:  deploymentConf.GitRepoOwner,
+		repoName:   deploymentConf.GitRepoName,
+		serverURL:  g.serverURL,
+		webhookURL: g.appConf.GetWebhookURL(),
+		client:     client,
+		repo:       g.repo,
+		enc:        g.enc,
 	}, nil
 }
-
-// func (g GithubVCSProvider) GetVCSRepositoryFromGAI(gai *models.GithubAppInstallation) (vcs.VCSRepository, error) {
-// }
 
 type GithubVCSRepository struct {
 	repoOwner, repoName string
 	client              *githubsdk.Client
 	repo                repository.Repository
 	serverURL           string
+	webhookURL          string
 	enc                 encryption.EncryptionService
 }
 
@@ -124,7 +123,7 @@ func (g *GithubVCSRepository) SetupRepository(tenantId string) error {
 			return err
 		}
 
-		webhookURL := fmt.Sprintf("%s/api/v1/teams/%s/github_incoming/%s", g.serverURL, tenantId, gw.ID)
+		webhookURL := fmt.Sprintf("%s/api/v1/github/webhook/%s", g.webhookURL, gw.ID)
 
 		_, _, err = g.client.Repositories.CreateHook(
 			context.Background(), repoOwner, repoName, &githubsdk.Hook{
@@ -300,6 +299,8 @@ func (g *GithubVCSRepository) createPullRequest(tenantId, workflowRunId string, 
 		}
 
 		baseBranch = repo.GetDefaultBranch()
+	} else {
+		baseBranch = *opts.BaseBranch
 	}
 
 	err := createNewBranch(g.client, opts.GitRepoOwner, opts.GitRepoName, baseBranch, opts.HeadBranchName)

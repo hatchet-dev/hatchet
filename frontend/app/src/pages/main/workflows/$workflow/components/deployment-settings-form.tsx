@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { PlusIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
 import {
   Select,
   SelectContent,
@@ -22,6 +22,7 @@ import { z } from 'zod';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const schema = z.object({
   installation: z.string(),
@@ -165,6 +166,26 @@ function InnerForm({ workflow, onSubmit, isLoading, errors }: InnerFormProps) {
       );
     }
   }, [listInstallationsQuery, setValue, installation]);
+
+  // if there are no github accounts linked, ask the user to link one
+  if (
+    listInstallationsQuery.isSuccess &&
+    listInstallationsQuery.data.rows.length === 0
+  ) {
+    return (
+      <Alert>
+        <ExclamationTriangleIcon className="h-4 w-4" />
+        <AlertTitle className="font-semibold">Link a Github account</AlertTitle>
+        <AlertDescription>
+          You don't have any Github accounts linked. Please{' '}
+          <a href="/api/v1/users/github/start" className="text-indigo-400">
+            link a Github account
+          </a>{' '}
+          first.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <>

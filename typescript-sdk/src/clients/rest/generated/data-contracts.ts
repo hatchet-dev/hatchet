@@ -21,6 +21,18 @@ export interface APIMetaAuth {
   schemes?: string[];
 }
 
+export type ListAPIMetaIntegration = APIMetaIntegration[];
+
+export interface APIMetaIntegration {
+  /**
+   * the name of the integration
+   * @example "github"
+   */
+  name: string;
+  /** whether this integration is enabled on the instance */
+  enabled: boolean;
+}
+
 export interface APIErrors {
   errors: APIError[];
 }
@@ -641,4 +653,34 @@ export type ListGithubBranchesResponse = GithubBranch[];
 
 export interface CreatePullRequestFromStepRun {
   branchName: string;
+}
+
+export interface GetStepRunDiffResponse {
+  diffs: StepRunDiff[];
+}
+
+export interface StepRunDiff {
+  key: string;
+  original: string;
+  modified: string;
+}
+
+export interface ListPullRequestsResponse {
+  pullRequests: PullRequest[];
+}
+
+export interface PullRequest {
+  repositoryOwner: string;
+  repositoryName: string;
+  pullRequestID: number;
+  pullRequestTitle: string;
+  pullRequestNumber: number;
+  pullRequestHeadBranch: string;
+  pullRequestBaseBranch: string;
+  pullRequestState: PullRequestState;
+}
+
+export enum PullRequestState {
+  Open = 'open',
+  Closed = 'closed',
 }

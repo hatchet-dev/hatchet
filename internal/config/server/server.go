@@ -133,6 +133,7 @@ type ConfigFileGithub struct {
 	GithubAppClientSecret  string `mapstructure:"appClientSecret" json:"appClientSecret,omitempty"`
 	GithubAppName          string `mapstructure:"appName" json:"appName,omitempty"`
 	GithubAppWebhookSecret string `mapstructure:"appWebhookSecret" json:"appWebhookSecret,omitempty"`
+	GithubAppWebhookURL    string `mapstructure:"appWebhookURL" json:"appWebhookURL,omitempty"`
 	GithubAppID            string `mapstructure:"appID" json:"appID,omitempty"`
 	GithubAppSecretPath    string `mapstructure:"appSecretPath" json:"appSecretPath,omitempty"`
 }
@@ -276,6 +277,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("vcs.github.appClientSecret", "SERVER_VCS_GITHUB_APP_CLIENT_SECRET")
 	_ = v.BindEnv("vcs.github.appName", "SERVER_VCS_GITHUB_APP_NAME")
 	_ = v.BindEnv("vcs.github.appWebhookSecret", "SERVER_VCS_GITHUB_APP_WEBHOOK_SECRET")
+	_ = v.BindEnv("vcs.github.appWebhookURL", "SERVER_VCS_GITHUB_APP_WEBHOOK_URL")
 	_ = v.BindEnv("vcs.github.appID", "SERVER_VCS_GITHUB_APP_ID")
 	_ = v.BindEnv("vcs.github.appSecretPath", "SERVER_VCS_GITHUB_APP_SECRET_PATH")
 }
