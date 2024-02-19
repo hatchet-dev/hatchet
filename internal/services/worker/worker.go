@@ -12,9 +12,12 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/vcsutils"
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
@@ -36,12 +39,17 @@ type WorkerOpt func(*WorkerOpts)
 type WorkerOpts struct {
 	client client.Client
 
+	l            *zerolog.Logger
 	repo         repository.Repository
 	vcsProviders map[vcs.VCSRepositoryKind]vcs.VCSProvider
 }
 
 func defaultWorkerOpts() *WorkerOpts {
-	return &WorkerOpts{}
+	logger := logger.NewDefaultLogger("internal-worker")
+
+	return &WorkerOpts{
+		l: &logger,
+	}
 }
 
 func WithRepository(r repository.Repository) WorkerOpt {
@@ -62,9 +70,16 @@ func WithClient(c client.Client) WorkerOpt {
 	}
 }
 
+func WithLogger(l *zerolog.Logger) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.l = l
+	}
+}
+
 type WorkerImpl struct {
 	*worker.Worker
 
+	l            *zerolog.Logger
 	repo         repository.Repository
 	vcsProviders map[vcs.VCSRepositoryKind]vcs.VCSProvider
 }
@@ -96,6 +111,7 @@ func NewWorker(fs ...WorkerOpt) (*WorkerImpl, error) {
 		Worker:       hatchetWorker,
 		repo:         opts.repo,
 		vcsProviders: opts.vcsProviders,
+		l:            opts.l,
 	}, nil
 }
 

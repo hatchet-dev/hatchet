@@ -95,13 +95,17 @@ func parseArray(arr []interface{}) reflect.Type {
 
 var nameRegex = regexp.MustCompile(`(\b|-|_|\.)[a-z]`)
 
+var invalidCharRegex = regexp.MustCompile(`[^a-zA-Z0-9_]`)
+
 // toExportedName converts a JSON key into an exported Go field name.
 func toExportedName(key string) string {
-	return nameRegex.ReplaceAllStringFunc(key, func(t string) string {
+	res := nameRegex.ReplaceAllStringFunc(key, func(t string) string {
 		if len(t) == 1 {
 			return strings.ToUpper(t)
 		}
 
 		return strings.ToUpper(string(t[1]))
 	})
+
+	return invalidCharRegex.ReplaceAllString(res, "")
 }
