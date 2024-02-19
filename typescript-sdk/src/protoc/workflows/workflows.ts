@@ -104,6 +104,8 @@ export interface CreateWorkflowStepOpts {
   parents: string[];
   /** (optional) the custom step user data, assuming string representation of JSON */
   userData: string;
+  /** (optional) the number of retries for the step, default 0 */
+  retries: number;
 }
 
 /** ListWorkflowsRequest is the request for ListWorkflows. */
@@ -663,7 +665,7 @@ export const CreateWorkflowJobOpts = {
 };
 
 function createBaseCreateWorkflowStepOpts(): CreateWorkflowStepOpts {
-  return { readableId: "", action: "", timeout: "", inputs: "", parents: [], userData: "" };
+  return { readableId: "", action: "", timeout: "", inputs: "", parents: [], userData: "", retries: 0 };
 }
 
 export const CreateWorkflowStepOpts = {
@@ -685,6 +687,9 @@ export const CreateWorkflowStepOpts = {
     }
     if (message.userData !== "") {
       writer.uint32(50).string(message.userData);
+    }
+    if (message.retries !== 0) {
+      writer.uint32(56).int32(message.retries);
     }
     return writer;
   },
@@ -738,6 +743,13 @@ export const CreateWorkflowStepOpts = {
 
           message.userData = reader.string();
           continue;
+        case 7:
+          if (tag !== 56) {
+            break;
+          }
+
+          message.retries = reader.int32();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -755,6 +767,7 @@ export const CreateWorkflowStepOpts = {
       inputs: isSet(object.inputs) ? globalThis.String(object.inputs) : "",
       parents: globalThis.Array.isArray(object?.parents) ? object.parents.map((e: any) => globalThis.String(e)) : [],
       userData: isSet(object.userData) ? globalThis.String(object.userData) : "",
+      retries: isSet(object.retries) ? globalThis.Number(object.retries) : 0,
     };
   },
 
@@ -778,6 +791,9 @@ export const CreateWorkflowStepOpts = {
     if (message.userData !== "") {
       obj.userData = message.userData;
     }
+    if (message.retries !== 0) {
+      obj.retries = Math.round(message.retries);
+    }
     return obj;
   },
 
@@ -792,6 +808,7 @@ export const CreateWorkflowStepOpts = {
     message.inputs = object.inputs ?? "";
     message.parents = object.parents?.map((e) => e) || [];
     message.userData = object.userData ?? "";
+    message.retries = object.retries ?? 0;
     return message;
   },
 };

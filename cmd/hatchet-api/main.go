@@ -3,11 +3,14 @@ package main
 import (
 	"fmt"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/run"
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
+	"github.com/hatchet-dev/hatchet/internal/services/worker"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 )
 
@@ -63,14 +66,68 @@ func startServerOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 		panic(err)
 	}
 
+	errCh := make(chan error)
 	ctx, cancel := cmdutils.InterruptContextFromChan(interruptCh)
 	defer cancel()
+	wg := sync.WaitGroup{}
 
-	runner := run.NewAPIServer(sc)
+	if sc.InternalClient != nil {
+		wg.Add(1)
 
-	err = runner.Run(ctx)
+		w, err := worker.NewWorker(
+			worker.WithRepository(sc.Repository),
+			worker.WithClient(sc.InternalClient),
+			worker.WithVCSProviders(sc.VCSProviders),
+		)
 
-	if err != nil {
-		panic(err)
+		if err != nil {
+			panic(err)
+		}
+
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(5 * time.Second)
+
+			err := w.Start(ctx)
+
+			if err != nil {
+				errCh <- err
+				return
+			}
+		}()
 	}
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		runner := run.NewAPIServer(sc)
+
+		err = runner.Run(ctx)
+
+		if err != nil {
+			errCh <- err
+			return
+		}
+	}()
+
+Loop:
+	for {
+		select {
+		case err := <-errCh:
+			fmt.Fprintf(os.Stderr, "%s", err)
+
+			// exit with non-zero exit code
+			os.Exit(1) //nolint:gocritic
+		case <-interruptCh:
+			break Loop
+		}
+	}
+
+	cancel()
+
+	// TODO: should wait with a timeout
+	// wg.Wait()
 }

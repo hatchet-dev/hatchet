@@ -19,6 +19,7 @@ type prismaRepository struct {
 	jobRun         repository.JobRunRepository
 	stepRun        repository.StepRunRepository
 	getGroupKeyRun repository.GetGroupKeyRunRepository
+	github         repository.GithubRepository
 	step           repository.StepRepository
 	dispatcher     repository.DispatcherRepository
 	worker         repository.WorkerRepository
@@ -72,6 +73,7 @@ func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...Pris
 		jobRun:         NewJobRunRepository(client, pool, opts.v, opts.l),
 		stepRun:        NewStepRunRepository(client, pool, opts.v, opts.l),
 		getGroupKeyRun: NewGetGroupKeyRunRepository(client, pool, opts.v, opts.l),
+		github:         NewGithubRepository(client, opts.v),
 		step:           NewStepRepository(client, opts.v),
 		dispatcher:     NewDispatcherRepository(client, pool, opts.v, opts.l),
 		worker:         NewWorkerRepository(client, opts.v),
@@ -115,6 +117,10 @@ func (r *prismaRepository) StepRun() repository.StepRunRepository {
 
 func (r *prismaRepository) GetGroupKeyRun() repository.GetGroupKeyRunRepository {
 	return r.getGroupKeyRun
+}
+
+func (r *prismaRepository) Github() repository.GithubRepository {
+	return r.github
 }
 
 func (r *prismaRepository) Step() repository.StepRepository {

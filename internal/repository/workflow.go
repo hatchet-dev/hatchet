@@ -109,6 +109,9 @@ type CreateWorkflowStepOpts struct {
 
 	// (optional) the custom user data for the step, serialized as a json string
 	UserData *string `validate:"omitnil,json"`
+
+	// (optional) the step retry max
+	Retries *int `validate:"omitempty,min=0"`
 }
 
 type ListWorkflowsOpts struct {
@@ -139,6 +142,20 @@ type JobRunHasCycleError struct {
 
 func (e *JobRunHasCycleError) Error() string {
 	return fmt.Sprintf("job %s has a cycle", e.JobName)
+}
+
+type UpsertWorkflowDeploymentConfigOpts struct {
+	// (required) the github app installation id
+	GithubAppInstallationId string `validate:"required,uuid"`
+
+	// (required) the github repository name
+	GitRepoName string `validate:"required"`
+
+	// (required) the github repository owner
+	GitRepoOwner string `validate:"required"`
+
+	// (required) the github repository branch
+	GitRepoBranch string `validate:"required"`
 }
 
 type WorkflowRepository interface {
@@ -175,4 +192,6 @@ type WorkflowRepository interface {
 
 	// DeleteWorkflow deletes a workflow for a given tenant.
 	DeleteWorkflow(tenantId, workflowId string) (*db.WorkflowModel, error)
+
+	UpsertWorkflowDeploymentConfig(workflowId string, opts *UpsertWorkflowDeploymentConfigOpts) (*db.WorkflowDeploymentConfigModel, error)
 }

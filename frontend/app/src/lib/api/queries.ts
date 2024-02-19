@@ -1,6 +1,8 @@
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 
 import api from './api';
+import invariant from 'tiny-invariant';
+import { PullRequestState } from '.';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
@@ -43,6 +45,10 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow:list', tenant],
       queryFn: async () => (await api.workflowList(tenant)).data,
     }),
+    get: (workflow: string) => ({
+      queryKey: ['workflow:get', workflow],
+      queryFn: async () => (await api.workflowGet(workflow)).data,
+    }),
     getVersion: (workflow: string, version?: string) => ({
       queryKey: ['workflow-version:get', workflow, version],
       queryFn: async () =>
@@ -71,11 +77,32 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow-run:get', tenant, workflowRun],
       queryFn: async () => (await api.workflowRunGet(tenant, workflowRun)).data,
     }),
+    listPullRequests: (
+      tenant: string,
+      workflowRun: string,
+      query: {
+        state?: PullRequestState;
+      },
+    ) => ({
+      queryKey: [
+        'workflow-run:list:pull-requests',
+        tenant,
+        workflowRun,
+        query.state,
+      ],
+      queryFn: async () =>
+        (await api.workflowRunListPullRequests(tenant, workflowRun, query))
+          .data,
+    }),
   },
   stepRuns: {
     get: (tenant: string, stepRun: string) => ({
       queryKey: ['step-run:get', tenant, stepRun],
       queryFn: async () => (await api.stepRunGet(tenant, stepRun)).data,
+    }),
+    getDiff: (stepRun: string) => ({
+      queryKey: ['step-run:get:diff', stepRun],
+      queryFn: async () => (await api.stepRunGetDiff(stepRun)).data,
     }),
   },
   events: {
@@ -100,6 +127,38 @@ export const queries = createQueryKeyStore({
     get: (worker: string) => ({
       queryKey: ['worker:get', worker],
       queryFn: async () => (await api.workerGet(worker)).data,
+    }),
+  },
+  github: {
+    listInstallations: {
+      queryKey: ['github-app:list:installations'],
+      queryFn: async () => (await api.githubAppListInstallations()).data,
+    },
+    listRepos: (installation?: string) => ({
+      queryKey: ['github-app:list:repos', installation],
+      queryFn: async () => {
+        invariant(installation, 'Installation must be set');
+        const res = (await api.githubAppListRepos(installation)).data;
+        return res;
+      },
+      enabled: !!installation,
+    }),
+    listBranches: (
+      installation?: string,
+      repoOwner?: string,
+      repoName?: string,
+    ) => ({
+      queryKey: ['github-app:list:branches', installation, repoOwner, repoName],
+      queryFn: async () => {
+        invariant(installation, 'Installation must be set');
+        invariant(repoOwner, 'Repo owner must be set');
+        invariant(repoName, 'Repo name must be set');
+        const res = (
+          await api.githubAppListBranches(installation, repoOwner, repoName)
+        ).data;
+        return res;
+      },
+      enabled: !!installation && !!repoOwner && !!repoName,
     }),
   },
 });

@@ -1,11 +1,26 @@
+import inspect
 from multiprocessing import Event
+import os
+from .clients.dispatcher import Action, DispatcherClient
+from .dispatcher_pb2 import OverridesData
 from .logger import logger
 import json
 
+def get_caller_file_path():
+    caller_frame = inspect.stack()[2]
+
+    return caller_frame.filename
+
 class Context:
-    def __init__(self, payload: str):
-        self.data = json.loads(payload)
+    def __init__(self, action: Action, client: DispatcherClient):
+        self.data = json.loads(action.action_payload)
+        self.stepRunId = action.step_run_id
         self.exit_flag = Event()
+        self.client = client
+
+        # store each key in the overrides field in a lookup table
+        # overrides_data is a dictionary of key-value pairs
+        self.overrides_data = self.data.get('overrides', {})
 
     def step_output(self, step: str):
         try:
@@ -32,3 +47,21 @@ class Context:
     # done returns true if the context has been cancelled
     def done(self):
         return self.exit_flag.is_set()
+    
+    def overrides(self, name: str, default: str = None):
+        # if the key exists in the overrides_data field, return the value
+        if name in self.overrides_data:
+            return self.overrides_data[name]
+        
+        caller_file = get_caller_file_path()
+        
+        self.client.put_overrides_data(
+            OverridesData(
+                stepRunId=self.stepRunId,
+                path=name,
+                value=json.dumps(default),
+                callerFilename=caller_file
+            )
+        )
+
+        return default

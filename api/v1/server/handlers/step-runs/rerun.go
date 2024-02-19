@@ -54,39 +54,46 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		), nil
 	}
 
-	// update step run
-	_, _, err = t.config.Repository.StepRun().UpdateStepRun(tenant.ID, stepRun.ID, &repository.UpdateStepRunOpts{
-		Input:   inputBytes,
-		Status:  repository.StepRunStatusPtr(db.StepRunStatusPending),
-		IsRerun: true,
-	})
+	inputBytes, err = json.Marshal(data)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not update step run: %w", err)
+		return gen.StepRunUpdateRerun400JSONResponse(
+			apierrors.NewAPIErrors("Invalid input"),
+		), nil
 	}
 
-	// requeue the step run in the task queue
-	jobRun, err := t.config.Repository.JobRun().GetJobRunById(tenant.ID, stepRun.JobRunID)
+	// set the job run and workflow run to running status
+	err = t.config.Repository.JobRun().SetJobRunStatusRunning(tenant.ID, stepRun.JobRunID)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not get job run: %w", err)
+		return nil, err
 	}
 
 	// send a task to the taskqueue
 	err = t.config.TaskQueue.AddTask(
 		ctx.Request().Context(),
 		taskqueue.JOB_PROCESSING_QUEUE,
-		tasktypes.StepRunQueuedToTask(jobRun.Job(), stepRun),
+		tasktypes.StepRunRetryToTask(stepRun, inputBytes),
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not add step queued task to task queue: %w", err)
 	}
 
-	stepRun, err = t.config.Repository.StepRun().GetStepRunById(tenant.ID, stepRun.ID)
+	// wait for a short period of time
+	for i := 0; i < 5; i++ {
+		newStepRun, err := t.config.Repository.StepRun().GetStepRunById(tenant.ID, stepRun.ID)
 
-	if err != nil {
-		return nil, fmt.Errorf("could not get step run: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("could not get step run: %w", err)
+		}
+
+		if newStepRun.Status != stepRun.Status {
+			stepRun = newStepRun
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	res, err := transformers.ToStepRun(stepRun)

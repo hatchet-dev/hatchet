@@ -570,11 +570,14 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 				return nil, err
 			}
 
+			retries := int(stepCp.Retries)
+
 			steps[j] = repository.CreateWorkflowStepOpts{
 				ReadableId: stepCp.ReadableId,
 				Action:     parsedAction.String(),
 				Timeout:    &stepCp.Timeout,
 				Parents:    stepCp.Parents,
+				Retries:    &retries,
 			}
 
 			if stepCp.UserData != "" {

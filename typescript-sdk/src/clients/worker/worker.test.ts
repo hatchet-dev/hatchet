@@ -35,7 +35,8 @@ describe('Worker', () => {
   beforeEach(() => {
     hatchet = new HatchetClient(
       {
-        token: 'TOKEN',
+        token:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
         log_level: 'OFF',
         host_port: 'HOST_PORT',
         tls_config: {

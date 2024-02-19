@@ -350,3 +350,198 @@ workflowRun:
     summary: Get workflow run
     tags:
       - Workflow
+linkGithub:
+  post:
+    x-resources: ["tenant", "workflow"]
+    description: Link a github repository to a workflow
+    operationId: workflow:update:link-github
+    parameters:
+      - description: The workflow id
+        in: path
+        name: workflow
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/LinkGithubRepositoryRequest"
+      description: The input to link a github repository
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Workflow"
+        description: Successfully linked the github repository
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Link github repository
+    tags:
+      - Workflow
+createPullRequest:
+  post:
+    x-resources: ["tenant", "step-run"]
+    description: Create a pull request for a workflow
+    operationId: step-run:update:create-pr
+    parameters:
+      - description: The step run id
+        in: path
+        name: step-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/CreatePullRequestFromStepRun"
+      description: The input to create a pull request
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/CreatePullRequestFromStepRun"
+        description: Successfully created the pull request
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Create pull request
+    tags:
+      - Workflow
+listPullRequests:
+  get:
+    x-resources: ["tenant", "workflow-run"]
+    description: List all pull requests for a workflow run
+    operationId: workflow-run:list:pull-requests
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The workflow run id
+        in: path
+        name: workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The pull request state
+        in: query
+        name: state
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/PullRequestState"
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/ListPullRequestsResponse"
+        description: Successfully retrieved the list of pull requests
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List pull requests
+    tags:
+      - Workflow
+getDiff:
+  get:
+    x-resources: ["tenant", "step-run"]
+    description: Get the diff for a step run between the most recent run and the first run.
+    operationId: step-run:get:diff
+    parameters:
+      - description: The step run id
+        in: path
+        name: step-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/GetStepRunDiffResponse"
+        description: Successfully retrieved the diff
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Get diff
+    tags:
+      - Workflow

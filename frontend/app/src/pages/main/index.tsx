@@ -9,7 +9,6 @@ import {
   ServerStackIcon,
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
-import hatchet from '@/assets/hatchet_logo.png';
 import invariant from 'tiny-invariant';
 
 import {
@@ -40,6 +39,7 @@ import {
 } from '@/lib/outlet';
 import { useTenantContext } from '@/lib/atoms';
 import { Loading, Spinner } from '@/components/ui/loading.tsx';
+import { useSidebar } from '@/components/sidebar-provider';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -61,7 +61,7 @@ function Main() {
   return (
     <div className="flex flex-row flex-1 w-full h-full">
       <Sidebar memberships={memberships} currTenant={currTenant} />
-      <div className="pt-12 pl-80 flex-grow overflow-y-auto overflow-x-hidden">
+      <div className="pt-6 flex-grow overflow-y-auto overflow-x-hidden">
         <Outlet context={childCtx} />
       </div>
     </div>
@@ -76,12 +76,22 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
+  const { sidebarOpen } = useSidebar();
+
+  if (sidebarOpen === 'closed') {
+    return null;
+  }
+
   return (
-    <div className={cn('h-full border-r w-80 absolute top-0', className)}>
+    <div
+      className={cn(
+        'h-full border-r w-full md:w-80 top-16 absolute z-50 md:relative md:top-0 md:bg-[unset] bg-slate-900',
+        className,
+      )}
+    >
       <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full">
         <div className="grow">
           <div className="py-2">
-            <img src={hatchet} alt="Hatchet" className="h-9 rounded mb-6" />
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
               Events
             </h2>

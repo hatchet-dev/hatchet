@@ -219,6 +219,21 @@ type ListWorkflowRunsResult struct {
 	Count int
 }
 
+type CreateWorkflowRunPullRequestOpts struct {
+	RepositoryOwner       string
+	RepositoryName        string
+	PullRequestID         int
+	PullRequestTitle      string
+	PullRequestNumber     int
+	PullRequestHeadBranch string
+	PullRequestBaseBranch string
+	PullRequestState      string
+}
+
+type ListPullRequestsForWorkflowRunOpts struct {
+	State *string
+}
+
 type WorkflowRunRepository interface {
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
@@ -228,4 +243,8 @@ type WorkflowRunRepository interface {
 
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(tenantId, runId string) (*db.WorkflowRunModel, error)
+
+	CreateWorkflowRunPullRequest(tenantId, workflowRunId string, opts *CreateWorkflowRunPullRequestOpts) (*db.GithubPullRequestModel, error)
+
+	ListPullRequestsForWorkflowRun(tenantId, workflowRunId string, opts *ListPullRequestsForWorkflowRunOpts) ([]db.GithubPullRequestModel, error)
 }

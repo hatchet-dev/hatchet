@@ -66,20 +66,22 @@ class CreateWorkflowJobOpts(_message.Message):
     def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., timeout: _Optional[str] = ..., steps: _Optional[_Iterable[_Union[CreateWorkflowStepOpts, _Mapping]]] = ...) -> None: ...
 
 class CreateWorkflowStepOpts(_message.Message):
-    __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "user_data")
+    __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "user_data", "retries")
     READABLE_ID_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     TIMEOUT_FIELD_NUMBER: _ClassVar[int]
     INPUTS_FIELD_NUMBER: _ClassVar[int]
     PARENTS_FIELD_NUMBER: _ClassVar[int]
     USER_DATA_FIELD_NUMBER: _ClassVar[int]
+    RETRIES_FIELD_NUMBER: _ClassVar[int]
     readable_id: str
     action: str
     timeout: str
     inputs: str
     parents: _containers.RepeatedScalarFieldContainer[str]
     user_data: str
-    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., user_data: _Optional[str] = ...) -> None: ...
+    retries: int
+    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., user_data: _Optional[str] = ..., retries: _Optional[int] = ...) -> None: ...
 
 class ListWorkflowsRequest(_message.Message):
     __slots__ = ()

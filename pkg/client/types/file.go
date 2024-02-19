@@ -74,6 +74,7 @@ type WorkflowStep struct {
 	Timeout  string                 `yaml:"timeout,omitempty"`
 	With     map[string]interface{} `yaml:"with,omitempty"`
 	Parents  []string               `yaml:"parents,omitempty"`
+	Retries  int                    `yaml:"retries"`
 }
 
 func ParseYAML(ctx context.Context, yamlBytes []byte) (Workflow, error) {

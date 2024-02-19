@@ -170,7 +170,8 @@ INSERT INTO "Step" (
     "jobId",
     "actionId",
     "timeout",
-    "customUserData"
+    "customUserData",
+    "retries"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -181,8 +182,9 @@ INSERT INTO "Step" (
     $7::uuid,
     $8::text,
     $9::text,
-    coalesce($10::jsonb, '{}')
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData"
+    coalesce($10::jsonb, '{}'),
+    coalesce($11::integer, 0)
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries
 `
 
 type CreateStepParams struct {
@@ -196,6 +198,7 @@ type CreateStepParams struct {
 	Actionid       string           `json:"actionid"`
 	Timeout        string           `json:"timeout"`
 	CustomUserData []byte           `json:"customUserData"`
+	Retries        pgtype.Int4      `json:"retries"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -210,6 +213,7 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.Actionid,
 		arg.Timeout,
 		arg.CustomUserData,
+		arg.Retries,
 	)
 	var i Step
 	err := row.Scan(
@@ -223,6 +227,7 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.ActionId,
 		&i.Timeout,
 		&i.CustomUserData,
+		&i.Retries,
 	)
 	return &i, err
 }
@@ -612,7 +617,7 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 
 const listWorkflowsLatestRuns = `-- name: ListWorkflowsLatestRuns :many
 SELECT
-    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, workflow."id" as "workflowId"
+    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", workflow."id" as "workflowId"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -683,6 +688,7 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 			&i.WorkflowRun.ConcurrencyGroupId,
 			&i.WorkflowRun.DisplayName,
 			&i.WorkflowRun.ID,
+			&i.WorkflowRun.GitRepoBranch,
 			&i.WorkflowId,
 		); err != nil {
 			return nil, err

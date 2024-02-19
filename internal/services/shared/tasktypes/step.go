@@ -97,6 +97,18 @@ type StepRunTimedOutTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
+type StepRunRetryTaskPayload struct {
+	StepRunId string `json:"step_run_id" validate:"required,uuid"`
+	JobRunId  string `json:"job_run_id" validate:"required,uuid"`
+
+	// optional - if not provided, the step run will be retried with the same input
+	InputData string `json:"input_data,omitempty"`
+}
+
+type StepRunRetryTaskMetadata struct {
+	TenantId string `json:"tenant_id" validate:"required,uuid"`
+}
+
 func TenantToStepRunRequeueTask(tenant db.TenantModel) *taskqueue.Task {
 	payload, _ := datautils.ToJSONMap(StepRunRequeueTaskPayload{
 		TenantId: tenant.ID,
@@ -108,6 +120,24 @@ func TenantToStepRunRequeueTask(tenant db.TenantModel) *taskqueue.Task {
 
 	return &taskqueue.Task{
 		ID:       "step-run-requeue-ticker",
+		Payload:  payload,
+		Metadata: metadata,
+	}
+}
+
+func StepRunRetryToTask(stepRun *db.StepRunModel, inputData []byte) *taskqueue.Task {
+	payload, _ := datautils.ToJSONMap(StepRunRetryTaskPayload{
+		JobRunId:  stepRun.JobRunID,
+		StepRunId: stepRun.ID,
+		InputData: string(inputData),
+	})
+
+	metadata, _ := datautils.ToJSONMap(StepRunRetryTaskMetadata{
+		TenantId: stepRun.TenantID,
+	})
+
+	return &taskqueue.Task{
+		ID:       "step-run-retry",
 		Payload:  payload,
 		Metadata: metadata,
 	}

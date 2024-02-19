@@ -232,6 +232,47 @@ func (ns NullTenantMemberRole) Value() (driver.Value, error) {
 	return string(ns.TenantMemberRole), nil
 }
 
+type VcsProvider string
+
+const (
+	VcsProviderGITHUB VcsProvider = "GITHUB"
+)
+
+func (e *VcsProvider) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = VcsProvider(s)
+	case string:
+		*e = VcsProvider(s)
+	default:
+		return fmt.Errorf("unsupported scan type for VcsProvider: %T", src)
+	}
+	return nil
+}
+
+type NullVcsProvider struct {
+	VcsProvider VcsProvider `json:"VcsProvider"`
+	Valid       bool        `json:"valid"` // Valid is true if VcsProvider is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullVcsProvider) Scan(value interface{}) error {
+	if value == nil {
+		ns.VcsProvider, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.VcsProvider.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullVcsProvider) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.VcsProvider), nil
+}
+
 type WorkerStatus string
 
 const (
@@ -383,6 +424,86 @@ type GetGroupKeyRun struct {
 	WorkflowRunId   pgtype.UUID      `json:"workflowRunId"`
 }
 
+type GithubAppInstallation struct {
+	ID                      pgtype.UUID      `json:"id"`
+	CreatedAt               pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt               pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt               pgtype.Timestamp `json:"deletedAt"`
+	GithubAppOAuthId        pgtype.UUID      `json:"githubAppOAuthId"`
+	InstallationId          int32            `json:"installationId"`
+	AccountName             string           `json:"accountName"`
+	AccountId               int32            `json:"accountId"`
+	AccountAvatarURL        pgtype.Text      `json:"accountAvatarURL"`
+	InstallationSettingsURL pgtype.Text      `json:"installationSettingsURL"`
+	Config                  []byte           `json:"config"`
+	TenantId                pgtype.UUID      `json:"tenantId"`
+	TenantVcsProviderId     pgtype.UUID      `json:"tenantVcsProviderId"`
+}
+
+type GithubAppInstallationToGithubWebhook struct {
+	A pgtype.UUID `json:"A"`
+	B pgtype.UUID `json:"B"`
+}
+
+type GithubAppOAuth struct {
+	ID           pgtype.UUID      `json:"id"`
+	CreatedAt    pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt    pgtype.Timestamp `json:"deletedAt"`
+	GithubUserID int32            `json:"githubUserID"`
+	AccessToken  []byte           `json:"accessToken"`
+	RefreshToken []byte           `json:"refreshToken"`
+	ExpiresAt    pgtype.Timestamp `json:"expiresAt"`
+}
+
+type GithubAppOAuthToUser struct {
+	A pgtype.UUID `json:"A"`
+	B pgtype.UUID `json:"B"`
+}
+
+type GithubPullRequest struct {
+	ID                    pgtype.UUID      `json:"id"`
+	CreatedAt             pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt             pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt             pgtype.Timestamp `json:"deletedAt"`
+	TenantId              pgtype.UUID      `json:"tenantId"`
+	RepositoryOwner       string           `json:"repositoryOwner"`
+	RepositoryName        string           `json:"repositoryName"`
+	PullRequestID         int32            `json:"pullRequestID"`
+	PullRequestTitle      string           `json:"pullRequestTitle"`
+	PullRequestNumber     int32            `json:"pullRequestNumber"`
+	PullRequestHeadBranch string           `json:"pullRequestHeadBranch"`
+	PullRequestBaseBranch string           `json:"pullRequestBaseBranch"`
+	PullRequestState      string           `json:"pullRequestState"`
+}
+
+type GithubPullRequestComment struct {
+	ID            pgtype.UUID      `json:"id"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt     pgtype.Timestamp `json:"deletedAt"`
+	TenantId      pgtype.UUID      `json:"tenantId"`
+	PullRequestID pgtype.UUID      `json:"pullRequestID"`
+	ModuleID      string           `json:"moduleID"`
+	CommentID     int32            `json:"commentID"`
+}
+
+type GithubPullRequestToWorkflowRun struct {
+	A pgtype.UUID `json:"A"`
+	B pgtype.UUID `json:"B"`
+}
+
+type GithubWebhook struct {
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
+	TenantId        pgtype.UUID      `json:"tenantId"`
+	RepositoryOwner string           `json:"repositoryOwner"`
+	RepositoryName  string           `json:"repositoryName"`
+	SigningSecret   []byte           `json:"signingSecret"`
+}
+
 type Job struct {
 	ID                pgtype.UUID      `json:"id"`
 	CreatedAt         pgtype.Timestamp `json:"createdAt"`
@@ -450,6 +571,7 @@ type Step struct {
 	ActionId       string           `json:"actionId"`
 	Timeout        pgtype.Text      `json:"timeout"`
 	CustomUserData []byte           `json:"customUserData"`
+	Retries        int32            `json:"retries"`
 }
 
 type StepOrder struct {
@@ -480,11 +602,33 @@ type StepRun struct {
 	CancelledAt       pgtype.Timestamp `json:"cancelledAt"`
 	CancelledReason   pgtype.Text      `json:"cancelledReason"`
 	CancelledError    pgtype.Text      `json:"cancelledError"`
+	InputSchema       []byte           `json:"inputSchema"`
+	CallerFiles       []byte           `json:"callerFiles"`
+	GitRepoBranch     pgtype.Text      `json:"gitRepoBranch"`
+	RetryCount        int32            `json:"retryCount"`
 }
 
 type StepRunOrder struct {
 	A pgtype.UUID `json:"A"`
 	B pgtype.UUID `json:"B"`
+}
+
+type StepRunResultArchive struct {
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
+	StepRunId       pgtype.UUID      `json:"stepRunId"`
+	Order           int64            `json:"order"`
+	Input           []byte           `json:"input"`
+	Output          []byte           `json:"output"`
+	Error           pgtype.Text      `json:"error"`
+	StartedAt       pgtype.Timestamp `json:"startedAt"`
+	FinishedAt      pgtype.Timestamp `json:"finishedAt"`
+	TimeoutAt       pgtype.Timestamp `json:"timeoutAt"`
+	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
+	CancelledReason pgtype.Text      `json:"cancelledReason"`
+	CancelledError  pgtype.Text      `json:"cancelledError"`
 }
 
 type Tenant struct {
@@ -515,6 +659,16 @@ type TenantMember struct {
 	TenantId  pgtype.UUID      `json:"tenantId"`
 	UserId    pgtype.UUID      `json:"userId"`
 	Role      TenantMemberRole `json:"role"`
+}
+
+type TenantVcsProvider struct {
+	ID          pgtype.UUID      `json:"id"`
+	CreatedAt   pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt   pgtype.Timestamp `json:"deletedAt"`
+	TenantId    pgtype.UUID      `json:"tenantId"`
+	VcsProvider VcsProvider      `json:"vcsProvider"`
+	Config      []byte           `json:"config"`
 }
 
 type Ticker struct {
@@ -593,6 +747,18 @@ type WorkflowConcurrency struct {
 	LimitStrategy         ConcurrencyLimitStrategy `json:"limitStrategy"`
 }
 
+type WorkflowDeploymentConfig struct {
+	ID                      pgtype.UUID      `json:"id"`
+	CreatedAt               pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt               pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt               pgtype.Timestamp `json:"deletedAt"`
+	WorkflowId              pgtype.UUID      `json:"workflowId"`
+	GitRepoName             string           `json:"gitRepoName"`
+	GitRepoOwner            string           `json:"gitRepoOwner"`
+	GitRepoBranch           string           `json:"gitRepoBranch"`
+	GithubAppInstallationId pgtype.UUID      `json:"githubAppInstallationId"`
+}
+
 type WorkflowRun struct {
 	CreatedAt          pgtype.Timestamp  `json:"createdAt"`
 	UpdatedAt          pgtype.Timestamp  `json:"updatedAt"`
@@ -606,6 +772,7 @@ type WorkflowRun struct {
 	ConcurrencyGroupId pgtype.Text       `json:"concurrencyGroupId"`
 	DisplayName        pgtype.Text       `json:"displayName"`
 	ID                 pgtype.UUID       `json:"id"`
+	GitRepoBranch      pgtype.Text       `json:"gitRepoBranch"`
 }
 
 type WorkflowRunTriggeredBy struct {

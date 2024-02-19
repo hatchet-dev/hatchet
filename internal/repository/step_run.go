@@ -50,6 +50,14 @@ type UpdateStepRunOpts struct {
 	Input []byte
 
 	Output []byte
+
+	RetryCount *int
+}
+
+type UpdateStepRunOverridesDataOpts struct {
+	OverrideKey string
+	Data        []byte
+	CallerFile  *string
 }
 
 func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
@@ -74,6 +82,12 @@ type StepRunRepository interface {
 
 	UpdateStepRun(tenantId, stepRunId string, opts *UpdateStepRunOpts) (*db.StepRunModel, *StepRunUpdateInfo, error)
 
+	// UpdateStepRunOverridesData updates the overrides data field in the input for a step run. This returns the input
+	// bytes.
+	UpdateStepRunOverridesData(tenantId, stepRunId string, opts *UpdateStepRunOverridesDataOpts) ([]byte, error)
+
+	UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error)
+
 	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
 
 	// QueueStepRun is like UpdateStepRun, except that it will only update the step run if it is in
@@ -83,4 +97,10 @@ type StepRunRepository interface {
 	CancelPendingStepRuns(tenantId, jobRunId, reason string) error
 
 	ListStartableStepRuns(tenantId, jobRunId, parentStepRunId string) ([]*dbsqlc.StepRun, error)
+
+	ArchiveStepRunResult(tenantId, stepRunId string) error
+
+	ListArchivedStepRunResults(tenantId, stepRunId string) ([]db.StepRunResultArchiveModel, error)
+
+	GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error)
 }

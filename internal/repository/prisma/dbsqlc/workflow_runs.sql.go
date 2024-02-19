@@ -305,7 +305,8 @@ INSERT INTO "StepRun" (
     "timeoutAt",
     "cancelledAt",
     "cancelledReason",
-    "cancelledError"
+    "cancelledError",
+    "callerFiles"
 ) VALUES (
     COALESCE($1::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -327,8 +328,9 @@ INSERT INTO "StepRun" (
     NULL,
     NULL,
     NULL,
-    NULL
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError"
+    NULL,
+    '{}'
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount"
 `
 
 type CreateStepRunParams struct {
@@ -373,6 +375,10 @@ func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunP
 		&i.CancelledAt,
 		&i.CancelledReason,
 		&i.CancelledError,
+		&i.InputSchema,
+		&i.CallerFiles,
+		&i.GitRepoBranch,
+		&i.RetryCount,
 	)
 	return &i, err
 }
@@ -402,7 +408,7 @@ INSERT INTO "WorkflowRun" (
     NULL, -- assuming error is not set on creation
     NULL, -- assuming startedAt is not set on creation
     NULL  -- assuming finishedAt is not set on creation
-) RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id
+) RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "gitRepoBranch"
 `
 
 type CreateWorkflowRunParams struct {
@@ -433,6 +439,7 @@ func (q *Queries) CreateWorkflowRun(ctx context.Context, db DBTX, arg CreateWork
 		&i.ConcurrencyGroupId,
 		&i.DisplayName,
 		&i.ID,
+		&i.GitRepoBranch,
 	)
 	return &i, err
 }
@@ -518,7 +525,7 @@ func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, jobrunid pgty
 
 const listStartableStepRuns = `-- name: ListStartableStepRuns :many
 SELECT 
-    child_run.id, child_run."createdAt", child_run."updatedAt", child_run."deletedAt", child_run."tenantId", child_run."jobRunId", child_run."stepId", child_run."order", child_run."workerId", child_run."tickerId", child_run.status, child_run.input, child_run.output, child_run."requeueAfter", child_run."scheduleTimeoutAt", child_run.error, child_run."startedAt", child_run."finishedAt", child_run."timeoutAt", child_run."cancelledAt", child_run."cancelledReason", child_run."cancelledError"
+    child_run.id, child_run."createdAt", child_run."updatedAt", child_run."deletedAt", child_run."tenantId", child_run."jobRunId", child_run."stepId", child_run."order", child_run."workerId", child_run."tickerId", child_run.status, child_run.input, child_run.output, child_run."requeueAfter", child_run."scheduleTimeoutAt", child_run.error, child_run."startedAt", child_run."finishedAt", child_run."timeoutAt", child_run."cancelledAt", child_run."cancelledReason", child_run."cancelledError", child_run."inputSchema", child_run."callerFiles", child_run."gitRepoBranch", child_run."retryCount"
 FROM 
     "StepRun" AS child_run
 JOIN 
@@ -576,6 +583,10 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 			&i.CancelledAt,
 			&i.CancelledReason,
 			&i.CancelledError,
+			&i.InputSchema,
+			&i.CallerFiles,
+			&i.GitRepoBranch,
+			&i.RetryCount,
 		); err != nil {
 			return nil, err
 		}
@@ -589,7 +600,7 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 
 const listWorkflowRuns = `-- name: ListWorkflowRuns :many
 SELECT
-    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, 
+    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", 
     workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description, 
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId", 
     workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, 
@@ -691,6 +702,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 			&i.WorkflowRun.ConcurrencyGroupId,
 			&i.WorkflowRun.DisplayName,
 			&i.WorkflowRun.ID,
+			&i.WorkflowRun.GitRepoBranch,
 			&i.Workflow.ID,
 			&i.Workflow.CreatedAt,
 			&i.Workflow.UpdatedAt,
@@ -781,7 +793,7 @@ WHERE "id" = (
     FROM "JobRun"
     WHERE "id" = $1::uuid
 ) AND "tenantId" = $2::uuid
-RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id
+RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."gitRepoBranch"
 `
 
 type ResolveWorkflowRunStatusParams struct {
@@ -805,6 +817,58 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 		&i.ConcurrencyGroupId,
 		&i.DisplayName,
 		&i.ID,
+		&i.GitRepoBranch,
+	)
+	return &i, err
+}
+
+const updateWorkflowRun = `-- name: UpdateWorkflowRun :one
+UPDATE
+    "WorkflowRun"
+SET
+    "status" = COALESCE($1::"WorkflowRunStatus", "status"),
+    "error" = COALESCE($2::text, "error"),
+    "startedAt" = COALESCE($3::timestamp, "startedAt"),
+    "finishedAt" = COALESCE($4::timestamp, "finishedAt")
+WHERE 
+    "id" = $5::uuid AND
+    "tenantId" = $6::uuid
+RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."gitRepoBranch"
+`
+
+type UpdateWorkflowRunParams struct {
+	Status     NullWorkflowRunStatus `json:"status"`
+	Error      pgtype.Text           `json:"error"`
+	StartedAt  pgtype.Timestamp      `json:"startedAt"`
+	FinishedAt pgtype.Timestamp      `json:"finishedAt"`
+	ID         pgtype.UUID           `json:"id"`
+	Tenantid   pgtype.UUID           `json:"tenantid"`
+}
+
+func (q *Queries) UpdateWorkflowRun(ctx context.Context, db DBTX, arg UpdateWorkflowRunParams) (*WorkflowRun, error) {
+	row := db.QueryRow(ctx, updateWorkflowRun,
+		arg.Status,
+		arg.Error,
+		arg.StartedAt,
+		arg.FinishedAt,
+		arg.ID,
+		arg.Tenantid,
+	)
+	var i WorkflowRun
+	err := row.Scan(
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.WorkflowVersionId,
+		&i.Status,
+		&i.Error,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.ConcurrencyGroupId,
+		&i.DisplayName,
+		&i.ID,
+		&i.GitRepoBranch,
 	)
 	return &i, err
 }
@@ -838,7 +902,7 @@ FROM
 WHERE 
 workflowRun."id" = groupKeyRun."workflowRunId" AND
 workflowRun."tenantId" = $1::uuid
-RETURNING workflowrun."createdAt", workflowrun."updatedAt", workflowrun."deletedAt", workflowrun."tenantId", workflowrun."workflowVersionId", workflowrun.status, workflowrun.error, workflowrun."startedAt", workflowrun."finishedAt", workflowrun."concurrencyGroupId", workflowrun."displayName", workflowrun.id
+RETURNING workflowrun."createdAt", workflowrun."updatedAt", workflowrun."deletedAt", workflowrun."tenantId", workflowrun."workflowVersionId", workflowrun.status, workflowrun.error, workflowrun."startedAt", workflowrun."finishedAt", workflowrun."concurrencyGroupId", workflowrun."displayName", workflowrun.id, workflowrun."gitRepoBranch"
 `
 
 type UpdateWorkflowRunGroupKeyParams struct {
@@ -862,6 +926,7 @@ func (q *Queries) UpdateWorkflowRunGroupKey(ctx context.Context, db DBTX, arg Up
 		&i.ConcurrencyGroupId,
 		&i.DisplayName,
 		&i.ID,
+		&i.GitRepoBranch,
 	)
 	return &i, err
 }

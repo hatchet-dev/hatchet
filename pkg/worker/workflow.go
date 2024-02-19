@@ -253,6 +253,8 @@ type WorkflowStep struct {
 
 	// The ids of the parents
 	Parents []string
+
+	Retries int
 }
 
 func Fn(f any) *WorkflowStep {
@@ -269,6 +271,11 @@ func (w *WorkflowStep) SetName(name string) *WorkflowStep {
 
 func (w *WorkflowStep) SetTimeout(timeout string) *WorkflowStep {
 	w.Timeout = timeout
+	return w
+}
+
+func (w *WorkflowStep) SetRetries(retries int) *WorkflowStep {
+	w.Retries = retries
 	return w
 }
 
@@ -326,6 +333,7 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int) (*Step, error) 
 		Timeout:  w.Timeout,
 		ActionID: w.GetActionId(svcName, index),
 		Parents:  []string{},
+		Retries:  w.Retries,
 	}
 
 	inputs, err := decodeFnArgTypes(fnType)

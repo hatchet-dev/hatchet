@@ -4,7 +4,6 @@ import grpc
 
 from . import dispatcher_pb2 as dispatcher__pb2
 
-
 class DispatcherStub(object):
     """Missing associated documentation comment in .proto file."""
 
@@ -38,6 +37,11 @@ class DispatcherStub(object):
                 '/Dispatcher/SendGroupKeyActionEvent',
                 request_serializer=dispatcher__pb2.GroupKeyActionEvent.SerializeToString,
                 response_deserializer=dispatcher__pb2.ActionEventResponse.FromString,
+                )
+        self.PutOverridesData = channel.unary_unary(
+                '/Dispatcher/PutOverridesData',
+                request_serializer=dispatcher__pb2.OverridesData.SerializeToString,
+                response_deserializer=dispatcher__pb2.OverridesDataResponse.FromString,
                 )
         self.Unsubscribe = channel.unary_unary(
                 '/Dispatcher/Unsubscribe',
@@ -79,6 +83,12 @@ class DispatcherServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def PutOverridesData(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Unsubscribe(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -112,6 +122,11 @@ def add_DispatcherServicer_to_server(servicer, server):
                     servicer.SendGroupKeyActionEvent,
                     request_deserializer=dispatcher__pb2.GroupKeyActionEvent.FromString,
                     response_serializer=dispatcher__pb2.ActionEventResponse.SerializeToString,
+            ),
+            'PutOverridesData': grpc.unary_unary_rpc_method_handler(
+                    servicer.PutOverridesData,
+                    request_deserializer=dispatcher__pb2.OverridesData.FromString,
+                    response_serializer=dispatcher__pb2.OverridesDataResponse.SerializeToString,
             ),
             'Unsubscribe': grpc.unary_unary_rpc_method_handler(
                     servicer.Unsubscribe,
@@ -210,6 +225,23 @@ class Dispatcher(object):
         return grpc.experimental.unary_unary(request, target, '/Dispatcher/SendGroupKeyActionEvent',
             dispatcher__pb2.GroupKeyActionEvent.SerializeToString,
             dispatcher__pb2.ActionEventResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def PutOverridesData(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/Dispatcher/PutOverridesData',
+            dispatcher__pb2.OverridesData.SerializeToString,
+            dispatcher__pb2.OverridesDataResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

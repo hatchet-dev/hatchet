@@ -225,6 +225,98 @@ func (s *stepRunRepository) UpdateStepRun(tenantId, stepRunId string, opts *repo
 	return stepRun, updateInfo, nil
 }
 
+func (s *stepRunRepository) UpdateStepRunOverridesData(tenantId, stepRunId string, opts *repository.UpdateStepRunOverridesDataOpts) ([]byte, error) {
+	if err := s.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	tx, err := s.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), s.l, tx.Rollback)
+
+	if err != nil {
+		return nil, err
+	}
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
+
+	callerFile := ""
+
+	if opts.CallerFile != nil {
+		callerFile = *opts.CallerFile
+	}
+
+	input, err := s.queries.UpdateStepRunOverridesData(
+		context.Background(),
+		tx,
+		dbsqlc.UpdateStepRunOverridesDataParams{
+			Steprunid: pgStepRunId,
+			Tenantid:  pgTenantId,
+			Fieldpath: []string{
+				"overrides",
+				opts.OverrideKey,
+			},
+			Jsondata: opts.Data,
+			Overrideskey: []string{
+				opts.OverrideKey,
+			},
+			Callerfile: callerFile,
+		},
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not update step run overrides data: %w", err)
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return input, nil
+}
+
+func (s *stepRunRepository) UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error) {
+	tx, err := s.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), s.l, tx.Rollback)
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
+
+	inputSchema, err := s.queries.UpdateStepRunInputSchema(
+		context.Background(),
+		tx,
+		dbsqlc.UpdateStepRunInputSchemaParams{
+			Steprunid:   pgStepRunId,
+			Tenantid:    pgTenantId,
+			InputSchema: schema,
+		},
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not update step run input schema: %w", err)
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return inputSchema, nil
+}
+
 func (s *stepRunRepository) QueueStepRun(tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*db.StepRunModel, error) {
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err
@@ -374,6 +466,13 @@ func getUpdateParams(
 		updateParams.CancelledReason = sqlchelpers.TextFromStr(*opts.CancelledReason)
 	}
 
+	if opts.RetryCount != nil {
+		updateParams.RetryCount = pgtype.Int4{
+			Valid: true,
+			Int32: int32(*opts.RetryCount),
+		}
+	}
+
 	return updateParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams, nil
 }
 
@@ -498,4 +597,53 @@ func (s *stepRunRepository) ListStartableStepRuns(tenantId, jobRunId, parentStep
 	}
 
 	return stepRuns, nil
+}
+
+func (s *stepRunRepository) ArchiveStepRunResult(tenantId, stepRunId string) error {
+	tx, err := s.pool.Begin(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	defer deferRollback(context.Background(), s.l, tx.Rollback)
+
+	_, err = s.queries.ArchiveStepRunResultFromStepRun(context.Background(), tx, dbsqlc.ArchiveStepRunResultFromStepRunParams{
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *stepRunRepository) ListArchivedStepRunResults(tenantId, stepRunId string) ([]db.StepRunResultArchiveModel, error) {
+	return s.client.StepRunResultArchive.FindMany(
+		db.StepRunResultArchive.StepRunID.Equals(stepRunId),
+		db.StepRunResultArchive.StepRun.Where(
+			db.StepRun.TenantID.Equals(tenantId),
+		),
+	).OrderBy(
+		db.StepRunResultArchive.Order.Order(db.DESC),
+	).Exec(context.Background())
+}
+
+func (s *stepRunRepository) GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error) {
+	return s.client.StepRunResultArchive.FindFirst(
+		db.StepRunResultArchive.StepRunID.Equals(stepRunId),
+		db.StepRunResultArchive.StepRun.Where(
+			db.StepRun.TenantID.Equals(tenantId),
+		),
+	).OrderBy(
+		db.StepRunResultArchive.Order.Order(db.ASC),
+	).Exec(context.Background())
 }

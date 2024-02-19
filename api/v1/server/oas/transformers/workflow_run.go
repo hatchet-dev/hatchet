@@ -212,6 +212,10 @@ func ToStepRun(stepRun *db.StepRunModel) (*gen.StepRun, error) {
 		res.Output = repository.StringPtr(string(json.RawMessage(outputData)))
 	}
 
+	if inputSchema, ok := stepRun.InputSchema(); ok {
+		res.InputSchema = repository.StringPtr(string(json.RawMessage(inputSchema)))
+	}
+
 	if jobRun := stepRun.RelationsStepRun.JobRun; jobRun != nil {
 		var err error
 
@@ -299,4 +303,17 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 	}
 
 	return res
+}
+
+func ToPullRequest(pr *db.GithubPullRequestModel) *gen.PullRequest {
+	return &gen.PullRequest{
+		PullRequestBaseBranch: pr.PullRequestBaseBranch,
+		PullRequestHeadBranch: pr.PullRequestHeadBranch,
+		PullRequestID:         pr.PullRequestID,
+		PullRequestNumber:     pr.PullRequestNumber,
+		PullRequestState:      gen.PullRequestState(pr.PullRequestState),
+		PullRequestTitle:      pr.PullRequestTitle,
+		RepositoryName:        pr.RepositoryName,
+		RepositoryOwner:       pr.RepositoryOwner,
+	}
 }
