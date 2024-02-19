@@ -16,8 +16,8 @@ hatchet = Hatchet()
 
 
 origins = [
-    "http://localhost:3001",
-    "localhost:3001"
+    "http://localhost:3000",
+    "localhost:3000"
 ]
 
 
@@ -31,18 +31,15 @@ app.add_middleware(
 
 
 def event_stream_generator(workflowRunId):
-    stream = hatchet.client.listener.generator(workflowRunId, 'complete')
-
-    # TODO hatchet stream class
-    # __iter__ = stream.__iter__()
+    stream = hatchet.client.listener.stream(workflowRunId)
 
     for event in stream:
         data = json.dumps({
             "type": event.type,
             "payload": event.payload,
-            "workflowRunId": event.workflowRunId
+            "workflowRunId": workflowRunId
         })
-        # if something:
+
         #     stream.abort()
         print(data)
         yield "data: " + data + "\n\n"
@@ -54,7 +51,6 @@ async def stream(messageId: str):
     workflowRunId = messageId
     # stream = hatchet.stream(workflowRunId)
     return StreamingResponse(event_stream_generator(workflowRunId), media_type='text/event-stream')
-    # TODO how does client hangup
 
 
 @app.post("/message")
@@ -69,8 +65,6 @@ def message(data: MessageRequest):
 
     return {"workflowRunId": messageId}
 
-
-# TODO context is retry to not save data?
 
 def start():
     """Launched with `poetry run start` at root level"""

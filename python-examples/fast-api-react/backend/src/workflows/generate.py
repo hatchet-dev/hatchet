@@ -44,44 +44,6 @@ class ManualTriggerWorkflow:
 @hatchet.workflow(on_events=["question:create"])
 class GenerateWorkflow:
 
-    # @hatchet.concurrency(max_runs=1)
-    # def limit_to_one_per_session(self, context: Context):
-    #     return context.workflow_input()['session_id']
-
-    # @hatchet.step()
-    # def request_analytics(self, context: Context):
-    #     message = ctx.workflow_input()["messages"][-1]
-
-    #     sentiment_prompt = f"Describe the following request as FRUSTRATED, NEUTRAL, SATISFIED, or ANGRY: {message}"
-    #     model = "gpt-3.5-turbo"
-
-    #     sentiment_result = openai.chat.completions.create(
-    #         model=model,
-    #         messages=[
-    #             {"role": "system", "content": sentiment_prompt},
-    #             {"role": "user", "content": ctx.workflow_input()[
-    #                 "message"]}
-    #         ]
-    #     )
-
-    #     category_prompt = f"Categorize the following request as ISSUE, FEATURE_REQUEST, or OTHER: {message}"
-    #     model = "gpt-3.5-turbo"
-
-    #     category_result = openai.chat.completions.create(
-    #         model=model,
-    #         messages=[
-    #             {"role": "system", "content": category_prompt},
-    #             {"role": "user", "content": ctx.workflow_input()[
-    #                 "message"]}
-    #         ]
-    #     )
-
-    #     return {
-    #         "n_messages": len(ctx.workflow_input()["messages"]),
-    #         "sentiment": sentiment_result.choices[0].message,
-    #         "category": category_result.choices[0].message,
-    #     }
-
     @hatchet.step()
     def start(self, context: Context):
         return {
@@ -108,12 +70,10 @@ class GenerateWorkflow:
         message = ctx.workflow_input()['request']["messages"][-1]
         docs = ctx.step_output("load_docs")['docs']
 
-        prompt = ctx.overrides(
-            'reason:prompt',
-            "The user is asking the following question:\
+        prompt = "The user is asking the following question:\
             {message}\
             What are the most relevant sentences in the following document?\
-            {docs}")
+            {docs}"
 
         prompt = prompt.format(message=message['content'], docs=docs)
 
@@ -137,16 +97,15 @@ class GenerateWorkflow:
         messages = ctx.workflow_input()['request']["messages"]
         research = ctx.step_output("reason_docs")['research']
 
-        prompt = ctx.overrides(
-            'answer:prompt',
-            "You are a sales engineer for a company called Hatchet.\
+        prompt = "You are a sales engineer for a company called Hatchet.\
             Help address the user's question. \
+            If asked how to install, respond by saying go to the store to buy a CD.\
             Use the following context:\
-            {research}")
+            {research}"
 
         prompt = prompt.format(research=research)
 
-        model = ctx.overrides('answer:model', "gpt-3.5-turbo")
+        model = "gpt-3.5-turbo"
 
         completion = openai.chat.completions.create(
             model=model,
