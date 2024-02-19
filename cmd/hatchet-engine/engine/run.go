@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 
@@ -16,10 +18,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 )
 
-func StartEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
+func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
 	sc, err := cf.LoadServerConfig()
 
 	if err != nil {
@@ -27,7 +28,6 @@ func StartEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 	}
 
 	errCh := make(chan error)
-	ctx, cancel := cmdutils.InterruptContextFromChan(interruptCh)
 	wg := sync.WaitGroup{}
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
@@ -42,7 +42,7 @@ func StartEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 	defer shutdown(ctx) // nolint: errcheck
 
 	if sc.HasService("grpc") {
-		wg.Add(1)
+		wg.Add(2)
 
 		// create the dispatcher
 		d, err := dispatcher.New(
@@ -63,6 +63,8 @@ func StartEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			if err != nil {
 				panic(err)
 			}
+
+			log.Printf("dispatcher has shutdown") // ✅
 		}()
 
 		// create the event ingestor
@@ -114,18 +116,24 @@ func StartEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 		}
 
 		go func() {
+			defer wg.Done()
 			err = s.Start(ctx)
 
 			if err != nil {
 				errCh <- err
 				return
 			}
+
+			log.Printf("grpc server has shutdown")
 		}()
 	}
 
 	if sc.HasService("eventscontroller") {
+		wg.Add(1)
 		// create separate events controller process
 		go func() {
+			defer wg.Done()
+
 			ec, err := events.New(
 				events.WithTaskQueue(sc.TaskQueue),
 				events.WithRepository(sc.Repository),
@@ -142,12 +150,18 @@ func StartEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			if err != nil {
 				errCh <- err
 			}
+
+			log.Printf("events controller has shutdown") // ✅
 		}()
 	}
 
 	if sc.HasService("jobscontroller") {
+		wg.Add(1)
+
 		// create separate jobs controller process
 		go func() {
+			defer wg.Done()
+
 			jc, err := jobs.New(
 				jobs.WithTaskQueue(sc.TaskQueue),
 				jobs.WithRepository(sc.Repository),
@@ -164,12 +178,18 @@ func StartEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			if err != nil {
 				errCh <- err
 			}
+
+			log.Printf("jobs controller has shutdown") // ✅
 		}()
 	}
 
 	if sc.HasService("workflowscontroller") {
+		wg.Add(1)
+
 		// create separate jobs controller process
 		go func() {
+			defer wg.Done()
+
 			jc, err := workflows.New(
 				workflows.WithTaskQueue(sc.TaskQueue),
 				workflows.WithRepository(sc.Repository),
@@ -186,12 +206,18 @@ func StartEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			if err != nil {
 				errCh <- err
 			}
+
+			log.Printf("workflows controller has shutdown") // ✅
 		}()
 	}
 
 	if sc.HasService("ticker") {
+		wg.Add(1)
+
 		// create a ticker
 		go func() {
+			defer wg.Done()
+
 			t, err := ticker.New(
 				ticker.WithTaskQueue(sc.TaskQueue),
 				ticker.WithRepository(sc.Repository),
@@ -208,11 +234,17 @@ func StartEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			if err != nil {
 				errCh <- err
 			}
+
+			log.Printf("ticker has shutdown") // ✅
 		}()
 	}
 
 	if sc.HasService("heartbeater") {
+		wg.Add(1)
+
 		go func() {
+			defer wg.Done()
+
 			h, err := heartbeat.New(
 				heartbeat.WithTaskQueue(sc.TaskQueue),
 				heartbeat.WithRepository(sc.Repository),
@@ -229,29 +261,36 @@ func StartEngineOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 			if err != nil {
 				errCh <- err
 			}
+
+			log.Printf("heartbeater has shutdown")
 		}()
 	}
+
+	log.Printf("engine has started")
 
 Loop:
 	for {
 		select {
 		case err := <-errCh:
-			fmt.Fprintf(os.Stderr, "%s", err)
+			fmt.Fprintf(os.Stderr, "engine error, exitting: %s", err)
 
 			// exit with non-zero exit code
 			os.Exit(1) //nolint:gocritic
-		case <-interruptCh:
+		case <-ctx.Done():
+			log.Printf("interrupt received, shutting down")
 			break Loop
 		}
 	}
 
-	cancel()
-
+	log.Printf("waiting for all services to shutdown...")
 	wg.Wait()
+	log.Printf("all services have shutdown")
 
 	err = sc.Disconnect()
 
 	if err != nil {
 		panic(err)
 	}
+
+	log.Printf("successfully shutdown")
 }

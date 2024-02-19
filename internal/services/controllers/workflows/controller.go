@@ -104,7 +104,6 @@ func (wc *WorkflowsControllerImpl) Start(ctx context.Context) error {
 		return err
 	}
 
-	// TODO: close when ctx is done
 	for task := range taskChan {
 		go func(task *taskqueue.Task) {
 			err = wc.handleTask(ctx, task)

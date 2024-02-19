@@ -25,9 +25,10 @@ var rootCmd = &cobra.Command{
 		}
 
 		cf := loader.NewConfigLoader(configDirectory)
-		interruptChan := cmdutils.InterruptChan()
+		context, cancel := cmdutils.NewInterruptContext()
+		defer cancel()
 
-		engine.StartEngineOrDie(cf, interruptChan)
+		engine.StartEngineOrDie(cf, context)
 	},
 }
 

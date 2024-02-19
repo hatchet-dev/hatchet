@@ -266,6 +266,7 @@ func (t *TaskQueueImpl) publish() {
 func (t *TaskQueueImpl) subscribe(ctx context.Context, subId string, q taskqueue.Queue, sessions chan chan session, messages chan *taskWithQueue, tasks chan<- *taskqueue.Task) {
 	sessionCount := 0
 
+outer:
 	for session := range sessions {
 		sessionCount++
 		sub := <-session
@@ -285,26 +286,34 @@ func (t *TaskQueueImpl) subscribe(ctx context.Context, subId string, q taskqueue
 			return
 		}
 
-		for msg := range deliveries {
-			go func(msg amqp.Delivery) {
-				task := &taskWithQueue{}
+		for {
+			select {
+			case msg := <-deliveries:
+				go func(msg amqp.Delivery) {
+					task := &taskWithQueue{}
 
-				if err := json.Unmarshal(msg.Body, task); err != nil {
-					t.l.Error().Msgf("error unmarshaling message: %v", err)
-					return
-				}
+					if err := json.Unmarshal(msg.Body, task); err != nil {
+						t.l.Error().Msgf("error unmarshaling message: %v", err)
+						return
+					}
 
-				t.l.Debug().Msgf("(session: %d) got task: %v", sessionCount, task.ID)
+					t.l.Debug().Msgf("(session: %d) got task: %v", sessionCount, task.ID)
 
-				tasks <- task.Task
+					tasks <- task.Task
 
-				if err := sub.Ack(msg.DeliveryTag, false); err != nil {
-					t.l.Error().Msgf("error acknowledging message: %v", err)
-					return
-				}
-			}(msg)
+					if err := sub.Ack(msg.DeliveryTag, false); err != nil {
+						t.l.Error().Msgf("error acknowledging message: %v", err)
+						return
+					}
+				}(msg)
+			case <-ctx.Done():
+				t.l.Debug().Msgf("shutting down subscriber: %s", subId)
+				break outer
+			}
 		}
 	}
+
+	close(tasks)
 }
 
 // redial continually connects to the URL, exiting the program when no longer possible

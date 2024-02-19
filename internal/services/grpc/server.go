@@ -207,6 +207,13 @@ func (s *Server) startGRPC(ctx context.Context) error {
 		admincontracts.RegisterWorkflowServiceServer(grpcServer, s.admin)
 	}
 
+	if err := grpcServer.Serve(lis); err != nil {
+		return fmt.Errorf("failed to serve: %w", err)
+	}
+
+	<-ctx.Done()
+	grpcServer.GracefulStop()
+
 	// Start listening
-	return grpcServer.Serve(lis)
+	return nil
 }

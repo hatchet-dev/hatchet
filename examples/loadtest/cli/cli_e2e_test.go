@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"testing"
 	"time"
 
@@ -44,14 +45,7 @@ func TestLoadCLI(t *testing.T) {
 		},
 	}}
 
-	var total time.Duration
-	for _, tt := range tests {
-		total += tt.args.duration
-		total += tt.args.wait
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), total+20*time.Second)
-	defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	testutils.Setup(t, ctx)
 
 	for _, tt := range tests {
@@ -74,4 +68,10 @@ func TestLoadCLI(t *testing.T) {
 			}
 		})
 	}
+
+	cancel()
+
+	log.Printf("test complete")
+	time.Sleep(30 * time.Second)
+	log.Printf("cleanup complete")
 }

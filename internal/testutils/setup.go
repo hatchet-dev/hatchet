@@ -39,21 +39,10 @@ func Setup(t *testing.T, ctx context.Context) {
 	_ = os.Setenv("DATABASE_LOGGER_FORMAT", "console")
 
 	cf := loader.NewConfigLoader(path.Join(dir, "./generated/"))
-	ch := make(chan interface{}, 1)
-	go func() {
-		engine.StartEngineOrDie(cf, ch)
 
-		for {
-			select {
-			case <-ctx.Done():
-				log.Printf("ctx.Done() called")
-				ch <- struct{}{}
-				return
-			}
-		}
+	go func() {
+		engine.StartEngineOrDie(cf, ctx)
 	}()
 
-	time.Sleep(10 * time.Second)
-
-	log.Printf("setup complete")
+	time.Sleep(31 * time.Second)
 }

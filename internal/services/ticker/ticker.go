@@ -179,7 +179,7 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 			}
 
 			// add the task after the ticker is deleted
-			err := t.tq.AddTask(
+			err = t.tq.AddTask(
 				ctx,
 				taskqueue.JOB_PROCESSING_QUEUE,
 				tickerRemoved(t.tickerId),
@@ -190,7 +190,6 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 				return err
 			}
 
-			// return err
 			return nil
 		case task := <-taskChan:
 			go func(task *taskqueue.Task) {

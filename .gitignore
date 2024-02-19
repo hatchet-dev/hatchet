@@ -89,3 +89,5 @@ postgres-data
 rabbitmq.conf
 
 *encryption-keys
+generated/
+certs/
