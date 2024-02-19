@@ -39,17 +39,14 @@ export default function ExpandedWorkflowRun() {
   // select the first step run by default
   useEffect(() => {
     if (
+      !selectedStepRun &&
       runQuery.data &&
       runQuery.data.jobRuns &&
       runQuery.data.jobRuns[0].stepRuns
     ) {
       setSelectedStepRun(runQuery.data.jobRuns[0].stepRuns[0]);
     }
-
-    return () => {
-      setSelectedStepRun(undefined);
-    };
-  }, [runQuery.data]);
+  }, [runQuery.data, selectedStepRun]);
 
   if (runQuery.isLoading || !runQuery.data) {
     return <Loading />;
