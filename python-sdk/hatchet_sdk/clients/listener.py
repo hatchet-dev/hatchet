@@ -87,8 +87,12 @@ class HatchetListener:
                             raise Exception(
                                 f"Unknown event type: {workflow_event.eventType}")
                         payload = None
-                        if workflow_event.eventPayload:
-                            payload = json.loads(workflow_event.eventPayload)
+
+                        try:
+                            if workflow_event.eventPayload:
+                                payload = json.loads(workflow_event.eventPayload)
+                        except Exception as e:
+                            pass
 
                         # call the handler
                         event = StepRunEvent(type=eventType, payload=payload)
@@ -101,8 +105,12 @@ class HatchetListener:
                                 f"Unknown event type: {workflow_event.eventType}")
                         
                         payload = None
-                        if workflow_event.eventPayload:
-                            payload = json.loads(workflow_event.eventPayload)
+                        
+                        try:
+                            if workflow_event.eventPayload:
+                                payload = json.loads(workflow_event.eventPayload)
+                        except Exception as e:
+                            pass
                         
                     if workflow_event.hangup:
                         listener = None
