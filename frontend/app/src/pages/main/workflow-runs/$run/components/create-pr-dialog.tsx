@@ -132,9 +132,7 @@ function InnerForm({
   errors,
   diffs,
 }: InnerFormProps) {
-  const { watch, handleSubmit, control, setValue } = useForm<
-    z.infer<typeof schema>
-  >({
+  const { watch, handleSubmit, control } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
       branch: workflow.deployment?.gitRepoBranch,
