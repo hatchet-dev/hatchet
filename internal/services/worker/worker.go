@@ -111,6 +111,7 @@ func NewWorker(fs ...WorkerOpt) (*WorkerImpl, error) {
 		Worker:       hatchetWorker,
 		repo:         opts.repo,
 		vcsProviders: opts.vcsProviders,
+		l:            opts.l,
 	}, nil
 }
 
