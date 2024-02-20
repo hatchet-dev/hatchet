@@ -8,13 +8,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 )
 
-func Setup(t *testing.T, ctx context.Context) {
+func SetupEngine(ctx context.Context, t *testing.T) {
 	t.Helper()
 
 	_, b, _, _ := runtime.Caller(0)
@@ -40,9 +39,7 @@ func Setup(t *testing.T, ctx context.Context) {
 
 	cf := loader.NewConfigLoader(path.Join(dir, "./generated/"))
 
-	go func() {
-		engine.StartEngineOrDie(cf, ctx)
-	}()
-
-	time.Sleep(31 * time.Second)
+	if err := engine.Run(ctx, cf); err != nil {
+		t.Fatalf("engine failure: %s", err.Error())
+	}
 }

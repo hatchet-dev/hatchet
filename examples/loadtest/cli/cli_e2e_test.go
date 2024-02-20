@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"log"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,7 +47,18 @@ func TestLoadCLI(t *testing.T) {
 	}}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	testutils.Setup(t, ctx)
+
+	setup := sync.WaitGroup{}
+
+	go func() {
+		setup.Add(1)
+		log.Printf("setup start")
+		testutils.SetupEngine(ctx, t)
+		setup.Done()
+		log.Printf("setup end")
+	}()
+
+	time.Sleep(10 * time.Second)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -72,6 +84,6 @@ func TestLoadCLI(t *testing.T) {
 	cancel()
 
 	log.Printf("test complete")
-	time.Sleep(30 * time.Second)
+	setup.Wait()
 	log.Printf("cleanup complete")
 }

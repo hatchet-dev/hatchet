@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
@@ -20,11 +19,16 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 )
 
-func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
+type Teardown struct {
+	name string
+	fn   func() error
+}
+
+func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	sc, err := cf.LoadServerConfig()
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	errCh := make(chan error)
@@ -36,14 +40,19 @@ func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
 	})
 
 	if err != nil {
-		panic(fmt.Sprintf("could not initialize tracer: %s", err))
+		return fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
-	defer shutdown(ctx) // nolint: errcheck
+	var teardown []Teardown
+
+	teardown = append(teardown, Teardown{
+		name: "telemetry",
+		fn: func() error {
+			return shutdown(ctx)
+		},
+	})
 
 	if sc.HasService("grpc") {
-		wg.Add(2)
-
 		// create the dispatcher
 		d, err := dispatcher.New(
 			dispatcher.WithTaskQueue(sc.TaskQueue),
@@ -52,19 +61,19 @@ func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
 		)
 
 		if err != nil {
-			errCh <- err
-			return
+			return fmt.Errorf("could not create dispatcher: %w", err)
 		}
 
 		go func() {
-			defer wg.Done()
-			err := d.Start(ctx)
-
+			cleanup, err := d.Start()
 			if err != nil {
 				panic(err)
 			}
 
-			log.Printf("dispatcher has shutdown") // ✅
+			teardown = append(teardown, Teardown{
+				name: "grpc dispatcher",
+				fn:   cleanup,
+			})
 		}()
 
 		// create the event ingestor
@@ -76,8 +85,7 @@ func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
 		)
 
 		if err != nil {
-			errCh <- err
-			return
+			return fmt.Errorf("could not create ingestor: %w", err)
 		}
 
 		adminSvc, err := admin.NewAdminService(
@@ -86,8 +94,7 @@ func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
 		)
 
 		if err != nil {
-			errCh <- err
-			return
+			return fmt.Errorf("could not create admin service: %w", err)
 		}
 
 		grpcOpts := []grpc.ServerOpt{
@@ -111,39 +118,39 @@ func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
 		)
 
 		if err != nil {
-			errCh <- err
-			return
+			return fmt.Errorf("could not create grpc server: %w", err)
 		}
 
 		go func() {
-			defer wg.Done()
-			err = s.Start(ctx)
+			cleanup, err := s.Start()
 
 			if err != nil {
-				errCh <- err
-				return
+				panic(err)
 			}
 
-			log.Printf("grpc server has shutdown")
+			teardown = append(teardown, Teardown{
+				name: "grpc server",
+				fn:   cleanup,
+			})
 		}()
 	}
 
 	if sc.HasService("eventscontroller") {
 		wg.Add(1)
+
+		ec, err := events.New(
+			events.WithTaskQueue(sc.TaskQueue),
+			events.WithRepository(sc.Repository),
+			events.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create events controller: %w", err)
+		}
+
 		// create separate events controller process
 		go func() {
 			defer wg.Done()
-
-			ec, err := events.New(
-				events.WithTaskQueue(sc.TaskQueue),
-				events.WithRepository(sc.Repository),
-				events.WithLogger(sc.Logger),
-			)
-
-			if err != nil {
-				errCh <- err
-				return
-			}
 
 			err = ec.Start(ctx)
 
@@ -158,20 +165,19 @@ func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
 	if sc.HasService("jobscontroller") {
 		wg.Add(1)
 
+		jc, err := jobs.New(
+			jobs.WithTaskQueue(sc.TaskQueue),
+			jobs.WithRepository(sc.Repository),
+			jobs.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create jobs controller: %w", err)
+		}
+
 		// create separate jobs controller process
 		go func() {
 			defer wg.Done()
-
-			jc, err := jobs.New(
-				jobs.WithTaskQueue(sc.TaskQueue),
-				jobs.WithRepository(sc.Repository),
-				jobs.WithLogger(sc.Logger),
-			)
-
-			if err != nil {
-				errCh <- err
-				return
-			}
 
 			err = jc.Start(ctx)
 
@@ -186,22 +192,21 @@ func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
 	if sc.HasService("workflowscontroller") {
 		wg.Add(1)
 
+		wc, err := workflows.New(
+			workflows.WithTaskQueue(sc.TaskQueue),
+			workflows.WithRepository(sc.Repository),
+			workflows.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create workflows controller: %w", err)
+		}
+
 		// create separate jobs controller process
 		go func() {
 			defer wg.Done()
 
-			jc, err := workflows.New(
-				workflows.WithTaskQueue(sc.TaskQueue),
-				workflows.WithRepository(sc.Repository),
-				workflows.WithLogger(sc.Logger),
-			)
-
-			if err != nil {
-				errCh <- err
-				return
-			}
-
-			err = jc.Start(ctx)
+			err = wc.Start(ctx)
 
 			if err != nil {
 				errCh <- err
@@ -214,20 +219,19 @@ func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
 	if sc.HasService("ticker") {
 		wg.Add(1)
 
+		t, err := ticker.New(
+			ticker.WithTaskQueue(sc.TaskQueue),
+			ticker.WithRepository(sc.Repository),
+			ticker.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create ticker: %w", err)
+		}
+
 		// create a ticker
 		go func() {
 			defer wg.Done()
-
-			t, err := ticker.New(
-				ticker.WithTaskQueue(sc.TaskQueue),
-				ticker.WithRepository(sc.Repository),
-				ticker.WithLogger(sc.Logger),
-			)
-
-			if err != nil {
-				errCh <- err
-				return
-			}
 
 			err = t.Start(ctx)
 
@@ -242,19 +246,18 @@ func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
 	if sc.HasService("heartbeater") {
 		wg.Add(1)
 
+		h, err := heartbeat.New(
+			heartbeat.WithTaskQueue(sc.TaskQueue),
+			heartbeat.WithRepository(sc.Repository),
+			heartbeat.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create heartbeater: %w", err)
+		}
+
 		go func() {
 			defer wg.Done()
-
-			h, err := heartbeat.New(
-				heartbeat.WithTaskQueue(sc.TaskQueue),
-				heartbeat.WithRepository(sc.Repository),
-				heartbeat.WithLogger(sc.Logger),
-			)
-
-			if err != nil {
-				errCh <- err
-				return
-			}
 
 			err = h.Start(ctx)
 
@@ -262,7 +265,7 @@ func StartEngineOrDie(cf *loader.ConfigLoader, ctx context.Context) {
 				errCh <- err
 			}
 
-			log.Printf("heartbeater has shutdown")
+			log.Printf("heartbeater has shutdown") // ✅
 		}()
 	}
 
@@ -272,10 +275,7 @@ Loop:
 	for {
 		select {
 		case err := <-errCh:
-			fmt.Fprintf(os.Stderr, "engine error, exitting: %s", err)
-
-			// exit with non-zero exit code
-			os.Exit(1) //nolint:gocritic
+			return fmt.Errorf("engine error: %w", err)
 		case <-ctx.Done():
 			log.Printf("interrupt received, shutting down")
 			break Loop
@@ -286,11 +286,24 @@ Loop:
 	wg.Wait()
 	log.Printf("all services have shutdown")
 
-	err = sc.Disconnect()
+	log.Printf("waiting for all other services to gracefully exit...")
+	for i, t := range teardown {
+		log.Printf("shutting down %s (%d/%d)", t.name, i+1, len(teardown))
+		err := t.fn()
 
+		if err != nil {
+			return fmt.Errorf("could not teardown %s: %w", t.name, err)
+		}
+		log.Printf("successfully shutdown %s (%d/%d)", t.name, i+1, len(teardown))
+	}
+	log.Printf("all services have successfully gracefully exited")
+
+	err = sc.Disconnect()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("could not disconnect from repository: %w", err)
 	}
 
 	log.Printf("successfully shutdown")
+
+	return nil
 }

@@ -28,7 +28,9 @@ var rootCmd = &cobra.Command{
 		context, cancel := cmdutils.NewInterruptContext()
 		defer cancel()
 
-		engine.StartEngineOrDie(cf, context)
+		if err := engine.Run(context, cf); err != nil {
+			panic("engine failure: " + err.Error())
+		}
 	},
 }
 

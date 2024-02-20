@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 
 type Dispatcher interface {
 	contracts.DispatcherServer
-	Start(ctx context.Context) error
+	Start() (func() error, error)
 }
 
 type DispatcherImpl struct {
@@ -122,21 +123,24 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	}, nil
 }
 
-func (d *DispatcherImpl) Start(ctx context.Context) error {
+func (d *DispatcherImpl) Start() (func() error, error) {
 	// register the dispatcher by creating a new dispatcher in the database
 	dispatcher, err := d.repo.Dispatcher().CreateNewDispatcher(&repository.CreateDispatcherOpts{
 		ID: d.dispatcherId,
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// subscribe to a task queue with the dispatcher id
 	taskChan, err := d.tq.Subscribe(ctx, taskqueue.QueueTypeFromDispatcherID(dispatcher.ID))
 
 	if err != nil {
-		return err
+		cancel()
+		return nil, err
 	}
 
 	_, err = d.s.NewJob(
@@ -147,42 +151,56 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("could not schedule heartbeat update: %w", err)
+		cancel()
+		return nil, fmt.Errorf("could not schedule heartbeat update: %w", err)
 	}
 
 	d.s.Start()
 
-	for {
-		select {
-		case <-ctx.Done():
-			// drain the existing connections
-			d.l.Debug().Msg("draining existing connections")
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case task := <-taskChan:
+				go func(task *taskqueue.Task) {
+					err = d.handleTask(ctx, task)
 
-			d.workers.Range(func(key, value interface{}) bool {
-				w := value.(subscribedWorker)
-
-				w.finished <- true
-
-				return true
-			})
-
-			err = d.repo.Dispatcher().Delete(dispatcher.ID)
-
-			if err == nil {
-				d.l.Debug().Msgf("deleted dispatcher %s", dispatcher.ID)
+					if err != nil {
+						d.l.Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
+					}
+				}(task)
 			}
-
-			return err
-		case task := <-taskChan:
-			go func(task *taskqueue.Task) {
-				err = d.handleTask(ctx, task)
-
-				if err != nil {
-					d.l.Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
-				}
-			}(task)
 		}
+	}()
+
+	cleanup := func() error {
+		log.Printf("dispatcher is shutting down...")
+		cancel()
+
+		// drain the existing connections
+		d.l.Debug().Msg("draining existing connections")
+
+		d.workers.Range(func(key, value interface{}) bool {
+			w := value.(subscribedWorker)
+
+			w.finished <- true
+
+			return true
+		})
+
+		err = d.repo.Dispatcher().Delete(dispatcher.ID)
+		if err != nil {
+			return fmt.Errorf("could not delete dispatcher: %w", err)
+		}
+
+		d.l.Debug().Msgf("deleted dispatcher %s", dispatcher.ID)
+
+		log.Printf("dispatcher has shutdown")
+		return nil
 	}
+
+	return cleanup, nil
 }
 
 func (d *DispatcherImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {
