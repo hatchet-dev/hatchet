@@ -12,7 +12,7 @@ class MyWorkflow:
 
     @hatchet.step()
     def step1(self, context : Context):
-        overrideValue = context.overrides("prompt", "You are an AI assistant...")
+        overrideValue = context.playground("prompt", "You are an AI assistant...")
 
         print("executed step1", context.workflow_input())
         return {

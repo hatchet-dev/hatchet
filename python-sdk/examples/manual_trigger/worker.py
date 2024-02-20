@@ -10,7 +10,7 @@ hatchet = Hatchet(debug=True)
 class ManualTriggerWorkflow:
     @hatchet.step()
     def step1(self, context):
-        res = context.overrides('res', "HELLO")
+        res = context.playground('res', "HELLO")
 
         context.sleep(3)
         print("executed step1")
@@ -25,7 +25,7 @@ class ManualTriggerWorkflow:
 
     # @hatchet.step()
     # def stepb(self, context):
-    #     res = context.overrides('res', "HELLO")
+    #     res = context.playground('res', "HELLO")
 
     #     context.sleep(3)
     #     print("executed step1")
