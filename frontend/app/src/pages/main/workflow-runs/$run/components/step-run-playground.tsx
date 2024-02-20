@@ -117,11 +117,25 @@ export function StepRunPlayground({
   const stepRunDiffQuery = useQuery({
     ...queries.stepRuns.getDiff(stepRun?.metadata.id || ''),
     enabled: !!stepRun,
+    refetchInterval: () => {
+      if (stepRun?.status === StepRunStatus.RUNNING) {
+        return 1000;
+      }
+
+      return 5000;
+    },
   });
 
   const getWorkflowQuery = useQuery({
     ...queries.workflows.get(workflowRun?.workflowVersion?.workflowId || ''),
     enabled: !!workflowRun?.workflowVersion?.workflowId,
+    refetchInterval: () => {
+      if (stepRun?.status === StepRunStatus.RUNNING) {
+        return 1000;
+      }
+
+      return 5000;
+    },
   });
 
   const listPRsQuery = useQuery({
@@ -133,6 +147,13 @@ export function StepRunPlayground({
       },
     ),
     enabled: !!stepRun,
+    refetchInterval: () => {
+      if (stepRun?.status === StepRunStatus.RUNNING) {
+        return 1000;
+      }
+
+      return 5000;
+    },
   });
 
   const rerunStepMutation = useMutation({
