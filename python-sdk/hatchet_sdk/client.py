@@ -89,13 +89,20 @@ def new_client(*opts_functions):
 
         credentials = grpc.ssl_channel_credentials(
             root_certificates=root, private_key=private_key, certificate_chain=certificate_chain)
+    
+    conn : grpc.Channel = None
 
-    conn = grpc.secure_channel(
-        target=config.host_port,
-        credentials=credentials,
-        options=[('grpc.ssl_target_name_override',
-                  config.tls_config.server_name)],
-    )
+    if config.tls_config.tls_strategy == 'none':
+        conn = grpc.insecure_channel(
+            target=config.host_port,
+        )
+    else:
+        conn = grpc.secure_channel(
+            target=config.host_port,
+            credentials=credentials,
+            options=[('grpc.ssl_target_name_override',
+                    config.tls_config.server_name)],
+        )
 
     # Instantiate client implementations
     event_client = new_event(conn, config)
