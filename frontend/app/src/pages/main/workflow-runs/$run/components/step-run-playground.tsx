@@ -48,7 +48,7 @@ export function StepRunPlayground({
   });
 
   const updateParentData = (input: any, workflowRun: WorkflowRun) => {
-    if (!input) {
+    if (!input || !input.parents) {
       return {};
     }
 

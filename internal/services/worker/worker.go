@@ -379,7 +379,7 @@ func searchWithRegex(input []byte, pattern string, replacements map[string]strin
 }
 
 func getPatternForValue(value string) string {
-	return `(?P<instance>\w+)\.override\(\s*(?P<param1>('|"|""")\s*` + value + `\s*('|"|"""))\s*,\s*(?P<override>[\s\S]*?)\s*\)`
+	return `(?P<instance>\w+)\.playground\(\s*(?P<param1>('|"|""")\s*` + value + `\s*('|"|"""))\s*,\s*(?P<override>[\s\S]*?)\s*\)`
 }
 
 func findAndReplace(input []byte, value, override string) ([]byte, error) {
