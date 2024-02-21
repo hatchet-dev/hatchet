@@ -64,7 +64,11 @@ func startServerOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 
 	// init the repository
 	cleanup, sc, err := cf.LoadServerConfig()
-	defer cleanup()
+	defer func() {
+		if err := cleanup(); err != nil {
+			panic(fmt.Errorf("could not cleanup server config: %v", err))
+		}
+	}()
 
 	if err != nil {
 		panic(err)

@@ -60,7 +60,11 @@ func runCreateAPIToken() error {
 	configLoader := loader.NewConfigLoader(configDirectory)
 
 	cleanup, serverConf, err := configLoader.LoadServerConfig()
-	defer cleanup()
+	defer func() {
+		if err := cleanup(); err != nil {
+			panic(fmt.Errorf("could not cleanup server config: %v", err))
+		}
+	}()
 
 	if err != nil {
 		return err
