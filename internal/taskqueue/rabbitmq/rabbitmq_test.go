@@ -21,9 +21,10 @@ func TestTaskQueueIntegration(t *testing.T) {
 	url := "amqp://user:password@localhost:5672/"
 
 	// Initialize the task queue implementation
-	tq := rabbitmq.New(ctx,
+	cleanup, tq := rabbitmq.New(
 		rabbitmq.WithURL(url),
 	)
+	defer cleanup()
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
@@ -77,9 +78,7 @@ func TestTaskQueueIntegration(t *testing.T) {
 	select {
 	case receivedTask := <-tenantTaskChan:
 		assert.Equal(t, task.ID, receivedTask.ID, "received tenant task ID should match sent task ID")
-		break
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for task from tenant-specific queue")
-		break
 	}
 }
