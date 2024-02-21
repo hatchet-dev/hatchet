@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
@@ -25,11 +24,11 @@ type Teardown struct {
 }
 
 func Run(ctx context.Context, cf *loader.ConfigLoader) error {
-	sc, err := cf.LoadServerConfig()
-
+	serverCleanup, sc, err := cf.LoadServerConfig()
 	if err != nil {
 		return fmt.Errorf("could not load server config: %w", err)
 	}
+	var l = sc.Logger
 
 	errCh := make(chan error)
 	wg := sync.WaitGroup{}
@@ -38,7 +37,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		ServiceName:  sc.OpenTelemetry.ServiceName,
 		CollectorURL: sc.OpenTelemetry.CollectorURL,
 	})
-
 	if err != nil {
 		return fmt.Errorf("could not initialize tracer: %w", err)
 	}
@@ -52,6 +50,13 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		},
 	})
 
+	teardown = append(teardown, Teardown{
+		name: "server",
+		fn: func() error {
+			return serverCleanup()
+		},
+	})
+
 	if sc.HasService("grpc") {
 		// create the dispatcher
 		d, err := dispatcher.New(
@@ -59,12 +64,12 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			dispatcher.WithRepository(sc.Repository),
 			dispatcher.WithLogger(sc.Logger),
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not create dispatcher: %w", err)
 		}
 
 		go func() {
+			l.Debug().Msgf("starting grpc dispatcher")
 			cleanup, err := d.Start()
 			if err != nil {
 				panic(err)
@@ -83,7 +88,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			),
 			ingestor.WithTaskQueue(sc.TaskQueue),
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not create ingestor: %w", err)
 		}
@@ -92,7 +96,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			admin.WithRepository(sc.Repository),
 			admin.WithTaskQueue(sc.TaskQueue),
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not create admin service: %w", err)
 		}
@@ -116,14 +119,13 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		s, err := grpc.NewServer(
 			grpcOpts...,
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not create grpc server: %w", err)
 		}
 
 		go func() {
+			l.Debug().Msgf("starting grpc server")
 			cleanup, err := s.Start()
-
 			if err != nil {
 				panic(err)
 			}
@@ -143,22 +145,21 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			events.WithRepository(sc.Repository),
 			events.WithLogger(sc.Logger),
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not create events controller: %w", err)
 		}
 
 		// create separate events controller process
 		go func() {
+			l.Debug().Msgf("starting events controller")
 			defer wg.Done()
 
-			err = ec.Start(ctx)
-
+			err := ec.Start(ctx)
 			if err != nil {
 				errCh <- err
 			}
 
-			log.Printf("events controller has shutdown") // ✅
+			l.Debug().Msgf("events controller has shutdown")
 		}()
 	}
 
@@ -177,15 +178,15 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 		// create separate jobs controller process
 		go func() {
+			l.Debug().Msgf("starting jobs controller")
 			defer wg.Done()
 
-			err = jc.Start(ctx)
-
+			err := jc.Start(ctx)
 			if err != nil {
 				errCh <- err
 			}
 
-			log.Printf("jobs controller has shutdown") // ✅
+			l.Debug().Msgf("jobs controller has shutdown")
 		}()
 	}
 
@@ -197,22 +198,21 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			workflows.WithRepository(sc.Repository),
 			workflows.WithLogger(sc.Logger),
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not create workflows controller: %w", err)
 		}
 
 		// create separate jobs controller process
 		go func() {
+			l.Debug().Msgf("starting workflows controller")
 			defer wg.Done()
 
-			err = wc.Start(ctx)
-
+			err := wc.Start(ctx)
 			if err != nil {
 				errCh <- err
 			}
 
-			log.Printf("workflows controller has shutdown") // ✅
+			l.Debug().Msgf("workflows controller has shutdown")
 		}()
 	}
 
@@ -231,15 +231,15 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 		// create a ticker
 		go func() {
+			l.Debug().Msgf("starting ticker")
 			defer wg.Done()
 
-			err = t.Start(ctx)
-
+			err := t.Start(ctx)
 			if err != nil {
 				errCh <- err
 			}
 
-			log.Printf("ticker has shutdown") // ✅
+			l.Debug().Msgf("ticker has shutdown")
 		}()
 	}
 
@@ -257,19 +257,19 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		}
 
 		go func() {
+			l.Debug().Msgf("starting heartbeater")
 			defer wg.Done()
 
-			err = h.Start(ctx)
-
+			err := h.Start(ctx)
 			if err != nil {
 				errCh <- err
 			}
 
-			log.Printf("heartbeater has shutdown") // ✅
+			l.Debug().Msgf("heartbeater has shutdown")
 		}()
 	}
 
-	log.Printf("engine has started")
+	l.Debug().Msgf("engine has started")
 
 Loop:
 	for {
@@ -277,33 +277,33 @@ Loop:
 		case err := <-errCh:
 			return fmt.Errorf("engine error: %w", err)
 		case <-ctx.Done():
-			log.Printf("interrupt received, shutting down")
+			l.Debug().Msgf("interrupt received, shutting down")
 			break Loop
 		}
 	}
 
-	log.Printf("waiting for all services to shutdown...")
+	l.Debug().Msgf("waiting for all services to shutdown...")
 	wg.Wait()
-	log.Printf("all services have shutdown")
+	l.Debug().Msgf("all services have shutdown")
 
-	log.Printf("waiting for all other services to gracefully exit...")
+	l.Debug().Msgf("waiting for all other services to gracefully exit...")
 	for i, t := range teardown {
-		log.Printf("shutting down %s (%d/%d)", t.name, i+1, len(teardown))
+		l.Debug().Msgf("shutting down %s (%d/%d)", t.name, i+1, len(teardown))
 		err := t.fn()
 
 		if err != nil {
 			return fmt.Errorf("could not teardown %s: %w", t.name, err)
 		}
-		log.Printf("successfully shutdown %s (%d/%d)", t.name, i+1, len(teardown))
+		l.Debug().Msgf("successfully shutdown %s (%d/%d)", t.name, i+1, len(teardown))
 	}
-	log.Printf("all services have successfully gracefully exited")
+	l.Debug().Msgf("all services have successfully gracefully exited")
 
 	err = sc.Disconnect()
 	if err != nil {
 		return fmt.Errorf("could not disconnect from repository: %w", err)
 	}
 
-	log.Printf("successfully shutdown")
+	l.Debug().Msgf("successfully shutdown")
 
 	return nil
 }

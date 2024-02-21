@@ -190,6 +190,10 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 				return err
 			}
 
+			if err := t.s.Shutdown(); err != nil {
+				return fmt.Errorf("could not shutdown scheduler: %w", err)
+			}
+
 			return nil
 		case task := <-taskChan:
 			go func(task *taskqueue.Task) {

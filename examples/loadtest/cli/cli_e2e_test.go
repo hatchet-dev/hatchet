@@ -58,6 +58,7 @@ func TestLoadCLI(t *testing.T) {
 		log.Printf("setup end")
 	}()
 
+	// TODO instead of waiting, figure out when the engine setup is complete
 	time.Sleep(10 * time.Second)
 
 	for _, tt := range tests {

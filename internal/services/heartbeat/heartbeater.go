@@ -95,7 +95,7 @@ func (t *HeartbeaterImpl) Start(ctx context.Context) error {
 	_, err := t.s.NewJob(
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
-			t.removeStaleTickers(ctx),
+			t.removeStaleTickers(),
 		),
 	)
 
@@ -105,8 +105,11 @@ func (t *HeartbeaterImpl) Start(ctx context.Context) error {
 
 	t.s.Start()
 
-	for range ctx.Done() {
-		t.l.Debug().Msg("stopping heartbeater")
+	<-ctx.Done()
+	t.l.Debug().Msg("stopping heartbeater")
+
+	if err := t.s.Shutdown(); err != nil {
+		return fmt.Errorf("could not shutdown scheduler: %w", err)
 	}
 
 	return nil

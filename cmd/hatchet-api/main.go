@@ -59,16 +59,19 @@ func main() {
 }
 
 func startServerOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
+	ctx, cancel := cmdutils.InterruptContextFromChan(interruptCh)
+	defer cancel()
+
 	// init the repository
-	sc, err := cf.LoadServerConfig()
+	cleanup, sc, err := cf.LoadServerConfig()
+	defer cleanup()
 
 	if err != nil {
 		panic(err)
 	}
 
 	errCh := make(chan error)
-	ctx, cancel := cmdutils.InterruptContextFromChan(interruptCh)
-	defer cancel()
+
 	wg := sync.WaitGroup{}
 
 	if sc.InternalClient != nil {

@@ -3,7 +3,6 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -175,7 +174,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}()
 
 	cleanup := func() error {
-		log.Printf("dispatcher is shutting down...")
+		d.l.Debug().Msgf("dispatcher is shutting down...")
 		cancel()
 
 		// drain the existing connections
@@ -196,7 +195,11 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		d.l.Debug().Msgf("deleted dispatcher %s", dispatcher.ID)
 
-		log.Printf("dispatcher has shutdown")
+		if err := d.s.Shutdown(); err != nil {
+			return fmt.Errorf("could not shutdown scheduler: %w", err)
+		}
+
+		d.l.Debug().Msgf("dispatcher has shutdown")
 		return nil
 	}
 
@@ -366,7 +369,7 @@ func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		})
 
 		if err != nil {
-			d.l.Err(err).Msg("could not update heartbeat")
+			d.l.Err(err).Msg("dispatcher: could not update heartbeat")
 		}
 	}
 }
