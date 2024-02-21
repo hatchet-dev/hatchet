@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/goleak"
+
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 )
 
@@ -76,12 +78,17 @@ func TestLoadCLI(t *testing.T) {
 	setup.Wait()
 	log.Printf("cleanup complete")
 
-	// TODO re-enable this
-	//goleak.VerifyNone(
-	//	t,
-	//	goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
-	//	goleak.IgnoreTopFunction("google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run"),
-	//	goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
-	//	goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*controlBuffer).get"),
-	//)
+	goleak.VerifyNone(
+		t,
+		// worker
+		goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
+		goleak.IgnoreTopFunction("google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run"),
+		goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
+		goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*controlBuffer).get"),
+		// all engine related packages
+		goleak.IgnoreTopFunction("github.com/jackc/pgx/v5/pgxpool.(*Pool).backgroundHealthCheck"),
+		goleak.IgnoreTopFunction("github.com/rabbitmq/amqp091-go.(*Connection).heartbeater"),
+		goleak.IgnoreTopFunction("github.com/rabbitmq/amqp091-go.(*consumers).buffer"),
+		goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*http2Server).keepalive"),
+	)
 }
