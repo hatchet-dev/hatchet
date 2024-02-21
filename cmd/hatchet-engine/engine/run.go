@@ -28,7 +28,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	sc, err := cf.LoadServerConfig()
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not load server config: %w", err)
 	}
 
 	errCh := make(chan error)
@@ -70,10 +70,10 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 				panic(err)
 			}
 
-			teardown = append(teardown, Teardown{
+			teardown = append([]Teardown{{
 				name: "grpc dispatcher",
 				fn:   cleanup,
-			})
+			}}, teardown...)
 		}()
 
 		// create the event ingestor
@@ -128,10 +128,10 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 				panic(err)
 			}
 
-			teardown = append(teardown, Teardown{
+			teardown = append([]Teardown{{
 				name: "grpc server",
 				fn:   cleanup,
-			})
+			}}, teardown...)
 		}()
 	}
 

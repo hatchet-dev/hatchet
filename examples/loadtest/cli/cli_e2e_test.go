@@ -62,18 +62,6 @@ func TestLoadCLI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer func() {
-				time.Sleep(1 * time.Second)
-
-				// TODO re-enable
-				//goleak.VerifyNone(
-				//	t,
-				//	goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
-				//	goleak.IgnoreTopFunction("google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run"),
-				//	goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
-				//	goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*controlBuffer).get"),
-				//)
-			}()
 
 			if err := do(tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.wait, tt.args.concurrency); (err != nil) != tt.wantErr {
 				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
@@ -86,4 +74,13 @@ func TestLoadCLI(t *testing.T) {
 	log.Printf("test complete")
 	setup.Wait()
 	log.Printf("cleanup complete")
+
+	// TODO re-enable this
+	//goleak.VerifyNone(
+	//	t,
+	//	goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
+	//	goleak.IgnoreTopFunction("google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run"),
+	//	goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
+	//	goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*controlBuffer).get"),
+	//)
 }
