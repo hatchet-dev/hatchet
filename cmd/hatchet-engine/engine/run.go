@@ -58,6 +58,8 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	})
 
 	if sc.HasService("grpc") {
+		wg.Add(2)
+
 		// create the dispatcher
 		d, err := dispatcher.New(
 			dispatcher.WithTaskQueue(sc.TaskQueue),
@@ -69,6 +71,8 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		}
 
 		go func() {
+			defer wg.Done()
+
 			l.Debug().Msgf("starting grpc dispatcher")
 			cleanup, err := d.Start()
 			if err != nil {
@@ -124,6 +128,8 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		}
 
 		go func() {
+			defer wg.Done()
+
 			l.Debug().Msgf("starting grpc server")
 			cleanup, err := s.Start()
 			if err != nil {

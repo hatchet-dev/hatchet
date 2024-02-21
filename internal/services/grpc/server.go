@@ -206,9 +206,11 @@ func (s *Server) startGRPC() (func() error, error) {
 		admincontracts.RegisterWorkflowServiceServer(grpcServer, s.admin)
 	}
 
-	if err := grpcServer.Serve(lis); err != nil {
-		return nil, fmt.Errorf("failed to serve: %w", err)
-	}
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			panic(fmt.Errorf("failed to serve: %w", err))
+		}
+	}()
 
 	cleanup := func() error {
 		log.Printf("grpc server is shutting down...")
