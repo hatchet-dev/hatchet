@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/steebchen/prisma-client-go/runtime/transaction"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -160,7 +159,7 @@ func (w *workerRepository) CreateNewWorker(tenantId string, opts *repository.Cre
 		return nil, err
 	}
 
-	txs := []transaction.Param{}
+	txs := []db.Transaction{}
 
 	workerId := uuid.New().String()
 
@@ -244,7 +243,7 @@ func (w *workerRepository) UpdateWorker(tenantId, workerId string, opts *reposit
 		return nil, err
 	}
 
-	txs := []transaction.Param{}
+	txs := []db.Transaction{}
 
 	optionals := []db.WorkerSetParam{}
 
