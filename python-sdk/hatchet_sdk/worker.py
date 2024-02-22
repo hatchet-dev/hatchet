@@ -11,13 +11,16 @@ from typing import Any, Callable, Dict
 from .workflow import WorkflowMeta
 from .clients.dispatcher import GetActionListenerRequest, ActionListenerImpl, Action
 from .dispatcher_pb2 import ActionType, StepActionEvent, StepActionEventType, GroupKeyActionEvent, GroupKeyActionEventType, STEP_EVENT_TYPE_COMPLETED, STEP_EVENT_TYPE_STARTED, STEP_EVENT_TYPE_FAILED, GROUP_KEY_EVENT_TYPE_STARTED, GROUP_KEY_EVENT_TYPE_COMPLETED, GROUP_KEY_EVENT_TYPE_FAILED
-from .client import new_client 
+from .client import new_client
 from concurrent.futures import ThreadPoolExecutor, Future
 from google.protobuf.timestamp_pb2 import Timestamp
 from .context import Context
 from .logger import logger
 
 # Worker class
+DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds
+
+
 class Worker:
     def __init__(self, name: str, max_threads: int = 200, debug=False, handle_kill=True):
         self.name = name
@@ -353,5 +356,6 @@ class Worker:
                 raise Exception("Could not start worker after 5 retries")
             
             logger.info("Could not start worker, retrying...")
-            
+
+            time.sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL)
             self.start(retry_count + 1)
