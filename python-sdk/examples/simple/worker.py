@@ -12,9 +12,9 @@ class MyWorkflow:
 
     @hatchet.step()
     def step1(self, context: Context):
-        test = context.overrides("test", "test")
-        test2 = context.overrides("test2", 100)
-        test3 = context.overrides("test3", None)
+        test = context.playground("test", "test")
+        test2 = context.playground("test2", 100)
+        test3 = context.playground("test3", None)
 
         print(test)
         print(test2)

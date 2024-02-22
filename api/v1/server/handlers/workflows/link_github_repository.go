@@ -46,6 +46,12 @@ func (t *WorkflowService) WorkflowUpdateLinkGithub(ctx echo.Context, request gen
 		return nil, err
 	}
 
+	workflow, err = t.config.Repository.Workflow().GetWorkflowById(workflow.ID)
+
+	if err != nil {
+		return nil, err
+	}
+
 	vcsProvider := t.config.VCSProviders[vcs.VCSRepositoryKindGithub]
 	vcs, err := vcsProvider.GetVCSRepositoryFromWorkflow(workflow)
 
@@ -54,12 +60,6 @@ func (t *WorkflowService) WorkflowUpdateLinkGithub(ctx echo.Context, request gen
 	}
 
 	err = vcs.SetupRepository(workflow.TenantID)
-
-	if err != nil {
-		return nil, err
-	}
-
-	workflow, err = t.config.Repository.Workflow().GetWorkflowById(workflow.ID)
 
 	if err != nil {
 		return nil, err

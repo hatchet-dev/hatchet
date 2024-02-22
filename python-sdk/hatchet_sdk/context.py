@@ -48,7 +48,7 @@ class Context:
     def done(self):
         return self.exit_flag.is_set()
     
-    def overrides(self, name: str, default: str = None):
+    def playground(self, name: str, default: str = None):
         # if the key exists in the overrides_data field, return the value
         if name in self.overrides_data:
             return self.overrides_data[name]

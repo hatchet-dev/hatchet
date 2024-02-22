@@ -178,7 +178,21 @@ func (s *Server) startGRPC() (func() error, error) {
 	authMiddleware := middleware.NewAuthN(s.config)
 
 	grpcPanicRecoveryHandler := func(p any) (err error) {
-		s.l.Err(p.(error)).Msgf("recovered from panic: %s", string(debug.Stack()))
+		panicErr, ok := p.(error)
+
+		var panicStr string
+
+		if !ok {
+			panicStr, ok = p.(string)
+
+			if !ok {
+				panicStr = "Could not determine panic error"
+			}
+		} else {
+			panicStr = panicErr.Error()
+		}
+
+		s.l.Error().Msgf("recovered from panic: %s. Stack: %s", panicStr, string(debug.Stack()))
 		return status.Errorf(codes.Internal, "An internal error occurred")
 	}
 
