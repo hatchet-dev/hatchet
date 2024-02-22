@@ -51,19 +51,6 @@ WHERE "id" = (
 ) AND "tenantId" = @tenantId::uuid
 RETURNING "JobRun".*;
 
--- name: UpdateJobRun :one
-UPDATE
-  "JobRun"
-SET "status" = CASE 
-    -- Final states are final, cannot be updated
-    WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
-    ELSE "status" = COALESCE(sqlc.narg('status'), "status")
-END
-WHERE
-    "id" = @id::uuid AND
-    "tenantId" = @tenantId::uuid
-RETURNING "JobRun".*;
-
 -- name: UpsertJobRunLookupData :exec
 INSERT INTO "JobRunLookupData" (
     "id",

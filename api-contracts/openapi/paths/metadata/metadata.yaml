@@ -19,3 +19,23 @@ metadata:
     summary: Get metadata
     tags:
       - Metadata
+listIntegrations:
+  get:
+    description: List all integrations
+    operationId: metadata:list:integrations
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/ListAPIMetaIntegration"
+        description: Successfully retrieved the list of integrations
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+    summary: List integrations
+    tags:
+      - Metadata

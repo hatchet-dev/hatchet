@@ -50,8 +50,6 @@ func main() {
 		panic(err)
 	}
 
-	// Create a worker. This automatically reads in a TemporalClient from .env and workflow files from the .hatchet
-	// directory, but this can be customized with the `worker.WithTemporalClient` and `worker.WithWorkflowFiles` options.
 	w, err := worker.NewWorker(
 		worker.WithClient(
 			c,

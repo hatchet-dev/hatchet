@@ -8,7 +8,8 @@ describe('EventClient', () => {
   it('should create a client', () => {
     const x = new EventClient(
       {
-        token: 'TOKEN',
+        token:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
         host_port: 'HOST_PORT',
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
@@ -16,6 +17,8 @@ describe('EventClient', () => {
           ca_file: 'TLS_ROOT_CA_FILE',
           server_name: 'TLS_SERVER_NAME',
         },
+        api_url: 'API_URL',
+        tenant_id: 'tenantId',
       },
       mockChannel,
       mockFactory
@@ -27,7 +30,8 @@ describe('EventClient', () => {
   beforeEach(() => {
     client = new EventClient(
       {
-        token: 'TOKEN',
+        token:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
         host_port: 'HOST_PORT',
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
@@ -35,6 +39,8 @@ describe('EventClient', () => {
           ca_file: 'TLS_ROOT_CA_FILE',
           server_name: 'TLS_SERVER_NAME',
         },
+        api_url: 'API_URL',
+        tenant_id: 'tenantId',
       },
       mockChannel,
       mockFactory

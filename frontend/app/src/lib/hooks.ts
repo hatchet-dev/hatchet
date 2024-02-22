@@ -1,8 +1,9 @@
 import { useToast } from '@/components/ui/use-toast';
 import { AxiosError } from 'axios';
 import { Dispatch, SetStateAction } from 'react';
-import { APIErrors } from './api';
+import api, { APIErrors } from './api';
 import { getFieldErrors } from './utils';
+import { useQuery } from '@tanstack/react-query';
 
 export function useApiError(props: {
   setFieldErrors?: Dispatch<SetStateAction<Record<string, string>>>;
@@ -72,4 +73,22 @@ export function useApiError(props: {
   return {
     handleApiError: handleError,
   };
+}
+
+export function useApiMetaIntegrations() {
+  const { handleApiError } = useApiError({});
+
+  const metaQuery = useQuery({
+    queryKey: ['metadata:get:integrations'],
+    queryFn: async () => {
+      const meta = await api.metadataListIntegrations();
+      return meta;
+    },
+  });
+
+  if (metaQuery.isError) {
+    handleApiError(metaQuery.error as AxiosError);
+  }
+
+  return metaQuery.data?.data;
 }

@@ -10,6 +10,7 @@ type Repository interface {
 	JobRun() JobRunRepository
 	StepRun() StepRunRepository
 	GetGroupKeyRun() GetGroupKeyRunRepository
+	Github() GithubRepository
 	Step() StepRepository
 	Dispatcher() DispatcherRepository
 	Ticker() TickerRepository

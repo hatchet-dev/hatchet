@@ -370,6 +370,46 @@ func (w *workflowRunRepository) GetWorkflowRunById(tenantId, id string) (*db.Wor
 	).Exec(context.Background())
 }
 
+func (s *workflowRunRepository) CreateWorkflowRunPullRequest(tenantId, workflowRunId string, opts *repository.CreateWorkflowRunPullRequestOpts) (*db.GithubPullRequestModel, error) {
+	return s.client.GithubPullRequest.CreateOne(
+		db.GithubPullRequest.Tenant.Link(
+			db.Tenant.ID.Equals(tenantId),
+		),
+		db.GithubPullRequest.RepositoryOwner.Set(opts.RepositoryOwner),
+		db.GithubPullRequest.RepositoryName.Set(opts.RepositoryName),
+		db.GithubPullRequest.PullRequestID.Set(opts.PullRequestID),
+		db.GithubPullRequest.PullRequestTitle.Set(opts.PullRequestTitle),
+		db.GithubPullRequest.PullRequestNumber.Set(opts.PullRequestNumber),
+		db.GithubPullRequest.PullRequestHeadBranch.Set(opts.PullRequestHeadBranch),
+		db.GithubPullRequest.PullRequestBaseBranch.Set(opts.PullRequestBaseBranch),
+		db.GithubPullRequest.PullRequestState.Set(opts.PullRequestState),
+		db.GithubPullRequest.WorkflowRuns.Link(
+			db.WorkflowRun.ID.Equals(workflowRunId),
+		),
+	).Exec(context.Background())
+}
+
+func (s *workflowRunRepository) ListPullRequestsForWorkflowRun(tenantId, workflowRunId string, opts *repository.ListPullRequestsForWorkflowRunOpts) ([]db.GithubPullRequestModel, error) {
+	if err := s.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	optionals := []db.GithubPullRequestWhereParam{
+		db.GithubPullRequest.WorkflowRuns.Some(
+			db.WorkflowRun.ID.Equals(workflowRunId),
+			db.WorkflowRun.TenantID.Equals(tenantId),
+		),
+	}
+
+	if opts.State != nil {
+		optionals = append(optionals, db.GithubPullRequest.PullRequestState.Equals(*opts.State))
+	}
+
+	return s.client.GithubPullRequest.FindMany(
+		optionals...,
+	).Exec(context.Background())
+}
+
 func defaultWorkflowRunPopulator() []db.WorkflowRunRelationWith {
 	return []db.WorkflowRunRelationWith{
 		db.WorkflowRun.WorkflowVersion.Fetch().With(

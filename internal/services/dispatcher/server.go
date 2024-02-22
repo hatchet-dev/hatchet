@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/schema"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
@@ -289,7 +290,8 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		return err
 	}
 
-	ctx := stream.Context()
+	ctx, cancel := context.WithCancel(stream.Context())
+	defer cancel()
 
 	// subscribe to the task queue for the tenant
 	taskChan, err := s.tq.Subscribe(ctx, q)
@@ -320,6 +322,10 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 				if err != nil {
 					s.l.Error().Err(err).Msgf("could not send workflow event to client")
 				}
+
+				if e.Hangup {
+					cancel()
+				}
 			}(task)
 		}
 	}
@@ -349,6 +355,44 @@ func (s *DispatcherImpl) SendGroupKeyActionEvent(ctx context.Context, request *c
 	}
 
 	return nil, fmt.Errorf("unknown event type %s", request.EventType)
+}
+
+func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contracts.OverridesData) (*contracts.OverridesDataResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
+	// ensure step run id
+	if request.StepRunId == "" {
+		return nil, fmt.Errorf("step run id is required")
+	}
+
+	opts := &repository.UpdateStepRunOverridesDataOpts{
+		OverrideKey: request.Path,
+		Data:        []byte(request.Value),
+	}
+
+	if request.CallerFilename != "" {
+		opts.CallerFile = &request.CallerFilename
+	}
+
+	input, err := s.repo.StepRun().UpdateStepRunOverridesData(tenant.ID, request.StepRunId, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	jsonSchemaBytes, err := schema.SchemaBytesFromBytes(input)
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = s.repo.StepRun().UpdateStepRunInputSchema(tenant.ID, request.StepRunId, jsonSchemaBytes)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.OverridesDataResponse{}, nil
 }
 
 func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.WorkerUnsubscribeRequest) (*contracts.WorkerUnsubscribeResponse, error) {
@@ -572,63 +616,74 @@ func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request
 }
 
 func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *taskqueue.Task, tenantId, workflowRunId string) (*contracts.WorkflowEvent, error) {
-	// TODO: eventually process workflows as well, this is just steps
-	workflowEvent := &contracts.WorkflowEvent{
-		ResourceType: contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-	}
+	workflowEvent := &contracts.WorkflowEvent{}
 
 	var stepRunId string
 
 	switch task.ID {
 	case "step-run-started":
 		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STARTED
 	case "step-run-finished":
 		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
 		workflowEvent.EventPayload = task.Payload["step_output_data"].(string)
 	case "step-run-failed":
 		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED
 		workflowEvent.EventPayload = task.Payload["error"].(string)
 	case "step-run-cancelled":
 		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED
 	case "step-run-timed-out":
 		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_TIMED_OUT
+	case "workflow-run-finished":
+		workflowRunId := task.Payload["workflow_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN
+		workflowEvent.ResourceId = workflowRunId
+		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
+		workflowEvent.Hangup = true
 	}
 
-	if stepRunId == "" {
-		// expected because not all tasks have step run ids
-		return nil, nil
+	if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_STEP_RUN {
+		// determine if this step run matches the workflow run id
+		stepRun, err := s.repo.StepRun().GetStepRunById(tenantId, stepRunId)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if stepRun.JobRun().WorkflowRunID != workflowRunId {
+			// this is an expected error, so we don't return it
+			return nil, nil
+		}
+
+		// attempt to unquote the payload
+		unquoted, err := strconv.Unquote(workflowEvent.EventPayload)
+
+		if err != nil {
+			unquoted = workflowEvent.EventPayload
+		}
+
+		workflowEvent.EventPayload = unquoted
+	} else if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN {
+		if workflowEvent.ResourceId != workflowRunId {
+			return nil, nil
+		}
+
+		workflowEvent.Hangup = true
 	}
-
-	// determine if this step run matches the workflow run id
-	stepRun, err := s.repo.StepRun().GetStepRunById(tenantId, stepRunId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if stepRun.JobRun().WorkflowRunID != workflowRunId {
-		// this is an expected error, so we don't return it
-		return nil, nil
-	}
-
-	// attempt to unquote the payload
-	unquoted, err := strconv.Unquote(workflowEvent.EventPayload)
-
-	if err != nil {
-		unquoted = workflowEvent.EventPayload
-	}
-
-	workflowEvent.EventPayload = unquoted
 
 	return workflowEvent, nil
 }

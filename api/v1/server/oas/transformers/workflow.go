@@ -3,6 +3,8 @@ package transformers
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -45,6 +47,18 @@ func ToWorkflow(workflow *db.WorkflowModel, lastRun *db.WorkflowRunModel) (*gen.
 		}
 	}
 
+	if workflow.RelationsWorkflow.DeploymentConfig != nil {
+		if deploymentConfig, ok := workflow.DeploymentConfig(); ok && deploymentConfig != nil {
+			apiDeploymentConfig, err := ToWorkflowDeploymentConfig(deploymentConfig)
+
+			if err != nil {
+				return nil, err
+			}
+
+			res.Deployment = apiDeploymentConfig
+		}
+	}
+
 	if workflow.RelationsWorkflow.Versions != nil {
 		if versions := workflow.Versions(); versions != nil {
 			apiVersions := make([]gen.WorkflowVersionMeta, len(versions))
@@ -73,6 +87,26 @@ func ToWorkflowVersionMeta(version *db.WorkflowVersionModel) *gen.WorkflowVersio
 	}
 
 	return res
+}
+
+func ToWorkflowDeploymentConfig(deploymentConfig *db.WorkflowDeploymentConfigModel) (*gen.WorkflowDeploymentConfig, error) {
+	res := &gen.WorkflowDeploymentConfig{
+		Metadata:      *toAPIMetadata(deploymentConfig.ID, deploymentConfig.CreatedAt, deploymentConfig.UpdatedAt),
+		GitRepoName:   deploymentConfig.GitRepoName,
+		GitRepoOwner:  deploymentConfig.GitRepoOwner,
+		GitRepoBranch: deploymentConfig.GitRepoBranch,
+	}
+
+	if githubAppInstallationId, ok := deploymentConfig.GithubAppInstallationID(); ok {
+		res.GithubAppInstallationId = uuid.MustParse(githubAppInstallationId)
+	}
+
+	if githubAppInstallation, ok := deploymentConfig.GithubAppInstallation(); ok {
+		apiInstallation := ToInstallation(githubAppInstallation)
+		res.GithubAppInstallation = apiInstallation
+	}
+
+	return res, nil
 }
 
 func ToWorkflowVersion(workflow *db.WorkflowModel, version *db.WorkflowVersionModel) (*gen.WorkflowVersion, error) {

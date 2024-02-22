@@ -15,6 +15,8 @@ service Dispatcher {
 
     rpc SendGroupKeyActionEvent(GroupKeyActionEvent) returns (ActionEventResponse) {}
 
+    rpc PutOverridesData(OverridesData) returns (OverridesDataResponse) {}
+
     rpc Unsubscribe(WorkerUnsubscribeRequest) returns (WorkerUnsubscribeResponse) {}
 }
 
@@ -204,4 +206,24 @@ message WorkflowEvent {
 
     // the event payload
     string eventPayload = 6;
+
+    // whether this is the last event for the workflow run - server 
+    // will hang up the connection but clients might want to case
+    bool hangup = 7;
 }
+
+message OverridesData {
+    // the step run id
+    string stepRunId = 1;
+
+    // the path of the data to set
+    string path = 2;
+
+    // the value to set
+    string value = 3;
+
+    // the filename of the caller
+    string callerFilename = 4;
+}
+
+message OverridesDataResponse {}

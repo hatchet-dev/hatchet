@@ -121,6 +121,33 @@ func (j *jobRunRepository) UpdateJobRun(tenantId, jobRunId string, opts *reposit
 	).Exec(context.Background())
 }
 
+func (j *jobRunRepository) SetJobRunStatusRunning(tenantId, jobRunId string) error {
+	jobRun, err := j.client.JobRun.FindUnique(
+		db.JobRun.ID.Equals(jobRunId),
+	).Update(
+		db.JobRun.Status.Set(db.JobRunStatusRunning),
+	).Exec(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	_, err = j.queries.UpdateWorkflowRun(
+		context.Background(),
+		j.pool,
+		dbsqlc.UpdateWorkflowRunParams{
+			ID:       sqlchelpers.UUIDFromStr(jobRun.WorkflowRunID),
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Status: dbsqlc.NullWorkflowRunStatus{
+				WorkflowRunStatus: dbsqlc.WorkflowRunStatusRUNNING,
+				Valid:             true,
+			},
+		},
+	)
+
+	return err
+}
+
 func (j *jobRunRepository) GetJobRunLookupData(tenantId, jobRunId string) (*db.JobRunLookupDataModel, error) {
 	return j.client.JobRunLookupData.FindUnique(
 		db.JobRunLookupData.JobRunIDTenantID(

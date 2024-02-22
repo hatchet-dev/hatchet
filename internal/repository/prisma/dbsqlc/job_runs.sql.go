@@ -62,7 +62,7 @@ WHERE "id" = (
     FROM "StepRun"
     WHERE "id" = $1::uuid
 ) AND "tenantId" = $2::uuid
-RETURNING "JobRun".id, "JobRun"."createdAt", "JobRun"."updatedAt", "JobRun"."deletedAt", "JobRun"."tenantId", "JobRun"."workflowRunId", "JobRun"."jobId", "JobRun"."tickerId", "JobRun".status, "JobRun".result, "JobRun"."startedAt", "JobRun"."finishedAt", "JobRun"."timeoutAt", "JobRun"."cancelledAt", "JobRun"."cancelledReason", "JobRun"."cancelledError"
+RETURNING "JobRun".id, "JobRun"."createdAt", "JobRun"."updatedAt", "JobRun"."deletedAt", "JobRun"."tenantId", "JobRun"."jobId", "JobRun"."tickerId", "JobRun".status, "JobRun".result, "JobRun"."startedAt", "JobRun"."finishedAt", "JobRun"."timeoutAt", "JobRun"."cancelledAt", "JobRun"."cancelledReason", "JobRun"."cancelledError", "JobRun"."workflowRunId"
 `
 
 type ResolveJobRunStatusParams struct {
@@ -79,7 +79,6 @@ func (q *Queries) ResolveJobRunStatus(ctx context.Context, db DBTX, arg ResolveJ
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.TenantId,
-		&i.WorkflowRunId,
 		&i.JobId,
 		&i.TickerId,
 		&i.Status,
@@ -90,50 +89,7 @@ func (q *Queries) ResolveJobRunStatus(ctx context.Context, db DBTX, arg ResolveJ
 		&i.CancelledAt,
 		&i.CancelledReason,
 		&i.CancelledError,
-	)
-	return &i, err
-}
-
-const updateJobRun = `-- name: UpdateJobRun :one
-UPDATE
-  "JobRun"
-SET "status" = CASE 
-    -- Final states are final, cannot be updated
-    WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
-    ELSE "status" = COALESCE($1, "status")
-END
-WHERE
-    "id" = $2::uuid AND
-    "tenantId" = $3::uuid
-RETURNING "JobRun".id, "JobRun"."createdAt", "JobRun"."updatedAt", "JobRun"."deletedAt", "JobRun"."tenantId", "JobRun"."workflowRunId", "JobRun"."jobId", "JobRun"."tickerId", "JobRun".status, "JobRun".result, "JobRun"."startedAt", "JobRun"."finishedAt", "JobRun"."timeoutAt", "JobRun"."cancelledAt", "JobRun"."cancelledReason", "JobRun"."cancelledError"
-`
-
-type UpdateJobRunParams struct {
-	Status   NullJobRunStatus `json:"status"`
-	ID       pgtype.UUID      `json:"id"`
-	Tenantid pgtype.UUID      `json:"tenantid"`
-}
-
-func (q *Queries) UpdateJobRun(ctx context.Context, db DBTX, arg UpdateJobRunParams) (*JobRun, error) {
-	row := db.QueryRow(ctx, updateJobRun, arg.Status, arg.ID, arg.Tenantid)
-	var i JobRun
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
 		&i.WorkflowRunId,
-		&i.JobId,
-		&i.TickerId,
-		&i.Status,
-		&i.Result,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.TimeoutAt,
-		&i.CancelledAt,
-		&i.CancelledReason,
-		&i.CancelledError,
 	)
 	return &i, err
 }

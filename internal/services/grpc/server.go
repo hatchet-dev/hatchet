@@ -5,10 +5,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"runtime/debug"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -21,6 +24,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+
+	"google.golang.org/grpc/status"
 )
 
 type Server struct {
@@ -173,12 +178,33 @@ func (s *Server) startGRPC(ctx context.Context) error {
 
 	authMiddleware := middleware.NewAuthN(s.config)
 
-	serverOpts = append(serverOpts, grpc.StreamInterceptor(
+	grpcPanicRecoveryHandler := func(p any) (err error) {
+		panicErr, ok := p.(error)
+
+		var panicStr string
+
+		if !ok {
+			panicStr, ok = p.(string)
+
+			if !ok {
+				panicStr = "Could not determine panic error"
+			}
+		} else {
+			panicStr = panicErr.Error()
+		}
+
+		s.l.Error().Msgf("recovered from panic: %s. Stack: %s", panicStr, string(debug.Stack()))
+		return status.Errorf(codes.Internal, "An internal error occurred")
+	}
+
+	serverOpts = append(serverOpts, grpc.ChainStreamInterceptor(
 		auth.StreamServerInterceptor(authMiddleware.Middleware),
+		recovery.StreamServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
 
-	serverOpts = append(serverOpts, grpc.UnaryInterceptor(
+	serverOpts = append(serverOpts, grpc.ChainUnaryInterceptor(
 		auth.UnaryServerInterceptor(authMiddleware.Middleware),
+		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
 
 	grpcServer := grpc.NewServer(serverOpts...)

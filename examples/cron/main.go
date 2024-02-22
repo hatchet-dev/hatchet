@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/joho/godotenv"
+
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
-	"github.com/joho/godotenv"
 )
 
 type printOutput struct{}
@@ -31,8 +32,6 @@ func main() {
 		panic(err)
 	}
 
-	// Create a worker. This automatically reads in a TemporalClient from .env and workflow files from the .hatchet
-	// directory, but this can be customized with the `worker.WithTemporalClient` and `worker.WithWorkflowFiles` options.
 	w, err := worker.NewWorker(
 		worker.WithClient(
 			client,

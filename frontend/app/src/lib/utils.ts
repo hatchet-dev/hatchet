@@ -59,7 +59,21 @@ export function relativeDate(date?: string | number) {
   return capitalize(rtf.format(value, time.unitOfTime));
 }
 
-function timeFrom(time: string | number, secondTime?: string | number) {
+export function timeBetween(start: string | number, end: string | number) {
+  const startUnixTime = new Date(start).getTime();
+  const endUnixTime = new Date(end).getTime();
+
+  if (!startUnixTime || !endUnixTime) {
+    return;
+  }
+
+  // Calculate difference
+  const difference = endUnixTime - startUnixTime;
+
+  return formatDuration(difference);
+}
+
+export function timeFrom(time: string | number, secondTime?: string | number) {
   // Get timestamps
   const unixTime = new Date(time).getTime();
   if (!unixTime) {
@@ -125,4 +139,25 @@ function timeFrom(time: string | number, secondTime?: string | number) {
 
   // Return time from now data
   return tfn;
+}
+
+export function formatDuration(duration: number) {
+  const milliseconds = duration % 1000;
+  const seconds = Math.round(duration / 1000);
+  const minutes = Math.round(seconds / 60);
+  const hours = Math.round(minutes / 60);
+
+  if (seconds == 0 && hours == 0 && minutes == 0) {
+    return `${milliseconds}ms`;
+  }
+
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  }
+
+  return `${seconds}s`;
 }

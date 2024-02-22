@@ -50,6 +50,14 @@ type UpdateStepRunOpts struct {
 	Input []byte
 
 	Output []byte
+
+	RetryCount *int
+}
+
+type UpdateStepRunOverridesDataOpts struct {
+	OverrideKey string
+	Data        []byte
+	CallerFile  *string
 }
 
 func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
@@ -58,6 +66,13 @@ func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
 
 var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
 
+type StepRunUpdateInfo struct {
+	JobRunFinalState      bool
+	WorkflowRunFinalState bool
+	WorkflowRunId         string
+	WorkflowRunStatus     string
+}
+
 type StepRunRepository interface {
 	// ListAllStepRuns returns a list of all step runs which match the given options.
 	ListAllStepRuns(opts *ListAllStepRunsOpts) ([]db.StepRunModel, error)
@@ -65,7 +80,13 @@ type StepRunRepository interface {
 	// ListStepRuns returns a list of step runs for a tenant which match the given options.
 	ListStepRuns(tenantId string, opts *ListStepRunsOpts) ([]db.StepRunModel, error)
 
-	UpdateStepRun(tenantId, stepRunId string, opts *UpdateStepRunOpts) (*db.StepRunModel, error)
+	UpdateStepRun(tenantId, stepRunId string, opts *UpdateStepRunOpts) (*db.StepRunModel, *StepRunUpdateInfo, error)
+
+	// UpdateStepRunOverridesData updates the overrides data field in the input for a step run. This returns the input
+	// bytes.
+	UpdateStepRunOverridesData(tenantId, stepRunId string, opts *UpdateStepRunOverridesDataOpts) ([]byte, error)
+
+	UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error)
 
 	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
 
@@ -76,4 +97,10 @@ type StepRunRepository interface {
 	CancelPendingStepRuns(tenantId, jobRunId, reason string) error
 
 	ListStartableStepRuns(tenantId, jobRunId, parentStepRunId string) ([]*dbsqlc.StepRun, error)
+
+	ArchiveStepRunResult(tenantId, stepRunId string) error
+
+	ListArchivedStepRunResults(tenantId, stepRunId string) ([]db.StepRunResultArchiveModel, error)
+
+	GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error)
 }

@@ -9,7 +9,7 @@ tasks:
       - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev
   seed-dev:
     cmds:
-      - sh ./hack/dev/run-npx-with-env.sh prisma db push --force-reset --skip-generate
+      - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev --skip-generate
       - SEED_DEVELOPMENT=true sh ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
   start-dev:
     deps:
@@ -25,6 +25,9 @@ tasks:
   start-frontend:
     cmds:
       - sh ./hack/dev/start-frontend.sh
+  start-ngrok:
+    cmds:
+      - ngrok http 8080
   generate:
     cmds:
       - task: deps
@@ -85,6 +88,14 @@ tasks:
   kill-query-engines:
     cmds:
       - ps -A | grep 'prisma-query-engine-darwin-arm64' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
+  kill-apis:
+    cmds:
+      - ps -A | grep 'cmd/hatchet-api' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
+      - ps -A | grep 'exe/hatchet-api' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
+  kill-engines:
+    cmds:
+      - ps -A | grep 'cmd/hatchet-engine' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
+      - ps -A | grep 'exe/hatchet-engine' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
   prisma-studio:
     cmds:
       - sh ./hack/dev/run-npx-with-env.sh prisma studio

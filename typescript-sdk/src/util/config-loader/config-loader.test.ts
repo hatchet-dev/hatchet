@@ -2,6 +2,8 @@ import { ConfigLoader } from './config-loader';
 
 fdescribe('ConfigLoader', () => {
   beforeEach(() => {
+    process.env.HATCHET_CLIENT_TOKEN =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef';
     process.env.HATCHET_CLIENT_HOST_PORT = 'HOST_PORT';
     process.env.HATCHET_CLIENT_TLS_CERT_FILE = 'TLS_CERT_FILE';
     process.env.HATCHET_CLIENT_TLS_KEY_FILE = 'TLS_KEY_FILE';
@@ -14,6 +16,10 @@ fdescribe('ConfigLoader', () => {
     expect(config).toEqual({
       host_port: 'HOST_PORT',
       log_level: 'INFO',
+      api_url: 'http://localhost:8080',
+      token:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
+      tenant_id: '707d0855-80ab-4e1f-a156-f1c4546cbf52',
       tls_config: {
         tls_strategy: 'tls',
         cert_file: 'TLS_CERT_FILE',
@@ -46,9 +52,12 @@ fdescribe('ConfigLoader', () => {
       path: './fixtures/.hatchet.yaml',
     });
     expect(config).toEqual({
-      token: 'TOKEN_YAML',
+      token:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
       host_port: 'HOST_PORT_YAML',
       log_level: 'INFO',
+      api_url: 'http://localhost:8080',
+      tenant_id: '707d0855-80ab-4e1f-a156-f1c4546cbf52',
       tls_config: {
         tls_strategy: 'tls',
         cert_file: 'TLS_CERT_FILE_YAML',
@@ -65,7 +74,8 @@ fdescribe('ConfigLoader', () => {
       path: './fixtures/.hatchet.yaml',
     });
     expect(config).toEqual({
-      token: 'TOKEN_YAML',
+      token:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
       host_port: 'HOST_PORT_YAML',
       tls_config: {
         tls_strategy: 'tls',

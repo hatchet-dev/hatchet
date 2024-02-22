@@ -169,7 +169,9 @@ INSERT INTO "Step" (
     "tenantId",
     "jobId",
     "actionId",
-    "timeout"
+    "timeout",
+    "customUserData",
+    "retries"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -179,20 +181,24 @@ INSERT INTO "Step" (
     $6::uuid,
     $7::uuid,
     $8::text,
-    $9::text
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout
+    $9::text,
+    coalesce($10::jsonb, '{}'),
+    coalesce($11::integer, 0)
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries
 `
 
 type CreateStepParams struct {
-	ID         pgtype.UUID      `json:"id"`
-	CreatedAt  pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
-	Deletedat  pgtype.Timestamp `json:"deletedat"`
-	Readableid string           `json:"readableid"`
-	Tenantid   pgtype.UUID      `json:"tenantid"`
-	Jobid      pgtype.UUID      `json:"jobid"`
-	Actionid   string           `json:"actionid"`
-	Timeout    string           `json:"timeout"`
+	ID             pgtype.UUID      `json:"id"`
+	CreatedAt      pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
+	Deletedat      pgtype.Timestamp `json:"deletedat"`
+	Readableid     string           `json:"readableid"`
+	Tenantid       pgtype.UUID      `json:"tenantid"`
+	Jobid          pgtype.UUID      `json:"jobid"`
+	Actionid       string           `json:"actionid"`
+	Timeout        string           `json:"timeout"`
+	CustomUserData []byte           `json:"customUserData"`
+	Retries        pgtype.Int4      `json:"retries"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -206,6 +212,8 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.Jobid,
 		arg.Actionid,
 		arg.Timeout,
+		arg.CustomUserData,
+		arg.Retries,
 	)
 	var i Step
 	err := row.Scan(
@@ -218,6 +226,8 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.JobId,
 		&i.ActionId,
 		&i.Timeout,
+		&i.CustomUserData,
+		&i.Retries,
 	)
 	return &i, err
 }
@@ -466,7 +476,7 @@ INSERT INTO "WorkflowVersion" (
     $5::text,
     $6::text,
     $7::uuid
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", checksum, version, "order", "workflowId"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum
 `
 
 type CreateWorkflowVersionParams struct {
@@ -495,10 +505,10 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.Checksum,
 		&i.Version,
 		&i.Order,
 		&i.WorkflowId,
+		&i.Checksum,
 	)
 	return &i, err
 }
@@ -513,7 +523,7 @@ FROM (
         "Workflow" as workflows 
     LEFT JOIN
         (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", checksum, version, "order", "workflowId" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
+            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
         ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
     LEFT JOIN
         "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
@@ -607,7 +617,7 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 
 const listWorkflowsLatestRuns = `-- name: ListWorkflowsLatestRuns :many
 SELECT
-    DISTINCT ON (workflow."id") runs.id, runs."createdAt", runs."updatedAt", runs."deletedAt", runs."displayName", runs."tenantId", runs."workflowVersionId", runs."concurrencyGroupId", runs.status, runs.error, runs."startedAt", runs."finishedAt", workflow."id" as "workflowId"
+    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", workflow."id" as "workflowId"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -666,18 +676,19 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 	for rows.Next() {
 		var i ListWorkflowsLatestRunsRow
 		if err := rows.Scan(
-			&i.WorkflowRun.ID,
 			&i.WorkflowRun.CreatedAt,
 			&i.WorkflowRun.UpdatedAt,
 			&i.WorkflowRun.DeletedAt,
-			&i.WorkflowRun.DisplayName,
 			&i.WorkflowRun.TenantId,
 			&i.WorkflowRun.WorkflowVersionId,
-			&i.WorkflowRun.ConcurrencyGroupId,
 			&i.WorkflowRun.Status,
 			&i.WorkflowRun.Error,
 			&i.WorkflowRun.StartedAt,
 			&i.WorkflowRun.FinishedAt,
+			&i.WorkflowRun.ConcurrencyGroupId,
+			&i.WorkflowRun.DisplayName,
+			&i.WorkflowRun.ID,
+			&i.WorkflowRun.GitRepoBranch,
 			&i.WorkflowId,
 		); err != nil {
 			return nil, err
@@ -706,7 +717,7 @@ SET
     "tenantId" = EXCLUDED."tenantId"
 WHERE
     "Action"."tenantId" = $2 AND "Action"."actionId" = LOWER($1::text)
-RETURNING id, "actionId", description, "tenantId"
+RETURNING description, "tenantId", "actionId", id
 `
 
 type UpsertActionParams struct {
@@ -718,10 +729,10 @@ func (q *Queries) UpsertAction(ctx context.Context, db DBTX, arg UpsertActionPar
 	row := db.QueryRow(ctx, upsertAction, arg.Action, arg.Tenantid)
 	var i Action
 	err := row.Scan(
-		&i.ID,
-		&i.ActionId,
 		&i.Description,
 		&i.TenantId,
+		&i.ActionId,
+		&i.ID,
 	)
 	return &i, err
 }
