@@ -13,7 +13,11 @@ def get_caller_file_path():
 
 class Context:
     def __init__(self, action: Action, client: DispatcherClient):
-        self.data = json.loads(action.action_payload)
+        try:
+            self.data = json.loads(action.action_payload)
+        except Exception as e:
+            self.data = json.loads("{}")
+
         self.stepRunId = action.step_run_id
         self.exit_flag = Event()
         self.client = client

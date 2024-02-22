@@ -3,15 +3,19 @@ const withNextra = require('nextra')({
   themeConfig: './theme.config.tsx',
 })
 
-module.exports = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   ...withNextra(),
+  transpilePackages: ["react-tweet"],
   async redirects() {
     return [
       {
-        source: '/:path((?!home|contributing|favicon\\.ico|hatchet_logo\\.png).*)',
+        source: '/:path((?!home|contributing|self-hosting|launches|favicon\\.ico|hatchet_logo\\.png).*)',
         destination: '/home/:path*',
         permanent: true,
       },
     ];
   },
 }
+
+module.exports = nextConfig

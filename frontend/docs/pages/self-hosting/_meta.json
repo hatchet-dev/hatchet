@@ -1,0 +1,14 @@
+{
+    "-- Deploying": {
+        "type": "separator",
+        "title": "Deploying"
+    },
+    "docker-compose": "Docker Compose",
+    "kubernetes": "Kubernetes",
+    "-- Managing Hatchet": {
+        "type": "separator",
+        "title": "Managing Hatchet"
+    },
+    "configuration-options": "Configuration Options",
+    "github-app-setup": "GitHub App Setup"
+}
