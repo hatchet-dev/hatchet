@@ -83,7 +83,11 @@ We do this by providing a method in our SDK called `playground` which then expos
 
 Let's take a look at how you can get started with a self-hosted instance of Hatchet (if you'd like to use our cloud version, [request access here](https://hatchet.run/request-access)). 
 
-We'll be using the [Hatchet Python Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart) repository in this example. 
+We'll be using the [Hatchet Python Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart) repository in this example. It assumes that you have the following tools installed: 
+
+1. Python 3.7 or higher installed on your machine.
+2. Poetry package manager installed. You can install it by running `pip install poetry`, or by following instructions in the [Poetry Docs](https://python-poetry.org/docs/#installation)
+3. Docker installed on your machine. You can install it by following the instructions in the [Docker Docs](https://docs.docker.com/get-docker/)
 
 <Steps>
 ### Step 1: Get Hatchet up and running
@@ -118,7 +122,35 @@ You will need this in the following steps.
 
 ### Step 2: Run your first worker
 
+Navigate to the `simple-examples` directory:
+
+```sh copy
+cd simple-examples
+```
+
+Create a `.env` file. You will need the `HATCHET_CLIENT_TOKEN` variable created in the [Getting Started README](../README.md). If you would like to try the Generative AI examples in [./src/genai](./src/genai) You will also need, a `OPENAI_API_KEY` which can be created on the [OpenAI Website](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key) (if not, you can use the `SimpleWorkflow` below instead of the `SimpleGenAiWorkflow`). Your env file should look like this:
+
+```sh copy
+HATCHET_CLIENT_TLS_STRATEGY=none
+HATCHET_CLIENT_TOKEN="<token>"
+OPENAI_API_KEY="<openai-key>" # (OPTIONAL) only required to run GenAI workflows
+```
+
+Next, install the requirements:
+
+```sh copy
+poetry install
+```
+
+Run the worker:
+
+```sh copy
+poetry run hatchet
+```
+
 ### Step 3: Iterate on your first workflow
+
+Navigate to the Hatchet dashboard and select the **Workflows** tab. You should see a workflow called `SimpleGenAiWorkflow`. Click on it to see the inputs and outputs of each step in the workflow.
 
 </Steps>
 
