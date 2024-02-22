@@ -14,7 +14,7 @@ While Hatchet is generalized and ideal for many low-latency workflow tasks, it i
 
 ### Background Task Management and Scheduling
 
-Instead of developers interfacing directly with a task queue, Hatchet provides a simple API built into each SDK for managing background tasks.
+Instead of developers interfacing directly with a task queue, Hatchet provides a simple API built into each SDK for managing background tasks. It comes with the following features:
 
 - **Retries, timeouts and error handling** are built into each Hatchet SDK.
 
@@ -22,11 +22,13 @@ Instead of developers interfacing directly with a task queue, Hatchet provides a
 
 - **Task observability** with Hatchet, you get complete access to the inputs and outputs from each step run, which is useful for debugging and observability.
 
-### Prompt Engineering Playground
+### Prompt Engineering Platform
 
 Hatchet lets you expose the existing methods you've built in your LLM-enabled applications on a UI for better observability and prompt iteration. It looks something like this:
 
 https://github.com/hatchet-dev/hatchet/assets/25448214/e4522c16-3599-4fad-b4ce-ff8ae614b074
+
+We've built the following features to improve the prompt engineering experience:
 
 - **UI-based iteration of LLM workflows** - you get full flexibility to choose which variables to expose on the playground. We do this by providing a method in our SDK called `playground` which then exposes the variable in the Hatchet UI:
 
@@ -42,7 +44,7 @@ https://github.com/hatchet-dev/hatchet/assets/25448214/e4522c16-3599-4fad-b4ce-f
 
 ### Event-Driven Architectures
 
-Because Hatchet is designed for low-latency and stores the history of every step execution, it's ideal for event-driven architectures with events triggering across multiple workers and services. 
+Because Hatchet is designed for low-latency and stores the history of every step execution, it's ideal for event-driven architectures with events triggering across multiple workers and services. It includes the following: 
 
 - **Event-triggered workflows** - workflows can be triggered from any event within your system via user-defined event keys.
 
