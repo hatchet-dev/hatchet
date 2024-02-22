@@ -29,20 +29,39 @@ This is particularly useful for LLM calls, which can be slow, have high variance
 
 <Tweet id="1760080088614175068" />
 
-It's typical to fight the non-deterministic nature of LLM-enabled application by breaking up your LLM calls into smaller steps in a workflow, with fine-tuned models sitting at each step. 
+It's typical to fight the non-deterministic nature of LLM-enabled application by breaking up your LLM calls into smaller steps in a workflow, with optimized prompts and model selection sitting at each step. 
 
 These are modeled in Hatchet as a workflow:
 
-```py filename="simple_workflow.py"
-@hatchet.workflow()
-class SimpleWorkflow:
+```py filename="rag_workflow.py"
+@hatchet.workflow(on_events=["question:create"])
+class BasicRagWorkflow:
     @hatchet.step()
-    def start(self, ctx: Context):
-        message = ctx.workflow_input()["messages"][-1]
+    def load_docs(self, context: Context):
+        # use beautiful soup to parse the html content
+        url = context.workflow_input()['request']['url']
 
-        prompt = ctx.playground("prompt", "The user is asking the following question: {message}")
+        html_content = requests.get(url).text
+        soup = BeautifulSoup(html_content, 'html.parser')
+        element = soup.find('body')
+        text_content = element.get_text(separator=' | ')
 
-        prompt = prompt.format(message=message['content'])
+        return {
+            "status": "making sense of the docs",
+            "docs": text_content,
+        }
+
+    @hatchet.step(parents=["load_docs"])
+    def reason_docs(self, ctx: Context):
+        message = ctx.workflow_input()['request']["messages"][-1]
+        docs = ctx.step_output("load_docs")['docs']
+
+        prompt = ctx.playground("prompt", "The user is asking the following question:\
+            {message}\
+            What are the most relevant sentences in the following document?\
+            {docs}")
+
+        prompt = prompt.format(message=message['content'], docs=docs)
 
         model = ctx.playground("model", "gpt-3.5-turbo")
 
@@ -55,7 +74,33 @@ class SimpleWorkflow:
         )
 
         return {
-            "answer": completion.choices[0].message.content,
+            "status": "writing a response",
+            "research": completion.choices[0].message.content,
+        }
+
+    @hatchet.step(parents=["reason_docs"])
+    def generate_response(self, ctx: Context):
+        messages = ctx.workflow_input()['request']["messages"]
+        research = ctx.step_output("reason_docs")['research']
+
+        prompt = ctx.playground("prompt", "You are a sales engineer for a company called Hatchet. Help address the user's question. Use the following context:\
+            {research}")
+
+        prompt = prompt.format(research=research)
+
+        model = ctx.playground("model", "gpt-3.5-turbo")
+
+        completion = openai.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": prompt},
+            ] + messages
+        )
+
+        return {
+            "completed": "true",
+            "status": "idle",
+            "message": completion.choices[0].message.content,
         }
 ```
 
@@ -154,7 +199,7 @@ Navigate to the `simple-examples` directory:
 cd simple-examples
 ```
 
-Create a `.env` file. You will need the `HATCHET_CLIENT_TOKEN` variable created in the [Getting Started README](../README.md). If you would like to try the Generative AI examples in [./src/genai](./src/genai) You will also need, a `OPENAI_API_KEY` which can be created on the [OpenAI Website](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key) (if not, you can use the `SimpleWorkflow` below instead of the `SimpleGenAiWorkflow`). Your env file should look like this:
+Create a `.env` file in the `simple-examples` directory. You will need the `HATCHET_CLIENT_TOKEN` variable created above. If you would like to try the Generative AI examples in [./src/genai](./src/genai), you will also need, a `OPENAI_API_KEY` which can be created on the [OpenAI Website](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key) (if not, you can use the `SimpleWorkflow` below instead of the `SimpleGenAiWorkflow`). Your env file should look like this:
 
 ```sh copy
 HATCHET_CLIENT_TLS_STRATEGY=none
@@ -176,7 +221,20 @@ poetry run hatchet
 
 ### Step 3: Iterate on your first workflow
 
-Navigate to the Hatchet dashboard and select the **Workflows** tab. You should see a workflow called `SimpleGenAiWorkflow`. Click on it to see the inputs and outputs of each step in the workflow.
+Navigate to the Hatchet dashboard and select the **Workflows** tab. You should see a workflow called `SimpleGenAiWorkflow`. Use the following input:
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Are cows reptiles?"
+    }
+  ]
+}
+```
+
+Click on it to see the inputs and outputs of each step in the workflow.
 
 </Steps>
 
