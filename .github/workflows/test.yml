@@ -34,7 +34,7 @@ jobs:
       - name: Generate
         run: |
           go run github.com/steebchen/prisma-client-go migrate deploy
-          task generate
+          task generate-all
 
       - name: Check for diff
         run: git diff --exit-code
@@ -103,7 +103,7 @@ jobs:
       - name: Generate
         run: |
           go run github.com/steebchen/prisma-client-go migrate deploy
-          task generate
+          task generate-all
 
       - name: Test
         run: go test -tags integration ./... -v -failfast
@@ -148,7 +148,7 @@ jobs:
       - name: Generate
         run: |
           go run github.com/steebchen/prisma-client-go migrate deploy
-          task generate
+          task generate-all
           task generate-certs
 
       - name: Prepare
