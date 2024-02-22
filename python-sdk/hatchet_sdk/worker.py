@@ -17,9 +17,6 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from .context import Context
 from .logger import logger
 
-# Worker class
-DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds
-
 
 class Worker:
     def __init__(self, name: str, max_threads: int = 200, debug=False, handle_kill=True):
@@ -350,12 +347,5 @@ class Worker:
         except grpc.RpcError as rpc_error:
             logger.error(f"Could not start worker: {rpc_error}")
 
-        # if we are here, but not killing, then we should retry start
         if not self.killing:
-            if retry_count > 5:
-                raise Exception("Could not start worker after 5 retries")
-            
-            logger.info("Could not start worker, retrying...")
-
-            time.sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL)
-            self.start(retry_count + 1)
+            logger.info("Could not start worker")
