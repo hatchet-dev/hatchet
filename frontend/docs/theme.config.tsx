@@ -6,7 +6,7 @@ const config: DocsThemeConfig = {
   logo: (
     <Image src="/hatchet_logo.png" alt="Hatchet logo" width={120} height={35} />
   ),
-  logoLink: "https://hatchet.run",
+  logoLink: "https://github.com/hatchet-dev/hatchet",
   primaryHue: 210,
   primarySaturation: 10,
   project: {
