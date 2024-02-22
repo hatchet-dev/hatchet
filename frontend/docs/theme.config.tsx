@@ -27,6 +27,12 @@ const config: DocsThemeConfig = {
   sidebar: {
     defaultMenuCollapseLevel: 1,
   },
+  nextThemes: {
+    forcedTheme: "dark",
+  },
+  themeSwitch: {
+    component: () => null,
+  },
 };
 
 export default config;

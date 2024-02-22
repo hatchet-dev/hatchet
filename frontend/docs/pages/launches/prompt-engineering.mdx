@@ -1,0 +1,129 @@
+import { Tabs, Steps } from 'nextra/components'
+import { Tweet } from 'react-tweet'
+
+# A code-first prompt engineering platform
+
+**TL;DR** - [Hatchet](https://github.com/hatchet-dev/hatchet) is a platform for creating and scaling workflows as code. We're launching a set of features that enable teams to **iterate on prompts, optimize context, and debug LLM apps faster** - with all changes written back to your own codebase. 
+
+## The problem
+
+Most teams building on LLMs use a prompt engineering platform of some kind - think Humanloop or Promptlayer. These platforms are great for prototyping and collaboration with non-technical team members, but as your application grows, there is a very slim chance that they can capture the expanse of customization that your LLMs require. For example, you might deploy a small LLM internal to your infrastructure, which interacts with your larger LLM downstream, but sits outside the scope of your prompt engineering platform. 
+
+As you grow, you also realize that you don't hot-swap your prompts as often as you did in the beginning, instead opting for a more rigorous process of testing and deploying your prompts. So you start to introduce tooling that ensures your prompts are tested and versioned. 
+
+(At this point, you might start to get the suspicion that you're reinventing VCS.)
+
+As your user base grows, you start to encounter even more problems:
+
+- Safely tracing and replaying production data is challenging.
+- Keeping your internal prompt engineering tools in sync with your codebase is frustrating and time-consuming, requiring an engineer in the loop.
+- Context tuning (i.e. # of docs or chunk size) can have as much impact as prompt tuning on performance but is hard to experiment with.
+
+At some point, you embrace the inevitable - your prompts **will eventually live in your codebase**, using all the same tooling and versioning that you use for the rest of your application. This is where Hatchet comes in. 
+
+## The solution: workflows as code
+
+At a high level, Hatchet lets you remotely invoke a function in your codebase, storing inputs and outputs for each function call along the way. If your function errors out, Hatchet handles retries. If you have too many functions for your workers to handle, Hatchet queues up the functions and distributes them fairly based on custom policies you set.
+
+This is particularly useful for LLM calls, which can be slow, have high variance, and are prone to errors like...this:
+
+<Tweet id="1760080088614175068" />
+
+It's typical to fight the non-deterministic nature of LLM-enabled application by breaking up your LLM calls into smaller steps in a workflow, with fine-tuned models sitting at each step. 
+
+These are modeled in Hatchet as a workflow:
+
+```py filename="simple_workflow.py"
+@hatchet.workflow()
+class SimpleWorkflow:
+    @hatchet.step()
+    def start(self, ctx: Context):
+        message = ctx.workflow_input()["messages"][-1]
+
+        prompt = ctx.playground("prompt", "The user is asking the following question: {message}")
+
+        prompt = prompt.format(message=message['content'])
+
+        model = ctx.playground("model", "gpt-3.5-turbo")
+
+        completion = openai.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": prompt},
+                message
+            ]
+        )
+
+        return {
+            "answer": completion.choices[0].message.content,
+        }
+```
+
+## What we're launching
+
+We're launching three new features that turn Hatchet into a flexible prompt engineering platform. 
+
+**A UI for iterating on LLM workflows:** engineers get full flexibility to choose which variables to expose on the playground, which can then be consumed by any team member:
+
+![Launch 1](/launch-1.gif)
+
+We do this by providing a method in our SDK called `playground` which then exposes the variable in the Hatchet UI:
+
+![Launch 4](/launch-4.png)
+
+**Full history of customer interactions:** with Hatchet, you automatically get a full history of the inputs and outputs to each step in your workflow, which is particularly useful when debugging bad customer interactions with your LLMs.
+
+![Launch 2](/launch-2.gif)
+
+**Sync changes back to Github:** useful for non-technical founders and product managers to quickly request changes to your codebase without waiting for an engineer.
+
+![Launch 3](/launch-3.gif)
+
+## Getting started
+
+Let's take a look at how you can get started with a self-hosted instance of Hatchet (if you'd like to use our cloud version, [request access here](https://hatchet.run/request-access)). 
+
+We'll be using the [Hatchet Python Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart) repository in this example. 
+
+<Steps>
+### Step 1: Get Hatchet up and running
+
+First, clone the repository:
+
+```sh copy
+git clone https://github.com/hatchet-dev/hatchet-python-quickstart.git
+cd hatchet-python-quickstart
+```
+
+Run the following command to start the Hatchet instance:
+
+```sh copy
+docker compose up
+```
+
+This will start a Hatchet instance on port `8080`. You should be able to navigate to [localhost:8080](localhost:8080) and use the following credentials to log in:
+
+```sh
+Email: admin@example.com
+Password: Admin123!!
+```
+
+Next, navigate to your settings tab in the Hatchet dashboard. You should see a section called "API Keys". Click "Create API Key", input a name for the key and copy the key. Then copy the environment variable:
+
+```sh
+HATCHET_CLIENT_TOKEN="<token>"
+```
+
+You will need this in the following steps.
+
+### Step 2: Run your first worker
+
+### Step 3: Iterate on your first workflow
+
+</Steps>
+
+## Next Steps
+
+- Check out our [Docs](https://docs.hatchet.run) for more information on how to use Hatchet
+- Join our [Discord](https://discord.gg/ZMeUafwH89) to chat with us and other users
+- Check out our [Github](https://github.com/hatchet-dev/hatchet) if you'd like to contribute to the project

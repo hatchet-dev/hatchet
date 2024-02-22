@@ -2,61 +2,63 @@
 
 ## Introduction
 
-_**Note:** Hatchet is in early development. Changes are not guaranteed to be backwards-compatible. If you'd like to run Hatchet in production, feel free to reach out on Discord for tips._
+Hatchet is a self-hostable platform which lets you define and scale workflows as code.
 
-Hatchet is a self-hostable workflow engine built for application developers.
+**You run your workers, Hatchet manages the rest.**
 
-**What is a workflow?**
+Hatchet is an orchestrator, which means it manages the execution of your workflows. The individual steps of each workflow are executed by your own workers (don't worry, each SDK comes with a worker implementation). This means you can run your workers in your own infrastructure, and Hatchet will manage the scheduling, retries, and monitoring of your workflows. We then provide a full observability layer and dashboard for debugging and retrying failed executions, along with an API for programmatically managing workflows.
 
-The term `workflow` tends to be overloaded, so let's make things more clear - in Hatchet, a workflow is a set of functions which are executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a workflow for that.
+## Use-Cases
 
-**Why is that useful?**
+Hatchet is a generalized, low-latency workflow engine designed for application developers, but is particularly useful in the following cases:
 
-Instead of processing background tasks and functions in your application handlers, which can lead to complex code, hard-to-debug errors, and resource contention, you can distribute these workflows between a set of `workers`. Workers are long-running processes which listen for events, and execute the functions defined in your workflows.
+### Background Task Management and Scheduling
 
-**What is a workflow engine?**
+Instead of developers interfacing directly with a task queue, Hatchet provides a simple API built into each SDK for managing background tasks.
 
-A workflow engine orchestrates the execution of workflows. It schedules workflows on workers, retries failed workflows, and provides integrations for monitoring and debugging workflows.
+**Retries, timeouts and error handling** are built into each Hatchet SDK.
 
-## Demo
+<!-- <IMAGE> -->
 
-[![Quick Demo of Hatchet - Watch Video](https://cdn.loom.com/sessions/thumbnails/ad6a27735a42423880dedee96b56e020-with-play.gif)](https://www.loom.com/share/ad6a27735a42423880dedee96b56e020)
+- **Cron schedules and scheduled workflows** schedule workflows using a crontab syntax, like `*/15 * * * *` (every 15 minutes). You can set multiple crons per workflows, or schedule one-off workflows in the future.
 
-## Project Goals
+- **Task observability** with Hatchet, you get complete access to the inputs and outputs from each step run, which is useful for debugging and observability.
 
-Hatchet has the following high-level goals:
+### Prompt Engineering Playground
 
-1. **Serve application developers:** we aim to support a broad set of languages and frameworks, to make it easier to support your existing applications. We currently support a Go SDK, with more languages coming soon.
-2. **Simple to setup:** we've seen too many overengineered stacks built on a fragile task queue with overly complex infrastructure. Hatchet is designed to be simple to setup, run locally, and deploy to your own infrastructure.
-3. **Flexibility when you need it:** as your application grows, you can use Hatchet to support complex, multi-step distributed workflows. Hatchet's backend is modular, allowing for customizing the implementation of the event storage API, queueing system, authentication, and more.
+Hatchet lets you expose the existing methods you've built in your LLM-enabled applications on a UI for better observability and prompt iteration. It looks something like this:
 
-## Features
+<!-- <GIF> -->
 
-**Currently implemented**
+- **UI-based iteration of LLM workflows** - you get full flexibility to choose which variables to expose on the playground. We do this by providing a method in our SDK called `playground` which then exposes the variable in the Hatchet UI:
 
-- **✅ Declarative workflows:** use the Go SDK to define workflows, with support for timeouts and parallel execution.
-- **✅ Cron schedules:** schedule workflows using a crontab syntax, like `*/15 * * * *` (every 15 minutes).
-- **✅ Events API**: store events in a durable event log, with support for querying and filtering events. Define which events trigger which workflows.
-- **✅ Web UI**: use the web UI to monitor and debug your workflows and events.
-- **✅ Self-hostable**: MIT-licensed and Docker images available.
-- **✅ Locally runnable**: see [here](https://github.com/hatchet-dev/hatchet-go-quickstart) for an example.
-- **✅ Organize workflows using services**: use `worker.NewService` to organize your workflows.
+<!-- <GIF> -->
 
-**Near-term roadmap**
+- **Full observability into customer interactions** with Hatchet, you automatically get a full history of the inputs and outputs to each step in your workflow, which is particularly useful when debugging bad customer interactions with your LLMs.
 
-- 🚧 Helm chart for Kubernetes deployments
-- 🚧 UI and CLI for creating, updating, and deleting workflows
-- 🚧 Better support for parallel step execution
-- 🚧 More integrations
+<!-- <GIF> -->
+
+- **Deploy changes to Github** useful for non-technical founders and product managers to quickly request changes to your codebase without waiting for an engineer.
+
+<!-- <GIF> -->
+
+### Event-Driven Architectures
+
+- **Durable event log** - get a full history of events within your system that triggered workflows, with an Events API for pushing and pulling events.
+
+- **Logically organize your services** - each worker can run its own set of workflows, so you can organize your worker pools to only pickup certain types of tasks.
 
 ## Getting Started
 
-To get started, see the Hatchet documentation [here](https://docs.hatchet.run).
+To get started, see the Hatchet documentation [here](https://docs.hatchet.run/home/quickstart), or check out our quickstart repos:
 
-## Github Issues
+- [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
+- [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
+
+## Issues
 
 Please submit any bugs that you encounter via Github issues. However, please reach out on [Discord](https://discord.gg/ZMeUafwH89) before submitting a feature request - as the project is very early, we'd like to build a solid foundation before adding more complex features.
 
 ## I'd Like to Contribute
 
-See the contributing docs [here](./CONTRIBUTING.md), and please let us know what you're interesting in working on in the #contributing channel on [Discord](https://discord.gg/ZMeUafwH89). This will help us shape the direction of the project and will make collaboration much easier!
+See the contributing docs [here](https://docs.hatchet.run/contributing), and please let us know what you're interesting in working on in the #contributing channel on [Discord](https://discord.gg/ZMeUafwH89). This will help us shape the direction of the project and will make collaboration much easier!

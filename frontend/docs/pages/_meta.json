@@ -10,5 +10,10 @@
     "contributing": {
         "title": "Contributing",
         "type": "page"
+    },
+    "launches": {
+        "title": "Launches",
+        "display": "hidden",
+        "type": "page"
     }
 }
