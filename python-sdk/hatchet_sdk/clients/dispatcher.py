@@ -113,11 +113,6 @@ class ActionListenerImpl(WorkerActionListener):
                     # Context cancelled, unsubscribe and close
                     # self.logger.debug("Context cancelled, closing listener")
                     break
-                elif e.code() == grpc.StatusCode.UNAVAILABLE:
-                    # Retry logic
-                    logger.info(
-                        f"Could not connect to Hatchet, retrying... {self.retries}/{DEFAULT_ACTION_LISTENER_RETRY_COUNT}")
-                    self.retries = self.retries + 1
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                     logger.info("Deadline exceeded, retrying subscription")
                     continue
