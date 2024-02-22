@@ -1,6 +1,58 @@
 version: "3"
 
 tasks:
+  setup:
+    cmds:
+      - |
+        task install-dependencies && 
+        task generate-certs &&
+        task set-env-db && 
+        task prisma-migrate && 
+        task generate-all && 
+        task generate-local-encryption-keys &&
+        task set-env-all && 
+        task seed-dev && 
+        task copy-ca-to-sdks
+  set-env-db:
+    cmds:
+      - |
+        cat > .env <<EOF
+        DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+        EOF
+  set-env-all:
+    cmds:
+      - |
+        randstring() { openssl rand -base64 69 | tr -d "\n" | tr -d "=+/" | cut -c1-$1; }
+
+        cat > .env <<EOF
+        DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+        SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
+        SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
+        SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
+
+        SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
+        SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
+        SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
+
+        SERVER_PORT=8080
+        SERVER_URL=https://app.dev.hatchet-tools.com
+
+        SERVER_AUTH_COOKIE_SECRETS="$(randstring 16) $(randstring 16)"
+        SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
+        SERVER_AUTH_COOKIE_INSECURE=false
+        SERVER_AUTH_SET_EMAIL_VERIFIED=true
+
+        SERVER_LOGGER_LEVEL=debug
+        SERVER_LOGGER_FORMAT=console
+        DATABASE_LOGGER_LEVEL=debug
+        DATABASE_LOGGER_FORMAT=console
+        EOF
+  start-db:
+    cmds:
+      - docker compose up -d
+  stop-db:
+    cmds:
+      - docker compose down
   set-etc-hosts:
     cmds:
       - sudo sh ./hack/dev/manage-hosts.sh add 127.0.0.1 app.dev.hatchet-tools.com
@@ -13,6 +65,7 @@ tasks:
       - SEED_DEVELOPMENT=true sh ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
   start-dev:
     deps:
+      - task: start-db
       - task: start-api
       - task: start-engine
       - task: start-frontend
@@ -28,14 +81,14 @@ tasks:
   start-ngrok:
     cmds:
       - ngrok http 8080
-  generate:
+  generate-all:
     cmds:
-      - task: deps
+      - task: install-dependencies
       - task: generate-api
       - task: generate-go
       - task: generate-proto
       - task: generate-sqlc
-  deps:
+  install-dependencies:
     cmds:
       - go mod download
       - cd frontend/app/ && pnpm install
@@ -99,3 +152,7 @@ tasks:
   prisma-studio:
     cmds:
       - sh ./hack/dev/run-npx-with-env.sh prisma studio
+  copy-ca-to-sdks:
+    cmds:
+      - mkdir -p ./python-sdk/certs/ && cp ./hack/dev/certs/ca.cert ./python-sdk/certs/
+      - mkdir -p ./typescript-sdk/certs/ && cp ./hack/dev/certs/ca.cert ./typescript-sdk/certs/
