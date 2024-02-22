@@ -26,7 +26,7 @@ import { FileTree } from 'nextra/components'
 version: "3.8"
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:15.6
     command: postgres -c 'max_connections=200'
     restart: always
     hostname: "postgres"
