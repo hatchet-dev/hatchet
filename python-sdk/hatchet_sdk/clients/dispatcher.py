@@ -9,6 +9,7 @@ import json
 import grpc
 from typing import Callable, List, Union
 from ..metadata import get_metadata
+import time
 
 
 def new_dispatcher(conn, config: ClientConfig):
@@ -24,10 +25,12 @@ class DispatcherClient:
     def send_step_action_event(self, ctx, in_):
         raise NotImplementedError
 
-DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 1  # seconds
-DEFAULT_ACTION_LISTENER_RETRY_COUNT = 5
+
+DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds
+DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
 DEFAULT_ACTION_TIMEOUT = 60  # seconds
 DEFAULT_REGISTER_TIMEOUT = 5
+
 
 class GetActionListenerRequest:
     def __init__(self, worker_name: str, services: List[str], actions: List[str]):
@@ -67,17 +70,19 @@ class ActionListenerImpl(WorkerActionListener):
         self.token = token
         self.worker_id = worker_id
         self.retries = 0
-        
+        self.last_connection_attempt = 0
         # self.logger = logger
         # self.validator = validator
 
     def actions(self):
         while True:
-            logger.info("Listening for actions...")
+            logger.info(
+                "Connecting to Hatchet to establish listener for actions...")
 
             try:
                 for assigned_action in self.get_listen_client():
-                    assigned_action : AssignedAction
+                    self.retries = 0
+                    assigned_action: AssignedAction
 
                     # Process the received action
                     action_type = self.map_action_type(assigned_action.actionType)
@@ -110,10 +115,6 @@ class ActionListenerImpl(WorkerActionListener):
                     # Context cancelled, unsubscribe and close
                     # self.logger.debug("Context cancelled, closing listener")
                     break
-                elif e.code() == grpc.StatusCode.UNAVAILABLE:
-                    # Retry logic
-                    logger.info("Could not connect to Hatchet, retrying...")
-                    self.retries = self.retries + 1
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                     logger.info("Deadline exceeded, retrying subscription")
                     continue
@@ -122,7 +123,8 @@ class ActionListenerImpl(WorkerActionListener):
                     # self.logger.error(f"Failed to receive message: {e}")
                     # err_ch(e)
                     logger.error(f"Failed to receive message: {e}")
-                    break
+
+                    self.retries = self.retries + 1
 
     def parse_action_payload(self, payload : str):
         try:
@@ -143,19 +145,32 @@ class ActionListenerImpl(WorkerActionListener):
             return None
         
     def get_listen_client(self):
+        current_time = int(time.time())
+
+        if current_time-self.last_connection_attempt > DEFAULT_ACTION_LISTENER_RETRY_INTERVAL:
+            self.retries = 0
+
         if self.retries > DEFAULT_ACTION_LISTENER_RETRY_COUNT:
-            raise Exception(f"Could not subscribe to the worker after {DEFAULT_ACTION_LISTENER_RETRY_COUNT} retries")
-        elif self.retries > 1:
+            raise Exception(
+                f"Could not subscribe to the worker after {DEFAULT_ACTION_LISTENER_RETRY_COUNT} retries")
+        elif self.retries >= 1:
             # logger.info
             # if we are retrying, we wait for a bit. this should eventually be replaced with exp backoff + jitter
             time.sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL)
-        
-        return self.client.Listen(WorkerListenRequest(
-                    workerId=self.worker_id
-                ), 
-                timeout=DEFAULT_ACTION_TIMEOUT, 
-                metadata=get_metadata(self.token),
-            )
+            logger.info(
+                f"Could not connect to Hatchet, retrying... {self.retries}/{DEFAULT_ACTION_LISTENER_RETRY_COUNT}")
+
+        listener = self.client.Listen(WorkerListenRequest(
+            workerId=self.worker_id
+        ),
+            timeout=DEFAULT_ACTION_TIMEOUT,
+            metadata=get_metadata(self.token),
+        )
+
+        self.last_connection_attempt = current_time
+
+        logger.info('Listener established.')
+        return listener
 
     def unregister(self):
         try:
