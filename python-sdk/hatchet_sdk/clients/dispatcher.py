@@ -126,7 +126,8 @@ class ActionListenerImpl(WorkerActionListener):
                     # self.logger.error(f"Failed to receive message: {e}")
                     # err_ch(e)
                     logger.error(f"Failed to receive message: {e}")
-                    break
+
+                    self.retries = self.retries + 1
 
     def parse_action_payload(self, payload : str):
         try:
@@ -150,10 +151,12 @@ class ActionListenerImpl(WorkerActionListener):
         if self.retries > DEFAULT_ACTION_LISTENER_RETRY_COUNT:
             raise Exception(
                 f"Could not subscribe to the worker after {DEFAULT_ACTION_LISTENER_RETRY_COUNT} retries")
-        elif self.retries > 1:
+        elif self.retries >= 1:
             # logger.info
             # if we are retrying, we wait for a bit. this should eventually be replaced with exp backoff + jitter
             time.sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL)
+            logger.info(
+                f"Could not connect to Hatchet, retrying... {self.retries}/{DEFAULT_ACTION_LISTENER_RETRY_COUNT}")
 
         listener = self.client.Listen(WorkerListenRequest(
             workerId=self.worker_id
