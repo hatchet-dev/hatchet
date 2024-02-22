@@ -9,6 +9,7 @@ import json
 import grpc
 from typing import Callable, List, Union
 from ..metadata import get_metadata
+import time
 
 
 def new_dispatcher(conn, config: ClientConfig):
@@ -69,7 +70,7 @@ class ActionListenerImpl(WorkerActionListener):
         self.token = token
         self.worker_id = worker_id
         self.retries = 0
-        
+        self.last_connection_attempt = 0
         # self.logger = logger
         # self.validator = validator
 
@@ -80,7 +81,8 @@ class ActionListenerImpl(WorkerActionListener):
 
             try:
                 for assigned_action in self.get_listen_client():
-                    assigned_action : AssignedAction
+                    self.retries = 0
+                    assigned_action: AssignedAction
 
                     # Process the received action
                     action_type = self.map_action_type(assigned_action.actionType)
@@ -143,6 +145,11 @@ class ActionListenerImpl(WorkerActionListener):
             return None
         
     def get_listen_client(self):
+        current_time = int(time.time())
+
+        if current_time-self.last_connection_attempt > DEFAULT_ACTION_LISTENER_RETRY_INTERVAL:
+            self.retries = 0
+
         if self.retries > DEFAULT_ACTION_LISTENER_RETRY_COUNT:
             raise Exception(
                 f"Could not subscribe to the worker after {DEFAULT_ACTION_LISTENER_RETRY_COUNT} retries")
@@ -159,6 +166,8 @@ class ActionListenerImpl(WorkerActionListener):
             timeout=DEFAULT_ACTION_TIMEOUT,
             metadata=get_metadata(self.token),
         )
+
+        self.last_connection_attempt = current_time
 
         logger.info('Listener established.')
         return listener
