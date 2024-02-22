@@ -26,7 +26,7 @@ Instead of developers interfacing directly with a task queue, Hatchet provides a
 
 Hatchet lets you expose the existing methods you've built in your LLM-enabled applications on a UI for better observability and prompt iteration. It looks something like this:
 
-![1](https://github.com/hatchet-dev/hatchet/assets/25448214/01394947-8876-43dd-8ac9-6daddbe79f81)
+https://github.com/hatchet-dev/hatchet/assets/25448214/e4522c16-3599-4fad-b4ce-ff8ae614b074
 
 - **UI-based iteration of LLM workflows** - you get full flexibility to choose which variables to expose on the playground. We do this by providing a method in our SDK called `playground` which then exposes the variable in the Hatchet UI:
 
@@ -34,11 +34,11 @@ Hatchet lets you expose the existing methods you've built in your LLM-enabled ap
 
 - **Full observability into customer interactions** with Hatchet, you automatically get a full history of the inputs and outputs to each step in your workflow, which is particularly useful when debugging bad customer interactions with your LLMs.
 
-  ![2](https://github.com/hatchet-dev/hatchet/assets/25448214/51cfeab7-c6d9-41a1-9ebe-3006b54b7a10)
+  https://github.com/hatchet-dev/hatchet/assets/25448214/924510d9-3056-4ddf-a36a-3c2c719451df
 
 - **Deploy changes to Github** useful for non-technical founders and product managers to quickly request changes to your codebase without waiting for an engineer.
 
-  ![3](https://github.com/hatchet-dev/hatchet/assets/25448214/06b8c921-6288-4af8-b4c8-87c43d08ffef)
+  https://github.com/hatchet-dev/hatchet/assets/25448214/93e6f358-ac83-474f-8a0b-4c1e26f4f825
 
 ### Event-Driven Architectures
 
