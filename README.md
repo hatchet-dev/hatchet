@@ -6,19 +6,17 @@ Hatchet is a self-hostable platform which lets you define and scale workflows as
 
 **You run your workers, Hatchet manages the rest.**
 
-Hatchet is an orchestrator, which means it manages the execution of your workflows. The individual steps of each workflow are executed by your own workers (don't worry, each SDK comes with a worker implementation). This means you can run your workers in your own infrastructure, and Hatchet will manage the scheduling, retries, and monitoring of your workflows. We then provide a full observability layer and dashboard for debugging and retrying failed executions, along with an API for programmatically managing workflows.
+Hatchet is an orchestrator, which means it manages the execution of your workflows. The individual steps of each workflow are executed by your own workers (don't worry, each SDK comes with a worker implementation). This means you can run your workers in your own infrastructure, and Hatchet will manage the scheduling, retries, and monitoring of your workflows. Hatchet then provides a full observability layer and dashboard for debugging and retrying failed executions, along with an API for programmatically managing workflows.
 
 ## Use-Cases
 
-Hatchet is a generalized, low-latency workflow engine designed for application developers, but is particularly useful in the following cases:
+While Hatchet is generalized and ideal for many low-latency workflow tasks, it is particularly useful in the following cases:
 
 ### Background Task Management and Scheduling
 
 Instead of developers interfacing directly with a task queue, Hatchet provides a simple API built into each SDK for managing background tasks.
 
-**Retries, timeouts and error handling** are built into each Hatchet SDK.
-
-<!-- <IMAGE> -->
+- **Retries, timeouts and error handling** are built into each Hatchet SDK.
 
 - **Cron schedules and scheduled workflows** schedule workflows using a crontab syntax, like `*/15 * * * *` (every 15 minutes). You can set multiple crons per workflows, or schedule one-off workflows in the future.
 
@@ -28,21 +26,25 @@ Instead of developers interfacing directly with a task queue, Hatchet provides a
 
 Hatchet lets you expose the existing methods you've built in your LLM-enabled applications on a UI for better observability and prompt iteration. It looks something like this:
 
-<!-- <GIF> -->
+![1](https://github.com/hatchet-dev/hatchet/assets/25448214/01394947-8876-43dd-8ac9-6daddbe79f81)
 
 - **UI-based iteration of LLM workflows** - you get full flexibility to choose which variables to expose on the playground. We do this by providing a method in our SDK called `playground` which then exposes the variable in the Hatchet UI:
 
-<!-- <GIF> -->
+  <img width="929" alt="Screen Shot 2024-02-19 at 6 42 29 PM" src="https://github.com/hatchet-dev/hatchet/assets/25448214/14e2e71d-cdde-4856-b254-4959afd1da1e">
 
 - **Full observability into customer interactions** with Hatchet, you automatically get a full history of the inputs and outputs to each step in your workflow, which is particularly useful when debugging bad customer interactions with your LLMs.
 
-<!-- <GIF> -->
+  ![2](https://github.com/hatchet-dev/hatchet/assets/25448214/51cfeab7-c6d9-41a1-9ebe-3006b54b7a10)
 
 - **Deploy changes to Github** useful for non-technical founders and product managers to quickly request changes to your codebase without waiting for an engineer.
 
-<!-- <GIF> -->
+  ![3](https://github.com/hatchet-dev/hatchet/assets/25448214/06b8c921-6288-4af8-b4c8-87c43d08ffef)
 
 ### Event-Driven Architectures
+
+Because Hatchet is designed for low-latency and stores the history of every step execution, it's ideal for event-driven architectures with events triggering across multiple workers and services. 
+
+- **Event-triggered workflows** - workflows can be triggered from any event within your system via user-defined event keys.
 
 - **Durable event log** - get a full history of events within your system that triggered workflows, with an Events API for pushing and pulling events.
 
