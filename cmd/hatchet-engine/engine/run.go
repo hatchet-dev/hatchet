@@ -44,6 +44,13 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	var teardown []Teardown
 
 	teardown = append(teardown, Teardown{
+		name: "database",
+		fn: func() error {
+			return sc.Disconnect()
+		},
+	})
+
+	teardown = append(teardown, Teardown{
 		name: "telemetry",
 		fn: func() error {
 			return shutdown(ctx)
@@ -303,11 +310,6 @@ Loop:
 		l.Debug().Msgf("successfully shutdown %s (%d/%d)", t.name, i+1, len(teardown))
 	}
 	l.Debug().Msgf("all services have successfully gracefully exited")
-
-	err = sc.Disconnect()
-	if err != nil {
-		return fmt.Errorf("could not disconnect from repository: %w", err)
-	}
 
 	l.Debug().Msgf("successfully shutdown")
 
