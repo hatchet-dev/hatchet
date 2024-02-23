@@ -43,26 +43,24 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 	var teardown []Teardown
 
-	teardown = append(teardown, Teardown{
+	teardown = append([]Teardown{{
 		name: "database",
 		fn: func() error {
 			return sc.Disconnect()
 		},
-	})
-
-	teardown = append(teardown, Teardown{
-		name: "telemetry",
-		fn: func() error {
-			return shutdown(ctx)
-		},
-	})
-
-	teardown = append(teardown, Teardown{
+	}}, teardown...)
+	teardown = append([]Teardown{{
 		name: "server",
 		fn: func() error {
 			return serverCleanup()
 		},
-	})
+	}}, teardown...)
+	teardown = append([]Teardown{{
+		name: "telemetry",
+		fn: func() error {
+			return shutdown(ctx)
+		},
+	}}, teardown...)
 
 	if sc.HasService("grpc") {
 		wg.Add(2)
