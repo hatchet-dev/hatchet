@@ -14,7 +14,6 @@ import (
 )
 
 func TestMiddleware(t *testing.T) {
-	t.Skipf("skipping test due to race conditions")
 	testutils.Prepare(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
