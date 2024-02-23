@@ -8,6 +8,11 @@ Hatchet is a self-hostable platform which lets you define and scale workflows as
 
 Hatchet is an orchestrator, which means it manages the execution of your workflows. The individual steps of each workflow are executed by your own workers (don't worry, each SDK comes with a worker implementation). This means you can run your workers in your own infrastructure, and Hatchet will manage the scheduling, retries, and monitoring of your workflows. Hatchet then provides a full observability layer and dashboard for debugging and retrying failed executions, along with an API for programmatically managing workflows.
 
+## Jump into Language Specific Quick Starts
+- [Python](https://github.com/hatchet-dev/hatchet-python-quickstart) - simple workflows and full stack (FastAPI + React)
+- [Go](https://github.com/hatchet-dev/hatchet-go-quickstart) - simple workflow examples
+- Typescript - coming soon!
+
 ## Use-Cases
 
 While Hatchet is generalized and ideal for many low-latency workflow tasks, it is particularly useful in the following cases:
