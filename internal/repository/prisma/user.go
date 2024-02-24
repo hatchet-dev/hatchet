@@ -69,7 +69,7 @@ func (r *userRepository) CreateUser(opts *repository.CreateUserOpts) (*db.UserMo
 		params...,
 	).Tx()
 
-	txs := []db.Transaction{
+	txs := []db.PrismaTransaction{
 		createTx,
 	}
 
@@ -119,7 +119,7 @@ func (r *userRepository) UpdateUser(id string, opts *repository.UpdateUserOpts) 
 		params...,
 	).Tx()
 
-	txs := []db.Transaction{
+	txs := []db.PrismaTransaction{
 		updateTx,
 	}
 

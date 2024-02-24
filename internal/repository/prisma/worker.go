@@ -159,7 +159,7 @@ func (w *workerRepository) CreateNewWorker(tenantId string, opts *repository.Cre
 		return nil, err
 	}
 
-	txs := []db.Transaction{}
+	txs := []db.PrismaTransaction{}
 
 	workerId := uuid.New().String()
 
@@ -243,7 +243,7 @@ func (w *workerRepository) UpdateWorker(tenantId, workerId string, opts *reposit
 		return nil, err
 	}
 
-	txs := []db.Transaction{}
+	txs := []db.PrismaTransaction{}
 
 	optionals := []db.WorkerSetParam{}
 

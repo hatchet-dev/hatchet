@@ -340,7 +340,7 @@ func (r *workflowRepository) CreateSchedules(
 		return nil, err
 	}
 
-	txs := []db.Transaction{}
+	txs := []db.PrismaTransaction{}
 	results := []createScheduleTxResult{}
 
 	for _, scheduledTrigger := range opts.ScheduledTriggers {
