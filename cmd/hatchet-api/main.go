@@ -2,9 +2,8 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
-	"sync"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -30,7 +29,10 @@ var rootCmd = &cobra.Command{
 		cf := loader.NewConfigLoader(configDirectory)
 		interruptChan := cmdutils.InterruptChan()
 
-		startServerOrDie(cf, interruptChan)
+		if err := startAPI(cf, interruptChan); err != nil {
+			log.Println("error starting API:", err)
+			os.Exit(1)
+		}
 	},
 }
 
@@ -58,10 +60,7 @@ func main() {
 	}
 }
 
-func startServerOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
-	ctx, cancel := cmdutils.InterruptContextFromChan(interruptCh)
-	defer cancel()
-
+func startAPI(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
 	// init the repository
 	cleanup, sc, err := cf.LoadServerConfig()
 	defer func() {
@@ -71,16 +70,12 @@ func startServerOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 	}()
 
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error loading server config: %w", err)
 	}
 
-	errCh := make(chan error)
-
-	wg := sync.WaitGroup{}
+	var teardowns []func() error
 
 	if sc.InternalClient != nil {
-		wg.Add(1)
-
 		w, err := worker.NewWorker(
 			worker.WithRepository(sc.Repository),
 			worker.WithClient(sc.InternalClient),
@@ -88,53 +83,39 @@ func startServerOrDie(cf *loader.ConfigLoader, interruptCh <-chan interface{}) {
 		)
 
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("error creating worker: %w", err)
 		}
 
-		go func() {
-			defer wg.Done()
-
-			time.Sleep(5 * time.Second)
-
-			err := w.Start(ctx)
-
-			if err != nil {
-				errCh <- err
-				return
-			}
-		}()
-	}
-
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-
-		runner := run.NewAPIServer(sc)
-
-		err = runner.Run(ctx)
-
+		cleanup, err := w.Start()
 		if err != nil {
-			errCh <- err
-			return
+			return fmt.Errorf("error starting worker: %w", err)
 		}
-	}()
 
-Loop:
-	for {
-		select {
-		case err := <-errCh:
-			fmt.Fprintf(os.Stderr, "%s", err)
+		teardowns = append(teardowns, cleanup)
+	}
 
-			// exit with non-zero exit code
-			os.Exit(1) //nolint:gocritic
-		case <-interruptCh:
-			break Loop
+	runner := run.NewAPIServer(sc)
+
+	cleanup, err = runner.Run()
+	if err != nil {
+		return fmt.Errorf("error starting API server: %w", err)
+	}
+
+	teardowns = append(teardowns, cleanup)
+
+	sc.Logger.Debug().Msgf("api started successfully")
+
+	<-interruptCh
+
+	sc.Logger.Debug().Msgf("api is shutting down...")
+
+	for _, teardown := range teardowns {
+		if err := teardown(); err != nil {
+			return err
 		}
 	}
 
-	cancel()
+	sc.Logger.Debug().Msgf("api successfully shut down")
 
-	// TODO: should wait with a timeout
-	// wg.Wait()
+	return nil
 }
