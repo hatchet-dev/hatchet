@@ -16,7 +16,8 @@
 [![Discord](https://img.shields.io/discord/1088927970518909068?style=social&logo=discord)](https://discord.gg/ZMeUafwH89) [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/hatchet-dev.svg?style=social&label=Follow%20%40hatchet-dev)](https://twitter.com/triggerdotdev) [![GitHub Repo stars](https://img.shields.io/github/stars/hatchet-dev/hatchet?style=social)](https://github.com/triggerdotdev/trigger.dev)
 
 </div>
-## # What is Hatchet?
+
+### What is Hatchet?
 
 Hatchet is a managed or self-hosted low-latency queue for your web apps to solve problems at scale like concurrency, fairness, and rate limiting. Hatchet is used wherever handling requests due to scaling is an issue. For example, you might use hatchet for reliably handling high volume generative AI requests, orchestrate durable data workflows, schedule large-scale batch jobs, and much more.
 
