@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
-	"github.com/steebchen/prisma-client-go/runtime/transaction"
 
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
@@ -341,7 +340,7 @@ func (r *workflowRepository) CreateSchedules(
 		return nil, err
 	}
 
-	txs := []transaction.Param{}
+	txs := []db.PrismaTransaction{}
 	results := []createScheduleTxResult{}
 
 	for _, scheduledTrigger := range opts.ScheduledTriggers {
