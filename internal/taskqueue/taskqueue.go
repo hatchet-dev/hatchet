@@ -146,4 +146,7 @@ type TaskQueue interface {
 	// on the first message to a tenant to ensure that the tenant is registered, and store the tenant
 	// in an LRU cache which lives in-memory.
 	RegisterTenant(ctx context.Context, tenantId string) error
+
+	// IsReady returns true if the task queue is ready to accept tasks.
+	IsReady() bool
 }

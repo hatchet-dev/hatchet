@@ -6,14 +6,23 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 type Health struct {
 	ready bool
+
+	repository repository.Repository
+	queue      taskqueue.TaskQueue
 }
 
-func New() *Health {
-	return &Health{}
+func New(prisma repository.Repository, queue taskqueue.TaskQueue) *Health {
+	return &Health{
+		repository: prisma,
+		queue:      queue,
+	}
 }
 
 func (h *Health) SetReady(ready bool) {
@@ -28,12 +37,10 @@ func (h *Health) Start() func() error {
 	})
 
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-		if !h.ready {
+		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
-
-		// TODO check db & queue status
 
 		w.WriteHeader(http.StatusOK)
 	})

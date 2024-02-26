@@ -41,9 +41,10 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 	var teardown []Teardown
 
-	h := health.New()
+	var h *health.Health
 	healthProbes := sc.HasService("health")
 	if healthProbes {
+		h = health.New(sc.Repository, sc.TaskQueue)
 		cleanup := h.Start()
 		teardown = append(teardown, Teardown{
 			name: "health",

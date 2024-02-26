@@ -1,6 +1,7 @@
 package repository
 
 type Repository interface {
+	Health() HealthRepository
 	APIToken() APITokenRepository
 	Event() EventRepository
 	Tenant() TenantRepository
