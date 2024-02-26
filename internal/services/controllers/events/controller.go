@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -97,16 +98,20 @@ func New(fs ...EventsControllerOpt) (*EventsControllerImpl, error) {
 func (ec *EventsControllerImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	taskChan, err := ec.tq.Subscribe(ctx, taskqueue.EVENT_PROCESSING_QUEUE)
+	cleanupQueue, taskChan, err := ec.tq.Subscribe(taskqueue.EVENT_PROCESSING_QUEUE)
 
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not subscribe to event processing queue: %w", err)
 	}
 
+	wg := sync.WaitGroup{}
+
 	go func() {
 		for task := range taskChan {
+			wg.Add(1)
 			go func(task *taskqueue.Task) {
+				defer wg.Done()
 				err = ec.handleTask(ctx, task)
 
 				if err != nil {
@@ -118,6 +123,9 @@ func (ec *EventsControllerImpl) Start() (func() error, error) {
 
 	cleanup := func() error {
 		cancel()
+		if err := cleanupQueue(); err != nil {
+			return fmt.Errorf("could not cleanup event processing queue: %w", err)
+		}
 		return nil
 	}
 

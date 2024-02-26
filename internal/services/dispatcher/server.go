@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/steebchen/prisma-client-go/runtime/types"
@@ -301,19 +302,27 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 	defer cancel()
 
 	// subscribe to the task queue for the tenant
-	taskChan, err := s.tq.Subscribe(ctx, q)
+	cleanupQueue, taskChan, err := s.tq.Subscribe(q)
 
 	if err != nil {
 		return err
 	}
 
+	wg := sync.WaitGroup{}
+
 	for {
 		select {
 		case <-ctx.Done():
+			if err := cleanupQueue(); err != nil {
+				return fmt.Errorf("could not cleanup queue: %w", err)
+			}
 			// drain the existing connections
+			wg.Wait()
 			return nil
 		case task := <-taskChan:
+			wg.Add(1)
 			go func(task *taskqueue.Task) {
+				defer wg.Done()
 				e, err := s.tenantTaskToWorkflowEvent(task, tenant.ID, request.WorkflowRunId)
 
 				if err != nil {

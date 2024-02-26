@@ -135,7 +135,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// subscribe to a task queue with the dispatcher id
-	taskChan, err := d.tq.Subscribe(ctx, taskqueue.QueueTypeFromDispatcherID(dispatcher.ID))
+	cleanupQueue, taskChan, err := d.tq.Subscribe(taskqueue.QueueTypeFromDispatcherID(dispatcher.ID))
 
 	if err != nil {
 		cancel()
@@ -176,6 +176,10 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	cleanup := func() error {
 		d.l.Debug().Msgf("dispatcher is shutting down...")
 		cancel()
+
+		if err := cleanupQueue(); err != nil {
+			return fmt.Errorf("could not cleanup queue: %w", err)
+		}
 
 		// drain the existing connections
 		d.l.Debug().Msg("draining existing connections")

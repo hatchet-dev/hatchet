@@ -131,7 +131,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	// subscribe to a task queue with the dispatcher id
-	taskChan, err := t.tq.Subscribe(ctx, taskqueue.QueueTypeFromTickerID(ticker.ID))
+	cleanupQueue, taskChan, err := t.tq.Subscribe(taskqueue.QueueTypeFromTickerID(ticker.ID))
 
 	if err != nil {
 		cancel()
@@ -171,9 +171,13 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 	t.s.Start()
 
+	wg := sync.WaitGroup{}
+
 	go func() {
 		for task := range taskChan {
+			wg.Add(1)
 			go func(task *taskqueue.Task) {
+				defer wg.Done()
 				err = t.handleTask(ctx, task)
 
 				if err != nil {
@@ -184,9 +188,15 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}()
 
 	cleanup := func() error {
+		t.l.Debug().Msg("removing ticker")
+
 		cancel()
 
-		t.l.Debug().Msg("removing ticker")
+		if err := cleanupQueue(); err != nil {
+			return fmt.Errorf("could not cleanup queue: %w", err)
+		}
+
+		wg.Wait()
 
 		// delete the ticker
 		err = t.repo.Ticker().Delete(t.tickerId)

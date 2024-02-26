@@ -149,12 +149,12 @@ func (t *TaskQueueImpl) AddTask(ctx context.Context, q taskqueue.Queue, task *ta
 }
 
 // Subscribe subscribes to the task queue.
-func (t *TaskQueueImpl) Subscribe(ctx context.Context, q taskqueue.Queue) (<-chan *taskqueue.Task, error) {
+func (t *TaskQueueImpl) Subscribe(q taskqueue.Queue) (func() error, <-chan *taskqueue.Task, error) {
 	t.l.Debug().Msgf("subscribing to queue: %s", q.Name())
 
 	tasks := make(chan *taskqueue.Task)
-	go t.subscribe(ctx, t.identity, q, t.sessions, t.tasks, tasks)
-	return tasks, nil
+	cleanup := t.subscribe(t.identity, q, t.sessions, t.tasks, tasks)
+	return cleanup, tasks, nil
 }
 
 func (t *TaskQueueImpl) RegisterTenant(ctx context.Context, tenantId string) error {
@@ -292,63 +292,73 @@ func (t *TaskQueueImpl) startPublishing() func() error {
 	return cleanup
 }
 
-func (t *TaskQueueImpl) subscribe(ctx context.Context, subId string, q taskqueue.Queue, sessions chan chan session, messages chan *taskWithQueue, tasks chan<- *taskqueue.Task) {
+func (t *TaskQueueImpl) subscribe(subId string, q taskqueue.Queue, sessions chan chan session, messages chan *taskWithQueue, tasks chan<- *taskqueue.Task) func() error {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	sessionCount := 0
 
 	wg := sync.WaitGroup{}
 
-outer:
-	for session := range sessions {
-		sessionCount++
-		sub := <-session
+	go func() {
+		for session := range sessions {
+			sessionCount++
+			sub := <-session
 
-		// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
-		// if the exclusive queue will be available to the next session.
-		queueName, err := t.initQueue(sub, q)
+			// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
+			// if the exclusive queue will be available to the next session.
+			queueName, err := t.initQueue(sub, q)
 
-		if err != nil {
-			return
-		}
+			if err != nil {
+				return
+			}
 
-		deliveries, err := sub.Consume(queueName, subId, false, q.Exclusive(), false, false, nil)
+			deliveries, err := sub.Consume(queueName, subId, false, q.Exclusive(), false, false, nil)
 
-		if err != nil {
-			t.l.Error().Msgf("cannot consume from: %s, %v", queueName, err)
-			return
-		}
+			if err != nil {
+				t.l.Error().Msgf("cannot consume from: %s, %v", queueName, err)
+				return
+			}
 
-		for {
-			select {
-			case msg := <-deliveries:
-				wg.Add(1)
-				go func(msg amqp.Delivery) {
-					defer wg.Done()
-					task := &taskWithQueue{}
+			for {
+				select {
+				case msg := <-deliveries:
+					wg.Add(1)
+					go func(msg amqp.Delivery) {
+						defer wg.Done()
+						task := &taskWithQueue{}
 
-					if err := json.Unmarshal(msg.Body, task); err != nil {
-						t.l.Error().Msgf("error unmarshaling message: %v", err)
-						return
-					}
+						if err := json.Unmarshal(msg.Body, task); err != nil {
+							t.l.Error().Msgf("error unmarshaling message: %v", err)
+							return
+						}
 
-					t.l.Debug().Msgf("(session: %d) got task: %v", sessionCount, task.ID)
+						t.l.Debug().Msgf("(session: %d) got task: %v", sessionCount, task.ID)
 
-					tasks <- task.Task
+						tasks <- task.Task
 
-					if err := sub.Ack(msg.DeliveryTag, false); err != nil {
-						t.l.Error().Msgf("error acknowledging message: %v", err)
-						return
-					}
-				}(msg)
-			case <-ctx.Done():
-				t.l.Debug().Msgf("shutting down subscriber: %s", subId)
-				break outer
+						if err := sub.Ack(msg.DeliveryTag, false); err != nil {
+							t.l.Error().Msgf("error acknowledging message: %v", err)
+							return
+						}
+					}(msg)
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
+	}()
+
+	cleanup := func() error {
+		cancel()
+
+		t.l.Debug().Msgf("shutting down subscriber: %s", subId)
+		wg.Wait()
+		close(tasks)
+		t.l.Debug().Msgf("successfully shut down subscriber: %s", subId)
+		return nil
 	}
 
-	wg.Wait()
-
-	close(tasks)
+	return cleanup
 }
 
 // redial continually connects to the URL, exiting the program when no longer possible

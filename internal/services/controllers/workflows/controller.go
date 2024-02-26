@@ -3,6 +3,7 @@ package workflows
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -96,21 +97,22 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 }
 
 func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	wc.l.Debug().Msg("starting workflows controller")
 
-	taskChan, err := wc.tq.Subscribe(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE)
+	cleanupQueue, taskChan, err := wc.tq.Subscribe(taskqueue.WORKFLOW_PROCESSING_QUEUE)
 
 	if err != nil {
-		cancel()
 		return nil, err
 	}
 
+	wg := sync.WaitGroup{}
+
 	go func() {
 		for task := range taskChan {
+			wg.Add(1)
 			go func(task *taskqueue.Task) {
-				err = wc.handleTask(ctx, task)
+				defer wg.Done()
+				err = wc.handleTask(context.Background(), task)
 
 				if err != nil {
 					wc.l.Error().Err(err).Msg("could not handle job task")
@@ -120,7 +122,10 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 	}()
 
 	cleanup := func() error {
-		cancel()
+		if err := cleanupQueue(); err != nil {
+			return fmt.Errorf("could not cleanup queue: %w", err)
+		}
+		wg.Wait()
 		return nil
 	}
 
