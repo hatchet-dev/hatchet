@@ -33,10 +33,11 @@ DEFAULT_REGISTER_TIMEOUT = 5
 
 
 class GetActionListenerRequest:
-    def __init__(self, worker_name: str, services: List[str], actions: List[str]):
+    def __init__(self, worker_name: str, services: List[str], actions: List[str], max_runs: int | None = None):
         self.worker_name = worker_name
         self.services = services
         self.actions = actions
+        self.max_runs = max_runs
 
 class Action:
     def __init__(self, worker_id: str, tenant_id: str, workflow_run_id: str, get_group_key_run_id: str, job_id: str, job_name: str, job_run_id: str, step_id: str, step_run_id: str, action_id: str, action_payload: str, action_type: ActionType):
@@ -196,7 +197,8 @@ class DispatcherClientImpl(DispatcherClient):
         response : WorkerRegisterResponse = self.client.Register(WorkerRegisterRequest(
             workerName=req.worker_name,
             actions=req.actions,
-            services=req.services
+            services=req.services,
+            maxRuns=req.max_runs
         ), timeout=DEFAULT_REGISTER_TIMEOUT, metadata=get_metadata(self.token))
 
         return ActionListenerImpl(self.client, self.token, response.workerId)

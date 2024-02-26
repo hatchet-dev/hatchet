@@ -14,6 +14,7 @@ interface GetActionListenerOptions {
   workerName: string;
   services: string[];
   actions: string[];
+  maxRuns?: number;
 }
 
 export class DispatcherClient {

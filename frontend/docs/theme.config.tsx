@@ -6,6 +6,7 @@ const config: DocsThemeConfig = {
   logo: (
     <Image src="/hatchet_logo.png" alt="Hatchet logo" width={120} height={35} />
   ),
+  logoLink: "https://github.com/hatchet-dev/hatchet",
   primaryHue: 210,
   primarySaturation: 10,
   project: {
@@ -26,6 +27,12 @@ const config: DocsThemeConfig = {
   ),
   sidebar: {
     defaultMenuCollapseLevel: 1,
+  },
+  nextThemes: {
+    forcedTheme: "dark",
+  },
+  themeSwitch: {
+    component: () => null,
   },
 };
 

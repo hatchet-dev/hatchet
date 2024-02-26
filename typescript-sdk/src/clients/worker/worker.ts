@@ -32,13 +32,18 @@ export class Worker {
   listener: ActionListener | undefined;
   futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
   contexts: Record<Action['stepRunId'], Context<any, any>> = {};
+  maxRuns?: number;
 
   logger: Logger;
 
-  constructor(client: HatchetClient, options: { name: string; handleKill?: boolean }) {
+  constructor(
+    client: HatchetClient,
+    options: { name: string; handleKill?: boolean; maxRuns?: number }
+  ) {
     this.client = client;
     this.name = options.name;
     this.action_registry = {};
+    this.maxRuns = options.maxRuns;
 
     process.on('SIGTERM', () => this.exitGracefully());
     process.on('SIGINT', () => this.exitGracefully());
@@ -111,7 +116,7 @@ export class Worker {
   handleStartStepRun(action: Action) {
     const { actionId } = action;
 
-    const context = new Context(action.actionPayload);
+    const context = new Context(action);
     this.contexts[action.stepRunId] = context;
 
     const step = this.action_registry[actionId];
@@ -176,7 +181,7 @@ export class Worker {
 
   handleStartGroupKeyRun(action: Action) {
     const { actionId } = action;
-    const context = new Context(action.actionPayload);
+    const context = new Context(action);
 
     const key = action.getGroupKeyRunId;
 
@@ -338,6 +343,7 @@ export class Worker {
           workerName: this.name,
           services: ['default'],
           actions: Object.keys(this.action_registry),
+          maxRuns: this.maxRuns,
         });
 
         const generator = this.listener.actions();

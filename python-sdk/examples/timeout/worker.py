@@ -21,7 +21,7 @@ class TimeoutWorkflow:
             raise e
 
 workflow = TimeoutWorkflow()
-worker = hatchet.worker('timeout-worker', max_threads=4)
+worker = hatchet.worker('timeout-worker', max_runs=4)
 worker.register_workflow(workflow)
 
 worker.start()

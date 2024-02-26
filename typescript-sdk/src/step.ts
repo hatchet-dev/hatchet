@@ -1,6 +1,7 @@
 import HatchetError from '@util/errors/hatchet-error';
 import * as z from 'zod';
 import { HatchetTimeoutSchema } from './workflow';
+import { Action } from './clients/dispatcher/action-listener';
 
 export const CreateStepSchema = z.object({
   name: z.string(),
@@ -20,11 +21,20 @@ interface ContextData<T, K> {
 
 export class Context<T, K> {
   data: ContextData<T, K>;
+  input: T;
   controller = new AbortController();
 
-  constructor(payload: string) {
+  constructor(action: Action) {
     try {
-      this.data = JSON.parse(JSON.parse(payload));
+      const data = JSON.parse(JSON.parse(action.actionPayload));
+      this.data = data;
+
+      // if this is a getGroupKeyRunId, the data is the workflow input
+      if (action.getGroupKeyRunId !== '') {
+        this.input = data;
+      } else {
+        this.input = data.input;
+      }
     } catch (e: any) {
       throw new HatchetError(`Could not parse payload: ${e.message}`);
     }
@@ -45,7 +55,7 @@ export class Context<T, K> {
   }
 
   workflowInput(): T {
-    return this.data?.input;
+    return this.input;
   }
 
   userData(): K {

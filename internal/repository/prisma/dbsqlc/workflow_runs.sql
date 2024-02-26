@@ -82,6 +82,52 @@ OFFSET
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
 
+-- name: PopWorkflowRunsRoundRobin :many
+WITH running_count AS (
+    SELECT
+        COUNT(*) AS "count"
+    FROM
+        "WorkflowRun" r1
+    JOIN
+        "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
+    WHERE
+        r1."tenantId" = $1 AND
+        r1."status" = 'RUNNING' AND
+        workflowVersion."id" = $2
+), queued_row_numbers AS (
+    SELECT
+        r2.id,
+        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt") AS rn,
+        row_number() over (order by r2."id" desc) as seqnum
+    FROM
+        "WorkflowRun" r2
+    LEFT JOIN
+        "WorkflowVersion" workflowVersion ON r2."workflowVersionId" = workflowVersion."id"
+    WHERE
+        r2."tenantId" = $1 AND
+        r2."status" = 'QUEUED' AND
+        workflowVersion."id" = $2
+    ORDER BY
+        rn ASC
+), eligible_runs AS (
+    SELECT
+        id
+    FROM
+        queued_row_numbers
+    WHERE
+        queued_row_numbers."seqnum" <= (@maxRuns::int) - (SELECT "count" FROM running_count)
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE "WorkflowRun"
+SET
+    "status" = 'RUNNING'
+FROM
+    eligible_runs
+WHERE
+    "WorkflowRun".id = eligible_runs.id
+RETURNING
+    "WorkflowRun".*;
+
 -- name: UpdateWorkflowRunGroupKey :one
 WITH groupKeyRun AS (
     SELECT "id", "status" as groupKeyRunStatus, "output", "workflowRunId"
@@ -175,6 +221,19 @@ SET
 WHERE 
     "id" = @id::uuid AND
     "tenantId" = @tenantId::uuid
+RETURNING "WorkflowRun".*;
+
+-- name: UpdateManyWorkflowRun :many
+UPDATE
+    "WorkflowRun"
+SET
+    "status" = COALESCE(sqlc.narg('status')::"WorkflowRunStatus", "status"),
+    "error" = COALESCE(sqlc.narg('error')::text, "error"),
+    "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
+    "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt")
+WHERE 
+    "tenantId" = @tenantId::uuid AND
+    "id" = ANY(@ids::uuid[])
 RETURNING "WorkflowRun".*;
 
 -- name: CreateWorkflowRun :one

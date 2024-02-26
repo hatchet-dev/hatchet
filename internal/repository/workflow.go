@@ -46,7 +46,7 @@ type CreateWorkflowConcurrencyOpts struct {
 	MaxRuns *int32
 
 	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
-	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS DROP_NEWEST QUEUE_NEWEST"`
+	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS DROP_NEWEST QUEUE_NEWEST GROUP_ROUND_ROBIN"`
 }
 
 func (o *CreateWorkflowVersionOpts) Checksum() (string, error) {

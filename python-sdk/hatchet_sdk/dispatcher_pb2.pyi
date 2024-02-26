@@ -63,14 +63,16 @@ RESOURCE_EVENT_TYPE_CANCELLED: ResourceEventType
 RESOURCE_EVENT_TYPE_TIMED_OUT: ResourceEventType
 
 class WorkerRegisterRequest(_message.Message):
-    __slots__ = ("workerName", "actions", "services")
+    __slots__ = ("workerName", "actions", "services", "maxRuns")
     WORKERNAME_FIELD_NUMBER: _ClassVar[int]
     ACTIONS_FIELD_NUMBER: _ClassVar[int]
     SERVICES_FIELD_NUMBER: _ClassVar[int]
+    MAXRUNS_FIELD_NUMBER: _ClassVar[int]
     workerName: str
     actions: _containers.RepeatedScalarFieldContainer[str]
     services: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, workerName: _Optional[str] = ..., actions: _Optional[_Iterable[str]] = ..., services: _Optional[_Iterable[str]] = ...) -> None: ...
+    maxRuns: int
+    def __init__(self, workerName: _Optional[str] = ..., actions: _Optional[_Iterable[str]] = ..., services: _Optional[_Iterable[str]] = ..., maxRuns: _Optional[int] = ...) -> None: ...
 
 class WorkerRegisterResponse(_message.Message):
     __slots__ = ("tenantId", "workerId", "workerName")

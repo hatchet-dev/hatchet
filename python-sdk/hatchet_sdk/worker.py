@@ -19,10 +19,11 @@ from .logger import logger
 
 
 class Worker:
-    def __init__(self, name: str, max_threads: int = 200, debug=False, handle_kill=True):
+    def __init__(self, name: str, max_runs: int | None = None, debug=False, handle_kill=True):
         self.name = name
         self.threads: Dict[str, Thread] = {}  # Store step run ids and threads
-        self.thread_pool = ThreadPoolExecutor(max_workers=max_threads)
+        self.max_runs = max_runs
+        self.thread_pool = ThreadPoolExecutor(max_workers=max_runs)
         self.futures: Dict[str, Future] = {}  # Store step run ids and futures
         self.contexts: Dict[str, Context] = {}  # Store step run ids and contexts
         self.action_registry : dict[str, Callable[..., Any]] = {} 
@@ -286,8 +287,11 @@ class Worker:
         except Exception as e:
             logger.error(f"Could not create action finished event: {e}")
             raise e
-
-        event.eventPayload = output
+        
+        try:
+            event.eventPayload = output
+        except Exception as e:
+            event.eventPayload = ""
 
         return event
     
@@ -331,6 +335,7 @@ class Worker:
                 worker_name=self.name,
                 services=["default"],
                 actions=self.action_registry.keys(),
+                max_runs=self.max_runs,
             ))
 
             generator = self.listener.actions()

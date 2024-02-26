@@ -17,6 +17,7 @@ const (
 	ConcurrencyLimitStrategyCANCELINPROGRESS ConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
 	ConcurrencyLimitStrategyDROPNEWEST       ConcurrencyLimitStrategy = "DROP_NEWEST"
 	ConcurrencyLimitStrategyQUEUENEWEST      ConcurrencyLimitStrategy = "QUEUE_NEWEST"
+	ConcurrencyLimitStrategyGROUPROUNDROBIN  ConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
 )
 
 func (e *ConcurrencyLimitStrategy) Scan(src interface{}) error {
@@ -725,6 +726,7 @@ type Worker struct {
 	Name            string           `json:"name"`
 	Status          WorkerStatus     `json:"status"`
 	DispatcherId    pgtype.UUID      `json:"dispatcherId"`
+	MaxRuns         pgtype.Int4      `json:"maxRuns"`
 }
 
 type Workflow struct {

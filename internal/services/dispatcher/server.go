@@ -165,13 +165,20 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		svcs = []string{"default"}
 	}
 
-	// create a worker in the database
-	worker, err := s.repo.Worker().CreateNewWorker(tenant.ID, &repository.CreateWorkerOpts{
+	opts := &repository.CreateWorkerOpts{
 		DispatcherId: s.dispatcherId,
 		Name:         request.WorkerName,
 		Actions:      request.Actions,
 		Services:     svcs,
-	})
+	}
+
+	if request.MaxRuns != nil {
+		mr := int(*request.MaxRuns)
+		opts.MaxRuns = &mr
+	}
+
+	// create a worker in the database
+	worker, err := s.repo.Worker().CreateNewWorker(tenant.ID, opts)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not create worker for tenant %s", tenant.ID)

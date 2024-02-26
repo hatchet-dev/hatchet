@@ -177,6 +177,8 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		switch workflow.Concurrency.LimitStrategy {
 		case types.CancelInProgress:
 			opts.Concurrency.LimitStrategy = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
+		case types.GroupRoundRobin:
+			opts.Concurrency.LimitStrategy = admincontracts.ConcurrencyLimitStrategy_GROUP_ROUND_ROBIN
 		default:
 			opts.Concurrency.LimitStrategy = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
 		}

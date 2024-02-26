@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWEST', 'QUEUE_NEWEST');
+CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWEST', 'QUEUE_NEWEST', 'GROUP_ROUND_ROBIN');
 
 -- CreateEnum
 CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
@@ -429,6 +429,7 @@ CREATE TABLE "Worker" (
     "name" TEXT NOT NULL,
     "status" "WorkerStatus" NOT NULL DEFAULT 'ACTIVE',
     "dispatcherId" UUID NOT NULL,
+    "maxRuns" INTEGER,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );

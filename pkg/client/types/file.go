@@ -27,6 +27,7 @@ type WorkflowConcurrencyLimitStrategy string
 
 const (
 	CancelInProgress WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
+	GroupRoundRobin  WorkflowConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
 )
 
 type WorkflowConcurrency struct {

@@ -1,63 +1,21 @@
 # Contributing
 
-> **Note:** this guide assumes you're using MacOS. We simply don't have the bandwidth to test local development on native Windows. Most distros of Linux should work and we would like to support them, so please file an issue if running into an issue with a common distro.
+> **Note:** this guide### Setup
 
-### Prerequisites
-
-- `go 1.21+`
-- `docker-compose`
-- [`Taskfile`](https://taskfile.dev/installation/)
-- The following additional devtools:
-  - `protoc`: `brew install protobuf@25`
-  - `caddy` and `nss`: `brew install caddy nss`
-
-### Setup
-
-1. Spin up Postgres and RabbitMQ: `docker-compose up -d`
-
-2. Run `pnpm install` inside of `./frontend/app`.
-
-3. Generate certificates needed for communicating between the Hatchet client and engine: `task generate-certs`
-
-4. Generate keysets for encryption: `task generate-local-encryption-keys`
-
-5. Create environment variables:
-
+1. Start the Database and Queue services:
 ```sh
-alias randstring='f() { openssl rand -base64 69 | tr -d "\n" | tr -d "=+/" | cut -c1-$1 };f'
-
-cat > .env <<EOF
-DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
-SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
-SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-
-SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
-SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
-SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
-
-SERVER_PORT=8080
-SERVER_URL=https://app.dev.hatchet-tools.com
-
-SERVER_AUTH_COOKIE_SECRETS="$(randstring 16) $(randstring 16)"
-SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
-SERVER_AUTH_COOKIE_INSECURE=false
-SERVER_AUTH_SET_EMAIL_VERIFIED=true
-
-SERVER_LOGGER_LEVEL=debug
-SERVER_LOGGER_FORMAT=console
-DATABASE_LOGGER_LEVEL=debug
-DATABASE_LOGGER_FORMAT=console
-EOF
+task start-db
 ```
 
-6. Migrate the database: `task prisma-migrate`
+2. Install dependencies, run migrations, generate encryption keys, and seed the database:
+```sh
+task setup
+```
 
-7. Generate all files: `task generate`
 
-8. Seed the database: `task seed-dev`
+### Starting the dev server
 
-9. Start the Hatchet engine, API server, dashboard, and Prisma studio:
+Start the Hatchet engine, API server, dashboard, and Prisma studio:
 
 ```sh
 task start-dev

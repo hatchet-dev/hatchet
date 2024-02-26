@@ -13,7 +13,11 @@ def get_caller_file_path():
 
 class Context:
     def __init__(self, action: Action, client: DispatcherClient):
-        self.data = json.loads(action.action_payload)
+        try:
+            self.data = json.loads(action.action_payload)
+        except Exception as e:
+            self.data = json.loads("{}")
+
         self.stepRunId = action.step_run_id
         self.exit_flag = Event()
         self.client = client
@@ -21,6 +25,11 @@ class Context:
         # store each key in the overrides field in a lookup table
         # overrides_data is a dictionary of key-value pairs
         self.overrides_data = self.data.get('overrides', {})
+
+        if action.get_group_key_run_id != "":
+            self.input = self.data
+        else:
+            self.input = self.data.get('input', {})
 
     def step_output(self, step: str):
         try:
@@ -32,7 +41,7 @@ class Context:
         return self.data.get('triggered_by', '') == 'event'
 
     def workflow_input(self):
-        return self.data.get('input', {})
+        return self.input
     
     def sleep(self, seconds: int):
         self.exit_flag.wait(seconds)
