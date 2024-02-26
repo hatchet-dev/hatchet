@@ -46,6 +46,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		worker.WithClient(
 			c,
 		),
+		worker.WithMaxRuns(1),
 	)
 	if err != nil {
 		return fmt.Errorf("error creating worker: %w", err)

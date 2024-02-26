@@ -132,16 +132,18 @@ export class HatchetClient {
     return new HatchetClient(config, options, axiosConfig);
   }
 
+  // @deprecated
   async run(workflow: string | Workflow): Promise<Worker> {
     const worker = await this.worker(workflow);
     worker.start();
     return worker;
   }
 
-  async worker(workflow: string | Workflow): Promise<Worker> {
+  async worker(workflow: string | Workflow, maxRuns?: number): Promise<Worker> {
     const name = typeof workflow === 'string' ? workflow : workflow.id;
     const worker = new Worker(this, {
       name,
+      maxRuns,
     });
 
     if (typeof workflow !== 'string') {

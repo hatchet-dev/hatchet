@@ -2,27 +2,40 @@ package prisma
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 	"github.com/steebchen/prisma-client-go/runtime/transaction"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
 type workerRepository struct {
-	client *db.PrismaClient
-	v      validator.Validator
+	client  *db.PrismaClient
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewWorkerRepository(client *db.PrismaClient, v validator.Validator) repository.WorkerRepository {
+func NewWorkerRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkerRepository {
+	queries := dbsqlc.New()
+
 	return &workerRepository{
-		client: client,
-		v:      v,
+		client:  client,
+		pool:    pool,
+		v:       v,
+		queries: queries,
+		l:       l,
 	}
 }
 
@@ -56,103 +69,57 @@ func (w *workerRepository) ListRecentWorkerStepRuns(tenantId, workerId string) (
 	).Exec(context.Background())
 }
 
-func (w *workerRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]repository.WorkerWithStepCount, error) {
-	if err := w.v.Validate(opts); err != nil {
+func (r *workerRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error) {
+	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	queryParams := []db.WorkerWhereParam{
-		db.Worker.TenantID.Equals(tenantId),
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	queryParams := dbsqlc.ListWorkersWithStepCountParams{
+		Tenantid: pgTenantId,
 	}
 
 	if opts.Action != nil {
-		queryParams = append(queryParams, db.Worker.Actions.Some(
-			db.Action.TenantID.Equals(tenantId),
-			db.Action.ActionID.Equals(*opts.Action),
-		))
+		queryParams.ActionId = sqlchelpers.TextFromStr(*opts.Action)
 	}
 
 	if opts.LastHeartbeatAfter != nil {
-		queryParams = append(queryParams, db.Worker.LastHeartbeatAt.After(*opts.LastHeartbeatAfter))
+		queryParams.LastHeartbeatAfter = sqlchelpers.TimestampFromTime(opts.LastHeartbeatAfter.UTC())
 	}
 
-	workers, err := w.client.Worker.FindMany(
-		queryParams...,
-	).With(
-		db.Worker.Dispatcher.Fetch(),
-	).Exec(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	if len(workers) == 0 {
-		return []repository.WorkerWithStepCount{}, nil
-	}
-
-	workerIds := make([]string, len(workers))
-
-	for i, worker := range workers {
-		workerIds[i] = worker.ID
-	}
-
-	var rows []struct {
-		ID    string `json:"id"`
-		Count string `json:"count"`
-	}
-
-	workerIdStrs := make([]string, len(workerIds))
-
-	for i, workerId := range workerIds {
-		// verify that the worker id is a valid uuid
-		if _, err := uuid.Parse(workerId); err != nil {
-			return nil, err
+	if opts.Assignable != nil {
+		queryParams.Assignable = pgtype.Bool{
+			Bool:  *opts.Assignable,
+			Valid: true,
 		}
-
-		workerIdStrs[i] = fmt.Sprintf("'%s'", workerId)
 	}
 
-	workerIdsStr := strings.Join(workerIdStrs, ",")
-
-	// raw query to get the number of active job runs for each worker
-	err = w.client.Prisma.QueryRaw(
-		fmt.Sprintf(`
-		SELECT "Worker"."id" AS id, COUNT("StepRun"."id") AS count
-		FROM "Worker"
-		LEFT JOIN "StepRun" ON "StepRun"."workerId" = "Worker"."id" AND "StepRun"."status" = 'RUNNING'
-		WHERE "Worker"."tenantId"::text = $1 AND "Worker"."id" IN (%s)
-		GROUP BY "Worker"."id"
-		`, workerIdsStr),
-		tenantId, workerIds,
-	).Exec(context.Background(), &rows)
+	tx, err := r.pool.Begin(context.Background())
 
 	if err != nil {
 		return nil, err
 	}
 
-	workerMap := make(map[string]int)
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
-	for _, row := range rows {
-		stepCount, err := strconv.ParseInt(row.Count, 10, 64)
+	workers, err := r.queries.ListWorkersWithStepCount(context.Background(), tx, queryParams)
 
-		if err == nil {
-			workerMap[row.ID] = int(stepCount)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			workers = make([]*dbsqlc.ListWorkersWithStepCountRow, 0)
 		} else {
-			workerMap[row.ID] = 0
+			return nil, fmt.Errorf("could not list events: %w", err)
 		}
 	}
 
-	res := make([]repository.WorkerWithStepCount, len(workers))
+	err = tx.Commit(context.Background())
 
-	for i, worker := range workers {
-		workerCp := worker
-		res[i] = repository.WorkerWithStepCount{
-			Worker:       &workerCp,
-			StepRunCount: workerMap[worker.ID],
-		}
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
-	return res, nil
+	return workers, nil
 }
 
 func (w *workerRepository) CreateNewWorker(tenantId string, opts *repository.CreateWorkerOpts) (*db.WorkerModel, error) {
@@ -173,6 +140,7 @@ func (w *workerRepository) CreateNewWorker(tenantId string, opts *repository.Cre
 			db.Dispatcher.ID.Equals(opts.DispatcherId),
 		),
 		db.Worker.ID.Set(workerId),
+		db.Worker.MaxRuns.SetIfPresent(opts.MaxRuns),
 	).Tx()
 
 	txs = append(txs, createTx)

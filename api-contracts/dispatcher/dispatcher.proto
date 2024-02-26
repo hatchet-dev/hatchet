@@ -29,6 +29,9 @@ message WorkerRegisterRequest {
 
     // (optional) the services for this worker
     repeated string services = 3;
+
+    // (optional) the max number of runs this worker can handle
+    optional int32 maxRuns = 4;
 }
 
 message WorkerRegisterResponse {

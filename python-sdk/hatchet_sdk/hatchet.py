@@ -48,5 +48,5 @@ class Hatchet:
 
         return inner
     
-    def worker(self, name: str, max_threads: int = 200):
-        return Worker(name, max_threads)
+    def worker(self, name: str, max_runs: int | None = None):
+        return Worker(name=name, max_runs=max_runs)

@@ -82,6 +82,8 @@ type Worker struct {
 	alerter errors.Alerter
 
 	middlewares *middlewares
+
+	maxRuns *int
 }
 
 type WorkerOpt func(*WorkerOpts)
@@ -93,6 +95,7 @@ type WorkerOpts struct {
 
 	integrations []integrations.Integration
 	alerter      errors.Alerter
+	maxRuns      *int
 }
 
 func defaultWorkerOpts() *WorkerOpts {
@@ -130,6 +133,12 @@ func WithErrorAlerter(alerter errors.Alerter) WorkerOpt {
 	}
 }
 
+func WithMaxRuns(maxRuns int) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.maxRuns = &maxRuns
+	}
+}
+
 // NewWorker creates a new worker instance
 func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 	opts := defaultWorkerOpts()
@@ -149,6 +158,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		actions:     map[string]Action{},
 		alerter:     opts.alerter,
 		middlewares: mws,
+		maxRuns:     opts.maxRuns,
 	}
 
 	// register all integrations
@@ -268,6 +278,7 @@ func (w *Worker) Start(ctx context.Context) error {
 	listener, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
 		WorkerName: w.name,
 		Actions:    actionNames,
+		MaxRuns:    w.maxRuns,
 	})
 
 	if err != nil {

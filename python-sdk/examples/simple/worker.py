@@ -29,7 +29,7 @@ class MyWorkflow:
         print("finished step2")
 
 workflow = MyWorkflow()
-worker = hatchet.worker('test-worker', max_threads=4)
+worker = hatchet.worker('test-worker', max_runs=4)
 worker.register_workflow(workflow)
 
 worker.start()

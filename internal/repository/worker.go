@@ -4,11 +4,15 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
 
 type CreateWorkerOpts struct {
 	// The id of the dispatcher
 	DispatcherId string `validate:"required,uuid"`
+
+	// The maximum number of runs this worker can run at a time
+	MaxRuns *int `validate:"omitempty,gte=1"`
 
 	// The name of the worker
 	Name string `validate:"required,hatchetName"`
@@ -43,11 +47,13 @@ type ListWorkersOpts struct {
 	Action *string `validate:"omitempty,actionId"`
 
 	LastHeartbeatAfter *time.Time
+
+	Assignable *bool
 }
 
 type WorkerRepository interface {
 	// ListWorkers lists workers for the tenant
-	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]WorkerWithStepCount, error)
+	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error)
 
 	// ListRecentWorkerStepRuns lists recent step runs for a given worker
 	ListRecentWorkerStepRuns(tenantId, workerId string) ([]db.StepRunModel, error)

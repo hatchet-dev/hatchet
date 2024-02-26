@@ -24,11 +24,12 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 	// preflight check to make sure there's at least one worker to serve this request
 	action := stepRun.Step().ActionID
 
-	tenSecAgo := time.Now().Add(-10 * time.Second)
+	sixSecAgo := time.Now().Add(-6 * time.Second)
 
 	workers, err := t.config.Repository.Worker().ListWorkers(tenant.ID, &repository.ListWorkersOpts{
 		Action:             &action,
-		LastHeartbeatAfter: &tenSecAgo,
+		LastHeartbeatAfter: &sixSecAgo,
+		Assignable:         repository.BoolPtr(true),
 	})
 
 	if err != nil || len(workers) == 0 {

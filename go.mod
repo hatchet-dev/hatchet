@@ -100,6 +100,7 @@ require (
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/invopop/jsonschema v0.12.0
+	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

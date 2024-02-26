@@ -26,7 +26,7 @@ class ConcurrencyDemoWorkflow:
         print("finished step2")
 
 workflow = ConcurrencyDemoWorkflow()
-worker = hatchet.worker('concurrency-demo-worker', max_threads=4)
+worker = hatchet.worker('concurrency-demo-worker', max_runs=4)
 worker.register_workflow(workflow)
 
 worker.start()

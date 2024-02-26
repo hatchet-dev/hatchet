@@ -966,6 +966,8 @@ model Worker {
   dispatcher   Dispatcher @relation(fields: [dispatcherId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   dispatcherId String     @db.Uuid
 
+  maxRuns Int?
+
   services Service[]
 
   // the actions this worker can run

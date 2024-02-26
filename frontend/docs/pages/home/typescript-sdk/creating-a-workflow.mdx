@@ -186,6 +186,8 @@ const workflow: Workflow = {
 };
 ```
 
+The argument `limitStrategy` to the `concurrency` configuration can be set to either `CANCEL_IN_PROGRESS` (the default, documented above), or `GROUP_ROUND_ROBIN`. See documentation for the `GROUP_ROUND_ROBIN` strategy below.
+
 ### Cancellation Signalling
 
 When a concurrent workflow is already running, Hatchet will send a cancellation signal to the step via it's context. For now, you must handle this signal to exit the step at a logical point:
@@ -239,3 +241,36 @@ This same approach can be used for:
 - Setting concurrency for a specific user session by `session_id` (i.e. multiple chat messages sent)
 - Limiting data or document ingestion by setting an input hash or on-file key.
 - Rudimentary fairness rules by limiting groups per tenant to a certain number of concurrent executions.
+
+### Use-Case: Group Round Robin
+
+You can distribute workflows fairly between tenants using the `GROUP_ROUND_ROBIN` option for `limitStrategy`. This will ensure that each distinct group gets a fair share of the concurrency limit. For example, let's say 5 workflows got queued in quick succession for keys `A`, `B`, and `C`:
+
+```txt
+A, A, A, A, A, B, B, B, B, B, C, C, C, C, C
+```
+
+If there is a maximum of 2 concurrent executions, the execution order will be:
+
+```txt
+A, B, C, A, B, C, A, B, C, A, B, C, A, B, C
+```
+
+This can be set in the `concurrency` configuration as follows:
+
+```ts
+const workflow: Workflow = {
+  id: 'concurrency-example-rr',
+  description: 'test',
+  on: {
+    event: 'concurrency:create',
+  },
+  concurrency: {
+    name: 'multi-tenant-fairness',
+    key: (ctx) => ctx.workflowInput().group,
+    maxRuns: 2,
+    limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+  },
+  steps: [...],
+};
+```

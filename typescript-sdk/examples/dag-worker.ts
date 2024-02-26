@@ -28,8 +28,9 @@ const workflow: Workflow = {
     {
       name: 'dag-step2',
       parents: ['dag-step1'],
-      run: (ctx) => {
+      run: async (ctx) => {
         console.log('executed step2!');
+        await sleep(5000);
         return { step2: 'step2' };
       },
     },
@@ -53,7 +54,7 @@ const workflow: Workflow = {
 };
 
 async function main() {
-  const worker = await hatchet.worker('example-worker');
+  const worker = await hatchet.worker('example-worker', 1);
   await worker.registerWorkflow(workflow);
   worker.start();
 }

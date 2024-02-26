@@ -40,7 +40,7 @@ class ManualTriggerWorkflow:
 
 
 workflow = ManualTriggerWorkflow()
-worker = hatchet.worker('manual-worker', max_threads=4)
+worker = hatchet.worker('manual-worker', max_runs=4)
 worker.register_workflow(workflow)
 
 worker.start()

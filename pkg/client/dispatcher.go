@@ -37,6 +37,7 @@ type GetActionListenerRequest struct {
 	WorkerName string
 	Services   []string
 	Actions    []string
+	MaxRuns    *int
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -168,12 +169,19 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		return nil, err
 	}
 
-	// register the worker
-	resp, err := d.client.Register(d.ctx.newContext(ctx), &dispatchercontracts.WorkerRegisterRequest{
+	registerReq := &dispatchercontracts.WorkerRegisterRequest{
 		WorkerName: req.WorkerName,
 		Actions:    req.Actions,
 		Services:   req.Services,
-	})
+	}
+
+	if req.MaxRuns != nil {
+		mr := int32(*req.MaxRuns)
+		registerReq.MaxRuns = &mr
+	}
+
+	// register the worker
+	resp, err := d.client.Register(d.ctx.newContext(ctx), registerReq)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not register the worker: %w", err)

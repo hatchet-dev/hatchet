@@ -169,6 +169,7 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	workers, err := wc.repo.Worker().ListWorkers(workflowRun.TenantID, &repository.ListWorkersOpts{
 		Action:             &getAction.ActionID,
 		LastHeartbeatAfter: &after,
+		Assignable:         repository.BoolPtr(true),
 	})
 
 	if err != nil {
@@ -184,15 +185,17 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	selectedWorker := workers[0]
 
 	for _, worker := range workers {
-		if worker.StepRunCount < selectedWorker.StepRunCount {
+		if worker.RunningStepRuns < selectedWorker.RunningStepRuns {
 			selectedWorker = worker
 		}
 	}
 
-	telemetry.WithAttributes(span, servertel.WorkerId(selectedWorker.Worker.ID))
+	selectedWorkerId := sqlchelpers.UUIDToStr(selectedWorker.Worker.ID)
+
+	telemetry.WithAttributes(span, servertel.WorkerId(selectedWorkerId))
 
 	// update the job run's designated worker
-	err = wc.repo.Worker().AddGetGroupKeyRun(tenantId, selectedWorker.Worker.ID, getGroupKeyRun.ID)
+	err = wc.repo.Worker().AddGetGroupKeyRun(tenantId, selectedWorkerId, getGroupKeyRun.ID)
 
 	if err != nil {
 		return fmt.Errorf("could not add step run to worker: %w", err)
@@ -219,11 +222,18 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 		return fmt.Errorf("could not schedule step run timeout task: %w", err)
 	}
 
+	dispatcherId := sqlchelpers.UUIDToStr(selectedWorker.Worker.DispatcherId)
+
 	// send a task to the dispatcher
 	err = wc.tq.AddTask(
 		ctx,
-		taskqueue.QueueTypeFromDispatcherID(selectedWorker.Worker.Dispatcher().ID),
-		getGroupActionTask(workflowRun.TenantID, workflowRun.ID, selectedWorker.Worker),
+		taskqueue.QueueTypeFromDispatcherID(dispatcherId),
+		getGroupActionTask(
+			workflowRun.TenantID,
+			workflowRun.ID,
+			selectedWorkerId,
+			dispatcherId,
+		),
 	)
 
 	if err != nil {
@@ -534,17 +544,15 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRun(tenantId, workflowRunId str
 	return errGroup.Wait()
 }
 
-func getGroupActionTask(tenantId, workflowRunId string, worker *db.WorkerModel) *taskqueue.Task {
-	dispatcher := worker.Dispatcher()
-
+func getGroupActionTask(tenantId, workflowRunId, workerId, dispatcherId string) *taskqueue.Task {
 	payload, _ := datautils.ToJSONMap(tasktypes.GroupKeyActionAssignedTaskPayload{
 		WorkflowRunId: workflowRunId,
-		WorkerId:      worker.ID,
+		WorkerId:      workerId,
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.GroupKeyActionAssignedTaskMetadata{
 		TenantId:     tenantId,
-		DispatcherId: dispatcher.ID,
+		DispatcherId: dispatcherId,
 	})
 
 	return &taskqueue.Task{
