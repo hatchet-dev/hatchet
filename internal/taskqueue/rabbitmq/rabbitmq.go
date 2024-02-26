@@ -386,8 +386,12 @@ func (t *TaskQueueImpl) redial(ctx context.Context, l *zerolog.Logger, url strin
 			ch := newSession.Connection.NotifyClose(make(chan *amqp.Error, 1))
 
 			go func() {
-				<-ch
-				t.ready = false
+				select {
+				case <-ctx.Done():
+					return
+				case <-ch:
+					t.ready = false
+				}
 			}()
 
 			if err != nil {
