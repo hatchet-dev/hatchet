@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -294,6 +295,8 @@ func (t *TaskQueueImpl) startPublishing() func() error {
 func (t *TaskQueueImpl) subscribe(ctx context.Context, subId string, q taskqueue.Queue, sessions chan chan session, messages chan *taskWithQueue, tasks chan<- *taskqueue.Task) {
 	sessionCount := 0
 
+	wg := sync.WaitGroup{}
+
 outer:
 	for session := range sessions {
 		sessionCount++
@@ -317,7 +320,9 @@ outer:
 		for {
 			select {
 			case msg := <-deliveries:
+				wg.Add(1)
 				go func(msg amqp.Delivery) {
+					defer wg.Done()
 					task := &taskWithQueue{}
 
 					if err := json.Unmarshal(msg.Body, task); err != nil {
@@ -340,6 +345,8 @@ outer:
 			}
 		}
 	}
+
+	wg.Wait()
 
 	close(tasks)
 }
