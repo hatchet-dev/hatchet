@@ -8,7 +8,7 @@
   </a>
 </picture>
 
-### The open-source low-latency queue for web apps at scale
+### The platform for building distributed web apps at scale
 
 [![Docs](https://img.shields.io/badge/docs-docs.hatchet.run-3F16E4)](https://docs.hatchet.run) [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](https://opensource.org/licenses/MIT) [![Go Reference](https://pkg.go.dev/badge/github.com/hatchet-dev/hatchet.svg)](https://pkg.go.dev/github.com/hatchet-dev/hatchet) [![NPM Downloads](https://img.shields.io/npm/dm/%40hatchet-dev%2Ftypescript-sdk)](https://www.npmjs.com/package/@hatchet-dev/typescript-sdk)
 
@@ -26,16 +26,12 @@
 
 ### What is Hatchet?
 
-Hatchet is a platform for building distributed web apps which solves scaling problems like **concurrency**, **fairness**, and **rate limiting**. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers:
+Hatchet is a platform for building distributed web apps which solves scaling problems like **concurrency**, **fairness**, and **rate limiting**. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration or infrastructure:
 
-<!-- <ANIMATION> -->
+<p align="center">
+  <img width="500" height="500" src="https://github.com/hatchet-dev/hatchet/assets/25448214/c3defa1e-d9d9-4419-94e5-b4ea4a748f8d">
+</p>
 
-Here are some examples of how people are using Hatchet:
-
-- **Fairness for Generative AI:** Don't let busy users overwhelm your system. Hatchet lets you distribute requests to your workers fairly with configurable policies.
-- **Batch Processing for Document Indexing:** Hatchet can handle large-scale batch processing of documents, images, and other data and resume mid-job on failure.
-- **Workflow Orchestration for Multi-Modal Systems:** Hatchet can handle orchestrating multi-modal inputs and outputs, with full DAG-style execution.
-- **Correctness for Event-Based Processing:** Respond to external events or internal events within your system and replay events automatically.
 
 **What Makes Hatchet Great?**
 
@@ -56,10 +52,10 @@ Here are some examples of how people are using Hatchet:
 
 **Example Use Cases:**
 
-- **Fairness for Generative AI:** Ensure equitable distribution of requests across your system with Hatchet’s configurable policies, preventing system overload by busy users
-- **Batch Processing for Document Indexing:** Effortlessly manage large-scale batch processing tasks, with the ability to pause and resume operations seamlessly in case of failures.
-- **Workflow Orchestration for Multi-Modal Systems:** Expertly coordinate workflows involving multi-modal inputs and outputs, supported by comprehensive DAG-style execution.
-- **Correctness for Event-Based Processing:** Automatically respond and replay events, enhancing system reliability and data integrity.
+- **Fairness for Generative AI:** Don't let busy users overwhelm your system. Hatchet lets you distribute requests to your workers fairly with configurable policies.
+- **Batch Processing for Document Indexing:** Hatchet can handle large-scale batch processing of documents, images, and other data and resume mid-job on failure.
+- **Workflow Orchestration for Multi-Modal Systems:** Hatchet can handle orchestrating multi-modal inputs and outputs, with full DAG-style execution.
+- **Correctness for Event-Based Processing:** Respond to external events or internal events within your system and replay events automatically.
 
 ## Quick Start
 
