@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -29,7 +30,8 @@ var rootCmd = &cobra.Command{
 		defer cancel()
 
 		if err := engine.Run(context, cf); err != nil {
-			panic("engine failure: " + err.Error())
+			log.Printf("engine failure: %s", err.Error())
+			os.Exit(1)
 		}
 	},
 }

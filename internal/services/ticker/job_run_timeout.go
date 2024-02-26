@@ -38,6 +38,12 @@ func (t *TickerImpl) handleScheduleJobRunTimeout(ctx context.Context, task *task
 	// TODO: ??? make sure this doesn't have any side effects
 	childCtx, cancel := context.WithDeadline(ctx, timeoutAt)
 
+	// store the schedule in the step run map
+	t.jobRuns.Store(payload.JobRunId, &timeoutCtx{
+		ctx:    childCtx,
+		cancel: cancel,
+	})
+
 	go func() {
 		<-childCtx.Done()
 		t.runJobRunTimeout(metadata.TenantId, payload.JobRunId)
@@ -47,12 +53,6 @@ func (t *TickerImpl) handleScheduleJobRunTimeout(ctx context.Context, task *task
 			return true
 		})
 	}()
-
-	// store the schedule in the step run map
-	t.jobRuns.Store(payload.JobRunId, &timeoutCtx{
-		ctx:    childCtx,
-		cancel: cancel,
-	})
 
 	return nil
 }

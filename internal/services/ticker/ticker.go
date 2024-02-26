@@ -174,7 +174,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 	go func() {
 		for task := range taskChan {
 			go func(task *taskqueue.Task) {
-				err = t.handleTask(context.Background(), task)
+				err = t.handleTask(ctx, task)
 
 				if err != nil {
 					t.l.Error().Err(err).Msgf("could not handle ticker task %s", task.ID)

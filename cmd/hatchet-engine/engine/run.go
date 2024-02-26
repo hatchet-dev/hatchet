@@ -29,8 +29,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	}
 	var l = sc.Logger
 
-	errCh := make(chan error)
-
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:  sc.OpenTelemetry.ServiceName,
 		CollectorURL: sc.OpenTelemetry.CollectorURL,
@@ -41,24 +39,108 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 	var teardown []Teardown
 
-	teardown = append([]Teardown{{
-		name: "database",
-		fn: func() error {
-			return sc.Disconnect()
-		},
-	}}, teardown...)
-	teardown = append([]Teardown{{
-		name: "server",
-		fn: func() error {
-			return serverCleanup()
-		},
-	}}, teardown...)
-	teardown = append([]Teardown{{
-		name: "telemetry",
-		fn: func() error {
-			return shutdown(ctx)
-		},
-	}}, teardown...)
+	if sc.HasService("ticker") {
+		t, err := ticker.New(
+			ticker.WithTaskQueue(sc.TaskQueue),
+			ticker.WithRepository(sc.Repository),
+			ticker.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create ticker: %w", err)
+		}
+
+		cleanup, err := t.Start()
+		if err != nil {
+			return fmt.Errorf("could not start ticker: %w", err)
+		}
+		teardown = append(teardown, Teardown{
+			name: "ticker",
+			fn:   cleanup,
+		})
+	}
+
+	if sc.HasService("eventscontroller") {
+		ec, err := events.New(
+			events.WithTaskQueue(sc.TaskQueue),
+			events.WithRepository(sc.Repository),
+			events.WithLogger(sc.Logger),
+		)
+		if err != nil {
+			return fmt.Errorf("could not create events controller: %w", err)
+		}
+
+		cleanup, err := ec.Start()
+		if err != nil {
+			return fmt.Errorf("could not start events controller: %w", err)
+		}
+		teardown = append(teardown, Teardown{
+			name: "events controller",
+			fn:   cleanup,
+		})
+	}
+
+	if sc.HasService("jobscontroller") {
+		jc, err := jobs.New(
+			jobs.WithTaskQueue(sc.TaskQueue),
+			jobs.WithRepository(sc.Repository),
+			jobs.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create jobs controller: %w", err)
+		}
+
+		cleanup, err := jc.Start()
+		if err != nil {
+			return fmt.Errorf("could not start jobs controller: %w", err)
+		}
+		teardown = append(teardown, Teardown{
+			name: "jobs controller",
+			fn:   cleanup,
+		})
+	}
+
+	if sc.HasService("workflowscontroller") {
+		wc, err := workflows.New(
+			workflows.WithTaskQueue(sc.TaskQueue),
+			workflows.WithRepository(sc.Repository),
+			workflows.WithLogger(sc.Logger),
+		)
+		if err != nil {
+			return fmt.Errorf("could not create workflows controller: %w", err)
+		}
+
+		cleanup, err := wc.Start()
+		if err != nil {
+			return fmt.Errorf("could not start workflows controller: %w", err)
+		}
+		teardown = append(teardown, Teardown{
+			name: "workflows controller",
+			fn:   cleanup,
+		})
+	}
+
+	if sc.HasService("heartbeater") {
+		h, err := heartbeat.New(
+			heartbeat.WithTaskQueue(sc.TaskQueue),
+			heartbeat.WithRepository(sc.Repository),
+			heartbeat.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create heartbeater: %w", err)
+		}
+
+		cleanup, err := h.Start()
+		if err != nil {
+			return fmt.Errorf("could not start heartbeater: %w", err)
+		}
+		teardown = append(teardown, Teardown{
+			name: "heartbeater",
+			fn:   cleanup,
+		})
+	}
 
 	if sc.HasService("grpc") {
 		// create the dispatcher
@@ -73,13 +155,13 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 		dispatcherCleanup, err := d.Start()
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("could not start dispatcher: %w", err)
 		}
 
-		teardown = append([]Teardown{{
+		teardown = append(teardown, Teardown{
 			name: "grpc dispatcher",
 			fn:   dispatcherCleanup,
-		}}, teardown...)
+		})
 
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
@@ -123,132 +205,41 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			return fmt.Errorf("could not create grpc server: %w", err)
 		}
 
-		serverCleanup, err := s.Start()
+		grpcServerCleanup, err := s.Start()
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("could not start grpc server: %w", err)
 		}
 
-		teardown = append([]Teardown{{
+		teardown = append(teardown, Teardown{
 			name: "grpc server",
-			fn:   serverCleanup,
-		}}, teardown...)
+			fn:   grpcServerCleanup,
+		})
 	}
 
-	if sc.HasService("eventscontroller") {
-		ec, err := events.New(
-			events.WithTaskQueue(sc.TaskQueue),
-			events.WithRepository(sc.Repository),
-			events.WithLogger(sc.Logger),
-		)
-		if err != nil {
-			return fmt.Errorf("could not create events controller: %w", err)
-		}
-
-		cleanup, err := ec.Start()
-		if err != nil {
-			return fmt.Errorf("could not start events controller: %w", err)
-		}
-		teardown = append([]Teardown{{
-			name: "events controller",
-			fn:   cleanup,
-		}}, teardown...)
-	}
-
-	if sc.HasService("jobscontroller") {
-		jc, err := jobs.New(
-			jobs.WithTaskQueue(sc.TaskQueue),
-			jobs.WithRepository(sc.Repository),
-			jobs.WithLogger(sc.Logger),
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not create jobs controller: %w", err)
-		}
-
-		cleanup, err := jc.Start()
-		if err != nil {
-			return fmt.Errorf("could not start jobs controller: %w", err)
-		}
-		teardown = append([]Teardown{{
-			name: "jobs controller",
-			fn:   cleanup,
-		}}, teardown...)
-	}
-
-	if sc.HasService("workflowscontroller") {
-		wc, err := workflows.New(
-			workflows.WithTaskQueue(sc.TaskQueue),
-			workflows.WithRepository(sc.Repository),
-			workflows.WithLogger(sc.Logger),
-		)
-		if err != nil {
-			return fmt.Errorf("could not create workflows controller: %w", err)
-		}
-
-		cleanup, err := wc.Start()
-		if err != nil {
-			return fmt.Errorf("could not start workflows controller: %w", err)
-		}
-		teardown = append([]Teardown{{
-			name: "workflows controller",
-			fn:   cleanup,
-		}}, teardown...)
-	}
-
-	if sc.HasService("ticker") {
-		t, err := ticker.New(
-			ticker.WithTaskQueue(sc.TaskQueue),
-			ticker.WithRepository(sc.Repository),
-			ticker.WithLogger(sc.Logger),
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not create ticker: %w", err)
-		}
-
-		cleanup, err := t.Start()
-		if err != nil {
-			return fmt.Errorf("could not start ticker: %w", err)
-		}
-		teardown = append([]Teardown{{
-			name: "ticker",
-			fn:   cleanup,
-		}}, teardown...)
-	}
-
-	if sc.HasService("heartbeater") {
-		h, err := heartbeat.New(
-			heartbeat.WithTaskQueue(sc.TaskQueue),
-			heartbeat.WithRepository(sc.Repository),
-			heartbeat.WithLogger(sc.Logger),
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not create heartbeater: %w", err)
-		}
-
-		cleanup, err := h.Start()
-		if err != nil {
-			return fmt.Errorf("could not start heartbeater: %w", err)
-		}
-		teardown = append([]Teardown{{
-			name: "heartbeater",
-			fn:   cleanup,
-		}}, teardown...)
-	}
+	teardown = append(teardown, Teardown{
+		name: "telemetry",
+		fn: func() error {
+			return shutdown(ctx)
+		},
+	})
+	teardown = append(teardown, Teardown{
+		name: "server",
+		fn: func() error {
+			return serverCleanup()
+		},
+	})
+	teardown = append(teardown, Teardown{
+		name: "database",
+		fn: func() error {
+			return sc.Disconnect()
+		},
+	})
 
 	l.Debug().Msgf("engine has started")
 
-Loop:
-	for {
-		select {
-		case err := <-errCh:
-			return fmt.Errorf("engine error: %w", err)
-		case <-ctx.Done():
-			l.Debug().Msgf("interrupt received, shutting down")
-			break Loop
-		}
-	}
+	<-ctx.Done()
+
+	l.Debug().Msgf("interrupt received, shutting down")
 
 	l.Debug().Msgf("waiting for all other services to gracefully exit...")
 	for i, t := range teardown {
