@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
@@ -31,7 +30,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	var l = sc.Logger
 
 	errCh := make(chan error)
-	wg := sync.WaitGroup{}
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:  sc.OpenTelemetry.ServiceName,
@@ -63,8 +61,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	}}, teardown...)
 
 	if sc.HasService("grpc") {
-		wg.Add(2)
-
 		// create the dispatcher
 		d, err := dispatcher.New(
 			dispatcher.WithTaskQueue(sc.TaskQueue),
@@ -75,20 +71,15 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			return fmt.Errorf("could not create dispatcher: %w", err)
 		}
 
-		go func() {
-			defer wg.Done()
+		dispatcherCleanup, err := d.Start()
+		if err != nil {
+			panic(err)
+		}
 
-			l.Debug().Msgf("starting grpc dispatcher")
-			cleanup, err := d.Start()
-			if err != nil {
-				panic(err)
-			}
-
-			teardown = append([]Teardown{{
-				name: "grpc dispatcher",
-				fn:   cleanup,
-			}}, teardown...)
-		}()
+		teardown = append([]Teardown{{
+			name: "grpc dispatcher",
+			fn:   dispatcherCleanup,
+		}}, teardown...)
 
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
@@ -132,25 +123,18 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			return fmt.Errorf("could not create grpc server: %w", err)
 		}
 
-		go func() {
-			defer wg.Done()
+		serverCleanup, err := s.Start()
+		if err != nil {
+			panic(err)
+		}
 
-			l.Debug().Msgf("starting grpc server")
-			cleanup, err := s.Start()
-			if err != nil {
-				panic(err)
-			}
-
-			teardown = append([]Teardown{{
-				name: "grpc server",
-				fn:   cleanup,
-			}}, teardown...)
-		}()
+		teardown = append([]Teardown{{
+			name: "grpc server",
+			fn:   serverCleanup,
+		}}, teardown...)
 	}
 
 	if sc.HasService("eventscontroller") {
-		wg.Add(1)
-
 		ec, err := events.New(
 			events.WithTaskQueue(sc.TaskQueue),
 			events.WithRepository(sc.Repository),
@@ -160,23 +144,17 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			return fmt.Errorf("could not create events controller: %w", err)
 		}
 
-		// create separate events controller process
-		go func() {
-			l.Debug().Msgf("starting events controller")
-			defer wg.Done()
-
-			err := ec.Start(ctx)
-			if err != nil {
-				errCh <- err
-			}
-
-			l.Debug().Msgf("events controller has shutdown")
-		}()
+		cleanup, err := ec.Start()
+		if err != nil {
+			return fmt.Errorf("could not start events controller: %w", err)
+		}
+		teardown = append([]Teardown{{
+			name: "events controller",
+			fn:   cleanup,
+		}}, teardown...)
 	}
 
 	if sc.HasService("jobscontroller") {
-		wg.Add(1)
-
 		jc, err := jobs.New(
 			jobs.WithTaskQueue(sc.TaskQueue),
 			jobs.WithRepository(sc.Repository),
@@ -187,23 +165,17 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			return fmt.Errorf("could not create jobs controller: %w", err)
 		}
 
-		// create separate jobs controller process
-		go func() {
-			l.Debug().Msgf("starting jobs controller")
-			defer wg.Done()
-
-			err := jc.Start(ctx)
-			if err != nil {
-				errCh <- err
-			}
-
-			l.Debug().Msgf("jobs controller has shutdown")
-		}()
+		cleanup, err := jc.Start()
+		if err != nil {
+			return fmt.Errorf("could not start jobs controller: %w", err)
+		}
+		teardown = append([]Teardown{{
+			name: "jobs controller",
+			fn:   cleanup,
+		}}, teardown...)
 	}
 
 	if sc.HasService("workflowscontroller") {
-		wg.Add(1)
-
 		wc, err := workflows.New(
 			workflows.WithTaskQueue(sc.TaskQueue),
 			workflows.WithRepository(sc.Repository),
@@ -213,23 +185,17 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			return fmt.Errorf("could not create workflows controller: %w", err)
 		}
 
-		// create separate jobs controller process
-		go func() {
-			l.Debug().Msgf("starting workflows controller")
-			defer wg.Done()
-
-			err := wc.Start(ctx)
-			if err != nil {
-				errCh <- err
-			}
-
-			l.Debug().Msgf("workflows controller has shutdown")
-		}()
+		cleanup, err := wc.Start()
+		if err != nil {
+			return fmt.Errorf("could not start workflows controller: %w", err)
+		}
+		teardown = append([]Teardown{{
+			name: "workflows controller",
+			fn:   cleanup,
+		}}, teardown...)
 	}
 
 	if sc.HasService("ticker") {
-		wg.Add(1)
-
 		t, err := ticker.New(
 			ticker.WithTaskQueue(sc.TaskQueue),
 			ticker.WithRepository(sc.Repository),
@@ -240,23 +206,17 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			return fmt.Errorf("could not create ticker: %w", err)
 		}
 
-		// create a ticker
-		go func() {
-			l.Debug().Msgf("starting ticker")
-			defer wg.Done()
-
-			err := t.Start(ctx)
-			if err != nil {
-				errCh <- err
-			}
-
-			l.Debug().Msgf("ticker has shutdown")
-		}()
+		cleanup, err := t.Start()
+		if err != nil {
+			return fmt.Errorf("could not start ticker: %w", err)
+		}
+		teardown = append([]Teardown{{
+			name: "ticker",
+			fn:   cleanup,
+		}}, teardown...)
 	}
 
 	if sc.HasService("heartbeater") {
-		wg.Add(1)
-
 		h, err := heartbeat.New(
 			heartbeat.WithTaskQueue(sc.TaskQueue),
 			heartbeat.WithRepository(sc.Repository),
@@ -267,17 +227,14 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			return fmt.Errorf("could not create heartbeater: %w", err)
 		}
 
-		go func() {
-			l.Debug().Msgf("starting heartbeater")
-			defer wg.Done()
-
-			err := h.Start(ctx)
-			if err != nil {
-				errCh <- err
-			}
-
-			l.Debug().Msgf("heartbeater has shutdown")
-		}()
+		cleanup, err := h.Start()
+		if err != nil {
+			return fmt.Errorf("could not start heartbeater: %w", err)
+		}
+		teardown = append([]Teardown{{
+			name: "heartbeater",
+			fn:   cleanup,
+		}}, teardown...)
 	}
 
 	l.Debug().Msgf("engine has started")
@@ -292,10 +249,6 @@ Loop:
 			break Loop
 		}
 	}
-
-	l.Debug().Msgf("waiting for all services to shutdown...")
-	wg.Wait()
-	l.Debug().Msgf("all services have shutdown")
 
 	l.Debug().Msgf("waiting for all other services to gracefully exit...")
 	for i, t := range teardown {

@@ -94,24 +94,34 @@ func New(fs ...EventsControllerOpt) (*EventsControllerImpl, error) {
 	}, nil
 }
 
-func (ec *EventsControllerImpl) Start(ctx context.Context) error {
+func (ec *EventsControllerImpl) Start() (func() error, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	taskChan, err := ec.tq.Subscribe(ctx, taskqueue.EVENT_PROCESSING_QUEUE)
 
 	if err != nil {
-		return err
+		cancel()
+		return nil, fmt.Errorf("could not subscribe to event processing queue: %w", err)
 	}
 
-	for task := range taskChan {
-		go func(task *taskqueue.Task) {
-			err = ec.handleTask(ctx, task)
+	go func() {
+		for task := range taskChan {
+			go func(task *taskqueue.Task) {
+				err = ec.handleTask(ctx, task)
 
-			if err != nil {
-				ec.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
-			}
-		}(task)
+				if err != nil {
+					ec.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
+				}
+			}(task)
+		}
+	}()
+
+	cleanup := func() error {
+		cancel()
+		return nil
 	}
 
-	return nil
+	return cleanup, nil
 }
 
 func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {

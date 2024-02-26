@@ -95,26 +95,36 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 	}, nil
 }
 
-func (wc *WorkflowsControllerImpl) Start(ctx context.Context) error {
+func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	wc.l.Debug().Msg("starting workflows controller")
 
 	taskChan, err := wc.tq.Subscribe(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE)
 
 	if err != nil {
-		return err
+		cancel()
+		return nil, err
 	}
 
-	for task := range taskChan {
-		go func(task *taskqueue.Task) {
-			err = wc.handleTask(ctx, task)
+	go func() {
+		for task := range taskChan {
+			go func(task *taskqueue.Task) {
+				err = wc.handleTask(ctx, task)
 
-			if err != nil {
-				wc.l.Error().Err(err).Msg("could not handle job task")
-			}
-		}(task)
+				if err != nil {
+					wc.l.Error().Err(err).Msg("could not handle job task")
+				}
+			}(task)
+		}
+	}()
+
+	cleanup := func() error {
+		cancel()
+		return nil
 	}
 
-	return nil
+	return cleanup, nil
 }
 
 func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {

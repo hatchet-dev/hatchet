@@ -102,24 +102,34 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 	}, nil
 }
 
-func (jc *JobsControllerImpl) Start(ctx context.Context) error {
+func (jc *JobsControllerImpl) Start() (func() error, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	taskChan, err := jc.tq.Subscribe(ctx, taskqueue.JOB_PROCESSING_QUEUE)
 
 	if err != nil {
-		return err
+		cancel()
+		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
 	}
 
-	for task := range taskChan {
-		go func(task *taskqueue.Task) {
-			err = jc.handleTask(ctx, task)
+	go func() {
+		for task := range taskChan {
+			go func(task *taskqueue.Task) {
+				err = jc.handleTask(ctx, task)
 
-			if err != nil {
-				jc.l.Error().Err(err).Msg("could not handle job task")
-			}
-		}(task)
+				if err != nil {
+					jc.l.Error().Err(err).Msg("could not handle job task")
+				}
+			}(task)
+		}
+	}()
+
+	cleanup := func() error {
+		cancel()
+		return nil
 	}
 
-	return nil
+	return cleanup, nil
 }
 
 func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {

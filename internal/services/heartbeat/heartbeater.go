@@ -89,7 +89,7 @@ func New(fs ...HeartbeaterOpt) (*HeartbeaterImpl, error) {
 	}, nil
 }
 
-func (t *HeartbeaterImpl) Start(ctx context.Context) error {
+func (t *HeartbeaterImpl) Start() (func() error, error) {
 	t.l.Debug().Msg("starting heartbeater")
 
 	_, err := t.s.NewJob(
@@ -100,17 +100,19 @@ func (t *HeartbeaterImpl) Start(ctx context.Context) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("could not schedule ticker removal: %w", err)
+		return nil, fmt.Errorf("could not schedule ticker removal: %w", err)
 	}
 
 	t.s.Start()
 
-	<-ctx.Done()
-	t.l.Debug().Msg("stopping heartbeater")
-
-	if err := t.s.Shutdown(); err != nil {
-		return fmt.Errorf("could not shutdown scheduler: %w", err)
+	cleanup := func() error {
+		t.l.Debug().Msg("stopping heartbeater")
+		if err := t.s.Shutdown(); err != nil {
+			return fmt.Errorf("could not shutdown scheduler: %w", err)
+		}
+		t.l.Debug().Msg("heartbeater has shutdown")
+		return nil
 	}
 
-	return nil
+	return cleanup, nil
 }

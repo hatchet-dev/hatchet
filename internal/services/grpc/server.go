@@ -3,7 +3,6 @@ package grpc
 import (
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net"
 	"runtime/debug"
 
@@ -227,9 +226,7 @@ func (s *Server) startGRPC() (func() error, error) {
 	}()
 
 	cleanup := func() error {
-		log.Printf("grpc server is shutting down...")
 		grpcServer.GracefulStop()
-		log.Printf("grpc server has shutdown")
 		return nil
 	}
 
