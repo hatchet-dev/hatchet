@@ -1,6 +1,8 @@
 version: "2"
 sql:
   - engine: "postgresql"
+    # database:
+    #   uri: "postgres://hatchet:hatchet@localhost:5431/hatchet"
     queries:
       - events.sql
       - workflow_runs.sql
@@ -12,6 +14,7 @@ sql:
       - dispatchers.sql
     schema:
       - schema.sql
+    strict_order_by: false
     gen:
       go:
         package: "dbsqlc"

@@ -36,6 +36,7 @@ enum ConcurrencyLimitStrategy {
     CANCEL_IN_PROGRESS = 0;
     DROP_NEWEST = 1;
     QUEUE_NEWEST = 2;
+    GROUP_ROUND_ROBIN = 3;
 }
 
 message WorkflowConcurrencyOpts {

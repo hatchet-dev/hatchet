@@ -78,6 +78,55 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 	return nil
 }
 
+func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context, task *taskqueue.Task) error {
+	ctx, span := telemetry.NewSpan(ctx, "handle-workflow-run-finished")
+	defer span.End()
+
+	payload := tasktypes.WorkflowRunFinishedTask{}
+	metadata := tasktypes.WorkflowRunFinishedTaskMetadata{}
+
+	err := wc.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode job task payload: %w", err)
+	}
+
+	err = wc.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode job task metadata: %w", err)
+	}
+
+	// get the workflow run in the database
+	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(metadata.TenantId, payload.WorkflowRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get job run: %w", err)
+	}
+
+	servertel.WithWorkflowRunModel(span, workflowRun)
+
+	wc.l.Info().Msgf("finishing workflow run %s", workflowRun.ID)
+
+	// if the workflow run has a concurrency group, then we need to queue any queued workflow runs
+	if concurrency, hasConcurrency := workflowRun.WorkflowVersion().Concurrency(); hasConcurrency {
+		wc.l.Info().Msgf("workflow %s has concurrency settings", workflowRun.ID)
+
+		switch concurrency.LimitStrategy {
+		case db.ConcurrencyLimitStrategyGroupRoundRobin:
+			err = wc.queueByGroupRoundRobin(ctx, metadata.TenantId, workflowRun.WorkflowVersion())
+		default:
+			return nil
+		}
+
+		if err != nil {
+			return fmt.Errorf("could not queue workflow runs: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	ctx context.Context,
 	getGroupKeyRun *db.GetGroupKeyRunModel,
@@ -312,7 +361,7 @@ func (ec *WorkflowsControllerImpl) getValidTickers() ([]db.TickerModel, error) {
 }
 
 func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, tenantId, groupKey string, workflowVersion *db.WorkflowVersionModel) error {
-	ctx, span := telemetry.NewSpan(ctx, "cancel-by-cancel-in-progress")
+	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-in-progress")
 	defer span.End()
 
 	wc.l.Info().Msgf("handling queue with strategy CANCEL_IN_PROGRESS for %s", groupKey)
@@ -390,6 +439,50 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 
 		errGroup.Go(func() error {
 			workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
+			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(tenantId, workflowRunId)
+
+			if err != nil {
+				return fmt.Errorf("could not get workflow run: %w", err)
+			}
+
+			return wc.queueWorkflowRunJobs(ctx, workflowRun)
+		})
+	}
+
+	if err := errGroup.Wait(); err != nil {
+		return fmt.Errorf("could not queue workflow runs: %w", err)
+	}
+
+	return nil
+}
+
+func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, tenantId string, workflowVersion *db.WorkflowVersionModel) error {
+	ctx, span := telemetry.NewSpan(ctx, "queue-by-group-round-robin")
+	defer span.End()
+
+	wc.l.Info().Msgf("handling queue with strategy GROUP_ROUND_ROBIN for workflow version %s", workflowVersion.ID)
+
+	concurrency, hasConcurrency := workflowVersion.Concurrency()
+
+	if !hasConcurrency {
+		return nil
+	}
+
+	// get workflow runs which are queued for this group key
+	poppedWorkflowRuns, err := wc.repo.WorkflowRun().PopWorkflowRunsRoundRobin(tenantId, concurrency.WorkflowVersionID, concurrency.MaxRuns)
+
+	if err != nil {
+		return fmt.Errorf("could not list queued workflow runs: %w", err)
+	}
+
+	// cancel up to maxRuns - queued runs
+	errGroup := new(errgroup.Group)
+
+	for i := range poppedWorkflowRuns {
+		row := poppedWorkflowRuns[i]
+
+		errGroup.Go(func() error {
+			workflowRunId := sqlchelpers.UUIDToStr(row.ID)
 			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(tenantId, workflowRunId)
 
 			if err != nil {

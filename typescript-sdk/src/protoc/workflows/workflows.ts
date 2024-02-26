@@ -10,6 +10,7 @@ export enum ConcurrencyLimitStrategy {
   CANCEL_IN_PROGRESS = 0,
   DROP_NEWEST = 1,
   QUEUE_NEWEST = 2,
+  GROUP_ROUND_ROBIN = 3,
   UNRECOGNIZED = -1,
 }
 
@@ -24,6 +25,9 @@ export function concurrencyLimitStrategyFromJSON(object: any): ConcurrencyLimitS
     case 2:
     case "QUEUE_NEWEST":
       return ConcurrencyLimitStrategy.QUEUE_NEWEST;
+    case 3:
+    case "GROUP_ROUND_ROBIN":
+      return ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -39,6 +43,8 @@ export function concurrencyLimitStrategyToJSON(object: ConcurrencyLimitStrategy)
       return "DROP_NEWEST";
     case ConcurrencyLimitStrategy.QUEUE_NEWEST:
       return "QUEUE_NEWEST";
+    case ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN:
+      return "GROUP_ROUND_ROBIN";
     case ConcurrencyLimitStrategy.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";

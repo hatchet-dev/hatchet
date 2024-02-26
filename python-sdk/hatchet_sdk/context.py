@@ -26,6 +26,11 @@ class Context:
         # overrides_data is a dictionary of key-value pairs
         self.overrides_data = self.data.get('overrides', {})
 
+        if action.get_group_key_run_id != "":
+            self.input = self.data
+        else:
+            self.input = self.data.get('input', {})
+
     def step_output(self, step: str):
         try:
             return self.data['parents'][step]
@@ -36,7 +41,7 @@ class Context:
         return self.data.get('triggered_by', '') == 'event'
 
     def workflow_input(self):
-        return self.data.get('input', {})
+        return self.input
     
     def sleep(self, seconds: int):
         self.exit_flag.wait(seconds)

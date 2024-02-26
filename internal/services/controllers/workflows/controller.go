@@ -131,7 +131,7 @@ func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *taskque
 	case "get-group-key-run-failed":
 		return wc.handleGroupKeyRunFailed(ctx, task)
 	case "workflow-run-finished":
-		// return ec.handleStepRunStarted(ctx, task)
+		return wc.handleWorkflowRunFinished(ctx, task)
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
@@ -221,6 +221,8 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context
 		switch concurrency.LimitStrategy {
 		case db.ConcurrencyLimitStrategyCancelInProgress:
 			err = wc.queueByCancelInProgress(ctx, metadata.TenantId, payload.GroupKey, workflowVersion)
+		case db.ConcurrencyLimitStrategyGroupRoundRobin:
+			err = wc.queueByGroupRoundRobin(ctx, metadata.TenantId, workflowVersion)
 		default:
 			return fmt.Errorf("unimplemented concurrency limit strategy: %s", concurrency.LimitStrategy)
 		}

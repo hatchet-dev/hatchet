@@ -57,10 +57,18 @@ func newHatchetContext(ctx context.Context, action *client.Action) (HatchetConte
 		action:  action,
 	}
 
-	err := c.populateStepData()
+	if action.GetGroupKeyRunId != "" {
+		err := c.populateStepDataForGroupKeyRun()
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err := c.populateStepData()
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return c, nil
@@ -88,6 +96,26 @@ func (h *hatchetContext) TriggeredByEvent() bool {
 
 func (h *hatchetContext) WorkflowInput(target interface{}) error {
 	return toTarget(h.stepData.Input, target)
+}
+
+func (h *hatchetContext) populateStepDataForGroupKeyRun() error {
+	if h.stepData != nil {
+		return nil
+	}
+
+	inputData := map[string]interface{}{}
+
+	err := json.Unmarshal(h.action.ActionPayload, &inputData)
+
+	if err != nil {
+		return err
+	}
+
+	h.stepData = &StepRunData{
+		Input: inputData,
+	}
+
+	return nil
 }
 
 func (h *hatchetContext) populateStepData() error {
