@@ -139,7 +139,6 @@ class Worker:
                 if not errored:
                     # Create an action event
                     try:
-                        print(action)
                         event = self.get_group_key_action_finished_event(action, output)
                     except Exception as e:
                         logger.error(f"Could not get action finished event: {e}")
