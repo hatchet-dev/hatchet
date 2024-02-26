@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/steebchen/prisma-client-go/runtime/transaction"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -70,7 +69,7 @@ func (r *userRepository) CreateUser(opts *repository.CreateUserOpts) (*db.UserMo
 		params...,
 	).Tx()
 
-	txs := []transaction.Param{
+	txs := []db.PrismaTransaction{
 		createTx,
 	}
 
@@ -120,7 +119,7 @@ func (r *userRepository) UpdateUser(id string, opts *repository.UpdateUserOpts) 
 		params...,
 	).Tx()
 
-	txs := []transaction.Param{
+	txs := []db.PrismaTransaction{
 		updateTx,
 	}
 
