@@ -62,6 +62,7 @@ class WorkflowMeta(type):
             concurrency = WorkflowConcurrencyOpts(
                 action=serviceName + ":" + action[0],
                 max_runs=action[1]._concurrency_max_runs,
+                limit_strategy=action[1]._concurrency_limit_strategy,
             )
 
         client.admin.put_workflow(CreateWorkflowVersionOpts(

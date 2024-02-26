@@ -744,6 +744,93 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 	return items, nil
 }
 
+const popWorkflowRunsRoundRobin = `-- name: PopWorkflowRunsRoundRobin :many
+WITH running_count AS (
+    SELECT
+        COUNT(*) AS "count"
+    FROM
+        "WorkflowRun" r1
+    JOIN
+        "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
+    WHERE
+        r1."tenantId" = $1 AND
+        r1."status" = 'RUNNING' AND
+        workflowVersion."id" = $2
+), queued_row_numbers AS (
+    SELECT
+        r2.id,
+        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt") AS rn,
+        row_number() over (order by r2."id" desc) as seqnum
+    FROM
+        "WorkflowRun" r2
+    LEFT JOIN
+        "WorkflowVersion" workflowVersion ON r2."workflowVersionId" = workflowVersion."id"
+    WHERE
+        r2."tenantId" = $1 AND
+        r2."status" = 'QUEUED' AND
+        workflowVersion."id" = $2
+    ORDER BY
+        rn ASC
+), eligible_runs AS (
+    SELECT
+        id
+    FROM
+        queued_row_numbers
+    WHERE
+        queued_row_numbers."seqnum" <= ($3::int) - (SELECT "count" FROM running_count)
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE "WorkflowRun"
+SET
+    "status" = 'RUNNING'
+FROM
+    eligible_runs
+WHERE
+    "WorkflowRun".id = eligible_runs.id
+RETURNING
+    "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."gitRepoBranch"
+`
+
+type PopWorkflowRunsRoundRobinParams struct {
+	TenantId pgtype.UUID `json:"tenantId"`
+	ID       pgtype.UUID `json:"id"`
+	Maxruns  int32       `json:"maxruns"`
+}
+
+func (q *Queries) PopWorkflowRunsRoundRobin(ctx context.Context, db DBTX, arg PopWorkflowRunsRoundRobinParams) ([]*WorkflowRun, error) {
+	rows, err := db.Query(ctx, popWorkflowRunsRoundRobin, arg.TenantId, arg.ID, arg.Maxruns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkflowRun
+	for rows.Next() {
+		var i WorkflowRun
+		if err := rows.Scan(
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.WorkflowVersionId,
+			&i.Status,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.ConcurrencyGroupId,
+			&i.DisplayName,
+			&i.ID,
+			&i.GitRepoBranch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const resolveWorkflowRunStatus = `-- name: ResolveWorkflowRunStatus :one
 WITH jobRuns AS (
     SELECT sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
@@ -820,6 +907,70 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 		&i.GitRepoBranch,
 	)
 	return &i, err
+}
+
+const updateManyWorkflowRun = `-- name: UpdateManyWorkflowRun :many
+UPDATE
+    "WorkflowRun"
+SET
+    "status" = COALESCE($1::"WorkflowRunStatus", "status"),
+    "error" = COALESCE($2::text, "error"),
+    "startedAt" = COALESCE($3::timestamp, "startedAt"),
+    "finishedAt" = COALESCE($4::timestamp, "finishedAt")
+WHERE 
+    "tenantId" = $5::uuid AND
+    "id" = ANY($6::uuid[])
+RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."gitRepoBranch"
+`
+
+type UpdateManyWorkflowRunParams struct {
+	Status     NullWorkflowRunStatus `json:"status"`
+	Error      pgtype.Text           `json:"error"`
+	StartedAt  pgtype.Timestamp      `json:"startedAt"`
+	FinishedAt pgtype.Timestamp      `json:"finishedAt"`
+	Tenantid   pgtype.UUID           `json:"tenantid"`
+	Ids        []pgtype.UUID         `json:"ids"`
+}
+
+func (q *Queries) UpdateManyWorkflowRun(ctx context.Context, db DBTX, arg UpdateManyWorkflowRunParams) ([]*WorkflowRun, error) {
+	rows, err := db.Query(ctx, updateManyWorkflowRun,
+		arg.Status,
+		arg.Error,
+		arg.StartedAt,
+		arg.FinishedAt,
+		arg.Tenantid,
+		arg.Ids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkflowRun
+	for rows.Next() {
+		var i WorkflowRun
+		if err := rows.Scan(
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.WorkflowVersionId,
+			&i.Status,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.ConcurrencyGroupId,
+			&i.DisplayName,
+			&i.ID,
+			&i.GitRepoBranch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateWorkflowRun = `-- name: UpdateWorkflowRun :one

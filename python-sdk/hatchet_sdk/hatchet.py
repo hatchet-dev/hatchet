@@ -3,6 +3,7 @@ from typing import List
 from .workflow import WorkflowMeta
 from .worker import Worker
 from .logger import logger
+from .workflows_pb2 import ConcurrencyLimitStrategy
 
 class Hatchet:
     def __init__(self, debug=False):
@@ -12,10 +13,11 @@ class Hatchet:
         if not debug:
             logger.disable("hatchet_sdk")
 
-    def concurrency(self, name : str='', max_runs : int = 1):
+    def concurrency(self, name : str='', max_runs : int = 1, limit_strategy : ConcurrencyLimitStrategy = ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS):
         def inner(func):
             func._concurrency_fn_name = name or func.__name__
             func._concurrency_max_runs = max_runs
+            func._concurrency_limit_strategy = limit_strategy
 
             return func
         

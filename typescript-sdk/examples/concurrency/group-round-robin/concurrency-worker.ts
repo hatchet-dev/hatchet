@@ -1,5 +1,5 @@
-import Hatchet from '../../src/sdk';
-import { Workflow } from '../../src/workflow';
+import Hatchet from '../../../src/sdk';
+import { ConcurrencyLimitStrategy, Workflow } from '../../../src/workflow';
 
 const hatchet = Hatchet.init();
 
@@ -9,14 +9,16 @@ const sleep = (ms: number) =>
   });
 
 const workflow: Workflow = {
-  id: 'concurrency-example',
+  id: 'concurrency-example-rr',
   description: 'test',
   on: {
     event: 'concurrency:create',
   },
   concurrency: {
     name: 'user-concurrency',
-    key: (ctx) => ctx.workflowInput().userId,
+    key: (ctx) => ctx.workflowInput().group,
+    maxRuns: 2,
+    limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
   },
   steps: [
     {
@@ -28,7 +30,7 @@ const workflow: Workflow = {
         if (signal.aborted) throw new Error('step1 was aborted');
 
         console.log('starting step1 and waiting 5 seconds...', data);
-        await sleep(5000);
+        await sleep(2000);
 
         if (signal.aborted) throw new Error('step1 was aborted');
 
@@ -38,14 +40,6 @@ const workflow: Workflow = {
 
         console.log('executed step1!');
         return { step1: `step1 results for ${data}!` };
-      },
-    },
-    {
-      name: 'step2',
-      parents: ['step1'],
-      run: (ctx) => {
-        console.log('executed step2 after step1 returned ', ctx.stepOutput('step1'));
-        return { step2: 'step2 results!' };
       },
     },
   ],

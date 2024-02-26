@@ -338,6 +338,11 @@ enum ConcurrencyLimitStrategy {
 
   // Queue new runs and start them when falling below the concurrency limit
   QUEUE_NEWEST
+
+  // Performs round-robin queueing based on the concurrency group. For example, if there
+  // are 10 workflows queued in concurrency groups A, B and C, and the concurrency limit is 3,
+  // then 1 workflows from A, B and C will be started.
+  GROUP_ROUND_ROBIN
 }
 
 model WorkflowConcurrency {

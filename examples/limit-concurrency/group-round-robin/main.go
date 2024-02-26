@@ -8,12 +8,13 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
 type concurrencyLimitEvent struct {
-	Index int `json:"index"`
+	UserId int `json:"user_id"`
 }
 
 type stepOneOutput struct {
@@ -33,7 +34,14 @@ func main() {
 }
 
 func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
-	return "user-create", nil
+	input := &concurrencyLimitEvent{}
+	err := ctx.WorkflowInput(input)
+
+	if err != nil {
+		return "", fmt.Errorf("error getting input: %w", err)
+	}
+
+	return fmt.Sprintf("%d", input.UserId), nil
 }
 
 func run(ch <-chan interface{}, events chan<- string) error {
@@ -55,15 +63,27 @@ func run(ch <-chan interface{}, events chan<- string) error {
 	testSvc := w.NewService("test")
 
 	err = testSvc.On(
-		worker.Events("concurrency-test-event"),
+		worker.Events("concurrency-test-event-rr"),
 		&worker.WorkflowJob{
-			Name:        "concurrency-limit",
-			Description: "This limits concurrency to 1 run at a time.",
-			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(1),
+			Name:        "concurrency-limit-round-robin",
+			Description: "This limits concurrency to 2 runs at a time.",
+			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(2).LimitStrategy(types.GroupRoundRobin),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					<-ctx.Done()
-					fmt.Println("context done, returning")
+					input := &concurrencyLimitEvent{}
+
+					err = ctx.WorkflowInput(input)
+
+					if err != nil {
+						return nil, fmt.Errorf("error getting input: %w", err)
+					}
+
+					fmt.Println("received event", input.UserId)
+
+					time.Sleep(5 * time.Second)
+
+					fmt.Println("processed event", input.UserId)
+
 					return nil, nil
 				},
 				).SetName("step-one"),
@@ -96,19 +116,16 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		case <-time.After(2 * time.Second): // timeout
 		}
 
-		firstEvent := concurrencyLimitEvent{
-			Index: 0,
-		}
+		for i := 0; i < 20; i++ {
+			var event concurrencyLimitEvent
 
-		// push an event
-		err = c.Event().Push(
-			context.Background(),
-			"concurrency-test-event",
-			firstEvent,
-		)
+			if i < 10 {
+				event = concurrencyLimitEvent{0}
+			} else {
+				event = concurrencyLimitEvent{1}
+			}
 
-		if err != nil {
-			panic(err)
+			c.Event().Push(context.Background(), "concurrency-test-event-rr", event)
 		}
 
 		select {
@@ -116,19 +133,6 @@ func run(ch <-chan interface{}, events chan<- string) error {
 			fmt.Println("interrupted")
 			return
 		case <-time.After(10 * time.Second): //timeout
-		}
-
-		// push a second event
-		err = c.Event().Push(
-			context.Background(),
-			"concurrency-test-event",
-			concurrencyLimitEvent{
-				Index: 1,
-			},
-		)
-
-		if err != nil {
-			panic(err)
 		}
 	}()
 

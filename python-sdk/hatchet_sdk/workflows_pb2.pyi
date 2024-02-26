@@ -13,9 +13,11 @@ class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     CANCEL_IN_PROGRESS: _ClassVar[ConcurrencyLimitStrategy]
     DROP_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
     QUEUE_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
+    GROUP_ROUND_ROBIN: _ClassVar[ConcurrencyLimitStrategy]
 CANCEL_IN_PROGRESS: ConcurrencyLimitStrategy
 DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy
+GROUP_ROUND_ROBIN: ConcurrencyLimitStrategy
 
 class PutWorkflowRequest(_message.Message):
     __slots__ = ("opts",)

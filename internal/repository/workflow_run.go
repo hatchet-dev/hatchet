@@ -234,9 +234,28 @@ type ListPullRequestsForWorkflowRunOpts struct {
 	State *string
 }
 
+type ListWorkflowRunRoundRobinsOpts struct {
+	// (optional) the workflow id
+	WorkflowId *string `validate:"omitempty,uuid"`
+
+	// (optional) the workflow version id
+	WorkflowVersionId *string `validate:"omitempty,uuid"`
+
+	// (optional) the status of the workflow run
+	Status *db.WorkflowRunStatus
+
+	// (optional) number of events to skip
+	Offset *int
+
+	// (optional) number of events to return
+	Limit *int
+}
+
 type WorkflowRunRepository interface {
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
+
+	PopWorkflowRunsRoundRobin(tenantId, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*db.WorkflowRunModel, error)

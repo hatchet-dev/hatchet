@@ -111,7 +111,7 @@ export class Worker {
   handleStartStepRun(action: Action) {
     const { actionId } = action;
 
-    const context = new Context(action.actionPayload);
+    const context = new Context(action);
     this.contexts[action.stepRunId] = context;
 
     const step = this.action_registry[actionId];
@@ -176,7 +176,7 @@ export class Worker {
 
   handleStartGroupKeyRun(action: Action) {
     const { actionId } = action;
-    const context = new Context(action.actionPayload);
+    const context = new Context(action);
 
     const key = action.getGroupKeyRunId;
 
