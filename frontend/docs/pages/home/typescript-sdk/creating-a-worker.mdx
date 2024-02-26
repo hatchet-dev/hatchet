@@ -23,4 +23,14 @@ main();
 
 ## Options
 
+### Name
+
 The `hatchet.worker()` method takes a simple name parameter which can be used to identify the worker on the Hatchet dashboard.
+
+### Max Runs
+
+The `maxRuns` option can be used to limit the number of runs a worker will process before stopping. This is particularly useful for resource-intensive workers. For example, to limit the worker to only executing 1 run at a time, you can use the following code:
+
+```ts
+hatchet.worker('example-worker', 1)
+```

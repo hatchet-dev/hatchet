@@ -23,7 +23,7 @@ class ConcurrencyDemoWorkflowRR:
         pass
 
 workflow = ConcurrencyDemoWorkflowRR()
-worker = hatchet.worker('concurrency-demo-worker-rr', max_threads=1)
+worker = hatchet.worker('concurrency-demo-worker-rr', max_runs=1)
 worker.register_workflow(workflow)
 
 worker.start()
