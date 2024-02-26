@@ -429,6 +429,7 @@ CREATE TABLE "Worker" (
     "name" TEXT NOT NULL,
     "status" "WorkerStatus" NOT NULL DEFAULT 'ACTIVE',
     "dispatcherId" UUID NOT NULL,
+    "maxRuns" INTEGER,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );

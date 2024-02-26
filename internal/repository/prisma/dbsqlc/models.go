@@ -726,6 +726,7 @@ type Worker struct {
 	Name            string           `json:"name"`
 	Status          WorkerStatus     `json:"status"`
 	DispatcherId    pgtype.UUID      `json:"dispatcherId"`
+	MaxRuns         pgtype.Int4      `json:"maxRuns"`
 }
 
 type Workflow struct {

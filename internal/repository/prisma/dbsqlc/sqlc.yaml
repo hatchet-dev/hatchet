@@ -12,6 +12,7 @@ sql:
       - job_runs.sql
       - tickers.sql
       - dispatchers.sql
+      - workers.sql
     schema:
       - schema.sql
     strict_order_by: false

@@ -18,6 +18,8 @@ type ConfigFile struct {
 	Seed SeedConfigFile `mapstructure:"seed" json:"seed,omitempty"`
 
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
+
+	LogQueries bool `mapstructure:"logQueries" json:"logQueries,omitempty" default:"false"`
 }
 
 type SeedConfigFile struct {

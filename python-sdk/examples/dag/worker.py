@@ -1,3 +1,4 @@
+import time
 from hatchet_sdk import Hatchet, Context
 from dotenv import load_dotenv
 
@@ -13,7 +14,7 @@ class MyWorkflow:
     @hatchet.step()
     def step1(self, context : Context):
         overrideValue = context.playground("prompt", "You are an AI assistant...")
-
+        time.sleep(5)
         print("executed step1", context.workflow_input())
         return {
             "step1": overrideValue,
@@ -22,6 +23,7 @@ class MyWorkflow:
     @hatchet.step()
     def step2(self, context : Context):
         print("executed step2", context.workflow_input())
+        time.sleep(5)
         return {
             "step2": "step2",
         }

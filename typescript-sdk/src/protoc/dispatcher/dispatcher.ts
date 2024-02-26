@@ -237,6 +237,8 @@ export interface WorkerRegisterRequest {
   actions: string[];
   /** (optional) the services for this worker */
   services: string[];
+  /** (optional) the max number of runs this worker can handle */
+  maxRuns?: number | undefined;
 }
 
 export interface WorkerRegisterResponse {
@@ -374,7 +376,7 @@ export interface OverridesDataResponse {
 }
 
 function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
-  return { workerName: "", actions: [], services: [] };
+  return { workerName: "", actions: [], services: [], maxRuns: undefined };
 }
 
 export const WorkerRegisterRequest = {
@@ -387,6 +389,9 @@ export const WorkerRegisterRequest = {
     }
     for (const v of message.services) {
       writer.uint32(26).string(v!);
+    }
+    if (message.maxRuns !== undefined) {
+      writer.uint32(32).int32(message.maxRuns);
     }
     return writer;
   },
@@ -419,6 +424,13 @@ export const WorkerRegisterRequest = {
 
           message.services.push(reader.string());
           continue;
+        case 4:
+          if (tag !== 32) {
+            break;
+          }
+
+          message.maxRuns = reader.int32();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -433,6 +445,7 @@ export const WorkerRegisterRequest = {
       workerName: isSet(object.workerName) ? globalThis.String(object.workerName) : "",
       actions: globalThis.Array.isArray(object?.actions) ? object.actions.map((e: any) => globalThis.String(e)) : [],
       services: globalThis.Array.isArray(object?.services) ? object.services.map((e: any) => globalThis.String(e)) : [],
+      maxRuns: isSet(object.maxRuns) ? globalThis.Number(object.maxRuns) : undefined,
     };
   },
 
@@ -447,6 +460,9 @@ export const WorkerRegisterRequest = {
     if (message.services?.length) {
       obj.services = message.services;
     }
+    if (message.maxRuns !== undefined) {
+      obj.maxRuns = Math.round(message.maxRuns);
+    }
     return obj;
   },
 
@@ -458,6 +474,7 @@ export const WorkerRegisterRequest = {
     message.workerName = object.workerName ?? "";
     message.actions = object.actions?.map((e) => e) || [];
     message.services = object.services?.map((e) => e) || [];
+    message.maxRuns = object.maxRuns ?? undefined;
     return message;
   },
 };

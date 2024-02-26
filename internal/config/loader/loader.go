@@ -10,6 +10,9 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/tracelog"
+
+	pgxzero "github.com/jackc/pgx-zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/auth/oauth"
@@ -128,6 +131,13 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 
 	if err != nil {
 		return nil, err
+	}
+
+	if cf.LogQueries {
+		config.ConnConfig.Tracer = &tracelog.TraceLog{
+			Logger:   pgxzero.NewLogger(l),
+			LogLevel: tracelog.LogLevelDebug,
+		}
 	}
 
 	config.MaxConns = 20

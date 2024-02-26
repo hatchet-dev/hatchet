@@ -3,6 +3,7 @@ package transformers
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
 
 func ToWorker(worker *db.WorkerModel) *gen.Worker {
@@ -25,6 +26,19 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 
 			res.Actions = &apiActions
 		}
+	}
+
+	return res
+}
+
+func ToWorkerSqlc(worker *dbsqlc.Worker) *gen.Worker {
+	res := &gen.Worker{
+		Metadata: *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
+		Name:     worker.Name,
+	}
+
+	if !worker.LastHeartbeatAt.Time.IsZero() {
+		res.LastHeartbeatAt = &worker.LastHeartbeatAt.Time
 	}
 
 	return res
