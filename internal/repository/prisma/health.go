@@ -18,6 +18,6 @@ func NewHealthRepository(client *db.PrismaClient) repository.HealthRepository {
 }
 
 func (a *healthRepository) IsHealthy() bool {
-	_, err := a.client.User.FindMany().Exec(context.Background())
+	_, err := a.client.User.FindMany().Take(1).Exec(context.Background())
 	return err == nil
 }
