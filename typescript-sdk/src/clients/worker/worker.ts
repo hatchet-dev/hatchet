@@ -16,7 +16,7 @@ import {
   WorkflowConcurrencyOpts,
 } from '@hatchet/protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
-import sleep from '@hatchet/util/sleep';
+// import sleep from '@hatchet/util/sleep';
 import { Context, StepRunFunction } from '../../step';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
@@ -335,53 +335,38 @@ export class Worker {
   }
 
   async start() {
-    let retries = 0;
+    try {
+      this.listener = await this.client.dispatcher.getActionListener({
+        workerName: this.name,
+        services: ['default'],
+        actions: Object.keys(this.action_registry),
+        maxRuns: this.maxRuns,
+      });
 
-    while (retries < 5) {
-      try {
-        this.listener = await this.client.dispatcher.getActionListener({
-          workerName: this.name,
-          services: ['default'],
-          actions: Object.keys(this.action_registry),
-          maxRuns: this.maxRuns,
-        });
+      const generator = this.listener.actions();
 
-        const generator = this.listener.actions();
+      this.logger.info(`Worker ${this.name} listening for actions`);
 
-        this.logger.info(`Worker ${this.name} listening for actions`);
+      for await (const action of generator) {
+        this.logger.info(
+          `Worker ${this.name} received action ${action.actionId}:${action.actionType}`
+        );
 
-        for await (const action of generator) {
-          this.logger.info(
-            `Worker ${this.name} received action ${action.actionId}:${action.actionType}`
+        if (action.actionType === ActionType.START_STEP_RUN) {
+          this.handleStartStepRun(action);
+        } else if (action.actionType === ActionType.CANCEL_STEP_RUN) {
+          this.handleCancelStepRun(action);
+        } else if (action.actionType === ActionType.START_GET_GROUP_KEY) {
+          this.handleStartGroupKeyRun(action);
+        } else {
+          this.logger.error(
+            `Worker ${this.name} received unknown action type ${action.actionType}`
           );
-
-          if (action.actionType === ActionType.START_STEP_RUN) {
-            this.handleStartStepRun(action);
-          } else if (action.actionType === ActionType.CANCEL_STEP_RUN) {
-            this.handleCancelStepRun(action);
-          } else if (action.actionType === ActionType.START_GET_GROUP_KEY) {
-            this.handleStartGroupKeyRun(action);
-          } else {
-            this.logger.error(
-              `Worker ${this.name} received unknown action type ${action.actionType}`
-            );
-          }
         }
-
-        break;
-      } catch (e: any) {
-        this.logger.error(`Could not start worker: ${e.message}`);
-        retries += 1;
-        const wait = 500;
-        this.logger.error(`Could not start worker, retrying in ${500} seconds`);
-        await sleep(wait);
       }
-    }
-
-    if (this.killing) return;
-
-    if (retries > 5) {
-      throw new HatchetError('Could not start worker after 5 retries');
+    } catch (e: any) {
+      this.logger.error(`Could not run worker: ${e.message}`);
+      throw new HatchetError(`Could not run worker: ${e.message}`);
     }
   }
 }

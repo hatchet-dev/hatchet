@@ -8,6 +8,8 @@ import {
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import HatchetError from '@util/errors/hatchet-error';
 import { Logger } from '@hatchet/util/logger';
+
+import { retrier } from '@hatchet/util/retrier';
 import { ActionListener } from './action-listener';
 
 interface GetActionListenerOptions {
@@ -20,7 +22,6 @@ interface GetActionListenerOptions {
 export class DispatcherClient {
   config: ClientConfig;
   client: PbDispatcherClient;
-
   logger: Logger;
 
   constructor(config: ClientConfig, channel: Channel, factory: ClientFactory) {
@@ -35,17 +36,12 @@ export class DispatcherClient {
       ...options,
     });
 
-    // Subscribe to the worker
-    const listener = this.client.listen({
-      workerId: registration.workerId,
-    });
-
-    return new ActionListener(this, listener, registration.workerId);
+    return new ActionListener(this, registration.workerId);
   }
 
   async sendStepActionEvent(in_: StepActionEvent) {
     try {
-      return this.client.sendStepActionEvent(in_);
+      return retrier(async () => this.client.sendStepActionEvent(in_), this.logger);
     } catch (e: any) {
       throw new HatchetError(e.message);
     }
@@ -53,7 +49,7 @@ export class DispatcherClient {
 
   async sendGroupKeyActionEvent(in_: GroupKeyActionEvent) {
     try {
-      return this.client.sendGroupKeyActionEvent(in_);
+      return retrier(async () => this.client.sendGroupKeyActionEvent(in_), this.logger);
     } catch (e: any) {
       throw new HatchetError(e.message);
     }

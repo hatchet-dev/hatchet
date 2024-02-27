@@ -963,8 +963,8 @@ model Worker {
   status WorkerStatus @default(ACTIVE)
 
   // the dispatcher the worker is connected to
-  dispatcher   Dispatcher @relation(fields: [dispatcherId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  dispatcherId String     @db.Uuid
+  dispatcher   Dispatcher? @relation(fields: [dispatcherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  dispatcherId String?     @db.Uuid
 
   maxRuns Int?
 

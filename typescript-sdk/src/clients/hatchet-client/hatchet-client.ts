@@ -71,15 +71,12 @@ export class HatchetClient {
     // Initializes a new Client instance.
     // Loads config in the following order: config param > yaml file > env vars
 
-    const loaded = ConfigLoader.loadClientConfig({
+    const loaded = ConfigLoader.loadClientConfig(config, {
       path: options?.config_path,
     });
 
     try {
-      const valid = ClientConfigSchema.parse({
-        ...loaded,
-        ...{ ...config, tls_config: { ...loaded.tls_config, ...config?.tls_config } },
-      });
+      const valid = ClientConfigSchema.parse(loaded);
       this.config = valid;
     } catch (e) {
       if (e instanceof z.ZodError) {
@@ -93,6 +90,12 @@ export class HatchetClient {
 
     this.channel = createChannel(this.config.host_port, this.credentials, {
       'grpc.ssl_target_name_override': this.config.tls_config.server_name,
+      'grpc.keepalive_timeout_ms': 60 * 1000,
+      'grpc.client_idle_timeout_ms': 60 * 1000,
+      // Send keepalive pings every 10 seconds, default is 2 hours.
+      'grpc.keepalive_time_ms': 10 * 1000,
+      // Allow keepalive pings when there are no gRPC calls.
+      'grpc.keepalive_permit_without_calls': 1,
     });
 
     const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
@@ -107,21 +110,6 @@ export class HatchetClient {
     this.logger = new Logger('HatchetClient', this.config.log_level);
 
     this.logger.info(`Initialized HatchetClient`);
-  }
-
-  static with_host_port(
-    host: string,
-    port: number,
-    config?: Partial<ClientConfig>,
-    options?: HatchetClientOptions
-  ): HatchetClient {
-    return new HatchetClient(
-      {
-        ...config,
-        host_port: `${host}:${port}`,
-      },
-      options
-    );
   }
 
   static init(
