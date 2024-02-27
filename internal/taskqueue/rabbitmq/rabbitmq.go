@@ -27,7 +27,7 @@ type session struct {
 type taskWithQueue struct {
 	*taskqueue.Task
 
-	q taskqueue.Queue `json:"-"`
+	q taskqueue.Queue
 }
 
 // TaskQueueImpl implements TaskQueue interface using AMQP.
@@ -39,8 +39,14 @@ type TaskQueueImpl struct {
 
 	l *zerolog.Logger
 
+	ready bool
+
 	// lru cache for tenant ids
 	tenantIdCache *lru.Cache[string, bool]
+}
+
+func (t *TaskQueueImpl) IsReady() bool {
+	return t.ready
 }
 
 type TaskQueueImplOpt func(*TaskQueueImplOpts)
@@ -51,10 +57,10 @@ type TaskQueueImplOpts struct {
 }
 
 func defaultTaskQueueImplOpts() *TaskQueueImplOpts {
-	logger := logger.NewDefaultLogger("rabbitmq")
+	l := logger.NewDefaultLogger("rabbitmq")
 
 	return &TaskQueueImplOpts{
-		l: &logger,
+		l: &l,
 	}
 }
 
@@ -83,23 +89,20 @@ func New(fs ...TaskQueueImplOpt) (func() error, *TaskQueueImpl) {
 	newLogger := opts.l.With().Str("service", "events-controller").Logger()
 	opts.l = &newLogger
 
-	sessions := redial(ctx, opts.l, opts.url)
-	tasks := make(chan *taskWithQueue)
-
-	// create a new lru cache for tenant ids
-	tenantIdCache, _ := lru.New[string, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
-
 	t := &TaskQueueImpl{
-		ctx:           ctx,
-		sessions:      sessions,
-		tasks:         tasks,
-		identity:      identity(),
-		l:             opts.l,
-		tenantIdCache: tenantIdCache,
+		ctx:      ctx,
+		identity: identity(),
+		l:        opts.l,
 	}
 
+	t.sessions = t.redial(ctx, opts.l, opts.url)
+	t.tasks = make(chan *taskWithQueue)
+
+	// create a new lru cache for tenant ids
+	t.tenantIdCache, _ = lru.New[string, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
+
 	// init the queues in a blocking fashion
-	sub := <-<-sessions
+	sub := <-<-t.sessions
 	if _, err := t.initQueue(sub, taskqueue.EVENT_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
@@ -362,7 +365,7 @@ func (t *TaskQueueImpl) subscribe(subId string, q taskqueue.Queue, sessions chan
 }
 
 // redial continually connects to the URL, exiting the program when no longer possible
-func redial(ctx context.Context, l *zerolog.Logger, url string) chan chan session {
+func (t *TaskQueueImpl) redial(ctx context.Context, l *zerolog.Logger, url string) chan chan session {
 	sessions := make(chan chan session)
 
 	go func() {
@@ -378,6 +381,18 @@ func redial(ctx context.Context, l *zerolog.Logger, url string) chan chan sessio
 			}
 
 			newSession, err := getSession(ctx, l, url)
+			t.ready = true
+
+			ch := newSession.Connection.NotifyClose(make(chan *amqp.Error, 1))
+
+			go func() {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ch:
+					t.ready = false
+				}
+			}()
 
 			if err != nil {
 				l.Error().Msgf("error getting session: %v", err)
@@ -401,9 +416,9 @@ func redial(ctx context.Context, l *zerolog.Logger, url string) chan chan sessio
 func identity() string {
 	hostname, err := os.Hostname()
 	h := sha256.New()
-	fmt.Fprint(h, hostname)
-	fmt.Fprint(h, err)
-	fmt.Fprint(h, os.Getpid())
+	_, _ = fmt.Fprint(h, hostname)
+	_, _ = fmt.Fprint(h, err)
+	_, _ = fmt.Fprint(h, os.Getpid())
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 

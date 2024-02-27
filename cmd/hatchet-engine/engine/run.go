@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
@@ -11,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/workflows"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
+	"github.com/hatchet-dev/hatchet/internal/services/health"
 	"github.com/hatchet-dev/hatchet/internal/services/heartbeat"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
@@ -38,6 +40,17 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	}
 
 	var teardown []Teardown
+
+	var h *health.Health
+	healthProbes := sc.HasService("health")
+	if healthProbes {
+		h = health.New(sc.Repository, sc.TaskQueue)
+		cleanup := h.Start()
+		teardown = append(teardown, Teardown{
+			name: "health",
+			fn:   cleanup,
+		})
+	}
 
 	if sc.HasService("ticker") {
 		t, err := ticker.New(
@@ -237,7 +250,17 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 	l.Debug().Msgf("engine has started")
 
+	if healthProbes {
+		h.SetReady(true)
+	}
+
 	<-ctx.Done()
+
+	if healthProbes {
+		h.SetReady(false)
+	}
+
+	time.Sleep(sc.Runtime.ShutdownWait)
 
 	l.Debug().Msgf("interrupt received, shutting down")
 
