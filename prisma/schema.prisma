@@ -24,7 +24,7 @@ model User {
   // the user's oauth providers
   oauthProviders UserOAuth[]
 
-  // The hashed user's password. This is placed in a separate table so that it isn't returned by default. 
+  // The hashed user's password. This is placed in a separate table so that it isn't returned by default.
   password UserPassword?
 
   // the user's name
@@ -196,7 +196,7 @@ model APIToken {
   tenantId String? @db.Uuid
 }
 
-// Event represents an event in the database. 
+// Event represents an event in the database.
 model Event {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -319,7 +319,7 @@ model WorkflowVersion {
   // concurrency limits for the workflow
   concurrency WorkflowConcurrency?
 
-  // the declared jobs 
+  // the declared jobs
   jobs Job[]
 
   // all runs for the workflow
@@ -819,7 +819,7 @@ model StepRun {
   // the run output
   output Json?
 
-  // inputSchema is a JSON object which declares a JSON schema for the input data 
+  // inputSchema is a JSON object which declares a JSON schema for the input data
   inputSchema Json?
 
   // when the step should be requeued

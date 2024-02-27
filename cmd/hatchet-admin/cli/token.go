@@ -59,7 +59,12 @@ func runCreateAPIToken() error {
 	// read in the local config
 	configLoader := loader.NewConfigLoader(configDirectory)
 
-	serverConf, err := configLoader.LoadServerConfig()
+	cleanup, serverConf, err := configLoader.LoadServerConfig()
+	defer func() {
+		if err := cleanup(); err != nil {
+			panic(fmt.Errorf("could not cleanup server config: %v", err))
+		}
+	}()
 
 	if err != nil {
 		return err

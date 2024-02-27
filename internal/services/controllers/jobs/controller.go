@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -102,25 +103,40 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 	}, nil
 }
 
-func (jc *JobsControllerImpl) Start(ctx context.Context) error {
-	taskChan, err := jc.tq.Subscribe(ctx, taskqueue.JOB_PROCESSING_QUEUE)
+func (jc *JobsControllerImpl) Start() (func() error, error) {
+	cleanupQueue, taskChan, err := jc.tq.Subscribe(taskqueue.JOB_PROCESSING_QUEUE)
 
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
 	}
 
-	// TODO: close when ctx is done
-	for task := range taskChan {
-		go func(task *taskqueue.Task) {
-			err = jc.handleTask(ctx, task)
+	wg := sync.WaitGroup{}
 
-			if err != nil {
-				jc.l.Error().Err(err).Msg("could not handle job task")
-			}
-		}(task)
+	go func() {
+		for task := range taskChan {
+			wg.Add(1)
+			go func(task *taskqueue.Task) {
+				defer wg.Done()
+				err = jc.handleTask(context.Background(), task)
+
+				if err != nil {
+					jc.l.Error().Err(err).Msg("could not handle job task")
+				}
+			}(task)
+		}
+	}()
+
+	cleanup := func() error {
+		if err := cleanupQueue(); err != nil {
+			return fmt.Errorf("could not cleanup job processing queue: %w", err)
+		}
+
+		wg.Wait()
+
+		return nil
 	}
 
-	return nil
+	return cleanup, nil
 }
 
 func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {

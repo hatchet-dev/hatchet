@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/tls"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
@@ -28,7 +29,7 @@ type ServerConfigFile struct {
 
 	TaskQueue TaskQueueConfigFile `mapstructure:"taskQueue" json:"taskQueue,omitempty"`
 
-	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"ticker\", \"grpc\", \"eventscontroller\", \"jobscontroller\", \"workflowscontroller\", \"heartbeater\"]"`
+	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"health\", \"ticker\", \"grpc\", \"eventscontroller\", \"jobscontroller\", \"workflowscontroller\", \"heartbeater\"]"`
 
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 
@@ -61,6 +62,9 @@ type ConfigFileRuntime struct {
 
 	// Whether the internal worker is enabled for this instance
 	WorkerEnabled bool `mapstructure:"workerEnabled" json:"workerEnabled,omitempty" default:"false"`
+
+	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
+	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
 }
 
 // Encryption options
@@ -222,6 +226,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("runtime.workerEnabled", "SERVER_WORKER_ENABLED")
+	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
 
 	// encryption options

@@ -13,6 +13,7 @@ require (
 	github.com/gorilla/sessions v1.2.2
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
+	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
 	github.com/jackc/pgx/v5 v5.5.0
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.11.3
@@ -100,7 +101,6 @@ require (
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/invopop/jsonschema v0.12.0
-	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

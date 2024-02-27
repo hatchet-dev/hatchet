@@ -21,9 +21,10 @@ func TestTaskQueueIntegration(t *testing.T) {
 	url := "amqp://user:password@localhost:5672/"
 
 	// Initialize the task queue implementation
-	tq := rabbitmq.New(ctx,
+	cleanup, tq := rabbitmq.New(
 		rabbitmq.WithURL(url),
 	)
+	defer cleanup()
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
@@ -41,7 +42,7 @@ func TestTaskQueueIntegration(t *testing.T) {
 	assert.NoError(t, err, "adding task to static queue should not error")
 
 	// Test subscription to the static queue
-	taskChan, err := tq.Subscribe(ctx, staticQueue)
+	cleanupQueue, taskChan, err := tq.Subscribe(staticQueue)
 	require.NoError(t, err, "subscribing to static queue should not error")
 
 	select {
@@ -64,7 +65,7 @@ func TestTaskQueueIntegration(t *testing.T) {
 	}
 
 	// Test subscription to the tenant-specific queue
-	tenantTaskChan, err := tq.Subscribe(ctx, tenantQueue)
+	cleanupTenantQueue, tenantTaskChan, err := tq.Subscribe(tenantQueue)
 	require.NoError(t, err, "subscribing to tenant-specific queue should not error")
 
 	// send task to tenant-specific queue after 1 second to give time for subscriber
@@ -77,9 +78,14 @@ func TestTaskQueueIntegration(t *testing.T) {
 	select {
 	case receivedTask := <-tenantTaskChan:
 		assert.Equal(t, task.ID, receivedTask.ID, "received tenant task ID should match sent task ID")
-		break
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for task from tenant-specific queue")
-		break
+	}
+
+	if err := cleanupQueue(); err != nil {
+		t.Fatalf("error cleaning up queue: %v", err)
+	}
+	if err := cleanupTenantQueue(); err != nil {
+		t.Fatalf("error cleaning up queue: %v", err)
 	}
 }

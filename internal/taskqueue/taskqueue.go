@@ -139,11 +139,14 @@ type TaskQueue interface {
 	AddTask(ctx context.Context, queue Queue, task *Task) error
 
 	// Subscribe subscribes to the task queue.
-	Subscribe(ctx context.Context, queueType Queue) (<-chan *Task, error)
+	Subscribe(queueType Queue) (func() error, <-chan *Task, error)
 
 	// RegisterTenant registers a new pub/sub mechanism for a tenant. This should be called when a
 	// new tenant is created. If this is not called, implementors should ensure that there's a check
 	// on the first message to a tenant to ensure that the tenant is registered, and store the tenant
 	// in an LRU cache which lives in-memory.
 	RegisterTenant(ctx context.Context, tenantId string) error
+
+	// IsReady returns true if the task queue is ready to accept tasks.
+	IsReady() bool
 }

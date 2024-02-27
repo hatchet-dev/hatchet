@@ -11,7 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
-func (t *HeartbeaterImpl) removeStaleTickers(ctx context.Context) func() {
+func (t *HeartbeaterImpl) removeStaleTickers() func() {
 	return func() {
 		t.l.Debug().Msg("removing old tickers")
 
@@ -40,7 +40,7 @@ func (t *HeartbeaterImpl) removeStaleTickers(ctx context.Context) func() {
 
 			// send a task to the job processing queue that the ticker is removed
 			err = t.tq.AddTask(
-				ctx,
+				context.Background(),
 				taskqueue.JOB_PROCESSING_QUEUE,
 				tickerRemoved(ticker.ID),
 			)

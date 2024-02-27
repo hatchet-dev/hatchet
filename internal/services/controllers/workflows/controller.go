@@ -3,6 +3,7 @@ package workflows
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -95,27 +96,40 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 	}, nil
 }
 
-func (wc *WorkflowsControllerImpl) Start(ctx context.Context) error {
+func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 	wc.l.Debug().Msg("starting workflows controller")
 
-	taskChan, err := wc.tq.Subscribe(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE)
+	cleanupQueue, taskChan, err := wc.tq.Subscribe(taskqueue.WORKFLOW_PROCESSING_QUEUE)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// TODO: close when ctx is done
-	for task := range taskChan {
-		go func(task *taskqueue.Task) {
-			err = wc.handleTask(ctx, task)
+	wg := sync.WaitGroup{}
 
-			if err != nil {
-				wc.l.Error().Err(err).Msg("could not handle job task")
-			}
-		}(task)
+	go func() {
+		for task := range taskChan {
+			wg.Add(1)
+			go func(task *taskqueue.Task) {
+				defer wg.Done()
+				err = wc.handleTask(context.Background(), task)
+
+				if err != nil {
+					wc.l.Error().Err(err).Msg("could not handle job task")
+				}
+			}(task)
+		}
+	}()
+
+	cleanup := func() error {
+		if err := cleanupQueue(); err != nil {
+			return fmt.Errorf("could not cleanup queue: %w", err)
+		}
+		wg.Wait()
+		return nil
 	}
 
-	return nil
+	return cleanup, nil
 }
 
 func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {

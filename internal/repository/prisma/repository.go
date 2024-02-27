@@ -26,6 +26,7 @@ type prismaRepository struct {
 	ticker         repository.TickerRepository
 	userSession    repository.UserSessionRepository
 	user           repository.UserRepository
+	health         repository.HealthRepository
 }
 
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
@@ -80,7 +81,12 @@ func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...Pris
 		ticker:         NewTickerRepository(client, pool, opts.v, opts.l),
 		userSession:    NewUserSessionRepository(client, opts.v),
 		user:           NewUserRepository(client, opts.v),
+		health:         NewHealthRepository(client, pool),
 	}
+}
+
+func (r *prismaRepository) Health() repository.HealthRepository {
+	return r.health
 }
 
 func (r *prismaRepository) APIToken() repository.APITokenRepository {

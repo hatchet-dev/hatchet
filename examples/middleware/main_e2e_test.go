@@ -14,7 +14,6 @@ import (
 )
 
 func TestMiddleware(t *testing.T) {
-	t.Skip()
 	testutils.Prepare(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
