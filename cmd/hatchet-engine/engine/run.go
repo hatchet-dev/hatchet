@@ -260,7 +260,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		h.SetReady(false)
 	}
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(sc.Runtime.ShutdownWait)
 
 	l.Debug().Msgf("interrupt received, shutting down")
 
