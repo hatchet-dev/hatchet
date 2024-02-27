@@ -505,11 +505,13 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 
 	g := new(errgroup.Group)
 
-	for _, stepRun := range stepRuns {
-		stepRunCp := stepRun
+	for i := range stepRuns {
+		stepRunCp := stepRuns[i]
 
 		// wrap in func to get defer on the span to avoid leaking spans
 		g.Go(func() error {
+			var innerStepRun *db.StepRunModel
+
 			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue-step-run")
 			defer span.End()
 
@@ -527,7 +529,9 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
 			if isTimedOut {
-				stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunId, &repository.UpdateStepRunOpts{
+				var updateInfo *repository.StepRunUpdateInfo
+
+				innerStepRun, updateInfo, err = ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunId, &repository.UpdateStepRunOpts{
 					CancelledAt:     &now,
 					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
 					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
@@ -537,7 +541,7 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 					return fmt.Errorf("could not update step run %s: %w", stepRunId, err)
 				}
 
-				defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
+				defer ec.handleStepRunUpdateInfo(innerStepRun, updateInfo)
 
 				return nil
 			}
