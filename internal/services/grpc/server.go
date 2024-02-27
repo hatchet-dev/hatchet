@@ -1,7 +1,6 @@
 package grpc
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -14,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/logger"
@@ -24,8 +24,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-
-	"google.golang.org/grpc/status"
 )
 
 type Server struct {
@@ -155,17 +153,17 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) Start(ctx context.Context) error {
-	return s.startGRPC(ctx)
+func (s *Server) Start() (func() error, error) {
+	return s.startGRPC()
 }
 
-func (s *Server) startGRPC(ctx context.Context) error {
+func (s *Server) startGRPC() (func() error, error) {
 	s.l.Debug().Msgf("starting grpc server on %s:%d", s.bindAddress, s.port)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.bindAddress, s.port))
 
 	if err != nil {
-		return fmt.Errorf("failed to listen: %w", err)
+		return nil, fmt.Errorf("failed to listen: %w", err)
 	}
 
 	serverOpts := []grpc.ServerOption{}
@@ -221,6 +219,16 @@ func (s *Server) startGRPC(ctx context.Context) error {
 		admincontracts.RegisterWorkflowServiceServer(grpcServer, s.admin)
 	}
 
-	// Start listening
-	return grpcServer.Serve(lis)
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			panic(fmt.Errorf("failed to serve: %w", err))
+		}
+	}()
+
+	cleanup := func() error {
+		grpcServer.GracefulStop()
+		return nil
+	}
+
+	return cleanup, nil
 }

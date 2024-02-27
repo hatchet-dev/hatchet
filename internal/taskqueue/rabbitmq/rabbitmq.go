@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -70,7 +71,9 @@ func WithURL(url string) TaskQueueImplOpt {
 }
 
 // New creates a new TaskQueueImpl.
-func New(ctx context.Context, fs ...TaskQueueImplOpt) *TaskQueueImpl {
+func New(fs ...TaskQueueImplOpt) (func() error, *TaskQueueImpl) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	opts := defaultTaskQueueImplOpts()
 
 	for _, f := range fs {
@@ -99,30 +102,40 @@ func New(ctx context.Context, fs ...TaskQueueImplOpt) *TaskQueueImpl {
 	sub := <-<-sessions
 	if _, err := t.initQueue(sub, taskqueue.EVENT_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
-		return nil
+		cancel()
+		return nil, nil
 	}
 
 	if _, err := t.initQueue(sub, taskqueue.JOB_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
-		return nil
+		cancel()
+		return nil, nil
 	}
 
 	if _, err := t.initQueue(sub, taskqueue.WORKFLOW_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
-		return nil
+		cancel()
+		return nil, nil
 	}
 
 	if _, err := t.initQueue(sub, taskqueue.SCHEDULING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
-		return nil
+		cancel()
+		return nil, nil
 	}
 
 	// create publisher go func
-	go func() {
-		t.publish()
-	}()
+	cleanup1 := t.startPublishing()
 
-	return t
+	cleanup := func() error {
+		cancel()
+		if err := cleanup1(); err != nil {
+			return fmt.Errorf("error cleaning up rabbitmq publisher: %w", err)
+		}
+		return nil
+	}
+
+	return cleanup, t
 }
 
 // AddTask adds a task to the queue.
@@ -136,12 +149,12 @@ func (t *TaskQueueImpl) AddTask(ctx context.Context, q taskqueue.Queue, task *ta
 }
 
 // Subscribe subscribes to the task queue.
-func (t *TaskQueueImpl) Subscribe(ctx context.Context, q taskqueue.Queue) (<-chan *taskqueue.Task, error) {
+func (t *TaskQueueImpl) Subscribe(q taskqueue.Queue) (func() error, <-chan *taskqueue.Task, error) {
 	t.l.Debug().Msgf("subscribing to queue: %s", q.Name())
 
 	tasks := make(chan *taskqueue.Task)
-	go t.subscribe(ctx, t.identity, q, t.sessions, t.tasks, tasks)
-	return tasks, nil
+	cleanup := t.subscribe(t.identity, q, t.sessions, t.tasks, tasks)
+	return cleanup, tasks, nil
 }
 
 func (t *TaskQueueImpl) RegisterTenant(ctx context.Context, tenantId string) error {
@@ -204,107 +217,148 @@ func (t *TaskQueueImpl) initQueue(sub session, q taskqueue.Queue) (string, error
 	return name, nil
 }
 
-func (t *TaskQueueImpl) publish() {
-	for session := range t.sessions {
-		pub := <-session
+func (t *TaskQueueImpl) startPublishing() func() error {
+	ctx, cancel := context.WithCancel(t.ctx)
 
-		for task := range t.tasks {
-			go func(task *taskWithQueue) {
-				body, err := json.Marshal(task)
+	cleanup := func() error {
+		cancel()
+		return nil
+	}
 
-				if err != nil {
-					t.l.Error().Msgf("error marshaling task queue: %v", err)
+	go func() {
+		for session := range t.sessions {
+			pub := <-session
+
+			for {
+				select {
+				case <-ctx.Done():
 					return
-				}
-
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-
-				t.l.Debug().Msgf("publishing task %s to queue %s", task.ID, task.q.Name())
-
-				err = pub.PublishWithContext(ctx, "", task.q.Name(), false, false, amqp.Publishing{
-					Body: body,
-				})
-
-				// TODO: retry failed delivery on the next session
-				if err != nil {
-					t.l.Error().Msgf("error publishing task: %v", err)
-					return
-				}
-
-				// if this is a tenant task, publish to the tenant exchange
-				if task.TenantID() != "" {
-					// determine if the tenant exchange exists
-					if _, ok := t.tenantIdCache.Get(task.TenantID()); !ok {
-						// register the tenant exchange
-						err = t.RegisterTenant(ctx, task.TenantID())
+				case task := <-t.tasks:
+					go func(task *taskWithQueue) {
+						body, err := json.Marshal(task)
 
 						if err != nil {
-							t.l.Error().Msgf("error registering tenant exchange: %v", err)
+							t.l.Error().Msgf("error marshaling task queue: %v", err)
 							return
 						}
-					}
 
-					t.l.Debug().Msgf("publishing tenant task %s to exchange %s", task.ID, task.TenantID())
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
 
-					err = pub.PublishWithContext(ctx, task.TenantID(), "", false, false, amqp.Publishing{
-						Body: body,
-					})
+						t.l.Debug().Msgf("publishing task %s to queue %s", task.ID, task.q.Name())
 
-					if err != nil {
-						t.l.Error().Msgf("error publishing tenant task: %v", err)
-						return
-					}
+						err = pub.PublishWithContext(ctx, "", task.q.Name(), false, false, amqp.Publishing{
+							Body: body,
+						})
+
+						// TODO: retry failed delivery on the next session
+						if err != nil {
+							t.l.Error().Msgf("error publishing task: %v", err)
+							return
+						}
+
+						// if this is a tenant task, publish to the tenant exchange
+						if task.TenantID() != "" {
+							// determine if the tenant exchange exists
+							if _, ok := t.tenantIdCache.Get(task.TenantID()); !ok {
+								// register the tenant exchange
+								err = t.RegisterTenant(ctx, task.TenantID())
+
+								if err != nil {
+									t.l.Error().Msgf("error registering tenant exchange: %v", err)
+									return
+								}
+							}
+
+							t.l.Debug().Msgf("publishing tenant task %s to exchange %s", task.ID, task.TenantID())
+
+							err = pub.PublishWithContext(ctx, task.TenantID(), "", false, false, amqp.Publishing{
+								Body: body,
+							})
+
+							if err != nil {
+								t.l.Error().Msgf("error publishing tenant task: %v", err)
+								return
+							}
+						}
+
+						t.l.Debug().Msgf("published task %s to queue %s", task.ID, task.q.Name())
+					}(task)
 				}
-
-				t.l.Debug().Msgf("published task %s to queue %s", task.ID, task.q.Name())
-			}(task)
+			}
 		}
-	}
+	}()
+
+	return cleanup
 }
 
-func (t *TaskQueueImpl) subscribe(ctx context.Context, subId string, q taskqueue.Queue, sessions chan chan session, messages chan *taskWithQueue, tasks chan<- *taskqueue.Task) {
+func (t *TaskQueueImpl) subscribe(subId string, q taskqueue.Queue, sessions chan chan session, messages chan *taskWithQueue, tasks chan<- *taskqueue.Task) func() error {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	sessionCount := 0
 
-	for session := range sessions {
-		sessionCount++
-		sub := <-session
+	wg := sync.WaitGroup{}
 
-		// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
-		// if the exclusive queue will be available to the next session.
-		queueName, err := t.initQueue(sub, q)
+	go func() {
+		for session := range sessions {
+			sessionCount++
+			sub := <-session
 
-		if err != nil {
-			return
-		}
+			// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
+			// if the exclusive queue will be available to the next session.
+			queueName, err := t.initQueue(sub, q)
 
-		deliveries, err := sub.Consume(queueName, subId, false, q.Exclusive(), false, false, nil)
+			if err != nil {
+				return
+			}
 
-		if err != nil {
-			t.l.Error().Msgf("cannot consume from: %s, %v", queueName, err)
-			return
-		}
+			deliveries, err := sub.Consume(queueName, subId, false, q.Exclusive(), false, false, nil)
 
-		for msg := range deliveries {
-			go func(msg amqp.Delivery) {
-				task := &taskWithQueue{}
+			if err != nil {
+				t.l.Error().Msgf("cannot consume from: %s, %v", queueName, err)
+				return
+			}
 
-				if err := json.Unmarshal(msg.Body, task); err != nil {
-					t.l.Error().Msgf("error unmarshaling message: %v", err)
+			for {
+				select {
+				case msg := <-deliveries:
+					wg.Add(1)
+					go func(msg amqp.Delivery) {
+						defer wg.Done()
+						task := &taskWithQueue{}
+
+						if err := json.Unmarshal(msg.Body, task); err != nil {
+							t.l.Error().Msgf("error unmarshaling message: %v", err)
+							return
+						}
+
+						t.l.Debug().Msgf("(session: %d) got task: %v", sessionCount, task.ID)
+
+						tasks <- task.Task
+
+						if err := sub.Ack(msg.DeliveryTag, false); err != nil {
+							t.l.Error().Msgf("error acknowledging message: %v", err)
+							return
+						}
+					}(msg)
+				case <-ctx.Done():
 					return
 				}
-
-				t.l.Debug().Msgf("(session: %d) got task: %v", sessionCount, task.ID)
-
-				tasks <- task.Task
-
-				if err := sub.Ack(msg.DeliveryTag, false); err != nil {
-					t.l.Error().Msgf("error acknowledging message: %v", err)
-					return
-				}
-			}(msg)
+			}
 		}
+	}()
+
+	cleanup := func() error {
+		cancel()
+
+		t.l.Debug().Msgf("shutting down subscriber: %s", subId)
+		wg.Wait()
+		close(tasks)
+		t.l.Debug().Msgf("successfully shut down subscriber: %s", subId)
+		return nil
 	}
+
+	return cleanup
 }
 
 // redial continually connects to the URL, exiting the program when no longer possible

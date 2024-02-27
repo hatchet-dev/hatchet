@@ -5,6 +5,7 @@ package loader
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/auth/oauth"
 	"github.com/hatchet-dev/hatchet/internal/auth/token"
+	clientconfig "github.com/hatchet-dev/hatchet/internal/config/client"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
@@ -30,8 +32,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/taskqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/client"
-
-	clientconfig "github.com/hatchet-dev/hatchet/internal/config/client"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -81,24 +81,24 @@ func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
 }
 
 // LoadServerConfig loads the server configuration
-func (c *ConfigLoader) LoadServerConfig() (res *server.ServerConfig, err error) {
+func (c *ConfigLoader) LoadServerConfig() (cleanup func() error, res *server.ServerConfig, err error) {
+	log.Printf("Loading server config from %s", c.directory)
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
-	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
+	log.Printf("Shared file path: %s", sharedFilePath)
 
+	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	dc, err := c.LoadDatabaseConfig()
-
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	cf, err := LoadServerConfigFile(configFileBytes...)
-
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	return GetServerConfigFromConfigfile(dc, cf)
@@ -119,16 +119,15 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 
 	os.Setenv("DATABASE_URL", databaseUrl)
 
-	client := db.NewClient(
+	c := db.NewClient(
 	// db.WithDatasourceURL(databaseUrl),
 	)
 
-	if err := client.Prisma.Connect(); err != nil {
+	if err := c.Prisma.Connect(); err != nil {
 		return nil, err
 	}
 
 	config, err := pgxpool.ParseConfig(databaseUrl)
-
 	if err != nil {
 		return nil, err
 	}
@@ -143,25 +142,24 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 	config.MaxConns = 20
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
 	return &database.Config{
-		Disconnect: client.Prisma.Disconnect,
-		Repository: prisma.NewPrismaRepository(client, pool, prisma.WithLogger(&l)),
+		Disconnect: c.Prisma.Disconnect,
+		Repository: prisma.NewPrismaRepository(c, pool, prisma.WithLogger(&l)),
 		Seed:       cf.Seed,
 	}, nil
 }
 
-func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigFile) (res *server.ServerConfig, err error) {
+func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigFile) (cleanup func() error, res *server.ServerConfig, err error) {
 	l := logger.NewStdErr(&cf.Logger, "server")
 
 	tls, err := loaderutils.LoadServerTLSConfig(&cf.TLS)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not load TLS config: %w", err)
+		return nil, nil, fmt.Errorf("could not load TLS config: %w", err)
 	}
 
 	ss, err := cookie.NewUserSessionStore(
@@ -173,11 +171,10 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create session store: %w", err)
+		return nil, nil, fmt.Errorf("could not create session store: %w", err)
 	}
 
-	tq := rabbitmq.New(
-		context.Background(),
+	cleanup1, tq := rabbitmq.New(
 		rabbitmq.WithURL(cf.TaskQueue.RabbitMQ.URL),
 		rabbitmq.WithLogger(&l),
 	)
@@ -188,7 +185,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create ingestor: %w", err)
+		return nil, nil, fmt.Errorf("could not create ingestor: %w", err)
 	}
 
 	auth := server.AuthConfig{
@@ -197,11 +194,11 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	if cf.Auth.Google.Enabled {
 		if cf.Auth.Google.ClientID == "" {
-			return nil, fmt.Errorf("google client id is required")
+			return nil, nil, fmt.Errorf("google client id is required")
 		}
 
 		if cf.Auth.Google.ClientSecret == "" {
-			return nil, fmt.Errorf("google client secret is required")
+			return nil, nil, fmt.Errorf("google client secret is required")
 		}
 
 		gClient := oauth.NewGoogleClient(&oauth.Config{
@@ -217,7 +214,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	encryptionSvc, err := loadEncryptionSvc(cf)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not load encryption service: %w", err)
+		return nil, nil, fmt.Errorf("could not load encryption service: %w", err)
 	}
 
 	// create a new JWT manager
@@ -229,7 +226,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create JWT manager: %w", err)
+		return nil, nil, fmt.Errorf("could not create JWT manager: %w", err)
 	}
 
 	vcsProviders := make(map[vcs.VCSRepositoryKind]vcs.VCSProvider)
@@ -252,7 +249,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		)
 
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		githubProvider := github.NewGithubVCSProvider(githubAppConf, dc.Repository, cf.Runtime.ServerURL, encryptionSvc)
@@ -267,20 +264,20 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		internalTenant, err := dc.Repository.Tenant().GetTenantBySlug("internal")
 
 		if err != nil {
-			return nil, fmt.Errorf("could not get internal tenant: %w", err)
+			return nil, nil, fmt.Errorf("could not get internal tenant: %w", err)
 		}
 
 		tokenSuffix, err := encryption.GenerateRandomBytes(4)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not generate token suffix: %w", err)
+			return nil, nil, fmt.Errorf("could not generate token suffix: %w", err)
 		}
 
 		// generate a token for the internal client
 		token, err := auth.JWTManager.GenerateTenantToken(internalTenant.ID, fmt.Sprintf("internal-%s", tokenSuffix))
 
 		if err != nil {
-			return nil, fmt.Errorf("could not generate internal token: %w", err)
+			return nil, nil, fmt.Errorf("could not generate internal token: %w", err)
 		}
 
 		internalClient, err = client.NewFromConfigFile(
@@ -291,11 +288,19 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create internal client: %w", err)
+			return nil, nil, fmt.Errorf("could not create internal client: %w", err)
 		}
 	}
 
-	return &server.ServerConfig{
+	cleanup = func() error {
+		log.Printf("cleaning up server config")
+		if err := cleanup1(); err != nil {
+			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
+		}
+		return nil
+	}
+
+	return cleanup, &server.ServerConfig{
 		Runtime:        cf.Runtime,
 		Auth:           auth,
 		Encryption:     encryptionSvc,

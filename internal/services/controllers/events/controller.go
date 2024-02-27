@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -94,25 +95,41 @@ func New(fs ...EventsControllerOpt) (*EventsControllerImpl, error) {
 	}, nil
 }
 
-func (ec *EventsControllerImpl) Start(ctx context.Context) error {
-	taskChan, err := ec.tq.Subscribe(ctx, taskqueue.EVENT_PROCESSING_QUEUE)
+func (ec *EventsControllerImpl) Start() (func() error, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	cleanupQueue, taskChan, err := ec.tq.Subscribe(taskqueue.EVENT_PROCESSING_QUEUE)
 
 	if err != nil {
-		return err
+		cancel()
+		return nil, fmt.Errorf("could not subscribe to event processing queue: %w", err)
 	}
 
-	// TODO: close when ctx is done
-	for task := range taskChan {
-		go func(task *taskqueue.Task) {
-			err = ec.handleTask(ctx, task)
+	wg := sync.WaitGroup{}
 
-			if err != nil {
-				ec.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
-			}
-		}(task)
+	go func() {
+		for task := range taskChan {
+			wg.Add(1)
+			go func(task *taskqueue.Task) {
+				defer wg.Done()
+				err = ec.handleTask(ctx, task)
+
+				if err != nil {
+					ec.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
+				}
+			}(task)
+		}
+	}()
+
+	cleanup := func() error {
+		cancel()
+		if err := cleanupQueue(); err != nil {
+			return fmt.Errorf("could not cleanup event processing queue: %w", err)
+		}
+		return nil
 	}
 
-	return nil
+	return cleanup, nil
 }
 
 func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {

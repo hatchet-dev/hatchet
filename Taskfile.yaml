@@ -93,6 +93,7 @@ tasks:
       - go mod download
       - cd frontend/app/ && pnpm install
       - cd frontend/docs/ && pnpm install
+      - cd typescript-sdk/ && pnpm install
   generate-api:
     cmds:
       - task: generate-api-server

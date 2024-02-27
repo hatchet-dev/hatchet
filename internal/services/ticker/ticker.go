@@ -115,7 +115,9 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 	}, nil
 }
 
-func (t *TickerImpl) Start(ctx context.Context) error {
+func (t *TickerImpl) Start() (func() error, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	t.l.Debug().Msgf("starting ticker %s", t.tickerId)
 
 	// register the ticker
@@ -124,14 +126,16 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 	})
 
 	if err != nil {
-		return err
+		cancel()
+		return nil, err
 	}
 
 	// subscribe to a task queue with the dispatcher id
-	taskChan, err := t.tq.Subscribe(ctx, taskqueue.QueueTypeFromTickerID(ticker.ID))
+	cleanupQueue, taskChan, err := t.tq.Subscribe(taskqueue.QueueTypeFromTickerID(ticker.ID))
 
 	if err != nil {
-		return err
+		cancel()
+		return nil, err
 	}
 
 	_, err = t.s.NewJob(
@@ -142,7 +146,8 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("could not schedule step run requeue: %w", err)
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run requeue: %w", err)
 	}
 
 	_, err = t.s.NewJob(
@@ -153,7 +158,8 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("could not schedule get group key run requeue: %w", err)
+		cancel()
+		return nil, fmt.Errorf("could not schedule get group key run requeue: %w", err)
 	}
 
 	_, err = t.s.NewJob(
@@ -165,35 +171,13 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 
 	t.s.Start()
 
-	for {
-		select {
-		case <-ctx.Done():
-			t.l.Debug().Msg("removing ticker")
+	wg := sync.WaitGroup{}
 
-			// delete the ticker
-			err = t.repo.Ticker().Delete(t.tickerId)
-
-			if err != nil {
-				t.l.Err(err).Msg("could not delete ticker")
-				return err
-			}
-
-			// add the task after the ticker is deleted
-			err := t.tq.AddTask(
-				ctx,
-				taskqueue.JOB_PROCESSING_QUEUE,
-				tickerRemoved(t.tickerId),
-			)
-
-			if err != nil {
-				t.l.Err(err).Msg("could not add ticker removed task")
-				return err
-			}
-
-			// return err
-			return nil
-		case task := <-taskChan:
+	go func() {
+		for task := range taskChan {
+			wg.Add(1)
 			go func(task *taskqueue.Task) {
+				defer wg.Done()
 				err = t.handleTask(ctx, task)
 
 				if err != nil {
@@ -201,7 +185,47 @@ func (t *TickerImpl) Start(ctx context.Context) error {
 				}
 			}(task)
 		}
+	}()
+
+	cleanup := func() error {
+		t.l.Debug().Msg("removing ticker")
+
+		cancel()
+
+		if err := cleanupQueue(); err != nil {
+			return fmt.Errorf("could not cleanup queue: %w", err)
+		}
+
+		wg.Wait()
+
+		// delete the ticker
+		err = t.repo.Ticker().Delete(t.tickerId)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not delete ticker")
+			return err
+		}
+
+		// add the task after the ticker is deleted
+		err = t.tq.AddTask(
+			ctx,
+			taskqueue.JOB_PROCESSING_QUEUE,
+			tickerRemoved(t.tickerId),
+		)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not add ticker removed task")
+			return err
+		}
+
+		if err := t.s.Shutdown(); err != nil {
+			return fmt.Errorf("could not shutdown scheduler: %w", err)
+		}
+
+		return nil
 	}
+
+	return cleanup, nil
 }
 
 func (t *TickerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {
