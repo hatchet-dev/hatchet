@@ -37,7 +37,7 @@ func (h *Health) Start() func() error {
 	})
 
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy() {
+		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy() || !h.repository.Health().IsHealthy() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}

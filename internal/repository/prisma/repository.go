@@ -81,7 +81,7 @@ func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...Pris
 		ticker:         NewTickerRepository(client, pool, opts.v, opts.l),
 		userSession:    NewUserSessionRepository(client, opts.v),
 		user:           NewUserRepository(client, opts.v),
-		health:         NewHealthRepository(client),
+		health:         NewHealthRepository(client, pool),
 	}
 }
 
