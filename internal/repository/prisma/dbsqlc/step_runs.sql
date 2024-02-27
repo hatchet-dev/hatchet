@@ -191,7 +191,7 @@ WHERE
             )
         ) OR (
             sr."status" = 'ASSIGNED'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '6 seconds'
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '5 seconds'
         )
     )
 ORDER BY
