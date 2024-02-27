@@ -80,7 +80,6 @@ export class ActionListener {
   }
 
   async getListenClient(): Promise<AsyncIterable<AssignedAction>> {
-    console.log('RETYR INTERVAL', this.retryInterval);
     const currentTime = Math.floor(Date.now());
 
     // subtract 1000 from the last connection attempt to account for the time it takes to establish the listener
