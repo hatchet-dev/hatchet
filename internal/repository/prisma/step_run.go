@@ -72,6 +72,33 @@ func (s *stepRunRepository) ListAllStepRuns(opts *repository.ListAllStepRunsOpts
 	).Exec(context.Background())
 }
 
+func (s *stepRunRepository) ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.StepRun, error) {
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	tx, err := s.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), s.l, tx.Rollback)
+
+	// get the step run and make sure it's still in pending
+	stepRuns, err := s.queries.ListStepRunsToRequeue(context.Background(), tx, pgTenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return stepRuns, nil
+}
+
 func (s *stepRunRepository) ListStepRuns(tenantId string, opts *repository.ListStepRunsOpts) ([]db.StepRunModel, error) {
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err

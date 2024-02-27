@@ -477,9 +477,7 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 		return fmt.Errorf("could not decode step run requeue task metadata: %w", err)
 	}
 
-	stepRuns, err := ec.repo.StepRun().ListStepRuns(payload.TenantId, &repository.ListStepRunsOpts{
-		Requeuable: repository.BoolPtr(true),
-	})
+	stepRuns, err := ec.repo.StepRun().ListStepRunsToRequeue(payload.TenantId)
 
 	if err != nil {
 		return fmt.Errorf("could not list step runs: %w", err)
@@ -495,20 +493,28 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue-step-run")
 			defer span.End()
 
-			ec.l.Debug().Msgf("requeueing step run %s", stepRunCp.ID)
+			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.ID)
+
+			ec.l.Debug().Msgf("requeueing step run %s", stepRunId)
 
 			now := time.Now().UTC().UTC()
 
 			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-			if scheduleTimeoutAt, ok := stepRunCp.ScheduleTimeoutAt(); ok && scheduleTimeoutAt.Before(now) {
-				stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunCp.ID, &repository.UpdateStepRunOpts{
+			scheduleTimeoutAt := stepRunCp.ScheduleTimeoutAt.Time
+
+			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
+			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
+			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
+
+			if isTimedOut {
+				stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunId, &repository.UpdateStepRunOpts{
 					CancelledAt:     &now,
 					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
 					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
 				})
 
 				if err != nil {
-					return fmt.Errorf("could not update step run %s: %w", stepRunCp.ID, err)
+					return fmt.Errorf("could not update step run %s: %w", stepRunId, err)
 				}
 
 				defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
@@ -518,15 +524,15 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 
 			requeueAfter := time.Now().UTC().Add(time.Second * 5)
 
-			stepRun, _, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunCp.ID, &repository.UpdateStepRunOpts{
+			innerStepRun, _, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunId, &repository.UpdateStepRunOpts{
 				RequeueAfter: &requeueAfter,
 			})
 
 			if err != nil {
-				return fmt.Errorf("could not update step run %s: %w", stepRunCp.ID, err)
+				return fmt.Errorf("could not update step run %s: %w", stepRunId, err)
 			}
 
-			return ec.scheduleStepRun(ctx, payload.TenantId, stepRun.StepID, stepRun.ID)
+			return ec.scheduleStepRun(ctx, payload.TenantId, innerStepRun.StepID, innerStepRun.ID)
 		})
 	}
 
@@ -550,7 +556,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 	// default scheduling timeout
 	if scheduleTimeoutAt, ok := stepRun.ScheduleTimeoutAt(); !ok || scheduleTimeoutAt.IsZero() {
-		scheduleTimeoutAt := time.Now().UTC().Add(time.Second * 30)
+		scheduleTimeoutAt := time.Now().UTC().Add(defaults.DefaultScheduleTimeout)
 
 		updateStepOpts.ScheduleTimeoutAt = &scheduleTimeoutAt
 	}

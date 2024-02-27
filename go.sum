@@ -337,8 +337,6 @@ github.com/spf13/pflag v1.0.5/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An
 github.com/spf13/viper v1.16.0 h1:rGGH0XDZhdUOryiDWjmIvUSWpbNqisK8Wk0Vyefw8hc=
 github.com/spf13/viper v1.16.0/go.mod h1:yg78JgCJcbrQOvV9YLXgkLaZqUidkY9K+Dd1FofRzQg=
 github.com/spkg/bom v0.0.0-20160624110644-59b7046e48ad/go.mod h1:qLr4V1qq6nMqFKkMo8ZTx3f+BZEkzsRUY10Xsm2mwU0=
-github.com/steebchen/prisma-client-go v0.32.1 h1:7jUke4XVSzUkV2TN4VhYSwjU7qizM9w475gpudkLCNI=
-github.com/steebchen/prisma-client-go v0.32.1/go.mod h1:shY2GTQyv15WYTE4p2zffr01ratTzX0zXtBWnDHiLpo=
 github.com/steebchen/prisma-client-go v0.35.0 h1:PpVJBEKfZugLoFU5ICFtskR3sjW5eJZtTG/AZbN4W8A=
 github.com/steebchen/prisma-client-go v0.35.0/go.mod h1:shY2GTQyv15WYTE4p2zffr01ratTzX0zXtBWnDHiLpo=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

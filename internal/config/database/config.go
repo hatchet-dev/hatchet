@@ -49,6 +49,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("password", "DATABASE_POSTGRES_PASSWORD")
 	_ = v.BindEnv("dbName", "DATABASE_POSTGRES_DB_NAME")
 	_ = v.BindEnv("sslMode", "DATABASE_POSTGRES_SSL_MODE")
+	_ = v.BindEnv("logQueries", "DATABASE_LOG_QUERIES")
 
 	_ = v.BindEnv("seed.adminEmail", "ADMIN_EMAIL")
 	_ = v.BindEnv("seed.adminPassword", "ADMIN_PASSWORD")
