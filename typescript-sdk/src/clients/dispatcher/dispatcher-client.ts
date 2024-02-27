@@ -36,12 +36,7 @@ export class DispatcherClient {
       ...options,
     });
 
-    // Subscribe to the worker
-    const listener = this.client.listen({
-      workerId: registration.workerId,
-    });
-
-    return new ActionListener(this, listener, registration.workerId);
+    return new ActionListener(this, registration.workerId);
   }
 
   async sendStepActionEvent(in_: StepActionEvent) {

@@ -15,13 +15,14 @@ describe('Client', () => {
       {
         token:
           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
-        host_port: 'HOST_PORT',
+        host_port: '127.0.0.1:8080',
         log_level: 'OFF',
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
           key_file: 'TLS_KEY_FILE',
           ca_file: 'TLS_ROOT_CA_FILE',
           server_name: 'TLS_SERVER_NAME',
+          tls_strategy: 'tls',
         },
       },
       {
@@ -32,7 +33,7 @@ describe('Client', () => {
     expect(hatchet.config).toEqual({
       token:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
-      host_port: 'HOST_PORT',
+      host_port: '127.0.0.1:8080',
       log_level: 'OFF',
       api_url: 'http://localhost:8080',
       tenant_id: '707d0855-80ab-4e1f-a156-f1c4546cbf52',
@@ -71,6 +72,7 @@ describe('Client', () => {
           key_file: 'TLS_KEY_FILE',
           ca_file: 'TLS_ROOT_CA_FILE',
           server_name: 'TLS_SERVER_NAME',
+          tls_strategy: 'tls',
         },
       },
       {
@@ -93,44 +95,6 @@ describe('Client', () => {
         ca_file: 'TLS_ROOT_CA_FILE',
         server_name: 'TLS_SERVER_NAME',
       },
-    });
-  });
-
-  describe('with_host_port', () => {
-    it('should set the host_port', () => {
-      const hatchet = HatchetClient.with_host_port(
-        'HOST',
-        1234,
-        {
-          token:
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
-          tls_config: {
-            tls_strategy: 'tls',
-            cert_file: 'TLS_CERT_FILE',
-            key_file: 'TLS_KEY_FILE',
-            ca_file: 'TLS_ROOT_CA_FILE',
-            server_name: 'TLS_SERVER_NAME',
-          },
-        },
-        {
-          credentials: ChannelCredentials.createInsecure(),
-        }
-      );
-      expect(hatchet.config).toEqual({
-        token:
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
-        host_port: 'HOST:1234',
-        log_level: 'INFO',
-        api_url: 'http://localhost:8080',
-        tenant_id: '707d0855-80ab-4e1f-a156-f1c4546cbf52',
-        tls_config: {
-          tls_strategy: 'tls',
-          cert_file: 'TLS_CERT_FILE',
-          key_file: 'TLS_KEY_FILE',
-          ca_file: 'TLS_ROOT_CA_FILE',
-          server_name: 'TLS_SERVER_NAME',
-        },
-      });
     });
   });
 

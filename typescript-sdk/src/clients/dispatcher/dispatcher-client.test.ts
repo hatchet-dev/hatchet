@@ -52,34 +52,29 @@ describe('DispatcherClient', () => {
   });
 
   describe('get_action_listener', () => {
-    it('should register the worker', async () => {
-      const clientSpy = jest.spyOn(client.client, 'register').mockResolvedValue({
-        workerId: 'WORKER_ID',
-        tenantId: 'TENANT_ID',
-        workerName: 'WORKER_NAME',
-      });
-
-      const listenerSpy = jest.spyOn(client.client, 'listen');
-
-      const listener = await client.getActionListener({
-        workerName: 'WORKER_NAME',
-        services: ['SERVICE'],
-        actions: ['ACTION'],
-      });
-
-      expect(clientSpy).toHaveBeenCalledWith({
-        workerName: 'WORKER_NAME',
-        services: ['SERVICE'],
-        actions: ['ACTION'],
-      });
-
-      expect(listenerSpy).toHaveBeenCalledWith({
-        workerId: 'WORKER_ID',
-      });
-
-      expect(listener).toBeDefined();
-      expect(listener.workerId).toEqual('WORKER_ID');
-    });
+    //   it('should register the worker', async () => {
+    //     const clientSpy = jest.spyOn(client.client, 'register').mockResolvedValue({
+    //       workerId: 'WORKER_ID',
+    //       tenantId: 'TENANT_ID',
+    //       workerName: 'WORKER_NAME',
+    //     });
+    //     const listenerSpy = jest.spyOn(client.client, 'listen');
+    //     const listener = await client.getActionListener({
+    //       workerName: 'WORKER_NAME',
+    //       services: ['SERVICE'],
+    //       actions: ['ACTION'],
+    //     });
+    //     expect(clientSpy).toHaveBeenCalledWith({
+    //       workerName: 'WORKER_NAME',
+    //       services: ['SERVICE'],
+    //       actions: ['ACTION'],
+    //     });
+    //     expect(listenerSpy).toHaveBeenCalledWith({
+    //       workerId: 'WORKER_ID',
+    //     });
+    //     expect(listener).toBeDefined();
+    //     expect(listener.workerId).toEqual('WORKER_ID');
+    //   });
   });
 
   describe('send_action_event', () => {

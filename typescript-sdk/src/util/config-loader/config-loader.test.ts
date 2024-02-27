@@ -4,7 +4,6 @@ fdescribe('ConfigLoader', () => {
   beforeEach(() => {
     process.env.HATCHET_CLIENT_TOKEN =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef';
-    process.env.HATCHET_CLIENT_HOST_PORT = 'HOST_PORT';
     process.env.HATCHET_CLIENT_TLS_CERT_FILE = 'TLS_CERT_FILE';
     process.env.HATCHET_CLIENT_TLS_KEY_FILE = 'TLS_KEY_FILE';
     process.env.HATCHET_CLIENT_TLS_ROOT_CA_FILE = 'TLS_ROOT_CA_FILE';
@@ -14,7 +13,7 @@ fdescribe('ConfigLoader', () => {
   it('should load from environment variables', () => {
     const config = ConfigLoader.loadClientConfig();
     expect(config).toEqual({
-      host_port: 'HOST_PORT',
+      host_port: '127.0.0.1:8080',
       log_level: 'INFO',
       api_url: 'http://localhost:8080',
       token:
@@ -32,25 +31,34 @@ fdescribe('ConfigLoader', () => {
 
   it('should throw an error if the file is not found', () => {
     expect(() =>
-      ConfigLoader.loadClientConfig({
-        path: './fixtures/not-found.yaml',
-      })
+      ConfigLoader.loadClientConfig(
+        {},
+        {
+          path: './fixtures/not-found.yaml',
+        }
+      )
     ).toThrow();
   });
 
   xit('should throw an error if the yaml file fails validation', () => {
     expect(() =>
       // This test is failing because there is no invalid state of the yaml file, need to update with tls and mtls settings
-      ConfigLoader.loadClientConfig({
-        path: './fixtures/.hatchet-invalid.yaml',
-      })
+      ConfigLoader.loadClientConfig(
+        {},
+        {
+          path: './fixtures/.hatchet-invalid.yaml',
+        }
+      )
     ).toThrow();
   });
 
   it('should favor yaml config over env vars', () => {
-    const config = ConfigLoader.loadClientConfig({
-      path: './fixtures/.hatchet.yaml',
-    });
+    const config = ConfigLoader.loadClientConfig(
+      {},
+      {
+        path: './fixtures/.hatchet.yaml',
+      }
+    );
     expect(config).toEqual({
       token:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
@@ -70,9 +78,12 @@ fdescribe('ConfigLoader', () => {
 
   xit('should attempt to load the root .hatchet.yaml config', () => {
     //  i'm not sure the best way to test this, maybe spy on readFileSync called with
-    const config = ConfigLoader.loadClientConfig({
-      path: './fixtures/.hatchet.yaml',
-    });
+    const config = ConfigLoader.loadClientConfig(
+      {},
+      {
+        path: './fixtures/.hatchet.yaml',
+      }
+    );
     expect(config).toEqual({
       token:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',

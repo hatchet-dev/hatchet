@@ -27,9 +27,12 @@ interface LoadClientConfigOptions {
 const DEFAULT_CONFIG_FILE = '.hatchet.yaml';
 
 export class ConfigLoader {
-  static loadClientConfig(config?: LoadClientConfigOptions): Partial<ClientConfig> {
+  static loadClientConfig(
+    override?: Partial<ClientConfig>,
+    config?: LoadClientConfigOptions
+  ): Partial<ClientConfig> {
     const yaml = this.loadYamlConfig(config?.path);
-    const tlsConfig = {
+    const tlsConfig = override?.tls_config ?? {
       tls_strategy:
         yaml?.tls_config?.tls_strategy ??
         (this.env('HATCHET_CLIENT_TLS_STRATEGY') as TLSStrategy | undefined) ??
@@ -40,7 +43,7 @@ export class ConfigLoader {
       server_name: yaml?.tls_config?.server_name ?? this.env('HATCHET_CLIENT_TLS_SERVER_NAME')!,
     };
 
-    const token = yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN');
+    const token = override?.token ?? yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN');
     let grpcBroadcastAddress: string | undefined;
     let apiUrl: string | undefined;
     const tenantId = getTenantIdFromJWT(token!);
@@ -55,18 +58,26 @@ export class ConfigLoader {
       grpcBroadcastAddress =
         yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT') ?? addresses.grpcBroadcastAddress;
 
-      apiUrl = yaml?.api_url ?? this.env('HATCHET_CLIENT_API_URL') ?? addresses.serverUrl;
+      apiUrl =
+        override?.api_url ??
+        yaml?.api_url ??
+        this.env('HATCHET_CLIENT_API_URL') ??
+        addresses.serverUrl;
     } catch (e) {
       grpcBroadcastAddress = yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT');
-      apiUrl = yaml?.api_url ?? this.env('HATCHET_CLIENT_API_URL');
+      apiUrl = override?.api_url ?? yaml?.api_url ?? this.env('HATCHET_CLIENT_API_URL');
     }
 
     return {
-      token: yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN'),
+      token: override?.token ?? yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN'),
       host_port: grpcBroadcastAddress,
       api_url: apiUrl,
       tls_config: tlsConfig,
-      log_level: yaml?.log_level ?? (this.env('HATCHET_CLIENT_LOG_LEVEL') as LogLevel) ?? 'INFO',
+      log_level:
+        override?.log_level ??
+        yaml?.log_level ??
+        (this.env('HATCHET_CLIENT_LOG_LEVEL') as LogLevel) ??
+        'INFO',
       tenant_id: tenantId,
     };
   }

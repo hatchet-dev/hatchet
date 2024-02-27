@@ -71,15 +71,12 @@ export class HatchetClient {
     // Initializes a new Client instance.
     // Loads config in the following order: config param > yaml file > env vars
 
-    const loaded = ConfigLoader.loadClientConfig({
+    const loaded = ConfigLoader.loadClientConfig(config, {
       path: options?.config_path,
     });
 
     try {
-      const valid = ClientConfigSchema.parse({
-        ...loaded,
-        ...{ ...config, tls_config: { ...loaded.tls_config, ...config?.tls_config } },
-      });
+      const valid = ClientConfigSchema.parse(loaded);
       this.config = valid;
     } catch (e) {
       if (e instanceof z.ZodError) {
@@ -113,21 +110,6 @@ export class HatchetClient {
     this.logger = new Logger('HatchetClient', this.config.log_level);
 
     this.logger.info(`Initialized HatchetClient`);
-  }
-
-  static with_host_port(
-    host: string,
-    port: number,
-    config?: Partial<ClientConfig>,
-    options?: HatchetClientOptions
-  ): HatchetClient {
-    return new HatchetClient(
-      {
-        ...config,
-        host_port: `${host}:${port}`,
-      },
-      options
-    );
   }
 
   static init(
