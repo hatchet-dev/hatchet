@@ -8,7 +8,7 @@
   </a>
 </picture>
 
-### The platform for building distributed web apps at scale
+### The Distributed Task Queue for More Resilient Web Applications
 
 [![Docs](https://img.shields.io/badge/docs-docs.hatchet.run-3F16E4)](https://docs.hatchet.run) [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](https://opensource.org/licenses/MIT) [![Go Reference](https://pkg.go.dev/badge/github.com/hatchet-dev/hatchet.svg)](https://pkg.go.dev/github.com/hatchet-dev/hatchet) [![NPM Downloads](https://img.shields.io/npm/dm/%40hatchet-dev%2Ftypescript-sdk)](https://www.npmjs.com/package/@hatchet-dev/typescript-sdk)
 
@@ -26,7 +26,7 @@
 
 ### What is Hatchet?
 
-Hatchet is a platform for building distributed web apps which solves scaling problems like **concurrency**, **fairness**, and **rate limiting**. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration or infrastructure:
+Hatchet replaces difficult to manage legacy queues or pub/sub systems so you can design durable workloads that recover from failure and solve for problems like **concurrency**, **fairness**, and **rate limiting**. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration or infrastructure:
 
 <p align="center">
   <img width="500" height="500" src="https://github.com/hatchet-dev/hatchet/assets/25448214/c3defa1e-d9d9-4419-94e5-b4ea4a748f8d">
