@@ -125,7 +125,13 @@ func (h *hatchetContext) populateStepData() error {
 
 	h.stepData = &StepRunData{}
 
-	err := json.Unmarshal(h.action.ActionPayload, h.stepData)
+	jsonBytes := h.action.ActionPayload
+
+	if len(jsonBytes) == 0 {
+		jsonBytes = []byte("{}")
+	}
+
+	err := json.Unmarshal(jsonBytes, h.stepData)
 
 	if err != nil {
 		return err

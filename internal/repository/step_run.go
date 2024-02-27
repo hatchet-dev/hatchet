@@ -80,6 +80,9 @@ type StepRunRepository interface {
 	// ListStepRuns returns a list of step runs for a tenant which match the given options.
 	ListStepRuns(tenantId string, opts *ListStepRunsOpts) ([]db.StepRunModel, error)
 
+	// ListStepRunsToRequeue returns a list of step runs which are in a requeueable state.
+	ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.StepRun, error)
+
 	UpdateStepRun(tenantId, stepRunId string, opts *UpdateStepRunOpts) (*db.StepRunModel, *StepRunUpdateInfo, error)
 
 	// UpdateStepRunOverridesData updates the overrides data field in the input for a step run. This returns the input
