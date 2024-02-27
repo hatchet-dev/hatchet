@@ -524,7 +524,7 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 
 			requeueAfter := time.Now().UTC().Add(time.Second * 5)
 
-			stepRun, _, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunId, &repository.UpdateStepRunOpts{
+			innerStepRun, _, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunId, &repository.UpdateStepRunOpts{
 				RequeueAfter: &requeueAfter,
 			})
 
@@ -532,7 +532,7 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 				return fmt.Errorf("could not update step run %s: %w", stepRunId, err)
 			}
 
-			return ec.scheduleStepRun(ctx, payload.TenantId, stepRun.StepID, stepRun.ID)
+			return ec.scheduleStepRun(ctx, payload.TenantId, innerStepRun.StepID, innerStepRun.ID)
 		})
 	}
 
