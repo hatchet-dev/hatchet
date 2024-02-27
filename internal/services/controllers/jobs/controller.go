@@ -504,9 +504,7 @@ func (ec *JobsControllerImpl) handleStepRunRequeue(ctx context.Context, task *ta
 
 			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
 			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
-			isTimedOut := (scheduleTimeoutAt.IsZero() &&
-				time.Now().After(stepRunCp.CreatedAt.Time.Add(defaults.DefaultScheduleTimeout))) ||
-				scheduleTimeoutAt.Before(now)
+			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
 			if isTimedOut {
 				stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(payload.TenantId, stepRunId, &repository.UpdateStepRunOpts{
