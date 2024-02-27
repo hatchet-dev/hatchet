@@ -6,6 +6,9 @@ import {
 } from '@hatchet/protoc/workflows';
 import HatchetError from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
+import { Logger } from '@hatchet/util/logger';
+import { retrier } from '@hatchet/util/retrier';
+
 import { Api } from '../rest';
 
 /**
@@ -29,6 +32,7 @@ export class AdminClient {
   client: WorkflowServiceClient;
   api: Api;
   tenantId: string;
+  logger: Logger;
 
   constructor(
     config: ClientConfig,
@@ -41,6 +45,7 @@ export class AdminClient {
     this.client = factory.create(WorkflowServiceDefinition, channel);
     this.api = api;
     this.tenantId = tenantId;
+    this.logger = new Logger(`Admin`, config.log_level);
   }
 
   /**
@@ -50,9 +55,7 @@ export class AdminClient {
    */
   async put_workflow(workflow: CreateWorkflowVersionOpts) {
     try {
-      await this.client.putWorkflow({
-        opts: workflow,
-      });
+      await retrier(async () => this.client.putWorkflow({ opts: workflow }), this.logger);
     } catch (e: any) {
       throw new HatchetError(e.message);
     }

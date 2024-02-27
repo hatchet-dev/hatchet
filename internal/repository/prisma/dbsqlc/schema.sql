@@ -428,7 +428,7 @@ CREATE TABLE "Worker" (
     "lastHeartbeatAt" TIMESTAMP(3),
     "name" TEXT NOT NULL,
     "status" "WorkerStatus" NOT NULL DEFAULT 'ACTIVE',
-    "dispatcherId" UUID NOT NULL,
+    "dispatcherId" UUID,
     "maxRuns" INTEGER,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
@@ -977,7 +977,7 @@ ALTER TABLE "UserPassword" ADD CONSTRAINT "UserPassword_userId_fkey" FOREIGN KEY
 ALTER TABLE "UserSession" ADD CONSTRAINT "UserSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dispatcherId") REFERENCES "Dispatcher"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dispatcherId") REFERENCES "Dispatcher"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;

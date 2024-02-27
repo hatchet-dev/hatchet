@@ -210,7 +210,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	}
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
-	if worker.DispatcherID != s.dispatcherId {
+	if dispatcherId, ok := worker.DispatcherID(); !ok || dispatcherId != s.dispatcherId {
 		_, err = s.repo.Worker().UpdateWorker(tenant.ID, request.WorkerId, &repository.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})

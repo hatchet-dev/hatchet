@@ -330,15 +330,19 @@ func (ec *JobsControllerImpl) handleJobRunTimedOut(ctx context.Context, task *ta
 			return fmt.Errorf("could not get worker: %w", err)
 		}
 
-		// send a task to the taskqueue
-		err = ec.tq.AddTask(
-			ctx,
-			taskqueue.QueueTypeFromDispatcherID(worker.Dispatcher().ID),
-			stepRunCancelledTask(metadata.TenantId, currStepRun.ID, "JOB_RUN_TIMED_OUT", worker),
-		)
+		dispatcherId, ok := worker.DispatcherID()
 
-		if err != nil {
-			return fmt.Errorf("could not add job assigned task to task queue: %w", err)
+		// send a task to the taskqueue
+		if ok {
+			err = ec.tq.AddTask(
+				ctx,
+				taskqueue.QueueTypeFromDispatcherID(dispatcherId),
+				stepRunCancelledTask(metadata.TenantId, currStepRun.ID, worker.ID, dispatcherId, "JOB_RUN_TIMED_OUT"),
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not add job assigned task to task queue: %w", err)
+			}
 		}
 
 		// cancel the ticker for the step run
@@ -1071,15 +1075,19 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
-	// send a task to the taskqueue
-	err = ec.tq.AddTask(
-		ctx,
-		taskqueue.QueueTypeFromDispatcherID(worker.Dispatcher().ID),
-		stepRunCancelledTask(tenantId, stepRunId, reason, worker),
-	)
+	dispatcherId, ok := worker.DispatcherID()
 
-	if err != nil {
-		return fmt.Errorf("could not add job assigned task to task queue: %w", err)
+	// send a task to the taskqueue
+	if ok {
+		err = ec.tq.AddTask(
+			ctx,
+			taskqueue.QueueTypeFromDispatcherID(dispatcherId),
+			stepRunCancelledTask(tenantId, stepRunId, worker.ID, dispatcherId, reason),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not add job assigned task to task queue: %w", err)
+		}
 	}
 
 	return nil
@@ -1349,18 +1357,16 @@ func cancelStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel) 
 	}
 }
 
-func stepRunCancelledTask(tenantId, stepRunId, cancelledReason string, worker *db.WorkerModel) *taskqueue.Task {
-	dispatcher := worker.Dispatcher()
-
+func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelledReason string) *taskqueue.Task {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelledTaskPayload{
 		StepRunId:       stepRunId,
-		WorkerId:        worker.ID,
+		WorkerId:        workerId,
 		CancelledReason: cancelledReason,
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunCancelledTaskMetadata{
 		TenantId:     tenantId,
-		DispatcherId: dispatcher.ID,
+		DispatcherId: dispatcherId,
 	})
 
 	return &taskqueue.Task{

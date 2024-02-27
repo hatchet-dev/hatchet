@@ -93,6 +93,12 @@ export class HatchetClient {
 
     this.channel = createChannel(this.config.host_port, this.credentials, {
       'grpc.ssl_target_name_override': this.config.tls_config.server_name,
+      'grpc.keepalive_timeout_ms': 60 * 1000,
+      'grpc.client_idle_timeout_ms': 60 * 1000,
+      // Send keepalive pings every 10 seconds, default is 2 hours.
+      'grpc.keepalive_time_ms': 10 * 1000,
+      // Allow keepalive pings when there are no gRPC calls.
+      'grpc.keepalive_permit_without_calls': 1,
     });
 
     const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
