@@ -404,25 +404,26 @@ type Event struct {
 }
 
 type GetGroupKeyRun struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	TenantId        pgtype.UUID      `json:"tenantId"`
-	WorkerId        pgtype.UUID      `json:"workerId"`
-	TickerId        pgtype.UUID      `json:"tickerId"`
-	Status          StepRunStatus    `json:"status"`
-	Input           []byte           `json:"input"`
-	Output          pgtype.Text      `json:"output"`
-	RequeueAfter    pgtype.Timestamp `json:"requeueAfter"`
-	Error           pgtype.Text      `json:"error"`
-	StartedAt       pgtype.Timestamp `json:"startedAt"`
-	FinishedAt      pgtype.Timestamp `json:"finishedAt"`
-	TimeoutAt       pgtype.Timestamp `json:"timeoutAt"`
-	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
-	CancelledReason pgtype.Text      `json:"cancelledReason"`
-	CancelledError  pgtype.Text      `json:"cancelledError"`
-	WorkflowRunId   pgtype.UUID      `json:"workflowRunId"`
+	ID                pgtype.UUID      `json:"id"`
+	CreatedAt         pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt         pgtype.Timestamp `json:"deletedAt"`
+	TenantId          pgtype.UUID      `json:"tenantId"`
+	WorkerId          pgtype.UUID      `json:"workerId"`
+	TickerId          pgtype.UUID      `json:"tickerId"`
+	Status            StepRunStatus    `json:"status"`
+	Input             []byte           `json:"input"`
+	Output            pgtype.Text      `json:"output"`
+	RequeueAfter      pgtype.Timestamp `json:"requeueAfter"`
+	Error             pgtype.Text      `json:"error"`
+	StartedAt         pgtype.Timestamp `json:"startedAt"`
+	FinishedAt        pgtype.Timestamp `json:"finishedAt"`
+	TimeoutAt         pgtype.Timestamp `json:"timeoutAt"`
+	CancelledAt       pgtype.Timestamp `json:"cancelledAt"`
+	CancelledReason   pgtype.Text      `json:"cancelledReason"`
+	CancelledError    pgtype.Text      `json:"cancelledError"`
+	WorkflowRunId     pgtype.UUID      `json:"workflowRunId"`
+	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
 }
 
 type GithubAppInstallation struct {

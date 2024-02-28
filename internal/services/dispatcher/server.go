@@ -106,12 +106,22 @@ func (worker *subscribedWorker) StartGroupKeyAction(
 
 	var inputData types.JSON
 
-	if event, ok := triggeredBy.Event(); ok {
-		inputData, _ = event.Data()
-	} else if schedule, ok := triggeredBy.Scheduled(); ok {
-		inputData, _ = schedule.Input()
-	} else if cron, ok := triggeredBy.Cron(); ok {
-		inputData, _ = cron.Input()
+	if groupKeyRun, ok := workflowRun.GetGroupKeyRun(); ok {
+		var hasInputData bool
+
+		inputData, hasInputData = groupKeyRun.Input()
+
+		if !hasInputData {
+			if event, ok := triggeredBy.Event(); ok {
+				inputData, _ = event.Data()
+			} else if schedule, ok := triggeredBy.Scheduled(); ok {
+				inputData, _ = schedule.Input()
+			} else if cron, ok := triggeredBy.Cron(); ok {
+				inputData, _ = cron.Input()
+			} else if manualData, ok := triggeredBy.Input(); ok {
+				inputData = manualData
+			}
+		}
 	}
 
 	inputBytes, err := inputData.MarshalJSON()

@@ -85,6 +85,7 @@ INSERT INTO "GetGroupKeyRun" (
     "input",
     "output",
     "requeueAfter",
+    "scheduleTimeoutAt",
     "error",
     "startedAt",
     "finishedAt",
@@ -105,6 +106,7 @@ INSERT INTO "GetGroupKeyRun" (
     $4::jsonb,
     NULL,
     $5::timestamp,
+    $6::timestamp,
     NULL,
     NULL,
     NULL,
@@ -112,15 +114,16 @@ INSERT INTO "GetGroupKeyRun" (
     NULL,
     NULL,
     NULL
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workerId", "tickerId", status, input, output, "requeueAfter", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workerId", "tickerId", status, input, output, "requeueAfter", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId", "scheduleTimeoutAt"
 `
 
 type CreateGetGroupKeyRunParams struct {
-	ID            pgtype.UUID      `json:"id"`
-	Tenantid      pgtype.UUID      `json:"tenantid"`
-	Workflowrunid pgtype.UUID      `json:"workflowrunid"`
-	Input         []byte           `json:"input"`
-	Requeueafter  pgtype.Timestamp `json:"requeueafter"`
+	ID                pgtype.UUID      `json:"id"`
+	Tenantid          pgtype.UUID      `json:"tenantid"`
+	Workflowrunid     pgtype.UUID      `json:"workflowrunid"`
+	Input             []byte           `json:"input"`
+	Requeueafter      pgtype.Timestamp `json:"requeueafter"`
+	Scheduletimeoutat pgtype.Timestamp `json:"scheduletimeoutat"`
 }
 
 func (q *Queries) CreateGetGroupKeyRun(ctx context.Context, db DBTX, arg CreateGetGroupKeyRunParams) (*GetGroupKeyRun, error) {
@@ -130,6 +133,7 @@ func (q *Queries) CreateGetGroupKeyRun(ctx context.Context, db DBTX, arg CreateG
 		arg.Workflowrunid,
 		arg.Input,
 		arg.Requeueafter,
+		arg.Scheduletimeoutat,
 	)
 	var i GetGroupKeyRun
 	err := row.Scan(
@@ -152,6 +156,7 @@ func (q *Queries) CreateGetGroupKeyRun(ctx context.Context, db DBTX, arg CreateG
 		&i.CancelledReason,
 		&i.CancelledError,
 		&i.WorkflowRunId,
+		&i.ScheduleTimeoutAt,
 	)
 	return &i, err
 }

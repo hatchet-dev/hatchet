@@ -3,7 +3,6 @@ package prisma
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -44,17 +43,6 @@ func (s *getGroupKeyRunRepository) ListGetGroupKeyRuns(tenantId string, opts *re
 		db.GetGroupKeyRun.TenantID.Equals(tenantId),
 	}
 
-	if opts.Requeuable != nil {
-		// job runs are requeuable if they are past their requeue after time, don't have a worker assigned, have a pending status,
-		// and their previous step is completed
-		params = append(
-			params,
-			db.GetGroupKeyRun.RequeueAfter.Before(time.Now().UTC()),
-			db.GetGroupKeyRun.WorkerID.IsNull(),
-			db.GetGroupKeyRun.Status.Equals(db.StepRunStatusPendingAssignment),
-		)
-	}
-
 	if opts.Status != nil {
 		params = append(params, db.GetGroupKeyRun.Status.Equals(*opts.Status))
 	}
@@ -71,6 +59,10 @@ func (s *getGroupKeyRunRepository) ListGetGroupKeyRuns(tenantId string, opts *re
 			),
 		),
 	).Exec(context.Background())
+}
+
+func (s *getGroupKeyRunRepository) ListGetGroupKeyRunsToRequeue(tenantId string) ([]*dbsqlc.GetGroupKeyRun, error) {
+	return s.queries.ListGetGroupKeyRunsToRequeue(context.Background(), s.pool, sqlchelpers.UUIDFromStr(tenantId))
 }
 
 func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId string, opts *repository.UpdateGetGroupKeyRunOpts) (*db.GetGroupKeyRunModel, error) {
@@ -127,6 +119,10 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRun
 
 	if opts.CancelledReason != nil {
 		updateParams.CancelledReason = sqlchelpers.TextFromStr(*opts.CancelledReason)
+	}
+
+	if opts.ScheduleTimeoutAt != nil {
+		updateParams.ScheduleTimeoutAt = sqlchelpers.TimestampFromTime(*opts.ScheduleTimeoutAt)
 	}
 
 	tx, err := s.pool.Begin(context.Background())

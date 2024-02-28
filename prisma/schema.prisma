@@ -627,6 +627,9 @@ model GetGroupKeyRun {
   // when the step should be requeued
   requeueAfter DateTime?
 
+  // when the step run times out due to a scheduling timeout (no workers available)
+  scheduleTimeoutAt DateTime?
+
   // the run error
   error String?
 

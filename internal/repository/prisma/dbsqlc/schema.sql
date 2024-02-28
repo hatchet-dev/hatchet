@@ -92,6 +92,7 @@ CREATE TABLE "GetGroupKeyRun" (
     "cancelledReason" TEXT,
     "cancelledError" TEXT,
     "workflowRunId" UUID NOT NULL,
+    "scheduleTimeoutAt" TIMESTAMP(3),
 
     CONSTRAINT "GetGroupKeyRun_pkey" PRIMARY KEY ("id")
 );
