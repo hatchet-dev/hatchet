@@ -105,7 +105,7 @@ type CreateWorkflowStepOpts struct {
 	Action string `validate:"required,actionId"`
 
 	// (optional) the step timeout
-	Timeout *string `validate:"omitempty,duration"`
+	Timeout *string
 
 	// (optional) the parents that this step depends on
 	Parents []string `validate:"dive,hatchetName"`
