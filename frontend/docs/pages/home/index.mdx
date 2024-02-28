@@ -1,6 +1,6 @@
 # Introduction
 
-Welcome to the Hatchet documentation! Hatchet is a self-hostable workflow engine which lets you define workflows as code.
+Welcome to the Hatchet documentation. Hatchet is a distributed, fault-tolerant task queue designed to solve scaling problems like **concurrency**, **fairness**, and **rate limiting**. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration/infrastructure.
 
 ## Concepts
 
@@ -16,27 +16,16 @@ The term `workflow` tends to be overloaded, so let's make things more clear - in
 
 Instead of processing background tasks and functions in your application handlers, which can lead to complex code, hard-to-debug errors, and resource contention, you can distribute these workflows between a set of `workers`. Workers are long-running processes which listen for events, and execute the functions defined in your workflows.
 
-**What is a workflow engine?**
+**A managed queue**
 
-A workflow engine orchestrates the execution of workflows. It schedules workflows on workers, retries failed workflows, and provides integrations for monitoring and debugging workflows.
+Hatchet is built on top of a low-latency queue, which means it can handle real-time interactions and mission-critical tasks. This is particularly useful if you're building a real-time application, or if you're running tasks which need to be completed quickly. It can scale to millions of queued tasks and can handle hundreds of tasks per second. We are continuously working to improve our throughput and latency.
 
-**Additional concepts**
+## Getting Started
 
-We'll refer to a few additional terms throughout the documentation:
+There are two steps to getting started with Hatchet: getting access to a Hatchet engine instance and installing the Hatchet SDK. You can get access to a Hatchet engine instance by [requesting access](https://hatchet.run/request-access) to Hatchet Cloud or [self-hosting Hatchet](https://docs.hatchet.run/self-hosting). Once you have access to a Hatchet engine instance, you can install the Hatchet SDK in your application.
 
-- `Workflow run` - an execution of a workflow. In Hatchet, the structure of the workflow is declared in your code, and each invocation of the workflow is a `run`.
-- `Step` - a single function in a workflow. Steps can be executed in parallel, or in sequence, and can have timeouts and retries.
-- `Event` - a type of trigger for a workflow. Events can be emitted by your application, or by an external system. For example, when a user signs up, you can send that as an event to Hatchet. 
+To get started, see the Hatchet documentation [here](https://docs.hatchet.run/home/quickstart), or check out our quickstart repos:
 
-## Use-Cases
-
-Hatchet is designed to support a broad set of use-cases, including:
-
-- **AI & LLM Workflows:** new approaches to deliver AI solutions often have unpredictable results, unreliable availability, or high latency. You can use Hatchet to monitor running prompt results or as a playground to iterate quickly while gaining reliability benefits such as automatic retries and concurrency limits.
-- **Background tasks:** run tasks in the background, without blocking your application. This is particularly useful if you're running into timeouts on your API calls, or if you're running a long-running task which doesn't need to be synchronous.
-- **Data pipelines:** process data from multiple sources, and transform it into a single output. For example, you could use Hatchet to process data from a database, an API, and a file, and then send the output to a third-party service.
-- **Notifications:** send notifications to users based on events in your application. For example, you could send a welcome email to a user after they've signed up, or send a push notification when a user's order has been shipped.
-- **Scheduled tasks:** run tasks on a schedule, without needing to manage cron jobs or other scheduling systems. For example, you could use Hatchet to send a weekly report to your users, or to clean up old data in your database.
-- **Multi-step workflows:** run complex, multi-step workflows in response to events. For example, you could use Hatchet to process a user's order, including charging their credit card, updating the order status, and sending a confirmation email.
-
-Check out the [Quickstart](/quickstart) guide to learn how to get started with Hatchet.
+- [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
+- [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
+- [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart) (coming soon!)
