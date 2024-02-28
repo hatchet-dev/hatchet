@@ -22,7 +22,6 @@ import { Context, StepRunFunction } from '../../step';
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
 export class Worker {
-  serviceName = 'default';
   client: HatchetClient;
   name: string;
   killing: boolean;
@@ -58,7 +57,7 @@ export class Worker {
     try {
       const concurrency: WorkflowConcurrencyOpts | undefined = workflow.concurrency?.name
         ? {
-            action: `${this.serviceName}:${workflow.concurrency.name}`,
+            action: `${workflow.id}:${workflow.concurrency.name}`,
             maxRuns: workflow.concurrency.maxRuns || 1,
             limitStrategy:
               workflow.concurrency.limitStrategy || ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
@@ -81,7 +80,7 @@ export class Worker {
             description: workflow.description,
             steps: workflow.steps.map<CreateWorkflowStepOpts>((step) => ({
               readableId: step.name,
-              action: `${this.serviceName}:${step.name}`,
+              action: `${workflow.id}:${step.name}`,
               timeout: step.timeout || '60s',
               inputs: '{}',
               parents: step.parents ?? [],
@@ -95,15 +94,20 @@ export class Worker {
       throw new HatchetError(`Could not register workflow: ${e.message}`);
     }
 
-    this.action_registry = workflow.steps.reduce<ActionRegistry>((acc, step) => {
-      acc[`${this.serviceName}:${step.name}`] = step.run;
+    const newActions = workflow.steps.reduce<ActionRegistry>((acc, step) => {
+      acc[`${workflow.id}:${step.name}`] = step.run;
       return acc;
     }, {});
+
+    this.action_registry = {
+      ...this.action_registry,
+      ...newActions,
+    };
 
     this.action_registry = workflow.concurrency?.name
       ? {
           ...this.action_registry,
-          [`${this.serviceName}:${workflow.concurrency.name}`]: workflow.concurrency.key,
+          [`${workflow.id}:${workflow.concurrency.name}`]: workflow.concurrency.key,
         }
       : {
           ...this.action_registry,
