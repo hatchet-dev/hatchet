@@ -458,15 +458,21 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pg
 		return "", err
 	}
 
+	createParams := dbsqlc.CreateWorkflowVersionParams{
+		ID:         sqlchelpers.UUIDFromStr(workflowVersionId),
+		Checksum:   cs,
+		Version:    version,
+		Workflowid: workflowId,
+	}
+
+	if opts.ScheduleTimeout != nil {
+		createParams.ScheduleTimeout = sqlchelpers.TextFromStr(*opts.ScheduleTimeout)
+	}
+
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		context.Background(),
 		tx,
-		dbsqlc.CreateWorkflowVersionParams{
-			ID:         sqlchelpers.UUIDFromStr(workflowVersionId),
-			Checksum:   cs,
-			Version:    version,
-			Workflowid: workflowId,
-		},
+		createParams,
 	)
 
 	if err != nil {
@@ -594,19 +600,25 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pg
 				return "", err
 			}
 
+			createStepParams := dbsqlc.CreateStepParams{
+				ID:             sqlchelpers.UUIDFromStr(stepId),
+				Tenantid:       tenantId,
+				Jobid:          sqlchelpers.UUIDFromStr(jobId),
+				Actionid:       stepOpts.Action,
+				Timeout:        timeout,
+				Readableid:     stepOpts.ReadableId,
+				CustomUserData: customUserData,
+				Retries:        retries,
+			}
+
+			if opts.ScheduleTimeout != nil {
+				createStepParams.ScheduleTimeout = sqlchelpers.TextFromStr(*opts.ScheduleTimeout)
+			}
+
 			_, err = r.queries.CreateStep(
 				context.Background(),
 				tx,
-				dbsqlc.CreateStepParams{
-					ID:             sqlchelpers.UUIDFromStr(stepId),
-					Tenantid:       tenantId,
-					Jobid:          sqlchelpers.UUIDFromStr(jobId),
-					Actionid:       stepOpts.Action,
-					Timeout:        timeout,
-					Readableid:     stepOpts.ReadableId,
-					CustomUserData: customUserData,
-					Retries:        retries,
-				},
+				createStepParams,
 			)
 
 			if err != nil {

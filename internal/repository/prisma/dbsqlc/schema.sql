@@ -253,6 +253,7 @@ CREATE TABLE "Step" (
     "timeout" TEXT,
     "customUserData" JSONB,
     "retries" INTEGER NOT NULL DEFAULT 0,
+    "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );
@@ -571,6 +572,7 @@ CREATE TABLE "WorkflowVersion" (
     "order" BIGSERIAL NOT NULL,
     "workflowId" UUID NOT NULL,
     "checksum" TEXT NOT NULL,
+    "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );

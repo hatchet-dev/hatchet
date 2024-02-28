@@ -72,7 +72,11 @@ export interface CreateWorkflowVersionOpts {
   /** (required) the workflow jobs */
   jobs: CreateWorkflowJobOpts[];
   /** (optional) the workflow concurrency options */
-  concurrency: WorkflowConcurrencyOpts | undefined;
+  concurrency:
+    | WorkflowConcurrencyOpts
+    | undefined;
+  /** (optional) the timeout for the schedule */
+  scheduleTimeout?: string | undefined;
 }
 
 export interface WorkflowConcurrencyOpts {
@@ -302,6 +306,7 @@ function createBaseCreateWorkflowVersionOpts(): CreateWorkflowVersionOpts {
     scheduledTriggers: [],
     jobs: [],
     concurrency: undefined,
+    scheduleTimeout: undefined,
   };
 }
 
@@ -330,6 +335,9 @@ export const CreateWorkflowVersionOpts = {
     }
     if (message.concurrency !== undefined) {
       WorkflowConcurrencyOpts.encode(message.concurrency, writer.uint32(66).fork()).ldelim();
+    }
+    if (message.scheduleTimeout !== undefined) {
+      writer.uint32(74).string(message.scheduleTimeout);
     }
     return writer;
   },
@@ -397,6 +405,13 @@ export const CreateWorkflowVersionOpts = {
 
           message.concurrency = WorkflowConcurrencyOpts.decode(reader, reader.uint32());
           continue;
+        case 9:
+          if (tag !== 74) {
+            break;
+          }
+
+          message.scheduleTimeout = reader.string();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -424,6 +439,7 @@ export const CreateWorkflowVersionOpts = {
         ? object.jobs.map((e: any) => CreateWorkflowJobOpts.fromJSON(e))
         : [],
       concurrency: isSet(object.concurrency) ? WorkflowConcurrencyOpts.fromJSON(object.concurrency) : undefined,
+      scheduleTimeout: isSet(object.scheduleTimeout) ? globalThis.String(object.scheduleTimeout) : undefined,
     };
   },
 
@@ -453,6 +469,9 @@ export const CreateWorkflowVersionOpts = {
     if (message.concurrency !== undefined) {
       obj.concurrency = WorkflowConcurrencyOpts.toJSON(message.concurrency);
     }
+    if (message.scheduleTimeout !== undefined) {
+      obj.scheduleTimeout = message.scheduleTimeout;
+    }
     return obj;
   },
 
@@ -471,6 +490,7 @@ export const CreateWorkflowVersionOpts = {
     message.concurrency = (object.concurrency !== undefined && object.concurrency !== null)
       ? WorkflowConcurrencyOpts.fromPartial(object.concurrency)
       : undefined;
+    message.scheduleTimeout = object.scheduleTimeout ?? undefined;
     return message;
   },
 };

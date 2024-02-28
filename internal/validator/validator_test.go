@@ -53,3 +53,27 @@ func TestValidatorInvalidCron(t *testing.T) {
 
 	assert.ErrorContains(t, err, "validation for 'Cron' failed on the 'cron' tag", "should throw error on invalid cron")
 }
+
+func TestValidatorValidDuration(t *testing.T) {
+	v := newValidator()
+
+	err := v.Struct(&struct {
+		Duration string `validate:"duration"`
+	}{
+		Duration: "5s",
+	})
+
+	assert.NoError(t, err, "no error")
+}
+
+func TestValidatorInvalidDuration(t *testing.T) {
+	v := newValidator()
+
+	err := v.Struct(&struct {
+		Duration string `validate:"duration"`
+	}{
+		Duration: "5",
+	})
+
+	assert.ErrorContains(t, err, "validation for 'Duration' failed on the 'duration' tag", "should throw error on invalid duration")
+}

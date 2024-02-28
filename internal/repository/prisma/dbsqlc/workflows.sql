@@ -154,7 +154,8 @@ INSERT INTO "WorkflowVersion" (
     "deletedAt",
     "checksum",
     "version",
-    "workflowId"
+    "workflowId",
+    "scheduleTimeout"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -162,7 +163,8 @@ INSERT INTO "WorkflowVersion" (
     @deletedAt::timestamp,
     @checksum::text,
     sqlc.narg('version')::text,
-    @workflowId::uuid
+    @workflowId::uuid,
+    coalesce(sqlc.narg('scheduleTimeout')::text, '5m')
 ) RETURNING *;
 
 -- name: CreateWorkflowConcurrency :one
@@ -219,7 +221,8 @@ INSERT INTO "Step" (
     "actionId",
     "timeout",
     "customUserData",
-    "retries"
+    "retries",
+    "scheduleTimeout"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -231,7 +234,8 @@ INSERT INTO "Step" (
     @actionId::text,
     @timeout::text,
     coalesce(sqlc.narg('customUserData')::jsonb, '{}'),
-    coalesce(sqlc.narg('retries')::integer, 0)
+    coalesce(sqlc.narg('retries')::integer, 0),
+    coalesce(sqlc.narg('scheduleTimeout')::text, '5m')
 ) RETURNING *;
 
 -- name: AddStepParents :exec

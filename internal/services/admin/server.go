@@ -627,6 +627,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		CronTriggers:      req.Opts.CronTriggers,
 		ScheduledTriggers: scheduledTriggers,
 		Jobs:              jobs,
+		ScheduleTimeout:   req.Opts.ScheduleTimeout,
 	}, nil
 }
 

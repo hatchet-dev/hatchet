@@ -73,6 +73,7 @@ export class Worker {
         cronTriggers: workflow.on.cron ? [workflow.on.cron] : [],
         scheduledTriggers: [],
         concurrency,
+        scheduleTimeout: workflow.scheduleTimeout,
         jobs: [
           {
             name: workflow.id,

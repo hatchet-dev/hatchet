@@ -30,6 +30,7 @@ message CreateWorkflowVersionOpts {
     repeated google.protobuf.Timestamp scheduled_triggers = 6; // (optional) scheduled triggers for the workflow
     repeated CreateWorkflowJobOpts jobs = 7; // (required) the workflow jobs
     WorkflowConcurrencyOpts concurrency = 8; // (optional) the workflow concurrency options
+    optional string schedule_timeout = 9; // (optional) the timeout for the schedule
 }
 
 enum ConcurrencyLimitStrategy {

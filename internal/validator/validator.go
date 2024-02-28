@@ -3,6 +3,7 @@ package validator
 import (
 	"encoding/json"
 	"regexp"
+	"time"
 	"unicode"
 
 	"github.com/Masterminds/semver/v3"
@@ -53,6 +54,12 @@ func newValidator() *validator.Validate {
 
 	_ = validate.RegisterValidation("json", func(fl validator.FieldLevel) bool {
 		return isValidJSON(fl.Field().String())
+	})
+
+	_ = validate.RegisterValidation("duration", func(fl validator.FieldLevel) bool {
+		_, err := time.ParseDuration(fl.Field().String())
+
+		return err == nil
 	})
 
 	return validate

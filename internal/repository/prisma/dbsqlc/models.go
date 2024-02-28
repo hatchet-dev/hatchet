@@ -563,17 +563,18 @@ type ServiceToWorker struct {
 }
 
 type Step struct {
-	ID             pgtype.UUID      `json:"id"`
-	CreatedAt      pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt      pgtype.Timestamp `json:"deletedAt"`
-	ReadableId     pgtype.Text      `json:"readableId"`
-	TenantId       pgtype.UUID      `json:"tenantId"`
-	JobId          pgtype.UUID      `json:"jobId"`
-	ActionId       string           `json:"actionId"`
-	Timeout        pgtype.Text      `json:"timeout"`
-	CustomUserData []byte           `json:"customUserData"`
-	Retries        int32            `json:"retries"`
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
+	ReadableId      pgtype.Text      `json:"readableId"`
+	TenantId        pgtype.UUID      `json:"tenantId"`
+	JobId           pgtype.UUID      `json:"jobId"`
+	ActionId        string           `json:"actionId"`
+	Timeout         pgtype.Text      `json:"timeout"`
+	CustomUserData  []byte           `json:"customUserData"`
+	Retries         int32            `json:"retries"`
+	ScheduleTimeout string           `json:"scheduleTimeout"`
 }
 
 type StepOrder struct {
@@ -836,12 +837,13 @@ type WorkflowTriggers struct {
 }
 
 type WorkflowVersion struct {
-	ID         pgtype.UUID      `json:"id"`
-	CreatedAt  pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt  pgtype.Timestamp `json:"deletedAt"`
-	Version    pgtype.Text      `json:"version"`
-	Order      int64            `json:"order"`
-	WorkflowId pgtype.UUID      `json:"workflowId"`
-	Checksum   string           `json:"checksum"`
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
+	Version         pgtype.Text      `json:"version"`
+	Order           int64            `json:"order"`
+	WorkflowId      pgtype.UUID      `json:"workflowId"`
+	Checksum        string           `json:"checksum"`
+	ScheduleTimeout string           `json:"scheduleTimeout"`
 }

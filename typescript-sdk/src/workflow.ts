@@ -33,6 +33,7 @@ export const CreateWorkflowSchema = z.object({
   id: z.string(),
   description: z.string(),
   version: z.string().optional(),
+  scheduleTimeout: z.string().optional(),
   timeout: HatchetTimeoutSchema.optional(),
   on: OnConfigSchema,
   steps: StepsSchema,
