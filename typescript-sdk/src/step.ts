@@ -42,7 +42,7 @@ export class Context<T, K> {
     }
   }
 
-  stepOutput(step: string): string {
+  stepOutput(step: string): NextStep {
     if (!this.data.parents) {
       throw new HatchetError('Step output not found');
     }
