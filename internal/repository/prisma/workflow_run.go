@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
@@ -270,13 +271,15 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 		}
 
 		requeueAfter := time.Now().UTC().Add(5 * time.Second)
+		scheduleTimeoutAt := time.Now().UTC().Add(defaults.DefaultScheduleTimeout)
 
 		if opts.GetGroupKeyRun != nil {
 			params := dbsqlc.CreateGetGroupKeyRunParams{
-				Tenantid:      pgTenantId,
-				Workflowrunid: sqlcWorkflowRun.ID,
-				Input:         opts.GetGroupKeyRun.Input,
-				Requeueafter:  sqlchelpers.TimestampFromTime(requeueAfter),
+				Tenantid:          pgTenantId,
+				Workflowrunid:     sqlcWorkflowRun.ID,
+				Input:             opts.GetGroupKeyRun.Input,
+				Requeueafter:      sqlchelpers.TimestampFromTime(requeueAfter),
+				Scheduletimeoutat: sqlchelpers.TimestampFromTime(scheduleTimeoutAt),
 			}
 
 			_, err = w.queries.CreateGetGroupKeyRun(

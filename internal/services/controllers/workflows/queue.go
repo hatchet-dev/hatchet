@@ -296,39 +296,61 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyActionRequeue(ctx context.Conte
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	getGroupKeyRuns, err := wc.repo.GetGroupKeyRun().ListGetGroupKeyRuns(payload.TenantId, &repository.ListGetGroupKeyRunsOpts{
-		Requeuable: repository.BoolPtr(true),
-	})
+	getGroupKeyRuns, err := wc.repo.GetGroupKeyRun().ListGetGroupKeyRunsToRequeue(payload.TenantId)
 
 	if err != nil {
-		return fmt.Errorf("could not list step runs: %w", err)
+		return fmt.Errorf("could not list group key runs: %w", err)
 	}
 
 	g := new(errgroup.Group)
 
-	for _, getGroupKeyRun := range getGroupKeyRuns {
-		getGroupKeyRunCp := getGroupKeyRun
+	for i := range getGroupKeyRuns {
+		getGroupKeyRunCp := getGroupKeyRuns[i]
 
 		// wrap in func to get defer on the span to avoid leaking spans
 		g.Go(func() error {
+			var innerGroupKeyRun *db.GetGroupKeyRunModel
 
-			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue-step-run")
+			ctx, span := telemetry.NewSpan(ctx, "handle-requeue-get-group-key-run")
 			defer span.End()
 
-			wc.l.Debug().Msgf("requeueing step run %s", getGroupKeyRunCp.ID)
+			getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRunCp.ID)
+
+			wc.l.Debug().Msgf("requeueing get group key run %s", getGroupKeyRunId)
 
 			now := time.Now().UTC().UTC()
 
 			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-			if getGroupKeyRunCp.CreatedAt.Add(30 * time.Second).Before(now) {
-				_, err = wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(payload.TenantId, getGroupKeyRunCp.ID, &repository.UpdateGetGroupKeyRunOpts{
+			scheduleTimeoutAt := getGroupKeyRunCp.ScheduleTimeoutAt.Time
+
+			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
+			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
+			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
+
+			if isTimedOut {
+				innerGroupKeyRun, err = wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(payload.TenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 					CancelledAt:     &now,
 					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
 					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
 				})
 
 				if err != nil {
-					return fmt.Errorf("could not update step run %s: %w", getGroupKeyRunCp.ID, err)
+					return fmt.Errorf("could not update get group key run %s: %w", getGroupKeyRunId, err)
+				}
+
+				return nil
+			}
+
+			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
+			if getGroupKeyRunCp.CreatedAt.Time.Add(defaults.DefaultScheduleTimeout).Before(now) {
+				_, err = wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(payload.TenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+					CancelledAt:     &now,
+					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
+					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
+				})
+
+				if err != nil {
+					return fmt.Errorf("could not update get group key run %s: %w", getGroupKeyRunId, err)
 				}
 
 				return nil
@@ -336,15 +358,15 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyActionRequeue(ctx context.Conte
 
 			requeueAfter := time.Now().UTC().Add(time.Second * 5)
 
-			getGroupKeyRunP, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(payload.TenantId, getGroupKeyRunCp.ID, &repository.UpdateGetGroupKeyRunOpts{
+			innerGroupKeyRun, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(payload.TenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 				RequeueAfter: &requeueAfter,
 			})
 
 			if err != nil {
-				return fmt.Errorf("could not update get group key run %s: %w", getGroupKeyRunP.ID, err)
+				return fmt.Errorf("could not update get group key run %s: %w", innerGroupKeyRun.ID, err)
 			}
 
-			return wc.scheduleGetGroupAction(ctx, getGroupKeyRunP)
+			return wc.scheduleGetGroupAction(ctx, innerGroupKeyRun)
 		})
 	}
 
