@@ -327,6 +327,9 @@ model WorkflowVersion {
 
   // the scheduled runs for the workflow
   scheduled WorkflowTriggerScheduledRef[]
+
+  // the default amount of time to wait while scheduling a step run
+  scheduleTimeout String @default("5m")
 }
 
 enum ConcurrencyLimitStrategy {
@@ -537,6 +540,9 @@ model Step {
 
   // a list of runs for this step
   stepRuns StepRun[]
+
+  // the default amount of time to wait while scheduling a step run
+  scheduleTimeout String @default("5m")
 
   // readable ids are unique per job
   @@unique([jobId, readableId])

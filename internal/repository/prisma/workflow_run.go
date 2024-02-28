@@ -271,9 +271,10 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 		}
 
 		requeueAfter := time.Now().UTC().Add(5 * time.Second)
-		scheduleTimeoutAt := time.Now().UTC().Add(defaults.DefaultScheduleTimeout)
 
 		if opts.GetGroupKeyRun != nil {
+			scheduleTimeoutAt := time.Now().UTC().Add(defaults.DefaultScheduleTimeout)
+
 			params := dbsqlc.CreateGetGroupKeyRunParams{
 				Tenantid:          pgTenantId,
 				Workflowrunid:     sqlcWorkflowRun.ID,

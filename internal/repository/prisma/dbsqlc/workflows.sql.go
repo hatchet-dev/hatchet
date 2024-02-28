@@ -171,7 +171,8 @@ INSERT INTO "Step" (
     "actionId",
     "timeout",
     "customUserData",
-    "retries"
+    "retries",
+    "scheduleTimeout"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -183,22 +184,24 @@ INSERT INTO "Step" (
     $8::text,
     $9::text,
     coalesce($10::jsonb, '{}'),
-    coalesce($11::integer, 0)
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries
+    coalesce($11::integer, 0),
+    coalesce($12::text, '5m')
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "scheduleTimeout"
 `
 
 type CreateStepParams struct {
-	ID             pgtype.UUID      `json:"id"`
-	CreatedAt      pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
-	Deletedat      pgtype.Timestamp `json:"deletedat"`
-	Readableid     string           `json:"readableid"`
-	Tenantid       pgtype.UUID      `json:"tenantid"`
-	Jobid          pgtype.UUID      `json:"jobid"`
-	Actionid       string           `json:"actionid"`
-	Timeout        string           `json:"timeout"`
-	CustomUserData []byte           `json:"customUserData"`
-	Retries        pgtype.Int4      `json:"retries"`
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	Deletedat       pgtype.Timestamp `json:"deletedat"`
+	Readableid      string           `json:"readableid"`
+	Tenantid        pgtype.UUID      `json:"tenantid"`
+	Jobid           pgtype.UUID      `json:"jobid"`
+	Actionid        string           `json:"actionid"`
+	Timeout         string           `json:"timeout"`
+	CustomUserData  []byte           `json:"customUserData"`
+	Retries         pgtype.Int4      `json:"retries"`
+	ScheduleTimeout pgtype.Text      `json:"scheduleTimeout"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -214,6 +217,7 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.Timeout,
 		arg.CustomUserData,
 		arg.Retries,
+		arg.ScheduleTimeout,
 	)
 	var i Step
 	err := row.Scan(
@@ -228,6 +232,7 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.Timeout,
 		&i.CustomUserData,
 		&i.Retries,
+		&i.ScheduleTimeout,
 	)
 	return &i, err
 }
@@ -467,7 +472,8 @@ INSERT INTO "WorkflowVersion" (
     "deletedAt",
     "checksum",
     "version",
-    "workflowId"
+    "workflowId",
+    "scheduleTimeout"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -475,18 +481,20 @@ INSERT INTO "WorkflowVersion" (
     $4::timestamp,
     $5::text,
     $6::text,
-    $7::uuid
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum
+    $7::uuid,
+    coalesce($8::text, '5m')
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout"
 `
 
 type CreateWorkflowVersionParams struct {
-	ID         pgtype.UUID      `json:"id"`
-	CreatedAt  pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
-	Deletedat  pgtype.Timestamp `json:"deletedat"`
-	Checksum   string           `json:"checksum"`
-	Version    pgtype.Text      `json:"version"`
-	Workflowid pgtype.UUID      `json:"workflowid"`
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	Deletedat       pgtype.Timestamp `json:"deletedat"`
+	Checksum        string           `json:"checksum"`
+	Version         pgtype.Text      `json:"version"`
+	Workflowid      pgtype.UUID      `json:"workflowid"`
+	ScheduleTimeout pgtype.Text      `json:"scheduleTimeout"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -498,6 +506,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.Checksum,
 		arg.Version,
 		arg.Workflowid,
+		arg.ScheduleTimeout,
 	)
 	var i WorkflowVersion
 	err := row.Scan(
@@ -509,6 +518,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.Order,
 		&i.WorkflowId,
 		&i.Checksum,
+		&i.ScheduleTimeout,
 	)
 	return &i, err
 }
@@ -523,7 +533,7 @@ FROM (
         "Workflow" as workflows 
     LEFT JOIN
         (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
+            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
         ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
     LEFT JOIN
         "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"

@@ -36,6 +36,9 @@ type CreateWorkflowVersionOpts struct {
 
 	// (optional) the workflow concurrency groups
 	Concurrency *CreateWorkflowConcurrencyOpts `json:"concurrency,omitempty" validator:"omitnil"`
+
+	// (optional) the amount of time for step runs to wait to be scheduled before timing out
+	ScheduleTimeout *string `validate:"omitempty,duration"`
 }
 
 type CreateWorkflowConcurrencyOpts struct {

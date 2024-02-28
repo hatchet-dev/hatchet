@@ -23,7 +23,7 @@ class Hatchet:
         
         return inner
 
-    def workflow(self, name : str='', on_events : list=[], on_crons : list=[], version : str='', timeout : str = '60m'):
+    def workflow(self, name : str='', on_events : list=[], on_crons : list=[], version : str='', timeout : str = '60m', schedule_timeout : str = '5m'):
         def inner(cls):
                 cls.on_events = on_events
                 cls.on_crons = on_crons
@@ -31,6 +31,7 @@ class Hatchet:
                 cls.client = self.client
                 cls.version = version
                 cls.timeout = timeout
+                cls.schedule_timeout = schedule_timeout
 
                 # Define a new class with the same name and bases as the original, but with WorkflowMeta as its metaclass
                 return WorkflowMeta(cls.__name__, cls.__bases__, dict(cls.__dict__))

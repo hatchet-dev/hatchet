@@ -578,9 +578,20 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 	updateStepOpts := &repository.UpdateStepRunOpts{}
 
-	// default scheduling timeout
+	// set scheduling timeout
 	if scheduleTimeoutAt, ok := stepRun.ScheduleTimeoutAt(); !ok || scheduleTimeoutAt.IsZero() {
-		scheduleTimeoutAt := time.Now().UTC().Add(defaults.DefaultScheduleTimeout)
+		var timeoutDuration time.Duration
+
+		// get the schedule timeout from the step
+		stepScheduleTimeout := stepRun.Step().ScheduleTimeout
+
+		if stepScheduleTimeout != "" {
+			timeoutDuration, _ = time.ParseDuration(stepScheduleTimeout)
+		} else {
+			timeoutDuration = defaults.DefaultScheduleTimeout
+		}
+
+		scheduleTimeoutAt := time.Now().UTC().Add(timeoutDuration)
 
 		updateStepOpts.ScheduleTimeoutAt = &scheduleTimeoutAt
 	}

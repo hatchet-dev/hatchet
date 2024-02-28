@@ -41,6 +41,7 @@ class WorkflowMeta(type):
         cron_triggers = attrs['on_crons']
         version = attrs['version']
         workflowTimeout = attrs['timeout']
+        schedule_timeout = attrs['schedule_timeout']
 
         createStepOpts: List[CreateWorkflowStepOpts] = [
             CreateWorkflowStepOpts(
@@ -70,6 +71,7 @@ class WorkflowMeta(type):
             version=version,
             event_triggers=event_triggers,
             cron_triggers=cron_triggers,
+            schedule_timeout=schedule_timeout,
             jobs=[
                 CreateWorkflowJobOpts(
                     name=name,
