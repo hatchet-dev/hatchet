@@ -10,7 +10,9 @@ export const CreateStepSchema = z.object({
   retries: z.number().optional(),
 });
 
-export type NextStep = { [key: string]: string };
+type JSONPrimitive = string | number | boolean | null;
+
+export type NextStep = { [key: string]: NextStep | JSONPrimitive };
 
 interface ContextData<T, K> {
   input: T;
