@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "Background task orchestration & visibility for developers",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -36,6 +36,7 @@
     "worker:concurrency:rr": "npm run exec -- ./examples/concurrency/group-round-robin/concurrency-worker.ts",
     "event:concurrency:rr": "npm run exec -- ./examples/concurrency/group-round-robin/concurrency-event.ts",
     "worker:retries": "npm run exec -- ./examples/retries-worker.ts",
+    "worker:multi-workflow": "npm run exec -- ./examples/multi-workflow.ts",
     "api": "npm run exec -- ./examples/api.ts",
     "prepublish": "cp package.json dist/package.json;",
     "publish:ci": "rm -rf ./dist && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks",
