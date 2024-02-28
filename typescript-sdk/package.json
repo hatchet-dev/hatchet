@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "description": "Background task orchestration & visibility for developers",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -48,7 +48,6 @@
   "devDependencies": {
     "@types/node": "^20.11.16",
     "@types/jest": "^29.5.11",
-    "@types/node": "^20.11.16",
     "@typescript-eslint/eslint-plugin": "^6.4.0",
     "autoprefixer": "^10.4.16",
     "dotenv-cli": "^7.3.0",
