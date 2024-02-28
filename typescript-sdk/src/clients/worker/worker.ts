@@ -121,6 +121,8 @@ export class Worker {
   handleStartStepRun(action: Action) {
     const { actionId } = action;
 
+    try {
+    
     const context = new Context(action);
     this.contexts[action.stepRunId] = context;
 
@@ -175,7 +177,6 @@ export class Worker {
     const future = new HatchetPromise(run().then(success).catch(failure));
     this.futures[action.stepRunId] = future;
 
-    try {
       // Send the action event to the dispatcher
       const event = this.getStepActionEvent(action, StepActionEventType.STEP_EVENT_TYPE_STARTED);
       this.client.dispatcher.sendStepActionEvent(event);
@@ -186,6 +187,10 @@ export class Worker {
 
   handleStartGroupKeyRun(action: Action) {
     const { actionId } = action;
+
+    try {
+
+
     const context = new Context(action);
 
     const key = action.getGroupKeyRunId;
@@ -245,7 +250,6 @@ export class Worker {
     const future = new HatchetPromise(run().then(success).catch(failure));
     this.futures[action.getGroupKeyRunId] = future;
 
-    try {
       // Send the action event to the dispatcher
       const event = this.getStepActionEvent(action, StepActionEventType.STEP_EVENT_TYPE_STARTED);
       this.client.dispatcher.sendStepActionEvent(event);
