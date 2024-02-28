@@ -76,7 +76,7 @@ describe('Worker', () => {
       expect(putWorkflowSpy).toHaveBeenCalledTimes(1);
 
       expect(worker.action_registry).toEqual({
-        [`default:step1`]: workflow.steps[0].run,
+        [`workflow1:step1`]: workflow.steps[0].run,
       });
     });
   });
