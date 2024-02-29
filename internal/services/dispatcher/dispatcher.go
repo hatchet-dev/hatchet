@@ -156,13 +156,17 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 	d.s.Start()
 
+	wg := sync.WaitGroup{}
+
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case task := <-taskChan:
+				wg.Add(1)
 				go func(task *taskqueue.Task) {
+					defer wg.Done()
 					err = d.handleTask(ctx, task)
 
 					if err != nil {
@@ -180,6 +184,8 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		if err := cleanupQueue(); err != nil {
 			return fmt.Errorf("could not cleanup queue: %w", err)
 		}
+
+		wg.Wait()
 
 		// drain the existing connections
 		d.l.Debug().Msg("draining existing connections")
