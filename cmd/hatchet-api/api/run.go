@@ -10,13 +10,7 @@ import (
 
 func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
 	// init the repository
-	cleanup, sc, err := cf.LoadServerConfig()
-	defer func() {
-		if err := cleanup(); err != nil {
-			panic(fmt.Errorf("could not cleanup server config: %v", err))
-		}
-	}()
-
+	configCleanup, sc, err := cf.LoadServerConfig()
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)
 	}
@@ -34,22 +28,23 @@ func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
 			return fmt.Errorf("error creating worker: %w", err)
 		}
 
-		cleanup, err := w.Start()
+		workerCleanup, err := w.Start()
 		if err != nil {
 			return fmt.Errorf("error starting worker: %w", err)
 		}
 
-		teardown = append(teardown, cleanup)
+		teardown = append(teardown, workerCleanup)
 	}
 
 	runner := run.NewAPIServer(sc)
 
-	cleanup, err = runner.Run()
+	apiCleanup, err := runner.Run()
 	if err != nil {
 		return fmt.Errorf("error starting API server: %w", err)
 	}
 
-	teardown = append(teardown, cleanup)
+	teardown = append(teardown, apiCleanup)
+	teardown = append(teardown, configCleanup)
 
 	sc.Logger.Debug().Msgf("api started successfully")
 
