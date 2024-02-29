@@ -122,60 +122,59 @@ export class Worker {
     const { actionId } = action;
 
     try {
-    
-    const context = new Context(action);
-    this.contexts[action.stepRunId] = context;
+      const context = new Context(action, this.client.dispatcher);
+      this.contexts[action.stepRunId] = context;
 
-    const step = this.action_registry[actionId];
+      const step = this.action_registry[actionId];
 
-    if (!step) {
-      this.logger.error(`Could not find step '${actionId}'`);
-      return;
-    }
-
-    const run = async () => {
-      return step(context);
-    };
-
-    const success = (result: any) => {
-      this.logger.info(`Step run ${action.stepRunId} succeeded`);
-
-      try {
-        // Send the action event to the dispatcher
-        const event = this.getStepActionEvent(
-          action,
-          StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
-          result
-        );
-        this.client.dispatcher.sendStepActionEvent(event);
-
-        // delete the run from the futures
-        delete this.futures[action.stepRunId];
-      } catch (e: any) {
-        this.logger.error(`Could not send action event: ${e.message}`);
+      if (!step) {
+        this.logger.error(`Could not find step '${actionId}'`);
+        return;
       }
-    };
 
-    const failure = (error: any) => {
-      this.logger.error(`Step run ${action.stepRunId} failed: ${error.message}`);
+      const run = async () => {
+        return step(context);
+      };
 
-      try {
-        // Send the action event to the dispatcher
-        const event = this.getStepActionEvent(
-          action,
-          StepActionEventType.STEP_EVENT_TYPE_FAILED,
-          error
-        );
-        this.client.dispatcher.sendStepActionEvent(event);
-        // delete the run from the futures
-        delete this.futures[action.stepRunId];
-      } catch (e: any) {
-        this.logger.error(`Could not send action event: ${e.message}`);
-      }
-    };
+      const success = (result: any) => {
+        this.logger.info(`Step run ${action.stepRunId} succeeded`);
 
-    const future = new HatchetPromise(run().then(success).catch(failure));
-    this.futures[action.stepRunId] = future;
+        try {
+          // Send the action event to the dispatcher
+          const event = this.getStepActionEvent(
+            action,
+            StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
+            result
+          );
+          this.client.dispatcher.sendStepActionEvent(event);
+
+          // delete the run from the futures
+          delete this.futures[action.stepRunId];
+        } catch (e: any) {
+          this.logger.error(`Could not send action event: ${e.message}`);
+        }
+      };
+
+      const failure = (error: any) => {
+        this.logger.error(`Step run ${action.stepRunId} failed: ${error.message}`);
+
+        try {
+          // Send the action event to the dispatcher
+          const event = this.getStepActionEvent(
+            action,
+            StepActionEventType.STEP_EVENT_TYPE_FAILED,
+            error
+          );
+          this.client.dispatcher.sendStepActionEvent(event);
+          // delete the run from the futures
+          delete this.futures[action.stepRunId];
+        } catch (e: any) {
+          this.logger.error(`Could not send action event: ${e.message}`);
+        }
+      };
+
+      const future = new HatchetPromise(run().then(success).catch(failure));
+      this.futures[action.stepRunId] = future;
 
       // Send the action event to the dispatcher
       const event = this.getStepActionEvent(action, StepActionEventType.STEP_EVENT_TYPE_STARTED);
@@ -189,66 +188,64 @@ export class Worker {
     const { actionId } = action;
 
     try {
+      const context = new Context(action, this.client.dispatcher);
 
+      const key = action.getGroupKeyRunId;
 
-    const context = new Context(action);
+      this.contexts[key] = context;
 
-    const key = action.getGroupKeyRunId;
+      this.logger.debug(`Starting group key run ${key}`);
 
-    this.contexts[key] = context;
+      const step = this.action_registry[actionId];
 
-    this.logger.debug(`Starting group key run ${key}`);
-
-    const step = this.action_registry[actionId];
-
-    if (!step) {
-      this.logger.error(`Could not find step '${actionId}'`);
-      return;
-    }
-
-    const run = async () => {
-      return step(context);
-    };
-
-    const success = (result: any) => {
-      this.logger.info(`Step run ${action.stepRunId} succeeded`);
-
-      try {
-        // Send the action event to the dispatcher
-        const event = this.getGroupKeyActionEvent(
-          action,
-          GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_COMPLETED,
-          result
-        );
-        this.client.dispatcher.sendGroupKeyActionEvent(event);
-
-        // delete the run from the futures
-        delete this.futures[key];
-      } catch (e: any) {
-        this.logger.error(`Could not send action event: ${e.message}`);
+      if (!step) {
+        this.logger.error(`Could not find step '${actionId}'`);
+        return;
       }
-    };
 
-    const failure = (error: any) => {
-      this.logger.error(`Step run ${key} failed: ${error.message}`);
+      const run = async () => {
+        return step(context);
+      };
 
-      try {
-        // Send the action event to the dispatcher
-        const event = this.getGroupKeyActionEvent(
-          action,
-          GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_FAILED,
-          error
-        );
-        this.client.dispatcher.sendGroupKeyActionEvent(event);
-        // delete the run from the futures
-        delete this.futures[key];
-      } catch (e: any) {
-        this.logger.error(`Could not send action event: ${e.message}`);
-      }
-    };
+      const success = (result: any) => {
+        this.logger.info(`Step run ${action.stepRunId} succeeded`);
 
-    const future = new HatchetPromise(run().then(success).catch(failure));
-    this.futures[action.getGroupKeyRunId] = future;
+        try {
+          // Send the action event to the dispatcher
+          const event = this.getGroupKeyActionEvent(
+            action,
+            GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_COMPLETED,
+            result
+          );
+          this.client.dispatcher.sendGroupKeyActionEvent(event);
+
+          // delete the run from the futures
+          delete this.futures[key];
+        } catch (e: any) {
+          this.logger.error(`Could not send action event: ${e.message}`);
+        }
+      };
+
+      const failure = (error: any) => {
+        this.logger.error(`Step run ${key} failed: ${error.message}`);
+
+        try {
+          // Send the action event to the dispatcher
+          const event = this.getGroupKeyActionEvent(
+            action,
+            GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_FAILED,
+            error
+          );
+          this.client.dispatcher.sendGroupKeyActionEvent(event);
+          // delete the run from the futures
+          delete this.futures[key];
+        } catch (e: any) {
+          this.logger.error(`Could not send action event: ${e.message}`);
+        }
+      };
+
+      const future = new HatchetPromise(run().then(success).catch(failure));
+      this.futures[action.getGroupKeyRunId] = future;
 
       // Send the action event to the dispatcher
       const event = this.getStepActionEvent(action, StepActionEventType.STEP_EVENT_TYPE_STARTED);

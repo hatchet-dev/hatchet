@@ -23,6 +23,7 @@ export interface Action {
   actionPayload: string;
   workflowRunId: string;
   getGroupKeyRunId: string;
+  stepName: string;
 }
 
 export class ActionListener {

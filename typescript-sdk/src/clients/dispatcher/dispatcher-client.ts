@@ -4,6 +4,8 @@ import {
   DispatcherDefinition,
   StepActionEvent,
   GroupKeyActionEvent,
+  OverridesData,
+  DeepPartial,
 } from '@hatchet/protoc/dispatcher';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import HatchetError from '@util/errors/hatchet-error';
@@ -50,6 +52,14 @@ export class DispatcherClient {
   async sendGroupKeyActionEvent(in_: GroupKeyActionEvent) {
     try {
       return retrier(async () => this.client.sendGroupKeyActionEvent(in_), this.logger);
+    } catch (e: any) {
+      throw new HatchetError(e.message);
+    }
+  }
+
+  async putOverridesData(in_: DeepPartial<OverridesData>) {
+    try {
+      return retrier(async () => this.client.putOverridesData(in_), this.logger);
     } catch (e: any) {
       throw new HatchetError(e.message);
     }
