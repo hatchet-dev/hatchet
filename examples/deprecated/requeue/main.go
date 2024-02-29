@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -64,20 +65,19 @@ func main() {
 		panic(err)
 	}
 
-	go func() {
-		// wait to register the worker for 10 seconds, to let the requeuer kick in
-		time.Sleep(10 * time.Second)
-
-		err = worker.Start(interruptCtx)
-
-		if err != nil {
-			panic(err)
-		}
-	}()
+	// wait to register the worker for 10 seconds, to let the requeuer kick in
+	time.Sleep(10 * time.Second)
+	cleanup, err := worker.Start()
+	if err != nil {
+		panic(err)
+	}
 
 	for {
 		select {
 		case <-interruptCtx.Done():
+			if err := cleanup(); err != nil {
+				panic(fmt.Errorf("error cleaning up: %w", err))
+			}
 			return
 		default:
 			time.Sleep(time.Second)

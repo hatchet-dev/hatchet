@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/joho/godotenv"
 
@@ -30,9 +29,17 @@ func main() {
 	}
 
 	events := make(chan string, 50)
-	ctx, _ := cmdutils.NewInterruptContext()
-	if err := run(ctx, events); err != nil {
+	interrupt := cmdutils.InterruptChan()
+
+	cleanup, err := run(events)
+	if err != nil {
 		panic(err)
+	}
+
+	<-interrupt
+
+	if err := cleanup(); err != nil {
+		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
 }
 
@@ -40,11 +47,11 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "user-create", nil
 }
 
-func run(interruptCtx context.Context, events chan<- string) error {
+func run(events chan<- string) (func() error, error) {
 	c, err := client.New()
 
 	if err != nil {
-		return fmt.Errorf("error creating client: %w", err)
+		return nil, fmt.Errorf("error creating client: %w", err)
 	}
 
 	w, err := worker.NewWorker(
@@ -53,7 +60,7 @@ func run(interruptCtx context.Context, events chan<- string) error {
 		),
 	)
 	if err != nil {
-		return fmt.Errorf("error creating worker: %w", err)
+		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 
 	testSvc := w.NewService("test")
@@ -101,7 +108,7 @@ func run(interruptCtx context.Context, events chan<- string) error {
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("error registering workflow: %w", err)
+		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
 
 	go func() {
@@ -125,18 +132,10 @@ func run(interruptCtx context.Context, events chan<- string) error {
 		}
 	}()
 
-	err = w.Start(interruptCtx)
-
+	cleanup, err := w.Start()
 	if err != nil {
 		panic(err)
 	}
 
-	for {
-		select {
-		case <-interruptCtx.Done():
-			return nil
-		default:
-			time.Sleep(time.Second)
-		}
-	}
+	return cleanup, nil
 }

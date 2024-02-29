@@ -93,22 +93,18 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 		panic(err)
 	}
 
-	go func() {
-		err = w.Start(ctx)
-
-		if err != nil {
-			panic(err)
-		}
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			mx.Lock()
-			defer mx.Unlock()
-			return count, uniques
-		default:
-			time.Sleep(time.Second)
-		}
+	cleanup, err := w.Start()
+	if err != nil {
+		panic(fmt.Errorf("error starting worker: %w", err))
 	}
+
+	<-ctx.Done()
+
+	if err := cleanup(); err != nil {
+		panic(fmt.Errorf("error cleaning up: %w", err))
+	}
+
+	mx.Lock()
+	defer mx.Unlock()
+	return count, uniques
 }

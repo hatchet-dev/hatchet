@@ -150,15 +150,17 @@ func run(interruptCtx context.Context, events chan<- string) error {
 		}
 	}()
 
-	err = w.Start(interruptCtx)
-
+	cleanup, err := w.Start()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error starting worker: %w", err)
 	}
 
 	for {
 		select {
 		case <-interruptCtx.Done():
+			if err := cleanup(); err != nil {
+				return fmt.Errorf("error cleaning up: %w", err)
+			}
 			return nil
 		default:
 			time.Sleep(time.Second)

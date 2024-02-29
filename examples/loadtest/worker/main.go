@@ -74,25 +74,16 @@ func main() {
 		panic(err)
 	}
 
-	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
-	defer cancel()
+	ch := cmdutils.InterruptChan()
 
-	go func() {
-		err = w.Start(interruptCtx)
+	cleanup, err := w.Start()
+	if err != nil {
+		panic(fmt.Errorf("error starting worker: %w", err))
+	}
 
-		if err != nil {
-			panic(err)
-		}
+	<-ch
 
-		cancel()
-	}()
-
-	for {
-		select {
-		case <-interruptCtx.Done():
-			return
-		default:
-			time.Sleep(time.Second)
-		}
+	if err := cleanup(); err != nil {
+		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
 }

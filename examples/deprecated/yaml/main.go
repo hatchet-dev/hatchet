@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -74,18 +75,12 @@ func main() {
 		panic(err)
 	}
 
-	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
-	defer cancel()
+	ch := cmdutils.InterruptChan()
 
-	go func() {
-		err = worker.Start(interruptCtx)
-
-		if err != nil {
-			panic(err)
-		}
-
-		cancel()
-	}()
+	cleanup, err := worker.Start()
+	if err != nil {
+		panic(fmt.Errorf("error starting worker: %w", err))
+	}
 
 	testEvent := userCreateEvent{
 		Username: "echo-test",
@@ -108,12 +103,9 @@ func main() {
 		panic(err)
 	}
 
-	for {
-		select {
-		case <-interruptCtx.Done():
-			return
-		default:
-			time.Sleep(time.Second)
-		}
+	<-ch
+
+	if err := cleanup(); err != nil {
+		panic(fmt.Errorf("error cleaning up worker: %w", err))
 	}
 }
