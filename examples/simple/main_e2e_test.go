@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -21,11 +20,10 @@ func TestSimple(t *testing.T) {
 
 	events := make(chan string, 50)
 
-	go func() {
-		if err := run(ctx, events); err != nil {
-			panic(fmt.Errorf("run() error = %v", err))
-		}
-	}()
+	cleanup, err := run(events)
+	if err != nil {
+		t.Fatalf("/run() error = %v", err)
+	}
 
 	var items []string
 
@@ -43,4 +41,8 @@ outer:
 		"step-one",
 		"step-two",
 	}, items)
+
+	if err := cleanup(); err != nil {
+		t.Fatalf("cleanup() error = %v", err)
+	}
 }
