@@ -20,6 +20,7 @@ const mockStart: AssignActionMock = {
   actionPayload: JSON.stringify('{"input": {"data": 1}}'),
   workflowRunId: 'workflowRun1',
   getGroupKeyRunId: 'groupKeyRun1',
+  stepName: 'step1',
 };
 
 const mockCancel: AssignActionMock = {
