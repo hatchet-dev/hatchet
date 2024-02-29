@@ -381,6 +381,11 @@ func (t *TaskQueueImpl) redial(ctx context.Context, l *zerolog.Logger, url strin
 			}
 
 			newSession, err := getSession(ctx, l, url)
+			if err != nil {
+				l.Error().Msgf("error getting session: %v", err)
+				return
+			}
+
 			t.ready = true
 
 			ch := newSession.Connection.NotifyClose(make(chan *amqp.Error, 1))
@@ -393,11 +398,6 @@ func (t *TaskQueueImpl) redial(ctx context.Context, l *zerolog.Logger, url strin
 					t.ready = false
 				}
 			}()
-
-			if err != nil {
-				l.Error().Msgf("error getting session: %v", err)
-				return
-			}
 
 			select {
 			case sess <- newSession:
