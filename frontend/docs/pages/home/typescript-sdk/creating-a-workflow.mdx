@@ -274,3 +274,26 @@ const workflow: Workflow = {
   steps: [...],
 };
 ```
+
+## Playground Values
+
+Playground values are a way to override variables within a workflow from the Hatchet UI. For example, you could use this to make a prompt or temperature value for an LLM workflow configurable from the UI. These values can be set via the `ctx.playground` method: 
+
+```ts
+await worker.registerWorkflow({
+  id: 'playground-demo',
+  description: 'This is a demo of the playground',
+  steps: [
+    {
+      name: 'playground',
+      run: (ctx: Context<any, any>) => {
+        const prompt = ctx.playground('prompt', 'This is an example prompt');
+
+        return { step1: playground };
+      },
+    },
+  ],
+});
+```
+
+This will then appear in the Hatchet UI under the `prompt` value.
