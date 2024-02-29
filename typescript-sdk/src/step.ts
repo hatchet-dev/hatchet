@@ -2,6 +2,7 @@ import HatchetError from '@util/errors/hatchet-error';
 import * as z from 'zod';
 import { HatchetTimeoutSchema } from './workflow';
 import { Action } from './clients/dispatcher/action-listener';
+import { DispatcherClient } from './clients/dispatcher/dispatcher-client';
 
 export const CreateStepSchema = z.object({
   name: z.string(),
@@ -25,11 +26,16 @@ export class Context<T, K> {
   data: ContextData<T, K>;
   input: T;
   controller = new AbortController();
+  action: Action;
+  client: DispatcherClient;
+  overridesData: Record<string, any> = {};
 
-  constructor(action: Action) {
+  constructor(action: Action, client: DispatcherClient) {
     try {
       const data = JSON.parse(JSON.parse(action.actionPayload));
       this.data = data;
+      this.action = action;
+      this.client = client;
 
       // if this is a getGroupKeyRunId, the data is the workflow input
       if (action.getGroupKeyRunId !== '') {
@@ -37,6 +43,8 @@ export class Context<T, K> {
       } else {
         this.input = data.input;
       }
+
+      this.overridesData = data.overrides || {};
     } catch (e: any) {
       throw new HatchetError(`Could not parse payload: ${e.message}`);
     }
@@ -62,6 +70,24 @@ export class Context<T, K> {
 
   userData(): K {
     return this.data?.user_data;
+  }
+
+  stepName(): string {
+    return this.action.stepName;
+  }
+
+  playground(name: string, defaultValue: string = ''): string {
+    if (name in this.overridesData) {
+      return this.overridesData[name];
+    }
+
+    this.client.putOverridesData({
+      stepRunId: this.action.stepRunId,
+      path: name,
+      value: JSON.stringify(defaultValue),
+    });
+
+    return defaultValue;
   }
 }
 

@@ -62,6 +62,8 @@ func (worker *subscribedWorker) StartStepRun(
 		}
 	}
 
+	stepName, _ := stepRun.Step().ReadableID()
+
 	return worker.stream.Send(&contracts.AssignedAction{
 		TenantId:      tenantId,
 		JobId:         stepRun.Step().JobID,
@@ -72,6 +74,8 @@ func (worker *subscribedWorker) StartStepRun(
 		ActionType:    contracts.ActionType_START_STEP_RUN,
 		ActionId:      stepRun.Step().ActionID,
 		ActionPayload: string(inputBytes),
+		StepName:      stepName,
+		WorkflowRunId: stepRun.JobRun().WorkflowRunID,
 	})
 }
 
@@ -154,14 +158,18 @@ func (worker *subscribedWorker) CancelStepRun(
 	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run")
 	defer span.End()
 
+	stepName, _ := stepRun.Step().ReadableID()
+
 	return worker.stream.Send(&contracts.AssignedAction{
-		TenantId:   tenantId,
-		JobId:      stepRun.Step().JobID,
-		JobName:    stepRun.Step().Job().Name,
-		JobRunId:   stepRun.JobRunID,
-		StepId:     stepRun.StepID,
-		StepRunId:  stepRun.ID,
-		ActionType: contracts.ActionType_CANCEL_STEP_RUN,
+		TenantId:      tenantId,
+		JobId:         stepRun.Step().JobID,
+		JobName:       stepRun.Step().Job().Name,
+		JobRunId:      stepRun.JobRunID,
+		StepId:        stepRun.StepID,
+		StepRunId:     stepRun.ID,
+		ActionType:    contracts.ActionType_CANCEL_STEP_RUN,
+		StepName:      stepName,
+		WorkflowRunId: stepRun.JobRun().WorkflowRunID,
 	})
 }
 

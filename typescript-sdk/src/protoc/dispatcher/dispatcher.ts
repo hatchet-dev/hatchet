@@ -273,6 +273,8 @@ export interface AssignedAction {
   actionType: ActionType;
   /** the action payload */
   actionPayload: string;
+  /** the step name */
+  stepName: string;
 }
 
 export interface WorkerListenRequest {
@@ -581,6 +583,7 @@ function createBaseAssignedAction(): AssignedAction {
     actionId: "",
     actionType: 0,
     actionPayload: "",
+    stepName: "",
   };
 }
 
@@ -618,6 +621,9 @@ export const AssignedAction = {
     }
     if (message.actionPayload !== "") {
       writer.uint32(90).string(message.actionPayload);
+    }
+    if (message.stepName !== "") {
+      writer.uint32(98).string(message.stepName);
     }
     return writer;
   },
@@ -706,6 +712,13 @@ export const AssignedAction = {
 
           message.actionPayload = reader.string();
           continue;
+        case 12:
+          if (tag !== 98) {
+            break;
+          }
+
+          message.stepName = reader.string();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -728,6 +741,7 @@ export const AssignedAction = {
       actionId: isSet(object.actionId) ? globalThis.String(object.actionId) : "",
       actionType: isSet(object.actionType) ? actionTypeFromJSON(object.actionType) : 0,
       actionPayload: isSet(object.actionPayload) ? globalThis.String(object.actionPayload) : "",
+      stepName: isSet(object.stepName) ? globalThis.String(object.stepName) : "",
     };
   },
 
@@ -766,6 +780,9 @@ export const AssignedAction = {
     if (message.actionPayload !== "") {
       obj.actionPayload = message.actionPayload;
     }
+    if (message.stepName !== "") {
+      obj.stepName = message.stepName;
+    }
     return obj;
   },
 
@@ -785,6 +802,7 @@ export const AssignedAction = {
     message.actionId = object.actionId ?? "";
     message.actionType = object.actionType ?? 0;
     message.actionPayload = object.actionPayload ?? "";
+    message.stepName = object.stepName ?? "";
     return message;
   },
 };

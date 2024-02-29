@@ -84,6 +84,9 @@ message AssignedAction {
 
     // the action payload
     string actionPayload = 11;
+
+    // the step name
+    string stepName = 12;
 }
 
 message WorkerListenRequest {
