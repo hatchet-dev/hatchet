@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
@@ -171,11 +173,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			return fmt.Errorf("could not start dispatcher: %w", err)
 		}
 
-		teardown = append(teardown, Teardown{
-			name: "grpc dispatcher",
-			fn:   dispatcherCleanup,
-		})
-
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
 			ingestor.WithEventRepository(
@@ -223,9 +220,35 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			return fmt.Errorf("could not start grpc server: %w", err)
 		}
 
+		cleanup := func() error {
+			g := new(errgroup.Group)
+
+			g.Go(func() error {
+				err := dispatcherCleanup()
+				if err != nil {
+					return fmt.Errorf("failed to cleanup dispatcher: %w", err)
+				}
+				return nil
+			})
+
+			g.Go(func() error {
+				err := grpcServerCleanup()
+				if err != nil {
+					return fmt.Errorf("failed to cleanup GRPC server: %w", err)
+				}
+				return nil
+			})
+
+			if err := g.Wait(); err != nil {
+				return fmt.Errorf("could not teardown grpc dispatcher: %w", err)
+			}
+
+			return nil
+		}
+
 		teardown = append(teardown, Teardown{
-			name: "grpc server",
-			fn:   grpcServerCleanup,
+			name: "grpc",
+			fn:   cleanup,
 		})
 	}
 
