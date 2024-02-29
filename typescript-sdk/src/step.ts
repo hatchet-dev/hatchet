@@ -10,7 +10,7 @@ export const CreateStepSchema = z.object({
   retries: z.number().optional(),
 });
 
-type JSONPrimitive = string | number | boolean | null;
+type JSONPrimitive = string | number | boolean | null | Array<JSONPrimitive>;
 
 export type NextStep = { [key: string]: NextStep | JSONPrimitive };
 
