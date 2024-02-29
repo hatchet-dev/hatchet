@@ -1,7 +1,5 @@
 name: typescript-sdk-tests
-on:
-  push:
-  pull_request:
+on: pull_request
 
 jobs:
   run-typescript-sdk-tests:
