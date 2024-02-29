@@ -76,6 +76,10 @@ export class Context<T, K> {
     return this.action.stepName;
   }
 
+  workflowRunId(): string {
+    return this.action.workflowRunId;
+  }
+
   playground(name: string, defaultValue: string = ''): string {
     if (name in this.overridesData) {
       return this.overridesData[name];

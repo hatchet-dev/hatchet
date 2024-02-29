@@ -18,7 +18,7 @@ async function main() {
         run: (ctx: Context<any, any>) => {
           const playground = ctx.playground('test1', 'default');
 
-          return { step1: playground, name: ctx.stepName() };
+          return { step1: playground, name: ctx.stepName(), workflowRunId: ctx.workflowRunId() };
         },
       },
     ],
