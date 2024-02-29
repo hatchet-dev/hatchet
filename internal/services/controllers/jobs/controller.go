@@ -400,7 +400,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *task
 	var inputBytes []byte
 	var retryCount = stepRun.RetryCount + 1
 
-	if len(payload.InputData) > 0 {
+	if payload.InputData != "" {
 		// update the input schema for the step run based on the new input
 		jsonSchemaBytes, err := schema.SchemaBytesFromBytes([]byte(payload.InputData))
 
