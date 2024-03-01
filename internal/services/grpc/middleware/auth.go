@@ -29,14 +29,14 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 	token, err := auth.AuthFromMD(ctx, "bearer")
 
 	if err != nil {
-		a.l.Debug().Err(err).Msg("error getting bearer token from request")
+		a.l.Debug().Err(err).Msgf("error getting bearer token from request: %s", err)
 		return nil, forbidden
 	}
 
 	tenantId, err := a.config.Auth.JWTManager.ValidateTenantToken(token)
 
 	if err != nil {
-		a.l.Debug().Err(err).Msg("error validating tenant token")
+		a.l.Debug().Err(err).Msgf("error validating tenant token: %s", err)
 
 		return nil, forbidden
 	}
@@ -45,7 +45,7 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 	queriedTenant, err := a.config.Repository.Tenant().GetTenantByID(tenantId)
 
 	if err != nil {
-		a.l.Debug().Err(err).Msg("error getting tenant by id")
+		a.l.Debug().Err(err).Msgf("error getting tenant by id: %s", err)
 		return nil, forbidden
 	}
 

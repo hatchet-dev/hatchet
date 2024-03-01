@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/joho/godotenv"
 
@@ -98,18 +97,10 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		return fmt.Errorf("error registering workflow: %w", err)
 	}
 
-	interruptCtx, cancel := cmdutils.InterruptContextFromChan(ch)
-	defer cancel()
-
-	go func() {
-		err = w.Start(interruptCtx)
-
-		if err != nil {
-			panic(err)
-		}
-
-		cancel()
-	}()
+	cleanup, err := w.Start()
+	if err != nil {
+		return fmt.Errorf("error starting worker: %w", err)
+	}
 
 	testEvent := userCreateEvent{
 		Username: "echo-test",
@@ -132,12 +123,11 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		return fmt.Errorf("error pushing event: %w", err)
 	}
 
-	for {
-		select {
-		case <-interruptCtx.Done():
-			return nil
-		default:
-			time.Sleep(time.Second)
-		}
+	<-ch
+
+	if err := cleanup(); err != nil {
+		return fmt.Errorf("error cleaning up worker: %w", err)
 	}
+
+	return nil
 }

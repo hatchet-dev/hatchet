@@ -1,11 +1,10 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"os"
 	"strings"
-
-	"context"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -92,7 +91,7 @@ func main() {
 	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
 	defer cancel()
 
-	go worker.Start(interruptCtx)
+	go worker.Start()
 
 	testEvent := teamCreateEvent{
 		Name: "test-team-2",

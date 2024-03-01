@@ -77,21 +77,19 @@ func run(ch <-chan interface{}, events chan<- string) error {
 	interruptCtx, cancel := cmdutils.InterruptContextFromChan(ch)
 	defer cancel()
 
-	go func() {
-		err = w.Start(interruptCtx)
-
-		if err != nil {
-			panic(err)
-		}
-
-		cancel()
-	}()
+	cleanup, err := w.Start()
+	if err != nil {
+		return fmt.Errorf("error starting worker: %w", err)
+	}
 
 	go func() {
 		// sleep with interrupt context
 		select {
 		case <-interruptCtx.Done(): // context cancelled
 			fmt.Println("interrupted")
+			if err := cleanup(); err != nil {
+				panic(fmt.Errorf("error cleaning up: %w", err))
+			}
 			return
 		case <-time.After(2 * time.Second): // timeout
 		}

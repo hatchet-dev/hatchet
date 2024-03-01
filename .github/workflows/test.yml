@@ -104,6 +104,8 @@ jobs:
         run: |
           go run github.com/steebchen/prisma-client-go migrate deploy
           task generate-all
+          task generate-certs
+          task generate-local-encryption-keys
 
       - name: Test
         run: go test -tags integration ./... -v -failfast
@@ -150,17 +152,27 @@ jobs:
           go run github.com/steebchen/prisma-client-go migrate deploy
           task generate-all
           task generate-certs
+          task generate-local-encryption-keys
 
       - name: Prepare
         run: |
           cat > .env <<EOF
-          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+          HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
+          DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
+          HATCHET_CLIENT_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
+          HATCHET_CLIENT_TLS_SERVER_NAME="cluster"
           SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
           SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
           SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
+          SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
+          SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
+          SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
+          
+          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
           SERVER_PORT=8080
           SERVER_URL=https://app.dev.hatchet-tools.com
-          SERVER_AUTH_COOKIE_SECRETS="something something"
+          
+          SERVER_AUTH_COOKIE_SECRETS="kPpegRDNpofgkUsr HoWe67haMOF5qnaB"
           SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
           SERVER_AUTH_COOKIE_INSECURE=false
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
@@ -180,8 +192,6 @@ jobs:
 
       - name: Test
         run: |
-          export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
-
           go test -tags e2e ./... -p 1 -v -failfast
 
       - name: Teardown

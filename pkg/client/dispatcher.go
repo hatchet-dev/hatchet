@@ -90,7 +90,7 @@ type Action struct {
 }
 
 type WorkerActionListener interface {
-	Actions(ctx context.Context, errCh chan<- error) (<-chan *Action, error)
+	Actions(ctx context.Context) (<-chan *Action, error)
 
 	Unregister() error
 }
@@ -209,7 +209,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	}, nil
 }
 
-func (a *actionListenerImpl) Actions(ctx context.Context, errCh chan<- error) (<-chan *Action, error) {
+func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error) {
 	ch := make(chan *Action)
 
 	a.l.Debug().Msgf("Starting to listen for actions")
@@ -228,7 +228,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context, errCh chan<- error) (<
 
 					if err != nil {
 						a.l.Error().Msgf("Failed to close send: %v", err)
-						errCh <- fmt.Errorf("failed to close send: %w", err)
+						panic(fmt.Errorf("failed to close send: %w", err))
 					}
 
 					return
@@ -243,16 +243,14 @@ func (a *actionListenerImpl) Actions(ctx context.Context, errCh chan<- error) (<
 
 					if err != nil {
 						a.l.Error().Msgf("Failed to subscribe: %v", err)
-						errCh <- fmt.Errorf("failed to subscribe: %w", err)
-						return
+						panic(fmt.Errorf("failed to subscribe: %w", err))
 					}
 
 					continue
 				}
 
 				a.l.Error().Msgf("Failed to receive message: %v", err)
-				errCh <- fmt.Errorf("failed to receive message: %w", err)
-				return
+				panic(fmt.Errorf("failed to receive message: %w", err))
 			}
 
 			var actionType ActionType

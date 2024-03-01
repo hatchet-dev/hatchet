@@ -121,13 +121,13 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		return fmt.Errorf("error registering workflow: %w", err)
 	}
 
-	interruptCtx, cancel := cmdutils.InterruptContextFromChan(ch)
-	defer cancel()
-
-	err = w.Start(interruptCtx)
-
+	cleanup, err := w.Start()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error starting worker: %w", err)
+	}
+
+	if err := cleanup(); err != nil {
+		return fmt.Errorf("error cleaning up: %w", err)
 	}
 
 	return nil
