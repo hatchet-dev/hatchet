@@ -1,21 +1,13 @@
 import { CodeEditor } from '@/components/ui/code-editor';
 import { Loading } from '@/components/ui/loading';
-import {
-  StepConfigurationSection,
-  StepDurationSection,
-  StepStatusSection,
-} from '..';
-import { StepRun } from '@/lib/api';
 
 export interface StepRunOutputProps {
-  stepRun: StepRun;
   output: string;
   isLoading: boolean;
   errors: string[];
 }
 
 export const StepRunOutput: React.FC<StepRunOutputProps> = ({
-  stepRun,
   output,
   isLoading,
   errors,
@@ -26,9 +18,6 @@ export const StepRunOutput: React.FC<StepRunOutputProps> = ({
 
   return (
     <>
-      <h3 className="font-semibold leading-tight text-foreground mb-4">
-        Return Value
-      </h3>
       <CodeEditor
         language="json"
         className="mb-4"
@@ -39,9 +28,6 @@ export const StepRunOutput: React.FC<StepRunOutputProps> = ({
           2,
         )}
       />
-      <StepStatusSection stepRun={stepRun} />
-      <StepDurationSection stepRun={stepRun} />
-      <StepConfigurationSection stepRun={stepRun} />
     </>
   );
 };

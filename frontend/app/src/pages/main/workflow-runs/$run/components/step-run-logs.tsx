@@ -29,6 +29,12 @@ export function StepRunLogs({ stepRun }: { stepRun: StepRun | undefined }) {
     ) || 'No logs found';
 
   return (
-    <CodeEditor language="txt" height="400px" code={logLines} lineNumbers />
+    <CodeEditor
+      language="txt"
+      height="400px"
+      code={logLines}
+      lineNumbers
+      className="mb-4"
+    />
   );
 }

@@ -17,7 +17,12 @@ import { GitHubLogoIcon, PlayIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
 import { Loading } from '@/components/ui/loading';
-import { StepStatusDetails } from '..';
+import {
+  StepConfigurationSection,
+  StepDurationSection,
+  StepStatusDetails,
+  StepStatusSection,
+} from '..';
 import {
   TooltipProvider,
   Tooltip,
@@ -28,6 +33,7 @@ import { VscNote, VscJson } from 'react-icons/vsc';
 import { CreatePRDialog } from './create-pr-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepRunLogs } from './step-run-logs';
+import { RunStatus } from '../../components/run-statuses';
 
 export function StepRunPlayground({
   stepRun,
@@ -332,19 +338,11 @@ export function StepRunPlayground({
               )}
             </div>
           </div>
-          <Tabs className="mt-4" defaultValue="input">
-            <TabsList>
-              <TabsTrigger value="input" className="px-8">
+          <div className="flex flex-row gap-4 mt-4">
+            <div className="flex-grow w-1/2">
+              <div className="text-lg font-semibold tracking-tight mb-4">
                 Input
-              </TabsTrigger>
-              <TabsTrigger value="output" className="px-8">
-                Output
-              </TabsTrigger>
-              <TabsTrigger value="logs" className="px-8">
-                Logs
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="input">
+              </div>
               {stepInput && (
                 <StepRunInputs
                   schema={stepRun.inputSchema || ''}
@@ -355,25 +353,53 @@ export function StepRunPlayground({
                   mode={mode}
                 />
               )}
-            </TabsContent>
-            <TabsContent value="output">
-              <StepRunOutput
-                stepRun={stepRun}
-                output={output}
-                isLoading={isLoading}
-                errors={
-                  [
-                    ...errors,
-                    stepRun.error ? StepStatusDetails({ stepRun }) : undefined,
-                  ].filter((e) => !!e) as string[]
-                }
-              />
-            </TabsContent>
-            <TabsContent value="logs">
-              <StepRunLogs stepRun={stepRun} />
-            </TabsContent>
-          </Tabs>
-          <div className="flex-grow w-1/2"></div>
+            </div>
+            <div className="flex-grow flex-col flex gap-4 w-1/2 ">
+              <Tabs defaultValue="output" className="flex flex-col">
+                <div className="flex flex-row justify-between items-center">
+                  <div className="flex flex-row justify-start items-center gap-6">
+                    <TabsList>
+                      <TabsTrigger value="output" className="px-8">
+                        Output
+                      </TabsTrigger>
+                      <TabsTrigger value="logs" className="px-8">
+                        Logs
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
+                  <RunStatus
+                    status={
+                      errors.length > 0
+                        ? StepRunStatus.FAILED
+                        : stepRun?.status || StepRunStatus.PENDING
+                    }
+                  />
+                </div>
+
+                <TabsContent value="output">
+                  <StepRunOutput
+                    output={output}
+                    isLoading={isLoading}
+                    errors={
+                      [
+                        ...errors,
+                        stepRun.error
+                          ? StepStatusDetails({ stepRun })
+                          : undefined,
+                      ].filter((e) => !!e) as string[]
+                    }
+                  />
+                </TabsContent>
+                <TabsContent value="logs">
+                  <StepRunLogs stepRun={stepRun} />
+                </TabsContent>
+
+                <StepStatusSection stepRun={stepRun} />
+                <StepDurationSection stepRun={stepRun} />
+                <StepConfigurationSection stepRun={stepRun} />
+              </Tabs>
+            </div>
+          </div>
         </>
       )}
       {stepRun && workflowRun?.workflowVersion?.workflowId && (
