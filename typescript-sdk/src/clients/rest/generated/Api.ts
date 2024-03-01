@@ -68,11 +68,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @tags Healthcheck
    * @name ReadinessGet
    * @summary Get readiness
-   * @request GET:/api/readiness
+   * @request GET:/api/ready
    */
   readinessGet = (params: RequestParams = {}) =>
     this.request<void, void>({
-      path: `/api/readiness`,
+      path: `/api/ready`,
       method: 'GET',
       ...params,
     });
@@ -82,11 +82,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @tags Healthcheck
    * @name LivenessGet
    * @summary Get liveness
-   * @request GET:/api/liveness
+   * @request GET:/api/live
    */
   livenessGet = (params: RequestParams = {}) =>
     this.request<void, void>({
-      path: `/api/liveness`,
+      path: `/api/live`,
       method: 'GET',
       ...params,
     });
