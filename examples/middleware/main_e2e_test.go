@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -21,11 +20,10 @@ func TestMiddleware(t *testing.T) {
 
 	events := make(chan string, 50)
 
-	go func() {
-		if err := run(ctx, events); err != nil {
-			panic(fmt.Errorf("run() error = %v", err))
-		}
-	}()
+	cleanup, err := run(events)
+	if err != nil {
+		t.Fatalf("run() error = %s", err)
+	}
 
 	var items []string
 
@@ -51,4 +49,8 @@ outer:
 		"svc-middleware",
 		"step-two",
 	}, items)
+
+	if err := cleanup(); err != nil {
+		t.Fatalf("cleanup() error = %s", err)
+	}
 }
