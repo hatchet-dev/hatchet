@@ -1,0 +1,14 @@
+{
+  "index": "SDK Reference",
+  "-- Getting Started": {
+    "type": "separator",
+    "title": "Getting Started"
+  },
+  "-- SDKs": {
+    "type": "separator",
+    "title": "SDKs"
+  },
+  "python-sdk": "Python SDK",
+  "typescript-sdk": "TypeScript SDK",
+  "go-sdk": "Go SDK"
+}

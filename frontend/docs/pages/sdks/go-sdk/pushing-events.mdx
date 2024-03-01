@@ -1,0 +1,23 @@
+# Pushing Events
+
+Events can be pushed via the client's `Event().Push` method:
+
+```go
+c, err := client.New(
+  client.WithHostPort("127.0.0.1", 7077),
+)
+
+if err != nil {
+  panic(err)
+}
+
+c.Event().Push(
+  context.Background(),
+  "test-called",
+  &events.TestEvent{
+    Name: "testing",
+  },
+)
+```
+
+Events are marshalled/unmarshalled using the `encoding/json` package, so any event type must be JSON serializable.
