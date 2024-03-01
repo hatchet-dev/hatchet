@@ -167,8 +167,8 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 				wg.Add(1)
 				go func(task *taskqueue.Task) {
 					defer wg.Done()
-					err = d.handleTask(ctx, task)
 
+					err := d.handleTask(ctx, task)
 					if err != nil {
 						d.l.Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
 					}

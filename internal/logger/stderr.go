@@ -3,7 +3,6 @@ package logger
 import (
 	"io"
 	"os"
-	"time"
 
 	"github.com/rs/zerolog"
 
@@ -15,7 +14,7 @@ func NewDefaultLogger(service string) zerolog.Logger {
 }
 
 func NewStdErr(cf *shared.LoggerConfigFile, service string) zerolog.Logger {
-	zerolog.TimeFieldFormat = time.RFC3339Nano
+	// zerolog.TimeFieldFormat = time.RFC3339Nano
 	lvl := zerolog.DebugLevel
 	var err error
 
