@@ -20,9 +20,9 @@ components:
   schemas:
     $ref: "./components/schemas/_index.yaml"
 paths:
-  /api/readiness:
+  /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
-  /api/liveness:
+  /api/live:
     $ref: "./paths/metadata/metadata.yaml#/liveness"
   /api/v1/meta:
     $ref: "./paths/metadata/metadata.yaml#/metadata"
