@@ -7,6 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"context"
+
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
@@ -14,6 +16,7 @@ import (
 
 var printVersion bool
 var configDirectory string
+var noGracefulShutdown bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -22,12 +25,18 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if printVersion {
 			fmt.Println(Version)
+
 			os.Exit(0)
 		}
 
 		cf := loader.NewConfigLoader(configDirectory)
-		context, cancel := cmdutils.NewInterruptContext()
-		defer cancel()
+
+		context := context.Background()
+		if !noGracefulShutdown {
+			ctx, cancel := cmdutils.NewInterruptContext()
+			defer cancel()
+			context = ctx
+		}
 
 		if err := engine.Run(context, cf); err != nil {
 			log.Printf("engine failure: %s", err.Error())
@@ -52,6 +61,13 @@ func main() {
 		"config",
 		"",
 		"The path the config folder.",
+	)
+
+	rootCmd.PersistentFlags().BoolVar(
+		&noGracefulShutdown,
+		"no-graceful-shutdown",
+		false,
+		"Whether not to shut down gracefully (useful for nodemon/air).",
 	)
 
 	if err := rootCmd.Execute(); err != nil {
