@@ -63,6 +63,34 @@ import { ContentType, HttpClient, RequestParams } from './http-client';
 
 export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType> {
   /**
+   * @description Gets the readiness status
+   *
+   * @tags Healthcheck
+   * @name ReadinessGet
+   * @summary Get readiness
+   * @request GET:/api/ready
+   */
+  readinessGet = (params: RequestParams = {}) =>
+    this.request<void, void>({
+      path: `/api/ready`,
+      method: 'GET',
+      ...params,
+    });
+  /**
+   * @description Gets the liveness status
+   *
+   * @tags Healthcheck
+   * @name LivenessGet
+   * @summary Get liveness
+   * @request GET:/api/live
+   */
+  livenessGet = (params: RequestParams = {}) =>
+    this.request<void, void>({
+      path: `/api/live`,
+      method: 'GET',
+      ...params,
+    });
+  /**
    * @description Gets metadata for the Hatchet instance
    *
    * @tags Metadata
