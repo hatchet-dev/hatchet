@@ -251,7 +251,6 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 
 				a.l.Error().Msgf("Failed to receive message: %v", err)
 				panic(fmt.Errorf("failed to receive message: %w", err))
-				return
 			}
 
 			var actionType ActionType
