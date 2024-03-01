@@ -4,6 +4,7 @@ type Repository interface {
 	Health() HealthRepository
 	APIToken() APITokenRepository
 	Event() EventRepository
+	Log() LogsRepository
 	Tenant() TenantRepository
 	TenantInvite() TenantInviteRepository
 	Workflow() WorkflowRepository

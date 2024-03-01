@@ -178,6 +178,9 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			ingestor.WithEventRepository(
 				sc.Repository.Event(),
 			),
+			ingestor.WithLogRepository(
+				sc.Repository.Log(),
+			),
 			ingestor.WithTaskQueue(sc.TaskQueue),
 		)
 		if err != nil {

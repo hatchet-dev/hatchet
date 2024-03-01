@@ -34,6 +34,11 @@ import {
   ListGithubBranchesResponse,
   ListGithubReposResponse,
   ListPullRequestsResponse,
+  LogLineLevelField,
+  LogLineList,
+  LogLineOrderByDirection,
+  LogLineOrderByField,
+  LogLineSearch,
   PullRequestState,
   RejectInviteRequest,
   ReplayEventRequest,
@@ -769,6 +774,47 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists log lines for a step run.
+   *
+   * @tags Log
+   * @name LogLineList
+   * @summary List log lines
+   * @request GET:/api/v1/step-runs/{step-run}/logs
+   * @secure
+   */
+  logLineList = (
+    stepRun: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** A list of levels to filter by */
+      levels?: LogLineLevelField;
+      /** The search query to filter for */
+      search?: LogLineSearch;
+      /** What to order by */
+      orderByField?: LogLineOrderByField;
+      /** The order direction */
+      orderByDirection?: LogLineOrderByDirection;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<LogLineList, APIErrors>({
+      path: `/api/v1/step-runs/${stepRun}/logs`,
+      method: "GET",
+      query: query,
+      secure: true,
       format: "json",
       ...params,
     });

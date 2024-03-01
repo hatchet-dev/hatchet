@@ -161,3 +161,23 @@ def step1(self, context):
 ```
 
 If you need control over cancellation, you can also use `context.cancel()` to cancel the current step, though this is not recommended.
+
+## Logging
+
+Hatchet comes with a built-in logging view where you can push debug logs from your workflows. To use this, you can use the `context.log` method. For example:
+
+```py
+@hatchet.workflow(on_events=["user:create"],schedule_timeout="10m")
+class LoggingWorkflow:
+    @hatchet.step()
+    def logger(self, context : Context):
+
+        for i in range(1000):
+            context.log(f"Logging message {i}")
+        
+        return {
+            "step1": "completed",
+        }
+```
+
+Each step is currently limited to 1000 log lines.

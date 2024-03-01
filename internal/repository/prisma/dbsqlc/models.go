@@ -143,6 +143,50 @@ func (ns NullJobRunStatus) Value() (driver.Value, error) {
 	return string(ns.JobRunStatus), nil
 }
 
+type LogLineLevel string
+
+const (
+	LogLineLevelDEBUG LogLineLevel = "DEBUG"
+	LogLineLevelINFO  LogLineLevel = "INFO"
+	LogLineLevelWARN  LogLineLevel = "WARN"
+	LogLineLevelERROR LogLineLevel = "ERROR"
+)
+
+func (e *LogLineLevel) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LogLineLevel(s)
+	case string:
+		*e = LogLineLevel(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LogLineLevel: %T", src)
+	}
+	return nil
+}
+
+type NullLogLineLevel struct {
+	LogLineLevel LogLineLevel `json:"LogLineLevel"`
+	Valid        bool         `json:"valid"` // Valid is true if LogLineLevel is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLogLineLevel) Scan(value interface{}) error {
+	if value == nil {
+		ns.LogLineLevel, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LogLineLevel.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLogLineLevel) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LogLineLevel), nil
+}
+
 type StepRunStatus string
 
 const (
@@ -545,6 +589,16 @@ type JobRunLookupData struct {
 	JobRunId  pgtype.UUID      `json:"jobRunId"`
 	TenantId  pgtype.UUID      `json:"tenantId"`
 	Data      []byte           `json:"data"`
+}
+
+type LogLine struct {
+	ID        int64            `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+	StepRunId pgtype.UUID      `json:"stepRunId"`
+	Message   string           `json:"message"`
+	Level     LogLineLevel     `json:"level"`
+	Metadata  []byte           `json:"metadata"`
 }
 
 type Service struct {

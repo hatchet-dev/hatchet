@@ -12,6 +12,7 @@ interface CodeEditorProps {
   width?: string;
   copy?: boolean;
   wrapLines?: boolean;
+  lineNumbers?: boolean;
 }
 
 export function CodeEditor({
@@ -23,6 +24,7 @@ export function CodeEditor({
   width,
   copy,
   wrapLines = true,
+  lineNumbers = false,
 }: CodeEditorProps) {
   const setEditorTheme = (monaco: Monaco) => {
     monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
@@ -48,7 +50,11 @@ export function CodeEditor({
         options={{
           minimap: { enabled: false },
           wordWrap: wrapLines ? 'on' : 'off',
-          lineNumbers: 'off',
+          lineNumbers: lineNumbers
+            ? function (lineNumber) {
+                return `<span style="padding-right:8px">${lineNumber}</span>`;
+              }
+            : 'off',
           theme: 'pastels-on-dark',
           autoDetectHighContrast: true,
           readOnly: !setCode,

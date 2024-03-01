@@ -36,7 +36,7 @@ class Worker:
 
     def handle_start_step_run(self, action : Action):
         action_name = action.action_id  
-        context = Context(action, self.client.dispatcher)  
+        context = Context(action, self.client.dispatcher, self.client.event)  
 
         self.contexts[action.step_run_id] = context
 
@@ -110,7 +110,7 @@ class Worker:
 
     def handle_start_group_key_run(self, action : Action):
         action_name = action.action_id
-        context = Context(action, self.client.dispatcher)
+        context = Context(action, self.client.dispatcher, self.client.event)
 
         self.contexts[action.get_group_key_run_id] = context
 

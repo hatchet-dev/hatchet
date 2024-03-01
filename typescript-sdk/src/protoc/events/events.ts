@@ -18,6 +18,26 @@ export interface Event {
   eventTimestamp: Date | undefined;
 }
 
+export interface PutLogRequest {
+  /** the step run id for the request */
+  stepRunId: string;
+  /** when the log line was created */
+  createdAt:
+    | Date
+    | undefined;
+  /** the log line message */
+  message: string;
+  /** the log line level */
+  level?:
+    | string
+    | undefined;
+  /** associated log line metadata */
+  metadata: string;
+}
+
+export interface PutLogResponse {
+}
+
 export interface PushEventRequest {
   /** the key for the event */
   key: string;
@@ -159,6 +179,168 @@ export const Event = {
     message.key = object.key ?? "";
     message.payload = object.payload ?? "";
     message.eventTimestamp = object.eventTimestamp ?? undefined;
+    return message;
+  },
+};
+
+function createBasePutLogRequest(): PutLogRequest {
+  return { stepRunId: "", createdAt: undefined, message: "", level: undefined, metadata: "" };
+}
+
+export const PutLogRequest = {
+  encode(message: PutLogRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.stepRunId !== "") {
+      writer.uint32(10).string(message.stepRunId);
+    }
+    if (message.createdAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.createdAt), writer.uint32(18).fork()).ldelim();
+    }
+    if (message.message !== "") {
+      writer.uint32(26).string(message.message);
+    }
+    if (message.level !== undefined) {
+      writer.uint32(34).string(message.level);
+    }
+    if (message.metadata !== "") {
+      writer.uint32(42).string(message.metadata);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): PutLogRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePutLogRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.stepRunId = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.createdAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.message = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.level = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.metadata = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): PutLogRequest {
+    return {
+      stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : "",
+      createdAt: isSet(object.createdAt) ? fromJsonTimestamp(object.createdAt) : undefined,
+      message: isSet(object.message) ? globalThis.String(object.message) : "",
+      level: isSet(object.level) ? globalThis.String(object.level) : undefined,
+      metadata: isSet(object.metadata) ? globalThis.String(object.metadata) : "",
+    };
+  },
+
+  toJSON(message: PutLogRequest): unknown {
+    const obj: any = {};
+    if (message.stepRunId !== "") {
+      obj.stepRunId = message.stepRunId;
+    }
+    if (message.createdAt !== undefined) {
+      obj.createdAt = message.createdAt.toISOString();
+    }
+    if (message.message !== "") {
+      obj.message = message.message;
+    }
+    if (message.level !== undefined) {
+      obj.level = message.level;
+    }
+    if (message.metadata !== "") {
+      obj.metadata = message.metadata;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<PutLogRequest>): PutLogRequest {
+    return PutLogRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PutLogRequest>): PutLogRequest {
+    const message = createBasePutLogRequest();
+    message.stepRunId = object.stepRunId ?? "";
+    message.createdAt = object.createdAt ?? undefined;
+    message.message = object.message ?? "";
+    message.level = object.level ?? undefined;
+    message.metadata = object.metadata ?? "";
+    return message;
+  },
+};
+
+function createBasePutLogResponse(): PutLogResponse {
+  return {};
+}
+
+export const PutLogResponse = {
+  encode(_: PutLogResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): PutLogResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePutLogResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): PutLogResponse {
+    return {};
+  },
+
+  toJSON(_: PutLogResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create(base?: DeepPartial<PutLogResponse>): PutLogResponse {
+    return PutLogResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<PutLogResponse>): PutLogResponse {
+    const message = createBasePutLogResponse();
     return message;
   },
 };
@@ -469,6 +651,14 @@ export const EventsServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    putLog: {
+      name: "PutLog",
+      requestType: PutLogRequest,
+      requestStream: false,
+      responseType: PutLogResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -476,12 +666,14 @@ export interface EventsServiceImplementation<CallContextExt = {}> {
   push(request: PushEventRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Event>>;
   list(request: ListEventRequest, context: CallContext & CallContextExt): Promise<DeepPartial<ListEventResponse>>;
   replaySingleEvent(request: ReplayEventRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Event>>;
+  putLog(request: PutLogRequest, context: CallContext & CallContextExt): Promise<DeepPartial<PutLogResponse>>;
 }
 
 export interface EventsServiceClient<CallOptionsExt = {}> {
   push(request: DeepPartial<PushEventRequest>, options?: CallOptions & CallOptionsExt): Promise<Event>;
   list(request: DeepPartial<ListEventRequest>, options?: CallOptions & CallOptionsExt): Promise<ListEventResponse>;
   replaySingleEvent(request: DeepPartial<ReplayEventRequest>, options?: CallOptions & CallOptionsExt): Promise<Event>;
+  putLog(request: DeepPartial<PutLogRequest>, options?: CallOptions & CallOptionsExt): Promise<PutLogResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

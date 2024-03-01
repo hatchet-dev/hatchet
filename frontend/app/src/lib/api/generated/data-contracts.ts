@@ -684,3 +684,40 @@ export enum PullRequestState {
   Open = "open",
   Closed = "closed",
 }
+
+export interface LogLine {
+  /**
+   * The creation date of the log line.
+   * @format date-time
+   */
+  createdAt: string;
+  /** The log message. */
+  message: string;
+  /** The log metadata. */
+  metadata: object;
+}
+
+export enum LogLineLevel {
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
+}
+
+export interface LogLineList {
+  pagination?: PaginationResponse;
+  rows?: LogLine[];
+}
+
+export enum LogLineOrderByField {
+  CreatedAt = "createdAt",
+}
+
+export enum LogLineOrderByDirection {
+  Asc = "asc",
+  Desc = "desc",
+}
+
+export type LogLineSearch = string;
+
+export type LogLineLevelField = LogLineLevel[];

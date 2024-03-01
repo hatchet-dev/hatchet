@@ -12,6 +12,7 @@ import (
 type prismaRepository struct {
 	apiToken       repository.APITokenRepository
 	event          repository.EventRepository
+	log            repository.LogsRepository
 	tenant         repository.TenantRepository
 	tenantInvite   repository.TenantInviteRepository
 	workflow       repository.WorkflowRepository
@@ -67,6 +68,7 @@ func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...Pris
 	return &prismaRepository{
 		apiToken:       NewAPITokenRepository(client, opts.v),
 		event:          NewEventRepository(client, pool, opts.v, opts.l),
+		log:            NewLogRepository(client, pool, opts.v, opts.l),
 		tenant:         NewTenantRepository(client, opts.v),
 		tenantInvite:   NewTenantInviteRepository(client, opts.v),
 		workflow:       NewWorkflowRepository(client, pool, opts.v, opts.l),
@@ -95,6 +97,10 @@ func (r *prismaRepository) APIToken() repository.APITokenRepository {
 
 func (r *prismaRepository) Event() repository.EventRepository {
 	return r.event
+}
+
+func (r *prismaRepository) Log() repository.LogsRepository {
+	return r.log
 }
 
 func (r *prismaRepository) Tenant() repository.TenantRepository {

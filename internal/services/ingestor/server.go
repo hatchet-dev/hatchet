@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -99,6 +100,36 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 	}
 
 	return e, nil
+}
+
+func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
+	tenant := ctx.Value("tenant").(*db.TenantModel)
+
+	var createdAt *time.Time
+
+	if t := req.CreatedAt.AsTime(); !t.IsZero() {
+		createdAt = &t
+	}
+
+	var metadata []byte
+
+	if req.Metadata != "" {
+		metadata = []byte(req.Metadata)
+	}
+
+	_, err := i.logRepository.PutLog(tenant.ID, &repository.CreateLogLineOpts{
+		StepRunId: req.StepRunId,
+		CreatedAt: createdAt,
+		Message:   req.Message,
+		Level:     req.Level,
+		Metadata:  metadata,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.PutLogResponse{}, nil
 }
 
 func toEventFromSQLC(eventRow *dbsqlc.ListEventsRow) (*contracts.Event, error) {

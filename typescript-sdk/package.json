@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "description": "Background task orchestration & visibility for developers",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -38,6 +38,7 @@
     "worker:playground": "npm run exec -- ./examples/playground.ts",
     "worker:retries": "npm run exec -- ./examples/retries-worker.ts",
     "worker:multi-workflow": "npm run exec -- ./examples/multi-workflow.ts",
+    "worker:logger": "npm run exec -- ./examples/logger.ts",
     "api": "npm run exec -- ./examples/api.ts",
     "prepublish": "cp package.json dist/package.json;",
     "publish:ci": "rm -rf ./dist && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks",

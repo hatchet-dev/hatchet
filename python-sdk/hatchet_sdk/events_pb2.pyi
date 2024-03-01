@@ -20,6 +20,24 @@ class Event(_message.Message):
     eventTimestamp: _timestamp_pb2.Timestamp
     def __init__(self, tenantId: _Optional[str] = ..., eventId: _Optional[str] = ..., key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
+class PutLogRequest(_message.Message):
+    __slots__ = ("stepRunId", "createdAt", "message", "level", "metadata")
+    STEPRUNID_FIELD_NUMBER: _ClassVar[int]
+    CREATEDAT_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    LEVEL_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
+    stepRunId: str
+    createdAt: _timestamp_pb2.Timestamp
+    message: str
+    level: str
+    metadata: str
+    def __init__(self, stepRunId: _Optional[str] = ..., createdAt: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[str] = ..., level: _Optional[str] = ..., metadata: _Optional[str] = ...) -> None: ...
+
+class PutLogResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
 class PushEventRequest(_message.Message):
     __slots__ = ("key", "payload", "eventTimestamp")
     KEY_FIELD_NUMBER: _ClassVar[int]

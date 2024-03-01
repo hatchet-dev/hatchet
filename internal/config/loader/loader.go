@@ -181,6 +181,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	ingestor, err := ingestor.NewIngestor(
 		ingestor.WithEventRepository(dc.Repository.Event()),
+		ingestor.WithLogRepository(dc.Repository.Log()),
 		ingestor.WithTaskQueue(tq),
 	)
 
