@@ -85,7 +85,7 @@ class WorkerRegisterResponse(_message.Message):
     def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ..., workerName: _Optional[str] = ...) -> None: ...
 
 class AssignedAction(_message.Message):
-    __slots__ = ("tenantId", "workflowRunId", "getGroupKeyRunId", "jobId", "jobName", "jobRunId", "stepId", "stepRunId", "actionId", "actionType", "actionPayload")
+    __slots__ = ("tenantId", "workflowRunId", "getGroupKeyRunId", "jobId", "jobName", "jobRunId", "stepId", "stepRunId", "actionId", "actionType", "actionPayload", "stepName")
     TENANTID_FIELD_NUMBER: _ClassVar[int]
     WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
     GETGROUPKEYRUNID_FIELD_NUMBER: _ClassVar[int]
@@ -97,6 +97,7 @@ class AssignedAction(_message.Message):
     ACTIONID_FIELD_NUMBER: _ClassVar[int]
     ACTIONTYPE_FIELD_NUMBER: _ClassVar[int]
     ACTIONPAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    STEPNAME_FIELD_NUMBER: _ClassVar[int]
     tenantId: str
     workflowRunId: str
     getGroupKeyRunId: str
@@ -108,7 +109,8 @@ class AssignedAction(_message.Message):
     actionId: str
     actionType: ActionType
     actionPayload: str
-    def __init__(self, tenantId: _Optional[str] = ..., workflowRunId: _Optional[str] = ..., getGroupKeyRunId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobName: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., actionType: _Optional[_Union[ActionType, str]] = ..., actionPayload: _Optional[str] = ...) -> None: ...
+    stepName: str
+    def __init__(self, tenantId: _Optional[str] = ..., workflowRunId: _Optional[str] = ..., getGroupKeyRunId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobName: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., actionType: _Optional[_Union[ActionType, str]] = ..., actionPayload: _Optional[str] = ..., stepName: _Optional[str] = ...) -> None: ...
 
 class WorkerListenRequest(_message.Message):
     __slots__ = ("workerId",)

@@ -29,6 +29,11 @@ class EventsServiceStub(object):
                 request_serializer=events__pb2.ReplayEventRequest.SerializeToString,
                 response_deserializer=events__pb2.Event.FromString,
                 )
+        self.PutLog = channel.unary_unary(
+                '/EventsService/PutLog',
+                request_serializer=events__pb2.PutLogRequest.SerializeToString,
+                response_deserializer=events__pb2.PutLogResponse.FromString,
+                )
 
 
 class EventsServiceServicer(object):
@@ -52,6 +57,12 @@ class EventsServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def PutLog(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_EventsServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -69,6 +80,11 @@ def add_EventsServiceServicer_to_server(servicer, server):
                     servicer.ReplaySingleEvent,
                     request_deserializer=events__pb2.ReplayEventRequest.FromString,
                     response_serializer=events__pb2.Event.SerializeToString,
+            ),
+            'PutLog': grpc.unary_unary_rpc_method_handler(
+                    servicer.PutLog,
+                    request_deserializer=events__pb2.PutLogRequest.FromString,
+                    response_serializer=events__pb2.PutLogResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -128,5 +144,22 @@ class EventsService(object):
         return grpc.experimental.unary_unary(request, target, '/EventsService/ReplaySingleEvent',
             events__pb2.ReplayEventRequest.SerializeToString,
             events__pb2.Event.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def PutLog(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/EventsService/PutLog',
+            events__pb2.PutLogRequest.SerializeToString,
+            events__pb2.PutLogResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

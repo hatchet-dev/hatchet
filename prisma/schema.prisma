@@ -125,6 +125,7 @@ model Tenant {
   githubPullRequests        GithubPullRequest[]
   githubPullRequestComments GithubPullRequestComment[]
   githubWebhooks            GithubWebhook[]
+  logs                      LogLine[]
 }
 
 enum TenantMemberRole {
@@ -868,6 +869,8 @@ model StepRun {
   gitRepoBranch String?
 
   archivedResults StepRunResultArchive[]
+
+  logs LogLine[]
 }
 
 model StepRunResultArchive {
@@ -1183,4 +1186,34 @@ model GithubWebhook {
   installations GithubAppInstallation[]
 
   @@unique([tenantId, repositoryOwner, repositoryName])
+}
+
+enum LogLineLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
+model LogLine {
+  // base fields
+  id        BigInt   @id @default(autoincrement()) @db.BigInt
+  createdAt DateTime @default(now())
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // the step run id this log is associated with
+  stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  stepRunId String?  @db.Uuid
+
+  // the log line message
+  message String
+
+  // the log line level
+  level LogLineLevel @default(INFO)
+
+  // (optional) the log line metadata
+  metadata Json?
 }

@@ -1,0 +1,75 @@
+withStepRun:
+  get:
+    x-resources: ["tenant", "step-run"]
+    description: Lists log lines for a step run.
+    operationId: log-line:list
+    parameters:
+      - description: The step run id
+        in: path
+        name: step-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: A list of levels to filter by
+        in: query
+        name: levels
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/LogLineLevelField"
+      - description: The search query to filter for
+        in: query
+        name: search
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/LogLineSearch"
+      - description: What to order by
+        in: query
+        name: orderByField
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/LogLineOrderByField"
+      - description: The order direction
+        in: query
+        name: orderByDirection
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/LogLineOrderByDirection"
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/LogLineList"
+        description: Successfully listed the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List log lines
+    tags:
+      - Log

@@ -7,6 +7,15 @@ import {
 import HatchetError from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
+import { retrier } from '@hatchet/util/retrier';
+
+// eslint-disable-next-line no-shadow
+export enum LogLevel {
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
+  DEBUG = 'DEBUG',
+}
 
 export class EventClient {
   config: ClientConfig;
@@ -33,6 +42,26 @@ export class EventClient {
       return e;
     } catch (e: any) {
       throw new HatchetError(e.message);
+    }
+  }
+
+  putLog(stepRunId: string, log: string, level?: LogLevel) {
+    const createdAt = new Date();
+
+    try {
+      retrier(
+        async () =>
+          this.client.putLog({
+            stepRunId,
+            createdAt,
+            message: log,
+            level: level || LogLevel.INFO,
+          }),
+        this.logger
+      );
+    } catch (e: any) {
+      // log a warning, but this is not a fatal error
+      this.logger.warn(`Could not put log: ${e.message}`);
     }
   }
 }

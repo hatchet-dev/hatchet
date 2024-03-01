@@ -5,6 +5,7 @@ import invariant from 'tiny-invariant';
 import { PullRequestState } from '.';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
+type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 
 export const queries = createQueryKeyStore({
@@ -103,6 +104,10 @@ export const queries = createQueryKeyStore({
     getDiff: (stepRun: string) => ({
       queryKey: ['step-run:get:diff', stepRun],
       queryFn: async () => (await api.stepRunGetDiff(stepRun)).data,
+    }),
+    getLogs: (stepRun: string, query: ListLogLineQuery) => ({
+      queryKey: ['log-lines:list', stepRun],
+      queryFn: async () => (await api.logLineList(stepRun, query)).data,
     }),
   },
   events: {

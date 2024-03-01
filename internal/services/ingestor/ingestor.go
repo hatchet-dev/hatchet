@@ -25,12 +25,19 @@ type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
 	eventRepository repository.EventRepository
+	logRepository   repository.LogsRepository
 	taskQueue       taskqueue.TaskQueue
 }
 
 func WithEventRepository(r repository.EventRepository) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.eventRepository = r
+	}
+}
+
+func WithLogRepository(r repository.LogsRepository) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.logRepository = r
 	}
 }
 
@@ -48,6 +55,7 @@ type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
 	eventRepository repository.EventRepository
+	logRepository   repository.LogsRepository
 	tq              taskqueue.TaskQueue
 }
 
@@ -62,12 +70,17 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("event repository is required. use WithEventRepository")
 	}
 
+	if opts.logRepository == nil {
+		return nil, fmt.Errorf("log repository is required. use WithLogRepository")
+	}
+
 	if opts.taskQueue == nil {
 		return nil, fmt.Errorf("task queue is required. use WithTaskQueue")
 	}
 
 	return &IngestorImpl{
 		eventRepository: opts.eventRepository,
+		logRepository:   opts.logRepository,
 		tq:              opts.taskQueue,
 	}, nil
 }

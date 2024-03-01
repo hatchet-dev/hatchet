@@ -6,7 +6,6 @@ import api, {
   queries,
 } from '@/lib/api';
 import { useEffect, useMemo, useState } from 'react';
-import { RunStatus } from '../../components/run-statuses';
 import { Button } from '@/components/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
@@ -27,6 +26,8 @@ import {
 } from '@/components/ui/tooltip';
 import { VscNote, VscJson } from 'react-icons/vsc';
 import { CreatePRDialog } from './create-pr-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { StepRunLogs } from './step-run-logs';
 
 export function StepRunPlayground({
   stepRun,
@@ -248,7 +249,7 @@ export function StepRunPlayground({
         <>
           <div className="flex flex-row gap-2 justify-between items-center sticky top-0 z-50">
             <div className="text-2xl font-semibold tracking-tight">
-              Playground/{stepRun?.step?.readableId}
+              {stepRun?.step?.readableId}
             </div>
             <div className="flex flex-row gap-2 justify-end items-center">
               <TooltipProvider>
@@ -331,9 +332,19 @@ export function StepRunPlayground({
               )}
             </div>
           </div>
-          <div className="flex flex-row gap-4 mt-4">
-            <div className="flex-grow w-1/2">
-              Inputs
+          <Tabs className="mt-4" defaultValue="input">
+            <TabsList>
+              <TabsTrigger value="input" className="px-8">
+                Input
+              </TabsTrigger>
+              <TabsTrigger value="output" className="px-8">
+                Output
+              </TabsTrigger>
+              <TabsTrigger value="logs" className="px-8">
+                Logs
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="input">
               {stepInput && (
                 <StepRunInputs
                   schema={stepRun.inputSchema || ''}
@@ -344,35 +355,25 @@ export function StepRunPlayground({
                   mode={mode}
                 />
               )}
-            </div>
-            <div className="flex-grow flex-col flex gap-4 w-1/2 ">
-              <div className="flex flex-col">
-                <div className="flex flex-row justify-between items-center mb-4">
-                  <div>Outputs</div>
-                  <RunStatus
-                    status={
-                      errors.length > 0
-                        ? StepRunStatus.FAILED
-                        : stepRun?.status || StepRunStatus.PENDING
-                    }
-                  />
-                </div>
-                <StepRunOutput
-                  stepRun={stepRun}
-                  output={output}
-                  isLoading={isLoading}
-                  errors={
-                    [
-                      ...errors,
-                      stepRun.error
-                        ? StepStatusDetails({ stepRun })
-                        : undefined,
-                    ].filter((e) => !!e) as string[]
-                  }
-                />
-              </div>
-            </div>
-          </div>
+            </TabsContent>
+            <TabsContent value="output">
+              <StepRunOutput
+                stepRun={stepRun}
+                output={output}
+                isLoading={isLoading}
+                errors={
+                  [
+                    ...errors,
+                    stepRun.error ? StepStatusDetails({ stepRun }) : undefined,
+                  ].filter((e) => !!e) as string[]
+                }
+              />
+            </TabsContent>
+            <TabsContent value="logs">
+              <StepRunLogs stepRun={stepRun} />
+            </TabsContent>
+          </Tabs>
+          <div className="flex-grow w-1/2"></div>
         </>
       )}
       {stepRun && workflowRun?.workflowVersion?.workflowId && (

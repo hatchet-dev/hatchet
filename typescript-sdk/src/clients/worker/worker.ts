@@ -122,7 +122,7 @@ export class Worker {
     const { actionId } = action;
 
     try {
-      const context = new Context(action, this.client.dispatcher);
+      const context = new Context(action, this.client.dispatcher, this.client.event);
       this.contexts[action.stepRunId] = context;
 
       const step = this.action_registry[actionId];
@@ -188,7 +188,7 @@ export class Worker {
     const { actionId } = action;
 
     try {
-      const context = new Context(action, this.client.dispatcher);
+      const context = new Context(action, this.client.dispatcher, this.client.event);
 
       const key = action.getGroupKeyRunId;
 

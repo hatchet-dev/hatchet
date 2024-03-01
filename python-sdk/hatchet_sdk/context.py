@@ -1,8 +1,12 @@
+import datetime
 import inspect
 from multiprocessing import Event
 import os
 from .clients.dispatcher import Action, DispatcherClient
+from google.protobuf import timestamp_pb2
+from .clients.events import EventClientImpl
 from .dispatcher_pb2 import OverridesData
+from .events_pb2 import PutLogRequest
 from .logger import logger
 import json
 
@@ -12,7 +16,7 @@ def get_caller_file_path():
     return caller_frame.filename
 
 class Context:
-    def __init__(self, action: Action, client: DispatcherClient):
+    def __init__(self, action: Action, client: DispatcherClient, eventClient: EventClientImpl):
         try:
             self.data = json.loads(action.action_payload)
         except Exception as e:
@@ -21,6 +25,7 @@ class Context:
         self.stepRunId = action.step_run_id
         self.exit_flag = Event()
         self.client = client
+        self.eventClient = eventClient
 
         # store each key in the overrides field in a lookup table
         # overrides_data is a dictionary of key-value pairs
@@ -74,3 +79,12 @@ class Context:
         )
 
         return default
+    
+    def log(self, line: str):
+        if self.stepRunId == "":
+            return
+                
+        try:
+            self.eventClient.log(message=line, step_run_id=self.stepRunId)
+        except Exception as e:
+            logger.error(f"Error logging: {e}")

@@ -26,6 +26,9 @@ export const StepRunOutput: React.FC<StepRunOutputProps> = ({
 
   return (
     <>
+      <h3 className="font-semibold leading-tight text-foreground mb-4">
+        Return Value
+      </h3>
       <CodeEditor
         language="json"
         className="mb-4"
