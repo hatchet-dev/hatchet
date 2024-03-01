@@ -18,11 +18,10 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workers"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workflows"
+	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
-
-	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 )
 
 type apiService struct {
@@ -61,12 +60,10 @@ func NewAPIServer(config *server.ServerConfig) *APIServer {
 	}
 }
 
-func (t *APIServer) Run(ctx context.Context) error {
-	errCh := make(chan error)
-
+func (t *APIServer) Run() (func() error, error) {
 	oaspec, err := gen.GetSwagger()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	e := echo.New()
@@ -179,7 +176,7 @@ func (t *APIServer) Run(ctx context.Context) error {
 	mw, err := hatchetmiddleware.NewMiddlewareHandler(oaspec)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	mw.Use(populatorMW.Middleware)
@@ -189,7 +186,7 @@ func (t *APIServer) Run(ctx context.Context) error {
 	allHatchetMiddleware, err := mw.Middleware()
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// register echo middleware
@@ -207,25 +204,13 @@ func (t *APIServer) Run(ctx context.Context) error {
 
 	go func() {
 		if err := e.Start(fmt.Sprintf(":%d", t.config.Runtime.Port)); err != nil {
-			errCh <- err
+			panic(err)
 		}
 	}()
 
-Loop:
-	for {
-		select {
-		case err := <-errCh:
-			return err
-		case <-ctx.Done():
-			break Loop
-		}
+	cleanup := func() error {
+		return e.Shutdown(context.Background())
 	}
 
-	err = e.Shutdown(ctx)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return cleanup, nil
 }

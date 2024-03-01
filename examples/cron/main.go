@@ -51,12 +51,16 @@ func main() {
 		panic(err)
 	}
 
-	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
-	defer cancel()
+	interrupt := cmdutils.InterruptChan()
 
-	err = w.Start(interruptCtx)
-
+	cleanup, err := w.Start()
 	if err != nil {
 		panic(err)
+	}
+
+	<-interrupt
+
+	if err := cleanup(); err != nil {
+		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
 }

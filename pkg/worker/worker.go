@@ -268,7 +268,9 @@ func (w *Worker) registerAction(service, verb string, method any) error {
 }
 
 // Start starts the worker in blocking fashion
-func (w *Worker) Start(ctx context.Context) error {
+func (w *Worker) Start() (func() error, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	actionNames := []string{}
 
 	for _, action := range w.actions {
@@ -282,48 +284,53 @@ func (w *Worker) Start(ctx context.Context) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("could not get action listener: %w", err)
+		cancel()
+		return nil, fmt.Errorf("could not get action listener: %w", err)
 	}
 
-	errCh := make(chan error)
-
-	actionCh, err := listener.Actions(ctx, errCh)
+	actionCh, err := listener.Actions(ctx)
 
 	if err != nil {
-		return fmt.Errorf("could not get action channel: %w", err)
+		cancel()
+		return nil, fmt.Errorf("could not get action channel: %w", err)
 	}
 
-RunWorker:
-	for {
-		select {
-		case err := <-errCh:
-			w.l.Err(err).Msg("action listener error")
-			break RunWorker
-		case action := <-actionCh:
-			go func(action *client.Action) {
-				err := w.executeAction(context.Background(), action)
+	go func() {
+		for {
+			select {
+			case action := <-actionCh:
+				go func(action *client.Action) {
+					err := w.executeAction(context.Background(), action)
 
-				if err != nil {
-					w.l.Error().Err(err).Msgf("could not execute action: %s", action.ActionId)
-				}
+					if err != nil {
+						w.l.Error().Err(err).Msgf("could not execute action: %s", action.ActionId)
+					}
 
-				w.l.Debug().Msgf("action %s completed", action.ActionId)
-			}(action)
-		case <-ctx.Done():
-			w.l.Debug().Msgf("worker %s received context done, stopping", w.name)
-			break RunWorker
+					w.l.Debug().Msgf("action %s completed", action.ActionId)
+				}(action)
+			case <-ctx.Done():
+				w.l.Debug().Msgf("worker %s received context done, stopping", w.name)
+				return
+			}
 		}
+	}()
+
+	cleanup := func() error {
+		cancel()
+
+		w.l.Debug().Msgf("worker %s is stopping...", w.name)
+
+		err := listener.Unregister()
+		if err != nil {
+			return fmt.Errorf("could not unregister worker: %w", err)
+		}
+
+		w.l.Debug().Msgf("worker %s stopped", w.name)
+
+		return nil
 	}
 
-	w.l.Debug().Msgf("worker %s stopped", w.name)
-
-	err = listener.Unregister()
-
-	if err != nil {
-		return fmt.Errorf("could not unregister worker: %w", err)
-	}
-
-	return nil
+	return cleanup, nil
 }
 
 func (w *Worker) executeAction(ctx context.Context, assignedAction *client.Action) error {

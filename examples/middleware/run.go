@@ -4,52 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
-
-	"github.com/joho/godotenv"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-type userCreateEvent struct {
-	Username string            `json:"username"`
-	UserID   string            `json:"user_id"`
-	Data     map[string]string `json:"data"`
-}
-
-type stepOneOutput struct {
-	Message string `json:"message"`
-}
-
-func main() {
-	err := godotenv.Load()
-	if err != nil {
-		panic(err)
-	}
-
-	events := make(chan string, 50)
-	interrupt := cmdutils.InterruptChan()
-
-	cleanup, err := run(events)
-	if err != nil {
-		panic(err)
-	}
-
-	<-interrupt
-
-	if err := cleanup(); err != nil {
-		panic(fmt.Errorf("error cleaning up: %w", err))
-	}
-}
-
-func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
-	return "user-create", nil
-}
-
 func run(events chan<- string) (func() error, error) {
 	c, err := client.New()
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
 	}
@@ -63,14 +25,38 @@ func run(events chan<- string) (func() error, error) {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 
+	w.Use(func(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
+		log.Printf("1st-middleware")
+		events <- "1st-middleware"
+		ctx.SetContext(context.WithValue(ctx.GetContext(), "testkey", "testvalue"))
+		return next(ctx)
+	})
+
+	w.Use(func(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
+		log.Printf("2nd-middleware")
+		events <- "2nd-middleware"
+
+		// time the function duration
+		start := time.Now()
+		err := next(ctx)
+		duration := time.Since(start)
+		fmt.Printf("step function took %s\n", duration)
+		return err
+	})
+
 	testSvc := w.NewService("test")
 
+	testSvc.Use(func(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
+		events <- "svc-middleware"
+		ctx.SetContext(context.WithValue(ctx.GetContext(), "svckey", "svcvalue"))
+		return next(ctx)
+	})
+
 	err = testSvc.On(
-		worker.Events("user:create:simple"),
+		worker.Events("user:create:middleware"),
 		&worker.WorkflowJob{
-			Name:        "simple",
+			Name:        "middleware",
 			Description: "This runs after an update to the user model.",
-			Concurrency: worker.Concurrency(getConcurrencyKey),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					input := &userCreateEvent{}
@@ -83,6 +69,11 @@ func run(events chan<- string) (func() error, error) {
 
 					log.Printf("step-one")
 					events <- "step-one"
+
+					testVal := ctx.Value("testkey").(string)
+					events <- testVal
+					svcVal := ctx.Value("svckey").(string)
+					events <- svcVal
 
 					return &stepOneOutput{
 						Message: "Username is: " + input.Username,
@@ -112,6 +103,8 @@ func run(events chan<- string) (func() error, error) {
 	}
 
 	go func() {
+		log.Printf("pushing event user:create:middleware")
+
 		testEvent := userCreateEvent{
 			Username: "echo-test",
 			UserID:   "1234",
@@ -120,11 +113,10 @@ func run(events chan<- string) (func() error, error) {
 			},
 		}
 
-		log.Printf("pushing event user:create:simple")
 		// push an event
-		err := c.Event().Push(
+		err = c.Event().Push(
 			context.Background(),
-			"user:create:simple",
+			"user:create:middleware",
 			testEvent,
 		)
 		if err != nil {
@@ -134,7 +126,7 @@ func run(events chan<- string) (func() error, error) {
 
 	cleanup, err := w.Start()
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("error starting worker: %w", err)
 	}
 
 	return cleanup, nil

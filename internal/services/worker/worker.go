@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,9 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
@@ -115,7 +113,7 @@ func NewWorker(fs ...WorkerOpt) (*WorkerImpl, error) {
 	}, nil
 }
 
-func (w *WorkerImpl) Start(ctx context.Context) error {
+func (w *WorkerImpl) Start() (func() error, error) {
 	err := w.On(
 		worker.Event(StartPullRequest),
 		&worker.WorkflowJob{
@@ -129,11 +127,15 @@ func (w *WorkerImpl) Start(ctx context.Context) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("could not register workflow: %w", err)
+		return nil, fmt.Errorf("could not register workflow: %w", err)
 	}
 
-	// start the worker
-	return w.Worker.Start(ctx)
+	cleanup, err := w.Worker.Start()
+	if err != nil {
+		return nil, fmt.Errorf("could not start worker: %w", err)
+	}
+
+	return cleanup, nil
 }
 
 func (w *WorkerImpl) handleStartPullRequest(ctx worker.HatchetContext) error {
