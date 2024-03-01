@@ -1,0 +1,190 @@
+package prisma
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/internal/validator"
+)
+
+type logRepository struct {
+	client  *db.PrismaClient
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
+}
+
+func NewLogRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.LogsRepository {
+	queries := dbsqlc.New()
+
+	return &logRepository{
+		client:  client,
+		pool:    pool,
+		v:       v,
+		queries: queries,
+		l:       l,
+	}
+}
+
+func (r *logRepository) PutLog(tenantId string, opts *repository.CreateLogLineOpts) (*dbsqlc.LogLine, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	createParams := dbsqlc.CreateLogLineParams{
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Message:   opts.Message,
+		Steprunid: sqlchelpers.UUIDFromStr(opts.StepRunId),
+	}
+
+	if opts.CreatedAt != nil {
+		utcTime := opts.CreatedAt.UTC()
+		createParams.CreatedAt = sqlchelpers.TimestampFromTime(utcTime)
+	}
+
+	if opts.Level != nil {
+		createParams.Level = dbsqlc.NullLogLineLevel{
+			LogLineLevel: dbsqlc.LogLineLevel(*opts.Level),
+			Valid:        true,
+		}
+	}
+
+	if opts.Metadata != nil {
+		createParams.Metadata = opts.Metadata
+	}
+
+	tx, err := r.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
+
+	logLine, err := r.queries.CreateLogLine(
+		context.Background(),
+		tx,
+		createParams,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create log line: %w", err)
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return logLine, nil
+}
+
+func (r *logRepository) ListLogLines(tenantId string, opts *repository.ListLogsOpts) (*repository.ListLogsResult, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	res := &repository.ListLogsResult{}
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	queryParams := dbsqlc.ListLogLinesParams{
+		Tenantid: pgTenantId,
+	}
+
+	countParams := dbsqlc.CountLogLinesParams{
+		Tenantid: pgTenantId,
+	}
+
+	if opts.Search != nil {
+		queryParams.Search = sqlchelpers.TextFromStr(*opts.Search)
+		countParams.Search = sqlchelpers.TextFromStr(*opts.Search)
+	}
+
+	if opts.Offset != nil {
+		queryParams.Offset = *opts.Offset
+	}
+
+	if opts.Limit != nil {
+		queryParams.Limit = *opts.Limit
+	}
+
+	if opts.StepRunId != nil {
+		queryParams.StepRunId = sqlchelpers.UUIDFromStr(*opts.StepRunId)
+		countParams.StepRunId = sqlchelpers.UUIDFromStr(*opts.StepRunId)
+	}
+
+	if opts.Levels != nil {
+		var levels []dbsqlc.LogLineLevel
+
+		for _, level := range opts.Levels {
+			levels = append(levels, dbsqlc.LogLineLevel(level))
+		}
+
+		queryParams.Levels = levels
+		countParams.Levels = levels
+	}
+
+	orderByField := "createdAt"
+	orderByDirection := "DESC"
+
+	if opts.OrderBy != nil {
+		orderByField = *opts.OrderBy
+	}
+
+	if opts.OrderDirection != nil {
+		orderByDirection = *opts.OrderDirection
+	}
+
+	queryParams.OrderBy = sqlchelpers.TextFromStr(orderByField + " " + orderByDirection)
+
+	tx, err := r.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
+
+	logLines, err := r.queries.ListLogLines(context.Background(), tx, queryParams)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			logLines = make([]*dbsqlc.LogLine, 0)
+		} else {
+			return nil, fmt.Errorf("could not list log lines: %w", err)
+		}
+	}
+
+	count, err := r.queries.CountLogLines(context.Background(), tx, countParams)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			count = 0
+		} else {
+			return nil, fmt.Errorf("could not count events: %w", err)
+		}
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	res.Rows = logLines
+	res.Count = int(count)
+
+	return res, nil
+}
