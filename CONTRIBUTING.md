@@ -1,6 +1,6 @@
 # Contributing
 
-> **Note:** this guide### Setup
+### Setup
 
 1. Start the Database and Queue services:
 ```sh
