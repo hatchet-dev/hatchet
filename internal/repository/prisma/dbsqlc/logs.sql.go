@@ -98,7 +98,10 @@ WHERE
   ($4::"LogLineLevel"[] IS NULL OR "level" = ANY($4::"LogLineLevel"[]))
 ORDER BY
   CASE WHEN $5::text = 'createdAt ASC' THEN "createdAt" END ASC,
-  CASE WHEN $5::text = 'createdAt DESC' THEN "createdAt" END DESC
+  CASE WHEN $5::text = 'createdAt DESC' THEN "createdAt" END DESC,
+  -- add order by id to make sure the order is deterministic
+  CASE WHEN $5::text = 'createdAt ASC' THEN "id" END ASC,
+  CASE WHEN $5::text = 'createdAt DESC' THEN "id" END DESC
 LIMIT COALESCE($7, 50)
 OFFSET COALESCE($6, 0)
 `

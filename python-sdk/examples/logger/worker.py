@@ -11,9 +11,8 @@ class LoggingWorkflow:
     @hatchet.step()
     def logger(self, context : Context):
 
-        for i in range(10):
+        for i in range(1000):
             context.log(f"Logging message {i}")
-            time.sleep(1)
         
         return {
             "step1": "completed",

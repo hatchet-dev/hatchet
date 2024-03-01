@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import datetime
 import inspect
 from multiprocessing import Event
@@ -26,6 +27,10 @@ class Context:
         self.exit_flag = Event()
         self.client = client
         self.eventClient = eventClient
+
+        # FIXME: this limits the number of concurrent log requests to 1, which means we can do about
+        # 100 log lines per second but this depends on network. 
+        self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)
 
         # store each key in the overrides field in a lookup table
         # overrides_data is a dictionary of key-value pairs
@@ -80,11 +85,14 @@ class Context:
 
         return default
     
-    def log(self, line: str):
-        if self.stepRunId == "":
-            return
-                
+    def _log(self, line: str):
         try:
             self.eventClient.log(message=line, step_run_id=self.stepRunId)
         except Exception as e:
             logger.error(f"Error logging: {e}")
+    
+    def log(self, line: str):
+        if self.stepRunId == "":
+            return
+        
+        self.logger_thread_pool.submit(self._log, line)

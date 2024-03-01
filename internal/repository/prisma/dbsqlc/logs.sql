@@ -24,7 +24,10 @@ WHERE
   (sqlc.narg('levels')::"LogLineLevel"[] IS NULL OR "level" = ANY(sqlc.narg('levels')::"LogLineLevel"[]))
 ORDER BY
   CASE WHEN sqlc.narg('orderBy')::text = 'createdAt ASC' THEN "createdAt" END ASC,
-  CASE WHEN sqlc.narg('orderBy')::text = 'createdAt DESC' THEN "createdAt" END DESC
+  CASE WHEN sqlc.narg('orderBy')::text = 'createdAt DESC' THEN "createdAt" END DESC,
+  -- add order by id to make sure the order is deterministic
+  CASE WHEN sqlc.narg('orderBy')::text = 'createdAt ASC' THEN "id" END ASC,
+  CASE WHEN sqlc.narg('orderBy')::text = 'createdAt DESC' THEN "id" END DESC
 LIMIT COALESCE(sqlc.narg('limit'), 50)
 OFFSET COALESCE(sqlc.narg('offset'), 0);
 
