@@ -34,13 +34,14 @@ func (t *TickerImpl) handleScheduleJobRunTimeout(ctx context.Context, task *task
 		return fmt.Errorf("could not parse timeout at: %w", err)
 	}
 
-	// schedule the timeout
-	// TODO: ??? make sure this doesn't have any side effects
 	childCtx, cancel := context.WithDeadline(context.Background(), timeoutAt)
 
 	go func() {
-		<-childCtx.Done()
-		t.runJobRunTimeout(metadata.TenantId, payload.JobRunId)
+		select {
+		case <-childCtx.Done():
+			t.runJobRunTimeout(metadata.TenantId, payload.JobRunId)
+		case <-ctx.Done():
+		}
 	}()
 
 	// store the schedule in the step run map
