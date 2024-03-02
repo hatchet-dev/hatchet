@@ -258,7 +258,7 @@ jobs:
         run: |
           export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
 
-          go test -tags load ./... -p 1 -v -failfast
+          go test -tags load ./... -p 1 -v -race -failfast
 
       - name: Teardown
         run: docker compose down

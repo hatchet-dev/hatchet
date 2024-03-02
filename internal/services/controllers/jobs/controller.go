@@ -117,8 +117,8 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 			wg.Add(1)
 			go func(task *taskqueue.Task) {
 				defer wg.Done()
-				err = jc.handleTask(context.Background(), task)
 
+				err := jc.handleTask(context.Background(), task)
 				if err != nil {
 					jc.l.Error().Err(err).Msg("could not handle job task")
 				}

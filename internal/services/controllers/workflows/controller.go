@@ -112,8 +112,8 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 			wg.Add(1)
 			go func(task *taskqueue.Task) {
 				defer wg.Done()
-				err = wc.handleTask(context.Background(), task)
 
+				err := wc.handleTask(context.Background(), task)
 				if err != nil {
 					wc.l.Error().Err(err).Msg("could not handle job task")
 				}

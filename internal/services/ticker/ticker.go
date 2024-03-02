@@ -178,8 +178,8 @@ func (t *TickerImpl) Start() (func() error, error) {
 			wg.Add(1)
 			go func(task *taskqueue.Task) {
 				defer wg.Done()
-				err = t.handleTask(ctx, task)
 
+				err := t.handleTask(ctx, task)
 				if err != nil {
 					t.l.Error().Err(err).Msgf("could not handle ticker task %s", task.ID)
 				}

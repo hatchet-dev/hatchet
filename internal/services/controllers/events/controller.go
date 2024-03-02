@@ -112,8 +112,8 @@ func (ec *EventsControllerImpl) Start() (func() error, error) {
 			wg.Add(1)
 			go func(task *taskqueue.Task) {
 				defer wg.Done()
-				err = ec.handleTask(ctx, task)
 
+				err := ec.handleTask(ctx, task)
 				if err != nil {
 					ec.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
 				}
