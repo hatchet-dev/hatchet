@@ -1,9 +1,11 @@
 {
   "index": "Introduction",
   "-- SDKs": {
-    "type": "separator",
+    "type": "menu",
     "title": "SDKs"
   },
+
+
   "python-sdk": "Python SDK",
   "typescript-sdk": "TypeScript SDK",
   "go-sdk": "Go SDK"

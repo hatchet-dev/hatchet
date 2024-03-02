@@ -1,31 +1,28 @@
-# Introduction
+# SDK Overview
 
-Welcome to the Hatchet documentation. Hatchet is a distributed, fault-tolerant task queue designed to solve scaling problems like **concurrency**, **fairness**, and **rate limiting**. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration/infrastructure.
+Welcome to the Hatchet SDK Reference! Hatchet is a distributed, fault-tolerant task queue designed to solve scaling problems like **concurrency**, **fairness**, and **rate limiting**.
 
-## Concepts
+For more information on Hatchet, see the [Introduction to Hatchet](/home).
 
-**You run your workers, we manage the rest.**
+## Available SDKs
 
-Hatchet is an orchestrator, which means it manages the execution of your workflows. However, the individual steps of each workflow are executed by your own workers (don't worry, each SDK comes with a worker implementation). This means you can run your workers in your own infrastructure, and Hatchet will manage the scheduling, retries, and monitoring of your workflows.
+Hatchet is available in the following languages:
+- [Python](/sdks/python-sdk/setup)
+- [Typescript](/sdks/typescript-sdk/setup)
+- [Go](/sdks/go-sdk/setup)
 
-**What is a workflow?**
+Please [reach out](mailto:contact@hatchet.run) if you would like to use Hatchet in a different language.
 
-The term `workflow` tends to be overloaded, so let's make things more clear - in Hatchet, a workflow is a set of functions which are executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a workflow for that.
+## Quick Start Repos
 
-**Why is that useful?**
+There are two steps to getting started with Hatchet: 
 
-Instead of processing background tasks and functions in your application handlers, which can lead to complex code, hard-to-debug errors, and resource contention, you can distribute these workflows between a set of `workers`. Workers are long-running processes which listen for events, and execute the functions defined in your workflows.
+1) getting access to a Hatchet engine instance and installing the Hatchet SDK. You can get access to a Hatchet engine instance by [requesting access](https://hatchet.run/request-access) to Hatchet Cloud or [self-hosting Hatchet](https://docs.hatchet.run/self-hosting).
 
-**A managed queue**
+2) Once you have access to a Hatchet engine instance, you can install the Hatchet SDK in your application.
 
-Hatchet is built on top of a low-latency queue, which means it can handle real-time interactions and mission-critical tasks. This is particularly useful if you're building a real-time application, or if you're running tasks which need to be completed quickly. It can scale to millions of queued tasks and can handle hundreds of tasks per second. We are continuously working to improve our throughput and latency.
-
-## Getting Started
-
-There are two steps to getting started with Hatchet: getting access to a Hatchet engine instance and installing the Hatchet SDK. You can get access to a Hatchet engine instance by [requesting access](https://hatchet.run/request-access) to Hatchet Cloud or [self-hosting Hatchet](https://docs.hatchet.run/self-hosting). Once you have access to a Hatchet engine instance, you can install the Hatchet SDK in your application.
-
-To get started, see the Hatchet documentation [here](https://docs.hatchet.run/home/quickstart), or check out our quickstart repos:
+To get started, see the Hatchet documentation [here](/home/quickstart/installation), or check out one of our quickstart guides for your language of choice:
 
 - [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
 - [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
-- [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart) (coming soon!)
+- [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
