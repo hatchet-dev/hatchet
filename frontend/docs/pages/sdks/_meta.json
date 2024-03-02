@@ -1,9 +1,5 @@
 {
-  "index": "SDK Reference",
-  "-- Getting Started": {
-    "type": "separator",
-    "title": "Getting Started"
-  },
+  "index": "Introduction",
   "-- SDKs": {
     "type": "separator",
     "title": "SDKs"

@@ -1,0 +1,27 @@
+{
+  "core-concepts": { 
+    "title": "Core Concepts",
+    "display": "hidden",
+    "type": "menu"
+  },
+  "steps": { 
+    "title": "Understanding Steps",
+    "display": "hidden",
+    "type": "page"
+  },
+  "workflows": { 
+    "title": "Understanding Workflows",
+    "display": "hidden",
+    "type": "page"
+  },
+  "workers": { 
+    "title": "Understanding Workers",
+    "display": "hidden",
+    "type": "page"
+  },
+  "durable-execution": { 
+    "title": "Designing for Durable Execution",
+    "display": "hidden",
+    "type": "page"
+  }
+}

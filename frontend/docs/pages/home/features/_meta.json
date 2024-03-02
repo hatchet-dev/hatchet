@@ -1,0 +1,7 @@
+{
+  "concurrency": "Concurrency Strategies",
+  "retries": "Retries",
+  "timeouts": "Timeouts",
+  "logging": "Logging",
+  "streaming": "Result Streaming"
+}

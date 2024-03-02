@@ -1,15 +1,34 @@
 {
   "index": "Introduction",
-  "-- Getting Started": {
-    "type": "separator",
-    "title": "Getting Started"
+  "quickstart": "Quick Start",
+  "--guide": {
+    "title": "Guide",
+    "type": "separator"
   },
-  "quickstart": "Quickstart",
-  "-- SDKs": {
-    "type": "separator",
-    "title": "SDKs"
+  "basics": {
+    "title": "Working With Hatchet",
+    "type": "menu",
+    "display": "hidden"
   },
-  "go-sdk": "Go SDK",
-  "python-sdk": "Python SDK",
-  "typescript-sdk": "TypeScript SDK"
+  "tutorials": {
+    "title": "Tutorials"
+  },
+  "features": {
+    "title": "Features",
+    "type": "menu",
+    "display": "hidden"
+  },
+  "workflow-state": {
+    "title": "Querying Workflow State",
+    "type": "page",
+    "display": "hidden"
+  },
+  "--more": {
+    "title": "More",
+    "type": "separator"
+  },
+  "about": {
+    "title": "About Hatchet ↗",
+    "href": "https://hatchet.run"
+  }
 }
