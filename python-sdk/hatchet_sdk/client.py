@@ -1,4 +1,5 @@
 # relative imports
+import os
 from typing import Any
 from .clients.admin import AdminClientImpl, new_admin
 from .clients.events import EventClientImpl, new_event
@@ -8,6 +9,11 @@ from .clients.listener import ListenerClientImpl, new_listener
 from .loader import ConfigLoader, ClientConfig
 import grpc
 
+from .clients.rest.api_client import ApiClient
+from .clients.rest.api.workflow_api import WorkflowApi
+from .clients.rest.api.workflow_run_api import WorkflowRunApi
+from .clients.rest.configuration import Configuration
+from .clients.rest_client import RestApi
 
 class Client:
     def admin(self):
@@ -21,6 +27,9 @@ class Client:
 
     def listener(self):
         raise NotImplementedError
+    
+    def rest(self):
+        raise NotImplementedError
 
 
 class ClientImpl(Client):
@@ -29,7 +38,9 @@ class ClientImpl(Client):
             event_client: EventClientImpl,
             admin_client: AdminClientImpl,
             dispatcher_client: DispatcherClientImpl,
-            listener_client: ListenerClientImpl):
+            listener_client: ListenerClientImpl,
+            rest_client: RestApi
+        ):
         # self.conn = conn
         # self.tenant_id = tenant_id
         # self.logger = logger
@@ -38,6 +49,7 @@ class ClientImpl(Client):
         self.dispatcher = dispatcher_client
         self.event = event_client
         self.listener = listener_client
+        self.rest_client = rest_client
 
     def admin(self) -> ListenerClientImpl:
         return self.admin
@@ -50,7 +62,9 @@ class ClientImpl(Client):
 
     def listener(self) -> ListenerClientImpl:
         return self.listener
-
+    
+    def rest(self) -> RestApi:
+        return self.rest_client
 
 def with_host_port(host: str, port: int):
     def with_host_port_impl(config: ClientConfig):
@@ -109,5 +123,6 @@ def new_client(*opts_functions):
     admin_client = new_admin(conn, config)
     dispatcher_client = new_dispatcher(conn, config)
     listener_client = new_listener(conn, config)
+    rest_client = RestApi(config.server_url, config.token, config.tenant_id)
 
-    return ClientImpl(event_client, admin_client, dispatcher_client, listener_client)
+    return ClientImpl(event_client, admin_client, dispatcher_client, listener_client, rest_client)

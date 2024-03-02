@@ -91,3 +91,5 @@ rabbitmq.conf
 *encryption-keys
 generated/
 certs/
+
+openapitools.json

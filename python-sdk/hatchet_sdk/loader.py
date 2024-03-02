@@ -1,7 +1,7 @@
 import os
 import yaml
 from typing import Any, Optional, Dict
-from .token import get_addresses_from_jwt
+from .token import get_addresses_from_jwt, get_tenant_id_from_jwt
 
 class ClientTLSConfig:
     def __init__(self, tls_strategy: str, cert_file: str, key_file: str, ca_file: str, server_name: str):
@@ -12,11 +12,12 @@ class ClientTLSConfig:
         self.server_name = server_name
 
 class ClientConfig:
-    def __init__(self, tenant_id: str, tls_config: ClientTLSConfig, token: str, host_port: str="localhost:7070"):
+    def __init__(self, tenant_id: str, tls_config: ClientTLSConfig, token: str, host_port: str="localhost:7070", server_url: str="https://app.dev.hatchet-tools.com"):
         self.tenant_id = tenant_id
         self.tls_config = tls_config
         self.host_port = host_port
         self.token = token
+        self.server_url = server_url
 
 class ConfigLoader:
     def __init__(self, directory: str):
@@ -41,6 +42,7 @@ class ConfigLoader:
             raise ValueError('Token must be set via HATCHET_CLIENT_TOKEN environment variable')
 
         host_port = config_data['hostPort'] if 'hostPort' in config_data else self._get_env_var('HATCHET_CLIENT_HOST_PORT')
+        server_url : str | None = None
 
         if not host_port:
             # extract host and port from token
@@ -48,9 +50,12 @@ class ConfigLoader:
 
             host_port = grpc_broadcast_address
 
+        if not tenant_id:
+            tenant_id = get_tenant_id_from_jwt(token)
+
         tls_config = self._load_tls_config(config_data['tls'], host_port)
 
-        return ClientConfig(tenant_id, tls_config, token, host_port)
+        return ClientConfig(tenant_id, tls_config, token, host_port, server_url)
 
     def _load_tls_config(self, tls_data: Dict, host_port) -> ClientTLSConfig:
         tls_strategy = tls_data['tlsStrategy'] if 'tlsStrategy' in tls_data else self._get_env_var('HATCHET_CLIENT_TLS_STRATEGY')
