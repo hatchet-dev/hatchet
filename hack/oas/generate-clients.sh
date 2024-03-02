@@ -21,9 +21,9 @@ tmp_dir=./python-sdk/tmp
 # generate into tmp folder
 openapi-generator-cli generate -i ./bin/oas/openapi.yaml -g python -o ./python-sdk/tmp --skip-validate-spec \
     --global-property=apiTests=false \
-    --global-property=apiDocs=false \
+    --global-property=apiDocs=true \
     --global-property=modelTests=false \
-    --global-property=modelDocs=false \
+    --global-property=modelDocs=true \
     --package-name hatchet_sdk.clients.rest
 
 mv $tmp_dir/hatchet_sdk/clients/rest/api_client.py $dst_dir/api_client.py
@@ -35,11 +35,11 @@ mv $tmp_dir/hatchet_sdk/clients/rest/rest.py $dst_dir/rest.py
 
 
 openapi-generator-cli generate -i ./bin/oas/openapi.yaml -g python -o ./python-sdk --skip-validate-spec \
-    --global-property=apis,models,__init__apis,__init_models \
+    --global-property=apis,models \
     --global-property=apiTests=false \
-    --global-property=apiDocs=true \
+    --global-property=apiDocs=false \
     --global-property=modelTests=false \
-    --global-property=modelDocs=true \
+    --global-property=modelDocs=false \
     --package-name hatchet_sdk.clients.rest
 
 # copy the __init__ files from tmp to the destination since they are not generated for some reason
