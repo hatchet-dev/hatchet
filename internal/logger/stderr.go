@@ -3,19 +3,23 @@ package logger
 import (
 	"io"
 	"os"
-	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/config/shared"
+
+	"time"
 )
+
+func init() {
+	zerolog.TimeFieldFormat = time.RFC3339Nano
+}
 
 func NewDefaultLogger(service string) zerolog.Logger {
 	return NewStdErr(&shared.LoggerConfigFile{}, service)
 }
 
 func NewStdErr(cf *shared.LoggerConfigFile, service string) zerolog.Logger {
-	zerolog.TimeFieldFormat = time.RFC3339Nano
 	lvl := zerolog.DebugLevel
 	var err error
 

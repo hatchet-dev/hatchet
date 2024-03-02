@@ -114,7 +114,7 @@ func run(events chan<- string) (func() error, error) {
 		}
 
 		// push an event
-		err = c.Event().Push(
+		err := c.Event().Push(
 			context.Background(),
 			"user:create:middleware",
 			testEvent,
