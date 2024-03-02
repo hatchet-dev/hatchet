@@ -44,7 +44,7 @@ openapi-generator-cli generate -i ./bin/oas/openapi.yaml -g python -o ./python-s
 
 # copy the __init__ files from tmp to the destination since they are not generated for some reason
 cp $tmp_dir/hatchet_sdk/clients/rest/models/__init__.py $dst_dir/models/__init__.py
-cp $tmp_dir/hatchet_sdk/clients/rest/apis/__init__.py $dst_dir/apis/__init__.py
+cp $tmp_dir/hatchet_sdk/clients/rest/api/__init__.py $dst_dir/api/__init__.py
 
 # remove tmp folder
 rm -rf $tmp_dir
