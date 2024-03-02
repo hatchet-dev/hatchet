@@ -14,12 +14,6 @@
     "display": "hidden",
     "type": "page"
   },
-  "prompt-chaining": {
-    "title": "Prompt Chaining",
-    "type": "page"
-  },
-  "programmatic-workflows": {
-    "title": "Programmatic Workflow Definition",
-    "type": "page"
-  }
+  "prompt-chaining":  "Prompt Chaining",
+  "programmatic-workflows": "Programmatic Workflow Definition"
 }
