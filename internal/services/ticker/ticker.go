@@ -141,18 +141,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 	_, err = t.s.NewJob(
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
-			t.runStepRunRequeue(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule step run requeue: %w", err)
-	}
-
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Second*5),
-		gocron.NewTask(
 			t.runGetGroupKeyRunRequeue(ctx),
 		),
 	)
@@ -257,34 +245,6 @@ func (t *TickerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
-}
-
-func (t *TickerImpl) runStepRunRequeue(ctx context.Context) func() {
-	return func() {
-		t.l.Debug().Msgf("ticker: checking step run requeue")
-
-		// list all tenants
-		tenants, err := t.repo.Tenant().ListTenants()
-
-		if err != nil {
-			t.l.Err(err).Msg("could not list tenants")
-			return
-		}
-
-		for i := range tenants {
-			t.l.Debug().Msgf("adding step run requeue task for tenant %s", tenants[i].ID)
-
-			err := t.tq.AddTask(
-				ctx,
-				taskqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.TenantToStepRunRequeueTask(tenants[i]),
-			)
-
-			if err != nil {
-				t.l.Err(err).Msg("could not add step run requeue task")
-			}
-		}
-	}
 }
 
 func (t *TickerImpl) runGetGroupKeyRunRequeue(ctx context.Context) func() {

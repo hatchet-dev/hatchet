@@ -144,6 +144,85 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, arg GetStepRunParams)
 	return &i, err
 }
 
+const listStepRunsToReassign = `-- name: ListStepRunsToReassign :many
+SELECT
+    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount"
+FROM
+    "StepRun" sr
+LEFT JOIN
+    "Worker" w ON sr."workerId" = w."id"
+JOIN
+    "Step" s ON sr."stepId" = s."id"
+WHERE
+    sr."tenantId" = $1::uuid
+    AND ((
+        sr."status" = 'RUNNING'
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
+        AND s."retries" > sr."retryCount"
+    ) OR (
+        sr."status" = 'ASSIGNED'
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '5 seconds'
+    ))
+    -- Step run cannot have a failed parent
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "_StepRunOrder" AS order_table
+        JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
+        WHERE 
+            order_table."B" = sr."id"
+            AND prev_sr."status" != 'SUCCEEDED'
+    )
+ORDER BY
+    sr."createdAt" ASC
+`
+
+func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*StepRun, error) {
+	rows, err := db.Query(ctx, listStepRunsToReassign, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepRun
+	for rows.Next() {
+		var i StepRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.JobRunId,
+			&i.StepId,
+			&i.Order,
+			&i.WorkerId,
+			&i.TickerId,
+			&i.Status,
+			&i.Input,
+			&i.Output,
+			&i.RequeueAfter,
+			&i.ScheduleTimeoutAt,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.TimeoutAt,
+			&i.CancelledAt,
+			&i.CancelledReason,
+			&i.CancelledError,
+			&i.InputSchema,
+			&i.CallerFiles,
+			&i.GitRepoBranch,
+			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStepRunsToRequeue = `-- name: ListStepRunsToRequeue :many
 SELECT
     sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount"
@@ -154,22 +233,14 @@ LEFT JOIN
 WHERE
     sr."tenantId" = $1::uuid
     AND sr."requeueAfter" < NOW()
-    AND (
-        (
-            sr."workerId" IS NULL
-            AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
-            AND NOT EXISTS (
-                SELECT 1
-                FROM "_StepRunOrder" AS order_table
-                JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-                WHERE 
-                    order_table."B" = sr."id"
-                    AND prev_sr."status" != 'SUCCEEDED'
-            )
-        ) OR (
-            sr."status" = 'ASSIGNED'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '5 seconds'
-        )
+    AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "_StepRunOrder" AS order_table
+        JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
+        WHERE 
+            order_table."B" = sr."id"
+            AND prev_sr."status" != 'SUCCEEDED'
     )
 ORDER BY
     sr."createdAt" ASC

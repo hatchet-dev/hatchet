@@ -167,6 +167,37 @@ SELECT
 FROM step_run_data
 RETURNING *;
 
+-- name: ListStepRunsToReassign :many
+SELECT
+    sr.*
+FROM
+    "StepRun" sr
+LEFT JOIN
+    "Worker" w ON sr."workerId" = w."id"
+JOIN
+    "Step" s ON sr."stepId" = s."id"
+WHERE
+    sr."tenantId" = @tenantId::uuid
+    AND ((
+        sr."status" = 'RUNNING'
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
+        AND s."retries" > sr."retryCount"
+    ) OR (
+        sr."status" = 'ASSIGNED'
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '5 seconds'
+    ))
+    -- Step run cannot have a failed parent
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "_StepRunOrder" AS order_table
+        JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
+        WHERE 
+            order_table."B" = sr."id"
+            AND prev_sr."status" != 'SUCCEEDED'
+    )
+ORDER BY
+    sr."createdAt" ASC;
+
 -- name: ListStepRunsToRequeue :many
 SELECT
     sr.*
@@ -177,22 +208,14 @@ LEFT JOIN
 WHERE
     sr."tenantId" = @tenantId::uuid
     AND sr."requeueAfter" < NOW()
-    AND (
-        (
-            sr."workerId" IS NULL
-            AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
-            AND NOT EXISTS (
-                SELECT 1
-                FROM "_StepRunOrder" AS order_table
-                JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-                WHERE 
-                    order_table."B" = sr."id"
-                    AND prev_sr."status" != 'SUCCEEDED'
-            )
-        ) OR (
-            sr."status" = 'ASSIGNED'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '5 seconds'
-        )
+    AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "_StepRunOrder" AS order_table
+        JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
+        WHERE 
+            order_table."B" = sr."id"
+            AND prev_sr."status" != 'SUCCEEDED'
     )
 ORDER BY
     sr."createdAt" ASC;
