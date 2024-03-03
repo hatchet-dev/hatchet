@@ -116,6 +116,8 @@ export function StepRunPlayground({
       ) {
         return 1000;
       }
+
+      return 5000;
     },
   });
 

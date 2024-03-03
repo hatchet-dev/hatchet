@@ -23,10 +23,10 @@ func ToJSONMap(data interface{}) (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	return jsonBytesToMap(jsonBytes)
+	return JSONBytesToMap(jsonBytes)
 }
 
-func jsonBytesToMap(jsonBytes []byte) (map[string]interface{}, error) {
+func JSONBytesToMap(jsonBytes []byte) (map[string]interface{}, error) {
 	dataMap := map[string]interface{}{}
 
 	err := json.Unmarshal(jsonBytes, &dataMap)
