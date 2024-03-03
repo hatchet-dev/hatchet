@@ -15,7 +15,7 @@ import { DynamicSizeInputTemplate } from './form-inputs/dynamic-size-input-templ
 import { createContext, useRef } from 'react';
 
 type JSONPrimitive = string | number | boolean | null;
-type JSONType = { [key: string]: JSONType | JSONPrimitive };
+type JSONType = { [key: string]: JSONType | JSONPrimitive | Array<JSONType> };
 
 export const DEFAULT_COLLAPSED = ['advanced', 'user data'];
 
