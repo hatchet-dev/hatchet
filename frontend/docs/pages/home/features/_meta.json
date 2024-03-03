@@ -1,7 +1,9 @@
 {
   "concurrency": "Concurrency Strategies",
+  "durable-execution": "Durable Execution",
   "retries": "Retries",
   "timeouts": "Timeouts",
   "logging": "Logging",
   "streaming": "Result Streaming"
+
 }

@@ -5,22 +5,11 @@
     "title": "Guide",
     "type": "separator"
   },
-  "basics": {
-    "title": "Working With Hatchet",
-    "type": "menu",
-    "display": "hidden"
-  },
-  "tutorials": {
-    "title": "Tutorials"
-  },
+  "basics": "Working With Hatchet",
+  "tutorials": "Tutorials",
   "features": {
     "title": "Features",
     "type": "menu",
-    "display": "hidden"
-  },
-  "workflow-state": {
-    "title": "Querying Workflow State",
-    "type": "page",
     "display": "hidden"
   },
   "--more": {

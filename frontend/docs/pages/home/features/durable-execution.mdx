@@ -1,0 +1,43 @@
+# Understanding Durable Execution in Hatchet
+
+Durable execution refers to the capability of a system to maintain its operational continuity despite encountering errors or interruptions. 
+
+In simpler terms, a durable workflow can continue processing a workflow from a mid-point after a failure as opposed to starting from the beginning. For example, let's say you have a workflow that processes a large dataset, and it fails after processing 90% of the data. A durable execution system would be able to resume processing from the 90% mark, rather than starting from scratch. This is especially helpful for expensive or time-consuming workflows (i.e. document indexing or large generation tasks), as it minimizes the impact of failures and interruptions.
+
+Durable execution is a key benefit of building with Hatchet. By adhering to workflow best practices, achieving durable execution becomes straight forward. In Hatchet, there are two primary modes for enabling durable execution: automatic recovery for transient failures and manual intervention for workflow continuation after an input change or a code deployment.
+
+### 1) Automatic Recovery for Transient Failures
+
+Transient failures, as the name suggests, are temporary issues that interrupt the normal operation of a system but are resolved on their own after a short duration. These failures are typically non-persistent and can occur due to a variety of reasons:
+
+- **Network Issues**: Temporary network outages, rate-limits, or connectivity problems can disrupt communication between components, leading to transient failures.
+- **Resource Limitations**: Temporary shortages in resources, like CPU, memory, or I/O, can cause tasks to fail or timeout.
+- **Dependency Failures**: External services or dependencies that your workflows rely on can experience intermittent outages, causing transient errors.
+- **Environmental Fluctuations**: Variabilities in the operating environment, such as spikes in traffic or system load, can also lead to transient issues.
+
+Hatchet's design includes mechanisms for automatically detecting and recovering from transient failures, ensuring that workflows can continue without manual intervention. Key aspects include:
+
+- **Task Retries:** Hatchet can automatically retry steps that fail due to transient issues, such as temporary network outages or resource unavailability.
+- **State Preservation:** The state of each workflow (i.e. results of previous steps) is preserved, allowing Hatchet to pick up from where it left off in the event of a failure.
+- **Error Isolation:** By isolating errors to specific steps and enabling retries, Hatchet minimizes the impact of transient failures on the overall workflow.
+
+### 2) Manual Intervention for Workflow Continuation
+
+In some scenarios, automatic recovery may not be sufficient, and manual intervention is necessary to continue a workflow. Hatchet supports this through:
+
+- **Dashboard Input Changes:** Sometimes a step might fail due to a simple malformed input. Hatchet's dashboard allows users to modify inputs or exposed parameters of a workflow, enabling manual correction or adjustment of data to resolve issues and continue execution.
+- **Code Deploy for Bug Fix:** In cases where a failure is due to a bug, Hatchet allows for the deployment of a code update. Once the fix is deployed, the affected workflows can be manually resumed from the point of interruption.
+
+## Workflow Best Practices for Durable Execution
+
+Following best practices in workflow design not only enhances efficiency and maintainability but also fortifies the durability of execution:
+
+- **Idempotency:** Designing steps to be idempotent ensures that they can be retried safely without causing unintended effects, a crucial aspect for automatic recovery.
+- **Error Handling:** Implement comprehensive error handling within steps and workflows to gracefully manage exceptions and delineate clear recovery pathways.
+- **Decoupling:** Keep steps and workflows loosely coupled, so that failures in one area do not cascade unnecessarily, complicating recovery.
+- **Monitoring and Logging:** Establish robust monitoring and logging practices to quickly identify, diagnose, and address issues, which is essential for both automatic recovery and efficient manual intervention.
+- **Testing:** Rigorously test workflows under various failure scenarios to ensure they behave as expected and can recover gracefully, validating their durability.
+
+## Conclusion
+
+Durable execution is a cornerstone of reliable distributed systems, and Hatchet provides robust mechanisms to support this resilience. By leveraging Hatchet's features for automatic recovery and manual intervention, and by adhering to workflow best practices, developers can create systems that are not only efficient and maintainable but also resilient against disruptions, ensuring continuity and reliability of execution.
