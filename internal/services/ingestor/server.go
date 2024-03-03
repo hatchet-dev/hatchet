@@ -158,12 +158,7 @@ func toEvent(e db.EventModel) (*contracts.Event, error) {
 	var payload string
 
 	if data, ok := e.Data(); ok {
-		payloadBytes, err := data.MarshalJSON()
-
-		if err != nil {
-			return nil, err
-		}
-
+		payloadBytes := []byte(data)
 		payload = string(payloadBytes)
 	}
 

@@ -3,7 +3,6 @@ package datautils
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
@@ -47,19 +46,9 @@ func FromJSONType(data *types.JSON, target interface{}) error {
 		return nil
 	}
 
-	dataBytes, err := data.MarshalJSON()
+	dataBytes := []byte(*data)
 
-	if err != nil {
-		return fmt.Errorf("failed to marshal json: %w", err)
-	}
-
-	unquoted, err := strconv.Unquote(string(dataBytes))
-
-	if err != nil {
-		return fmt.Errorf("failed to unquote json: %w", err)
-	}
-
-	if err := json.Unmarshal([]byte(unquoted), &target); err != nil {
+	if err := json.Unmarshal(dataBytes, &target); err != nil {
 		return fmt.Errorf("failed to unmarshal json: %w", err)
 	}
 

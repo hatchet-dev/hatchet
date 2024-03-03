@@ -187,12 +187,6 @@ func (r *eventRepository) CreateEvent(ctx context.Context, opts *repository.Crea
 		return nil, err
 	}
 
-	// dataBytes, err := opts.Data.MarshalJSON()
-
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	createParams := dbsqlc.CreateEventParams{
 		ID:       sqlchelpers.UUIDFromStr(uuid.New().String()),
 		Key:      opts.Key,
