@@ -173,6 +173,10 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 
 		wg.Wait()
 
+		if err := jc.s.Shutdown(); err != nil {
+			return fmt.Errorf("could not shutdown scheduler: %w", err)
+		}
+
 		return nil
 	}
 
