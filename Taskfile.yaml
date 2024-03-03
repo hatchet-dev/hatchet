@@ -91,6 +91,8 @@ tasks:
   install-dependencies:
     cmds:
       - go mod download
+      - npm install @openapitools/openapi-generator-cli -g
+      - openapi-generator-cli version-manager set 7.3.0
       - cd frontend/app/ && pnpm install
       - cd frontend/docs/ && pnpm install
       - cd typescript-sdk/ && pnpm install
@@ -113,7 +115,7 @@ tasks:
     silent: true
   generate-api-client:
     cmds:
-      - sh ./hack/oas/generate-client.sh
+      - sh ./hack/oas/generate-clients.sh
     silent: true
   generate-go:
     cmds:
