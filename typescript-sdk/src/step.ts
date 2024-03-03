@@ -5,6 +5,7 @@ import { Action } from './clients/dispatcher/action-listener';
 import { DispatcherClient } from './clients/dispatcher/dispatcher-client';
 import { EventClient, LogLevel } from './clients/event/event-client';
 import { Logger } from './util/logger';
+import { parseJSON } from './util/parse';
 
 export const CreateStepSchema = z.object({
   name: z.string(),
@@ -36,7 +37,7 @@ export class Context<T, K> {
 
   constructor(action: Action, client: DispatcherClient, eventClient: EventClient) {
     try {
-      const data = JSON.parse(JSON.parse(action.actionPayload));
+      const data = parseJSON(action.actionPayload);
       this.data = data;
       this.action = action;
       this.client = client;

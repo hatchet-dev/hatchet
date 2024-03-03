@@ -51,15 +51,25 @@ func (worker *subscribedWorker) StartStepRun(
 	defer span.End()
 
 	inputBytes := []byte{}
+
 	inputType, ok := stepRun.Input()
 
-	if ok {
-		var err error
-		inputBytes, err = inputType.MarshalJSON()
+	// if ok {
+	// 	stepRunInputBytes := []byte(inputType)
 
-		if err != nil {
-			return err
-		}
+	// 	var err error
+	// 	var inputBytesStr string
+	// 	inputBytesStr, err = strconv.Unquote(string(stepRunInputBytes))
+
+	// 	if err != nil {
+	// 		inputBytes = stepRunInputBytes
+	// 	} else {
+	// 		inputBytes = []byte(inputBytesStr)
+	// 	}
+	// }
+
+	if ok {
+		inputBytes = []byte(inputType)
 	}
 
 	stepName, _ := stepRun.Step().ReadableID()
@@ -128,11 +138,7 @@ func (worker *subscribedWorker) StartGroupKeyAction(
 		}
 	}
 
-	inputBytes, err := inputData.MarshalJSON()
-
-	if err != nil {
-		return err
-	}
+	inputBytes = []byte(inputData)
 
 	getGroupKeyRun, ok := workflowRun.GetGroupKeyRun()
 
