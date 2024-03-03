@@ -46,7 +46,8 @@ const workflow: Workflow = {
       name: 'dag-step4',
       parents: ['dag-step1', 'dag-step3'],
       run: (ctx) => {
-        console.log('executed step4!');
+        const value = ctx.playground('test', 'test');
+        console.log('executed step4!', value);
         return { step4: 'step4' };
       },
     },

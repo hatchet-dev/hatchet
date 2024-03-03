@@ -400,9 +400,39 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *task
 	var inputBytes []byte
 	var retryCount = stepRun.RetryCount + 1
 
+	// update the input schema for the step run based on the new input
 	if payload.InputData != "" {
-		// update the input schema for the step run based on the new input
-		jsonSchemaBytes, err := schema.SchemaBytesFromBytes([]byte(payload.InputData))
+		inputBytes = []byte(payload.InputData)
+
+		// Merge the existing input data with the new input data. We don't blindly trust the
+		// input data because the user could have deleted fields that are required by the step.
+		// A better solution would be to validate the user input ahead of time.
+		// NOTE: this is an expensive operation.
+		if currentInput, ok := stepRun.Input(); ok {
+			inputMap, err := datautils.JSONBytesToMap([]byte(payload.InputData))
+
+			if err != nil {
+				return fmt.Errorf("could not convert input data to map: %w", err)
+			}
+
+			currentInputMap, err := datautils.JSONBytesToMap(currentInput)
+
+			if err != nil {
+				return fmt.Errorf("could not convert current input to map: %w", err)
+			}
+
+			mergedInput := datautils.MergeMaps(currentInputMap, inputMap)
+
+			mergedInputBytes, err := json.Marshal(mergedInput)
+
+			if err != nil {
+				return fmt.Errorf("could not marshal merged input: %w", err)
+			}
+
+			inputBytes = mergedInputBytes
+		}
+
+		jsonSchemaBytes, err := schema.SchemaBytesFromBytes(inputBytes)
 
 		if err != nil {
 			return err
@@ -413,8 +443,6 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *task
 		if err != nil {
 			return err
 		}
-
-		inputBytes = []byte(payload.InputData)
 
 		// if the input data has been manually set, we reset the retry count as this is a user-triggered retry
 		retryCount = 0
