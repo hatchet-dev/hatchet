@@ -45,9 +45,15 @@ const workflow: Workflow = {
     {
       name: 'dag-step4',
       parents: ['dag-step1', 'dag-step3'],
-      run: (ctx) => {
-        const value = ctx.playground('test', 'test');
-        console.log('executed step4!', value);
+      run: async (ctx) => {
+        await sleep(5000);
+
+        // simulate a really slow network call
+        setTimeout(async () => {
+          await sleep(1000);
+          ctx.playground('slow', 'call');
+        }, 5000);
+
         return { step4: 'step4' };
       },
     },
