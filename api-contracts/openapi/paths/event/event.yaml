@@ -43,6 +43,12 @@ withTenant:
           type: array
           items:
             $ref: "../../components/schemas/_index.yaml#/WorkflowID"
+      - description: A list of workflow run statuses to filter by
+        in: query
+        name: statuses
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/WorkflowRunStatusList"
       - description: The search query to filter for
         in: query
         name: search

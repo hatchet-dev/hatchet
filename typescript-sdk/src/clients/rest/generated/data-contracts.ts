@@ -465,6 +465,8 @@ export enum WorkflowRunStatus {
   CANCELLED = 'CANCELLED',
 }
 
+export type WorkflowRunStatusList = WorkflowRunStatus[];
+
 export enum JobRunStatus {
   PENDING = 'PENDING',
   RUNNING = 'RUNNING',

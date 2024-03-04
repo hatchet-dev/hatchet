@@ -85,6 +85,17 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 		countParams.Workflows = opts.Workflows
 	}
 
+	if opts.WorkflowRunStatus != nil {
+		statuses := make([]string, 0)
+
+		for _, status := range opts.WorkflowRunStatus {
+			statuses = append(statuses, string(status))
+		}
+
+		queryParams.Statuses = statuses
+		countParams.Statuses = statuses
+	}
+
 	orderByField := "createdAt"
 	orderByDirection := "DESC"
 

@@ -28,6 +28,9 @@ type ListEventOpts struct {
 	// (optional) a list of workflow IDs to filter by
 	Workflows []string
 
+	// (optional) a list of workflow run statuses to filter by
+	WorkflowRunStatus []db.WorkflowRunStatus
+
 	// (optional) number of events to skip
 	Offset *int
 
