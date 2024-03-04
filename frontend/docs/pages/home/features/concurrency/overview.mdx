@@ -16,23 +16,18 @@ There are several reasons why you might want to use concurrency control in your 
 
 5. **Spike Protection**: When you have workflows that are triggered by external events, such as webhooks or user actions, you may experience spikes in traffic that can overwhelm your system. Concurrency control can help you manage these spikes by limiting the number of concurrent runs and queuing new runs until resources become available.
 
-
 ### Configuring concurrency control
 
 To configure concurrency control for a workflow in Hatchet, you can add a `concurrency` field to your workflow definition. The `concurrency` field is an object with the following properties:
 
 - `name` (required): A string identifier for the concurrency limit. This is used to identify the limit in logs and the dashboard.
-- `maxRuns` (optional): The maximum number of concurrent runs allowed for this workflow across all workers. If not specified, there is no limit.
+- `maxRuns` (optional): The maximum number of concurrent runs allowed for a given concurrency key. If not specified, there is no limit.
 - `limitStrategy` (optional): The strategy to use when the concurrency limit is reached. Can be one of:
-  - `CANCEL_IN_PROGRESS`: Cancel the currently running workflow instances to free up slots for the new instance.
-  {/* - `DROP_NEWEST`: Drop the new workflow instance if no slots are available. */}
-  {/* - `QUEUE_NEWEST` (default): Queue the new workflow instance until a slot becomes available. */}
+  - `CANCEL_IN_PROGRESS`: Cancel the currently running workflow instances for the same concurrency key to free up slots for the new instance.
   - `GROUP_ROUND_ROBIN`: Distribute workflow instances across available slots in a round-robin fashion based on the `key` function.
 - `key` (required): A function that takes the workflow context and returns a string key. This key is used to group runs for the purpose of concurrency limiting. For example, you could use this to limit concurrency on a per-user basis.
 
 Here's an example workflow definition with concurrency control:
-
-{/* TODO - add python */}
 
 ```typescript
 export const myWorkflow: Workflow = {
@@ -53,9 +48,20 @@ export const myWorkflow: Workflow = {
 };
 ```
 
-In this example, the workflow is limited to a maximum of 10 concurrent runs per unique `userId` in the workflow context. When the limit is reached, new runs are queued until a slot becomes available. If the limit strategy is set to `CANCEL_IN_PROGRESS`, and an event with a conflicting key is received the currently running workflow instances that match that key are canceled to free up slots for the new instance.
+In this example, the workflow is limited to a maximum of 10 concurrent runs for each unique `userId` in the workflow context. When the limit is reached for a specific `userId`, new runs with the same `userId` are queued until a slot becomes available. If the limit strategy is set to `CANCEL_IN_PROGRESS`, and an event with a conflicting `userId` is received, the currently running workflow instances for that `userId` are canceled to free up slots for the new instance.
 
-{/* TODO ### Setting concurrency on workers  */}
+### Setting concurrency on workers
 
+In addition to setting concurrency limits at the workflow level, you can also control concurrency at the worker level by passing the `maxRuns` option when creating a new `Worker` instance:
 
-By using Hatchet's concurrency control features, you can build more reliable, scalable, and fair workflows that are resilient to spikes in traffic and resource contention. This helps you ensure a better experience for your users and reduces operational overhead for your team.
+```typescript
+const worker = hatchet.worker('my-worker', {
+  maxRuns: 5,
+});
+```
+
+This limits the worker to a maximum of 5 concurrent step runs across all workflows. Once the limit is reached, the worker will not accept new actions until a running step completes.
+
+Worker-level concurrency limits are independent of workflow-level limits. The Hatchet engine automatically distributes actions to available workers, and queues actions if all workers are at their concurrency limit.
+
+By combining workflow-level and worker-level concurrency controls, you can fine-tune your Hatchet system for optimal performance and resource utilization.
