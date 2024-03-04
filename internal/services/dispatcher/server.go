@@ -250,8 +250,11 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	s.workers.Store(request.WorkerId, subscribedWorker{stream: stream, finished: fin})
 
 	defer func() {
-		fin <- true
-		close(fin)
+		// non-blocking send
+		select {
+		case fin <- true:
+		default:
+		}
 
 		s.workers.Delete(request.WorkerId)
 
