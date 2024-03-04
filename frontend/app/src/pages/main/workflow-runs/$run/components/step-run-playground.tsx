@@ -123,6 +123,21 @@ export function StepRunPlayground({
 
   const queryClient = useQueryClient();
 
+  const stepRunSchemaQuery = useQuery({
+    ...queries.stepRuns.getSchema(
+      stepRun?.tenantId || '',
+      stepRun?.metadata.id || '',
+    ),
+    enabled: !!stepRun,
+    refetchInterval: () => {
+      if (stepRun?.status === StepRunStatus.RUNNING) {
+        return 1000;
+      }
+
+      return 5000;
+    },
+  });
+
   const stepRunDiffQuery = useQuery({
     ...queries.stepRuns.getDiff(stepRun?.metadata.id || ''),
     enabled: !!stepRun,
@@ -347,7 +362,7 @@ export function StepRunPlayground({
               </div>
               {stepInput && (
                 <StepRunInputs
-                  schema={stepRun.inputSchema || ''}
+                  schema={stepRunSchemaQuery.data || {}}
                   input={stepInput}
                   setInput={setStepInput}
                   disabled={disabled}

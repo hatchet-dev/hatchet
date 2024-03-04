@@ -1,9 +1,9 @@
 import { CodeEditor } from '@/components/ui/code-editor';
-import { JsonForm } from '@/components/ui/json-form';
+import { JSONType, JsonForm } from '@/components/ui/json-form';
 
 export interface StepRunOutputProps {
   input: string;
-  schema: string;
+  schema: object;
   setInput: React.Dispatch<React.SetStateAction<string>>;
   disabled: boolean;
   handleOnPlay: () => void;
@@ -22,11 +22,11 @@ export const StepRunInputs: React.FC<StepRunOutputProps> = ({
     <>
       {mode === 'form' && (
         <div>
-          {schema === '' ? (
+          {!schema ? (
             <>No Schema</>
           ) : (
             <JsonForm
-              inputSchema={JSON.parse(schema)}
+              inputSchema={schema as JSONType}
               setInput={setInput}
               inputData={JSON.parse(input)}
               onSubmit={handleOnPlay}

@@ -55,8 +55,7 @@ class StepRun(BaseModel):
     cancelled_at_epoch: Optional[StrictInt] = Field(default=None, alias="cancelledAtEpoch")
     cancelled_reason: Optional[StrictStr] = Field(default=None, alias="cancelledReason")
     cancelled_error: Optional[StrictStr] = Field(default=None, alias="cancelledError")
-    input_schema: Optional[StrictStr] = Field(default=None, alias="inputSchema")
-    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "jobRunId", "jobRun", "stepId", "step", "children", "parents", "workerId", "input", "output", "status", "requeueAfter", "result", "error", "startedAt", "startedAtEpoch", "finishedAt", "finishedAtEpoch", "timeoutAt", "timeoutAtEpoch", "cancelledAt", "cancelledAtEpoch", "cancelledReason", "cancelledError", "inputSchema"]
+    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "jobRunId", "jobRun", "stepId", "step", "children", "parents", "workerId", "input", "output", "status", "requeueAfter", "result", "error", "startedAt", "startedAtEpoch", "finishedAt", "finishedAtEpoch", "timeoutAt", "timeoutAtEpoch", "cancelledAt", "cancelledAtEpoch", "cancelledReason", "cancelledError"]
 
     model_config = {
         "populate_by_name": True,
@@ -142,8 +141,7 @@ class StepRun(BaseModel):
             "cancelledAt": obj.get("cancelledAt"),
             "cancelledAtEpoch": obj.get("cancelledAtEpoch"),
             "cancelledReason": obj.get("cancelledReason"),
-            "cancelledError": obj.get("cancelledError"),
-            "inputSchema": obj.get("inputSchema")
+            "cancelledError": obj.get("cancelledError")
         })
         return _obj
 

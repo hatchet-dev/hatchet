@@ -106,6 +106,8 @@ paths:
     $ref: "./paths/step-run/step-run.yaml#/stepRunScoped"
   /api/v1/tenants/{tenant}/step-runs/{step-run}/rerun:
     $ref: "./paths/step-run/step-run.yaml#/rerunStepRun"
+  /api/v1/tenants/{tenant}/step-runs/{step-run}/schema:
+    $ref: "./paths/step-run/step-run.yaml#/getSchema"
   /api/v1/tenants/{tenant}/worker:
     $ref: "./paths/worker/worker.yaml#/withTenant"
   /api/v1/workers/{worker}:

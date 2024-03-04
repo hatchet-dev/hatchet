@@ -104,3 +104,55 @@ rerunStepRun:
     summary: Rerun step run
     tags:
       - Step Run
+getSchema:
+  get:
+    x-resources: ["tenant", "step-run"]
+    description: Get the schema for a step run
+    operationId: step-run:get:schema
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The step run id
+        in: path
+        name: step-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              type: object
+        description: Successfully retrieved the step run schema
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: The step run was not found
+    summary: Get step run schema
+    tags:
+      - Step Run

@@ -996,6 +996,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Get the schema for a step run
+   *
+   * @tags Step Run
+   * @name StepRunGetSchema
+   * @summary Get step run schema
+   * @request GET:/api/v1/tenants/{tenant}/step-runs/{step-run}/schema
+   * @secure
+   */
+  stepRunGetSchema = (tenant: string, stepRun: string, params: RequestParams = {}) =>
+    this.request<object, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}/schema`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Get all workers for a tenant
    *
    * @tags Worker
