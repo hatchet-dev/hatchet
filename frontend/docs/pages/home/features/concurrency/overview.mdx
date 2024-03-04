@@ -22,7 +22,7 @@ There are several reasons why you might want to use concurrency control in your 
 To configure concurrency control for a workflow in Hatchet, you can add a `concurrency` field to your workflow definition. The `concurrency` field is an object with the following properties:
 
 - `name` (required): A string identifier for the concurrency limit. This is used to identify the limit in logs and the dashboard.
-- `maxRuns` (optional): The maximum number of concurrent runs allowed for this workflow. If not specified, there is no limit.
+- `maxRuns` (optional): The maximum number of concurrent runs allowed for this workflow across all workers. If not specified, there is no limit.
 - `limitStrategy` (optional): The strategy to use when the concurrency limit is reached. Can be one of:
   - `CANCEL_IN_PROGRESS`: Cancel the currently running workflow instances to free up slots for the new instance.
   {/* - `DROP_NEWEST`: Drop the new workflow instance if no slots are available. */}
@@ -54,5 +54,8 @@ export const myWorkflow: Workflow = {
 ```
 
 In this example, the workflow is limited to a maximum of 10 concurrent runs per unique `userId` in the workflow context. When the limit is reached, new runs are queued until a slot becomes available. If the limit strategy is set to `CANCEL_IN_PROGRESS`, and an event with a conflicting key is received the currently running workflow instances that match that key are canceled to free up slots for the new instance.
+
+{/* TODO ### Setting concurrency on workers  */}
+
 
 By using Hatchet's concurrency control features, you can build more reliable, scalable, and fair workflows that are resilient to spikes in traffic and resource contention. This helps you ensure a better experience for your users and reduces operational overhead for your team.
