@@ -668,6 +668,22 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Delete a workflow for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowDelete
+   * @summary Delete workflow
+   * @request DELETE:/api/v1/workflows/{workflow}
+   * @secure
+   */
+  workflowDelete = (workflow: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/workflows/${workflow}`,
+      method: 'DELETE',
+      secure: true,
+      ...params,
+    });
+  /**
    * @description Get a workflow version for a tenant
    *
    * @tags Workflow
