@@ -13,6 +13,7 @@ type Repository interface {
 	StepRun() StepRunRepository
 	GetGroupKeyRun() GetGroupKeyRunRepository
 	Github() GithubRepository
+	SNS() SNSRepository
 	Step() StepRepository
 	Dispatcher() DispatcherRepository
 	Ticker() TickerRepository

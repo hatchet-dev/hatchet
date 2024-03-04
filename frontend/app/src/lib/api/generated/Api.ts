@@ -233,6 +233,20 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description SNS event
+   *
+   * @tags Github
+   * @name SnsUpdate
+   * @summary Github app tenant webhook
+   * @request POST:/api/v1/sns/{tenant}/{event}
+   */
+  snsUpdate = (tenant: string, event: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/sns/${tenant}/${event}`,
+      method: "POST",
+      ...params,
+    });
+  /**
    * @description Gets the current user
    *
    * @tags User

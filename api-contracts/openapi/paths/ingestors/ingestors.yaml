@@ -1,0 +1,47 @@
+sns:
+  post:
+    description: SNS event
+    operationId: sns:update
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The event key
+        in: path
+        name: event
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+    responses:
+      "200":
+        description: Successfully processed webhook
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
+    security: []
+    summary: Github app tenant webhook
+    tags:
+      - Github

@@ -601,6 +601,14 @@ type LogLine struct {
 	Metadata  []byte           `json:"metadata"`
 }
 
+type SNSIntegration struct {
+	ID        pgtype.UUID      `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+	TopicArn  string           `json:"topicArn"`
+}
+
 type Service struct {
 	ID          pgtype.UUID      `json:"id"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`
