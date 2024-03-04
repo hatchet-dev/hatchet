@@ -126,6 +126,7 @@ model Tenant {
   githubPullRequestComments GithubPullRequestComment[]
   githubWebhooks            GithubWebhook[]
   logs                      LogLine[]
+  snsIntegrations           SNSIntegration[]
 }
 
 enum TenantMemberRole {
@@ -1216,4 +1217,20 @@ model LogLine {
 
   // (optional) the log line metadata
   metadata Json?
+}
+
+model SNSIntegration {
+  // base fields
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // the sns topic arn
+  topicArn String
+
+  @@unique([tenantId, topicArn])
 }
