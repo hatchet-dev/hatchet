@@ -60,10 +60,17 @@ func parseObject(obj map[string]interface{}) reflect.Type {
 	for key, val := range obj {
 		fieldType := parse(val)
 		defaultValue := formatDefaultValue(val)
+
+		tag := fmt.Sprintf(`json:"%s" jsonschema:"default=%s"`, key, defaultValue)
+
+		if defaultValue == "" {
+			tag = fmt.Sprintf(`json:"%s"`, key)
+		}
+
 		field := reflect.StructField{
 			Name: toExportedName(key),
 			Type: fieldType,
-			Tag:  reflect.StructTag(fmt.Sprintf(`json:"%s" jsonschema:"default=%s"`, key, defaultValue)),
+			Tag:  reflect.StructTag(tag),
 		}
 		fields = append(fields, field)
 	}
@@ -79,7 +86,6 @@ func formatDefaultValue(val interface{}) string {
 	case nil:
 		return "null"
 	default:
-		// Complex types like arrays or objects are not supported as default values in jsonschema tags.
 		return ""
 	}
 }
@@ -87,7 +93,7 @@ func formatDefaultValue(val interface{}) string {
 // parseArray handles JSON arrays by determining the type of its elements.
 func parseArray(arr []interface{}) reflect.Type {
 	if len(arr) == 0 {
-		return reflect.SliceOf(reflect.TypeOf(new(interface{})).Elem())
+		return reflect.SliceOf(reflect.TypeOf(""))
 	}
 	elemType := parse(arr[0])
 	return reflect.SliceOf(elemType)
