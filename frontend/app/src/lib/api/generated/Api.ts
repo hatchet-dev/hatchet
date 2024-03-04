@@ -664,6 +664,22 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Delete a workflow for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowDelete
+   * @summary Delete workflow
+   * @request DELETE:/api/v1/workflows/{workflow}
+   * @secure
+   */
+  workflowDelete = (workflow: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/workflows/${workflow}`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+    });
+  /**
    * @description Get a workflow version for a tenant
    *
    * @tags Workflow
@@ -975,6 +991,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the schema for a step run
+   *
+   * @tags Step Run
+   * @name StepRunGetSchema
+   * @summary Get step run schema
+   * @request GET:/api/v1/tenants/{tenant}/step-runs/{step-run}/schema
+   * @secure
+   */
+  stepRunGetSchema = (tenant: string, stepRun: string, params: RequestParams = {}) =>
+    this.request<object, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}/schema`,
+      method: "GET",
+      secure: true,
       format: "json",
       ...params,
     });

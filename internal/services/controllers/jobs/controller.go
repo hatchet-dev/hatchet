@@ -18,7 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/internal/schema"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
@@ -463,28 +462,35 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *task
 				return fmt.Errorf("could not convert current input to map: %w", err)
 			}
 
-			mergedInput := datautils.MergeMaps(currentInputMap, inputMap)
+			currentInputOverridesMap, ok1 := currentInputMap["overrides"].(map[string]interface{})
+			inputOverridesMap, ok2 := inputMap["overrides"].(map[string]interface{})
 
-			mergedInputBytes, err := json.Marshal(mergedInput)
+			if ok1 && ok2 {
+				mergedInputOverrides := datautils.MergeMaps(currentInputOverridesMap, inputOverridesMap)
 
-			if err != nil {
-				return fmt.Errorf("could not marshal merged input: %w", err)
+				inputMap["overrides"] = mergedInputOverrides
+
+				mergedInputBytes, err := json.Marshal(inputMap)
+
+				if err != nil {
+					return fmt.Errorf("could not marshal merged input: %w", err)
+				}
+
+				inputBytes = mergedInputBytes
 			}
-
-			inputBytes = mergedInputBytes
 		}
 
-		jsonSchemaBytes, err := schema.SchemaBytesFromBytes(inputBytes)
+		// jsonSchemaBytes, err := schema.SchemaBytesFromBytes(inputBytes)
 
-		if err != nil {
-			return err
-		}
+		// if err != nil {
+		// 	return err
+		// }
 
-		_, err = ec.repo.StepRun().UpdateStepRunInputSchema(metadata.TenantId, stepRun.ID, jsonSchemaBytes)
+		// _, err = ec.repo.StepRun().UpdateStepRunInputSchema(metadata.TenantId, stepRun.ID, jsonSchemaBytes)
 
-		if err != nil {
-			return err
-		}
+		// if err != nil {
+		// 	return err
+		// }
 
 		// if the input data has been manually set, we reset the retry count as this is a user-triggered retry
 		retryCount = 0
@@ -817,21 +823,21 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			}
 
 			// defer the update of the input schema to the step run
-			defer func() {
-				jsonSchemaBytes, err := schema.SchemaBytesFromBytes(inputDataBytes)
+			// defer func() {
+			// 	jsonSchemaBytes, err := schema.SchemaBytesFromBytes(inputDataBytes)
 
-				if err != nil {
-					ec.l.Err(err).Msgf("could not get schema bytes from bytes: %s", err.Error())
-					return
-				}
+			// 	if err != nil {
+			// 		ec.l.Err(err).Msgf("could not get schema bytes from bytes: %s", err.Error())
+			// 		return
+			// 	}
 
-				_, err = ec.repo.StepRun().UpdateStepRunInputSchema(stepRun.TenantID, stepRun.ID, jsonSchemaBytes)
+			// 	_, err = ec.repo.StepRun().UpdateStepRunInputSchema(stepRun.TenantID, stepRun.ID, jsonSchemaBytes)
 
-				if err != nil {
-					ec.l.Err(err).Msgf("could not update step run input schema: %s", err.Error())
-					return
-				}
-			}()
+			// 	if err != nil {
+			// 		ec.l.Err(err).Msgf("could not update step run input schema: %s", err.Error())
+			// 		return
+			// 	}
+			// }()
 
 			updateStepOpts.Input = inputDataBytes
 		}

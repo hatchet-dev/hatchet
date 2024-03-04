@@ -210,8 +210,6 @@ StepRun:
       type: string
     cancelledError:
       type: string
-    inputSchema:
-      type: string
   required:
     - metadata
     - tenantId

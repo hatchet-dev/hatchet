@@ -12,7 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/internal/schema"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
@@ -423,23 +422,23 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 		opts.CallerFile = &request.CallerFilename
 	}
 
-	input, err := s.repo.StepRun().UpdateStepRunOverridesData(tenant.ID, request.StepRunId, opts)
+	_, err := s.repo.StepRun().UpdateStepRunOverridesData(tenant.ID, request.StepRunId, opts)
 
 	if err != nil {
 		return nil, err
 	}
 
-	jsonSchemaBytes, err := schema.SchemaBytesFromBytes(input)
+	// jsonSchemaBytes, err := schema.SchemaBytesFromBytes(input)
 
-	if err != nil {
-		return nil, err
-	}
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	_, err = s.repo.StepRun().UpdateStepRunInputSchema(tenant.ID, request.StepRunId, jsonSchemaBytes)
+	// _, err = s.repo.StepRun().UpdateStepRunInputSchema(tenant.ID, request.StepRunId, jsonSchemaBytes)
 
-	if err != nil {
-		return nil, err
-	}
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	return &contracts.OverridesDataResponse{}, nil
 }

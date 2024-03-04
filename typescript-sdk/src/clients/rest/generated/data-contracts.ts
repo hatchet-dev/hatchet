@@ -548,7 +548,6 @@ export interface StepRun {
   cancelledAtEpoch?: number;
   cancelledReason?: string;
   cancelledError?: string;
-  inputSchema?: string;
 }
 
 export interface WorkerList {
