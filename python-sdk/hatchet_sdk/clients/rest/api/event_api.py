@@ -25,6 +25,7 @@ from hatchet_sdk.clients.rest.models.event_list import EventList
 from hatchet_sdk.clients.rest.models.event_order_by_direction import EventOrderByDirection
 from hatchet_sdk.clients.rest.models.event_order_by_field import EventOrderByField
 from hatchet_sdk.clients.rest.models.replay_event_request import ReplayEventRequest
+from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
@@ -582,6 +583,7 @@ class EventApi:
         limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         keys: Annotated[Optional[List[StrictStr]], Field(description="A list of keys to filter by")] = None,
         workflows: Annotated[Optional[List[StrictStr]], Field(description="A list of workflow IDs to filter by")] = None,
+        statuses: Annotated[Optional[List[WorkflowRunStatus]], Field(description="A list of workflow run statuses to filter by")] = None,
         search: Annotated[Optional[StrictStr], Field(description="The search query to filter for")] = None,
         order_by_field: Annotated[Optional[EventOrderByField], Field(description="What to order by")] = None,
         order_by_direction: Annotated[Optional[EventOrderByDirection], Field(description="The order direction")] = None,
@@ -612,6 +614,8 @@ class EventApi:
         :type keys: List[str]
         :param workflows: A list of workflow IDs to filter by
         :type workflows: List[str]
+        :param statuses: A list of workflow run statuses to filter by
+        :type statuses: List[WorkflowRunStatus]
         :param search: The search query to filter for
         :type search: str
         :param order_by_field: What to order by
@@ -646,6 +650,7 @@ class EventApi:
             limit=limit,
             keys=keys,
             workflows=workflows,
+            statuses=statuses,
             search=search,
             order_by_field=order_by_field,
             order_by_direction=order_by_direction,
@@ -679,6 +684,7 @@ class EventApi:
         limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         keys: Annotated[Optional[List[StrictStr]], Field(description="A list of keys to filter by")] = None,
         workflows: Annotated[Optional[List[StrictStr]], Field(description="A list of workflow IDs to filter by")] = None,
+        statuses: Annotated[Optional[List[WorkflowRunStatus]], Field(description="A list of workflow run statuses to filter by")] = None,
         search: Annotated[Optional[StrictStr], Field(description="The search query to filter for")] = None,
         order_by_field: Annotated[Optional[EventOrderByField], Field(description="What to order by")] = None,
         order_by_direction: Annotated[Optional[EventOrderByDirection], Field(description="The order direction")] = None,
@@ -709,6 +715,8 @@ class EventApi:
         :type keys: List[str]
         :param workflows: A list of workflow IDs to filter by
         :type workflows: List[str]
+        :param statuses: A list of workflow run statuses to filter by
+        :type statuses: List[WorkflowRunStatus]
         :param search: The search query to filter for
         :type search: str
         :param order_by_field: What to order by
@@ -743,6 +751,7 @@ class EventApi:
             limit=limit,
             keys=keys,
             workflows=workflows,
+            statuses=statuses,
             search=search,
             order_by_field=order_by_field,
             order_by_direction=order_by_direction,
@@ -776,6 +785,7 @@ class EventApi:
         limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         keys: Annotated[Optional[List[StrictStr]], Field(description="A list of keys to filter by")] = None,
         workflows: Annotated[Optional[List[StrictStr]], Field(description="A list of workflow IDs to filter by")] = None,
+        statuses: Annotated[Optional[List[WorkflowRunStatus]], Field(description="A list of workflow run statuses to filter by")] = None,
         search: Annotated[Optional[StrictStr], Field(description="The search query to filter for")] = None,
         order_by_field: Annotated[Optional[EventOrderByField], Field(description="What to order by")] = None,
         order_by_direction: Annotated[Optional[EventOrderByDirection], Field(description="The order direction")] = None,
@@ -806,6 +816,8 @@ class EventApi:
         :type keys: List[str]
         :param workflows: A list of workflow IDs to filter by
         :type workflows: List[str]
+        :param statuses: A list of workflow run statuses to filter by
+        :type statuses: List[WorkflowRunStatus]
         :param search: The search query to filter for
         :type search: str
         :param order_by_field: What to order by
@@ -840,6 +852,7 @@ class EventApi:
             limit=limit,
             keys=keys,
             workflows=workflows,
+            statuses=statuses,
             search=search,
             order_by_field=order_by_field,
             order_by_direction=order_by_direction,
@@ -868,6 +881,7 @@ class EventApi:
         limit,
         keys,
         workflows,
+        statuses,
         search,
         order_by_field,
         order_by_direction,
@@ -882,6 +896,7 @@ class EventApi:
         _collection_formats: Dict[str, str] = {
             'keys': 'multi',
             'workflows': 'multi',
+            'statuses': 'multi',
         }
 
         _path_params: Dict[str, str] = {}
@@ -910,6 +925,10 @@ class EventApi:
         if workflows is not None:
             
             _query_params.append(('workflows', workflows))
+            
+        if statuses is not None:
+            
+            _query_params.append(('statuses', statuses))
             
         if search is not None:
             

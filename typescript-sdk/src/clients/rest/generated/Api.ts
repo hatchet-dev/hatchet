@@ -61,6 +61,7 @@ import {
   WorkflowList,
   WorkflowRun,
   WorkflowRunList,
+  WorkflowRunStatusList,
   WorkflowVersion,
   WorkflowVersionDefinition,
 } from './data-contracts';
@@ -543,6 +544,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       keys?: EventKey[];
       /** A list of workflow IDs to filter by */
       workflows?: WorkflowID[];
+      /** A list of workflow run statuses to filter by */
+      statuses?: WorkflowRunStatusList;
       /** The search query to filter for */
       search?: EventSearch;
       /** What to order by */

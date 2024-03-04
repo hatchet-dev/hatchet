@@ -76,6 +76,11 @@ WorkflowRunStatus:
     - FAILED
     - CANCELLED
 
+WorkflowRunStatusList:
+  type: array
+  items:
+    $ref: "#/WorkflowRunStatus"
+
 WorkflowRunTriggeredBy:
   type: object
   properties:
