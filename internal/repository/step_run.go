@@ -17,8 +17,6 @@ type ListAllStepRunsOpts struct {
 }
 
 type ListStepRunsOpts struct {
-	Requeuable *bool
-
 	JobRunId *string
 
 	WorkflowRunId *string
@@ -82,6 +80,9 @@ type StepRunRepository interface {
 
 	// ListStepRunsToRequeue returns a list of step runs which are in a requeueable state.
 	ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.StepRun, error)
+
+	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
+	ListStepRunsToReassign(tenantId string) ([]*dbsqlc.StepRun, error)
 
 	UpdateStepRun(tenantId, stepRunId string, opts *UpdateStepRunOpts) (*db.StepRunModel, *StepRunUpdateInfo, error)
 

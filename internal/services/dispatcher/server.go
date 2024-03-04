@@ -250,6 +250,12 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	s.workers.Store(request.WorkerId, subscribedWorker{stream: stream, finished: fin})
 
 	defer func() {
+		// non-blocking send
+		select {
+		case fin <- true:
+		default:
+		}
+
 		s.workers.Delete(request.WorkerId)
 
 		inactive := db.WorkerStatusInactive
@@ -277,6 +283,9 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 			select {
 			case <-ctx.Done():
 				s.l.Debug().Msgf("worker id %s has disconnected", request.WorkerId)
+				return
+			case <-fin:
+				s.l.Debug().Msgf("closing stream for worker id: %s", request.WorkerId)
 				return
 			case <-timer.C:
 				if now := time.Now().UTC(); lastHeartbeat.Add(5 * time.Second).Before(now) {
