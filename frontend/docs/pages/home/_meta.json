@@ -7,11 +7,7 @@
   },
   "basics": "Working With Hatchet",
   "tutorials": "Tutorials",
-  "features": {
-    "title": "Features",
-    "type": "menu",
-    "display": "hidden"
-  },
+  "features": "Features",
   "--more": {
     "title": "More",
     "type": "separator"
