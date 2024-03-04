@@ -462,15 +462,22 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *task
 				return fmt.Errorf("could not convert current input to map: %w", err)
 			}
 
-			mergedInput := datautils.MergeMaps(currentInputMap, inputMap)
+			currentInputOverridesMap, ok1 := currentInputMap["overrides"].(map[string]interface{})
+			inputOverridesMap, ok2 := inputMap["overrides"].(map[string]interface{})
 
-			mergedInputBytes, err := json.Marshal(mergedInput)
+			if ok1 && ok2 {
+				mergedInputOverrides := datautils.MergeMaps(currentInputOverridesMap, inputOverridesMap)
 
-			if err != nil {
-				return fmt.Errorf("could not marshal merged input: %w", err)
+				inputMap["overrides"] = mergedInputOverrides
+
+				mergedInputBytes, err := json.Marshal(inputMap)
+
+				if err != nil {
+					return fmt.Errorf("could not marshal merged input: %w", err)
+				}
+
+				inputBytes = mergedInputBytes
 			}
-
-			inputBytes = mergedInputBytes
 		}
 
 		// jsonSchemaBytes, err := schema.SchemaBytesFromBytes(inputBytes)
