@@ -15,11 +15,7 @@ tasks:
         task copy-ca-to-sdks
   set-env-db:
     cmds:
-      - |
-        cat > .env <<EOF
-        DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-        EOF
-        ls | grep .env
+      - echo "DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'" > .env
   set-env-all:
     cmds:
       - |
