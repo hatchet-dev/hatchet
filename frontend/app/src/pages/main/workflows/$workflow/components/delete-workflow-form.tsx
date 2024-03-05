@@ -5,27 +5,30 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { APIToken } from '@/lib/api';
+import { Workflow } from '@/lib/api';
 
-interface RevokeTokenFormProps {
+interface DeleteWorkflowFormProps {
   className?: string;
-  onSubmit: (apiToken: APIToken) => void;
+  onSubmit: (workflow: Workflow) => void;
   onCancel: () => void;
-  apiToken: APIToken;
+  workflow: Workflow;
   isLoading: boolean;
 }
 
-export function RevokeTokenForm({ className, ...props }: RevokeTokenFormProps) {
+export function DeleteWorkflowForm({
+  className,
+  ...props
+}: DeleteWorkflowFormProps) {
   return (
     <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
       <DialogHeader>
-        <DialogTitle>Delete token</DialogTitle>
+        <DialogTitle>Delete workflow</DialogTitle>
       </DialogHeader>
       <div>
         <div className="text-sm text-foreground mb-4">
-          Are you sure you want to revoke the API token {props.apiToken.name}?
-          This action will immediately prevent any services running with this
-          token from dispatching events or executing steps.
+          Are you sure you want to delete the workflow {props.workflow.name}?
+          This action cannot be undone, and will immediately prevent any
+          services running with this workflow from executing steps.
         </div>
         <div className="flex flex-row gap-4">
           <Button
@@ -39,11 +42,11 @@ export function RevokeTokenForm({ className, ...props }: RevokeTokenFormProps) {
           <Button
             variant="destructive"
             onClick={() => {
-              props.onSubmit(props.apiToken);
+              props.onSubmit(props.workflow);
             }}
           >
             {props.isLoading && <Spinner />}
-            Revoke API token
+            Delete workflow
           </Button>
         </div>
       </div>

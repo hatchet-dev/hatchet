@@ -1,12 +1,13 @@
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { Separator } from '@/components/ui/separator';
 import api, { Workflow, WorkflowVersion, queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import {
   LoaderFunctionArgs,
   redirect,
   useLoaderData,
+  useNavigate,
   useOutletContext,
   useParams,
   useRevalidator,
@@ -25,6 +26,9 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { DeploymentSettingsForm } from './components/deployment-settings-form';
 import { useApiMetaIntegrations } from '@/lib/hooks';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DeleteWorkflowForm } from './components/delete-workflow-form';
+import { Dialog } from '@/components/ui/dialog';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -71,8 +75,26 @@ export async function loader({
 
 export default function ExpandedWorkflow() {
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
+  const [deleteWorkflow, setDeleteWorkflow] = useState(false);
   const loaderData = useLoaderData() as Awaited<ReturnType<typeof loader>>;
   const revalidator = useRevalidator();
+  const navigate = useNavigate();
+
+  const deleteWorkflowMutation = useMutation({
+    mutationKey: ['workflow:delete', loaderData?.workflow.metadata.id],
+    mutationFn: async () => {
+      if (!loaderData?.workflow) {
+        return;
+      }
+
+      const res = await api.workflowDelete(loaderData?.workflow.metadata.id);
+
+      return res.data;
+    },
+    onSuccess: () => {
+      navigate('/workflows');
+    },
+  });
 
   const integrations = useApiMetaIntegrations();
 
@@ -83,6 +105,7 @@ export default function ExpandedWorkflow() {
   const { workflow, version } = loaderData;
 
   const hasGithubIntegration = integrations?.find((i) => i.name === 'github');
+  const currVersion = workflow.versions && workflow.versions[0].version;
 
   return (
     <div className="flex-grow h-full w-full">
@@ -93,9 +116,11 @@ export default function ExpandedWorkflow() {
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               {workflow.name}
             </h2>
-            <Badge className="text-sm mt-1" variant="outline">
-              {workflow.versions && workflow.versions[0].version}
-            </Badge>
+            {currVersion && (
+              <Badge className="text-sm mt-1" variant="outline">
+                {currVersion}
+              </Badge>
+            )}
           </div>
           <WorkflowTags tags={workflow.tags || []} />
           <Button className="text-sm" onClick={() => setTriggerWorkflow(true)}>
@@ -121,31 +146,81 @@ export default function ExpandedWorkflow() {
           </div>
         )}
         <div className="flex flex-row justify-start items-center mt-4"></div>
-        <Separator className="my-4" />
-        <h3 className="text-xl font-bold leading-tight text-foreground">
-          Workflow Definition
-        </h3>
-        <Separator className="my-4" />
-        <div className="w-full h-[400px]">
-          <WorkflowVisualizer workflow={version} />
-        </div>
-        {/* <WorkflowDefinition /> */}
-        <h3 className="text-xl font-bold leading-tight text-foreground mt-8">
-          Recent Runs
-        </h3>
-        <Separator className="my-4" />
-        <RecentRunsList />
-        {hasGithubIntegration && (
-          <>
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-8">
-              Deployment Settings
+        <Tabs defaultValue="overview">
+          <TabsList layout="underlined">
+            <TabsTrigger variant="underlined" value="overview">
+              Overview
+            </TabsTrigger>
+            <TabsTrigger variant="underlined" value="runs">
+              Runs
+            </TabsTrigger>
+            <TabsTrigger variant="underlined" value="settings">
+              Settings
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="overview">
+            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
+              Workflow Definition
             </h3>
             <Separator className="my-4" />
+            <div className="w-full h-[400px]">
+              <WorkflowVisualizer workflow={version} />
+            </div>
+          </TabsContent>
+          <TabsContent value="runs">
+            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
+              Recent Runs
+            </h3>
+            <Separator className="my-4" />
+            <RecentRunsList />
+          </TabsContent>
+          <TabsContent value="settings">
+            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
+              Settings
+            </h3>
+            <Separator className="my-4" />
+            <Button
+              variant="destructive"
+              className="mt-2"
+              onClick={() => {
+                setDeleteWorkflow(true);
+              }}
+            >
+              Delete Workflow
+            </Button>
+            <Dialog
+              open={deleteWorkflow}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setDeleteWorkflow(false);
+                }
+              }}
+            >
+              <DeleteWorkflowForm
+                workflow={workflow}
+                onSubmit={() => {
+                  deleteWorkflowMutation.mutate();
+                }}
+                onCancel={() => {
+                  setDeleteWorkflow(false);
+                }}
+                isLoading={deleteWorkflowMutation.isPending}
+              />
+            </Dialog>
+          </TabsContent>
+        </Tabs>
+        {hasGithubIntegration && (
+          <div className="hidden">
+            <Separator className="my-4" />
+            <h3 className="hidden text-xl font-bold leading-tight text-foreground mt-8">
+              Deployment Settings
+            </h3>
+            <Separator className="hidden my-4" />
             <DeploymentSettings
               workflow={workflow}
               refetch={revalidator.revalidate}
             />
-          </>
+          </div>
         )}
       </div>
     </div>
