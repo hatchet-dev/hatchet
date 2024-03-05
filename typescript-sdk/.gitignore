@@ -1,5 +1,0 @@
-/dist
-/certs
-
-# ignore docs for now, because we manually use the docs output to construct docs
-docs
