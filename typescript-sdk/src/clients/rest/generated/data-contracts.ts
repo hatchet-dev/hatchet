@@ -335,6 +335,18 @@ export interface Workflow {
   deployment?: WorkflowDeploymentConfig;
 }
 
+export interface WorkflowConcurrency {
+  /**
+   * The maximum number of concurrent workflow runs.
+   * @format int32
+   */
+  maxRuns: number;
+  /** The strategy to use when the concurrency limit is reached. */
+  limitStrategy: 'CANCEL_IN_PROGRESS' | 'DROP_NEWEST' | 'QUEUE_NEWEST' | 'GROUP_ROUND_ROBIN';
+  /** An action which gets the concurrency group for the WorkflowRun. */
+  getConcurrencyGroup: string;
+}
+
 export interface WorkflowDeploymentConfig {
   metadata: APIResourceMeta;
   /** The repository name. */
@@ -370,6 +382,7 @@ export interface WorkflowVersion {
   order: number;
   workflowId: string;
   workflow?: Workflow;
+  concurrency?: WorkflowConcurrency;
   triggers?: WorkflowTriggers;
   jobs?: Job[];
 }

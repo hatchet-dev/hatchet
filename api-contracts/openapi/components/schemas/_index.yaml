@@ -72,6 +72,8 @@ ReplayEventRequest:
   $ref: "./event.yaml#/ReplayEventRequest"
 Workflow:
   $ref: "./workflow.yaml#/Workflow"
+WorkflowConcurrency:
+  $ref: "./workflow.yaml#/WorkflowConcurrency"
 WorkflowDeploymentConfig:
   $ref: "./workflow.yaml#/WorkflowDeploymentConfig"
 WorkflowVersionMeta:
