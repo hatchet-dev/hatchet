@@ -29,7 +29,6 @@ import { useApiMetaIntegrations } from '@/lib/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DeleteWorkflowForm } from './components/delete-workflow-form';
 import { Dialog } from '@/components/ui/dialog';
-import { set } from 'react-hook-form';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
