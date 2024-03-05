@@ -138,6 +138,18 @@ func ToWorkflowVersion(workflow *db.WorkflowModel, version *db.WorkflowVersionMo
 		}
 	}
 
+	if version.RelationsWorkflowVersion.Concurrency != nil {
+		if concurrency, ok := version.Concurrency(); ok {
+			apiConcurrency, err := ToWorkflowVersionConcurrency(concurrency)
+
+			if err != nil {
+				return nil, err
+			}
+
+			res.Concurrency = apiConcurrency
+		}
+	}
+
 	if workflow == nil {
 		workflow = version.RelationsWorkflowVersion.Workflow
 	}
@@ -149,6 +161,19 @@ func ToWorkflowVersion(workflow *db.WorkflowModel, version *db.WorkflowVersionMo
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	return res, nil
+}
+
+func ToWorkflowVersionConcurrency(concurrency *db.WorkflowConcurrencyModel) (*gen.WorkflowConcurrency, error) {
+	res := &gen.WorkflowConcurrency{
+		MaxRuns:       int32(concurrency.MaxRuns),
+		LimitStrategy: gen.WorkflowConcurrencyLimitStrategy(concurrency.LimitStrategy),
+	}
+
+	if getGroup, ok := concurrency.GetConcurrencyGroup(); ok {
+		res.GetConcurrencyGroup = getGroup.ActionID
 	}
 
 	return res, nil

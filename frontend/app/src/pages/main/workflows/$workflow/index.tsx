@@ -29,6 +29,7 @@ import { useApiMetaIntegrations } from '@/lib/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DeleteWorkflowForm } from './components/delete-workflow-form';
 import { Dialog } from '@/components/ui/dialog';
+import WorkflowGeneralSettings from './components/workflow-general-settings';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -179,6 +180,24 @@ export default function ExpandedWorkflow() {
               Settings
             </h3>
             <Separator className="my-4" />
+            <WorkflowGeneralSettings workflow={version} />
+            <Separator className="my-4" />
+            {hasGithubIntegration && (
+              <div className="hidden">
+                <h3 className="hidden text-xl font-bold leading-tight text-foreground mt-8">
+                  Deployment Settings
+                </h3>
+                <Separator className="hidden my-4" />
+                <DeploymentSettings
+                  workflow={workflow}
+                  refetch={revalidator.revalidate}
+                />
+              </div>
+            )}
+            <h4 className="text-lg font-bold leading-tight text-foreground mt-8">
+              Danger Zone
+            </h4>
+            <Separator className="my-4" />
             <Button
               variant="destructive"
               className="mt-2"
@@ -209,19 +228,6 @@ export default function ExpandedWorkflow() {
             </Dialog>
           </TabsContent>
         </Tabs>
-        {hasGithubIntegration && (
-          <div className="hidden">
-            <Separator className="my-4" />
-            <h3 className="hidden text-xl font-bold leading-tight text-foreground mt-8">
-              Deployment Settings
-            </h3>
-            <Separator className="hidden my-4" />
-            <DeploymentSettings
-              workflow={workflow}
-              refetch={revalidator.revalidate}
-            />
-          </div>
-        )}
       </div>
     </div>
   );
