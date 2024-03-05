@@ -1,5 +1,6 @@
 import { CodeEditor } from '@/components/ui/code-editor';
 import { JSONType, JsonForm } from '@/components/ui/json-form';
+import { useEffect, useState } from 'react';
 
 export interface StepRunOutputProps {
   input: string;
@@ -10,6 +11,14 @@ export interface StepRunOutputProps {
   mode: 'json' | 'form';
 }
 
+const tryFormat = (input: string) => {
+  try {
+    return JSON.stringify(JSON.parse(input), null, 2);
+  } catch (e) {
+    return input;
+  }
+};
+
 export const StepRunInputs: React.FC<StepRunOutputProps> = ({
   input,
   schema,
@@ -18,6 +27,20 @@ export const StepRunInputs: React.FC<StepRunOutputProps> = ({
   setInput,
   mode,
 }) => {
+  const [currentInput, setCurrentInput] = useState(tryFormat(input));
+
+  useEffect(() => {
+    setCurrentInput(input);
+  }, [input]);
+
+  const handleCodeChange = (code: string | undefined) => {
+    if (!code) {
+      return;
+    }
+    setCurrentInput(code);
+    setInput(code);
+  };
+
   return (
     <>
       {mode === 'form' && (
@@ -42,13 +65,8 @@ export const StepRunInputs: React.FC<StepRunOutputProps> = ({
             language="json"
             className="my-4"
             height="400px"
-            code={JSON.stringify(JSON.parse(input), null, 2)}
-            setCode={(code: string | undefined) => {
-              if (!code) {
-                return;
-              }
-              setInput(code);
-            }}
+            code={currentInput}
+            setCode={handleCodeChange}
           />
         </div>
       )}
