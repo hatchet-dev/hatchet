@@ -9,9 +9,39 @@ export default function WorkflowGeneralSettings({
 }) {
   return (
     <>
-      <h3 className="text-lg font-semibold mb-4">Concurrency</h3>
+      <h3 className="text-lg font-semibold mb-4">Trigger</h3>
+      <TriggerSettings workflow={workflow} />
+      <h3 className="text-lg font-semibold my-4">Concurrency</h3>
       <ConcurrencySettings workflow={workflow} />
     </>
+  );
+}
+
+function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
+  if (!workflow.triggers) {
+    return (
+      <div className="text-[0.8rem] text-muted-foreground">
+        There are no trigger settings for this workflow.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {workflow.triggers.events && (
+        <>
+          <Label>Events</Label>
+          {workflow.triggers.events.map((event) => (
+            <Input
+              key={event.event_key}
+              disabled
+              placeholder="shadcn"
+              value={event.event_key}
+            />
+          ))}
+        </>
+      )}
+    </div>
   );
 }
 
