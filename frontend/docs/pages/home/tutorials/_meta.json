@@ -19,6 +19,7 @@
     "display": "hidden",
     "type": "page"
   },
-  "prompt-chaining":  "Prompt Chaining",
-  "programmatic-workflows": "Programmatic Workflow Definition"
+  "prompt-chaining": "Prompt Chaining",
+  "programmatic-workflows": "Programmatic Workflow Definition",
+  "fastapi-react": "Fullstack - FastAPI/React"
 }
