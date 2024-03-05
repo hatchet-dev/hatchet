@@ -45,7 +45,7 @@ Now, let's create a new workflow by defining a new class `BasicRagWorkflow` and 
 
 We're also passing the `on_events` prop to the decorator to indicate we want this workflow to run on the `question:create` event:
 
-```
+```py
 @hatchet.workflow(on_events=["question:create"])
 class BasicRagWorkflow:
 ```
@@ -67,7 +67,7 @@ class BasicRagWorkflow:
 
 ### Reading a website
 
-Next, let's add a step to read in the url from the workflow input, load the contents of that page with `requests` and parse the html content to text with `Beautiful Soup`.
+Next, let's add a step to read in the url from the workflow input (`context.workflow_input`), load the contents of that page with `requests` and parse the html content to text with `Beautiful Soup`.
 
 > Note: we're specifying the `parents` param of the `@hatchet.step` decorator. This means the `load_docs` step will run after the `start` step completes.
 
