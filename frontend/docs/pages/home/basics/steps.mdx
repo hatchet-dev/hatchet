@@ -38,7 +38,7 @@ Here's some key best practices for defining independent steps in Hatchet:
 - **Consistent Input and Output Shapes:** Each step can accept an input and produce an output. The input to a step is typically a JSON object, allowing for flexibility and ease of integration. The output is also a JSON-serializable object, ensuring compatibility and ease of further processing or aggregation. Wherever possible, use consistent input and output shapes to ensure that steps produce predictable and uniform results.
 - **Reusability:** Due to their self-contained nature, steps can be reused across different workflows or even within the same workflow, maximizing code reuse and reducing redundancy.
 - **Testing**: Steps can be easily tested in isolation, ensuring that they function as expected and produce the desired output. This testing approach simplifies the debugging process and ensures that steps are reliable and robust.
-- **Logging**: Each step can log its operation, input, and output, providing valuable insights into the workflow's execution and enabling effective monitoring and troubleshooting. Logs can be streamed to the Hatchet dashboard through the `context.log` method.
+- **Logging**: Each step can log its operation, input, and output, providing valuable insights into the workflow's execution and enabling effective monitoring and troubleshooting. Logs can be streamed to the Hatchet dashboard through the [`context.log` method](../features/errors-and-logging.mdx).
 
 
 
@@ -75,9 +75,7 @@ A step in Hatchet returns any JSON-serializable object, which can be a simple va
 
 ### "Thin" vs "Full" Payloads in Hatchet
 
-Hatchet can handle inputs and result data in two primary formats: "thin" and "full" data payloads. Full data payloads encapsulate comprehensive information about the event, encompassing all details related to the event's occurrence and the status of involved entities. Conversely, thin data payloads provide merely essential identifiers and possibly minimal change details.
-
-Imagine Hatchet is integrated with a hypothetical service for managing task executions. Whenever a task is updated or executed, Hatchet sends out notifications reflecting these changes.
+Hatchet can handle inputs and result data in two primary formats: "thin" and "full" data payloads. Full data payloads include the full model data and all (or most) properties. Conversely, thin data payloads provide essential identifiers (i.e. GUIDs) and possibly minimal change details.
 
 Upon the execution of a new task, here are the example data payloads Hatchet might dispatch:
 
@@ -113,15 +111,15 @@ Thin data payload:
 
 It's feasible to adopt a thin payload strategy while still including frequently utilized or critical fields, such as "taskName" in the thin payload, balancing necessity and efficiency.
 
-The choice between thin and full data payloads hinges on the specific requirements: full data payloads offer immediate, comprehensive context, reducing the need for subsequent data retrieval. Thin data payloads, however, enhance performance, adaptability, and data governance—key considerations, especially in scalable, distributed environments like Hatchet. 
+The choice between thin and full data payloads hinges on the specific requirements: full data payloads offer immediate, comprehensive context, reducing the need for subsequent data retrieval. Thin data payloads, however, enhance performance, and adaptability especially in scalable, distributed environments like Hatchet. 
 
 **Payload Size Considerations**
 
-While Hatchet does not impose strict limits on event data size, it's advisable to maintain smaller payload sizes, to minimize the processing burden on data consumers. For extensive data requirements, consider referencing data through links or URLs within the payload, allowing consumers to access detailed information only as needed. This approach aligns with efficient data handling and consumer-centric design principles in distributed systems.
+While Hatchet allows for payloads upto 4mb, it's advisable to maintain smaller payload sizes, to minimize the processing burden on data consumers. For extensive data requirements, consider referencing data through links or URLs within the payload, allowing consumers to access detailed information only as needed. This approach aligns with efficient data handling and consumer-centric design principles in distributed systems.
 
 
 ## What's Next: Composing Steps into Workflows
 
-While each step in Hatchet stands on its own, their true power is unleashed when they are composed into workflows. In the next section, we'll explore how to combine these independent steps into declarative workflow definitions, where Hatchet seamlessly manages their ordering and execution, enabling you to orchestrate complex processes with ease.
+While each step in Hatchet stands on its own they can be further utilized through composition into workflows. In the next section, we'll explore how to combine these independent steps into declarative workflow definitions, where Hatchet seamlessly manages their ordering and execution, enabling you to orchestrate complex processes with ease.
 
 [Continue to Understanding Workflows →](./workflows)
