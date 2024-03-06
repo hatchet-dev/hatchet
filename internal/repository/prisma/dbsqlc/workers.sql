@@ -26,8 +26,8 @@ WHERE
         workers."maxRuns" IS NULL OR
         (sqlc.narg('assignable')::boolean AND workers."maxRuns" > (
             SELECT COUNT(*)
-            FROM "StepRun"
-            WHERE runs."workerId" = workers."id" AND runs."status" = 'RUNNING'
+            FROM "StepRun" srs
+            WHERE srs."workerId" = workers."id" AND srs."status" = 'RUNNING'
         ))
     )
 GROUP BY

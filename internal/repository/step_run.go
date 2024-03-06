@@ -63,6 +63,7 @@ func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
 }
 
 var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
+var ErrNoWorkerAvailable = fmt.Errorf("no worker available")
 
 type StepRunUpdateInfo struct {
 	JobRunFinalState      bool
@@ -91,6 +92,9 @@ type StepRunRepository interface {
 	UpdateStepRunOverridesData(tenantId, stepRunId string, opts *UpdateStepRunOverridesDataOpts) ([]byte, error)
 
 	UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error)
+
+	AssignStepRunToWorker(tenantId, stepRunId string) (workerId string, dispatcherId string, err error)
+	AssignStepRunToTicker(tenantId, stepRunId string) (tickerId string, err error)
 
 	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
 

@@ -858,7 +858,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	updateStepOpts.Status = repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment)
 
 	// indicate that the step run is pending assignment
-	_, err = ec.repo.StepRun().QueueStepRun(tenantId, stepRunId, updateStepOpts)
+	_, _, err = ec.repo.StepRun().UpdateStepRun(tenantId, stepRunId, updateStepOpts)
 
 	if err != nil {
 		if errors.Is(err, repository.ErrStepRunIsNotPending) {
@@ -884,73 +884,30 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 
 	servertel.WithStepRunModel(span, stepRun)
 
-	// Assign the step run to a worker.
-	//
-	// 1. Get a list of workers that can run this step. If there are no workers available, then simply return with
-	//    no additional transactions and this step run will be requeued.
-	// 2. Pick a worker to run the step and get the dispatcher currently connected to this worker.
-	// 3. Update the step run's designated worker.
-	//
-	// After creating the worker, send a task to the taskqueue, which will be picked up by the dispatcher.
-	after := time.Now().UTC().Add(-6 * time.Second)
-
-	workers, err := ec.repo.Worker().ListWorkers(tenantId, &repository.ListWorkersOpts{
-		Action:             &stepRun.Step().ActionID,
-		LastHeartbeatAfter: &after,
-		Assignable:         repository.BoolPtr(true),
-	})
+	selectedWorkerId, dispatcherId, err := ec.repo.StepRun().AssignStepRunToWorker(tenantId, stepRunId)
 
 	if err != nil {
-		return fmt.Errorf("could not list workers for step: %w", err)
-	}
-
-	if len(workers) == 0 {
-		ec.l.Info().Msgf("no workers available for step %s; requeuing", stepId)
-		return nil
-	}
-
-	// pick the worker with the least jobs currently assigned (this heuristic can and should change)
-	selectedWorker := workers[0]
-
-	for _, worker := range workers {
-		if worker.RunningStepRuns < selectedWorker.RunningStepRuns {
-			selectedWorker = worker
+		if errors.Is(err, repository.ErrNoWorkerAvailable) {
+			ec.l.Debug().Msgf("no worker available for step run %s, requeueing", stepRunId)
+			return nil
 		}
-	}
 
-	selectedWorkerId := sqlchelpers.UUIDToStr(selectedWorker.Worker.ID)
+		return fmt.Errorf("could not assign step run to worker: %w", err)
+	}
 
 	telemetry.WithAttributes(span, servertel.WorkerId(selectedWorkerId))
 
-	// update the job run's designated worker
-	err = ec.repo.Worker().AddStepRun(tenantId, selectedWorkerId, stepRunId)
+	tickerId, err := ec.repo.StepRun().AssignStepRunToTicker(tenantId, stepRunId)
 
 	if err != nil {
-		return fmt.Errorf("could not add step run to worker: %w", err)
+		return fmt.Errorf("could not assign step run to ticker: %w", err)
 	}
 
-	// pick a ticker to use for timeout
-	tickers, err := ec.getValidTickers()
-
-	if err != nil {
-		return err
-	}
-
-	ticker := &tickers[0]
-
-	ticker, err = ec.repo.Ticker().AddStepRun(ticker.ID, stepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not add step run to ticker: %w", err)
-	}
-
-	scheduleTimeoutTask, err := scheduleStepRunTimeoutTask(ticker, stepRun)
+	scheduleTimeoutTask, err := scheduleStepRunTimeoutTask(stepRun)
 
 	if err != nil {
 		return fmt.Errorf("could not schedule step run timeout task: %w", err)
 	}
-
-	dispatcherId := sqlchelpers.UUIDToStr(selectedWorker.Worker.DispatcherId)
 
 	// send a task to the dispatcher
 	err = ec.tq.AddTask(
@@ -966,7 +923,7 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 	// send a task to the ticker
 	err = ec.tq.AddTask(
 		ctx,
-		taskqueue.QueueTypeFromTickerID(ticker.ID),
+		taskqueue.QueueTypeFromTickerID(tickerId),
 		scheduleTimeoutTask,
 	)
 
@@ -1365,7 +1322,7 @@ func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *tas
 			return fmt.Errorf("could not update step run: %w", err)
 		}
 
-		scheduleTimeoutTask, err := scheduleStepRunTimeoutTask(&ticker, &stepRunCp)
+		scheduleTimeoutTask, err := scheduleStepRunTimeoutTask(&stepRunCp)
 
 		if err != nil {
 			return fmt.Errorf("could not schedule step run timeout task: %w", err)
@@ -1461,7 +1418,7 @@ func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *ta
 	}
 }
 
-func scheduleStepRunTimeoutTask(ticker *db.TickerModel, stepRun *db.StepRunModel) (*taskqueue.Task, error) {
+func scheduleStepRunTimeoutTask(stepRun *db.StepRunModel) (*taskqueue.Task, error) {
 	var durationStr string
 
 	if timeout, ok := stepRun.Step().Timeout(); ok {

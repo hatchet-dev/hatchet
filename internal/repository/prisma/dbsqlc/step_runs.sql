@@ -219,3 +219,106 @@ WHERE
     )
 ORDER BY
     sr."createdAt" ASC;
+
+-- name: AssignStepRunToWorker :one
+WITH step_run AS (
+    SELECT
+        sr."id",
+        sr."status",
+        a."id" AS "actionId"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    JOIN
+        "Action" a ON s."actionId" = a."actionId" AND a."tenantId" = @tenantId::uuid
+    WHERE
+        sr."id" = @stepRunId::uuid AND
+        sr."tenantId" = @tenantId::uuid
+    FOR UPDATE
+),
+valid_workers AS (
+    SELECT
+        w."id", w."dispatcherId"
+    FROM
+        "Worker" w, step_run
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."id" IN (
+            SELECT "_ActionToWorker"."B"
+            FROM "_ActionToWorker"
+            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
+            WHERE "Action"."tenantId" = @tenantId AND "Action"."id" = step_run."actionId"
+        )
+        AND (
+            w."maxRuns" IS NULL OR
+            w."maxRuns" > (
+                SELECT COUNT(*)
+                FROM "StepRun" srs
+                WHERE srs."workerId" = w."id" AND srs."status" = 'RUNNING'
+            )
+        )
+    ORDER BY random()
+    FOR UPDATE SKIP LOCKED
+),
+selected_worker AS (
+    SELECT "id", "dispatcherId"
+    FROM valid_workers
+    LIMIT 1
+)
+UPDATE
+    "StepRun"
+SET
+    "status" = 'ASSIGNED',
+    "workerId" = (
+        SELECT "id"
+        FROM selected_worker
+        LIMIT 1
+    ),
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" = @stepRunId::uuid AND
+    "tenantId" = @tenantId::uuid AND
+    EXISTS (SELECT 1 FROM selected_worker)
+RETURNING "StepRun"."id", "StepRun"."workerId", (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId";
+
+-- name: AssignStepRunToTicker :one
+WITH step_run AS (
+    SELECT
+        sr."id"
+    FROM
+        "StepRun" sr
+    WHERE
+        sr."id" = @stepRunId::uuid AND
+        sr."tenantId" = @tenantId::uuid
+    FOR UPDATE
+),
+valid_tickers AS (
+    SELECT
+        t."id"
+    FROM
+        "Ticker" t
+    WHERE
+        t."lastHeartbeatAt" > NOW() - INTERVAL '6 seconds'
+    ORDER BY random()
+    FOR UPDATE SKIP LOCKED
+),
+selected_ticker AS (
+    SELECT "id"
+    FROM valid_tickers
+    LIMIT 1
+)
+UPDATE
+    "StepRun"
+SET
+    "tickerId" = (
+        SELECT "id"
+        FROM selected_ticker
+        LIMIT 1
+    )
+WHERE
+    "id" = @stepRunId::uuid AND
+    "tenantId" = @tenantId::uuid AND
+    EXISTS (SELECT 1 FROM selected_ticker)
+RETURNING "StepRun"."id", "StepRun"."tickerId";
