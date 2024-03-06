@@ -66,6 +66,14 @@ Hatchet supports your technology stack with open-source SDKs for Python, Typescr
 - [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
 - [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
 
+### SDK repositories
+
+Hatchet comes with a native Go SDK. The following SDKs are also available:
+
+- [Typescript SDK](https://github.com/hatchet-dev/hatchet-typescript)
+
+If you encounter any issues with the SDKs, please submit an issue in the respective repository.
+
 #### Is there a managed cloud version of Hatchet?
 
 Yes, we are offering a have a cloud version to select companies while in beta who are helping to build and shape the product. Please [reach out](mailto:contact@hatchet.run) or [request access](https://hatchet.run/request-access) for more information.
