@@ -12,6 +12,7 @@ import (
 	apitokens "github.com/hatchet-dev/hatchet/api/v1/server/handlers/api-tokens"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
 	githubapp "github.com/hatchet-dev/hatchet/api/v1/server/handlers/github-app"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
@@ -36,6 +37,7 @@ type apiService struct {
 	*apitokens.APITokenService
 	*stepruns.StepRunService
 	*githubapp.GithubAppService
+	*ingestors.IngestorsService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -50,6 +52,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		APITokenService:  apitokens.NewAPITokenService(config),
 		StepRunService:   stepruns.NewStepRunService(config),
 		GithubAppService: githubapp.NewGithubAppService(config),
+		IngestorsService: ingestors.NewIngestorsService(config),
 	}
 }
 

@@ -1,4 +1,4 @@
-package datautils
+package merge
 
 func isYAMLTable(v interface{}) bool {
 	_, ok := v.(map[string]interface{})

@@ -78,8 +78,16 @@ export const columns = ({
         return <div>{relativeDate(row.original.metadata.createdAt)}</div>;
       },
     },
+    // empty columns to get column filtering to work properly
     {
       accessorKey: 'workflows',
+      header: () => <></>,
+      cell: () => {
+        return <div></div>;
+      },
+    },
+    {
+      accessorKey: 'status',
       header: () => <></>,
       cell: () => {
         return <div></div>;

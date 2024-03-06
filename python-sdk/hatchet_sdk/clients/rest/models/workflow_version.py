@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.job import Job
+from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurrency
 from hatchet_sdk.clients.rest.models.workflow_triggers import WorkflowTriggers
 from typing import Optional, Set
 from typing_extensions import Self
@@ -34,9 +35,10 @@ class WorkflowVersion(BaseModel):
     order: StrictInt
     workflow_id: StrictStr = Field(alias="workflowId")
     workflow: Optional[Workflow] = None
+    concurrency: Optional[WorkflowConcurrency] = None
     triggers: Optional[WorkflowTriggers] = None
     jobs: Optional[List[Job]] = None
-    __properties: ClassVar[List[str]] = ["metadata", "version", "order", "workflowId", "workflow", "triggers", "jobs"]
+    __properties: ClassVar[List[str]] = ["metadata", "version", "order", "workflowId", "workflow", "concurrency", "triggers", "jobs"]
 
     model_config = {
         "populate_by_name": True,
@@ -83,6 +85,9 @@ class WorkflowVersion(BaseModel):
         # override the default output from pydantic by calling `to_dict()` of workflow
         if self.workflow:
             _dict['workflow'] = self.workflow.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of concurrency
+        if self.concurrency:
+            _dict['concurrency'] = self.concurrency.to_dict()
         # override the default output from pydantic by calling `to_dict()` of triggers
         if self.triggers:
             _dict['triggers'] = self.triggers.to_dict()
@@ -110,6 +115,7 @@ class WorkflowVersion(BaseModel):
             "order": obj.get("order"),
             "workflowId": obj.get("workflowId"),
             "workflow": Workflow.from_dict(obj["workflow"]) if obj.get("workflow") is not None else None,
+            "concurrency": WorkflowConcurrency.from_dict(obj["concurrency"]) if obj.get("concurrency") is not None else None,
             "triggers": WorkflowTriggers.from_dict(obj["triggers"]) if obj.get("triggers") is not None else None,
             "jobs": [Job.from_dict(_item) for _item in obj["jobs"]] if obj.get("jobs") is not None else None
         })

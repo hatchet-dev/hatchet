@@ -32,6 +32,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/taskqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -189,6 +191,21 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil, nil, fmt.Errorf("could not create ingestor: %w", err)
 	}
 
+	var alerter errors.Alerter
+
+	if cf.Alerting.Sentry.Enabled {
+		alerter, err = sentry.NewSentryAlerter(&sentry.SentryAlerterOpts{
+			DSN:         cf.Alerting.Sentry.DSN,
+			Environment: cf.Alerting.Sentry.Environment,
+		})
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create sentry alerter: %w", err)
+		}
+	} else {
+		alerter = errors.NoOpAlerter{}
+	}
+
 	auth := server.AuthConfig{
 		ConfigFile: cf.Auth,
 	}
@@ -302,6 +319,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	}
 
 	return cleanup, &server.ServerConfig{
+		Alerter:        alerter,
 		Runtime:        cf.Runtime,
 		Auth:           auth,
 		Encryption:     encryptionSvc,

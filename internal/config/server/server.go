@@ -18,10 +18,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
 type ServerConfigFile struct {
 	Auth ConfigFileAuth `mapstructure:"auth" json:"auth,omitempty"`
+
+	Alerting AlertingConfigFile `mapstructure:"alerting" json:"alerting,omitempty"`
 
 	Encryption EncryptionConfigFile `mapstructure:"encryption" json:"encryption,omitempty"`
 
@@ -65,6 +68,22 @@ type ConfigFileRuntime struct {
 
 	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
 	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
+}
+
+// Alerting options
+type AlertingConfigFile struct {
+	Sentry SentryConfigFile `mapstructure:"sentry" json:"sentry,omitempty"`
+}
+
+type SentryConfigFile struct {
+	// Enabled controls whether the Sentry service is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+
+	// DSN is the Data Source Name for the Sentry instance
+	DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
+
+	// Environment is the environment that the instance is running in
+	Environment string `mapstructure:"environment" json:"environment,omitempty" default:"development"`
 }
 
 // Encryption options
@@ -180,6 +199,8 @@ type ServerConfig struct {
 
 	Auth AuthConfig
 
+	Alerter errors.Alerter
+
 	Encryption encryption.EncryptionService
 
 	Runtime ConfigFileRuntime
@@ -228,6 +249,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.workerEnabled", "SERVER_WORKER_ENABLED")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
+
+	// alerting options
+	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")
+	_ = v.BindEnv("alerting.sentry.dsn", "SERVER_ALERTING_SENTRY_DSN")
+	_ = v.BindEnv("alerting.sentry.environment", "SERVER_ALERTING_SENTRY_ENVIRONMENT")
 
 	// encryption options
 	_ = v.BindEnv("encryption.masterKeyset", "SERVER_ENCRYPTION_MASTER_KEYSET")

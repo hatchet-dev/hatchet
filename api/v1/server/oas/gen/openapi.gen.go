@@ -89,6 +89,14 @@ const (
 	OWNER  TenantMemberRole = "OWNER"
 )
 
+// Defines values for WorkflowConcurrencyLimitStrategy.
+const (
+	CANCELINPROGRESS WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
+	DROPNEWEST       WorkflowConcurrencyLimitStrategy = "DROP_NEWEST"
+	GROUPROUNDROBIN  WorkflowConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
+	QUEUENEWEST      WorkflowConcurrencyLimitStrategy = "QUEUE_NEWEST"
+)
+
 // Defines values for WorkflowRunStatus.
 const (
 	CANCELLED WorkflowRunStatus = "CANCELLED"
@@ -460,7 +468,6 @@ type StepRun struct {
 	FinishedAt       *time.Time              `json:"finishedAt,omitempty"`
 	FinishedAtEpoch  *int                    `json:"finishedAtEpoch,omitempty"`
 	Input            *string                 `json:"input,omitempty"`
-	InputSchema      *string                 `json:"inputSchema,omitempty"`
 	JobRun           *JobRun                 `json:"jobRun,omitempty"`
 	JobRunId         string                  `json:"jobRunId"`
 	Metadata         APIResourceMeta         `json:"metadata"`
@@ -641,6 +648,21 @@ type Workflow struct {
 	Versions *[]WorkflowVersionMeta `json:"versions,omitempty"`
 }
 
+// WorkflowConcurrency defines model for WorkflowConcurrency.
+type WorkflowConcurrency struct {
+	// GetConcurrencyGroup An action which gets the concurrency group for the WorkflowRun.
+	GetConcurrencyGroup string `json:"getConcurrencyGroup"`
+
+	// LimitStrategy The strategy to use when the concurrency limit is reached.
+	LimitStrategy WorkflowConcurrencyLimitStrategy `json:"limitStrategy"`
+
+	// MaxRuns The maximum number of concurrent workflow runs.
+	MaxRuns int32 `json:"maxRuns"`
+}
+
+// WorkflowConcurrencyLimitStrategy The strategy to use when the concurrency limit is reached.
+type WorkflowConcurrencyLimitStrategy string
+
 // WorkflowDeploymentConfig defines model for WorkflowDeploymentConfig.
 type WorkflowDeploymentConfig struct {
 	// GitRepoBranch The repository branch.
@@ -693,6 +715,9 @@ type WorkflowRunList struct {
 // WorkflowRunStatus defines model for WorkflowRunStatus.
 type WorkflowRunStatus string
 
+// WorkflowRunStatusList defines model for WorkflowRunStatusList.
+type WorkflowRunStatusList = []WorkflowRunStatus
+
 // WorkflowRunTriggeredBy defines model for WorkflowRunTriggeredBy.
 type WorkflowRunTriggeredBy struct {
 	CronParentId *string         `json:"cronParentId,omitempty"`
@@ -735,10 +760,11 @@ type WorkflowTriggers struct {
 
 // WorkflowVersion defines model for WorkflowVersion.
 type WorkflowVersion struct {
-	Jobs     *[]Job            `json:"jobs,omitempty"`
-	Metadata APIResourceMeta   `json:"metadata"`
-	Order    int32             `json:"order"`
-	Triggers *WorkflowTriggers `json:"triggers,omitempty"`
+	Concurrency *WorkflowConcurrency `json:"concurrency,omitempty"`
+	Jobs        *[]Job               `json:"jobs,omitempty"`
+	Metadata    APIResourceMeta      `json:"metadata"`
+	Order       int32                `json:"order"`
+	Triggers    *WorkflowTriggers    `json:"triggers,omitempty"`
 
 	// Version The version of the workflow.
 	Version    string    `json:"version"`
@@ -797,6 +823,9 @@ type EventListParams struct {
 
 	// Workflows A list of workflow IDs to filter by
 	Workflows *[]WorkflowID `form:"workflows,omitempty" json:"workflows,omitempty"`
+
+	// Statuses A list of workflow run statuses to filter by
+	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
 
 	// Search The search query to filter for
 	Search *EventSearch `form:"search,omitempty" json:"search,omitempty"`
@@ -921,6 +950,9 @@ type ServerInterface interface {
 	// List integrations
 	// (GET /api/v1/meta/integrations)
 	MetadataListIntegrations(ctx echo.Context) error
+	// Github app tenant webhook
+	// (POST /api/v1/sns/{tenant}/{event})
+	SnsUpdate(ctx echo.Context, tenant openapi_types.UUID, event string) error
 	// Create pull request
 	// (POST /api/v1/step-runs/{step-run}/create-pr)
 	StepRunUpdateCreatePr(ctx echo.Context, stepRun openapi_types.UUID) error
@@ -969,6 +1001,9 @@ type ServerInterface interface {
 	// Rerun step run
 	// (POST /api/v1/tenants/{tenant}/step-runs/{step-run}/rerun)
 	StepRunUpdateRerun(ctx echo.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID) error
+	// Get step run schema
+	// (GET /api/v1/tenants/{tenant}/step-runs/{step-run}/schema)
+	StepRunGetSchema(ctx echo.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID) error
 	// Get workers
 	// (GET /api/v1/tenants/{tenant}/worker)
 	WorkerList(ctx echo.Context, tenant openapi_types.UUID) error
@@ -1023,6 +1058,9 @@ type ServerInterface interface {
 	// Get worker
 	// (GET /api/v1/workers/{worker})
 	WorkerGet(ctx echo.Context, worker openapi_types.UUID) error
+	// Delete workflow
+	// (DELETE /api/v1/workflows/{workflow})
+	WorkflowDelete(ctx echo.Context, workflow openapi_types.UUID) error
 	// Get workflow
 	// (GET /api/v1/workflows/{workflow})
 	WorkflowGet(ctx echo.Context, workflow openapi_types.UUID) error
@@ -1210,6 +1248,30 @@ func (w *ServerInterfaceWrapper) MetadataListIntegrations(ctx echo.Context) erro
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.MetadataListIntegrations(ctx)
+	return err
+}
+
+// SnsUpdate converts echo context to params.
+func (w *ServerInterfaceWrapper) SnsUpdate(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	// ------------- Path parameter "event" -------------
+	var event string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "event", runtime.ParamLocationPath, ctx.Param("event"), &event)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter event: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.SnsUpdate(ctx, tenant, event)
 	return err
 }
 
@@ -1413,6 +1475,13 @@ func (w *ServerInterfaceWrapper) EventList(ctx echo.Context) error {
 	err = runtime.BindQueryParameter("form", true, false, "workflows", ctx.QueryParams(), &params.Workflows)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter workflows: %s", err))
+	}
+
+	// ------------- Optional query parameter "statuses" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "statuses", ctx.QueryParams(), &params.Statuses)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter statuses: %s", err))
 	}
 
 	// ------------- Optional query parameter "search" -------------
@@ -1650,6 +1719,34 @@ func (w *ServerInterfaceWrapper) StepRunUpdateRerun(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.StepRunUpdateRerun(ctx, tenant, stepRun)
+	return err
+}
+
+// StepRunGetSchema converts echo context to params.
+func (w *ServerInterfaceWrapper) StepRunGetSchema(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	// ------------- Path parameter "step-run" -------------
+	var stepRun openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "step-run", runtime.ParamLocationPath, ctx.Param("step-run"), &stepRun)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter step-run: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.StepRunGetSchema(ctx, tenant, stepRun)
 	return err
 }
 
@@ -1956,6 +2053,26 @@ func (w *ServerInterfaceWrapper) WorkerGet(ctx echo.Context) error {
 	return err
 }
 
+// WorkflowDelete converts echo context to params.
+func (w *ServerInterfaceWrapper) WorkflowDelete(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "workflow" -------------
+	var workflow openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "workflow", runtime.ParamLocationPath, ctx.Param("workflow"), &workflow)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter workflow: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.WorkflowDelete(ctx, workflow)
+	return err
+}
+
 // WorkflowGet converts echo context to params.
 func (w *ServerInterfaceWrapper) WorkflowGet(ctx echo.Context) error {
 	var err error
@@ -2122,6 +2239,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.POST(baseURL+"/api/v1/github/webhook/:webhook", wrapper.GithubUpdateTenantWebhook)
 	router.GET(baseURL+"/api/v1/meta", wrapper.MetadataGet)
 	router.GET(baseURL+"/api/v1/meta/integrations", wrapper.MetadataListIntegrations)
+	router.POST(baseURL+"/api/v1/sns/:tenant/:event", wrapper.SnsUpdate)
 	router.POST(baseURL+"/api/v1/step-runs/:step-run/create-pr", wrapper.StepRunUpdateCreatePr)
 	router.GET(baseURL+"/api/v1/step-runs/:step-run/diff", wrapper.StepRunGetDiff)
 	router.GET(baseURL+"/api/v1/step-runs/:step-run/logs", wrapper.LogLineList)
@@ -2138,6 +2256,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/api/v1/tenants/:tenant/members", wrapper.TenantMemberList)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/step-runs/:step-run", wrapper.StepRunGet)
 	router.POST(baseURL+"/api/v1/tenants/:tenant/step-runs/:step-run/rerun", wrapper.StepRunUpdateRerun)
+	router.GET(baseURL+"/api/v1/tenants/:tenant/step-runs/:step-run/schema", wrapper.StepRunGetSchema)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/worker", wrapper.WorkerList)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflow-runs/:workflow-run", wrapper.WorkflowRunGet)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflow-runs/:workflow-run/prs", wrapper.WorkflowRunListPullRequests)
@@ -2156,6 +2275,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/api/v1/users/memberships", wrapper.TenantMembershipsList)
 	router.POST(baseURL+"/api/v1/users/register", wrapper.UserCreate)
 	router.GET(baseURL+"/api/v1/workers/:worker", wrapper.WorkerGet)
+	router.DELETE(baseURL+"/api/v1/workflows/:workflow", wrapper.WorkflowDelete)
 	router.GET(baseURL+"/api/v1/workflows/:workflow", wrapper.WorkflowGet)
 	router.POST(baseURL+"/api/v1/workflows/:workflow/link-github", wrapper.WorkflowUpdateLinkGithub)
 	router.POST(baseURL+"/api/v1/workflows/:workflow/trigger", wrapper.WorkflowRunCreate)
@@ -2543,6 +2663,50 @@ type MetadataListIntegrations400JSONResponse APIErrors
 func (response MetadataListIntegrations400JSONResponse) VisitMetadataListIntegrationsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SnsUpdateRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+	Event  string             `json:"event"`
+}
+
+type SnsUpdateResponseObject interface {
+	VisitSnsUpdateResponse(w http.ResponseWriter) error
+}
+
+type SnsUpdate200Response struct {
+}
+
+func (response SnsUpdate200Response) VisitSnsUpdateResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type SnsUpdate400JSONResponse APIErrors
+
+func (response SnsUpdate400JSONResponse) VisitSnsUpdateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SnsUpdate401JSONResponse APIErrors
+
+func (response SnsUpdate401JSONResponse) VisitSnsUpdateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SnsUpdate405JSONResponse APIErrors
+
+func (response SnsUpdate405JSONResponse) VisitSnsUpdateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(405)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -3124,6 +3288,51 @@ type StepRunUpdateRerun403JSONResponse APIErrors
 func (response StepRunUpdateRerun403JSONResponse) VisitStepRunUpdateRerunResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StepRunGetSchemaRequestObject struct {
+	Tenant  openapi_types.UUID `json:"tenant"`
+	StepRun openapi_types.UUID `json:"step-run"`
+}
+
+type StepRunGetSchemaResponseObject interface {
+	VisitStepRunGetSchemaResponse(w http.ResponseWriter) error
+}
+
+type StepRunGetSchema200JSONResponse map[string]interface{}
+
+func (response StepRunGetSchema200JSONResponse) VisitStepRunGetSchemaResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StepRunGetSchema400JSONResponse APIErrors
+
+func (response StepRunGetSchema400JSONResponse) VisitStepRunGetSchemaResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StepRunGetSchema403JSONResponse APIErrors
+
+func (response StepRunGetSchema403JSONResponse) VisitStepRunGetSchemaResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StepRunGetSchema404JSONResponse APIErrors
+
+func (response StepRunGetSchema404JSONResponse) VisitStepRunGetSchemaResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -3736,6 +3945,49 @@ func (response WorkerGet403JSONResponse) VisitWorkerGetResponse(w http.ResponseW
 	return json.NewEncoder(w).Encode(response)
 }
 
+type WorkflowDeleteRequestObject struct {
+	Workflow openapi_types.UUID `json:"workflow"`
+}
+
+type WorkflowDeleteResponseObject interface {
+	VisitWorkflowDeleteResponse(w http.ResponseWriter) error
+}
+
+type WorkflowDelete204Response struct {
+}
+
+func (response WorkflowDelete204Response) VisitWorkflowDeleteResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type WorkflowDelete400JSONResponse APIErrors
+
+func (response WorkflowDelete400JSONResponse) VisitWorkflowDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowDelete403JSONResponse APIErrors
+
+func (response WorkflowDelete403JSONResponse) VisitWorkflowDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowDelete404JSONResponse APIErrors
+
+func (response WorkflowDelete404JSONResponse) VisitWorkflowDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type WorkflowGetRequestObject struct {
 	Workflow openapi_types.UUID `json:"workflow"`
 }
@@ -3975,6 +4227,8 @@ type StrictServerInterface interface {
 
 	MetadataListIntegrations(ctx echo.Context, request MetadataListIntegrationsRequestObject) (MetadataListIntegrationsResponseObject, error)
 
+	SnsUpdate(ctx echo.Context, request SnsUpdateRequestObject) (SnsUpdateResponseObject, error)
+
 	StepRunUpdateCreatePr(ctx echo.Context, request StepRunUpdateCreatePrRequestObject) (StepRunUpdateCreatePrResponseObject, error)
 
 	StepRunGetDiff(ctx echo.Context, request StepRunGetDiffRequestObject) (StepRunGetDiffResponseObject, error)
@@ -4006,6 +4260,8 @@ type StrictServerInterface interface {
 	StepRunGet(ctx echo.Context, request StepRunGetRequestObject) (StepRunGetResponseObject, error)
 
 	StepRunUpdateRerun(ctx echo.Context, request StepRunUpdateRerunRequestObject) (StepRunUpdateRerunResponseObject, error)
+
+	StepRunGetSchema(ctx echo.Context, request StepRunGetSchemaRequestObject) (StepRunGetSchemaResponseObject, error)
 
 	WorkerList(ctx echo.Context, request WorkerListRequestObject) (WorkerListResponseObject, error)
 
@@ -4042,6 +4298,8 @@ type StrictServerInterface interface {
 	UserCreate(ctx echo.Context, request UserCreateRequestObject) (UserCreateResponseObject, error)
 
 	WorkerGet(ctx echo.Context, request WorkerGetRequestObject) (WorkerGetResponseObject, error)
+
+	WorkflowDelete(ctx echo.Context, request WorkflowDeleteRequestObject) (WorkflowDeleteResponseObject, error)
 
 	WorkflowGet(ctx echo.Context, request WorkflowGetRequestObject) (WorkflowGetResponseObject, error)
 
@@ -4324,6 +4582,32 @@ func (sh *strictHandler) MetadataListIntegrations(ctx echo.Context) error {
 		return err
 	} else if validResponse, ok := response.(MetadataListIntegrationsResponseObject); ok {
 		return validResponse.VisitMetadataListIntegrationsResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// SnsUpdate operation middleware
+func (sh *strictHandler) SnsUpdate(ctx echo.Context, tenant openapi_types.UUID, event string) error {
+	var request SnsUpdateRequestObject
+
+	request.Tenant = tenant
+	request.Event = event
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SnsUpdate(ctx, request.(SnsUpdateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SnsUpdate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(SnsUpdateResponseObject); ok {
+		return validResponse.VisitSnsUpdateResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -4770,6 +5054,32 @@ func (sh *strictHandler) StepRunUpdateRerun(ctx echo.Context, tenant openapi_typ
 		return err
 	} else if validResponse, ok := response.(StepRunUpdateRerunResponseObject); ok {
 		return validResponse.VisitStepRunUpdateRerunResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// StepRunGetSchema operation middleware
+func (sh *strictHandler) StepRunGetSchema(ctx echo.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID) error {
+	var request StepRunGetSchemaRequestObject
+
+	request.Tenant = tenant
+	request.StepRun = stepRun
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.StepRunGetSchema(ctx, request.(StepRunGetSchemaRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StepRunGetSchema")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(StepRunGetSchemaResponseObject); ok {
+		return validResponse.VisitStepRunGetSchemaResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -5230,6 +5540,31 @@ func (sh *strictHandler) WorkerGet(ctx echo.Context, worker openapi_types.UUID) 
 	return nil
 }
 
+// WorkflowDelete operation middleware
+func (sh *strictHandler) WorkflowDelete(ctx echo.Context, workflow openapi_types.UUID) error {
+	var request WorkflowDeleteRequestObject
+
+	request.Workflow = workflow
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WorkflowDelete(ctx, request.(WorkflowDeleteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WorkflowDelete")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(WorkflowDeleteResponseObject); ok {
+		return validResponse.VisitWorkflowDeleteResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // WorkflowGet operation middleware
 func (sh *strictHandler) WorkflowGet(ctx echo.Context, workflow openapi_types.UUID) error {
 	var request WorkflowGetRequestObject
@@ -5373,114 +5708,120 @@ func (sh *strictHandler) WorkflowVersionGetDefinition(ctx echo.Context, workflow
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

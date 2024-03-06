@@ -53,6 +53,16 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 		listOpts.Offset = &offset
 	}
 
+	if request.Params.Statuses != nil {
+		statuses := make([]db.WorkflowRunStatus, len(*request.Params.Statuses))
+
+		for i, status := range *request.Params.Statuses {
+			statuses[i] = db.WorkflowRunStatus(status)
+		}
+
+		listOpts.WorkflowRunStatus = statuses
+	}
+
 	listRes, err := t.config.Repository.Event().ListEvents(tenant.ID, listOpts)
 
 	if err != nil {

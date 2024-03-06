@@ -19,7 +19,7 @@ export function RevokeTokenForm({ className, ...props }: RevokeTokenFormProps) {
   return (
     <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
       <DialogHeader>
-        <DialogTitle>Delete invite</DialogTitle>
+        <DialogTitle>Delete token</DialogTitle>
       </DialogHeader>
       <div>
         <div className="text-sm text-foreground mb-4">

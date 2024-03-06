@@ -37,7 +37,11 @@ WHERE
   (
     $4::text IS NULL OR
     jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $4::text, '")') as jsonpath))
-  )
+  ) AND
+    (
+        $5::text[] IS NULL OR
+        "status" = ANY(cast($5::text[] as "WorkflowRunStatus"[]))
+    )
 `
 
 type CountEventsParams struct {
@@ -45,6 +49,7 @@ type CountEventsParams struct {
 	Keys      []string    `json:"keys"`
 	Workflows []string    `json:"workflows"`
 	Search    pgtype.Text `json:"search"`
+	Statuses  []string    `json:"statuses"`
 }
 
 func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
@@ -53,6 +58,7 @@ func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParam
 		arg.Keys,
 		arg.Workflows,
 		arg.Search,
+		arg.Statuses,
 	)
 	var total int64
 	err := row.Scan(&total)
@@ -187,16 +193,20 @@ WHERE
         $4::text IS NULL OR
         workflow.name like concat('%', $4::text, '%') OR
         jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $4::text, '")') as jsonpath))
+    ) AND
+    (
+        $5::text[] IS NULL OR
+        "status" = ANY(cast($5::text[] as "WorkflowRunStatus"[]))
     )
 GROUP BY
     events."id"
 ORDER BY
-    case when $5 = 'createdAt ASC' THEN events."createdAt" END ASC ,
-    case when $5 = 'createdAt DESC' then events."createdAt" END DESC
+    case when $6 = 'createdAt ASC' THEN events."createdAt" END ASC ,
+    case when $6 = 'createdAt DESC' then events."createdAt" END DESC
 OFFSET
-    COALESCE($6, 0)
+    COALESCE($7, 0)
 LIMIT
-    COALESCE($7, 50)
+    COALESCE($8, 50)
 `
 
 type ListEventsParams struct {
@@ -204,6 +214,7 @@ type ListEventsParams struct {
 	Keys      []string    `json:"keys"`
 	Workflows []string    `json:"workflows"`
 	Search    pgtype.Text `json:"search"`
+	Statuses  []string    `json:"statuses"`
 	Orderby   interface{} `json:"orderby"`
 	Offset    interface{} `json:"offset"`
 	Limit     interface{} `json:"limit"`
@@ -223,6 +234,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 		arg.Keys,
 		arg.Workflows,
 		arg.Search,
+		arg.Statuses,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
