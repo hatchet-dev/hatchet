@@ -11,7 +11,6 @@ export default defineConfig({
       project: 'frontend-react',
     }),
   ],
-
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
