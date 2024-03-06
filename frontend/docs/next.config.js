@@ -14,6 +14,11 @@ const nextConfig = {
         destination: '/home/:path*',
         permanent: true,
       },
+      {
+        source: "/ingest/:path*",
+        destination: "https://app.posthog.com/:path*",
+        permanent: true,
+      },
     ];
   },
 }
