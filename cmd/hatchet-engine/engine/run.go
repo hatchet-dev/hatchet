@@ -97,6 +97,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 	if sc.HasService("jobscontroller") {
 		jc, err := jobs.New(
+			jobs.WithAlerter(sc.Alerter),
 			jobs.WithTaskQueue(sc.TaskQueue),
 			jobs.WithRepository(sc.Repository),
 			jobs.WithLogger(sc.Logger),

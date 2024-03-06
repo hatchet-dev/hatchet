@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/datautils/merge"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -23,6 +24,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
+
+	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
 type JobsController interface {
@@ -35,22 +38,27 @@ type JobsControllerImpl struct {
 	repo repository.Repository
 	dv   datautils.DataDecoderValidator
 	s    gocron.Scheduler
+	a    *hatcheterrors.Wrapped
 }
 
 type JobsControllerOpt func(*JobsControllerOpts)
 
 type JobsControllerOpts struct {
-	tq   taskqueue.TaskQueue
-	l    *zerolog.Logger
-	repo repository.Repository
-	dv   datautils.DataDecoderValidator
+	tq      taskqueue.TaskQueue
+	l       *zerolog.Logger
+	repo    repository.Repository
+	dv      datautils.DataDecoderValidator
+	alerter hatcheterrors.Alerter
 }
 
 func defaultJobsControllerOpts() *JobsControllerOpts {
 	logger := logger.NewDefaultLogger("jobs-controller")
+	alerter := hatcheterrors.NoOpAlerter{}
+
 	return &JobsControllerOpts{
-		l:  &logger,
-		dv: datautils.NewDataDecoderValidator(),
+		l:       &logger,
+		dv:      datautils.NewDataDecoderValidator(),
+		alerter: alerter,
 	}
 }
 
@@ -63,6 +71,12 @@ func WithTaskQueue(tq taskqueue.TaskQueue) JobsControllerOpt {
 func WithLogger(l *zerolog.Logger) JobsControllerOpt {
 	return func(opts *JobsControllerOpts) {
 		opts.l = l
+	}
+}
+
+func WithAlerter(a hatcheterrors.Alerter) JobsControllerOpt {
+	return func(opts *JobsControllerOpts) {
+		opts.alerter = a
 	}
 }
 
@@ -102,12 +116,16 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
 
+	a := hatcheterrors.NewWrapped(opts.alerter)
+	a.WithData(map[string]interface{}{"service": "jobs-controller"})
+
 	return &JobsControllerImpl{
 		tq:   opts.tq,
 		l:    opts.l,
 		repo: opts.repo,
 		dv:   opts.dv,
 		s:    s,
+		a:    a,
 	}, nil
 }
 
@@ -158,6 +176,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 				err := jc.handleTask(context.Background(), task)
 				if err != nil {
 					jc.l.Error().Err(err).Msg("could not handle job task")
+					jc.a.WrapErr(fmt.Errorf("could not handle job task: %w", err), map[string]interface{}{"task_id": task.ID}) // nolint: errcheck
 				}
 			}(task)
 		}
@@ -466,7 +485,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *task
 			inputOverridesMap, ok2 := inputMap["overrides"].(map[string]interface{})
 
 			if ok1 && ok2 {
-				mergedInputOverrides := datautils.MergeMaps(currentInputOverridesMap, inputOverridesMap)
+				mergedInputOverrides := merge.MergeMaps(currentInputOverridesMap, inputOverridesMap)
 
 				inputMap["overrides"] = mergedInputOverrides
 
@@ -738,8 +757,14 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	// add the rendered data to the step run
 	stepRun, err := ec.repo.StepRun().GetStepRunById(tenantId, stepRunId)
 
+	errData := map[string]interface{}{
+		"tenant_id":   tenantId,
+		"step_id":     stepId,
+		"step_run_id": stepRunId,
+	}
+
 	if err != nil {
-		return fmt.Errorf("could not get step run: %w", err)
+		return ec.a.WrapErr(fmt.Errorf("could not get step run: %w", err), errData)
 	}
 
 	servertel.WithStepRunModel(span, stepRun)
@@ -773,7 +798,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			data, ok := lookupDataModel.Data()
 
 			if !ok {
-				return fmt.Errorf("job run has no lookup data")
+				return ec.a.WrapErr(fmt.Errorf("job run has no lookup data"), errData)
 			}
 
 			lookupData := &datautils.JobRunLookupData{}
@@ -781,7 +806,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			err := datautils.FromJSONType(&data, lookupData)
 
 			if err != nil {
-				return fmt.Errorf("could not get job run lookup data: %w", err)
+				return ec.a.WrapErr(fmt.Errorf("could not get job run lookup data: %w", err), errData)
 			}
 
 			userData := map[string]interface{}{}
@@ -819,25 +844,8 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			inputDataBytes, err := json.Marshal(inputData)
 
 			if err != nil {
-				return fmt.Errorf("could not convert input data to json: %w", err)
+				return ec.a.WrapErr(fmt.Errorf("could not convert input data to json: %w", err), errData)
 			}
-
-			// defer the update of the input schema to the step run
-			// defer func() {
-			// 	jsonSchemaBytes, err := schema.SchemaBytesFromBytes(inputDataBytes)
-
-			// 	if err != nil {
-			// 		ec.l.Err(err).Msgf("could not get schema bytes from bytes: %s", err.Error())
-			// 		return
-			// 	}
-
-			// 	_, err = ec.repo.StepRun().UpdateStepRunInputSchema(stepRun.TenantID, stepRun.ID, jsonSchemaBytes)
-
-			// 	if err != nil {
-			// 		ec.l.Err(err).Msgf("could not update step run input schema: %s", err.Error())
-			// 		return
-			// 	}
-			// }()
 
 			updateStepOpts.Input = inputDataBytes
 		}
@@ -856,10 +864,10 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			return nil
 		}
 
-		return fmt.Errorf("could not update step run: %w", err)
+		return ec.a.WrapErr(fmt.Errorf("could not update step run: %w", err), errData)
 	}
 
-	return ec.scheduleStepRun(ctx, tenantId, stepId, stepRunId)
+	return ec.a.WrapErr(ec.scheduleStepRun(ctx, tenantId, stepId, stepRunId), errData)
 }
 
 func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, stepId, stepRunId string) error {
