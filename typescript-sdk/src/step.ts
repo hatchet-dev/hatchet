@@ -3,6 +3,9 @@ import * as z from 'zod';
 import { HatchetTimeoutSchema } from './workflow';
 import { Action } from './clients/dispatcher/action-listener';
 import { DispatcherClient } from './clients/dispatcher/dispatcher-client';
+import { EventClient, LogLevel } from './clients/event/event-client';
+import { Logger } from './util/logger';
+import { parseJSON } from './util/parse';
 
 export const CreateStepSchema = z.object({
   name: z.string(),
@@ -13,7 +16,7 @@ export const CreateStepSchema = z.object({
 
 type JSONPrimitive = string | number | boolean | null | Array<JSONPrimitive>;
 
-export type NextStep = { [key: string]: NextStep | JSONPrimitive };
+export type NextStep = { [key: string]: NextStep | JSONPrimitive | Array<NextStep> };
 
 interface ContextData<T, K> {
   input: T;
@@ -28,14 +31,18 @@ export class Context<T, K> {
   controller = new AbortController();
   action: Action;
   client: DispatcherClient;
+  eventClient: EventClient;
   overridesData: Record<string, any> = {};
+  logger: Logger;
 
-  constructor(action: Action, client: DispatcherClient) {
+  constructor(action: Action, client: DispatcherClient, eventClient: EventClient) {
     try {
-      const data = JSON.parse(JSON.parse(action.actionPayload));
+      const data = parseJSON(action.actionPayload);
       this.data = data;
       this.action = action;
       this.client = client;
+      this.eventClient = eventClient;
+      this.logger = new Logger(`Context Logger`, client.config.log_level);
 
       // if this is a getGroupKeyRunId, the data is the workflow input
       if (action.getGroupKeyRunId !== '') {
@@ -92,6 +99,18 @@ export class Context<T, K> {
     });
 
     return defaultValue;
+  }
+
+  log(message: string, level?: LogLevel): void {
+    const { stepRunId } = this.action;
+
+    if (!stepRunId) {
+      // log a warning
+      this.logger.warn('cannot log from context without stepRunId');
+      return;
+    }
+
+    this.eventClient.putLog(stepRunId, message, level);
   }
 }
 

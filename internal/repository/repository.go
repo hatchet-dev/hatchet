@@ -4,6 +4,7 @@ type Repository interface {
 	Health() HealthRepository
 	APIToken() APITokenRepository
 	Event() EventRepository
+	Log() LogsRepository
 	Tenant() TenantRepository
 	TenantInvite() TenantInviteRepository
 	Workflow() WorkflowRepository
@@ -12,6 +13,7 @@ type Repository interface {
 	StepRun() StepRunRepository
 	GetGroupKeyRun() GetGroupKeyRunRepository
 	Github() GithubRepository
+	SNS() SNSRepository
 	Step() StepRepository
 	Dispatcher() DispatcherRepository
 	Ticker() TickerRepository

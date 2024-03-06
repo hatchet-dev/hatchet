@@ -12,6 +12,8 @@ import (
 	apitokens "github.com/hatchet-dev/hatchet/api/v1/server/handlers/api-tokens"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
 	githubapp "github.com/hatchet-dev/hatchet/api/v1/server/handlers/github-app"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
@@ -28,12 +30,14 @@ type apiService struct {
 	*users.UserService
 	*tenants.TenantService
 	*events.EventService
+	*logs.LogService
 	*workflows.WorkflowService
 	*workers.WorkerService
 	*metadata.MetadataService
 	*apitokens.APITokenService
 	*stepruns.StepRunService
 	*githubapp.GithubAppService
+	*ingestors.IngestorsService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -41,12 +45,14 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		UserService:      users.NewUserService(config),
 		TenantService:    tenants.NewTenantService(config),
 		EventService:     events.NewEventService(config),
+		LogService:       logs.NewLogService(config),
 		WorkflowService:  workflows.NewWorkflowService(config),
 		WorkerService:    workers.NewWorkerService(config),
 		MetadataService:  metadata.NewMetadataService(config),
 		APITokenService:  apitokens.NewAPITokenService(config),
 		StepRunService:   stepruns.NewStepRunService(config),
 		GithubAppService: githubapp.NewGithubAppService(config),
+		IngestorsService: ingestors.NewIngestorsService(config),
 	}
 }
 

@@ -335,6 +335,18 @@ export interface Workflow {
   deployment?: WorkflowDeploymentConfig;
 }
 
+export interface WorkflowConcurrency {
+  /**
+   * The maximum number of concurrent workflow runs.
+   * @format int32
+   */
+  maxRuns: number;
+  /** The strategy to use when the concurrency limit is reached. */
+  limitStrategy: "CANCEL_IN_PROGRESS" | "DROP_NEWEST" | "QUEUE_NEWEST" | "GROUP_ROUND_ROBIN";
+  /** An action which gets the concurrency group for the WorkflowRun. */
+  getConcurrencyGroup: string;
+}
+
 export interface WorkflowDeploymentConfig {
   metadata: APIResourceMeta;
   /** The repository name. */
@@ -370,6 +382,7 @@ export interface WorkflowVersion {
   order: number;
   workflowId: string;
   workflow?: Workflow;
+  concurrency?: WorkflowConcurrency;
   triggers?: WorkflowTriggers;
   jobs?: Job[];
 }
@@ -465,6 +478,8 @@ export enum WorkflowRunStatus {
   CANCELLED = "CANCELLED",
 }
 
+export type WorkflowRunStatusList = WorkflowRunStatus[];
+
 export enum JobRunStatus {
   PENDING = "PENDING",
   RUNNING = "RUNNING",
@@ -546,7 +561,6 @@ export interface StepRun {
   cancelledAtEpoch?: number;
   cancelledReason?: string;
   cancelledError?: string;
-  inputSchema?: string;
 }
 
 export interface WorkerList {
@@ -684,3 +698,40 @@ export enum PullRequestState {
   Open = "open",
   Closed = "closed",
 }
+
+export interface LogLine {
+  /**
+   * The creation date of the log line.
+   * @format date-time
+   */
+  createdAt: string;
+  /** The log message. */
+  message: string;
+  /** The log metadata. */
+  metadata: object;
+}
+
+export enum LogLineLevel {
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
+}
+
+export interface LogLineList {
+  pagination?: PaginationResponse;
+  rows?: LogLine[];
+}
+
+export enum LogLineOrderByField {
+  CreatedAt = "createdAt",
+}
+
+export enum LogLineOrderByDirection {
+  Asc = "asc",
+  Desc = "desc",
+}
+
+export type LogLineSearch = string;
+
+export type LogLineLevelField = LogLineLevel[];

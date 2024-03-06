@@ -34,6 +34,11 @@ import {
   ListGithubBranchesResponse,
   ListGithubReposResponse,
   ListPullRequestsResponse,
+  LogLineLevelField,
+  LogLineList,
+  LogLineOrderByDirection,
+  LogLineOrderByField,
+  LogLineSearch,
   PullRequestState,
   RejectInviteRequest,
   ReplayEventRequest,
@@ -56,6 +61,7 @@ import {
   WorkflowList,
   WorkflowRun,
   WorkflowRunList,
+  WorkflowRunStatusList,
   WorkflowVersion,
   WorkflowVersionDefinition,
 } from './data-contracts';
@@ -224,6 +230,20 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   githubUpdateTenantWebhook = (webhook: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/github/webhook/${webhook}`,
+      method: 'POST',
+      ...params,
+    });
+  /**
+   * @description SNS event
+   *
+   * @tags Github
+   * @name SnsUpdate
+   * @summary Github app tenant webhook
+   * @request POST:/api/v1/sns/{tenant}/{event}
+   */
+  snsUpdate = (tenant: string, event: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/sns/${tenant}/${event}`,
       method: 'POST',
       ...params,
     });
@@ -524,6 +544,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       keys?: EventKey[];
       /** A list of workflow IDs to filter by */
       workflows?: WorkflowID[];
+      /** A list of workflow run statuses to filter by */
+      statuses?: WorkflowRunStatusList;
       /** The search query to filter for */
       search?: EventSearch;
       /** What to order by */
@@ -643,6 +665,22 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       method: 'GET',
       secure: true,
       format: 'json',
+      ...params,
+    });
+  /**
+   * @description Delete a workflow for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowDelete
+   * @summary Delete workflow
+   * @request DELETE:/api/v1/workflows/{workflow}
+   * @secure
+   */
+  workflowDelete = (workflow: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/workflows/${workflow}`,
+      method: 'DELETE',
+      secure: true,
       ...params,
     });
   /**
@@ -781,6 +819,47 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists log lines for a step run.
+   *
+   * @tags Log
+   * @name LogLineList
+   * @summary List log lines
+   * @request GET:/api/v1/step-runs/{step-run}/logs
+   * @secure
+   */
+  logLineList = (
+    stepRun: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** A list of levels to filter by */
+      levels?: LogLineLevelField;
+      /** The search query to filter for */
+      search?: LogLineSearch;
+      /** What to order by */
+      orderByField?: LogLineOrderByField;
+      /** The order direction */
+      orderByDirection?: LogLineOrderByDirection;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<LogLineList, APIErrors>({
+      path: `/api/v1/step-runs/${stepRun}/logs`,
+      method: 'GET',
+      query: query,
+      secure: true,
       format: 'json',
       ...params,
     });
@@ -929,6 +1008,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get the schema for a step run
+   *
+   * @tags Step Run
+   * @name StepRunGetSchema
+   * @summary Get step run schema
+   * @request GET:/api/v1/tenants/{tenant}/step-runs/{step-run}/schema
+   * @secure
+   */
+  stepRunGetSchema = (tenant: string, stepRun: string, params: RequestParams = {}) =>
+    this.request<object, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}/schema`,
+      method: 'GET',
+      secure: true,
       format: 'json',
       ...params,
     });

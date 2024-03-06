@@ -72,6 +72,8 @@ ReplayEventRequest:
   $ref: "./event.yaml#/ReplayEventRequest"
 Workflow:
   $ref: "./workflow.yaml#/Workflow"
+WorkflowConcurrency:
+  $ref: "./workflow.yaml#/WorkflowConcurrency"
 WorkflowDeploymentConfig:
   $ref: "./workflow.yaml#/WorkflowDeploymentConfig"
 WorkflowVersionMeta:
@@ -100,6 +102,8 @@ WorkflowRunList:
   $ref: "./workflow_run.yaml#/WorkflowRunList"
 WorkflowRunStatus:
   $ref: "./workflow_run.yaml#/WorkflowRunStatus"
+WorkflowRunStatusList:
+  $ref: "./workflow_run.yaml#/WorkflowRunStatusList"
 JobRunStatus:
   $ref: "./workflow_run.yaml#/JobRunStatus"
 StepRunStatus:
@@ -152,3 +156,17 @@ PullRequest:
   $ref: "./workflow_run.yaml#/PullRequest"
 PullRequestState:
   $ref: "./workflow_run.yaml#/PullRequestState"
+LogLine:
+  $ref: "./logs.yaml#/LogLine"
+LogLineLevel:
+  $ref: "./logs.yaml#/LogLineLevel"
+LogLineList:
+  $ref: "./logs.yaml#/LogLineList"
+LogLineOrderByField:
+  $ref: "./logs.yaml#/LogLineOrderByField"
+LogLineOrderByDirection:
+  $ref: "./logs.yaml#/LogLineOrderByDirection"
+LogLineSearch:
+  $ref: "./logs.yaml#/LogLineSearch"
+LogLineLevelField:
+  $ref: "./logs.yaml#/LogLineLevelField"

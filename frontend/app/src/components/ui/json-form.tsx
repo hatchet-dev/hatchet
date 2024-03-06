@@ -14,8 +14,10 @@ import { CollapsibleSection } from './form-inputs/collapsible-section';
 import { DynamicSizeInputTemplate } from './form-inputs/dynamic-size-input-template';
 import { createContext, useRef } from 'react';
 
-type JSONPrimitive = string | number | boolean | null;
-type JSONType = { [key: string]: JSONType | JSONPrimitive };
+type JSONPrimitive = string | number | boolean | null | Array<JSONPrimitive>;
+export type JSONType = {
+  [key: string]: JSONType | JSONPrimitive | Array<JSONType>;
+};
 
 export const DEFAULT_COLLAPSED = ['advanced', 'user data'];
 

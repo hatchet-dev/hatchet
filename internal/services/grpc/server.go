@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"runtime/debug"
+	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
@@ -13,6 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/config/server"
@@ -204,6 +206,13 @@ func (s *Server) startGRPC() (func() error, error) {
 		auth.UnaryServerInterceptor(authMiddleware.Middleware),
 		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
+
+	var kasp = keepalive.ServerParameters{
+		// ping the client every 30 seconds if idle to ensure the connection is still active
+		Time: 30 * time.Second,
+	}
+
+	serverOpts = append(serverOpts, grpc.KeepaliveParams(kasp))
 
 	grpcServer := grpc.NewServer(serverOpts...)
 

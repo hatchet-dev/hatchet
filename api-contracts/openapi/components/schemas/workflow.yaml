@@ -118,6 +118,8 @@ WorkflowVersion:
       type: string
     workflow:
       $ref: "#/Workflow"
+    concurrency:
+      $ref: "#/WorkflowConcurrency"
     triggers:
       $ref: "#/WorkflowTriggers"
     jobs:
@@ -129,6 +131,32 @@ WorkflowVersion:
     - version
     - order
     - workflowId
+
+WorkflowConcurrency:
+  type: object
+  properties:
+    maxRuns:
+      type: integer
+      format: int32
+      description: The maximum number of concurrent workflow runs.
+    limitStrategy:
+      $ref: "#/ConcurrencyLimitStrategy"
+      description: The strategy to use when the concurrency limit is reached.
+    getConcurrencyGroup:
+      type: string
+      description: An action which gets the concurrency group for the WorkflowRun.
+  required:
+    - maxRuns
+    - limitStrategy
+    - getConcurrencyGroup
+
+ConcurrencyLimitStrategy:
+  type: string
+  enum:
+    - CANCEL_IN_PROGRESS
+    - DROP_NEWEST
+    - QUEUE_NEWEST
+    - GROUP_ROUND_ROBIN
 
 WorkflowVersionDefinition:
   type: object

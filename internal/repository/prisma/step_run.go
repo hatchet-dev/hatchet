@@ -99,6 +99,33 @@ func (s *stepRunRepository) ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.St
 	return stepRuns, nil
 }
 
+func (s *stepRunRepository) ListStepRunsToReassign(tenantId string) ([]*dbsqlc.StepRun, error) {
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	tx, err := s.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), s.l, tx.Rollback)
+
+	// get the step run and make sure it's still in pending
+	stepRuns, err := s.queries.ListStepRunsToReassign(context.Background(), tx, pgTenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return stepRuns, nil
+}
+
 func (s *stepRunRepository) ListStepRuns(tenantId string, opts *repository.ListStepRunsOpts) ([]db.StepRunModel, error) {
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err
@@ -106,27 +133,6 @@ func (s *stepRunRepository) ListStepRuns(tenantId string, opts *repository.ListS
 
 	params := []db.StepRunWhereParam{
 		db.StepRun.TenantID.Equals(tenantId),
-	}
-
-	if opts.Requeuable != nil {
-		// job runs are requeuable if they are past their requeue after time, don't have a worker assigned, have a pending status,
-		// and their previous step is completed
-		params = append(
-			params,
-			db.StepRun.RequeueAfter.Before(time.Now().UTC()),
-			db.StepRun.WorkerID.IsNull(),
-			db.StepRun.Status.Equals(db.StepRunStatusPendingAssignment),
-			// db.StepRun.Or(
-			// 	db.StepRun.Prev
-			// 	db.StepRun.Step.Where(
-			// 		db.Step.Prev.Where(
-			// 			db.Step.StepRuns.Some(
-			// 				db.StepRun.Status.Equals(db.StepRunStatusSUCCEEDED),
-			// 			),
-			// 		),
-			// 	),
-			// ),
-		)
 	}
 
 	if opts.Status != nil {

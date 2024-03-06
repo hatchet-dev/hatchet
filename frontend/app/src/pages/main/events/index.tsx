@@ -15,6 +15,7 @@ import api, {
   EventOrderByDirection,
   EventOrderByField,
   ReplayEventRequest,
+  WorkflowRunStatus,
   queries,
 } from '@/lib/api';
 import invariant from 'tiny-invariant';
@@ -133,6 +134,16 @@ function EventsTable() {
     return filter?.value as Array<string>;
   }, [columnFilters]);
 
+  const statuses = useMemo(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'status');
+
+    if (!filter) {
+      return;
+    }
+
+    return filter?.value as Array<WorkflowRunStatus>;
+  }, [columnFilters]);
+
   const offset = useMemo(() => {
     if (!pagination) {
       return;
@@ -155,8 +166,9 @@ function EventsTable() {
       offset,
       limit: pageSize,
       search,
+      statuses,
     }),
-    refetchInterval: 800,
+    refetchInterval: 2000,
   });
 
   const replayEventsMutation = useMutation({
@@ -204,14 +216,30 @@ function EventsTable() {
     );
   }, [workflowKeys]);
 
-  // useEffect(() => {
-  //   if (listEventsQuery.data?.pagination) {
-  //     setPagination({
-  //       pageIndex: (listEventsQuery.data.pagination.current_page || 1) - 1,
-  //       pageSize: listEventsQuery.data.pagination.num_pages || 0,
-  //     });
-  //   }
-  // }, [listEventsQuery.data?.pagination]);
+  const workflowRunStatusFilters = useMemo((): FilterOption[] => {
+    return [
+      {
+        value: WorkflowRunStatus.SUCCEEDED,
+        label: 'Succeeded',
+      },
+      {
+        value: WorkflowRunStatus.FAILED,
+        label: 'Failed',
+      },
+      {
+        value: WorkflowRunStatus.RUNNING,
+        label: 'Running',
+      },
+      {
+        value: WorkflowRunStatus.PENDING,
+        label: 'Pending',
+      },
+      {
+        value: WorkflowRunStatus.CANCELLED,
+        label: 'Cancelled',
+      },
+    ];
+  }, []);
 
   const tableColumns = columns({
     onRowClick: (row: Event) => {
@@ -280,6 +308,11 @@ function EventsTable() {
             columnId: 'workflows',
             title: 'Workflow',
             options: workflowKeyFilters,
+          },
+          {
+            columnId: 'status',
+            title: 'Status',
+            options: workflowRunStatusFilters,
           },
         ]}
         actions={actions}

@@ -138,6 +138,54 @@ func ToWorkflowVersion(workflow *db.WorkflowModel, version *db.WorkflowVersionMo
 		}
 	}
 
+	if version.RelationsWorkflowVersion.Concurrency != nil {
+		if concurrency, ok := version.Concurrency(); ok {
+			apiConcurrency, err := ToWorkflowVersionConcurrency(concurrency)
+
+			if err != nil {
+				return nil, err
+			}
+
+			res.Concurrency = apiConcurrency
+		}
+	}
+
+	if version.RelationsWorkflowVersion.Triggers != nil {
+		if triggers, ok := version.Triggers(); ok && triggers != nil {
+			triggersResp := gen.WorkflowTriggers{}
+
+			if crons := triggers.Crons(); len(crons) > 0 {
+				genCrons := make([]gen.WorkflowTriggerCronRef, len(crons))
+
+				for i, cron := range crons {
+					cronCp := cron
+					genCrons[i] = gen.WorkflowTriggerCronRef{
+						Cron:     &cronCp.Cron,
+						ParentId: &cronCp.ParentID,
+					}
+				}
+
+				triggersResp.Crons = &genCrons
+			}
+
+			if events := triggers.Events(); len(events) > 0 {
+				genEvents := make([]gen.WorkflowTriggerEventRef, len(events))
+
+				for i, event := range events {
+					eventCp := event
+					genEvents[i] = gen.WorkflowTriggerEventRef{
+						EventKey: &eventCp.EventKey,
+						ParentId: &eventCp.ParentID,
+					}
+				}
+
+				triggersResp.Events = &genEvents
+			}
+
+			res.Triggers = &triggersResp
+		}
+	}
+
 	if workflow == nil {
 		workflow = version.RelationsWorkflowVersion.Workflow
 	}
@@ -149,6 +197,19 @@ func ToWorkflowVersion(workflow *db.WorkflowModel, version *db.WorkflowVersionMo
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	return res, nil
+}
+
+func ToWorkflowVersionConcurrency(concurrency *db.WorkflowConcurrencyModel) (*gen.WorkflowConcurrency, error) {
+	res := &gen.WorkflowConcurrency{
+		MaxRuns:       int32(concurrency.MaxRuns),
+		LimitStrategy: gen.WorkflowConcurrencyLimitStrategy(concurrency.LimitStrategy),
+	}
+
+	if getGroup, ok := concurrency.GetConcurrencyGroup(); ok {
+		res.GetConcurrencyGroup = getGroup.ActionID
 	}
 
 	return res, nil

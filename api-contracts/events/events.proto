@@ -10,6 +10,8 @@ service EventsService {
     rpc List(ListEventRequest) returns (ListEventResponse) {}
 
     rpc ReplaySingleEvent(ReplayEventRequest) returns (Event) {}
+
+    rpc PutLog(PutLogRequest) returns (PutLogResponse) {}
 }
 
 message Event {
@@ -28,6 +30,25 @@ message Event {
     // when the event was generated
     google.protobuf.Timestamp eventTimestamp = 5;
 }
+
+message PutLogRequest {
+    // the step run id for the request
+    string stepRunId = 1;
+
+    // when the log line was created
+    google.protobuf.Timestamp createdAt = 2;
+
+    // the log line message
+    string message = 3;
+
+    // the log line level
+    optional string level = 4;
+
+    // associated log line metadata
+    string metadata = 5;
+}
+
+message PutLogResponse {}
 
 message PushEventRequest {
     // the key for the event

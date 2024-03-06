@@ -6,7 +6,6 @@ import api, {
   queries,
 } from '@/lib/api';
 import { useEffect, useMemo, useState } from 'react';
-import { RunStatus } from '../../components/run-statuses';
 import { Button } from '@/components/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
@@ -18,7 +17,12 @@ import { GitHubLogoIcon, PlayIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
 import { Loading } from '@/components/ui/loading';
-import { StepStatusDetails } from '..';
+import {
+  StepConfigurationSection,
+  StepDurationSection,
+  StepStatusDetails,
+  StepStatusSection,
+} from '..';
 import {
   TooltipProvider,
   Tooltip,
@@ -27,6 +31,9 @@ import {
 } from '@/components/ui/tooltip';
 import { VscNote, VscJson } from 'react-icons/vsc';
 import { CreatePRDialog } from './create-pr-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { StepRunLogs } from './step-run-logs';
+import { RunStatus } from '../../components/run-statuses';
 
 export function StepRunPlayground({
   stepRun,
@@ -109,10 +116,27 @@ export function StepRunPlayground({
       ) {
         return 1000;
       }
+
+      return 5000;
     },
   });
 
   const queryClient = useQueryClient();
+
+  const stepRunSchemaQuery = useQuery({
+    ...queries.stepRuns.getSchema(
+      stepRun?.tenantId || '',
+      stepRun?.metadata.id || '',
+    ),
+    enabled: !!stepRun,
+    refetchInterval: () => {
+      if (stepRun?.status === StepRunStatus.RUNNING) {
+        return 1000;
+      }
+
+      return 5000;
+    },
+  });
 
   const stepRunDiffQuery = useQuery({
     ...queries.stepRuns.getDiff(stepRun?.metadata.id || ''),
@@ -248,7 +272,7 @@ export function StepRunPlayground({
         <>
           <div className="flex flex-row gap-2 justify-between items-center sticky top-0 z-50">
             <div className="text-2xl font-semibold tracking-tight">
-              Playground/{stepRun?.step?.readableId}
+              {stepRun?.step?.readableId}
             </div>
             <div className="flex flex-row gap-2 justify-end items-center">
               <TooltipProvider>
@@ -333,10 +357,12 @@ export function StepRunPlayground({
           </div>
           <div className="flex flex-row gap-4 mt-4">
             <div className="flex-grow w-1/2">
-              Inputs
+              <div className="text-lg font-semibold tracking-tight mb-4">
+                Input
+              </div>
               {stepInput && (
                 <StepRunInputs
-                  schema={stepRun.inputSchema || ''}
+                  schema={stepRunSchemaQuery.data || {}}
                   input={stepInput}
                   setInput={setStepInput}
                   disabled={disabled}
@@ -346,9 +372,18 @@ export function StepRunPlayground({
               )}
             </div>
             <div className="flex-grow flex-col flex gap-4 w-1/2 ">
-              <div className="flex flex-col">
-                <div className="flex flex-row justify-between items-center mb-4">
-                  <div>Outputs</div>
+              <Tabs defaultValue="output" className="flex flex-col">
+                <div className="flex flex-row justify-between items-center">
+                  <div className="flex flex-row justify-start items-center gap-6">
+                    <TabsList>
+                      <TabsTrigger value="output" className="px-8">
+                        Output
+                      </TabsTrigger>
+                      <TabsTrigger value="logs" className="px-8">
+                        Logs
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
                   <RunStatus
                     status={
                       errors.length > 0
@@ -357,20 +392,29 @@ export function StepRunPlayground({
                     }
                   />
                 </div>
-                <StepRunOutput
-                  stepRun={stepRun}
-                  output={output}
-                  isLoading={isLoading}
-                  errors={
-                    [
-                      ...errors,
-                      stepRun.error
-                        ? StepStatusDetails({ stepRun })
-                        : undefined,
-                    ].filter((e) => !!e) as string[]
-                  }
-                />
-              </div>
+
+                <TabsContent value="output">
+                  <StepRunOutput
+                    output={output}
+                    isLoading={isLoading}
+                    errors={
+                      [
+                        ...errors,
+                        stepRun.error
+                          ? StepStatusDetails({ stepRun })
+                          : undefined,
+                      ].filter((e) => !!e) as string[]
+                    }
+                  />
+                </TabsContent>
+                <TabsContent value="logs">
+                  <StepRunLogs stepRun={stepRun} />
+                </TabsContent>
+
+                <StepStatusSection stepRun={stepRun} />
+                <StepDurationSection stepRun={stepRun} />
+                <StepConfigurationSection stepRun={stepRun} />
+              </Tabs>
             </div>
           </div>
         </>

@@ -1,5 +1,5 @@
 from ..events_pb2_grpc import EventsServiceStub
-from ..events_pb2 import PushEventRequest
+from ..events_pb2 import PushEventRequest, PutLogRequest
 
 import datetime
 from ..loader import ClientConfig
@@ -13,6 +13,13 @@ def new_event(conn, config: ClientConfig):
         client=EventsServiceStub(conn),
         token=config.token,
     )
+
+def proto_timestamp_now():
+    t = datetime.datetime.now().timestamp()
+    seconds = int(t)
+    nanos = int(t % 1 * 1e9)
+
+    return timestamp_pb2.Timestamp(seconds=seconds, nanos=nanos)
 
 class EventClientImpl:
     def __init__(self, client, token):
@@ -28,10 +35,22 @@ class EventClientImpl:
         request = PushEventRequest(
             key=event_key,
             payload=payload_bytes,
-            eventTimestamp=timestamp_pb2.Timestamp().FromDatetime(datetime.datetime.now()),
+            eventTimestamp=proto_timestamp_now(),
         )
 
         try:
             self.client.Push(request, metadata=get_metadata(self.token))
         except grpc.RpcError as e:
             raise ValueError(f"gRPC error: {e}")
+    
+    def log(self, message: str, step_run_id: str):
+        try:
+            request = PutLogRequest(
+                stepRunId=step_run_id,
+                createdAt=proto_timestamp_now(),
+                message=message,
+            )
+
+            self.client.PutLog(request, metadata=get_metadata(self.token))
+        except Exception as e:
+            raise ValueError(f"Error logging: {e}")

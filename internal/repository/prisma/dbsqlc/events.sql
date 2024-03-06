@@ -24,7 +24,11 @@ WHERE
   (
     sqlc.narg('search')::text IS NULL OR
     jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
-  );
+  ) AND
+    (
+        sqlc.narg('statuses')::text[] IS NULL OR
+        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+    );
 
 -- name: CreateEvent :one
 INSERT INTO "Event" (
@@ -78,6 +82,10 @@ WHERE
         sqlc.narg('search')::text IS NULL OR
         workflow.name like concat('%', sqlc.narg('search')::text, '%') OR
         jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
+    ) AND
+    (
+        sqlc.narg('statuses')::text[] IS NULL OR
+        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
     )
 GROUP BY
     events."id"

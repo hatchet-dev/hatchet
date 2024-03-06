@@ -85,6 +85,17 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 		countParams.Workflows = opts.Workflows
 	}
 
+	if opts.WorkflowRunStatus != nil {
+		statuses := make([]string, 0)
+
+		for _, status := range opts.WorkflowRunStatus {
+			statuses = append(statuses, string(status))
+		}
+
+		queryParams.Statuses = statuses
+		countParams.Statuses = statuses
+	}
+
 	orderByField := "createdAt"
 	orderByDirection := "DESC"
 
@@ -186,12 +197,6 @@ func (r *eventRepository) CreateEvent(ctx context.Context, opts *repository.Crea
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
-
-	// dataBytes, err := opts.Data.MarshalJSON()
-
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	createParams := dbsqlc.CreateEventParams{
 		ID:       sqlchelpers.UUIDFromStr(uuid.New().String()),

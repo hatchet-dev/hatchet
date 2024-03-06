@@ -1,14 +1,23 @@
 import { CodeEditor } from '@/components/ui/code-editor';
-import { JsonForm } from '@/components/ui/json-form';
+import { JSONType, JsonForm } from '@/components/ui/json-form';
+import { useEffect, useState } from 'react';
 
 export interface StepRunOutputProps {
   input: string;
-  schema: string;
+  schema: object;
   setInput: React.Dispatch<React.SetStateAction<string>>;
   disabled: boolean;
   handleOnPlay: () => void;
   mode: 'json' | 'form';
 }
+
+const tryFormat = (input: string) => {
+  try {
+    return JSON.stringify(JSON.parse(input), null, 2);
+  } catch (e) {
+    return input;
+  }
+};
 
 export const StepRunInputs: React.FC<StepRunOutputProps> = ({
   input,
@@ -18,15 +27,29 @@ export const StepRunInputs: React.FC<StepRunOutputProps> = ({
   setInput,
   mode,
 }) => {
+  const [currentInput, setCurrentInput] = useState(tryFormat(input));
+
+  useEffect(() => {
+    setCurrentInput(input);
+  }, [input]);
+
+  const handleCodeChange = (code: string | undefined) => {
+    if (!code) {
+      return;
+    }
+    setCurrentInput(code);
+    setInput(code);
+  };
+
   return (
     <>
       {mode === 'form' && (
         <div>
-          {schema === '' ? (
+          {!schema ? (
             <>No Schema</>
           ) : (
             <JsonForm
-              inputSchema={JSON.parse(schema)}
+              inputSchema={schema as JSONType}
               setInput={setInput}
               inputData={JSON.parse(input)}
               onSubmit={handleOnPlay}
@@ -42,13 +65,8 @@ export const StepRunInputs: React.FC<StepRunOutputProps> = ({
             language="json"
             className="my-4"
             height="400px"
-            code={JSON.stringify(JSON.parse(input), null, 2)}
-            setCode={(code: string | undefined) => {
-              if (!code) {
-                return;
-              }
-              setInput(code);
-            }}
+            code={currentInput}
+            setCode={handleCodeChange}
           />
         </div>
       )}

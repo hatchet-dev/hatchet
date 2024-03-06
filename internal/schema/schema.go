@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"regexp"
-	"strings"
 
 	"github.com/invopop/jsonschema"
 )
@@ -57,15 +55,25 @@ func parse(data interface{}) reflect.Type {
 // parseObject handles JSON objects by creating a struct type with appropriately typed fields.
 func parseObject(obj map[string]interface{}) reflect.Type {
 	var fields []reflect.StructField
+	count := 0
+
 	for key, val := range obj {
 		fieldType := parse(val)
 		defaultValue := formatDefaultValue(val)
+
+		tag := fmt.Sprintf(`json:"%s" jsonschema:"default=%s"`, key, defaultValue)
+
+		if defaultValue == "" {
+			tag = fmt.Sprintf(`json:"%s"`, key)
+		}
+
 		field := reflect.StructField{
-			Name: toExportedName(key),
+			Name: fmt.Sprintf("Field%d", count),
 			Type: fieldType,
-			Tag:  reflect.StructTag(fmt.Sprintf(`json:"%s" jsonschema:"default=%s"`, key, defaultValue)),
+			Tag:  reflect.StructTag(tag),
 		}
 		fields = append(fields, field)
+		count++
 	}
 	return reflect.StructOf(fields)
 }
@@ -79,7 +87,6 @@ func formatDefaultValue(val interface{}) string {
 	case nil:
 		return "null"
 	default:
-		// Complex types like arrays or objects are not supported as default values in jsonschema tags.
 		return ""
 	}
 }
@@ -87,25 +94,8 @@ func formatDefaultValue(val interface{}) string {
 // parseArray handles JSON arrays by determining the type of its elements.
 func parseArray(arr []interface{}) reflect.Type {
 	if len(arr) == 0 {
-		return reflect.SliceOf(reflect.TypeOf(new(interface{})).Elem())
+		return reflect.SliceOf(reflect.TypeOf(""))
 	}
 	elemType := parse(arr[0])
 	return reflect.SliceOf(elemType)
-}
-
-var nameRegex = regexp.MustCompile(`(\b|-|_|\.)[a-z]`)
-
-var invalidCharRegex = regexp.MustCompile(`[^a-zA-Z0-9_]`)
-
-// toExportedName converts a JSON key into an exported Go field name.
-func toExportedName(key string) string {
-	res := nameRegex.ReplaceAllStringFunc(key, func(t string) string {
-		if len(t) == 1 {
-			return strings.ToUpper(t)
-		}
-
-		return strings.ToUpper(string(t[1]))
-	})
-
-	return invalidCharRegex.ReplaceAllString(res, "")
 }
