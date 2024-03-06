@@ -2,10 +2,8 @@
 
 set -eux
 
-echo AJAJAJAJAJ
-#WIP!!!!
-#set -a
-#. .env || true
-#set +a
+set -a
+. .env || true
+set +a
 
 exec go "$@"
