@@ -8,31 +8,19 @@ import { useRouter } from "next/router";
 
 // const inter = Inter({ subsets: ["latin"] });
 
-// Check that PostHog is client-side (used to handle Next.js SSR)
-if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
-  posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-    // Enable debug mode in development
-    api_host: "https://docs.hatchet.run/ingest",
-    ui_host: "https://app.posthog.com",
-    loaded: (posthog) => {
-      if (process.env.NODE_ENV === "development") posthog.debug();
-    },
-  });
-}
+// // Check that PostHog is client-side (used to handle Next.js SSR)
+// if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+//   posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
+//     // Enable debug mode in development
+//     api_host: "https://docs.hatchet.run/ingest",
+//     ui_host: "https://app.posthog.com",
+//     loaded: (posthog) => {
+//       if (process.env.NODE_ENV === "development") posthog.debug();
+//     },
+//   });
+// }
 
 function MyApp({ Component, pageProps }: AppProps) {
-  const router = useRouter();
-
-  useEffect(() => {
-    // Track page views
-    const handleRouteChange = () => posthog?.capture("$pageview");
-    router.events.on("routeChangeComplete", handleRouteChange);
-
-    return () => {
-      router.events.off("routeChangeComplete", handleRouteChange);
-    };
-  }, []);
-
   return (
     <PostHogProvider client={posthog}>
       <main className="bg-[#020817]">
