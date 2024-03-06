@@ -176,7 +176,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 				err := jc.handleTask(context.Background(), task)
 				if err != nil {
 					jc.l.Error().Err(err).Msg("could not handle job task")
-					jc.a.WrapErr(fmt.Errorf("could not handle job task: %w", err), map[string]interface{}{"task_id": task.ID})
+					jc.a.WrapErr(fmt.Errorf("could not handle job task: %w", err), map[string]interface{}{"task_id": task.ID}) // nolint: errcheck
 				}
 			}(task)
 		}
@@ -806,7 +806,6 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			err := datautils.FromJSONType(&data, lookupData)
 
 			if err != nil {
-				// return fmt.Errorf("could not get job run lookup data: %w", err)
 				return ec.a.WrapErr(fmt.Errorf("could not get job run lookup data: %w", err), errData)
 			}
 
@@ -845,7 +844,6 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			inputDataBytes, err := json.Marshal(inputData)
 
 			if err != nil {
-				// return fmt.Errorf("could not convert input data to json: %w", err)
 				return ec.a.WrapErr(fmt.Errorf("could not convert input data to json: %w", err), errData)
 			}
 
