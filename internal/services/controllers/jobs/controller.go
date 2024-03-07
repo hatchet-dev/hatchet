@@ -659,7 +659,6 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			inputDataBytes, err := json.Marshal(inputData)
 
 			if err != nil {
-				// return fmt.Errorf("could not convert input data to json: %w", err)
 				return ec.a.WrapErr(fmt.Errorf("could not convert input data to json: %w", err), errData)
 			}
 

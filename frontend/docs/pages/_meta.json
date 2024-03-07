@@ -1,6 +1,10 @@
 {
     "home": {
-        "title": "Home",
+        "title": "User Guide",
+        "type": "page"
+    },
+    "sdks": {
+        "title": "SDK Reference",
         "type": "page"
     },
     "self-hosting": {

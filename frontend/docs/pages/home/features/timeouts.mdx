@@ -1,0 +1,76 @@
+# Timeouts in Hatchet
+
+Timeouts are an important concept in Hatchet that allow you to control how long a workflow or step is allowed to run before it is considered to have failed. This is useful for ensuring that your workflows don't run indefinitely and consume unnecessary resources.
+
+## Timeout Format
+
+In Hatchet, timeouts are specified using a string in the format `<number><unit>`, where `<number>` is an integer and `<unit>` is one of:
+
+- `s` for seconds
+- `m` for minutes
+- `h` for hours
+- `d` for days
+
+For example:
+
+- `10s` means 10 seconds
+- `4m` means 4 minutes  
+- `1h` means 1 hour
+- `2d` means 2 days
+
+If no unit is specified, seconds are assumed.
+
+## Default Timeout
+
+By default, if no timeout is specified for a workflow or step, a timeout of 60 seconds is used. This means that if a workflow or step takes longer than 60 seconds to complete, it will be considered to have failed.
+
+## Specifying Timeouts
+
+Timeouts can be specified at both the workflow and step level:
+
+### Workflow Timeouts
+
+To specify a timeout for an entire workflow, you can set the `timeout` property in the workflow definition:
+
+
+```typescript
+const myWorkflow: Workflow = {
+  id: 'my-workflow',
+  // ...
+  timeout: '2m',
+  // ...
+};
+```
+
+This would set a timeout of 2 minutes for the entire workflow. If the workflow takes longer than 2 minutes to complete, it will fail.
+
+### Step Timeouts
+
+To specify a timeout for an individual step, you can set the `timeout` property in the step definition:
+
+
+```typescript
+const myStep: CreateStep<any, any> = {
+  name: 'my-step',
+  // ...  
+  timeout: '30s',
+  run: async (ctx) => {
+    // ...
+  },
+};
+```
+
+This would set a timeout of 30 seconds for this specific step. If the step takes longer than 30 seconds to complete, it will fail.
+
+## Use Cases
+
+Timeouts are useful in a variety of scenarios:
+
+- Ensuring workflows don't run indefinitely and consume unnecessary resources 
+- Failing workflows early if a critical step takes too long
+- Keeping workflows responsive by ensuring individual steps complete in a timely manner
+- Preventing infinite loops or hung processes from blocking the entire system
+
+For example, if you have a workflow that makes an external API call, you may want to set a timeout to ensure the workflow fails quickly if the API is unresponsive, rather than waiting indefinitely.
+
+By carefully considering timeouts for your workflows and steps, you can build more resilient and responsive systems with Hatchet.

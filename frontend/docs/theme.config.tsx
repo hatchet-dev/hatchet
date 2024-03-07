@@ -16,6 +16,10 @@ const config: DocsThemeConfig = {
     link: "https://discord.gg/ZMeUafwH89",
   },
   docsRepositoryBase: "https://github.com/hatchet-dev/hatchet/frontend/docs",
+  feedback: {
+    labels: 'Feedback',
+    useLink: (...args: unknown[]) => `https://github.com/hatchet-dev/hatchet/issues/new`
+  },
   footer: {
     text: "Hatchet",
   },
@@ -26,7 +30,7 @@ const config: DocsThemeConfig = {
     </>
   ),
   sidebar: {
-    defaultMenuCollapseLevel: 1,
+    defaultMenuCollapseLevel: 2,
   },
   nextThemes: {
     forcedTheme: "dark",

@@ -1,0 +1,54 @@
+# Triggering Workflows with Schedule in Hatchet
+
+In addition to cron triggers and event-based triggers, Hatchet provides the ability to schedule workflows to run at specific times. This feature is useful when you need to execute a workflow at a precise moment, such as sending a reminder email at a specific hour or a one-time maintenance task at a predetermined time.
+
+## Configuring Schedule Triggers
+
+To trigger a workflow at a specific time, you need to configure the `on` property in the workflow definition using the `schedule` option. Here's an example of how to define a schedule trigger:
+
+```typescript
+const myWorkflow: Workflow = {
+  id: 'my-workflow',
+  description: 'A workflow triggered by a schedule',
+  on: {
+    schedule: '2023-06-15T09:30:00Z',
+  },
+  steps: [
+    // Define your workflow steps here
+  ],
+};
+```
+
+In this example, the `on` property is set to an object with a `schedule` property. The `schedule` property specifies the exact date and time when the workflow should be triggered. The date and time should be provided in the ISO 8601 format (`YYYY-MM-DDTHH:mm:ssZ`).
+
+## Scheduling Considerations
+
+When using schedule triggers, there are a few considerations to keep in mind:
+
+1. **Time Zone**: Schedule triggers use the UTC (Coordinated Universal Time) time zone by default. If you want to specify the schedule in a different time zone, you need to include the time zone offset in the ISO 8601 format (`2023-06-15T09:30:00+02:00` for UTC+2).
+
+2. **Execution Time**: Hatchet makes a best-effort attempt to start the workflow at the exact scheduled time. However, there may be slight delays due to system load or other factors. The actual execution time may vary slightly from the scheduled time.
+
+3. **One-Time Execution**: Schedule triggers are designed for one-time execution. Once a workflow is triggered by a schedule, it will not be triggered again automatically. If you need recurring executions, consider using cron triggers instead.
+
+
+## Scheduling Best Practices
+
+When working with schedule triggers, consider the following best practices:
+
+1. **Scheduling Granularity**: Be mindful of the granularity of your scheduled workflows. Avoid scheduling workflows too frequently or at overly precise times, as it may lead to increased system load and potential delays.
+
+2. **Time Zone Awareness**: Ensure that you consider the appropriate time zone when specifying the schedule. Use UTC or include the time zone offset to avoid confusion and ensure consistent execution across different regions.
+
+3. **Scheduling Window**: Configure an appropriate scheduling window based on your workflow requirements. Consider factors such as data availability, dependencies, and system load when determining the window size.
+
+4. **Error Handling**: Implement proper error handling and retry mechanisms in your workflows to handle any potential failures or exceptions that may occur during scheduled executions.
+
+
+## Conclusion
+
+Schedule triggers in Hatchet provide a convenient way to trigger workflows at specific times. By configuring the `on` property with a `schedule` value, you can define the exact date and time when a workflow should be executed.
+
+Remember to consider time zones, execution times, one-time execution, and scheduling windows when working with schedule triggers. Follow best practices such as choosing appropriate scheduling granularity, handling errors, and implementing monitoring and alerting.
+
+With Hatchet's scheduling capabilities, you can automate time-sensitive tasks, generate reports at specific intervals, and execute workflows with precise timing requirements.

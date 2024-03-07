@@ -1,5 +1,7 @@
 from .client import new_client 
 from typing import List
+import asyncio
+from functools import wraps
 from .workflow import WorkflowMeta
 from .worker import Worker
 from .logger import logger
@@ -38,14 +40,20 @@ class Hatchet:
         
         return inner
 
-    def step(self, name : str='', timeout : str='', parents : List[str] = [], retries : int = 0):
+    def step(self, name: str='', timeout: str='', parents: List[str] = [], retries: int = 0):
         def inner(func):
-            func._step_name = name or func.__name__
-            func._step_parents = parents
-            func._step_timeout = timeout
-            func._step_retries = retries
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                if asyncio.iscoroutinefunction(func):
+                    return asyncio.run(func(*args, **kwargs))
+                else:
+                    return func(*args, **kwargs)
 
-            return func
+            wrapper._step_name = name or func.__name__
+            wrapper._step_parents = parents
+            wrapper._step_timeout = timeout
+            wrapper._step_retries = retries
+            return wrapper
 
         return inner
     
