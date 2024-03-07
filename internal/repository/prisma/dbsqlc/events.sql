@@ -1,3 +1,14 @@
+-- name: GetEventForEngine :one
+SELECT
+    "id",
+    "key",
+    "data",
+    "tenantId"
+FROM
+    "Event"
+WHERE
+    "id" = @id::uuid;
+
 -- name: CountEvents :one
 SELECT
     count(*) OVER() AS total

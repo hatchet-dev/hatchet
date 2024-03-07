@@ -70,11 +70,17 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		return nil, err
 	}
 
+	engineStepRun, err := t.config.Repository.StepRun().GetStepRunForEngine(tenant.ID, stepRun.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get step run for engine: %w", err)
+	}
+
 	// send a task to the taskqueue
 	err = t.config.TaskQueue.AddTask(
 		ctx.Request().Context(),
 		taskqueue.JOB_PROCESSING_QUEUE,
-		tasktypes.StepRunRetryToTask(stepRun, inputBytes),
+		tasktypes.StepRunRetryToTask(engineStepRun, inputBytes),
 	)
 
 	if err != nil {

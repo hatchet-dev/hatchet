@@ -123,6 +123,43 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 	return &i, err
 }
 
+const getEventForEngine = `-- name: GetEventForEngine :one
+SELECT
+    "id",
+    "key",
+    "data",
+    "tenantId"
+FROM
+    "Event"
+WHERE
+    "id" = $1::uuid AND
+    "tenantId" = $2::uuid
+`
+
+type GetEventForEngineParams struct {
+	ID       pgtype.UUID `json:"id"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+type GetEventForEngineRow struct {
+	ID       pgtype.UUID `json:"id"`
+	Key      string      `json:"key"`
+	Data     []byte      `json:"data"`
+	TenantId pgtype.UUID `json:"tenantId"`
+}
+
+func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, arg GetEventForEngineParams) (*GetEventForEngineRow, error) {
+	row := db.QueryRow(ctx, getEventForEngine, arg.ID, arg.Tenantid)
+	var i GetEventForEngineRow
+	err := row.Scan(
+		&i.ID,
+		&i.Key,
+		&i.Data,
+		&i.TenantId,
+	)
+	return &i, err
+}
+
 const getEventsForRange = `-- name: GetEventsForRange :many
 SELECT
     date_trunc('hour', "createdAt") AS event_hour,

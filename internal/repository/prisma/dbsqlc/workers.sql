@@ -32,3 +32,14 @@ WHERE
     )
 GROUP BY
     workers."id";
+
+-- name: GetWorkerForEngine :one
+SELECT
+    w."id" AS "id",
+    w."tenantId" AS "tenantId",
+    w."dispatcherId" AS "dispatcherId"
+FROM
+    "Worker" w
+WHERE
+    w."tenantId" = @tenantId
+    AND w."id" = @id;

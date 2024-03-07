@@ -3,6 +3,8 @@ package tasktypes
 import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
@@ -125,15 +127,19 @@ func TenantToStepRunRequeueTask(tenant db.TenantModel) *taskqueue.Task {
 	}
 }
 
-func StepRunRetryToTask(stepRun *db.StepRunModel, inputData []byte) *taskqueue.Task {
+func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *taskqueue.Task {
+	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
+
 	payload, _ := datautils.ToJSONMap(StepRunRetryTaskPayload{
-		JobRunId:  stepRun.JobRunID,
-		StepRunId: stepRun.ID,
+		JobRunId:  jobRunId,
+		StepRunId: stepRunId,
 		InputData: string(inputData),
 	})
 
 	metadata, _ := datautils.ToJSONMap(StepRunRetryTaskMetadata{
-		TenantId: stepRun.TenantID,
+		TenantId: tenantId,
 	})
 
 	return &taskqueue.Task{
@@ -143,19 +149,19 @@ func StepRunRetryToTask(stepRun *db.StepRunModel, inputData []byte) *taskqueue.T
 	}
 }
 
-func StepRunQueuedToTask(job *db.JobModel, stepRun *db.StepRunModel) *taskqueue.Task {
+func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *taskqueue.Task {
 	payload, _ := datautils.ToJSONMap(StepRunTaskPayload{
-		JobRunId:  stepRun.JobRunID,
-		StepRunId: stepRun.ID,
+		JobRunId:  sqlchelpers.UUIDToStr(stepRun.JobRunId),
+		StepRunId: sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
 	})
 
 	metadata, _ := datautils.ToJSONMap(StepRunTaskMetadata{
-		StepId:            stepRun.StepID,
-		ActionId:          stepRun.Step().ActionID,
-		JobName:           job.Name,
-		JobId:             job.ID,
-		WorkflowVersionId: job.WorkflowVersionID,
-		TenantId:          job.TenantID,
+		StepId:            sqlchelpers.UUIDToStr(stepRun.StepId),
+		ActionId:          stepRun.ActionId,
+		JobName:           stepRun.JobName,
+		JobId:             sqlchelpers.UUIDToStr(stepRun.JobId),
+		WorkflowVersionId: sqlchelpers.UUIDToStr(stepRun.WorkflowVersionId),
+		TenantId:          sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId),
 	})
 
 	return &taskqueue.Task{

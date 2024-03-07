@@ -294,37 +294,30 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 			}
 		}
 
+		jobRunIds, err := w.queries.CreateJobRuns(
+			tx1Ctx,
+			tx,
+			dbsqlc.CreateJobRunsParams{
+				Tenantid:          pgTenantId,
+				Workflowrunid:     sqlcWorkflowRun.ID,
+				Workflowversionid: sqlchelpers.UUIDFromStr(opts.WorkflowVersionId),
+			},
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
 		// create the child jobs
-		for _, jobOpts := range opts.JobRuns {
-			jobRunId := uuid.New().String()
-
-			if jobOpts.RequeueAfter != nil {
-				requeueAfter = *jobOpts.RequeueAfter
-			}
-
-			sqlcJobRun, err := w.queries.CreateJobRun(
-				tx1Ctx,
-				tx,
-				dbsqlc.CreateJobRunParams{
-					ID:            sqlchelpers.UUIDFromStr(jobRunId),
-					Tenantid:      pgTenantId,
-					Workflowrunid: sqlcWorkflowRun.ID,
-					Jobid:         sqlchelpers.UUIDFromStr(jobOpts.JobId),
-				},
-			)
-
-			if err != nil {
-				return nil, err
-			}
-
+		for _, jobRunId := range jobRunIds {
 			lookupParams := dbsqlc.CreateJobRunLookupDataParams{
 				Tenantid:    pgTenantId,
-				Jobrunid:    sqlcJobRun.ID,
-				Triggeredby: jobOpts.TriggeredBy,
+				Jobrunid:    jobRunId,
+				Triggeredby: opts.TriggeredBy,
 			}
 
-			if jobOpts.InputData != nil {
-				lookupParams.Input = jobOpts.InputData
+			if opts.InputData != nil {
+				lookupParams.Input = opts.InputData
 			}
 
 			// create the job run lookup data
@@ -338,32 +331,24 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 				return nil, err
 			}
 
-			// create the workflow job step runs
-			for _, stepOpts := range jobOpts.StepRuns {
-				stepRunId := uuid.New().String()
+			err = w.queries.CreateStepRuns(
+				tx1Ctx,
+				tx,
+				dbsqlc.CreateStepRunsParams{
+					Jobrunid: jobRunId,
+					Tenantid: pgTenantId,
+				},
+			)
 
-				_, err := w.queries.CreateStepRun(
-					tx1Ctx,
-					tx,
-					dbsqlc.CreateStepRunParams{
-						ID:           sqlchelpers.UUIDFromStr(stepRunId),
-						Tenantid:     pgTenantId,
-						Jobrunid:     sqlcJobRun.ID,
-						Stepid:       sqlchelpers.UUIDFromStr(stepOpts.StepId),
-						Requeueafter: sqlchelpers.TimestampFromTime(requeueAfter),
-					},
-				)
-
-				if err != nil {
-					return nil, err
-				}
+			if err != nil {
+				return nil, err
 			}
 
 			// link all step runs with correct parents/children
 			err = w.queries.LinkStepRunParents(
 				tx1Ctx,
 				tx,
-				sqlcJobRun.ID,
+				jobRunId,
 			)
 
 			if err != nil {

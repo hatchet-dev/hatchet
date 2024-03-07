@@ -70,6 +70,8 @@ type WorkerRepository interface {
 	// GetWorkerById returns a worker by its id.
 	GetWorkerById(workerId string) (*db.WorkerModel, error)
 
+	GetWorkerForEngine(tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
+
 	// AddStepRun assigns a step run to a worker.
 	AddStepRun(tenantId, workerId, stepRunId string) error
 

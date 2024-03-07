@@ -226,14 +226,6 @@ func (t *TickerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error
 		return t.handleScheduleGetGroupKeyRunTimeout(ctx, task)
 	case "cancel-get-group-key-run-timeout":
 		return t.handleCancelGetGroupKeyRunTimeout(ctx, task)
-	case "schedule-job-run-timeout":
-		return t.handleScheduleJobRunTimeout(ctx, task)
-	case "cancel-job-run-timeout":
-		return t.handleCancelJobRunTimeout(ctx, task)
-	// case "schedule-step-requeue":
-	// 	return t.handleScheduleStepRunRequeue(ctx, task)
-	// case "cancel-step-requeue":
-	// 	return t.handleCancelStepRunRequeue(ctx, task)
 	case "schedule-cron":
 		return t.handleScheduleCron(ctx, task)
 	case "cancel-cron":

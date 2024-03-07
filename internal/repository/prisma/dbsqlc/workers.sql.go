@@ -11,6 +11,36 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getWorkerForEngine = `-- name: GetWorkerForEngine :one
+SELECT
+    w."id" AS "id",
+    w."tenantId" AS "tenantId",
+    w."dispatcherId" AS "dispatcherId"
+FROM
+    "Worker" w
+WHERE
+    w."tenantId" = $1
+    AND w."id" = $2
+`
+
+type GetWorkerForEngineParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+type GetWorkerForEngineRow struct {
+	ID           pgtype.UUID `json:"id"`
+	TenantId     pgtype.UUID `json:"tenantId"`
+	DispatcherId pgtype.UUID `json:"dispatcherId"`
+}
+
+func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorkerForEngineParams) (*GetWorkerForEngineRow, error) {
+	row := db.QueryRow(ctx, getWorkerForEngine, arg.Tenantid, arg.ID)
+	var i GetWorkerForEngineRow
+	err := row.Scan(&i.ID, &i.TenantId, &i.DispatcherId)
+	return &i, err
+}
+
 const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers.status, workers."dispatcherId", workers."maxRuns",

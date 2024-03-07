@@ -7,6 +7,46 @@ WHERE
     "id" = @id::uuid AND
     "tenantId" = @tenantId::uuid;
 
+-- name: GetStepRunForEngine :many
+SELECT
+    sqlc.embed(sr),
+    jrld."data" AS "jobRunLookupData",
+    -- TODO: everything below this line is cacheable and should be moved to a separate query
+    jr."id" AS "jobRunId",
+    wr."id" AS "workflowRunId",
+    s."id" AS "stepId",
+    s."retries" AS "stepRetries",
+    s."scheduleTimeout" AS "stepScheduleTimeout",
+    s."readableId" AS "stepReadableId",
+    s."customUserData" AS "stepCustomUserData",
+    j."name" AS "jobName",
+    j."id" AS "jobId",
+    wv."id" AS "workflowVersionId",
+    w."name" AS "workflowName",
+    w."id" AS "workflowId",
+    a."actionId" AS "actionId"
+FROM
+    "StepRun" sr
+JOIN
+    "Step" s ON sr."stepId" = s."id" AND s."tenantId" = @tenantId::uuid
+JOIN
+    "Action" a ON s."actionId" = a."actionId" AND a."tenantId" = @tenantId::uuid
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."tenantId" = @tenantId::uuid
+JOIN
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId" AND jrld."tenantId" = @tenantId::uuid
+JOIN
+    "Job" j ON jr."jobId" = j."id" AND j."tenantId" = @tenantId::uuid
+JOIN 
+    "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = @tenantId::uuid
+JOIN
+    "WorkflowVersion" wv ON wr."workflowVersionId" = wv."id"
+JOIN
+    "Workflow" w ON wv."workflowId" = w."id" AND w."tenantId" = @tenantId::uuid
+WHERE
+    sr."id" = ANY(@ids::uuid[]) AND
+    sr."tenantId" = @tenantId::uuid;
+    
 -- name: UpdateStepRun :one
 UPDATE
     "StepRun"
@@ -284,17 +324,7 @@ WHERE
 RETURNING "StepRun"."id", "StepRun"."workerId", (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId";
 
 -- name: AssignStepRunToTicker :one
-WITH step_run AS (
-    SELECT
-        sr."id"
-    FROM
-        "StepRun" sr
-    WHERE
-        sr."id" = @stepRunId::uuid AND
-        sr."tenantId" = @tenantId::uuid
-    FOR UPDATE
-),
-valid_tickers AS (
+WITH selected_ticker AS (
     SELECT
         t."id"
     FROM
@@ -302,11 +332,6 @@ valid_tickers AS (
     WHERE
         t."lastHeartbeatAt" > NOW() - INTERVAL '6 seconds'
     ORDER BY random()
-    FOR UPDATE SKIP LOCKED
-),
-selected_ticker AS (
-    SELECT "id"
-    FROM valid_tickers
     LIMIT 1
 )
 UPDATE
@@ -315,7 +340,6 @@ SET
     "tickerId" = (
         SELECT "id"
         FROM selected_ticker
-        LIMIT 1
     )
 WHERE
     "id" = @stepRunId::uuid AND

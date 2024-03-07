@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
@@ -249,7 +250,10 @@ func (s *stepRunRepository) AssignStepRunToTicker(tenantId, stepRunId string) (t
 	return tickerId, err
 }
 
-func (s *stepRunRepository) UpdateStepRun(tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*db.StepRunModel, *repository.StepRunUpdateInfo, error) {
+func (s *stepRunRepository) UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *repository.StepRunUpdateInfo, error) {
+	ctx, span := telemetry.NewSpan(ctx, "update-step-run")
+	defer span.End()
+
 	if err := s.v.Validate(opts); err != nil {
 		return nil, nil, err
 	}
@@ -262,6 +266,8 @@ func (s *stepRunRepository) UpdateStepRun(tenantId, stepRunId string, opts *repo
 
 	updateInfo := &repository.StepRunUpdateInfo{}
 
+	var stepRun *dbsqlc.GetStepRunForEngineRow
+
 	err = retrier(s.l, func() error {
 		tx, err := s.pool.Begin(context.Background())
 
@@ -271,7 +277,7 @@ func (s *stepRunRepository) UpdateStepRun(tenantId, stepRunId string, opts *repo
 
 		defer deferRollback(context.Background(), s.l, tx.Rollback)
 
-		err = s.updateStepRunCore(tx, tenantId, updateParams, updateJobRunLookupDataParams)
+		stepRun, err = s.updateStepRunCore(ctx, tx, tenantId, updateParams, updateJobRunLookupDataParams)
 
 		if err != nil {
 			return err
@@ -295,7 +301,7 @@ func (s *stepRunRepository) UpdateStepRun(tenantId, stepRunId string, opts *repo
 
 		defer deferRollback(context.Background(), s.l, tx.Rollback)
 
-		updateInfo, err = s.updateStepRunExtra(tx, tenantId, resolveJobRunParams, resolveLaterStepRunsParams)
+		updateInfo, err = s.updateStepRunExtra(ctx, tx, tenantId, resolveJobRunParams, resolveLaterStepRunsParams)
 
 		if err != nil {
 			return err
@@ -310,26 +316,6 @@ func (s *stepRunRepository) UpdateStepRun(tenantId, stepRunId string, opts *repo
 		// non-fatal error, log and continue
 		s.l.Err(err).Msg("could not update step run extra")
 		return nil, nil, nil
-	}
-
-	stepRun, err := s.client.StepRun.FindUnique(
-		db.StepRun.ID.Equals(stepRunId),
-	).With(
-		db.StepRun.Children.Fetch(),
-		db.StepRun.Parents.Fetch(),
-		db.StepRun.Step.Fetch().With(
-			db.Step.Children.Fetch(),
-			db.Step.Parents.Fetch(),
-			db.Step.Action.Fetch(),
-		),
-		db.StepRun.JobRun.Fetch().With(
-			db.JobRun.Job.Fetch(),
-		),
-		db.StepRun.Ticker.Fetch(),
-	).Exec(context.Background())
-
-	if err != nil {
-		return nil, nil, err
 	}
 
 	return stepRun, updateInfo, nil
@@ -427,7 +413,10 @@ func (s *stepRunRepository) UpdateStepRunInputSchema(tenantId, stepRunId string,
 	return inputSchema, nil
 }
 
-func (s *stepRunRepository) QueueStepRun(tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*db.StepRunModel, error) {
+func (s *stepRunRepository) QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "queue-step-run-database")
+	defer span.End()
+
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -437,6 +426,8 @@ func (s *stepRunRepository) QueueStepRun(tenantId, stepRunId string, opts *repos
 	if err != nil {
 		return nil, err
 	}
+
+	var stepRun *dbsqlc.GetStepRunForEngineRow
 
 	err = retrier(s.l, func() error {
 		tx, err := s.pool.Begin(context.Background())
@@ -448,7 +439,7 @@ func (s *stepRunRepository) QueueStepRun(tenantId, stepRunId string, opts *repos
 		defer deferRollback(context.Background(), s.l, tx.Rollback)
 
 		// get the step run and make sure it's still in pending
-		stepRun, err := s.queries.GetStepRun(context.Background(), tx, dbsqlc.GetStepRunParams{
+		innerStepRun, err := s.queries.GetStepRun(context.Background(), tx, dbsqlc.GetStepRunParams{
 			ID:       sqlchelpers.UUIDFromStr(stepRunId),
 			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		})
@@ -457,11 +448,11 @@ func (s *stepRunRepository) QueueStepRun(tenantId, stepRunId string, opts *repos
 			return err
 		}
 
-		if stepRun.Status != dbsqlc.StepRunStatusPENDING {
+		if innerStepRun.Status != dbsqlc.StepRunStatusPENDING {
 			return repository.ErrStepRunIsNotPending
 		}
 
-		err = s.updateStepRunCore(tx, tenantId, updateParams, updateJobRunLookupDataParams)
+		stepRun, err = s.updateStepRunCore(ctx, tx, tenantId, updateParams, updateJobRunLookupDataParams)
 
 		if err != nil {
 			return err
@@ -485,7 +476,7 @@ func (s *stepRunRepository) QueueStepRun(tenantId, stepRunId string, opts *repos
 
 		defer deferRollback(context.Background(), s.l, tx.Rollback)
 
-		_, err = s.updateStepRunExtra(tx, tenantId, resolveJobRunParams, resolveLaterStepRunsParams)
+		_, err = s.updateStepRunExtra(ctx, tx, tenantId, resolveJobRunParams, resolveLaterStepRunsParams)
 
 		if err != nil {
 			return err
@@ -502,21 +493,7 @@ func (s *stepRunRepository) QueueStepRun(tenantId, stepRunId string, opts *repos
 		return nil, nil
 	}
 
-	return s.client.StepRun.FindUnique(
-		db.StepRun.ID.Equals(stepRunId),
-	).With(
-		db.StepRun.Children.Fetch(),
-		db.StepRun.Parents.Fetch(),
-		db.StepRun.Step.Fetch().With(
-			db.Step.Children.Fetch(),
-			db.Step.Parents.Fetch(),
-			db.Step.Action.Fetch(),
-		),
-		db.StepRun.JobRun.Fetch().With(
-			db.JobRun.Job.Fetch(),
-		),
-		db.StepRun.Ticker.Fetch(),
-	).Exec(context.Background())
+	return stepRun, nil
 }
 
 func getUpdateParams(
@@ -617,15 +594,28 @@ func getUpdateParams(
 }
 
 func (s *stepRunRepository) updateStepRunCore(
+	ctx context.Context,
 	tx pgx.Tx,
 	tenantId string,
 	updateParams dbsqlc.UpdateStepRunParams,
 	updateJobRunLookupDataParams *dbsqlc.UpdateJobRunLookupDataWithStepRunParams,
-) error {
-	_, err := s.queries.UpdateStepRun(context.Background(), tx, updateParams)
+) (*dbsqlc.GetStepRunForEngineRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "update-step-run-core")
+	defer span.End()
+
+	updateStepRun, err := s.queries.UpdateStepRun(context.Background(), tx, updateParams)
 
 	if err != nil {
-		return fmt.Errorf("could not update step run: %w", err)
+		return nil, fmt.Errorf("could not update step run: %w", err)
+	}
+
+	stepRuns, err := s.queries.GetStepRunForEngine(context.Background(), tx, dbsqlc.GetStepRunForEngineParams{
+		Ids:      []pgtype.UUID{updateStepRun.ID},
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get step run for engine: %w", err)
 	}
 
 	// update the job run lookup data if not nil
@@ -633,19 +623,27 @@ func (s *stepRunRepository) updateStepRunCore(
 		err = s.queries.UpdateJobRunLookupDataWithStepRun(context.Background(), tx, *updateJobRunLookupDataParams)
 
 		if err != nil {
-			return fmt.Errorf("could not update job run lookup data: %w", err)
+			return nil, fmt.Errorf("could not update job run lookup data: %w", err)
 		}
 	}
 
-	return nil
+	if len(stepRuns) == 0 {
+		return nil, fmt.Errorf("could not find step run for engine")
+	}
+
+	return stepRuns[0], nil
 }
 
 func (s *stepRunRepository) updateStepRunExtra(
+	ctx context.Context,
 	tx pgx.Tx,
 	tenantId string,
 	resolveJobRunParams dbsqlc.ResolveJobRunStatusParams,
 	resolveLaterStepRunsParams dbsqlc.ResolveLaterStepRunsParams,
 ) (*repository.StepRunUpdateInfo, error) {
+	ctx, span := telemetry.NewSpan(ctx, "update-step-run-extra")
+	defer span.End()
+
 	_, err := s.queries.ResolveLaterStepRuns(context.Background(), tx, resolveLaterStepRunsParams)
 
 	if err != nil {
@@ -705,20 +703,25 @@ func (s *stepRunRepository) GetStepRunById(tenantId, stepRunId string) (*db.Step
 	).Exec(context.Background())
 }
 
-func (s *stepRunRepository) CancelPendingStepRuns(tenantId, jobRunId, reason string) error {
-	_, err := s.client.StepRun.FindMany(
-		db.StepRun.JobRunID.Equals(jobRunId),
-		db.StepRun.Status.Equals(db.StepRunStatusPending),
-	).Update(
-		db.StepRun.Status.Set(db.StepRunStatusCancelled),
-		db.StepRun.CancelledAt.Set(time.Now().UTC()),
-		db.StepRun.CancelledReason.Set(reason),
-	).Exec(context.Background())
+// performant query for step run id, only returns what the engine needs
+func (s *stepRunRepository) GetStepRunForEngine(tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
+	res, err := s.queries.GetStepRunForEngine(context.Background(), s.pool, dbsqlc.GetStepRunForEngineParams{
+		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(stepRunId)},
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
 
-	return err
+	if err != nil {
+		return nil, err
+	}
+
+	if len(res) == 0 {
+		return nil, nil
+	}
+
+	return res[0], nil
 }
 
-func (s *stepRunRepository) ListStartableStepRuns(tenantId, jobRunId, parentStepRunId string) ([]*dbsqlc.StepRun, error) {
+func (s *stepRunRepository) ListStartableStepRuns(tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 	tx, err := s.pool.Begin(context.Background())
 
 	if err != nil {
@@ -727,10 +730,24 @@ func (s *stepRunRepository) ListStartableStepRuns(tenantId, jobRunId, parentStep
 
 	defer deferRollback(context.Background(), s.l, tx.Rollback)
 
-	stepRuns, err := s.queries.ListStartableStepRuns(context.Background(), tx, dbsqlc.ListStartableStepRunsParams{
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-		Jobrunid:        sqlchelpers.UUIDFromStr(jobRunId),
-		Parentsteprunid: sqlchelpers.UUIDFromStr(parentStepRunId),
+	params := dbsqlc.ListStartableStepRunsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Jobrunid: sqlchelpers.UUIDFromStr(jobRunId),
+	}
+
+	if parentStepRunId != nil {
+		params.ParentStepRunId = sqlchelpers.UUIDFromStr(*parentStepRunId)
+	}
+
+	srs, err := s.queries.ListStartableStepRuns(context.Background(), tx, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := s.queries.GetStepRunForEngine(context.Background(), tx, dbsqlc.GetStepRunForEngineParams{
+		Ids:      srs,
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
 
 	if err != nil {
@@ -739,38 +756,16 @@ func (s *stepRunRepository) ListStartableStepRuns(tenantId, jobRunId, parentStep
 
 	err = tx.Commit(context.Background())
 
-	if err != nil {
-		return nil, err
-	}
-
-	return stepRuns, nil
+	return res, err
 }
 
 func (s *stepRunRepository) ArchiveStepRunResult(tenantId, stepRunId string) error {
-	tx, err := s.pool.Begin(context.Background())
-
-	if err != nil {
-		return err
-	}
-
-	defer deferRollback(context.Background(), s.l, tx.Rollback)
-
-	_, err = s.queries.ArchiveStepRunResultFromStepRun(context.Background(), tx, dbsqlc.ArchiveStepRunResultFromStepRunParams{
+	_, err := s.queries.ArchiveStepRunResultFromStepRun(context.Background(), s.pool, dbsqlc.ArchiveStepRunResultFromStepRunParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
 	})
 
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit(context.Background())
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (s *stepRunRepository) ListArchivedStepRunResults(tenantId, stepRunId string) ([]db.StepRunResultArchiveModel, error) {

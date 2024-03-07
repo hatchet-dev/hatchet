@@ -11,7 +11,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -149,7 +150,7 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *taskqueue.
 	}
 
 	// lookup the event id in the database
-	event, err := ec.repo.Event().GetEventById(payload.EventId)
+	event, err := ec.repo.Event().GetEventForEngine(metadata.TenantId, payload.EventId)
 
 	if err != nil {
 		return fmt.Errorf("could not lookup event: %w", err)
@@ -158,14 +159,14 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *taskqueue.
 	return ec.processEvent(ctx, event)
 }
 
-func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *db.EventModel) error {
+func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *dbsqlc.GetEventForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "process-event")
 	defer span.End()
 
-	tenantId := event.TenantID
+	tenantId := sqlchelpers.UUIDToStr(event.TenantId)
 
 	// query for matching workflows in the system
-	workflows, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, event.Key)
+	workflowVersions, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, event.Key)
 
 	if err != nil {
 		return fmt.Errorf("could not query workflows for event: %w", err)
@@ -174,12 +175,12 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *db.Even
 	// create a new workflow run in the database
 	var g = new(errgroup.Group)
 
-	for _, workflow := range workflows {
-		workflowCp := workflow
+	for _, workflowVersion := range workflowVersions {
+		workflowCp := workflowVersion
 
 		g.Go(func() error {
 			// create a new workflow run in the database
-			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(event, &workflowCp)
+			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(event, workflowCp)
 
 			if err != nil {
 				return fmt.Errorf("could not get create workflow run opts: %w", err)

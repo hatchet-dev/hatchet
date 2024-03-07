@@ -363,7 +363,7 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyActionRequeue(ctx context.Conte
 			})
 
 			if err != nil {
-				return fmt.Errorf("could not update get group key run %s: %w", innerGroupKeyRun.ID, err)
+				return fmt.Errorf("could not update get group key run %s: %w", getGroupKeyRunId, err)
 			}
 
 			return wc.scheduleGetGroupAction(ctx, innerGroupKeyRun)

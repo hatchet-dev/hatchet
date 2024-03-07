@@ -183,6 +183,13 @@ func (r *eventRepository) GetEventById(id string) (*db.EventModel, error) {
 	).Exec(context.Background())
 }
 
+func (r *eventRepository) GetEventForEngine(tenantId, id string) (*dbsqlc.GetEventForEngineRow, error) {
+	return r.queries.GetEventForEngine(context.Background(), r.pool, dbsqlc.GetEventForEngineParams{
+		ID:       sqlchelpers.UUIDFromStr(id),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+}
+
 func (r *eventRepository) ListEventsById(tenantId string, ids []string) ([]db.EventModel, error) {
 	return r.client.Event.FindMany(
 		db.Event.ID.In(ids),

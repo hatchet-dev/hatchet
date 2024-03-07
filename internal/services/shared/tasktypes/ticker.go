@@ -81,20 +81,3 @@ type CancelWorkflowTaskPayload struct {
 type CancelWorkflowTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
-
-type ScheduleJobRunTimeoutTaskPayload struct {
-	JobRunId  string `json:"job_run_id" validate:"required,uuid"`
-	TimeoutAt string `json:"timeout_at" validate:"required"`
-}
-
-type ScheduleJobRunTimeoutTaskMetadata struct {
-	TenantId string `json:"tenant_id" validate:"required,uuid"`
-}
-
-type CancelJobRunTimeoutTaskPayload struct {
-	JobRunId string `json:"job_run_id" validate:"required,uuid"`
-}
-
-type CancelJobRunTimeoutTaskMetadata struct {
-	TenantId string `json:"tenant_id" validate:"required,uuid"`
-}
