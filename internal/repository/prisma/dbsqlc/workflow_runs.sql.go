@@ -162,7 +162,6 @@ func (q *Queries) CreateGetGroupKeyRun(ctx context.Context, db DBTX, arg CreateG
 }
 
 const createJobRunLookupData = `-- name: CreateJobRunLookupData :one
-
 INSERT INTO "JobRunLookupData" (
     "id",
     "createdAt",
@@ -194,45 +193,6 @@ type CreateJobRunLookupDataParams struct {
 	Triggeredby string      `json:"triggeredby"`
 }
 
-// INSERT INTO "JobRun" (
-//
-//	"id",
-//	"createdAt",
-//	"updatedAt",
-//	"deletedAt",
-//	"tenantId",
-//	"workflowRunId",
-//	"jobId",
-//	"tickerId",
-//	"status",
-//	"result",
-//	"startedAt",
-//	"finishedAt",
-//	"timeoutAt",
-//	"cancelledAt",
-//	"cancelledReason",
-//	"cancelledError"
-//
-// ) VALUES (
-//
-//	COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
-//	CURRENT_TIMESTAMP,
-//	CURRENT_TIMESTAMP,
-//	NULL,
-//	@tenantId::uuid,
-//	@workflowRunId::uuid,
-//	@jobId::uuid,
-//	NULL,
-//	'PENDING', -- default status
-//	NULL,
-//	NULL,
-//	NULL,
-//	NULL,
-//	NULL,
-//	NULL,
-//	NULL
-//
-// ) RETURNING *;
 func (q *Queries) CreateJobRunLookupData(ctx context.Context, db DBTX, arg CreateJobRunLookupDataParams) (*JobRunLookupData, error) {
 	row := db.QueryRow(ctx, createJobRunLookupData,
 		arg.ID,
@@ -489,10 +449,6 @@ func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, jobrunid pgty
 }
 
 const listStartableStepRuns = `-- name: ListStartableStepRuns :many
-
-    
-
-
 SELECT 
     child_run."id" AS "id"
 FROM 
@@ -500,14 +456,13 @@ FROM
 LEFT JOIN 
     "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
 WHERE 
-    child_run."tenantId" = $1::uuid
-    AND child_run."jobRunId" = $2::uuid
+    child_run."jobRunId" = $1::uuid
     AND child_run."status" = 'PENDING'
     -- case on whether parentStepRunId is null
     AND (
-        ($3::uuid IS NULL AND step_run_order."A" IS NULL) OR 
+        ($2::uuid IS NULL AND step_run_order."A" IS NULL) OR 
         (
-            step_run_order."A" = $3::uuid
+            step_run_order."A" = $2::uuid
             AND NOT EXISTS (
                 SELECT 1
                 FROM "_StepRunOrder" AS parent_order
@@ -521,99 +476,12 @@ WHERE
 `
 
 type ListStartableStepRunsParams struct {
-	Tenantid        pgtype.UUID `json:"tenantid"`
 	Jobrunid        pgtype.UUID `json:"jobrunid"`
 	ParentStepRunId pgtype.UUID `json:"parentStepRunId"`
 }
 
-// INSERT INTO "_StepRunOrder" ("A", "B")
-// SELECT
-//
-//	parent_run."id" AS "A",
-//	child_run."id" AS "B"
-//
-// FROM
-//
-//	"_StepOrder" AS step_order
-//
-// JOIN
-//
-//	"StepRun" AS parent_run ON parent_run."stepId" = step_order."A" AND parent_run."jobRunId" = @jobRunId::uuid
-//
-// JOIN
-//
-//	"StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = @jobRunId::uuid;
-//
-// INSERT INTO "StepRun" (
-//
-//	"id",
-//	"createdAt",
-//	"updatedAt",
-//	"deletedAt",
-//	"tenantId",
-//	"jobRunId",
-//	"stepId",
-//	"workerId",
-//	"tickerId",
-//	"status",
-//	"input",
-//	"output",
-//	"requeueAfter",
-//	"scheduleTimeoutAt",
-//	"error",
-//	"startedAt",
-//	"finishedAt",
-//	"timeoutAt",
-//	"cancelledAt",
-//	"cancelledReason",
-//	"cancelledError",
-//	"callerFiles"
-//
-// ) VALUES (
-//
-//	COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
-//	CURRENT_TIMESTAMP,
-//	CURRENT_TIMESTAMP,
-//	NULL,
-//	@tenantId::uuid,
-//	@jobRunId::uuid,
-//	@stepId::uuid,
-//	NULL,
-//	NULL,
-//	'PENDING', -- default status
-//	NULL,
-//	NULL,
-//	@requeueAfter::timestamp,
-//	@scheduleTimeoutAt::timestamp,
-//	NULL,
-//	NULL,
-//	NULL,
-//	NULL,
-//	NULL,
-//	NULL,
-//	NULL,
-//	'{}'
-//
-// ) RETURNING *;
-// INSERT INTO "_StepRunOrder" ("A", "B")
-// SELECT
-//
-//	parent_run."id" AS "A",
-//	child_run."id" AS "B"
-//
-// FROM
-//
-//	"_StepOrder" AS step_order
-//
-// JOIN
-//
-//	"StepRun" AS parent_run ON parent_run."stepId" = step_order."A" AND parent_run."jobRunId" = @jobRunId::uuid
-//
-// JOIN
-//
-//	"StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = @jobRunId::uuid;
 func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListStartableStepRunsParams) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, listStartableStepRuns, arg.Tenantid, arg.Jobrunid, arg.ParentStepRunId)
+	rows, err := db.Query(ctx, listStartableStepRuns, arg.Jobrunid, arg.ParentStepRunId)
 	if err != nil {
 		return nil, err
 	}

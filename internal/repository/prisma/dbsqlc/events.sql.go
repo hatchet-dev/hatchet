@@ -132,14 +132,8 @@ SELECT
 FROM
     "Event"
 WHERE
-    "id" = $1::uuid AND
-    "tenantId" = $2::uuid
+    "id" = $1::uuid
 `
-
-type GetEventForEngineParams struct {
-	ID       pgtype.UUID `json:"id"`
-	Tenantid pgtype.UUID `json:"tenantid"`
-}
 
 type GetEventForEngineRow struct {
 	ID       pgtype.UUID `json:"id"`
@@ -148,8 +142,8 @@ type GetEventForEngineRow struct {
 	TenantId pgtype.UUID `json:"tenantId"`
 }
 
-func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, arg GetEventForEngineParams) (*GetEventForEngineRow, error) {
-	row := db.QueryRow(ctx, getEventForEngine, arg.ID, arg.Tenantid)
+func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id pgtype.UUID) (*GetEventForEngineRow, error) {
+	row := db.QueryRow(ctx, getEventForEngine, id)
 	var i GetEventForEngineRow
 	err := row.Scan(
 		&i.ID,

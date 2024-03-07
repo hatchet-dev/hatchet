@@ -731,7 +731,6 @@ func (s *stepRunRepository) ListStartableStepRuns(tenantId, jobRunId string, par
 	defer deferRollback(context.Background(), s.l, tx.Rollback)
 
 	params := dbsqlc.ListStartableStepRunsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Jobrunid: sqlchelpers.UUIDFromStr(jobRunId),
 	}
 
