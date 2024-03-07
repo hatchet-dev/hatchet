@@ -170,3 +170,9 @@ LogLineSearch:
   $ref: "./logs.yaml#/LogLineSearch"
 LogLineLevelField:
   $ref: "./logs.yaml#/LogLineLevelField"
+SNSIntegration:
+  $ref: "./sns.yaml#/SNSIntegration"
+ListSNSIntegrations:
+  $ref: "./sns.yaml#/ListSNSIntegrations"
+CreateSNSIntegrationRequest:
+  $ref: "./sns.yaml#/CreateSNSIntegrationRequest"

@@ -9,7 +9,9 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import api, {
   APIToken,
   CreateAPITokenRequest,
+  CreateSNSIntegrationRequest,
   CreateTenantInviteRequest,
+  SNSIntegration,
   TenantInvite,
   UpdateTenantInviteRequest,
   queries,
@@ -19,11 +21,14 @@ import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/invites-columns';
 import { columns as membersColumns } from './components/members-columns';
 import { columns as apiTokensColumns } from './components/api-tokens-columns';
+import { columns as snsIntegrationsColumns } from './components/sns-integrations-columns';
 import { columns as githubInstallationsColumns } from './components/github-installations-columns';
 import { UpdateInviteForm } from './components/update-invite-form';
 import { DeleteInviteForm } from './components/delete-invite-form';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
+import { CreateSNSDialog } from './components/create-sns-dialog';
+import { DeleteSNSForm } from './components/delete-sns-form';
 
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -46,6 +51,8 @@ export default function TenantSettings() {
         <TokensList />
         {hasGithubIntegration && <Separator className="my-4" />}
         {hasGithubIntegration && <GithubInstallationsList />}
+        <Separator className="my-4" />
+        <SNSIntegrationsList />
       </div>
     </div>
   );
@@ -422,5 +429,141 @@ function GithubInstallationsList() {
         getRowId={(row) => row.metadata.id}
       />
     </div>
+  );
+}
+
+function SNSIntegrationsList() {
+  const { tenant } = useOutletContext<TenantContextType>();
+  const [showSNSDialog, setShowSNSDialog] = useState(false);
+  const [deleteSNS, setDeleteSNS] = useState<SNSIntegration | null>(null);
+
+  const listIntegrationsQuery = useQuery({
+    ...queries.snsIntegrations.list(tenant.metadata.id),
+  });
+
+  const cols = snsIntegrationsColumns({
+    onDeleteClick: (row) => {
+      setDeleteSNS(row);
+    },
+  });
+
+  return (
+    <div>
+      <div className="flex flex-row justify-between items-center">
+        <h3 className="text-xl font-semibold leading-tight text-foreground">
+          SNS Integrations
+        </h3>
+        <Button key="create-api-token" onClick={() => setShowSNSDialog(true)}>
+          Create SNS Endpoint
+        </Button>
+      </div>
+      <Separator className="my-4" />
+      <DataTable
+        isLoading={listIntegrationsQuery.isLoading}
+        columns={cols}
+        data={listIntegrationsQuery.data?.rows || []}
+        filters={[]}
+        getRowId={(row) => row.metadata.id}
+      />
+      {showSNSDialog && (
+        <CreateSNSIntegration
+          tenant={tenant.metadata.id}
+          showSNSDialog={showSNSDialog}
+          setShowSNSDialog={setShowSNSDialog}
+          onSuccess={() => {
+            listIntegrationsQuery.refetch();
+          }}
+        />
+      )}
+      {deleteSNS && (
+        <DeleteSNSIntegration
+          tenant={tenant.metadata.id}
+          snsIntegration={deleteSNS}
+          setShowSNSDelete={() => setDeleteSNS(null)}
+          onSuccess={() => {
+            setDeleteSNS(null);
+            listIntegrationsQuery.refetch();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CreateSNSIntegration({
+  tenant,
+  showSNSDialog,
+  setShowSNSDialog,
+  onSuccess,
+}: {
+  tenant: string;
+  onSuccess: () => void;
+  showSNSDialog: boolean;
+  setShowSNSDialog: (show: boolean) => void;
+}) {
+  const [generatedIngestUrl, setGeneratedIngestUrl] = useState<
+    string | undefined
+  >();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { handleApiError } = useApiError({
+    setFieldErrors: setFieldErrors,
+  });
+
+  const createSNSIntegrationMutation = useMutation({
+    mutationKey: ['sns:create', tenant],
+    mutationFn: async (data: CreateSNSIntegrationRequest) => {
+      const res = await api.snsCreate(tenant, data);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      setGeneratedIngestUrl(data.ingestUrl);
+      onSuccess();
+    },
+    onError: handleApiError,
+  });
+
+  return (
+    <Dialog open={showSNSDialog} onOpenChange={setShowSNSDialog}>
+      <CreateSNSDialog
+        isLoading={createSNSIntegrationMutation.isPending}
+        onSubmit={createSNSIntegrationMutation.mutate}
+        snsIngestionUrl={generatedIngestUrl}
+        fieldErrors={fieldErrors}
+      />
+    </Dialog>
+  );
+}
+
+function DeleteSNSIntegration({
+  tenant,
+  snsIntegration,
+  setShowSNSDelete,
+  onSuccess,
+}: {
+  tenant: string;
+  snsIntegration: SNSIntegration;
+  setShowSNSDelete: (show: boolean) => void;
+  onSuccess: () => void;
+}) {
+  const { handleApiError } = useApiError({});
+
+  const deleteMutation = useMutation({
+    mutationKey: ['sns:delete', tenant, snsIntegration],
+    mutationFn: async () => {
+      await api.snsDelete(snsIntegration.metadata.id);
+    },
+    onSuccess: onSuccess,
+    onError: handleApiError,
+  });
+
+  return (
+    <Dialog open={!!snsIntegration} onOpenChange={setShowSNSDelete}>
+      <DeleteSNSForm
+        snsIntegration={snsIntegration}
+        isLoading={deleteMutation.isPending}
+        onSubmit={() => deleteMutation.mutate()}
+        onCancel={() => setShowSNSDelete(false)}
+      />
+    </Dialog>
   );
 }

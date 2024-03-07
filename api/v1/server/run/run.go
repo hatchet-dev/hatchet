@@ -116,6 +116,16 @@ func (t *APIServer) Run() (func() error, error) {
 		return tenantInvite, tenantInvite.TenantID, nil
 	})
 
+	populatorMW.RegisterGetter("sns", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		snsIntegration, err := config.Repository.SNS().GetSNSIntegrationById(id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return snsIntegration, snsIntegration.TenantID, nil
+	})
+
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		workflow, err := config.Repository.Workflow().GetWorkflowById(id)
 

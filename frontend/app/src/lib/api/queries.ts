@@ -35,6 +35,12 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.apiTokenList(tenant)).data,
     }),
   },
+  snsIntegrations: {
+    list: (tenant: string) => ({
+      queryKey: ['sns:list', tenant],
+      queryFn: async () => (await api.snsList(tenant)).data,
+    }),
+  },
   invites: {
     list: (tenant: string) => ({
       queryKey: ['tenant-invite:list', tenant],
