@@ -1,0 +1,56 @@
+# Triggering Workflows with Cron in Hatchet
+
+Hatchet provides a flexible and powerful way to trigger workflows based on a schedule using cron expressions. Cron is a time-based job scheduler that allows you to define when a workflow should be executed automatically. This feature is particularly useful for recurring tasks, such as daily data updates, weekly reports, or periodic maintenance jobs.
+
+## Configuring Cron Triggers
+
+To trigger a workflow with a cron schedule, you need to configure the `on` property in the workflow definition. Here's an example of how to define a cron trigger:
+
+```typescript
+const myWorkflow: Workflow = {
+  id: 'my-workflow',
+  description: 'A workflow triggered by a cron schedule',
+  on: {
+    cron: '0 0 * * *', // Run every day at midnight
+  },
+  steps: [
+    // Define your workflow steps here
+  ],
+};
+```
+
+In this example, the `on` property is set to an object with a `cron` property. The `cron` property specifies the cron expression that determines when the workflow should be triggered.
+
+## Cron Expression Syntax
+
+Cron expressions in Hatchet follow the standard cron syntax. A cron expression consists of five fields separated by spaces:
+
+```
+┌───────────── minute (0 - 59)
+│ ┌───────────── hour (0 - 23)
+│ │ ┌───────────── day of the month (1 - 31)
+│ │ │ ┌───────────── month (1 - 12)
+│ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday)
+│ │ │ │ │
+│ │ │ │ │
+* * * * *
+```
+
+Each field can contain a specific value, an asterisk (`*`) to represent all possible values, or a range of values. Here are some examples of cron expressions:
+
+- `0 0 * * *`: Run every day at midnight
+- `*/15 * * * *`: Run every 15 minutes
+- `0 9 * * 1`: Run every Monday at 9 AM
+- `0 0 1 * *`: Run on the first day of every month at midnight
+
+## Scheduling Considerations
+
+When using cron triggers, there are a few considerations to keep in mind:
+
+1. **Time Zone**: Cron schedules are based on the time zone configured in your Hatchet instance. Make sure to consider the time zone when defining your cron expressions.
+
+2. **Execution Time**: The actual execution time of a cron-triggered workflow may vary slightly from the scheduled time. Hatchet makes a best-effort attempt to start the workflow as close to the scheduled time as possible, but there may be slight delays due to system load or other factors.
+
+3. **Missed Schedules**: If a scheduled workflow is missed (e.g., due to system downtime), Hatchet will not automatically run the missed instances. It will wait for the next scheduled time to trigger the workflow.
+
+4. **Overlapping Schedules**: If a workflow is still running when the next scheduled time arrives, Hatchet will not start a new instance of the workflow. It will wait for the current instance to complete before triggering the next scheduled run.

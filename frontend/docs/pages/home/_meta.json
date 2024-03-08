@@ -1,15 +1,19 @@
 {
   "index": "Introduction",
-  "-- Getting Started": {
-    "type": "separator",
-    "title": "Getting Started"
+  "quickstart": "Quick Start",
+  "--guide": {
+    "title": "Guide",
+    "type": "separator"
   },
-  "quickstart": "Quickstart",
-  "-- SDKs": {
-    "type": "separator",
-    "title": "SDKs"
+  "basics": "Working With Hatchet",
+  "tutorials": "Tutorials",
+  "features": "Features",
+  "--more": {
+    "title": "More",
+    "type": "separator"
   },
-  "go-sdk": "Go SDK",
-  "python-sdk": "Python SDK",
-  "typescript-sdk": "TypeScript SDK"
+  "about": {
+    "title": "About Hatchet ↗",
+    "href": "https://hatchet.run"
+  }
 }

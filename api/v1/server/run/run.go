@@ -2,7 +2,9 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -116,6 +118,16 @@ func (t *APIServer) Run() (func() error, error) {
 		return tenantInvite, tenantInvite.TenantID, nil
 	})
 
+	populatorMW.RegisterGetter("sns", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		snsIntegration, err := config.Repository.SNS().GetSNSIntegrationById(id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return snsIntegration, snsIntegration.TenantID, nil
+	})
+
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		workflow, err := config.Repository.Workflow().GetWorkflowById(id)
 
@@ -209,7 +221,7 @@ func (t *APIServer) Run() (func() error, error) {
 	gen.RegisterHandlers(e, myStrictApiHandler)
 
 	go func() {
-		if err := e.Start(fmt.Sprintf(":%d", t.config.Runtime.Port)); err != nil {
+		if err := e.Start(fmt.Sprintf(":%d", t.config.Runtime.Port)); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			panic(err)
 		}
 	}()

@@ -24,6 +24,7 @@
     "nextra": "^2.13.2",
     "nextra-theme-docs": "^2.13.2",
     "postcss": "^8.4.33",
+    "posthog-js": "^1.111.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-tweet": "^3.2.0",

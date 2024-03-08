@@ -7,6 +7,7 @@ from hatchet_sdk.clients.rest.api.github_api import GithubApi
 from hatchet_sdk.clients.rest.api.healthcheck_api import HealthcheckApi
 from hatchet_sdk.clients.rest.api.log_api import LogApi
 from hatchet_sdk.clients.rest.api.metadata_api import MetadataApi
+from hatchet_sdk.clients.rest.api.sns_api import SNSApi
 from hatchet_sdk.clients.rest.api.step_run_api import StepRunApi
 from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
 from hatchet_sdk.clients.rest.api.user_api import UserApi

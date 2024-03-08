@@ -735,3 +735,26 @@ export enum LogLineOrderByDirection {
 export type LogLineSearch = string;
 
 export type LogLineLevelField = LogLineLevel[];
+
+export interface SNSIntegration {
+  metadata: APIResourceMeta;
+  /**
+   * The unique identifier for the tenant that the SNS integration belongs to.
+   * @format uuid
+   */
+  tenantId: string;
+  /** The Amazon Resource Name (ARN) of the SNS topic. */
+  topicArn: string;
+  /** The URL to send SNS messages to. */
+  ingestUrl?: string;
+}
+
+export interface ListSNSIntegrations {
+  pagination: PaginationResponse;
+  rows: SNSIntegration[];
+}
+
+export interface CreateSNSIntegrationRequest {
+  /** The Amazon Resource Name (ARN) of the SNS topic. */
+  topicArn: string;
+}

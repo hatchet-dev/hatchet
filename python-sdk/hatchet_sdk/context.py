@@ -18,10 +18,17 @@ def get_caller_file_path():
 
 class Context:
     def __init__(self, action: Action, client: DispatcherClient, eventClient: EventClientImpl):
-        try:
-            self.data = json.loads(action.action_payload)
-        except Exception as e:
-            self.data = json.loads("{}")
+        # Check the type of action.action_payload before attempting to load it as JSON
+        if isinstance(action.action_payload, (str, bytes, bytearray)):
+            try:
+                self.data = json.loads(action.action_payload)
+            except Exception as e:
+                logger.error(f"Error parsing action payload: {e}")
+                # Assign an empty dictionary if parsing fails
+                self.data = {}
+        else:
+            # Directly assign the payload to self.data if it's already a dict
+            self.data = action.action_payload if isinstance(action.action_payload, dict) else {}
 
         self.stepRunId = action.step_run_id
         self.exit_flag = Event()

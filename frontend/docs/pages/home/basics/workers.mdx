@@ -1,0 +1,37 @@
+{/* TODO revise this page */}
+# Workers in Hatchet
+
+While Hatchet manages the scheduling and orchestration, the workers are the entities that actually execute the individual steps defined within your workflows. Understanding how to deploy and manage these workers efficiently is key to leveraging Hatchet for distributed task execution.
+
+## Overview of Workers
+
+Workers in Hatchet are long-lived processes that await instructions from the Hatchet engine to execute specific steps. They are the muscle behind the brain, where Hatchet acts as the brain orchestrating what needs to be done and the workers carry out those tasks. Here's what you need to understand about workers:
+
+- **Autonomy:** Workers operate independently across different nodes in your infrastructure, which can be spread across multiple systems or even different cloud environments.
+- **Technology Agnostic:** Workers can be written in different programming languages or technologies, provided they can communicate with the Hatchet engine and execute the required steps.
+- **Scalability:** You can scale your system horizontally by adding more workers, enabling Hatchet to distribute tasks across a wider set of resources and handle increased loads efficiently.
+
+When you define a workflow in Hatchet, you register the steps or workflows that that node is capable of executing. The Hatchet engine then schedules these steps and assigns them to available workers for execution. The workers receive the instructions from the Hatchet engine, execute the steps, and report back the results to the engine when complete.
+
+## Best Practices for Workers
+
+To ensure that your Hatchet implementation is robust, scalable, and efficient, adhere to these best practices for setting up and managing your workers:
+
+1. **Reliable Execution Environment:** Deploy your workers in a stable and reliable environment. Ensure that they have sufficient resources to execute the tasks without running into resource contention or other environmental issues.
+
+2. **Monitoring and Logging:** Implement robust monitoring and logging for your workers. Keeping track of worker health, performance, and task execution status is crucial for identifying issues and optimizing performance.
+
+3. **Graceful Error Handling:** Design your workers to handle errors gracefully. They should be able to report execution failures back to Hatchet and, when possible, retry execution based on the configured policies.
+
+4. **Secure Communication:** Ensure that the communication between your workers and the Hatchet engine is secure, particularly if they are distributed across different networks or environments.
+
+5. **Lifecycle Management:** Implement proper lifecycle management for your workers. They should be able to restart automatically in case of critical failures and should support graceful shutdown procedures for maintenance or scaling operations.
+
+6. **Scalability Practices:** Plan for scalability by designing your system to easily add or remove workers based on demand. This might involve using containerization, orchestration tools, or cloud auto-scaling features.
+
+7. **Consistent Updates:** Keep your worker implementations up to date with the latest Hatchet SDKs and ensure that they are compatible with the version of the Hatchet engine you are using.
+
+## Conclusion
+
+While Hatchet is responsible for the high-level orchestration and scheduling of workflows and steps, workers are the essential components that execute the tasks on the ground. By deploying well-managed, efficient workers, you can ensure that your Hatchet-powered system is reliable, scalable, and capable of meeting your distributed task execution needs. Remember, a strong foundation of robust workers is key to harnessing the full capabilities of Hatchet.
+

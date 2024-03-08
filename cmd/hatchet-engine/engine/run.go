@@ -47,7 +47,10 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	healthProbes := sc.HasService("health")
 	if healthProbes {
 		h = health.New(sc.Repository, sc.TaskQueue)
-		cleanup := h.Start()
+		cleanup, err := h.Start()
+		if err != nil {
+			return fmt.Errorf("could not start health: %w", err)
+		}
 		teardown = append(teardown, Teardown{
 			name: "health",
 			fn:   cleanup,
