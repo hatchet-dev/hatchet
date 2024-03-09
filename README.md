@@ -60,7 +60,7 @@ Hatchet replaces difficult to manage legacy queues or pub/sub systems so you can
 
 ## Quick Start
 
-Hatchet supports your technology stack with open-source SDKs for Python, Typescript, and Go. To get started, see the Hatchet documentation [here](https://docs.hatchet.run/home/quickstart), or check out our quickstart repos:
+Hatchet supports your technology stack with open-source SDKs for Python, Typescript, and Go. To get started, see the Hatchet documentation [here](https://docs.hatchet.run/quickstart), or check out our quickstart repos:
 
 - [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
 - [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
