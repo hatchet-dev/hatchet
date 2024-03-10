@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 func (t *HeartbeaterImpl) removeStaleTickers() func() {
@@ -39,9 +39,9 @@ func (t *HeartbeaterImpl) removeStaleTickers() func() {
 			}
 
 			// send a task to the job processing queue that the ticker is removed
-			err = t.tq.AddTask(
+			err = t.mq.AddMessage(
 				context.Background(),
-				taskqueue.JOB_PROCESSING_QUEUE,
+				msgqueue.JOB_PROCESSING_QUEUE,
 				tickerRemoved(ticker.ID),
 			)
 
@@ -61,14 +61,14 @@ func (t *HeartbeaterImpl) removeStaleTickers() func() {
 	}
 }
 
-func tickerRemoved(tickerId string) *taskqueue.Task {
+func tickerRemoved(tickerId string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.RemoveTickerTaskPayload{
 		TickerId: tickerId,
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.RemoveTickerTaskMetadata{})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "ticker-removed",
 		Payload:  payload,
 		Metadata: metadata,
@@ -95,9 +95,9 @@ func (t *HeartbeaterImpl) rescheduleCrons(ticker *db.TickerModel, validTickerId 
 		}
 
 		// send to task queue
-		err = t.tq.AddTask(
+		err = t.mq.AddMessage(
 			context.TODO(),
-			taskqueue.QueueTypeFromTickerID(ticker.ID),
+			msgqueue.QueueTypeFromTickerID(ticker.ID),
 			task,
 		)
 
@@ -132,9 +132,9 @@ func (t *HeartbeaterImpl) rescheduleWorkflows(ticker *db.TickerModel, validTicke
 			}
 
 			// send to task queue
-			err = t.tq.AddTask(
+			err = t.mq.AddMessage(
 				context.TODO(),
-				taskqueue.QueueTypeFromTickerID(ticker.ID),
+				msgqueue.QueueTypeFromTickerID(ticker.ID),
 				task,
 			)
 
@@ -147,7 +147,7 @@ func (t *HeartbeaterImpl) rescheduleWorkflows(ticker *db.TickerModel, validTicke
 	return nil
 }
 
-func cronScheduleTask(tickerId string, cronTriggerRef *db.WorkflowTriggerCronRefModel, workflowVersion *db.WorkflowVersionModel) (*taskqueue.Task, error) {
+func cronScheduleTask(tickerId string, cronTriggerRef *db.WorkflowTriggerCronRefModel, workflowVersion *db.WorkflowVersionModel) (*msgqueue.Message, error) {
 	payload, _ := datautils.ToJSONMap(tasktypes.ScheduleCronTaskPayload{
 		CronParentId:      cronTriggerRef.ParentID,
 		Cron:              cronTriggerRef.Cron,
@@ -158,14 +158,14 @@ func cronScheduleTask(tickerId string, cronTriggerRef *db.WorkflowTriggerCronRef
 		TenantId: workflowVersion.Workflow().TenantID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "schedule-cron",
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
 }
 
-func workflowScheduleTask(tickerId string, workflowTriggerRef *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*taskqueue.Task, error) {
+func workflowScheduleTask(tickerId string, workflowTriggerRef *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*msgqueue.Message, error) {
 	payload, _ := datautils.ToJSONMap(tasktypes.ScheduleWorkflowTaskPayload{
 		ScheduledWorkflowId: workflowTriggerRef.ID,
 		TriggerAt:           workflowTriggerRef.TriggerAt.Format(time.RFC3339),
@@ -176,7 +176,7 @@ func workflowScheduleTask(tickerId string, workflowTriggerRef *db.WorkflowTrigge
 		TenantId: workflowVersion.Workflow().TenantID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "schedule-workflow",
 		Payload:  payload,
 		Metadata: metadata,

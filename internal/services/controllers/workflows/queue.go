@@ -9,17 +9,17 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 )
 
-func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, task *taskqueue.Task) error {
+func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-workflow-run-queued")
 	defer span.End()
 
@@ -78,7 +78,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 	return nil
 }
 
-func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context, task *taskqueue.Task) error {
+func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-workflow-run-finished")
 	defer span.End()
 
@@ -225,9 +225,9 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	dispatcherId := sqlchelpers.UUIDToStr(selectedWorker.Worker.DispatcherId)
 
 	// send a task to the dispatcher
-	err = wc.tq.AddTask(
+	err = wc.mq.AddMessage(
 		ctx,
-		taskqueue.QueueTypeFromDispatcherID(dispatcherId),
+		msgqueue.QueueTypeFromDispatcherID(dispatcherId),
 		getGroupActionTask(
 			workflowRun.TenantID,
 			workflowRun.ID,
@@ -241,9 +241,9 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	}
 
 	// send a task to the ticker
-	err = wc.tq.AddTask(
+	err = wc.mq.AddMessage(
 		ctx,
-		taskqueue.QueueTypeFromTickerID(ticker.ID),
+		msgqueue.QueueTypeFromTickerID(ticker.ID),
 		scheduleTimeoutTask,
 	)
 
@@ -263,9 +263,9 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 	var err error
 
 	for i := range jobRuns {
-		err := wc.tq.AddTask(
+		err := wc.mq.AddMessage(
 			context.Background(),
-			taskqueue.JOB_PROCESSING_QUEUE,
+			msgqueue.JOB_PROCESSING_QUEUE,
 			tasktypes.JobRunQueuedToTask(jobRuns[i].Job(), &jobRuns[i]),
 		)
 
@@ -277,7 +277,7 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 	return err
 }
 
-func (wc *WorkflowsControllerImpl) handleGroupKeyActionRequeue(ctx context.Context, task *taskqueue.Task) error {
+func (wc *WorkflowsControllerImpl) handleGroupKeyActionRequeue(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-group-key-action-requeue-ticker")
 	defer span.End()
 
@@ -555,9 +555,9 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRun(tenantId, workflowRunId str
 	for i := range stepRuns {
 		stepRunCp := stepRuns[i]
 		errGroup.Go(func() error {
-			return wc.tq.AddTask(
+			return wc.mq.AddMessage(
 				context.Background(),
-				taskqueue.JOB_PROCESSING_QUEUE,
+				msgqueue.JOB_PROCESSING_QUEUE,
 				getStepRunNotifyCancelTask(tenantId, stepRunCp.ID, "CANCELLED_BY_CONCURRENCY_LIMIT"),
 			)
 		})
@@ -566,7 +566,7 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRun(tenantId, workflowRunId str
 	return errGroup.Wait()
 }
 
-func getGroupActionTask(tenantId, workflowRunId, workerId, dispatcherId string) *taskqueue.Task {
+func getGroupActionTask(tenantId, workflowRunId, workerId, dispatcherId string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.GroupKeyActionAssignedTaskPayload{
 		WorkflowRunId: workflowRunId,
 		WorkerId:      workerId,
@@ -577,14 +577,14 @@ func getGroupActionTask(tenantId, workflowRunId, workerId, dispatcherId string) 
 		DispatcherId: dispatcherId,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "group-key-action-assigned",
 		Payload:  payload,
 		Metadata: metadata,
 	}
 }
 
-func getStepRunNotifyCancelTask(tenantId, stepRunId, reason string) *taskqueue.Task {
+func getStepRunNotifyCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunNotifyCancelTaskPayload{
 		StepRunId:       stepRunId,
 		CancelledReason: reason,
@@ -594,14 +594,14 @@ func getStepRunNotifyCancelTask(tenantId, stepRunId, reason string) *taskqueue.T
 		TenantId: tenantId,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "step-run-cancelled",
 		Payload:  payload,
 		Metadata: metadata,
 	}
 }
 
-func scheduleGetGroupKeyRunTimeoutTask(ticker *db.TickerModel, getGroupKeyRun *db.GetGroupKeyRunModel) (*taskqueue.Task, error) {
+func scheduleGetGroupKeyRunTimeoutTask(ticker *db.TickerModel, getGroupKeyRun *db.GetGroupKeyRunModel) (*msgqueue.Message, error) {
 	durationStr := defaults.DefaultStepRunTimeout
 
 	// get a duration
@@ -623,7 +623,7 @@ func scheduleGetGroupKeyRunTimeoutTask(ticker *db.TickerModel, getGroupKeyRun *d
 		TenantId: getGroupKeyRun.TenantID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "schedule-get-group-key-run-timeout",
 		Payload:  payload,
 		Metadata: metadata,

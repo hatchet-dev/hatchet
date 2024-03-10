@@ -17,13 +17,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/datautils/merge"
 	"github.com/hatchet-dev/hatchet/internal/logger"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 
@@ -35,7 +35,7 @@ type JobsController interface {
 }
 
 type JobsControllerImpl struct {
-	tq   taskqueue.TaskQueue
+	mq   msgqueue.MessageQueue
 	l    *zerolog.Logger
 	repo repository.Repository
 	dv   datautils.DataDecoderValidator
@@ -46,7 +46,7 @@ type JobsControllerImpl struct {
 type JobsControllerOpt func(*JobsControllerOpts)
 
 type JobsControllerOpts struct {
-	tq      taskqueue.TaskQueue
+	mq      msgqueue.MessageQueue
 	l       *zerolog.Logger
 	repo    repository.Repository
 	dv      datautils.DataDecoderValidator
@@ -64,9 +64,9 @@ func defaultJobsControllerOpts() *JobsControllerOpts {
 	}
 }
 
-func WithTaskQueue(tq taskqueue.TaskQueue) JobsControllerOpt {
+func WithMessageQueue(mq msgqueue.MessageQueue) JobsControllerOpt {
 	return func(opts *JobsControllerOpts) {
-		opts.tq = tq
+		opts.mq = mq
 	}
 }
 
@@ -101,8 +101,8 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 		f(opts)
 	}
 
-	if opts.tq == nil {
-		return nil, fmt.Errorf("task queue is required. use WithTaskQueue")
+	if opts.mq == nil {
+		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
 	if opts.repo == nil {
@@ -122,7 +122,7 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 	a.WithData(map[string]interface{}{"service": "jobs-controller"})
 
 	return &JobsControllerImpl{
-		tq:   opts.tq,
+		mq:   opts.mq,
 		l:    opts.l,
 		repo: opts.repo,
 		dv:   opts.dv,
@@ -134,16 +134,9 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 func (jc *JobsControllerImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	cleanupQueue, taskChan, err := jc.tq.Subscribe(taskqueue.JOB_PROCESSING_QUEUE)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
-	}
-
 	wg := sync.WaitGroup{}
 
-	_, err = jc.s.NewJob(
+	_, err := jc.s.NewJob(
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
 			jc.runStepRunRequeue(ctx),
@@ -169,20 +162,25 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 
 	jc.s.Start()
 
-	go func() {
-		for task := range taskChan {
-			wg.Add(1)
-			go func(task *taskqueue.Task) {
-				defer wg.Done()
+	f := func(task *msgqueue.Message) error {
+		wg.Add(1)
+		defer wg.Done()
 
-				err := jc.handleTask(context.Background(), task)
-				if err != nil {
-					jc.l.Error().Err(err).Msg("could not handle job task")
-					jc.a.WrapErr(fmt.Errorf("could not handle job task: %w", err), map[string]interface{}{"task_id": task.ID}) // nolint: errcheck
-				}
-			}(task)
+		err := jc.handleTask(context.Background(), task)
+		if err != nil {
+			jc.l.Error().Err(err).Msg("could not handle job task")
+			return jc.a.WrapErr(fmt.Errorf("could not handle job task: %w", err), map[string]interface{}{"task_id": task.ID}) // nolint: errcheck
 		}
-	}()
+
+		return nil
+	}
+
+	cleanupQueue, err := jc.mq.Subscribe(msgqueue.JOB_PROCESSING_QUEUE, f, msgqueue.NoOpHook)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
+	}
 
 	cleanup := func() error {
 		cancel()
@@ -203,7 +201,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {
+func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
 	switch task.ID {
 	case "job-run-queued":
 		return ec.handleJobRunQueued(ctx, task)
@@ -228,7 +226,7 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Ta
 	return fmt.Errorf("unknown task: %s", task.ID)
 }
 
-func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *taskqueue.Task) error {
+func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-job-run-queued")
 	defer span.End()
 
@@ -256,9 +254,9 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *task
 		stepRunCp := stepRun
 
 		g.Go(func() error {
-			return ec.tq.AddTask(
+			return ec.mq.AddMessage(
 				ctx,
-				taskqueue.JOB_PROCESSING_QUEUE,
+				msgqueue.JOB_PROCESSING_QUEUE,
 				tasktypes.StepRunQueuedToTask(stepRunCp),
 			)
 		})
@@ -274,7 +272,7 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *task
 	return nil
 }
 
-func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *taskqueue.Task) error {
+func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-retry")
 	defer span.End()
 
@@ -373,14 +371,14 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *task
 	}
 
 	// send a task to the taskqueue
-	return ec.tq.AddTask(
+	return ec.mq.AddMessage(
 		ctx,
-		taskqueue.JOB_PROCESSING_QUEUE,
+		msgqueue.JOB_PROCESSING_QUEUE,
 		tasktypes.StepRunQueuedToTask(stepRun),
 	)
 }
 
-func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *taskqueue.Task) error {
+func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-queued")
 	defer span.End()
 
@@ -723,9 +721,9 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 	}
 
 	// send a task to the dispatcher
-	err = ec.tq.AddTask(
+	err = ec.mq.AddMessage(
 		ctx,
-		taskqueue.QueueTypeFromDispatcherID(dispatcherId),
+		msgqueue.QueueTypeFromDispatcherID(dispatcherId),
 		stepRunAssignedTask(tenantId, stepRunId, selectedWorkerId, dispatcherId),
 	)
 
@@ -734,9 +732,9 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 	}
 
 	// send a task to the ticker
-	err = ec.tq.AddTask(
+	err = ec.mq.AddMessage(
 		ctx,
-		taskqueue.QueueTypeFromTickerID(tickerId),
+		msgqueue.QueueTypeFromTickerID(tickerId),
 		scheduleTimeoutTask,
 	)
 
@@ -747,7 +745,7 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 	return nil
 }
 
-func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *taskqueue.Task) error {
+func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-started")
 	defer span.End()
 
@@ -787,7 +785,7 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ta
 	return nil
 }
 
-func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *taskqueue.Task) error {
+func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-finished")
 	defer span.End()
 
@@ -864,9 +862,9 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 		tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
 		stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
 
-		err = ec.tq.AddTask(
+		err = ec.mq.AddMessage(
 			ctx,
-			taskqueue.QueueTypeFromTickerID(tickerId),
+			msgqueue.QueueTypeFromTickerID(tickerId),
 			cancelStepRunTimeoutTask(tenantId, stepRunId),
 		)
 
@@ -878,7 +876,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *t
 	return nil
 }
 
-func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *taskqueue.Task) error {
+func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-failed")
 	defer span.End()
 
@@ -938,9 +936,9 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *tas
 		tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
 		stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
 
-		err = ec.tq.AddTask(
+		err = ec.mq.AddMessage(
 			ctx,
-			taskqueue.QueueTypeFromTickerID(tickerId),
+			msgqueue.QueueTypeFromTickerID(tickerId),
 			cancelStepRunTimeoutTask(tenantId, stepRunId),
 		)
 
@@ -951,9 +949,9 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *tas
 
 	if shouldRetry {
 		// send a task to the taskqueue
-		return ec.tq.AddTask(
+		return ec.mq.AddMessage(
 			ctx,
-			taskqueue.JOB_PROCESSING_QUEUE,
+			msgqueue.JOB_PROCESSING_QUEUE,
 			tasktypes.StepRunRetryToTask(stepRun, nil),
 		)
 	}
@@ -961,7 +959,7 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *tas
 	return nil
 }
 
-func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *taskqueue.Task) error {
+func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timed-out")
 	defer span.End()
 
@@ -983,7 +981,7 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *t
 	return ec.cancelStepRun(ctx, metadata.TenantId, payload.StepRunId, "TIMED_OUT")
 }
 
-func (ec *JobsControllerImpl) handleStepRunCancelled(ctx context.Context, task *taskqueue.Task) error {
+func (ec *JobsControllerImpl) handleStepRunCancelled(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-cancelled")
 	defer span.End()
 
@@ -1042,9 +1040,9 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 
 	dispatcherId := sqlchelpers.UUIDToStr(worker.DispatcherId)
 
-	err = ec.tq.AddTask(
+	err = ec.mq.AddMessage(
 		ctx,
-		taskqueue.QueueTypeFromDispatcherID(dispatcherId),
+		msgqueue.QueueTypeFromDispatcherID(dispatcherId),
 		stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, reason),
 	)
 
@@ -1071,9 +1069,9 @@ func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *dbsqlc.GetStepRun
 	}()
 
 	if updateInfo.WorkflowRunFinalState {
-		err := ec.tq.AddTask(
+		err := ec.mq.AddMessage(
 			context.Background(),
-			taskqueue.WORKFLOW_PROCESSING_QUEUE,
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
 			tasktypes.WorkflowRunFinishedToTask(
 				sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId),
 				updateInfo.WorkflowRunId,
@@ -1087,7 +1085,7 @@ func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *dbsqlc.GetStepRun
 	}
 }
 
-func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *taskqueue.Task) error {
+func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-ticker-removed")
 	defer span.End()
 
@@ -1145,9 +1143,9 @@ func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *tas
 		}
 
 		// send a task to the ticker
-		err = ec.tq.AddTask(
+		err = ec.mq.AddMessage(
 			ctx,
-			taskqueue.QueueTypeFromTickerID(ticker.ID),
+			msgqueue.QueueTypeFromTickerID(ticker.ID),
 			scheduleTimeoutTask,
 		)
 
@@ -1178,7 +1176,7 @@ func (ec *JobsControllerImpl) getValidTickers() ([]db.TickerModel, error) {
 	return tickers, nil
 }
 
-func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *taskqueue.Task {
+func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunAssignedTaskPayload{
 		StepRunId: stepRunId,
 		WorkerId:  workerId,
@@ -1189,14 +1187,14 @@ func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *ta
 		DispatcherId: dispatcherId,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "step-run-assigned",
 		Payload:  payload,
 		Metadata: metadata,
 	}
 }
 
-func scheduleStepRunTimeoutTask(stepRun *db.StepRunModel) (*taskqueue.Task, error) {
+func scheduleStepRunTimeoutTask(stepRun *db.StepRunModel) (*msgqueue.Message, error) {
 	var durationStr string
 
 	if timeout, ok := stepRun.Step().Timeout(); ok {
@@ -1226,14 +1224,14 @@ func scheduleStepRunTimeoutTask(stepRun *db.StepRunModel) (*taskqueue.Task, erro
 		TenantId: stepRun.TenantID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "schedule-step-run-timeout",
 		Payload:  payload,
 		Metadata: metadata,
 	}, nil
 }
 
-func cancelStepRunTimeoutTask(tenantId, stepRunId string) *taskqueue.Task {
+func cancelStepRunTimeoutTask(tenantId, stepRunId string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.CancelStepRunTimeoutTaskPayload{
 		StepRunId: stepRunId,
 	})
@@ -1242,14 +1240,14 @@ func cancelStepRunTimeoutTask(tenantId, stepRunId string) *taskqueue.Task {
 		TenantId: tenantId,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "cancel-step-run-timeout",
 		Payload:  payload,
 		Metadata: metadata,
 	}
 }
 
-func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelledReason string) *taskqueue.Task {
+func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelledReason string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelledTaskPayload{
 		StepRunId:       stepRunId,
 		WorkerId:        workerId,
@@ -1261,7 +1259,7 @@ func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelled
 		DispatcherId: dispatcherId,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "step-run-cancelled",
 		Payload:  payload,
 		Metadata: metadata,

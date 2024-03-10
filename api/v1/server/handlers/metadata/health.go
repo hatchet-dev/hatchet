@@ -17,7 +17,7 @@ func (u *MetadataService) ReadinessGet(ctx echo.Context, request gen.ReadinessGe
 		return nil, fmt.Errorf("repository is not healthy")
 	}
 
-	if !u.config.TaskQueue.IsReady() {
+	if !u.config.MessageQueue.IsReady() {
 		return nil, fmt.Errorf("task queue is not healthy")
 	}
 

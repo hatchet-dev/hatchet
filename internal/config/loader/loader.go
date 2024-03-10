@@ -26,10 +26,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/github"
 	"github.com/hatchet-dev/hatchet/internal/logger"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
@@ -176,15 +176,15 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil, nil, fmt.Errorf("could not create session store: %w", err)
 	}
 
-	cleanup1, tq := rabbitmq.New(
-		rabbitmq.WithURL(cf.TaskQueue.RabbitMQ.URL),
+	cleanup1, mq := rabbitmq.New(
+		rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 		rabbitmq.WithLogger(&l),
 	)
 
 	ingestor, err := ingestor.NewIngestor(
 		ingestor.WithEventRepository(dc.Repository.Event()),
 		ingestor.WithLogRepository(dc.Repository.Log()),
-		ingestor.WithTaskQueue(tq),
+		ingestor.WithMessageQueue(mq),
 	)
 
 	if err != nil {
@@ -324,7 +324,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		Auth:           auth,
 		Encryption:     encryptionSvc,
 		Config:         dc,
-		TaskQueue:      tq,
+		MessageQueue:   mq,
 		Services:       cf.Services,
 		Logger:         &l,
 		TLSConfig:      tls,

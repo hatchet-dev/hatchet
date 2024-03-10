@@ -10,11 +10,11 @@ import (
 	"github.com/steebchen/prisma-client-go/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 )
 
@@ -52,20 +52,6 @@ func (worker *subscribedWorker) StartStepRun(
 	inputBytes := []byte{}
 
 	inputType, ok := stepRun.Input()
-
-	// if ok {
-	// 	stepRunInputBytes := []byte(inputType)
-
-	// 	var err error
-	// 	var inputBytesStr string
-	// 	inputBytesStr, err = strconv.Unquote(string(stepRunInputBytes))
-
-	// 	if err != nil {
-	// 		inputBytes = stepRunInputBytes
-	// 	} else {
-	// 		inputBytes = []byte(inputBytesStr)
-	// 	}
-	// }
 
 	if ok {
 		inputBytes = []byte(inputType)
@@ -324,7 +310,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 
 	s.l.Debug().Msgf("Received subscribe request for workflow: %s", request.WorkflowRunId)
 
-	q, err := taskqueue.TenantEventConsumerQueue(tenant.ID)
+	q, err := msgqueue.TenantEventConsumerQueue(tenant.ID)
 
 	if err != nil {
 		return err
@@ -333,14 +319,41 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 
+	wg := sync.WaitGroup{}
+
+	f := func(task *msgqueue.Message) error {
+		wg.Add(1)
+		defer wg.Done()
+		e, err := s.tenantTaskToWorkflowEvent(task, tenant.ID, request.WorkflowRunId)
+
+		if err != nil {
+			s.l.Error().Err(err).Msgf("could not convert task to workflow event")
+			return nil
+		} else if e == nil {
+			return nil
+		}
+
+		// send the task to the client
+		err = stream.Send(e)
+
+		if err != nil {
+			s.l.Error().Err(err).Msgf("could not send workflow event to client")
+			return nil
+		}
+
+		if e.Hangup {
+			cancel()
+		}
+
+		return nil
+	}
+
 	// subscribe to the task queue for the tenant
-	cleanupQueue, taskChan, err := s.tq.Subscribe(q)
+	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
 
 	if err != nil {
 		return err
 	}
-
-	wg := sync.WaitGroup{}
 
 	for {
 		select {
@@ -351,30 +364,6 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 			// drain the existing connections
 			wg.Wait()
 			return nil
-		case task := <-taskChan:
-			wg.Add(1)
-			go func(task *taskqueue.Task) {
-				defer wg.Done()
-				e, err := s.tenantTaskToWorkflowEvent(task, tenant.ID, request.WorkflowRunId)
-
-				if err != nil {
-					s.l.Error().Err(err).Msgf("could not convert task to workflow event")
-					return
-				} else if e == nil {
-					return
-				}
-
-				// send the task to the client
-				err = stream.Send(e)
-
-				if err != nil {
-					s.l.Error().Err(err).Msgf("could not send workflow event to client")
-				}
-
-				if e.Hangup {
-					cancel()
-				}
-			}(task)
 		}
 	}
 }
@@ -478,7 +467,7 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 	})
 
 	// send the event to the jobs queue
-	err := s.tq.AddTask(ctx, taskqueue.JOB_PROCESSING_QUEUE, &taskqueue.Task{
+	err := s.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
 		ID:       "step-run-started",
 		Payload:  payload,
 		Metadata: metadata,
@@ -512,7 +501,7 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 	})
 
 	// send the event to the jobs queue
-	err := s.tq.AddTask(ctx, taskqueue.JOB_PROCESSING_QUEUE, &taskqueue.Task{
+	err := s.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
 		ID:       "step-run-finished",
 		Payload:  payload,
 		Metadata: metadata,
@@ -546,7 +535,7 @@ func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contr
 	})
 
 	// send the event to the jobs queue
-	err := s.tq.AddTask(ctx, taskqueue.JOB_PROCESSING_QUEUE, &taskqueue.Task{
+	err := s.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
 		ID:       "step-run-failed",
 		Payload:  payload,
 		Metadata: metadata,
@@ -579,7 +568,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunStarted(ctx context.Context, reques
 	})
 
 	// send the event to the jobs queue
-	err := s.tq.AddTask(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE, &taskqueue.Task{
+	err := s.mq.AddMessage(ctx, msgqueue.WORKFLOW_PROCESSING_QUEUE, &msgqueue.Message{
 		ID:       "get-group-key-run-started",
 		Payload:  payload,
 		Metadata: metadata,
@@ -613,7 +602,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(ctx context.Context, requ
 	})
 
 	// send the event to the jobs queue
-	err := s.tq.AddTask(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE, &taskqueue.Task{
+	err := s.mq.AddMessage(ctx, msgqueue.WORKFLOW_PROCESSING_QUEUE, &msgqueue.Message{
 		ID:       "get-group-key-run-finished",
 		Payload:  payload,
 		Metadata: metadata,
@@ -647,7 +636,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request
 	})
 
 	// send the event to the jobs queue
-	err := s.tq.AddTask(ctx, taskqueue.WORKFLOW_PROCESSING_QUEUE, &taskqueue.Task{
+	err := s.mq.AddMessage(ctx, msgqueue.WORKFLOW_PROCESSING_QUEUE, &msgqueue.Message{
 		ID:       "get-group-key-run-failed",
 		Payload:  payload,
 		Metadata: metadata,
@@ -663,7 +652,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request
 	}, nil
 }
 
-func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *taskqueue.Task, tenantId, workflowRunId string) (*contracts.WorkflowEvent, error) {
+func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenantId, workflowRunId string) (*contracts.WorkflowEvent, error) {
 	workflowEvent := &contracts.WorkflowEvent{}
 
 	var stepRunId string

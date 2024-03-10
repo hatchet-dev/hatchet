@@ -11,10 +11,10 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/logger"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 )
 
@@ -23,7 +23,7 @@ type WorkflowsController interface {
 }
 
 type WorkflowsControllerImpl struct {
-	tq   taskqueue.TaskQueue
+	mq   msgqueue.MessageQueue
 	l    *zerolog.Logger
 	repo repository.Repository
 	dv   datautils.DataDecoderValidator
@@ -32,7 +32,7 @@ type WorkflowsControllerImpl struct {
 type WorkflowsControllerOpt func(*WorkflowsControllerOpts)
 
 type WorkflowsControllerOpts struct {
-	tq   taskqueue.TaskQueue
+	mq   msgqueue.MessageQueue
 	l    *zerolog.Logger
 	repo repository.Repository
 	dv   datautils.DataDecoderValidator
@@ -46,9 +46,9 @@ func defaultWorkflowsControllerOpts() *WorkflowsControllerOpts {
 	}
 }
 
-func WithTaskQueue(tq taskqueue.TaskQueue) WorkflowsControllerOpt {
+func WithMessageQueue(mq msgqueue.MessageQueue) WorkflowsControllerOpt {
 	return func(opts *WorkflowsControllerOpts) {
-		opts.tq = tq
+		opts.mq = mq
 	}
 }
 
@@ -77,8 +77,8 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 		f(opts)
 	}
 
-	if opts.tq == nil {
-		return nil, fmt.Errorf("task queue is required. use WithTaskQueue")
+	if opts.mq == nil {
+		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
 	if opts.repo == nil {
@@ -89,7 +89,7 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 	opts.l = &newLogger
 
 	return &WorkflowsControllerImpl{
-		tq:   opts.tq,
+		mq:   opts.mq,
 		l:    opts.l,
 		repo: opts.repo,
 		dv:   opts.dv,
@@ -99,27 +99,26 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 	wc.l.Debug().Msg("starting workflows controller")
 
-	cleanupQueue, taskChan, err := wc.tq.Subscribe(taskqueue.WORKFLOW_PROCESSING_QUEUE)
+	wg := sync.WaitGroup{}
+
+	f := func(task *msgqueue.Message) error {
+		wg.Add(1)
+		defer wg.Done()
+
+		err := wc.handleTask(context.Background(), task)
+		if err != nil {
+			wc.l.Error().Err(err).Msg("could not handle job task")
+			return err
+		}
+
+		return nil
+	}
+
+	cleanupQueue, err := wc.mq.Subscribe(msgqueue.WORKFLOW_PROCESSING_QUEUE, f, msgqueue.NoOpHook)
 
 	if err != nil {
 		return nil, err
 	}
-
-	wg := sync.WaitGroup{}
-
-	go func() {
-		for task := range taskChan {
-			wg.Add(1)
-			go func(task *taskqueue.Task) {
-				defer wg.Done()
-
-				err := wc.handleTask(context.Background(), task)
-				if err != nil {
-					wc.l.Error().Err(err).Msg("could not handle job task")
-				}
-			}(task)
-		}
-	}()
 
 	cleanup := func() error {
 		if err := cleanupQueue(); err != nil {
@@ -132,7 +131,7 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {
+func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
 	switch task.ID {
 	case "workflow-run-queued":
 		return wc.handleWorkflowRunQueued(ctx, task)
@@ -151,7 +150,7 @@ func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *taskque
 	return fmt.Errorf("unknown task: %s", task.ID)
 }
 
-func (ec *WorkflowsControllerImpl) handleGroupKeyRunStarted(ctx context.Context, task *taskqueue.Task) error {
+func (ec *WorkflowsControllerImpl) handleGroupKeyRunStarted(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "get-group-key-run-started")
 	defer span.End()
 
@@ -185,7 +184,7 @@ func (ec *WorkflowsControllerImpl) handleGroupKeyRunStarted(ctx context.Context,
 	return err
 }
 
-func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context, task *taskqueue.Task) error {
+func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-finished")
 	defer span.End()
 
@@ -249,9 +248,9 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context
 		groupKeyRunTicker, ok := groupKeyRun.Ticker()
 
 		if ok {
-			err = wc.tq.AddTask(
+			err = wc.mq.AddMessage(
 				ctx,
-				taskqueue.QueueTypeFromTickerID(groupKeyRunTicker.ID),
+				msgqueue.QueueTypeFromTickerID(groupKeyRunTicker.ID),
 				cancelGetGroupKeyRunTimeoutTask(groupKeyRunTicker, groupKeyRun),
 			)
 
@@ -266,7 +265,7 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context
 	return errGroup.Wait()
 }
 
-func (wc *WorkflowsControllerImpl) handleGroupKeyRunFailed(ctx context.Context, task *taskqueue.Task) error {
+func (wc *WorkflowsControllerImpl) handleGroupKeyRunFailed(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-group-key-run-failed")
 	defer span.End()
 
@@ -305,9 +304,9 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFailed(ctx context.Context, 
 	getGroupKeyRunTicker, ok := groupKeyRun.Ticker()
 
 	if ok {
-		err = wc.tq.AddTask(
+		err = wc.mq.AddMessage(
 			ctx,
-			taskqueue.QueueTypeFromTickerID(getGroupKeyRunTicker.ID),
+			msgqueue.QueueTypeFromTickerID(getGroupKeyRunTicker.ID),
 			cancelGetGroupKeyRunTimeoutTask(getGroupKeyRunTicker, groupKeyRun),
 		)
 
@@ -319,7 +318,7 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFailed(ctx context.Context, 
 	return nil
 }
 
-func cancelGetGroupKeyRunTimeoutTask(ticker *db.TickerModel, getGroupKeyRun *db.GetGroupKeyRunModel) *taskqueue.Task {
+func cancelGetGroupKeyRunTimeoutTask(ticker *db.TickerModel, getGroupKeyRun *db.GetGroupKeyRunModel) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.CancelGetGroupKeyRunTimeoutTaskPayload{
 		GetGroupKeyRunId: getGroupKeyRun.ID,
 	})
@@ -328,7 +327,7 @@ func cancelGetGroupKeyRunTimeoutTask(ticker *db.TickerModel, getGroupKeyRun *db.
 		TenantId: getGroupKeyRun.TenantID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "cancel-get-group-key-run-timeout",
 		Payload:  payload,
 		Metadata: metadata,

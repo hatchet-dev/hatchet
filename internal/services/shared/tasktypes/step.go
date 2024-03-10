@@ -2,10 +2,10 @@ package tasktypes
 
 import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 type StepRunTaskPayload struct {
@@ -111,7 +111,7 @@ type StepRunRetryTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
-func TenantToStepRunRequeueTask(tenant db.TenantModel) *taskqueue.Task {
+func TenantToStepRunRequeueTask(tenant db.TenantModel) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(StepRunRequeueTaskPayload{
 		TenantId: tenant.ID,
 	})
@@ -120,14 +120,14 @@ func TenantToStepRunRequeueTask(tenant db.TenantModel) *taskqueue.Task {
 		TenantId: tenant.ID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "step-run-requeue-ticker",
 		Payload:  payload,
 		Metadata: metadata,
 	}
 }
 
-func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *taskqueue.Task {
+func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
 	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
 	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
@@ -142,14 +142,14 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 		TenantId: tenantId,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "step-run-retry",
 		Payload:  payload,
 		Metadata: metadata,
 	}
 }
 
-func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *taskqueue.Task {
+func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(StepRunTaskPayload{
 		JobRunId:  sqlchelpers.UUIDToStr(stepRun.JobRunId),
 		StepRunId: sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
@@ -164,7 +164,7 @@ func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *taskqueue.Task
 		TenantId:          sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId),
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "step-run-queued",
 		Payload:  payload,
 		Metadata: metadata,

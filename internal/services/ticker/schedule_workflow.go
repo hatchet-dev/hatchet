@@ -7,13 +7,13 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
-func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, task *taskqueue.Task) error {
+func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, task *msgqueue.Message) error {
 	t.l.Debug().Msg("ticker: scheduling workflow")
 
 	payload := tasktypes.ScheduleWorkflowTaskPayload{}
@@ -100,9 +100,9 @@ func (t *TickerImpl) runScheduledWorkflow(ctx context.Context, tenantId string, 
 
 		for _, jobRun := range workflowRun.JobRuns() {
 			jobRunCp := jobRun
-			err = t.tq.AddTask(
+			err = t.mq.AddMessage(
 				context.Background(),
-				taskqueue.JOB_PROCESSING_QUEUE,
+				msgqueue.JOB_PROCESSING_QUEUE,
 				tasktypes.JobRunQueuedToTask(jobRun.Job(), &jobRunCp),
 			)
 
@@ -135,7 +135,7 @@ func (t *TickerImpl) runScheduledWorkflow(ctx context.Context, tenantId string, 
 	}
 }
 
-func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, task *taskqueue.Task) error {
+func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, task *msgqueue.Message) error {
 	t.l.Debug().Msg("ticker: canceling scheduled workflow")
 
 	payload := tasktypes.CancelWorkflowTaskPayload{}

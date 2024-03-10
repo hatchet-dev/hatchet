@@ -1,7 +1,8 @@
-package taskqueue
+package msgqueue
 
 import (
 	"context"
+	"fmt"
 )
 
 type Queue interface {
@@ -23,16 +24,19 @@ type Queue interface {
 	// In RabbitMQ terminology, the existence of a subscriber key means that the queue is bound to a fanout
 	// exchange, and a new random queue is generated for each connection when connections are retried.
 	FanoutExchangeKey() string
+
+	// DLX returns the dead letter exchange for the queue, if it exists.
+	DLX() string
 }
 
 type staticQueue string
 
 const (
-	EVENT_PROCESSING_QUEUE    staticQueue = "event_processing_queue"
-	JOB_PROCESSING_QUEUE      staticQueue = "job_processing_queue"
-	WORKFLOW_PROCESSING_QUEUE staticQueue = "workflow_processing_queue"
-	DISPATCHER_POOL_QUEUE     staticQueue = "dispatcher_pool_queue"
-	SCHEDULING_QUEUE          staticQueue = "scheduling_queue"
+	EVENT_PROCESSING_QUEUE    staticQueue = "event_processing_queue_v2"
+	JOB_PROCESSING_QUEUE      staticQueue = "job_processing_queue_v2"
+	WORKFLOW_PROCESSING_QUEUE staticQueue = "workflow_processing_queue_v2"
+	DISPATCHER_POOL_QUEUE     staticQueue = "dispatcher_pool_queue_v2"
+	SCHEDULING_QUEUE          staticQueue = "scheduling_queue_v2"
 )
 
 func (s staticQueue) Name() string {
@@ -55,6 +59,10 @@ func (s staticQueue) FanoutExchangeKey() string {
 	return ""
 }
 
+func (s staticQueue) DLX() string {
+	return fmt.Sprintf("%s_dlx_v2", s.Name())
+}
+
 type consumerQueue string
 
 func (s consumerQueue) Name() string {
@@ -74,6 +82,10 @@ func (n consumerQueue) Exclusive() bool {
 }
 
 func (n consumerQueue) FanoutExchangeKey() string {
+	return ""
+}
+
+func (n consumerQueue) DLX() string {
 	return ""
 }
 
@@ -101,7 +113,7 @@ func TenantEventConsumerQueue(t string) (fanoutQueue, error) {
 	}, nil
 }
 
-type Task struct {
+type Message struct {
 	// ID is the ID of the task.
 	ID string `json:"id"`
 
@@ -118,7 +130,7 @@ type Task struct {
 	RetryDelay int `json:"retry_delay"`
 }
 
-func (t *Task) TenantID() string {
+func (t *Message) TenantID() string {
 	tenantId, exists := t.Metadata["tenant_id"]
 
 	if !exists {
@@ -134,12 +146,14 @@ func (t *Task) TenantID() string {
 	return tenantIdStr
 }
 
-type TaskQueue interface {
-	// AddTask adds a task to the queue. Implementations should ensure that Start().
-	AddTask(ctx context.Context, queue Queue, task *Task) error
+type AckHook func(task *Message) error
+
+type MessageQueue interface {
+	// AddMessage adds a task to the queue. Implementations should ensure that Start().
+	AddMessage(ctx context.Context, queue Queue, task *Message) error
 
 	// Subscribe subscribes to the task queue.
-	Subscribe(queueType Queue) (func() error, <-chan *Task, error)
+	Subscribe(queueType Queue, preAck AckHook, postAck AckHook) (func() error, error)
 
 	// RegisterTenant registers a new pub/sub mechanism for a tenant. This should be called when a
 	// new tenant is created. If this is not called, implementors should ensure that there's a check
@@ -149,4 +163,8 @@ type TaskQueue interface {
 
 	// IsReady returns true if the task queue is ready to accept tasks.
 	IsReady() bool
+}
+
+func NoOpHook(task *Message) error {
+	return nil
 }
