@@ -25,6 +25,7 @@ from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRe
 from hatchet_sdk.clients.rest.models.create_api_token_request import CreateAPITokenRequest
 from hatchet_sdk.clients.rest.models.create_api_token_response import CreateAPITokenResponse
 from hatchet_sdk.clients.rest.models.create_pull_request_from_step_run import CreatePullRequestFromStepRun
+from hatchet_sdk.clients.rest.models.create_sns_integration_request import CreateSNSIntegrationRequest
 from hatchet_sdk.clients.rest.models.create_tenant_invite_request import CreateTenantInviteRequest
 from hatchet_sdk.clients.rest.models.create_tenant_request import CreateTenantRequest
 from hatchet_sdk.clients.rest.models.event import Event
@@ -45,6 +46,7 @@ from hatchet_sdk.clients.rest.models.link_github_repository_request import LinkG
 from hatchet_sdk.clients.rest.models.list_api_tokens_response import ListAPITokensResponse
 from hatchet_sdk.clients.rest.models.list_github_app_installations_response import ListGithubAppInstallationsResponse
 from hatchet_sdk.clients.rest.models.list_pull_requests_response import ListPullRequestsResponse
+from hatchet_sdk.clients.rest.models.list_sns_integrations import ListSNSIntegrations
 from hatchet_sdk.clients.rest.models.log_line import LogLine
 from hatchet_sdk.clients.rest.models.log_line_level import LogLineLevel
 from hatchet_sdk.clients.rest.models.log_line_list import LogLineList
@@ -56,6 +58,7 @@ from hatchet_sdk.clients.rest.models.pull_request_state import PullRequestState
 from hatchet_sdk.clients.rest.models.reject_invite_request import RejectInviteRequest
 from hatchet_sdk.clients.rest.models.replay_event_request import ReplayEventRequest
 from hatchet_sdk.clients.rest.models.rerun_step_run_request import RerunStepRunRequest
+from hatchet_sdk.clients.rest.models.sns_integration import SNSIntegration
 from hatchet_sdk.clients.rest.models.step import Step
 from hatchet_sdk.clients.rest.models.step_run import StepRun
 from hatchet_sdk.clients.rest.models.step_run_diff import StepRunDiff

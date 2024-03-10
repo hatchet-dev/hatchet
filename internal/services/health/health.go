@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -29,7 +30,7 @@ func (h *Health) SetReady(ready bool) {
 	h.ready = ready
 }
 
-func (h *Health) Start() func() error {
+func (h *Health) Start() (func() error, error) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
@@ -52,8 +53,12 @@ func (h *Health) Start() func() error {
 		WriteTimeout: 5 * time.Second,
 	}
 
+	l, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("could not listen on %s: %w", server.Addr, err)
+	}
 	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := server.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			panic(err)
 		}
 	}()
@@ -67,5 +72,5 @@ func (h *Health) Start() func() error {
 		return nil
 	}
 
-	return cleanup
+	return cleanup, nil
 }

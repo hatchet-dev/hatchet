@@ -95,7 +95,6 @@ tasks:
       - openapi-generator-cli version-manager set 7.3.0
       - cd frontend/app/ && pnpm install
       - cd frontend/docs/ && pnpm install
-      - cd typescript-sdk/ && pnpm install
   generate-api:
     cmds:
       - task: generate-api-server
@@ -158,4 +157,3 @@ tasks:
   copy-ca-to-sdks:
     cmds:
       - mkdir -p ./python-sdk/certs/ && cp ./hack/dev/certs/ca.cert ./python-sdk/certs/
-      - mkdir -p ./typescript-sdk/certs/ && cp ./hack/dev/certs/ca.cert ./typescript-sdk/certs/

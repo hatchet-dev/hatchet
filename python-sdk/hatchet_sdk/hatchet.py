@@ -36,7 +36,7 @@ class Hatchet:
                 cls.schedule_timeout = schedule_timeout
 
                 # Define a new class with the same name and bases as the original, but with WorkflowMeta as its metaclass
-                return WorkflowMeta(cls.__name__, cls.__bases__, dict(cls.__dict__))
+                return WorkflowMeta(cls.name, cls.__bases__, dict(cls.__dict__))
         
         return inner
 
