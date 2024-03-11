@@ -2,6 +2,8 @@ from typing import Any, Dict
 from .rest.api_client import ApiClient
 from .rest.api.workflow_api import WorkflowApi
 from .rest.api.workflow_run_api import WorkflowRunApi
+from .rest.api.step_run_api import StepRunApi
+from .rest.api.log_api import LogApi
 from .rest.configuration import Configuration
 from .rest.models import TriggerWorkflowRunRequest
 
@@ -18,6 +20,8 @@ class RestApi:
         api_client = ApiClient(configuration=config)
         self.workflow_api = WorkflowApi(api_client)
         self.workflow_run_api = WorkflowRunApi(api_client)
+        self.step_run_api = StepRunApi(api_client)
+        self.log_api = LogApi(api_client)
         
     def workflow_list(self):
         return self.workflow_api.workflow_list(
@@ -62,4 +66,9 @@ class RestApi:
             trigger_workflow_run_request=TriggerWorkflowRunRequest(
                 input=input,
             )
+        )
+    
+    def list_logs(self, step_run_id: str):
+        return self.log_api.log_line_list(
+            step_run=step_run_id,
         )
