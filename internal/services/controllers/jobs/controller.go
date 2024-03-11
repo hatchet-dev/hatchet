@@ -189,11 +189,11 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 			return fmt.Errorf("could not cleanup job processing queue: %w", err)
 		}
 
-		wg.Wait()
-
 		if err := jc.s.Shutdown(); err != nil {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)
 		}
+
+		wg.Wait()
 
 		return nil
 	}
