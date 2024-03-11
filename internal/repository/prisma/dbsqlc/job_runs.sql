@@ -1,3 +1,9 @@
+-- name: UpdateJobRunStatus :one
+UPDATE "JobRun"
+SET "status" = @status::"JobRunStatus"
+WHERE "id" = @id::uuid AND "tenantId" = @tenantId::uuid
+RETURNING *;
+
 -- name: ResolveJobRunStatus :one
 WITH stepRuns AS (
     SELECT sum(case when runs."status" IN ('PENDING', 'PENDING_ASSIGNMENT') then 1 else 0 end) AS pendingRuns,

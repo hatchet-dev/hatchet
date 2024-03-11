@@ -245,10 +245,13 @@ FROM
     "StepRun" sr
 LEFT JOIN
     "Worker" w ON sr."workerId" = w."id"
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
 WHERE
     sr."tenantId" = @tenantId::uuid
     AND sr."requeueAfter" < NOW()
     AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
+    AND jr."status" = 'RUNNING'
     AND NOT EXISTS (
         SELECT 1
         FROM "_StepRunOrder" AS order_table

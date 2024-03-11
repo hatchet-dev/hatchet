@@ -132,21 +132,14 @@ func (t *TickerImpl) Start() (func() error, error) {
 	_, err = t.s.NewJob(
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
-			t.runGetGroupKeyRunRequeue(ctx),
+			t.runUpdateHeartbeat(ctx),
 		),
 	)
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not schedule get group key run requeue: %w", err)
+		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
 	}
-
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Second*5),
-		gocron.NewTask(
-			t.runUpdateHeartbeat(ctx),
-		),
-	)
 
 	t.s.Start()
 
@@ -236,34 +229,6 @@ func (t *TickerImpl) handleTask(ctx context.Context, task *msgqueue.Message) err
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
-}
-
-func (t *TickerImpl) runGetGroupKeyRunRequeue(ctx context.Context) func() {
-	return func() {
-		t.l.Debug().Msgf("ticker: checking get group key run requeue")
-
-		// list all tenants
-		tenants, err := t.repo.Tenant().ListTenants()
-
-		if err != nil {
-			t.l.Err(err).Msg("could not list tenants")
-			return
-		}
-
-		for i := range tenants {
-			t.l.Debug().Msgf("adding get group key run requeue task for tenant %s", tenants[i].ID)
-
-			err := t.mq.AddMessage(
-				ctx,
-				msgqueue.WORKFLOW_PROCESSING_QUEUE,
-				tasktypes.TenantToGroupKeyActionRequeueTask(tenants[i]),
-			)
-
-			if err != nil {
-				t.l.Err(err).Msg("could not add get group key run requeue task")
-			}
-		}
-	}
 }
 
 func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {

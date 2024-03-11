@@ -4,10 +4,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
-type UpdateJobRunOpts struct {
-	Status *db.JobRunStatus
-}
-
 type UpdateJobRunLookupDataOpts struct {
 	FieldPath []string
 	Data      []byte
@@ -33,8 +29,6 @@ type JobRunRepository interface {
 	// SetJobRunStatusRunning resets the status of a job run to a RUNNING status. This is useful if a step
 	// run is being manually replayed, but shouldn't be used by most callers.
 	SetJobRunStatusRunning(tenantId, jobRunId string) error
-
-	UpdateJobRun(tenantId, jobRunId string, opts *UpdateJobRunOpts) (*db.JobRunModel, error)
 
 	GetJobRunLookupData(tenantId, jobRunId string) (*db.JobRunLookupDataModel, error)
 

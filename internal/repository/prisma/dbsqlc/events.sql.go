@@ -196,7 +196,7 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 const listEvents = `-- name: ListEvents :many
 SELECT
     events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data,
-    sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
+    sum(case when runs."status" = 'PENDING' OR runs."status" = 'QUEUED' then 1 else 0 end) AS pendingRuns,
     sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
     sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
     sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns

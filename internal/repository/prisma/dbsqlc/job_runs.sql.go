@@ -133,6 +133,43 @@ func (q *Queries) UpdateJobRunLookupDataWithStepRun(ctx context.Context, db DBTX
 	return err
 }
 
+const updateJobRunStatus = `-- name: UpdateJobRunStatus :one
+UPDATE "JobRun"
+SET "status" = $1::"JobRunStatus"
+WHERE "id" = $2::uuid AND "tenantId" = $3::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobId", "tickerId", status, result, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId"
+`
+
+type UpdateJobRunStatusParams struct {
+	Status   JobRunStatus `json:"status"`
+	ID       pgtype.UUID  `json:"id"`
+	Tenantid pgtype.UUID  `json:"tenantid"`
+}
+
+func (q *Queries) UpdateJobRunStatus(ctx context.Context, db DBTX, arg UpdateJobRunStatusParams) (*JobRun, error) {
+	row := db.QueryRow(ctx, updateJobRunStatus, arg.Status, arg.ID, arg.Tenantid)
+	var i JobRun
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.JobId,
+		&i.TickerId,
+		&i.Status,
+		&i.Result,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.TimeoutAt,
+		&i.CancelledAt,
+		&i.CancelledReason,
+		&i.CancelledError,
+		&i.WorkflowRunId,
+	)
+	return &i, err
+}
+
 const upsertJobRunLookupData = `-- name: UpsertJobRunLookupData :exec
 INSERT INTO "JobRunLookupData" (
     "id",

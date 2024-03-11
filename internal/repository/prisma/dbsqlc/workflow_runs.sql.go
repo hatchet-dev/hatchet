@@ -449,15 +449,21 @@ func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, jobrunid pgty
 }
 
 const listStartableStepRuns = `-- name: ListStartableStepRuns :many
+WITH job_run AS (
+    SELECT "status"
+    FROM "JobRun"
+    WHERE "id" = $1::uuid
+)
 SELECT 
     child_run."id" AS "id"
 FROM 
-    "StepRun" AS child_run
+    "StepRun" AS child_run, job_run
 LEFT JOIN 
     "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
 WHERE 
     child_run."jobRunId" = $1::uuid
     AND child_run."status" = 'PENDING'
+    AND job_run."status" = 'RUNNING'
     -- case on whether parentStepRunId is null
     AND (
         ($2::uuid IS NULL AND step_run_order."A" IS NULL) OR 

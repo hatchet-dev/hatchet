@@ -2,8 +2,11 @@ package prisma
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -65,7 +68,67 @@ func (s *getGroupKeyRunRepository) ListGetGroupKeyRunsToRequeue(tenantId string)
 	return s.queries.ListGetGroupKeyRunsToRequeue(context.Background(), s.pool, sqlchelpers.UUIDFromStr(tenantId))
 }
 
-func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId string, opts *repository.UpdateGetGroupKeyRunOpts) (*db.GetGroupKeyRunModel, error) {
+func (s *getGroupKeyRunRepository) ListGetGroupKeyRunsToReassign(tenantId string) ([]*dbsqlc.GetGroupKeyRun, error) {
+	return s.queries.ListGetGroupKeyRunsToReassign(context.Background(), s.pool, sqlchelpers.UUIDFromStr(tenantId))
+}
+
+func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToWorker(tenantId, getGroupKeyRunId string) (workerId string, dispatcherId string, err error) {
+	// var assigned
+	var assigned *dbsqlc.AssignGetGroupKeyRunToWorkerRow
+
+	err = retrier(s.l, func() (err error) {
+		assigned, err = s.queries.AssignGetGroupKeyRunToWorker(context.Background(), s.pool, dbsqlc.AssignGetGroupKeyRunToWorkerParams{
+			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
+			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return repository.ErrNoWorkerAvailable
+			}
+
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return "", "", err
+	}
+
+	return sqlchelpers.UUIDToStr(assigned.WorkerId), sqlchelpers.UUIDToStr(assigned.DispatcherId), nil
+}
+
+func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToTicker(tenantId, getGroupKeyRunId string) (tickerId string, err error) {
+	// var assigned
+	var assigned *dbsqlc.AssignGetGroupKeyRunToTickerRow
+
+	err = retrier(s.l, func() (err error) {
+		assigned, err = s.queries.AssignGetGroupKeyRunToTicker(context.Background(), s.pool, dbsqlc.AssignGetGroupKeyRunToTickerParams{
+			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
+			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return repository.ErrNoWorkerAvailable
+			}
+
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return sqlchelpers.UUIDToStr(assigned.TickerId), nil
+}
+
+func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId string, opts *repository.UpdateGetGroupKeyRunOpts) (*dbsqlc.GetGroupKeyRunForEngineRow, error) {
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -133,7 +196,7 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRun
 
 	defer deferRollback(context.Background(), s.l, tx.Rollback)
 
-	_, err = s.queries.UpdateGetGroupKeyRun(context.Background(), tx, updateParams)
+	res1, err := s.queries.UpdateGetGroupKeyRun(context.Background(), tx, updateParams)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not update get group key run: %w", err)
@@ -148,24 +211,26 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRun
 		}
 	}
 
+	getGroupKeyRuns, err := s.queries.GetGroupKeyRunForEngine(context.Background(), tx, dbsqlc.GetGroupKeyRunForEngineParams{
+		Ids:      []pgtype.UUID{res1.ID},
+		Tenantid: pgTenantId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(getGroupKeyRuns) == 0 {
+		return nil, fmt.Errorf("could not find get group key run for engine")
+	}
+
 	err = tx.Commit(context.Background())
 
 	if err != nil {
 		return nil, err
 	}
 
-	return s.client.GetGroupKeyRun.FindUnique(
-		db.GetGroupKeyRun.ID.Equals(getGroupKeyRunId),
-	).With(
-		db.GetGroupKeyRun.Ticker.Fetch(),
-		db.GetGroupKeyRun.WorkflowRun.Fetch().With(
-			db.WorkflowRun.WorkflowVersion.Fetch().With(
-				db.WorkflowVersion.Concurrency.Fetch().With(
-					db.WorkflowConcurrency.GetConcurrencyGroup.Fetch(),
-				),
-			),
-		),
-	).Exec(context.Background())
+	return getGroupKeyRuns[0], nil
 }
 
 func (s *getGroupKeyRunRepository) GetGroupKeyRunById(tenantId, getGroupKeyRunId string) (*db.GetGroupKeyRunModel, error) {
@@ -181,4 +246,21 @@ func (s *getGroupKeyRunRepository) GetGroupKeyRunById(tenantId, getGroupKeyRunId
 			),
 		),
 	).Exec(context.Background())
+}
+
+func (s *getGroupKeyRunRepository) GetGroupKeyRunForEngine(tenantId, getGroupKeyRunId string) (*dbsqlc.GetGroupKeyRunForEngineRow, error) {
+	res, err := s.queries.GetGroupKeyRunForEngine(context.Background(), s.pool, dbsqlc.GetGroupKeyRunForEngineParams{
+		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(getGroupKeyRunId)},
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(res) == 0 {
+		return nil, nil
+	}
+
+	return res[0], nil
 }

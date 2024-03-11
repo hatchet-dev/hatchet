@@ -90,43 +90,20 @@ func (j *jobRunRepository) GetJobRunById(tenantId, jobRunId string) (*db.JobRunM
 	).Exec(context.Background())
 }
 
-func (j *jobRunRepository) UpdateJobRun(tenantId, jobRunId string, opts *repository.UpdateJobRunOpts) (*db.JobRunModel, error) {
-	if err := j.v.Validate(opts); err != nil {
-		return nil, err
-	}
-
-	var params []db.JobRunSetParam
-
-	if opts.Status != nil {
-		params = append(params, db.JobRun.Status.Set(*opts.Status))
-	}
-
-	return j.client.JobRun.FindUnique(
-		db.JobRun.ID.Equals(jobRunId),
-	).With(
-		db.JobRun.LookupData.Fetch(),
-		db.JobRun.StepRuns.Fetch().With(
-			db.StepRun.Step.Fetch().With(
-				db.Step.Children.Fetch(),
-				db.Step.Parents.Fetch(),
-				db.Step.Action.Fetch(),
-			),
-		),
-		db.JobRun.Job.Fetch().With(
-			db.Job.Workflow.Fetch(),
-		),
-		db.JobRun.Ticker.Fetch(),
-	).Update(
-		params...,
-	).Exec(context.Background())
-}
-
 func (j *jobRunRepository) SetJobRunStatusRunning(tenantId, jobRunId string) error {
-	jobRun, err := j.client.JobRun.FindUnique(
-		db.JobRun.ID.Equals(jobRunId),
-	).Update(
-		db.JobRun.Status.Set(db.JobRunStatusRunning),
-	).Exec(context.Background())
+	tx, err := j.pool.Begin(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	defer deferRollback(context.Background(), j.l, tx.Rollback)
+
+	jobRun, err := j.queries.UpdateJobRunStatus(context.Background(), tx, dbsqlc.UpdateJobRunStatusParams{
+		ID:       sqlchelpers.UUIDFromStr(jobRunId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Status:   dbsqlc.JobRunStatusRUNNING,
+	})
 
 	if err != nil {
 		return err
@@ -134,10 +111,10 @@ func (j *jobRunRepository) SetJobRunStatusRunning(tenantId, jobRunId string) err
 
 	_, err = j.queries.UpdateWorkflowRun(
 		context.Background(),
-		j.pool,
+		tx,
 		dbsqlc.UpdateWorkflowRunParams{
-			ID:       sqlchelpers.UUIDFromStr(jobRun.WorkflowRunID),
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			ID:       jobRun.WorkflowRunId,
+			Tenantid: jobRun.TenantId,
 			Status: dbsqlc.NullWorkflowRunStatus{
 				WorkflowRunStatus: dbsqlc.WorkflowRunStatusRUNNING,
 				Valid:             true,
@@ -145,7 +122,11 @@ func (j *jobRunRepository) SetJobRunStatusRunning(tenantId, jobRunId string) err
 		},
 	)
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(context.Background())
 }
 
 func (j *jobRunRepository) GetJobRunLookupData(tenantId, jobRunId string) (*db.JobRunLookupDataModel, error) {
