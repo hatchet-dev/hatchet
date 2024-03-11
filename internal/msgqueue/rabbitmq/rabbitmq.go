@@ -376,12 +376,17 @@ func (t *MessageQueueImpl) subscribe(
 
 						if exists {
 							// message was rejected before
-							c := xDeath[0].(amqp.Table)["count"].(int64)
+							deathCount := xDeath[0].(amqp.Table)["count"].(int64)
 
-							t.l.Debug().Msgf("message %s has been rejected %d times", msg.ID, c)
+							t.l.Debug().Msgf("message %s has been rejected %d times", msg.ID, deathCount)
 
-							if uint64(c) > uint64(msg.Retries) {
-								t.l.Debug().Msgf("message %s has been rejected %d times, not requeuing", msg.ID, c)
+							if deathCount > int64(msg.Retries) {
+								t.l.Debug().Msgf("message %s has been rejected %d times, not requeuing", msg.ID, deathCount)
+
+								// acknowledge so it's removed from the queue
+								if err := rabbitMsg.Ack(false); err != nil {
+									t.l.Error().Msgf("error acknowledging message: %v", err)
+								}
 
 								return
 							}

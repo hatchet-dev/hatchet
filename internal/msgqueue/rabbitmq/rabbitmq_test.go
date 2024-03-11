@@ -132,66 +132,17 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	assert.NoError(t, err, "adding task to static queue should not error")
 
 	preAck := func(receivedMessage *msgqueue.Message) error {
+		if receivedMessage.ID != task.ID {
+			return nil
+		}
+
 		attempts++
 		if attempts <= 2 {
 			return fmt.Errorf("intentional error on attempt %d", attempts)
 		}
-		defer wg.Done()
+
 		assert.Equal(t, task.ID, receivedMessage.ID, "received task ID should match sent task ID")
-		return nil
-	}
-
-	// Test subscription to the static queue
-	cleanupQueue, err := tq.Subscribe(staticQueue, preAck, msgqueue.NoOpHook)
-	require.NoError(t, err, "subscribing to static queue should not error")
-
-	wg.Wait()
-
-	if err := cleanupQueue(); err != nil {
-		t.Fatalf("error cleaning up queue: %v", err)
-	}
-}
-
-func TestDeadLetteringFailure(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	var attempts int
-	wg := &sync.WaitGroup{}
-	wg.Add(1) // we wait for the message to be processed successfully
-
-	url := "amqp://user:password@localhost:5672/"
-
-	// Initialize the task queue implementation
-	cleanup, tq := rabbitmq.New(
-		rabbitmq.WithURL(url),
-	)
-	defer cleanup() // nolint: errcheck
-
-	require.NotNil(t, tq, "task queue implementation should not be nil")
-
-	id, _ := encryption.GenerateRandomBytes(4) // nolint: errcheck
-
-	// Test adding a task to a static queue
-	staticQueue := msgqueue.EVENT_PROCESSING_QUEUE
-	task := &msgqueue.Message{
-		ID:         id,
-		Payload:    map[string]interface{}{"key": "value"},
-		Metadata:   map[string]interface{}{"tenant_id": "test-tenant"},
-		Retries:    2, // Allow up to 2 retries
-		RetryDelay: 5, // Delay between retries in seconds
-	}
-
-	err := tq.AddMessage(ctx, staticQueue, task)
-	assert.NoError(t, err, "adding task to static queue should not error")
-
-	preAck := func(receivedMessage *msgqueue.Message) error {
-		attempts++
-		if attempts <= 2 {
-			return fmt.Errorf("intentional error on attempt %d", attempts)
-		}
-		defer wg.Done()
-		assert.Equal(t, task.ID, receivedMessage.ID, "received task ID should match sent task ID")
+		wg.Done()
 		return nil
 	}
 
