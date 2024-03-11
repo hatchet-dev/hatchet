@@ -34,6 +34,7 @@ func JobRunQueuedToTask(job *db.JobModel, jobRun *db.JobRunModel) *msgqueue.Mess
 		ID:       "job-run-queued",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 

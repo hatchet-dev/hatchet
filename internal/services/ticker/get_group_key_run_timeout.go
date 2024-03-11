@@ -137,5 +137,6 @@ func taskGetGroupKeyRunTimedOut(tenantId, workflowRunId, getGroupKeyRunId string
 		ID:       "get-group-key-run-timed-out",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }

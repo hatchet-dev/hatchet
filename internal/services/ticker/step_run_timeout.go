@@ -137,5 +137,6 @@ func taskStepRunTimedOut(tenantId, jobRunId, stepRunId string) *msgqueue.Message
 		ID:       "step-run-timed-out",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }

@@ -37,6 +37,7 @@ func TenantToGroupKeyActionRequeueTask(tenant db.TenantModel) *msgqueue.Message 
 		ID:       "group-key-action-requeue-ticker",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 

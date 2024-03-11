@@ -165,5 +165,6 @@ func eventToTask(e *db.EventModel) *msgqueue.Message {
 		ID:       "event",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }

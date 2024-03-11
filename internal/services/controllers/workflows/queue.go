@@ -523,7 +523,6 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 		return fmt.Errorf("could not list queued workflow runs: %w", err)
 	}
 
-	// cancel up to maxRuns - queued runs
 	errGroup := new(errgroup.Group)
 
 	for i := range poppedWorkflowRuns {
@@ -531,6 +530,8 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 
 		errGroup.Go(func() error {
 			workflowRunId := sqlchelpers.UUIDToStr(row.ID)
+
+			wc.l.Info().Msgf("popped workflow run %s", workflowRunId)
 			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(tenantId, workflowRunId)
 
 			if err != nil {
@@ -597,6 +598,7 @@ func getGroupActionTask(tenantId, workflowRunId, workerId, dispatcherId string) 
 		ID:       "group-key-action-assigned",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 
@@ -614,6 +616,7 @@ func getStepRunNotifyCancelTask(tenantId, stepRunId, reason string) *msgqueue.Me
 		ID:       "step-run-cancelled",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 
@@ -643,5 +646,6 @@ func scheduleGetGroupKeyRunTimeoutTask(tenantId, workflowRunId, getGroupKeyRunId
 		ID:       "schedule-get-group-key-run-timeout",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }

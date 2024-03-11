@@ -795,6 +795,7 @@ func cronScheduleTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTrigger
 		ID:       "schedule-cron",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }
 
@@ -813,6 +814,7 @@ func cronCancelTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTriggerCr
 		ID:       "cancel-cron",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }
 
@@ -831,6 +833,7 @@ func workflowScheduleTask(ticker *db.TickerModel, workflowTriggerRef *db.Workflo
 		ID:       "schedule-workflow",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }
 
@@ -849,5 +852,6 @@ func workflowCancelTask(ticker *db.TickerModel, workflowTriggerRef *db.WorkflowT
 		ID:       "cancel-workflow",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }

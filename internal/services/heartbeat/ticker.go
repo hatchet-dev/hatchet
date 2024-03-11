@@ -72,6 +72,7 @@ func tickerRemoved(tickerId string) *msgqueue.Message {
 		ID:       "ticker-removed",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 
@@ -162,6 +163,7 @@ func cronScheduleTask(tickerId string, cronTriggerRef *db.WorkflowTriggerCronRef
 		ID:       "schedule-cron",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }
 
@@ -180,5 +182,6 @@ func workflowScheduleTask(tickerId string, workflowTriggerRef *db.WorkflowTrigge
 		ID:       "schedule-workflow",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }

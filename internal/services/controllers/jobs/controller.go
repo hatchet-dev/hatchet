@@ -245,6 +245,12 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgq
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
+	err = ec.repo.JobRun().SetJobRunStatusRunning(metadata.TenantId, payload.JobRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not set job run status to running: %w", err)
+	}
+
 	// list the step runs which are startable
 	startableStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(metadata.TenantId, payload.JobRunId, nil)
 
@@ -669,7 +675,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	updateStepOpts.Status = repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment)
 
 	// indicate that the step run is pending assignment
-	_, _, err = ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, updateStepOpts)
+	_, err = ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, updateStepOpts)
 
 	if err != nil {
 		if errors.Is(err, repository.ErrStepRunIsNotPending) {
@@ -1191,6 +1197,7 @@ func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *ms
 		ID:       "step-run-assigned",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 
@@ -1228,6 +1235,7 @@ func scheduleStepRunTimeoutTask(stepRun *db.StepRunModel) (*msgqueue.Message, er
 		ID:       "schedule-step-run-timeout",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }
 
@@ -1244,6 +1252,7 @@ func cancelStepRunTimeoutTask(tenantId, stepRunId string) *msgqueue.Message {
 		ID:       "cancel-step-run-timeout",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 
@@ -1263,5 +1272,6 @@ func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelled
 		ID:       "step-run-cancelled",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }

@@ -370,5 +370,6 @@ func cancelGetGroupKeyRunTimeoutTask(getGroupKeyRun *dbsqlc.GetGroupKeyRunForEng
 		ID:       "cancel-get-group-key-run-timeout",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }

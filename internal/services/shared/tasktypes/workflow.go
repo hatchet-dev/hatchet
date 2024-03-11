@@ -38,6 +38,7 @@ func WorkflowRunFinishedToTask(tenantId, workflowRunId, status string) *msgqueue
 		ID:       "workflow-run-finished",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 
@@ -55,5 +56,6 @@ func WorkflowRunQueuedToTask(workflowRun *db.WorkflowRunModel) *msgqueue.Message
 		ID:       "workflow-run-queued",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }

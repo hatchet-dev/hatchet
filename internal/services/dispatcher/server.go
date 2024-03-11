@@ -471,6 +471,7 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 		ID:       "step-run-started",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	})
 
 	if err != nil {
@@ -505,6 +506,7 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 		ID:       "step-run-finished",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	})
 
 	if err != nil {
@@ -539,6 +541,7 @@ func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contr
 		ID:       "step-run-failed",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	})
 
 	if err != nil {
@@ -572,6 +575,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunStarted(ctx context.Context, reques
 		ID:       "get-group-key-run-started",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	})
 
 	if err != nil {
@@ -606,6 +610,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(ctx context.Context, requ
 		ID:       "get-group-key-run-finished",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	})
 
 	if err != nil {
@@ -640,6 +645,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request
 		ID:       "get-group-key-run-failed",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	})
 
 	if err != nil {

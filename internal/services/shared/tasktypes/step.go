@@ -124,6 +124,7 @@ func TenantToStepRunRequeueTask(tenant db.TenantModel) *msgqueue.Message {
 		ID:       "step-run-requeue-ticker",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 
@@ -146,6 +147,7 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 		ID:       "step-run-retry",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 
@@ -168,5 +170,6 @@ func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Messa
 		ID:       "step-run-queued",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }

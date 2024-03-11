@@ -457,9 +457,11 @@ WITH job_run AS (
 SELECT 
     child_run."id" AS "id"
 FROM 
-    "StepRun" AS child_run, job_run
+    "StepRun" AS child_run
 LEFT JOIN 
     "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+JOIN
+    job_run ON true
 WHERE 
     child_run."jobRunId" = $1::uuid
     AND child_run."status" = 'PENDING'

@@ -18,12 +18,12 @@ class ConcurrencyDemoWorkflowRR:
     @hatchet.step()
     def step1(self, context):
         print("starting step1")
-        context.sleep(5)
+        context.sleep(0.2)
         print("finished step1")
         pass
 
 workflow = ConcurrencyDemoWorkflowRR()
-worker = hatchet.worker('concurrency-demo-worker-rr', max_runs=1)
+worker = hatchet.worker('concurrency-demo-worker-rr', max_runs=10)
 worker.register_workflow(workflow)
 
 worker.start()

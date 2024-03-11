@@ -259,5 +259,6 @@ func tickerRemoved(tickerId string) *msgqueue.Message {
 		ID:       "ticker-removed",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
