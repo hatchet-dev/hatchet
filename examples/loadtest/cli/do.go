@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int) error {
+func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration) error {
 	log.Printf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -23,6 +23,11 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	ch := make(chan int64, 2)
 	durations := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*3)
 	go func() {
+		if workerDelay.Seconds() > 0 {
+			log.Printf("wait %s before starting the worker", workerDelay)
+			time.Sleep(workerDelay)
+		}
+		log.Printf("start worker now")
 		count, uniques := run(ctx, delay, durations, concurrency)
 		ch <- count
 		ch <- uniques
