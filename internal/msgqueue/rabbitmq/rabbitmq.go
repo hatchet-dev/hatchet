@@ -209,6 +209,7 @@ func (t *MessageQueueImpl) initQueue(sub session, q msgqueue.Queue) (string, err
 	if q.DLX() != "" {
 		args["x-dead-letter-exchange"] = ""
 		args["x-dead-letter-routing-key"] = q.DLX()
+		args["x-consumer-timeout"] = 5000 // 5 seconds
 
 		dlqArgs := make(amqp.Table)
 
@@ -359,6 +360,8 @@ func (t *MessageQueueImpl) subscribe(
 
 			for {
 				select {
+				case <-ctx.Done():
+					return
 				case rabbitMsg := <-deliveries:
 					wg.Add(1)
 
@@ -415,8 +418,6 @@ func (t *MessageQueueImpl) subscribe(
 							return
 						}
 					}(rabbitMsg)
-				case <-ctx.Done():
-					return
 				}
 			}
 		}
