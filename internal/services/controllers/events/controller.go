@@ -10,10 +10,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/logger"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 )
 
@@ -22,7 +23,7 @@ type EventsController interface {
 }
 
 type EventsControllerImpl struct {
-	tq   taskqueue.TaskQueue
+	mq   msgqueue.MessageQueue
 	l    *zerolog.Logger
 	repo repository.Repository
 	dv   datautils.DataDecoderValidator
@@ -31,7 +32,7 @@ type EventsControllerImpl struct {
 type EventsControllerOpt func(*EventsControllerOpts)
 
 type EventsControllerOpts struct {
-	tq   taskqueue.TaskQueue
+	mq   msgqueue.MessageQueue
 	l    *zerolog.Logger
 	repo repository.Repository
 	dv   datautils.DataDecoderValidator
@@ -45,9 +46,9 @@ func defaultEventsControllerOpts() *EventsControllerOpts {
 	}
 }
 
-func WithTaskQueue(tq taskqueue.TaskQueue) EventsControllerOpt {
+func WithMessageQueue(mq msgqueue.MessageQueue) EventsControllerOpt {
 	return func(opts *EventsControllerOpts) {
-		opts.tq = tq
+		opts.mq = mq
 	}
 }
 
@@ -76,8 +77,8 @@ func New(fs ...EventsControllerOpt) (*EventsControllerImpl, error) {
 		f(opts)
 	}
 
-	if opts.tq == nil {
-		return nil, fmt.Errorf("task queue is required. use WithTaskQueue")
+	if opts.mq == nil {
+		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
 	if opts.repo == nil {
@@ -88,7 +89,7 @@ func New(fs ...EventsControllerOpt) (*EventsControllerImpl, error) {
 	opts.l = &newLogger
 
 	return &EventsControllerImpl{
-		tq:   opts.tq,
+		mq:   opts.mq,
 		l:    opts.l,
 		repo: opts.repo,
 		dv:   opts.dv,
@@ -98,28 +99,27 @@ func New(fs ...EventsControllerOpt) (*EventsControllerImpl, error) {
 func (ec *EventsControllerImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	cleanupQueue, taskChan, err := ec.tq.Subscribe(taskqueue.EVENT_PROCESSING_QUEUE)
+	wg := sync.WaitGroup{}
+
+	f := func(task *msgqueue.Message) error {
+		wg.Add(1)
+		defer wg.Done()
+
+		err := ec.handleTask(ctx, task)
+		if err != nil {
+			ec.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
+			return err
+		}
+
+		return nil
+	}
+
+	cleanupQueue, err := ec.mq.Subscribe(msgqueue.EVENT_PROCESSING_QUEUE, f, msgqueue.NoOpHook)
 
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not subscribe to event processing queue: %w", err)
 	}
-
-	wg := sync.WaitGroup{}
-
-	go func() {
-		for task := range taskChan {
-			wg.Add(1)
-			go func(task *taskqueue.Task) {
-				defer wg.Done()
-
-				err := ec.handleTask(ctx, task)
-				if err != nil {
-					ec.l.Error().Err(err).Msgf("could not handle event task %s", task.ID)
-				}
-			}(task)
-		}
-	}()
 
 	cleanup := func() error {
 		cancel()
@@ -132,7 +132,7 @@ func (ec *EventsControllerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {
+func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
 	payload := tasktypes.EventTaskPayload{}
 	metadata := tasktypes.EventTaskMetadata{}
 
@@ -149,7 +149,7 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *taskqueue.
 	}
 
 	// lookup the event id in the database
-	event, err := ec.repo.Event().GetEventById(payload.EventId)
+	event, err := ec.repo.Event().GetEventForEngine(metadata.TenantId, payload.EventId)
 
 	if err != nil {
 		return fmt.Errorf("could not lookup event: %w", err)
@@ -158,14 +158,14 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *taskqueue.
 	return ec.processEvent(ctx, event)
 }
 
-func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *db.EventModel) error {
+func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *dbsqlc.GetEventForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "process-event")
 	defer span.End()
 
-	tenantId := event.TenantID
+	tenantId := sqlchelpers.UUIDToStr(event.TenantId)
 
 	// query for matching workflows in the system
-	workflows, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, event.Key)
+	workflowVersions, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, event.Key)
 
 	if err != nil {
 		return fmt.Errorf("could not query workflows for event: %w", err)
@@ -174,12 +174,12 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *db.Even
 	// create a new workflow run in the database
 	var g = new(errgroup.Group)
 
-	for _, workflow := range workflows {
-		workflowCp := workflow
+	for _, workflowVersion := range workflowVersions {
+		workflowCp := workflowVersion
 
 		g.Go(func() error {
 			// create a new workflow run in the database
-			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(event, &workflowCp)
+			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(event, workflowCp)
 
 			if err != nil {
 				return fmt.Errorf("could not get create workflow run opts: %w", err)
@@ -192,9 +192,9 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, event *db.Even
 			}
 
 			// send to workflow processing queue
-			return ec.tq.AddTask(
+			return ec.mq.AddMessage(
 				context.Background(),
-				taskqueue.WORKFLOW_PROCESSING_QUEUE,
+				msgqueue.WORKFLOW_PROCESSING_QUEUE,
 				tasktypes.WorkflowRunQueuedToTask(workflowRun),
 			)
 		})

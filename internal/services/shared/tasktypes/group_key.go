@@ -2,8 +2,8 @@ package tasktypes
 
 import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 type GroupKeyActionAssignedTaskPayload struct {
@@ -24,7 +24,7 @@ type GroupKeyActionRequeueTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
-func TenantToGroupKeyActionRequeueTask(tenant db.TenantModel) *taskqueue.Task {
+func TenantToGroupKeyActionRequeueTask(tenant db.TenantModel) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(GroupKeyActionRequeueTaskPayload{
 		TenantId: tenant.ID,
 	})
@@ -33,10 +33,11 @@ func TenantToGroupKeyActionRequeueTask(tenant db.TenantModel) *taskqueue.Task {
 		TenantId: tenant.ID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "group-key-action-requeue-ticker",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 

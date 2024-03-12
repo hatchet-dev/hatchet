@@ -94,6 +94,7 @@ require (
 	github.com/go-chi/chi v1.5.5
 	github.com/go-playground/validator/v10 v10.16.0
 	github.com/go-test/deep v1.1.0 // indirect
+	github.com/goccy/go-json v0.10.2
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/uuid v1.5.0
 	github.com/gorilla/schema v1.2.1

@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
-func (t *TickerImpl) handleScheduleGetGroupKeyRunTimeout(ctx context.Context, task *taskqueue.Task) error {
+func (t *TickerImpl) handleScheduleGetGroupKeyRunTimeout(ctx context.Context, task *msgqueue.Message) error {
 	t.l.Debug().Msg("ticker: scheduling get group key run timeout")
 
 	payload := tasktypes.ScheduleGetGroupKeyRunTimeoutTaskPayload{}
@@ -51,7 +51,7 @@ func (t *TickerImpl) handleScheduleGetGroupKeyRunTimeout(ctx context.Context, ta
 	return nil
 }
 
-func (t *TickerImpl) handleCancelGetGroupKeyRunTimeout(ctx context.Context, task *taskqueue.Task) error {
+func (t *TickerImpl) handleCancelGetGroupKeyRunTimeout(ctx context.Context, task *msgqueue.Message) error {
 	t.l.Debug().Msg("ticker: canceling get group key run timeout")
 
 	payload := tasktypes.CancelGetGroupKeyRunTimeoutTaskPayload{}
@@ -112,9 +112,9 @@ func (t *TickerImpl) runGetGroupKeyRunTimeout(tenantId, workflowRunId, getGroupK
 	t.l.Debug().Msgf("ticker: get group key run %s timed out", getGroupKeyRunId)
 
 	// signal the jobs controller that the group key run timed out
-	err := t.tq.AddTask(
+	err := t.mq.AddMessage(
 		context.Background(),
-		taskqueue.JOB_PROCESSING_QUEUE,
+		msgqueue.JOB_PROCESSING_QUEUE,
 		taskGetGroupKeyRunTimedOut(tenantId, workflowRunId, getGroupKeyRunId),
 	)
 
@@ -123,7 +123,7 @@ func (t *TickerImpl) runGetGroupKeyRunTimeout(tenantId, workflowRunId, getGroupK
 	}
 }
 
-func taskGetGroupKeyRunTimedOut(tenantId, workflowRunId, getGroupKeyRunId string) *taskqueue.Task {
+func taskGetGroupKeyRunTimedOut(tenantId, workflowRunId, getGroupKeyRunId string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.GetGroupKeyRunTimedOutTaskPayload{
 		GetGroupKeyRunId: getGroupKeyRunId,
 		WorkflowRunId:    workflowRunId,
@@ -133,9 +133,10 @@ func taskGetGroupKeyRunTimedOut(tenantId, workflowRunId, getGroupKeyRunId string
 		TenantId: tenantId,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "get-group-key-run-timed-out",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }

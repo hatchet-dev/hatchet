@@ -12,10 +12,10 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/logger"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 )
@@ -29,7 +29,7 @@ type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
 	s            gocron.Scheduler
-	tq           taskqueue.TaskQueue
+	mq           msgqueue.MessageQueue
 	l            *zerolog.Logger
 	dv           datautils.DataDecoderValidator
 	repo         repository.Repository
@@ -40,7 +40,7 @@ type DispatcherImpl struct {
 type DispatcherOpt func(*DispatcherOpts)
 
 type DispatcherOpts struct {
-	tq           taskqueue.TaskQueue
+	mq           msgqueue.MessageQueue
 	l            *zerolog.Logger
 	dv           datautils.DataDecoderValidator
 	repo         repository.Repository
@@ -56,9 +56,9 @@ func defaultDispatcherOpts() *DispatcherOpts {
 	}
 }
 
-func WithTaskQueue(tq taskqueue.TaskQueue) DispatcherOpt {
+func WithMessageQueue(mq msgqueue.MessageQueue) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
-		opts.tq = tq
+		opts.mq = mq
 	}
 }
 
@@ -93,8 +93,8 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		f(opts)
 	}
 
-	if opts.tq == nil {
-		return nil, fmt.Errorf("task queue is required. use WithTaskQueue")
+	if opts.mq == nil {
+		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
 	if opts.repo == nil {
@@ -112,7 +112,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	}
 
 	return &DispatcherImpl{
-		tq:           opts.tq,
+		mq:           opts.mq,
 		l:            opts.l,
 		dv:           opts.dv,
 		repo:         opts.repo,
@@ -134,14 +134,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// subscribe to a task queue with the dispatcher id
-	cleanupQueue, taskChan, err := d.tq.Subscribe(taskqueue.QueueTypeFromDispatcherID(dispatcher.ID))
-
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
 	_, err = d.s.NewJob(
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
@@ -158,24 +150,26 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 	wg := sync.WaitGroup{}
 
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case task := <-taskChan:
-				wg.Add(1)
-				go func(task *taskqueue.Task) {
-					defer wg.Done()
+	f := func(task *msgqueue.Message) error {
+		wg.Add(1)
+		defer wg.Done()
 
-					err := d.handleTask(ctx, task)
-					if err != nil {
-						d.l.Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
-					}
-				}(task)
-			}
+		err := d.handleTask(ctx, task)
+		if err != nil {
+			d.l.Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
+			return err
 		}
-	}()
+
+		return nil
+	}
+
+	// subscribe to a task queue with the dispatcher id
+	cleanupQueue, err := d.mq.Subscribe(msgqueue.QueueTypeFromDispatcherID(dispatcher.ID), f, msgqueue.NoOpHook)
+
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 
 	cleanup := func() error {
 		d.l.Debug().Msgf("dispatcher is shutting down...")
@@ -216,7 +210,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (d *DispatcherImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {
+func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
 	switch task.ID {
 	case "group-key-action-assigned":
 		return d.handleGroupKeyActionAssignedTask(ctx, task)
@@ -229,7 +223,7 @@ func (d *DispatcherImpl) handleTask(ctx context.Context, task *taskqueue.Task) e
 	return fmt.Errorf("unknown task: %s", task.ID)
 }
 
-func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, task *taskqueue.Task) error {
+func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "group-key-action-assigned")
 	defer span.End()
 
@@ -275,7 +269,7 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 	return nil
 }
 
-func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *taskqueue.Task) error {
+func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-assigned")
 	defer span.End()
 
@@ -321,7 +315,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ta
 	return nil
 }
 
-func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *taskqueue.Task) error {
+func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-cancelled")
 	defer span.End()
 

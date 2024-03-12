@@ -2,8 +2,10 @@ package tasktypes
 
 import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 )
 
 type StepRunTaskPayload struct {
@@ -109,7 +111,7 @@ type StepRunRetryTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
-func TenantToStepRunRequeueTask(tenant db.TenantModel) *taskqueue.Task {
+func TenantToStepRunRequeueTask(tenant db.TenantModel) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(StepRunRequeueTaskPayload{
 		TenantId: tenant.ID,
 	})
@@ -118,49 +120,56 @@ func TenantToStepRunRequeueTask(tenant db.TenantModel) *taskqueue.Task {
 		TenantId: tenant.ID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "step-run-requeue-ticker",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 
-func StepRunRetryToTask(stepRun *db.StepRunModel, inputData []byte) *taskqueue.Task {
+func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
+	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
+
 	payload, _ := datautils.ToJSONMap(StepRunRetryTaskPayload{
-		JobRunId:  stepRun.JobRunID,
-		StepRunId: stepRun.ID,
+		JobRunId:  jobRunId,
+		StepRunId: stepRunId,
 		InputData: string(inputData),
 	})
 
 	metadata, _ := datautils.ToJSONMap(StepRunRetryTaskMetadata{
-		TenantId: stepRun.TenantID,
+		TenantId: tenantId,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "step-run-retry",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 
-func StepRunQueuedToTask(job *db.JobModel, stepRun *db.StepRunModel) *taskqueue.Task {
+func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(StepRunTaskPayload{
-		JobRunId:  stepRun.JobRunID,
-		StepRunId: stepRun.ID,
+		JobRunId:  sqlchelpers.UUIDToStr(stepRun.JobRunId),
+		StepRunId: sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
 	})
 
 	metadata, _ := datautils.ToJSONMap(StepRunTaskMetadata{
-		StepId:            stepRun.StepID,
-		ActionId:          stepRun.Step().ActionID,
-		JobName:           job.Name,
-		JobId:             job.ID,
-		WorkflowVersionId: job.WorkflowVersionID,
-		TenantId:          job.TenantID,
+		StepId:            sqlchelpers.UUIDToStr(stepRun.StepId),
+		ActionId:          stepRun.ActionId,
+		JobName:           stepRun.JobName,
+		JobId:             sqlchelpers.UUIDToStr(stepRun.JobId),
+		WorkflowVersionId: sqlchelpers.UUIDToStr(stepRun.WorkflowVersionId),
+		TenantId:          sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId),
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "step-run-queued",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }

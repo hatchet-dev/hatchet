@@ -14,8 +14,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/config/shared"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
@@ -30,7 +30,7 @@ type ServerConfigFile struct {
 
 	Runtime ConfigFileRuntime `mapstructure:"runtime" json:"runtime,omitempty"`
 
-	TaskQueue TaskQueueConfigFile `mapstructure:"taskQueue" json:"taskQueue,omitempty"`
+	MessageQueue MessageQueueConfigFile `mapstructure:"msgQueue" json:"msgQueue,omitempty"`
 
 	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"health\", \"ticker\", \"grpc\", \"eventscontroller\", \"jobscontroller\", \"workflowscontroller\", \"heartbeater\"]"`
 
@@ -176,7 +176,7 @@ type ConfigFileAuthCookie struct {
 	Insecure bool   `mapstructure:"insecure" json:"insecure,omitempty" default:"false"`
 }
 
-type TaskQueueConfigFile struct {
+type MessageQueueConfigFile struct {
 	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required"`
 
 	RabbitMQ RabbitMQConfigFile `mapstructure:"rabbitmq" json:"rabbitmq,omitempty" validate:"required"`
@@ -209,7 +209,7 @@ type ServerConfig struct {
 
 	Namespaces []string
 
-	TaskQueue taskqueue.TaskQueue
+	MessageQueue msgqueue.MessageQueue
 
 	Logger *zerolog.Logger
 
@@ -280,8 +280,12 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.google.scopes", "SERVER_AUTH_GOOGLE_SCOPES")
 
 	// task queue options
-	_ = v.BindEnv("taskQueue.kind", "SERVER_TASKQUEUE_KIND")
-	_ = v.BindEnv("taskQueue.rabbitmq.url", "SERVER_TASKQUEUE_RABBITMQ_URL")
+	// legacy options
+	_ = v.BindEnv("msgQueue.kind", "SERVER_TASKQUEUE_KIND")
+	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_TASKQUEUE_RABBITMQ_URL")
+
+	_ = v.BindEnv("msgQueue.kind", "SERVER_MSGQUEUE_KIND")
+	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_MSGQUEUE_RABBITMQ_URL")
 
 	// tls options
 	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")

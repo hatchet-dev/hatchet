@@ -9,8 +9,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/logger"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 type Heartbeater interface {
@@ -18,7 +18,7 @@ type Heartbeater interface {
 }
 
 type HeartbeaterImpl struct {
-	tq   taskqueue.TaskQueue
+	mq   msgqueue.MessageQueue
 	l    *zerolog.Logger
 	repo repository.Repository
 	s    gocron.Scheduler
@@ -27,7 +27,7 @@ type HeartbeaterImpl struct {
 type HeartbeaterOpt func(*HeartbeaterOpts)
 
 type HeartbeaterOpts struct {
-	tq   taskqueue.TaskQueue
+	mq   msgqueue.MessageQueue
 	l    *zerolog.Logger
 	repo repository.Repository
 }
@@ -39,9 +39,9 @@ func defaultHeartbeaterOpts() *HeartbeaterOpts {
 	}
 }
 
-func WithTaskQueue(tq taskqueue.TaskQueue) HeartbeaterOpt {
+func WithMessageQueue(mq msgqueue.MessageQueue) HeartbeaterOpt {
 	return func(opts *HeartbeaterOpts) {
-		opts.tq = tq
+		opts.mq = mq
 	}
 }
 
@@ -64,8 +64,8 @@ func New(fs ...HeartbeaterOpt) (*HeartbeaterImpl, error) {
 		f(opts)
 	}
 
-	if opts.tq == nil {
-		return nil, fmt.Errorf("task queue is required. use WithTaskQueue")
+	if opts.mq == nil {
+		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
 	if opts.repo == nil {
@@ -82,7 +82,7 @@ func New(fs ...HeartbeaterOpt) (*HeartbeaterImpl, error) {
 	}
 
 	return &HeartbeaterImpl{
-		tq:   opts.tq,
+		mq:   opts.mq,
 		l:    opts.l,
 		repo: opts.repo,
 		s:    s,

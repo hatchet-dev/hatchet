@@ -47,6 +47,13 @@ func (w *workerRepository) GetWorkerById(workerId string) (*db.WorkerModel, erro
 	).Exec(context.Background())
 }
 
+func (w *workerRepository) GetWorkerForEngine(tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error) {
+	return w.queries.GetWorkerForEngine(context.Background(), w.pool, dbsqlc.GetWorkerForEngineParams{
+		ID:       sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+}
+
 func (w *workerRepository) ListRecentWorkerStepRuns(tenantId, workerId string) ([]db.StepRunModel, error) {
 	return w.client.StepRun.FindMany(
 		db.StepRun.WorkerID.Equals(workerId),

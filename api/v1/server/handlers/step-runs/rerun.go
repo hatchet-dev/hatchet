@@ -11,10 +11,10 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRunUpdateRerunRequestObject) (gen.StepRunUpdateRerunResponseObject, error) {
@@ -70,11 +70,17 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		return nil, err
 	}
 
+	engineStepRun, err := t.config.Repository.StepRun().GetStepRunForEngine(tenant.ID, stepRun.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get step run for engine: %w", err)
+	}
+
 	// send a task to the taskqueue
-	err = t.config.TaskQueue.AddTask(
+	err = t.config.MessageQueue.AddMessage(
 		ctx.Request().Context(),
-		taskqueue.JOB_PROCESSING_QUEUE,
-		tasktypes.StepRunRetryToTask(stepRun, inputBytes),
+		msgqueue.JOB_PROCESSING_QUEUE,
+		tasktypes.StepRunRetryToTask(engineStepRun, inputBytes),
 	)
 
 	if err != nil {

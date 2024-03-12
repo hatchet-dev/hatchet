@@ -3,12 +3,12 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 )
 
 type CreateWorkflowRunOpts struct {
@@ -30,8 +30,9 @@ type CreateWorkflowRunOpts struct {
 	// (optional) the scheduled trigger
 	ScheduledWorkflowId *string `validate:"omitnil,uuid,required_without=ManualTriggerInput,required_without=TriggeringEventId,required_without=Cron,excluded_with=ManualTriggerInput,excluded_with=TriggeringEventId,excluded_with=Cron"`
 
-	// (required) the workflow jobs
-	JobRuns []CreateWorkflowJobRunOpts `validate:"required,min=1,dive"`
+	InputData []byte
+
+	TriggeredBy string
 
 	GetGroupKeyRun *CreateGroupKeyRunOpts `validate:"omitempty"`
 }
@@ -43,74 +44,68 @@ type CreateGroupKeyRunOpts struct {
 
 func GetCreateWorkflowRunOptsFromManual(workflowVersion *db.WorkflowVersionModel, input []byte) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
-		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion)),
+		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.Workflow().Name)),
 		WorkflowVersionId:  workflowVersion.ID,
 		ManualTriggerInput: StringPtr(string(input)),
+		TriggeredBy:        string(datautils.TriggeredByManual),
+		InputData:          input,
 	}
 
-	jobRunData := input
-
-	if _, hasConcurrency := workflowVersion.Concurrency(); hasConcurrency {
-		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
-			Input: jobRunData,
-		}
-	}
-
-	var err error
-	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, datautils.TriggeredBySchedule, jobRunData)
-
-	return opts, err
-}
-
-func GetCreateWorkflowRunOptsFromEvent(event *db.EventModel, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
-	eventId := event.ID
-
-	opts := &CreateWorkflowRunOpts{
-		DisplayName:       StringPtr(getWorkflowRunDisplayName(workflowVersion)),
-		WorkflowVersionId: workflowVersion.ID,
-		TriggeringEventId: &eventId,
-	}
-
-	data := event.InnerEvent.Data
-
-	var jobRunData []byte
-	var err error
-
-	if data != nil {
-		jobRunData = []byte(json.RawMessage(*data))
-
+	if input != nil {
 		if _, hasConcurrency := workflowVersion.Concurrency(); hasConcurrency {
 			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
-				Input: jobRunData,
+				Input: input,
 			}
 		}
 	}
 
-	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, datautils.TriggeredByEvent, jobRunData)
+	return opts, nil
+}
+
+func GetCreateWorkflowRunOptsFromEvent(event *dbsqlc.GetEventForEngineRow, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (*CreateWorkflowRunOpts, error) {
+	eventId := sqlchelpers.UUIDToStr(event.ID)
+
+	opts := &CreateWorkflowRunOpts{
+		DisplayName:       StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
+		WorkflowVersionId: sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		TriggeringEventId: &eventId,
+		TriggeredBy:       string(datautils.TriggeredByEvent),
+		InputData:         event.Data,
+	}
+
+	if event.Data != nil {
+		if workflowVersion.HasWorkflowConcurrency {
+			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+				Input: event.Data,
+			}
+		}
+	}
+
+	var err error
 
 	return opts, err
 }
 
 func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
-		DisplayName:       StringPtr(getWorkflowRunDisplayName(workflowVersion)),
+		DisplayName:       StringPtr(getWorkflowRunDisplayName(workflowVersion.Workflow().Name)),
 		WorkflowVersionId: workflowVersion.ID,
 		Cron:              &cron,
 		CronParentId:      &cronParentId,
+		TriggeredBy:       string(datautils.TriggeredByCron),
 	}
 
 	var err error
-
-	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, datautils.TriggeredByCron, nil)
 
 	return opts, err
 }
 
 func GetCreateWorkflowRunOptsFromSchedule(scheduledTrigger *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
-		DisplayName:         StringPtr(getWorkflowRunDisplayName(workflowVersion)),
+		DisplayName:         StringPtr(getWorkflowRunDisplayName(workflowVersion.Workflow().Name)),
 		WorkflowVersionId:   workflowVersion.ID,
 		ScheduledWorkflowId: &scheduledTrigger.ID,
+		TriggeredBy:         string(datautils.TriggeredBySchedule),
 	}
 
 	data := scheduledTrigger.InnerWorkflowTriggerScheduledRef.Input
@@ -128,61 +123,15 @@ func GetCreateWorkflowRunOptsFromSchedule(scheduledTrigger *db.WorkflowTriggerSc
 		}
 	}
 
-	opts.JobRuns, err = getJobsFromWorkflowVersion(workflowVersion, datautils.TriggeredBySchedule, jobRunData)
+	opts.InputData = jobRunData
 
 	return opts, err
 }
 
-func getJobsFromWorkflowVersion(workflowVersion *db.WorkflowVersionModel, triggeredBy datautils.TriggeredBy, input []byte) ([]CreateWorkflowJobRunOpts, error) {
-	resJobRunOpts := []CreateWorkflowJobRunOpts{}
-
-	for _, job := range workflowVersion.Jobs() {
-		jobOpts := CreateWorkflowJobRunOpts{
-			JobId:       job.ID,
-			TriggeredBy: string(triggeredBy),
-			InputData:   input,
-		}
-
-		for _, step := range job.Steps() {
-			stepOpts := CreateWorkflowStepRunOpts{
-				StepId: step.ID,
-			}
-
-			jobOpts.StepRuns = append(jobOpts.StepRuns, stepOpts)
-		}
-
-		resJobRunOpts = append(resJobRunOpts, jobOpts)
-	}
-
-	return resJobRunOpts, nil
-}
-
-func getWorkflowRunDisplayName(workflowVersion *db.WorkflowVersionModel) string {
+func getWorkflowRunDisplayName(workflowName string) string {
 	workflowSuffix, _ := encryption.GenerateRandomBytes(3)
 
-	return workflowVersion.Workflow().Name + "-" + workflowSuffix
-}
-
-type CreateWorkflowJobRunOpts struct {
-	// (required) the job id
-	JobId string `validate:"required,uuid"`
-
-	// (optional) the job run input
-	InputData []byte
-
-	TriggeredBy string
-
-	// (required) the job step runs
-	StepRuns []CreateWorkflowStepRunOpts `validate:"required,min=1,dive"`
-
-	// (optional) the job run requeue after time, if not set this defaults to 5 seconds after the
-	// current time
-	RequeueAfter *time.Time `validate:"omitempty"`
-}
-
-type CreateWorkflowStepRunOpts struct {
-	// (required) the step id
-	StepId string `validate:"required,uuid"`
+	return workflowName + "-" + workflowSuffix
 }
 
 type ListWorkflowRunsOpts struct {

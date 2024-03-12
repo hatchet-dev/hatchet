@@ -339,3 +339,36 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     NULL, -- or provide a tickerId if applicable
     NULL -- or provide input if applicable
 ) RETURNING *;
+
+-- name: ListWorkflowsForEvent :many
+SELECT DISTINCT ON ("WorkflowVersion"."workflowId") "WorkflowVersion".id
+FROM "WorkflowVersion"
+LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
+LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
+WHERE
+    (j1."tenantId"::uuid = @tenantId AND j1.id IS NOT NULL)
+    AND 
+    (j2.id IN (
+        SELECT t3."parentId"
+        FROM "WorkflowTriggerEventRef" AS t3
+        WHERE t3."eventKey" = @eventKey AND t3."parentId" IS NOT NULL
+    ) AND j2.id IS NOT NULL)
+ORDER BY "WorkflowVersion"."workflowId", "WorkflowVersion"."order" DESC;
+
+-- name: GetWorkflowVersionForEngine :many
+SELECT
+    sqlc.embed(workflowVersions),
+    w."name" as "workflowName",
+    -- return "hasWorkflowConcurrency" if the workflow has concurrency
+    EXISTS (
+        SELECT 1
+        FROM "WorkflowConcurrency" as wc
+        WHERE wc."workflowVersionId" = workflowVersions."id"
+    ) as "hasWorkflowConcurrency"
+FROM
+    "WorkflowVersion" as workflowVersions
+JOIN
+    "Workflow" as w ON w."id" = workflowVersions."workflowId"
+WHERE
+    workflowVersions."id" = ANY(@ids::uuid[]) AND
+    w."tenantId" = @tenantId::uuid;

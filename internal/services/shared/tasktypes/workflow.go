@@ -2,8 +2,8 @@ package tasktypes
 
 import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 type WorkflowRunQueuedTaskPayload struct {
@@ -24,7 +24,7 @@ type WorkflowRunFinishedTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
-func WorkflowRunFinishedToTask(tenantId, workflowRunId, status string) *taskqueue.Task {
+func WorkflowRunFinishedToTask(tenantId, workflowRunId, status string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(WorkflowRunFinishedTask{
 		WorkflowRunId: workflowRunId,
 		Status:        status,
@@ -34,14 +34,15 @@ func WorkflowRunFinishedToTask(tenantId, workflowRunId, status string) *taskqueu
 		TenantId: tenantId,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "workflow-run-finished",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 
-func WorkflowRunQueuedToTask(workflowRun *db.WorkflowRunModel) *taskqueue.Task {
+func WorkflowRunQueuedToTask(workflowRun *db.WorkflowRunModel) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(WorkflowRunQueuedTaskPayload{
 		WorkflowRunId: workflowRun.ID,
 	})
@@ -51,9 +52,10 @@ func WorkflowRunQueuedToTask(workflowRun *db.WorkflowRunModel) *taskqueue.Task {
 		TenantId:          workflowRun.TenantID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "workflow-run-queued",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }

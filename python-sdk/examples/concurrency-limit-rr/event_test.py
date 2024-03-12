@@ -5,10 +5,10 @@ load_dotenv()
 
 client = new_client()
 
-for i in range(20):
+for i in range(200):
     group = "0"
 
-    if i > 10:
+    if i % 2 == 0:
         group = "1"
 
     client.event.push(

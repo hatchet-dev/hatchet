@@ -360,8 +360,7 @@ model WorkflowConcurrency {
   workflow          WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workflowVersionId String          @unique @db.Uuid
 
-  // An action which gets the concurrency group for the WorkflowRun. If this is not set, the concurrency group is
-  // set to a checksum of the workflow input.
+  // An action which gets the concurrency group for the WorkflowRun.
   getConcurrencyGroup   Action? @relation(fields: [getConcurrencyGroupId], references: [id])
   getConcurrencyGroupId String? @db.Uuid
 

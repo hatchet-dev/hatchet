@@ -123,6 +123,37 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 	return &i, err
 }
 
+const getEventForEngine = `-- name: GetEventForEngine :one
+SELECT
+    "id",
+    "key",
+    "data",
+    "tenantId"
+FROM
+    "Event"
+WHERE
+    "id" = $1::uuid
+`
+
+type GetEventForEngineRow struct {
+	ID       pgtype.UUID `json:"id"`
+	Key      string      `json:"key"`
+	Data     []byte      `json:"data"`
+	TenantId pgtype.UUID `json:"tenantId"`
+}
+
+func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id pgtype.UUID) (*GetEventForEngineRow, error) {
+	row := db.QueryRow(ctx, getEventForEngine, id)
+	var i GetEventForEngineRow
+	err := row.Scan(
+		&i.ID,
+		&i.Key,
+		&i.Data,
+		&i.TenantId,
+	)
+	return &i, err
+}
+
 const getEventsForRange = `-- name: GetEventsForRange :many
 SELECT
     date_trunc('hour', "createdAt") AS event_hour,
@@ -165,7 +196,7 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 const listEvents = `-- name: ListEvents :many
 SELECT
     events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data,
-    sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
+    sum(case when runs."status" = 'PENDING' OR runs."status" = 'QUEUED' then 1 else 0 end) AS pendingRuns,
     sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
     sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
     sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns

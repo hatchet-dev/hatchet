@@ -333,42 +333,29 @@ INSERT INTO "GetGroupKeyRun" (
     NULL
 ) RETURNING *;
 
--- name: CreateJobRun :one
+-- name: CreateJobRuns :many
 INSERT INTO "JobRun" (
     "id",
     "createdAt",
     "updatedAt",
-    "deletedAt",
     "tenantId",
     "workflowRunId",
     "jobId",
-    "tickerId",
-    "status",
-    "result",
-    "startedAt",
-    "finishedAt",
-    "timeoutAt",
-    "cancelledAt",
-    "cancelledReason",
-    "cancelledError"
-) VALUES (
-    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
+    "status"
+) 
+SELECT
+    gen_random_uuid(),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    NULL,
     @tenantId::uuid,
     @workflowRunId::uuid,
-    @jobId::uuid,
-    NULL,
-    'PENDING', -- default status
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL
-) RETURNING *;
+    "id",
+    'PENDING' -- default status
+FROM
+    "Job"
+WHERE
+    "workflowVersionId" = @workflowVersionId::uuid
+RETURNING "id";
 
 -- name: CreateJobRunLookupData :one
 INSERT INTO "JobRunLookupData" (
@@ -393,54 +380,37 @@ INSERT INTO "JobRunLookupData" (
     )
 ) RETURNING *;
 
--- name: CreateStepRun :one
+-- name: CreateStepRuns :exec
+WITH job_id AS (
+    SELECT "jobId"
+    FROM "JobRun"
+    WHERE "id" = @jobRunId::uuid
+)
 INSERT INTO "StepRun" (
     "id",
     "createdAt",
     "updatedAt",
-    "deletedAt",
     "tenantId",
     "jobRunId",
     "stepId",
-    "workerId",
-    "tickerId",
     "status",
-    "input",
-    "output",
     "requeueAfter",
-    "scheduleTimeoutAt",
-    "error",
-    "startedAt",
-    "finishedAt",
-    "timeoutAt",
-    "cancelledAt",
-    "cancelledReason",
-    "cancelledError",
     "callerFiles"
-) VALUES (
-    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
+) 
+SELECT
+    gen_random_uuid(),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    NULL,
     @tenantId::uuid,
     @jobRunId::uuid,
-    @stepId::uuid,
-    NULL,
-    NULL,
+    "id",
     'PENDING', -- default status
-    NULL,
-    NULL,
-    @requeueAfter::timestamp,
-    @scheduleTimeoutAt::timestamp,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
+    CURRENT_TIMESTAMP + INTERVAL '5 seconds',
     '{}'
-) RETURNING *;
+FROM
+    "Step", job_id
+WHERE
+    "Step"."jobId" = job_id."jobId";
 
 -- name: LinkStepRunParents :exec
 INSERT INTO "_StepRunOrder" ("A", "B")
@@ -455,22 +425,35 @@ JOIN
     "StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = @jobRunId::uuid;
 
 -- name: ListStartableStepRuns :many
+WITH job_run AS (
+    SELECT "status"
+    FROM "JobRun"
+    WHERE "id" = @jobRunId::uuid
+)
 SELECT 
-    child_run.*
+    child_run."id" AS "id"
 FROM 
     "StepRun" AS child_run
-JOIN 
+LEFT JOIN 
     "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+JOIN
+    job_run ON true
 WHERE 
-    child_run."tenantId" = @tenantId::uuid
-    AND child_run."jobRunId" = @jobRunId::uuid
+    child_run."jobRunId" = @jobRunId::uuid
     AND child_run."status" = 'PENDING'
-    AND step_run_order."A" = @parentStepRunId::uuid
-    AND NOT EXISTS (
-        SELECT 1
-        FROM "_StepRunOrder" AS parent_order
-        JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
-        WHERE 
-            parent_order."B" = child_run."id"
-            AND parent_run."status" != 'SUCCEEDED'
+    AND job_run."status" = 'RUNNING'
+    -- case on whether parentStepRunId is null
+    AND (
+        (sqlc.narg('parentStepRunId')::uuid IS NULL AND step_run_order."A" IS NULL) OR 
+        (
+            step_run_order."A" = sqlc.narg('parentStepRunId')::uuid
+            AND NOT EXISTS (
+                SELECT 1
+                FROM "_StepRunOrder" AS parent_order
+                JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
+                WHERE 
+                    parent_order."B" = child_run."id"
+                    AND parent_run."status" != 'SUCCEEDED'
+            )
+        )
     );

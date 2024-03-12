@@ -46,11 +46,12 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	var h *health.Health
 	healthProbes := sc.HasService("health")
 	if healthProbes {
-		h = health.New(sc.Repository, sc.TaskQueue)
+		h = health.New(sc.Repository, sc.MessageQueue)
 		cleanup, err := h.Start()
 		if err != nil {
 			return fmt.Errorf("could not start health: %w", err)
 		}
+
 		teardown = append(teardown, Teardown{
 			name: "health",
 			fn:   cleanup,
@@ -59,7 +60,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 	if sc.HasService("ticker") {
 		t, err := ticker.New(
-			ticker.WithTaskQueue(sc.TaskQueue),
+			ticker.WithMessageQueue(sc.MessageQueue),
 			ticker.WithRepository(sc.Repository),
 			ticker.WithLogger(sc.Logger),
 		)
@@ -80,7 +81,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 	if sc.HasService("eventscontroller") {
 		ec, err := events.New(
-			events.WithTaskQueue(sc.TaskQueue),
+			events.WithMessageQueue(sc.MessageQueue),
 			events.WithRepository(sc.Repository),
 			events.WithLogger(sc.Logger),
 		)
@@ -101,7 +102,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	if sc.HasService("jobscontroller") {
 		jc, err := jobs.New(
 			jobs.WithAlerter(sc.Alerter),
-			jobs.WithTaskQueue(sc.TaskQueue),
+			jobs.WithMessageQueue(sc.MessageQueue),
 			jobs.WithRepository(sc.Repository),
 			jobs.WithLogger(sc.Logger),
 		)
@@ -122,7 +123,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 	if sc.HasService("workflowscontroller") {
 		wc, err := workflows.New(
-			workflows.WithTaskQueue(sc.TaskQueue),
+			workflows.WithMessageQueue(sc.MessageQueue),
 			workflows.WithRepository(sc.Repository),
 			workflows.WithLogger(sc.Logger),
 		)
@@ -142,7 +143,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 	if sc.HasService("heartbeater") {
 		h, err := heartbeat.New(
-			heartbeat.WithTaskQueue(sc.TaskQueue),
+			heartbeat.WithMessageQueue(sc.MessageQueue),
 			heartbeat.WithRepository(sc.Repository),
 			heartbeat.WithLogger(sc.Logger),
 		)
@@ -164,7 +165,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	if sc.HasService("grpc") {
 		// create the dispatcher
 		d, err := dispatcher.New(
-			dispatcher.WithTaskQueue(sc.TaskQueue),
+			dispatcher.WithMessageQueue(sc.MessageQueue),
 			dispatcher.WithRepository(sc.Repository),
 			dispatcher.WithLogger(sc.Logger),
 		)
@@ -185,7 +186,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			ingestor.WithLogRepository(
 				sc.Repository.Log(),
 			),
-			ingestor.WithTaskQueue(sc.TaskQueue),
+			ingestor.WithMessageQueue(sc.MessageQueue),
 		)
 		if err != nil {
 			return fmt.Errorf("could not create ingestor: %w", err)
@@ -193,7 +194,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.Repository),
-			admin.WithTaskQueue(sc.TaskQueue),
+			admin.WithMessageQueue(sc.MessageQueue),
 		)
 		if err != nil {
 			return fmt.Errorf("could not create admin service: %w", err)

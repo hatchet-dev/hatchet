@@ -15,7 +15,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/logger"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 )
 
 // session composes an amqp.Connection with an amqp.Channel
@@ -24,17 +24,17 @@ type session struct {
 	*amqp.Channel
 }
 
-type taskWithQueue struct {
-	*taskqueue.Task
+type msgWithQueue struct {
+	*msgqueue.Message
 
-	q taskqueue.Queue
+	q msgqueue.Queue
 }
 
-// TaskQueueImpl implements TaskQueue interface using AMQP.
-type TaskQueueImpl struct {
+// MessageQueueImpl implements MessageQueue interface using AMQP.
+type MessageQueueImpl struct {
 	ctx      context.Context
 	sessions chan chan session
-	tasks    chan *taskWithQueue
+	msgs     chan *msgWithQueue
 	identity string
 
 	l *zerolog.Logger
@@ -45,42 +45,42 @@ type TaskQueueImpl struct {
 	tenantIdCache *lru.Cache[string, bool]
 }
 
-func (t *TaskQueueImpl) IsReady() bool {
+func (t *MessageQueueImpl) IsReady() bool {
 	return t.ready
 }
 
-type TaskQueueImplOpt func(*TaskQueueImplOpts)
+type MessageQueueImplOpt func(*MessageQueueImplOpts)
 
-type TaskQueueImplOpts struct {
+type MessageQueueImplOpts struct {
 	l   *zerolog.Logger
 	url string
 }
 
-func defaultTaskQueueImplOpts() *TaskQueueImplOpts {
+func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 	l := logger.NewDefaultLogger("rabbitmq")
 
-	return &TaskQueueImplOpts{
+	return &MessageQueueImplOpts{
 		l: &l,
 	}
 }
 
-func WithLogger(l *zerolog.Logger) TaskQueueImplOpt {
-	return func(opts *TaskQueueImplOpts) {
+func WithLogger(l *zerolog.Logger) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
 		opts.l = l
 	}
 }
 
-func WithURL(url string) TaskQueueImplOpt {
-	return func(opts *TaskQueueImplOpts) {
+func WithURL(url string) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
 		opts.url = url
 	}
 }
 
-// New creates a new TaskQueueImpl.
-func New(fs ...TaskQueueImplOpt) (func() error, *TaskQueueImpl) {
+// New creates a new MessageQueueImpl.
+func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	opts := defaultTaskQueueImplOpts()
+	opts := defaultMessageQueueImplOpts()
 
 	for _, f := range fs {
 		f(opts)
@@ -89,39 +89,39 @@ func New(fs ...TaskQueueImplOpt) (func() error, *TaskQueueImpl) {
 	newLogger := opts.l.With().Str("service", "events-controller").Logger()
 	opts.l = &newLogger
 
-	t := &TaskQueueImpl{
+	t := &MessageQueueImpl{
 		ctx:      ctx,
 		identity: identity(),
 		l:        opts.l,
 	}
 
 	t.sessions = t.redial(ctx, opts.l, opts.url)
-	t.tasks = make(chan *taskWithQueue)
+	t.msgs = make(chan *msgWithQueue)
 
 	// create a new lru cache for tenant ids
 	t.tenantIdCache, _ = lru.New[string, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
 
 	// init the queues in a blocking fashion
 	sub := <-<-t.sessions
-	if _, err := t.initQueue(sub, taskqueue.EVENT_PROCESSING_QUEUE); err != nil {
+	if _, err := t.initQueue(sub, msgqueue.EVENT_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
 		return nil, nil
 	}
 
-	if _, err := t.initQueue(sub, taskqueue.JOB_PROCESSING_QUEUE); err != nil {
+	if _, err := t.initQueue(sub, msgqueue.JOB_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
 		return nil, nil
 	}
 
-	if _, err := t.initQueue(sub, taskqueue.WORKFLOW_PROCESSING_QUEUE); err != nil {
+	if _, err := t.initQueue(sub, msgqueue.WORKFLOW_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
 		return nil, nil
 	}
 
-	if _, err := t.initQueue(sub, taskqueue.SCHEDULING_QUEUE); err != nil {
+	if _, err := t.initQueue(sub, msgqueue.SCHEDULING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
 		return nil, nil
@@ -141,26 +141,29 @@ func New(fs ...TaskQueueImplOpt) (func() error, *TaskQueueImpl) {
 	return cleanup, t
 }
 
-// AddTask adds a task to the queue.
-func (t *TaskQueueImpl) AddTask(ctx context.Context, q taskqueue.Queue, task *taskqueue.Task) error {
-	t.tasks <- &taskWithQueue{
-		Task: task,
-		q:    q,
+// AddMessage adds a msg to the queue.
+func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
+	t.msgs <- &msgWithQueue{
+		Message: msg,
+		q:       q,
 	}
 
 	return nil
 }
 
-// Subscribe subscribes to the task queue.
-func (t *TaskQueueImpl) Subscribe(q taskqueue.Queue) (func() error, <-chan *taskqueue.Task, error) {
+// Subscribe subscribes to the msg queue.
+func (t *MessageQueueImpl) Subscribe(
+	q msgqueue.Queue,
+	preAck msgqueue.AckHook,
+	postAck msgqueue.AckHook,
+) (func() error, error) {
 	t.l.Debug().Msgf("subscribing to queue: %s", q.Name())
 
-	tasks := make(chan *taskqueue.Task)
-	cleanup := t.subscribe(t.identity, q, t.sessions, t.tasks, tasks)
-	return cleanup, tasks, nil
+	cleanup := t.subscribe(t.identity, q, t.sessions, preAck, postAck)
+	return cleanup, nil
 }
 
-func (t *TaskQueueImpl) RegisterTenant(ctx context.Context, tenantId string) error {
+func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) error {
 	// create a new fanout exchange for the tenant
 	sub := <-<-t.sessions
 
@@ -188,7 +191,8 @@ func (t *TaskQueueImpl) RegisterTenant(ctx context.Context, tenantId string) err
 	return nil
 }
 
-func (t *TaskQueueImpl) initQueue(sub session, q taskqueue.Queue) (string, error) {
+func (t *MessageQueueImpl) initQueue(sub session, q msgqueue.Queue) (string, error) {
+	args := make(amqp.Table)
 	name := q.Name()
 
 	if q.FanoutExchangeKey() != "" {
@@ -202,7 +206,25 @@ func (t *TaskQueueImpl) initQueue(sub session, q taskqueue.Queue) (string, error
 		name = fmt.Sprintf("%s-%s", q.Name(), suffix)
 	}
 
-	if _, err := sub.QueueDeclare(name, q.Durable(), q.AutoDeleted(), q.Exclusive(), false, nil); err != nil {
+	if q.DLX() != "" {
+		args["x-dead-letter-exchange"] = ""
+		args["x-dead-letter-routing-key"] = q.DLX()
+		args["x-consumer-timeout"] = 5000 // 5 seconds
+
+		dlqArgs := make(amqp.Table)
+
+		dlqArgs["x-dead-letter-exchange"] = ""
+		dlqArgs["x-dead-letter-routing-key"] = name
+		dlqArgs["x-message-ttl"] = 5000 // 5 seconds
+
+		// declare the dead letter queue
+		if _, err := sub.QueueDeclare(q.DLX(), true, false, false, false, dlqArgs); err != nil {
+			t.l.Error().Msgf("cannot declare dead letter exchange/queue: %q, %v", q.DLX(), err)
+			return "", err
+		}
+	}
+
+	if _, err := sub.QueueDeclare(name, q.Durable(), q.AutoDeleted(), q.Exclusive(), false, args); err != nil {
 		t.l.Error().Msgf("cannot declare queue: %q, %v", name, err)
 		return "", err
 	}
@@ -220,7 +242,7 @@ func (t *TaskQueueImpl) initQueue(sub session, q taskqueue.Queue) (string, error
 	return name, nil
 }
 
-func (t *TaskQueueImpl) startPublishing() func() error {
+func (t *MessageQueueImpl) startPublishing() func() error {
 	ctx, cancel := context.WithCancel(t.ctx)
 
 	cleanup := func() error {
@@ -236,36 +258,36 @@ func (t *TaskQueueImpl) startPublishing() func() error {
 				select {
 				case <-ctx.Done():
 					return
-				case task := <-t.tasks:
-					go func(task *taskWithQueue) {
-						body, err := json.Marshal(task)
+				case msg := <-t.msgs:
+					go func(msg *msgWithQueue) {
+						body, err := json.Marshal(msg)
 
 						if err != nil {
-							t.l.Error().Msgf("error marshaling task queue: %v", err)
+							t.l.Error().Msgf("error marshaling msg queue: %v", err)
 							return
 						}
 
 						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 						defer cancel()
 
-						t.l.Debug().Msgf("publishing task %s to queue %s", task.ID, task.q.Name())
+						t.l.Debug().Msgf("publishing msg %s to queue %s", msg.ID, msg.q.Name())
 
-						err = pub.PublishWithContext(ctx, "", task.q.Name(), false, false, amqp.Publishing{
+						err = pub.PublishWithContext(ctx, "", msg.q.Name(), false, false, amqp.Publishing{
 							Body: body,
 						})
 
 						// TODO: retry failed delivery on the next session
 						if err != nil {
-							t.l.Error().Msgf("error publishing task: %v", err)
+							t.l.Error().Msgf("error publishing msg: %v", err)
 							return
 						}
 
-						// if this is a tenant task, publish to the tenant exchange
-						if task.TenantID() != "" {
+						// if this is a tenant msg, publish to the tenant exchange
+						if msg.TenantID() != "" {
 							// determine if the tenant exchange exists
-							if _, ok := t.tenantIdCache.Get(task.TenantID()); !ok {
+							if _, ok := t.tenantIdCache.Get(msg.TenantID()); !ok {
 								// register the tenant exchange
-								err = t.RegisterTenant(ctx, task.TenantID())
+								err = t.RegisterTenant(ctx, msg.TenantID())
 
 								if err != nil {
 									t.l.Error().Msgf("error registering tenant exchange: %v", err)
@@ -273,20 +295,20 @@ func (t *TaskQueueImpl) startPublishing() func() error {
 								}
 							}
 
-							t.l.Debug().Msgf("publishing tenant task %s to exchange %s", task.ID, task.TenantID())
+							t.l.Debug().Msgf("publishing tenant msg %s to exchange %s", msg.ID, msg.TenantID())
 
-							err = pub.PublishWithContext(ctx, task.TenantID(), "", false, false, amqp.Publishing{
+							err = pub.PublishWithContext(ctx, msg.TenantID(), "", false, false, amqp.Publishing{
 								Body: body,
 							})
 
 							if err != nil {
-								t.l.Error().Msgf("error publishing tenant task: %v", err)
+								t.l.Error().Msgf("error publishing tenant msg: %v", err)
 								return
 							}
 						}
 
-						t.l.Debug().Msgf("published task %s to queue %s", task.ID, task.q.Name())
-					}(task)
+						t.l.Debug().Msgf("published msg %s to queue %s", msg.ID, msg.q.Name())
+					}(msg)
 				}
 			}
 		}
@@ -295,7 +317,13 @@ func (t *TaskQueueImpl) startPublishing() func() error {
 	return cleanup
 }
 
-func (t *TaskQueueImpl) subscribe(subId string, q taskqueue.Queue, sessions chan chan session, messages chan *taskWithQueue, tasks chan<- *taskqueue.Task) func() error {
+func (t *MessageQueueImpl) subscribe(
+	subId string,
+	q msgqueue.Queue,
+	sessions chan chan session,
+	preAck msgqueue.AckHook,
+	postAck msgqueue.AckHook,
+) func() error {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sessionCount := 0
@@ -315,6 +343,14 @@ func (t *TaskQueueImpl) subscribe(subId string, q taskqueue.Queue, sessions chan
 				return
 			}
 
+			// We'd like to limit to 1k TPS per engine. The max channels on an instance is 10.
+			err = sub.Qos(100, 0, false)
+
+			if err != nil {
+				t.l.Error().Msgf("cannot set qos: %v", err)
+				return
+			}
+
 			deliveries, err := sub.Consume(queueName, subId, false, q.Exclusive(), false, false, nil)
 
 			if err != nil {
@@ -324,28 +360,64 @@ func (t *TaskQueueImpl) subscribe(subId string, q taskqueue.Queue, sessions chan
 
 			for {
 				select {
-				case msg := <-deliveries:
+				case <-ctx.Done():
+					return
+				case rabbitMsg := <-deliveries:
 					wg.Add(1)
-					go func(msg amqp.Delivery) {
-						defer wg.Done()
-						task := &taskWithQueue{}
 
-						if err := json.Unmarshal(msg.Body, task); err != nil {
+					go func(rabbitMsg amqp.Delivery) {
+						defer wg.Done()
+						msg := &msgWithQueue{}
+
+						if err := json.Unmarshal(rabbitMsg.Body, msg); err != nil {
 							t.l.Error().Msgf("error unmarshaling message: %v", err)
 							return
 						}
 
-						t.l.Debug().Msgf("(session: %d) got task: %v", sessionCount, task.ID)
+						// determine if we've hit the max number of retries
+						xDeath, exists := rabbitMsg.Headers["x-death"].([]interface{})
 
-						tasks <- task.Task
+						if exists {
+							// message was rejected before
+							deathCount := xDeath[0].(amqp.Table)["count"].(int64)
 
-						if err := sub.Ack(msg.DeliveryTag, false); err != nil {
+							t.l.Debug().Msgf("message %s has been rejected %d times", msg.ID, deathCount)
+
+							if deathCount > int64(msg.Retries) {
+								t.l.Debug().Msgf("message %s has been rejected %d times, not requeuing", msg.ID, deathCount)
+
+								// acknowledge so it's removed from the queue
+								if err := rabbitMsg.Ack(false); err != nil {
+									t.l.Error().Msgf("error acknowledging message: %v", err)
+								}
+
+								return
+							}
+						}
+
+						t.l.Debug().Msgf("(session: %d) got msg: %v", sessionCount, msg.ID)
+
+						if err := preAck(msg.Message); err != nil {
+							t.l.Error().Msgf("error in pre-ack: %v", err)
+
+							// nack the message
+							if err := rabbitMsg.Reject(false); err != nil {
+								t.l.Error().Msgf("error rejecting message: %v", err)
+							}
+
+							return
+						}
+
+						if err := sub.Ack(rabbitMsg.DeliveryTag, false); err != nil {
 							t.l.Error().Msgf("error acknowledging message: %v", err)
 							return
 						}
-					}(msg)
-				case <-ctx.Done():
-					return
+
+						if err := postAck(msg.Message); err != nil {
+							t.l.Error().Msgf("error in post-ack: %v", err)
+							return
+						}
+					}(rabbitMsg)
 				}
 			}
 		}
@@ -356,7 +428,6 @@ func (t *TaskQueueImpl) subscribe(subId string, q taskqueue.Queue, sessions chan
 
 		t.l.Debug().Msgf("shutting down subscriber: %s", subId)
 		wg.Wait()
-		close(tasks)
 		t.l.Debug().Msgf("successfully shut down subscriber: %s", subId)
 		return nil
 	}
@@ -365,7 +436,7 @@ func (t *TaskQueueImpl) subscribe(subId string, q taskqueue.Queue, sessions chan
 }
 
 // redial continually connects to the URL, exiting the program when no longer possible
-func (t *TaskQueueImpl) redial(ctx context.Context, l *zerolog.Logger, url string) chan chan session {
+func (t *MessageQueueImpl) redial(ctx context.Context, l *zerolog.Logger, url string) chan chan session {
 	sessions := make(chan chan session)
 
 	go func() {

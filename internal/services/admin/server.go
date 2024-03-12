@@ -13,11 +13,11 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -83,9 +83,9 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	// send to workflow processing queue
-	err = a.tq.AddTask(
+	err = a.mq.AddMessage(
 		context.Background(),
-		taskqueue.WORKFLOW_PROCESSING_QUEUE,
+		msgqueue.WORKFLOW_PROCESSING_QUEUE,
 		tasktypes.WorkflowRunQueuedToTask(workflowRun),
 	)
 
@@ -206,9 +206,9 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 				}
 
 				// send to task queue
-				err = a.tq.AddTask(
+				err = a.mq.AddMessage(
 					ctx,
-					taskqueue.QueueTypeFromTickerID(ticker.ID),
+					msgqueue.QueueTypeFromTickerID(ticker.ID),
 					task,
 				)
 
@@ -259,9 +259,9 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 				}
 
 				// send to task queue
-				err = a.tq.AddTask(
+				err = a.mq.AddMessage(
 					ctx,
-					taskqueue.QueueTypeFromTickerID(ticker.ID),
+					msgqueue.QueueTypeFromTickerID(ticker.ID),
 					task,
 				)
 
@@ -294,9 +294,9 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 						}
 
 						// send to task queue
-						err = a.tq.AddTask(
+						err = a.mq.AddMessage(
 							ctx,
-							taskqueue.QueueTypeFromTickerID(ticker.ID),
+							msgqueue.QueueTypeFromTickerID(ticker.ID),
 							task,
 						)
 
@@ -330,9 +330,9 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 
 						// only send to task queue if the trigger is in the future
 						if scheduleTriggerCp.TriggerAt.After(time.Now().UTC()) {
-							err = a.tq.AddTask(
+							err = a.mq.AddMessage(
 								ctx,
-								taskqueue.QueueTypeFromTickerID(ticker.ID),
+								msgqueue.QueueTypeFromTickerID(ticker.ID),
 								task,
 							)
 
@@ -456,9 +456,9 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 			}
 
 			// send to task queue
-			err = a.tq.AddTask(
+			err = a.mq.AddMessage(
 				ctx,
-				taskqueue.QueueTypeFromTickerID(ticker.ID),
+				msgqueue.QueueTypeFromTickerID(ticker.ID),
 				task,
 			)
 
@@ -780,7 +780,7 @@ func toStep(step *db.StepModel) *contracts.Step {
 	return s
 }
 
-func cronScheduleTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTriggerCronRefModel, workflowVersion *db.WorkflowVersionModel) (*taskqueue.Task, error) {
+func cronScheduleTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTriggerCronRefModel, workflowVersion *db.WorkflowVersionModel) (*msgqueue.Message, error) {
 	payload, _ := datautils.ToJSONMap(tasktypes.ScheduleCronTaskPayload{
 		CronParentId:      cronTriggerRef.ParentID,
 		Cron:              cronTriggerRef.Cron,
@@ -791,14 +791,15 @@ func cronScheduleTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTrigger
 		TenantId: workflowVersion.Workflow().TenantID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "schedule-cron",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }
 
-func cronCancelTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTriggerCronRefModel, workflowVersion *db.WorkflowVersionModel) (*taskqueue.Task, error) {
+func cronCancelTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTriggerCronRefModel, workflowVersion *db.WorkflowVersionModel) (*msgqueue.Message, error) {
 	payload, _ := datautils.ToJSONMap(tasktypes.CancelCronTaskPayload{
 		CronParentId:      cronTriggerRef.ParentID,
 		Cron:              cronTriggerRef.Cron,
@@ -809,14 +810,15 @@ func cronCancelTask(ticker *db.TickerModel, cronTriggerRef *db.WorkflowTriggerCr
 		TenantId: workflowVersion.Workflow().TenantID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "cancel-cron",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }
 
-func workflowScheduleTask(ticker *db.TickerModel, workflowTriggerRef *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*taskqueue.Task, error) {
+func workflowScheduleTask(ticker *db.TickerModel, workflowTriggerRef *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*msgqueue.Message, error) {
 	payload, _ := datautils.ToJSONMap(tasktypes.ScheduleWorkflowTaskPayload{
 		ScheduledWorkflowId: workflowTriggerRef.ID,
 		TriggerAt:           workflowTriggerRef.TriggerAt.Format(time.RFC3339),
@@ -827,14 +829,15 @@ func workflowScheduleTask(ticker *db.TickerModel, workflowTriggerRef *db.Workflo
 		TenantId: workflowVersion.Workflow().TenantID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "schedule-workflow",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }
 
-func workflowCancelTask(ticker *db.TickerModel, workflowTriggerRef *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*taskqueue.Task, error) {
+func workflowCancelTask(ticker *db.TickerModel, workflowTriggerRef *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*msgqueue.Message, error) {
 	payload, _ := datautils.ToJSONMap(tasktypes.CancelWorkflowTaskPayload{
 		ScheduledWorkflowId: workflowTriggerRef.ID,
 		TriggerAt:           workflowTriggerRef.TriggerAt.Format(time.RFC3339),
@@ -845,9 +848,10 @@ func workflowCancelTask(ticker *db.TickerModel, workflowTriggerRef *db.WorkflowT
 		TenantId: workflowVersion.Workflow().TenantID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "cancel-workflow",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}, nil
 }

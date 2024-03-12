@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
-func (t *TickerImpl) handleScheduleStepRunTimeout(ctx context.Context, task *taskqueue.Task) error {
+func (t *TickerImpl) handleScheduleStepRunTimeout(ctx context.Context, task *msgqueue.Message) error {
 	t.l.Debug().Msg("ticker: scheduling step run timeout")
 
 	payload := tasktypes.ScheduleStepRunTimeoutTaskPayload{}
@@ -51,7 +51,7 @@ func (t *TickerImpl) handleScheduleStepRunTimeout(ctx context.Context, task *tas
 	return nil
 }
 
-func (t *TickerImpl) handleCancelStepRunTimeout(ctx context.Context, task *taskqueue.Task) error {
+func (t *TickerImpl) handleCancelStepRunTimeout(ctx context.Context, task *msgqueue.Message) error {
 	t.l.Debug().Msg("ticker: canceling step run timeout")
 
 	payload := tasktypes.CancelStepRunTimeoutTaskPayload{}
@@ -112,9 +112,9 @@ func (t *TickerImpl) runStepRunTimeout(tenantId, jobRunId, stepRunId string) {
 	t.l.Debug().Msgf("ticker: step run %s timed out", stepRunId)
 
 	// signal the jobs controller that the step timed out
-	err := t.tq.AddTask(
+	err := t.mq.AddMessage(
 		context.Background(),
-		taskqueue.JOB_PROCESSING_QUEUE,
+		msgqueue.JOB_PROCESSING_QUEUE,
 		taskStepRunTimedOut(tenantId, jobRunId, stepRunId),
 	)
 
@@ -123,7 +123,7 @@ func (t *TickerImpl) runStepRunTimeout(tenantId, jobRunId, stepRunId string) {
 	}
 }
 
-func taskStepRunTimedOut(tenantId, jobRunId, stepRunId string) *taskqueue.Task {
+func taskStepRunTimedOut(tenantId, jobRunId, stepRunId string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunTimedOutTaskPayload{
 		StepRunId: stepRunId,
 		JobRunId:  jobRunId,
@@ -133,9 +133,10 @@ func taskStepRunTimedOut(tenantId, jobRunId, stepRunId string) *taskqueue.Task {
 		TenantId: tenantId,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "step-run-timed-out",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }

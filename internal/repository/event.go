@@ -65,6 +65,9 @@ type EventRepository interface {
 	// GetEventById returns an event by id.
 	GetEventById(id string) (*db.EventModel, error)
 
+	// GetEventForEngine returns an event for the engine by id.
+	GetEventForEngine(tenantId, id string) (*dbsqlc.GetEventForEngineRow, error)
+
 	// ListEventsById returns a list of events by id.
 	ListEventsById(tenantId string, ids []string) ([]db.EventModel, error)
 

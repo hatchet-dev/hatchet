@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -63,6 +64,7 @@ func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
 }
 
 var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
+var ErrNoWorkerAvailable = fmt.Errorf("no worker available")
 
 type StepRunUpdateInfo struct {
 	JobRunFinalState      bool
@@ -84,7 +86,7 @@ type StepRunRepository interface {
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
 	ListStepRunsToReassign(tenantId string) ([]*dbsqlc.StepRun, error)
 
-	UpdateStepRun(tenantId, stepRunId string, opts *UpdateStepRunOpts) (*db.StepRunModel, *StepRunUpdateInfo, error)
+	UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *StepRunUpdateInfo, error)
 
 	// UpdateStepRunOverridesData updates the overrides data field in the input for a step run. This returns the input
 	// bytes.
@@ -92,15 +94,17 @@ type StepRunRepository interface {
 
 	UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error)
 
+	AssignStepRunToWorker(tenantId, stepRunId string) (workerId string, dispatcherId string, err error)
+	AssignStepRunToTicker(tenantId, stepRunId string) (tickerId string, err error)
+
 	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
+	GetStepRunForEngine(tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 
 	// QueueStepRun is like UpdateStepRun, except that it will only update the step run if it is in
 	// a pending state.
-	QueueStepRun(tenantId, stepRunId string, opts *UpdateStepRunOpts) (*db.StepRunModel, error)
+	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
 
-	CancelPendingStepRuns(tenantId, jobRunId, reason string) error
-
-	ListStartableStepRuns(tenantId, jobRunId, parentStepRunId string) ([]*dbsqlc.StepRun, error)
+	ListStartableStepRuns(tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	ArchiveStepRunResult(tenantId, stepRunId string) error
 

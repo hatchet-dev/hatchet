@@ -3,9 +3,9 @@ package admin
 import (
 	"fmt"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 type AdminService interface {
@@ -16,14 +16,14 @@ type AdminServiceImpl struct {
 	contracts.UnimplementedWorkflowServiceServer
 
 	repo repository.Repository
-	tq   taskqueue.TaskQueue
+	mq   msgqueue.MessageQueue
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
 
 type AdminServiceOpts struct {
 	repo repository.Repository
-	tq   taskqueue.TaskQueue
+	mq   msgqueue.MessageQueue
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
@@ -36,9 +36,9 @@ func WithRepository(r repository.Repository) AdminServiceOpt {
 	}
 }
 
-func WithTaskQueue(tq taskqueue.TaskQueue) AdminServiceOpt {
+func WithMessageQueue(mq msgqueue.MessageQueue) AdminServiceOpt {
 	return func(opts *AdminServiceOpts) {
-		opts.tq = tq
+		opts.mq = mq
 	}
 }
 
@@ -53,12 +53,12 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
-	if opts.tq == nil {
-		return nil, fmt.Errorf("task queue is required. use WithTaskQueue")
+	if opts.mq == nil {
+		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
 	return &AdminServiceImpl{
 		repo: opts.repo,
-		tq:   opts.tq,
+		mq:   opts.mq,
 	}, nil
 }

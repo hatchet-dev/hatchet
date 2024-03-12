@@ -26,9 +26,20 @@ WHERE
         workers."maxRuns" IS NULL OR
         (sqlc.narg('assignable')::boolean AND workers."maxRuns" > (
             SELECT COUNT(*)
-            FROM "StepRun"
-            WHERE runs."workerId" = workers."id" AND runs."status" = 'RUNNING'
+            FROM "StepRun" srs
+            WHERE srs."workerId" = workers."id" AND srs."status" = 'RUNNING'
         ))
     )
 GROUP BY
     workers."id";
+
+-- name: GetWorkerForEngine :one
+SELECT
+    w."id" AS "id",
+    w."tenantId" AS "tenantId",
+    w."dispatcherId" AS "dispatcherId"
+FROM
+    "Worker" w
+WHERE
+    w."tenantId" = @tenantId
+    AND w."id" = @id;

@@ -396,51 +396,47 @@ func (r *workflowRepository) GetScheduledById(tenantId, scheduleTriggerId string
 	).Exec(context.Background())
 }
 
-func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId, eventKey string) ([]db.WorkflowVersionModel, error) {
+func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId, eventKey string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "db-list-workflows-for-event")
 	defer span.End()
 
-	var rows []struct {
-		ID string `json:"id"`
-	}
-
-	err := r.client.Prisma.QueryRaw(
-		`
-		SELECT DISTINCT ON("WorkflowVersion"."workflowId") "WorkflowVersion".id 
-		FROM "WorkflowVersion"
-		LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
-		LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
-		WHERE
-		(j1."tenantId"::text = $1 AND j1.id IS NOT NULL) 
-		AND 
-		(j2.id IN (
-			SELECT t3."parentId"
-			FROM "WorkflowTriggerEventRef" AS t3 
-			WHERE t3."eventKey" = $2 AND t3."parentId" IS NOT NULL
-		) AND j2.id IS NOT NULL)
-		ORDER BY "WorkflowVersion"."workflowId", "WorkflowVersion"."order" DESC
-		`,
-		tenantId, eventKey,
-	).Exec(ctx, &rows)
+	tx, err := r.pool.Begin(context.Background())
 
 	if err != nil {
 		return nil, err
 	}
 
-	workflowVersionIds := []string{}
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
-	for _, row := range rows {
-		workflowVersionIds = append(workflowVersionIds, row.ID)
+	workflowVersionIds, err := r.queries.ListWorkflowsForEvent(ctx, tx, dbsqlc.ListWorkflowsForEventParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Eventkey: eventKey,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []*dbsqlc.GetWorkflowVersionForEngineRow{}, nil
+		}
+
+		return nil, fmt.Errorf("failed to fetch workflows: %w", err)
 	}
 
-	return r.client.WorkflowVersion.FindMany(
-		db.WorkflowVersion.Workflow.Where(
-			db.Workflow.TenantID.Equals(tenantId),
-		),
-		db.WorkflowVersion.ID.In(workflowVersionIds),
-	).With(
-		defaultWorkflowVersionPopulator()...,
-	).Exec(ctx)
+	workflows, err := r.queries.GetWorkflowVersionForEngine(context.Background(), tx, dbsqlc.GetWorkflowVersionForEngineParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      workflowVersionIds,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflow versions: %w", err)
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return workflows, nil
 }
 
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts) (string, error) {

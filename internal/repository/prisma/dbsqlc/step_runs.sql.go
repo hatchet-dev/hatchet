@@ -95,6 +95,130 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 	return &i, err
 }
 
+const assignStepRunToTicker = `-- name: AssignStepRunToTicker :one
+WITH selected_ticker AS (
+    SELECT
+        t."id"
+    FROM
+        "Ticker" t
+    WHERE
+        t."lastHeartbeatAt" > NOW() - INTERVAL '6 seconds'
+    ORDER BY random()
+    LIMIT 1
+)
+UPDATE
+    "StepRun"
+SET
+    "tickerId" = (
+        SELECT "id"
+        FROM selected_ticker
+    )
+WHERE
+    "id" = $1::uuid AND
+    "tenantId" = $2::uuid AND
+    EXISTS (SELECT 1 FROM selected_ticker)
+RETURNING "StepRun"."id", "StepRun"."tickerId"
+`
+
+type AssignStepRunToTickerParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+}
+
+type AssignStepRunToTickerRow struct {
+	ID       pgtype.UUID `json:"id"`
+	TickerId pgtype.UUID `json:"tickerId"`
+}
+
+func (q *Queries) AssignStepRunToTicker(ctx context.Context, db DBTX, arg AssignStepRunToTickerParams) (*AssignStepRunToTickerRow, error) {
+	row := db.QueryRow(ctx, assignStepRunToTicker, arg.Steprunid, arg.Tenantid)
+	var i AssignStepRunToTickerRow
+	err := row.Scan(&i.ID, &i.TickerId)
+	return &i, err
+}
+
+const assignStepRunToWorker = `-- name: AssignStepRunToWorker :one
+WITH step_run AS (
+    SELECT
+        sr."id",
+        sr."status",
+        a."id" AS "actionId"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    JOIN
+        "Action" a ON s."actionId" = a."actionId" AND a."tenantId" = $2::uuid
+    WHERE
+        sr."id" = $1::uuid AND
+        sr."tenantId" = $2::uuid
+    FOR UPDATE
+),
+valid_workers AS (
+    SELECT
+        w."id", w."dispatcherId"
+    FROM
+        "Worker" w, step_run
+    WHERE
+        w."tenantId" = $2::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."id" IN (
+            SELECT "_ActionToWorker"."B"
+            FROM "_ActionToWorker"
+            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
+            WHERE "Action"."tenantId" = $2 AND "Action"."id" = step_run."actionId"
+        )
+        AND (
+            w."maxRuns" IS NULL OR
+            w."maxRuns" > (
+                SELECT COUNT(*)
+                FROM "StepRun" srs
+                WHERE srs."workerId" = w."id" AND srs."status" = 'RUNNING'
+            )
+        )
+    ORDER BY random()
+    FOR UPDATE SKIP LOCKED
+),
+selected_worker AS (
+    SELECT "id", "dispatcherId"
+    FROM valid_workers
+    LIMIT 1
+)
+UPDATE
+    "StepRun"
+SET
+    "status" = 'ASSIGNED',
+    "workerId" = (
+        SELECT "id"
+        FROM selected_worker
+        LIMIT 1
+    ),
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" = $1::uuid AND
+    "tenantId" = $2::uuid AND
+    EXISTS (SELECT 1 FROM selected_worker)
+RETURNING "StepRun"."id", "StepRun"."workerId", (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId"
+`
+
+type AssignStepRunToWorkerParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+}
+
+type AssignStepRunToWorkerRow struct {
+	ID           pgtype.UUID `json:"id"`
+	WorkerId     pgtype.UUID `json:"workerId"`
+	DispatcherId pgtype.UUID `json:"dispatcherId"`
+}
+
+func (q *Queries) AssignStepRunToWorker(ctx context.Context, db DBTX, arg AssignStepRunToWorkerParams) (*AssignStepRunToWorkerRow, error) {
+	row := db.QueryRow(ctx, assignStepRunToWorker, arg.Steprunid, arg.Tenantid)
+	var i AssignStepRunToWorkerRow
+	err := row.Scan(&i.ID, &i.WorkerId, &i.DispatcherId)
+	return &i, err
+}
+
 const getStepRun = `-- name: GetStepRun :one
 SELECT
     "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount"
@@ -142,6 +266,131 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, arg GetStepRunParams)
 		&i.RetryCount,
 	)
 	return &i, err
+}
+
+const getStepRunForEngine = `-- name: GetStepRunForEngine :many
+SELECT
+    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount",
+    jrld."data" AS "jobRunLookupData",
+    -- TODO: everything below this line is cacheable and should be moved to a separate query
+    jr."id" AS "jobRunId",
+    wr."id" AS "workflowRunId",
+    s."id" AS "stepId",
+    s."retries" AS "stepRetries",
+    s."scheduleTimeout" AS "stepScheduleTimeout",
+    s."readableId" AS "stepReadableId",
+    s."customUserData" AS "stepCustomUserData",
+    j."name" AS "jobName",
+    j."id" AS "jobId",
+    wv."id" AS "workflowVersionId",
+    w."name" AS "workflowName",
+    w."id" AS "workflowId",
+    a."actionId" AS "actionId"
+FROM
+    "StepRun" sr
+JOIN
+    "Step" s ON sr."stepId" = s."id" AND s."tenantId" = $1::uuid
+JOIN
+    "Action" a ON s."actionId" = a."actionId" AND a."tenantId" = $1::uuid
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."tenantId" = $1::uuid
+JOIN
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId" AND jrld."tenantId" = $1::uuid
+JOIN
+    "Job" j ON jr."jobId" = j."id" AND j."tenantId" = $1::uuid
+JOIN 
+    "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = $1::uuid
+JOIN
+    "WorkflowVersion" wv ON wr."workflowVersionId" = wv."id"
+JOIN
+    "Workflow" w ON wv."workflowId" = w."id" AND w."tenantId" = $1::uuid
+WHERE
+    sr."id" = ANY($2::uuid[]) AND
+    sr."tenantId" = $1::uuid
+`
+
+type GetStepRunForEngineParams struct {
+	Tenantid pgtype.UUID   `json:"tenantid"`
+	Ids      []pgtype.UUID `json:"ids"`
+}
+
+type GetStepRunForEngineRow struct {
+	StepRun             StepRun     `json:"step_run"`
+	JobRunLookupData    []byte      `json:"jobRunLookupData"`
+	JobRunId            pgtype.UUID `json:"jobRunId"`
+	WorkflowRunId       pgtype.UUID `json:"workflowRunId"`
+	StepId              pgtype.UUID `json:"stepId"`
+	StepRetries         int32       `json:"stepRetries"`
+	StepScheduleTimeout string      `json:"stepScheduleTimeout"`
+	StepReadableId      pgtype.Text `json:"stepReadableId"`
+	StepCustomUserData  []byte      `json:"stepCustomUserData"`
+	JobName             string      `json:"jobName"`
+	JobId               pgtype.UUID `json:"jobId"`
+	WorkflowVersionId   pgtype.UUID `json:"workflowVersionId"`
+	WorkflowName        string      `json:"workflowName"`
+	WorkflowId          pgtype.UUID `json:"workflowId"`
+	ActionId            string      `json:"actionId"`
+}
+
+func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepRunForEngineParams) ([]*GetStepRunForEngineRow, error) {
+	rows, err := db.Query(ctx, getStepRunForEngine, arg.Tenantid, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetStepRunForEngineRow
+	for rows.Next() {
+		var i GetStepRunForEngineRow
+		if err := rows.Scan(
+			&i.StepRun.ID,
+			&i.StepRun.CreatedAt,
+			&i.StepRun.UpdatedAt,
+			&i.StepRun.DeletedAt,
+			&i.StepRun.TenantId,
+			&i.StepRun.JobRunId,
+			&i.StepRun.StepId,
+			&i.StepRun.Order,
+			&i.StepRun.WorkerId,
+			&i.StepRun.TickerId,
+			&i.StepRun.Status,
+			&i.StepRun.Input,
+			&i.StepRun.Output,
+			&i.StepRun.RequeueAfter,
+			&i.StepRun.ScheduleTimeoutAt,
+			&i.StepRun.Error,
+			&i.StepRun.StartedAt,
+			&i.StepRun.FinishedAt,
+			&i.StepRun.TimeoutAt,
+			&i.StepRun.CancelledAt,
+			&i.StepRun.CancelledReason,
+			&i.StepRun.CancelledError,
+			&i.StepRun.InputSchema,
+			&i.StepRun.CallerFiles,
+			&i.StepRun.GitRepoBranch,
+			&i.StepRun.RetryCount,
+			&i.JobRunLookupData,
+			&i.JobRunId,
+			&i.WorkflowRunId,
+			&i.StepId,
+			&i.StepRetries,
+			&i.StepScheduleTimeout,
+			&i.StepReadableId,
+			&i.StepCustomUserData,
+			&i.JobName,
+			&i.JobId,
+			&i.WorkflowVersionId,
+			&i.WorkflowName,
+			&i.WorkflowId,
+			&i.ActionId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listStepRunsToReassign = `-- name: ListStepRunsToReassign :many
@@ -230,10 +479,13 @@ FROM
     "StepRun" sr
 LEFT JOIN
     "Worker" w ON sr."workerId" = w."id"
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
 WHERE
     sr."tenantId" = $1::uuid
     AND sr."requeueAfter" < NOW()
     AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
+    AND jr."status" = 'RUNNING'
     AND NOT EXISTS (
         SELECT 1
         FROM "_StepRunOrder" AS order_table

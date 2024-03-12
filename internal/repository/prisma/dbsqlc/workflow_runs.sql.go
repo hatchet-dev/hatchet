@@ -161,80 +161,6 @@ func (q *Queries) CreateGetGroupKeyRun(ctx context.Context, db DBTX, arg CreateG
 	return &i, err
 }
 
-const createJobRun = `-- name: CreateJobRun :one
-INSERT INTO "JobRun" (
-    "id",
-    "createdAt",
-    "updatedAt",
-    "deletedAt",
-    "tenantId",
-    "workflowRunId",
-    "jobId",
-    "tickerId",
-    "status",
-    "result",
-    "startedAt",
-    "finishedAt",
-    "timeoutAt",
-    "cancelledAt",
-    "cancelledReason",
-    "cancelledError"
-) VALUES (
-    COALESCE($1::uuid, gen_random_uuid()),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    NULL,
-    $2::uuid,
-    $3::uuid,
-    $4::uuid,
-    NULL,
-    'PENDING', -- default status
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobId", "tickerId", status, result, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId"
-`
-
-type CreateJobRunParams struct {
-	ID            pgtype.UUID `json:"id"`
-	Tenantid      pgtype.UUID `json:"tenantid"`
-	Workflowrunid pgtype.UUID `json:"workflowrunid"`
-	Jobid         pgtype.UUID `json:"jobid"`
-}
-
-func (q *Queries) CreateJobRun(ctx context.Context, db DBTX, arg CreateJobRunParams) (*JobRun, error) {
-	row := db.QueryRow(ctx, createJobRun,
-		arg.ID,
-		arg.Tenantid,
-		arg.Workflowrunid,
-		arg.Jobid,
-	)
-	var i JobRun
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
-		&i.JobId,
-		&i.TickerId,
-		&i.Status,
-		&i.Result,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.TimeoutAt,
-		&i.CancelledAt,
-		&i.CancelledReason,
-		&i.CancelledError,
-		&i.WorkflowRunId,
-	)
-	return &i, err
-}
-
 const createJobRunLookupData = `-- name: CreateJobRunLookupData :one
 INSERT INTO "JobRunLookupData" (
     "id",
@@ -288,104 +214,98 @@ func (q *Queries) CreateJobRunLookupData(ctx context.Context, db DBTX, arg Creat
 	return &i, err
 }
 
-const createStepRun = `-- name: CreateStepRun :one
+const createJobRuns = `-- name: CreateJobRuns :many
+INSERT INTO "JobRun" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowRunId",
+    "jobId",
+    "status"
+) 
+SELECT
+    gen_random_uuid(),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    $2::uuid,
+    "id",
+    'PENDING' -- default status
+FROM
+    "Job"
+WHERE
+    "workflowVersionId" = $3::uuid
+RETURNING "id"
+`
+
+type CreateJobRunsParams struct {
+	Tenantid          pgtype.UUID `json:"tenantid"`
+	Workflowrunid     pgtype.UUID `json:"workflowrunid"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+}
+
+func (q *Queries) CreateJobRuns(ctx context.Context, db DBTX, arg CreateJobRunsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, createJobRuns, arg.Tenantid, arg.Workflowrunid, arg.Workflowversionid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const createStepRuns = `-- name: CreateStepRuns :exec
+WITH job_id AS (
+    SELECT "jobId"
+    FROM "JobRun"
+    WHERE "id" = $2::uuid
+)
 INSERT INTO "StepRun" (
     "id",
     "createdAt",
     "updatedAt",
-    "deletedAt",
     "tenantId",
     "jobRunId",
     "stepId",
-    "workerId",
-    "tickerId",
     "status",
-    "input",
-    "output",
     "requeueAfter",
-    "scheduleTimeoutAt",
-    "error",
-    "startedAt",
-    "finishedAt",
-    "timeoutAt",
-    "cancelledAt",
-    "cancelledReason",
-    "cancelledError",
     "callerFiles"
-) VALUES (
-    COALESCE($1::uuid, gen_random_uuid()),
+) 
+SELECT
+    gen_random_uuid(),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    NULL,
+    $1::uuid,
     $2::uuid,
-    $3::uuid,
-    $4::uuid,
-    NULL,
-    NULL,
+    "id",
     'PENDING', -- default status
-    NULL,
-    NULL,
-    $5::timestamp,
-    $6::timestamp,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
+    CURRENT_TIMESTAMP + INTERVAL '5 seconds',
     '{}'
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount"
+FROM
+    "Step", job_id
+WHERE
+    "Step"."jobId" = job_id."jobId"
 `
 
-type CreateStepRunParams struct {
-	ID                pgtype.UUID      `json:"id"`
-	Tenantid          pgtype.UUID      `json:"tenantid"`
-	Jobrunid          pgtype.UUID      `json:"jobrunid"`
-	Stepid            pgtype.UUID      `json:"stepid"`
-	Requeueafter      pgtype.Timestamp `json:"requeueafter"`
-	Scheduletimeoutat pgtype.Timestamp `json:"scheduletimeoutat"`
+type CreateStepRunsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Jobrunid pgtype.UUID `json:"jobrunid"`
 }
 
-func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunParams) (*StepRun, error) {
-	row := db.QueryRow(ctx, createStepRun,
-		arg.ID,
-		arg.Tenantid,
-		arg.Jobrunid,
-		arg.Stepid,
-		arg.Requeueafter,
-		arg.Scheduletimeoutat,
-	)
-	var i StepRun
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
-		&i.JobRunId,
-		&i.StepId,
-		&i.Order,
-		&i.WorkerId,
-		&i.TickerId,
-		&i.Status,
-		&i.Input,
-		&i.Output,
-		&i.RequeueAfter,
-		&i.ScheduleTimeoutAt,
-		&i.Error,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.TimeoutAt,
-		&i.CancelledAt,
-		&i.CancelledReason,
-		&i.CancelledError,
-		&i.InputSchema,
-		&i.CallerFiles,
-		&i.GitRepoBranch,
-		&i.RetryCount,
-	)
-	return &i, err
+func (q *Queries) CreateStepRuns(ctx context.Context, db DBTX, arg CreateStepRunsParams) error {
+	_, err := db.Exec(ctx, createStepRuns, arg.Tenantid, arg.Jobrunid)
+	return err
 }
 
 const createWorkflowRun = `-- name: CreateWorkflowRun :one
@@ -529,73 +449,58 @@ func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, jobrunid pgty
 }
 
 const listStartableStepRuns = `-- name: ListStartableStepRuns :many
+WITH job_run AS (
+    SELECT "status"
+    FROM "JobRun"
+    WHERE "id" = $1::uuid
+)
 SELECT 
-    child_run.id, child_run."createdAt", child_run."updatedAt", child_run."deletedAt", child_run."tenantId", child_run."jobRunId", child_run."stepId", child_run."order", child_run."workerId", child_run."tickerId", child_run.status, child_run.input, child_run.output, child_run."requeueAfter", child_run."scheduleTimeoutAt", child_run.error, child_run."startedAt", child_run."finishedAt", child_run."timeoutAt", child_run."cancelledAt", child_run."cancelledReason", child_run."cancelledError", child_run."inputSchema", child_run."callerFiles", child_run."gitRepoBranch", child_run."retryCount"
+    child_run."id" AS "id"
 FROM 
     "StepRun" AS child_run
-JOIN 
+LEFT JOIN 
     "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+JOIN
+    job_run ON true
 WHERE 
-    child_run."tenantId" = $1::uuid
-    AND child_run."jobRunId" = $2::uuid
+    child_run."jobRunId" = $1::uuid
     AND child_run."status" = 'PENDING'
-    AND step_run_order."A" = $3::uuid
-    AND NOT EXISTS (
-        SELECT 1
-        FROM "_StepRunOrder" AS parent_order
-        JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
-        WHERE 
-            parent_order."B" = child_run."id"
-            AND parent_run."status" != 'SUCCEEDED'
+    AND job_run."status" = 'RUNNING'
+    -- case on whether parentStepRunId is null
+    AND (
+        ($2::uuid IS NULL AND step_run_order."A" IS NULL) OR 
+        (
+            step_run_order."A" = $2::uuid
+            AND NOT EXISTS (
+                SELECT 1
+                FROM "_StepRunOrder" AS parent_order
+                JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
+                WHERE 
+                    parent_order."B" = child_run."id"
+                    AND parent_run."status" != 'SUCCEEDED'
+            )
+        )
     )
 `
 
 type ListStartableStepRunsParams struct {
-	Tenantid        pgtype.UUID `json:"tenantid"`
 	Jobrunid        pgtype.UUID `json:"jobrunid"`
-	Parentsteprunid pgtype.UUID `json:"parentsteprunid"`
+	ParentStepRunId pgtype.UUID `json:"parentStepRunId"`
 }
 
-func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListStartableStepRunsParams) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, listStartableStepRuns, arg.Tenantid, arg.Jobrunid, arg.Parentsteprunid)
+func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListStartableStepRunsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStartableStepRuns, arg.Jobrunid, arg.ParentStepRunId)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*StepRun
+	var items []pgtype.UUID
 	for rows.Next() {
-		var i StepRun
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.TenantId,
-			&i.JobRunId,
-			&i.StepId,
-			&i.Order,
-			&i.WorkerId,
-			&i.TickerId,
-			&i.Status,
-			&i.Input,
-			&i.Output,
-			&i.RequeueAfter,
-			&i.ScheduleTimeoutAt,
-			&i.Error,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.TimeoutAt,
-			&i.CancelledAt,
-			&i.CancelledReason,
-			&i.CancelledError,
-			&i.InputSchema,
-			&i.CallerFiles,
-			&i.GitRepoBranch,
-			&i.RetryCount,
-		); err != nil {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

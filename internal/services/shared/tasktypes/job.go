@@ -2,8 +2,8 @@ package tasktypes
 
 import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 type JobRunQueuedTaskPayload struct {
@@ -18,7 +18,7 @@ type JobRunQueuedTaskMetadata struct {
 	WorkflowVersionId string `json:"workflow_version_id" validate:"required,uuid"`
 }
 
-func JobRunQueuedToTask(job *db.JobModel, jobRun *db.JobRunModel) *taskqueue.Task {
+func JobRunQueuedToTask(job *db.JobModel, jobRun *db.JobRunModel) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(JobRunQueuedTaskPayload{
 		JobRunId: jobRun.ID,
 	})
@@ -30,10 +30,11 @@ func JobRunQueuedToTask(job *db.JobModel, jobRun *db.JobRunModel) *taskqueue.Tas
 		TenantId:          job.TenantID,
 	})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "job-run-queued",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
 

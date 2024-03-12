@@ -8,18 +8,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 type Health struct {
 	ready bool
 
 	repository repository.Repository
-	queue      taskqueue.TaskQueue
+	queue      msgqueue.MessageQueue
 }
 
-func New(prisma repository.Repository, queue taskqueue.TaskQueue) *Health {
+func New(prisma repository.Repository, queue msgqueue.MessageQueue) *Health {
 	return &Health{
 		repository: prisma,
 		queue:      queue,

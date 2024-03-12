@@ -12,9 +12,9 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/logger"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/taskqueue"
 )
 
 type Ticker interface {
@@ -22,14 +22,13 @@ type Ticker interface {
 }
 
 type TickerImpl struct {
-	tq   taskqueue.TaskQueue
+	mq   msgqueue.MessageQueue
 	l    *zerolog.Logger
 	repo repository.Repository
 	s    gocron.Scheduler
 
 	crons              sync.Map
 	scheduledWorkflows sync.Map
-	jobRuns            sync.Map
 	stepRuns           sync.Map
 	getGroupKeyRuns    sync.Map
 
@@ -46,7 +45,7 @@ type timeoutCtx struct {
 type TickerOpt func(*TickerOpts)
 
 type TickerOpts struct {
-	tq       taskqueue.TaskQueue
+	mq       msgqueue.MessageQueue
 	l        *zerolog.Logger
 	repo     repository.Repository
 	tickerId string
@@ -63,9 +62,9 @@ func defaultTickerOpts() *TickerOpts {
 	}
 }
 
-func WithTaskQueue(tq taskqueue.TaskQueue) TickerOpt {
+func WithMessageQueue(mq msgqueue.MessageQueue) TickerOpt {
 	return func(opts *TickerOpts) {
-		opts.tq = tq
+		opts.mq = mq
 	}
 }
 
@@ -88,8 +87,8 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		f(opts)
 	}
 
-	if opts.tq == nil {
-		return nil, fmt.Errorf("task queue is required. use WithTaskQueue")
+	if opts.mq == nil {
+		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
 	if opts.repo == nil {
@@ -106,7 +105,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 	}
 
 	return &TickerImpl{
-		tq:       opts.tq,
+		mq:       opts.mq,
 		l:        opts.l,
 		repo:     opts.repo,
 		s:        s,
@@ -130,26 +129,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, err
 	}
 
-	// subscribe to a task queue with the dispatcher id
-	cleanupQueue, taskChan, err := t.tq.Subscribe(taskqueue.QueueTypeFromTickerID(ticker.ID))
-
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Second*5),
-		gocron.NewTask(
-			t.runGetGroupKeyRunRequeue(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule get group key run requeue: %w", err)
-	}
-
 	_, err = t.s.NewJob(
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
@@ -157,23 +136,36 @@ func (t *TickerImpl) Start() (func() error, error) {
 		),
 	)
 
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
+	}
+
 	t.s.Start()
 
 	wg := sync.WaitGroup{}
 
-	go func() {
-		for task := range taskChan {
-			wg.Add(1)
-			go func(task *taskqueue.Task) {
-				defer wg.Done()
+	f := func(task *msgqueue.Message) error {
+		wg.Add(1)
 
-				err := t.handleTask(ctx, task)
-				if err != nil {
-					t.l.Error().Err(err).Msgf("could not handle ticker task %s", task.ID)
-				}
-			}(task)
+		defer wg.Done()
+
+		err := t.handleTask(ctx, task)
+		if err != nil {
+			t.l.Error().Err(err).Msgf("could not handle ticker task %s", task.ID)
+			return err
 		}
-	}()
+
+		return nil
+	}
+
+	// subscribe to a task queue with the dispatcher id
+	cleanupQueue, err := t.mq.Subscribe(msgqueue.QueueTypeFromTickerID(ticker.ID), msgqueue.NoOpHook, f)
+
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 
 	cleanup := func() error {
 		t.l.Debug().Msg("removing ticker")
@@ -195,9 +187,9 @@ func (t *TickerImpl) Start() (func() error, error) {
 		}
 
 		// add the task after the ticker is deleted
-		err = t.tq.AddTask(
+		err = t.mq.AddMessage(
 			ctx,
-			taskqueue.JOB_PROCESSING_QUEUE,
+			msgqueue.JOB_PROCESSING_QUEUE,
 			tickerRemoved(t.tickerId),
 		)
 
@@ -216,7 +208,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (t *TickerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error {
+func (t *TickerImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
 	switch task.ID {
 	case "schedule-step-run-timeout":
 		return t.handleScheduleStepRunTimeout(ctx, task)
@@ -226,14 +218,6 @@ func (t *TickerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error
 		return t.handleScheduleGetGroupKeyRunTimeout(ctx, task)
 	case "cancel-get-group-key-run-timeout":
 		return t.handleCancelGetGroupKeyRunTimeout(ctx, task)
-	case "schedule-job-run-timeout":
-		return t.handleScheduleJobRunTimeout(ctx, task)
-	case "cancel-job-run-timeout":
-		return t.handleCancelJobRunTimeout(ctx, task)
-	// case "schedule-step-requeue":
-	// 	return t.handleScheduleStepRunRequeue(ctx, task)
-	// case "cancel-step-requeue":
-	// 	return t.handleCancelStepRunRequeue(ctx, task)
 	case "schedule-cron":
 		return t.handleScheduleCron(ctx, task)
 	case "cancel-cron":
@@ -245,34 +229,6 @@ func (t *TickerImpl) handleTask(ctx context.Context, task *taskqueue.Task) error
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
-}
-
-func (t *TickerImpl) runGetGroupKeyRunRequeue(ctx context.Context) func() {
-	return func() {
-		t.l.Debug().Msgf("ticker: checking get group key run requeue")
-
-		// list all tenants
-		tenants, err := t.repo.Tenant().ListTenants()
-
-		if err != nil {
-			t.l.Err(err).Msg("could not list tenants")
-			return
-		}
-
-		for i := range tenants {
-			t.l.Debug().Msgf("adding get group key run requeue task for tenant %s", tenants[i].ID)
-
-			err := t.tq.AddTask(
-				ctx,
-				taskqueue.WORKFLOW_PROCESSING_QUEUE,
-				tasktypes.TenantToGroupKeyActionRequeueTask(tenants[i]),
-			)
-
-			if err != nil {
-				t.l.Err(err).Msg("could not add get group key run requeue task")
-			}
-		}
-	}
 }
 
 func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
@@ -292,16 +248,17 @@ func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 	}
 }
 
-func tickerRemoved(tickerId string) *taskqueue.Task {
+func tickerRemoved(tickerId string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.RemoveTickerTaskPayload{
 		TickerId: tickerId,
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.RemoveTickerTaskMetadata{})
 
-	return &taskqueue.Task{
+	return &msgqueue.Message{
 		ID:       "ticker-removed",
 		Payload:  payload,
 		Metadata: metadata,
+		Retries:  3,
 	}
 }
