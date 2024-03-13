@@ -53,6 +53,9 @@ func Prepare(t *testing.T) {
 	}
 
 	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(tenantId, "default")
+	if err != nil {
+		t.Fatalf("could not generate default token: %v", err)
+	}
 
 	_ = os.Setenv("HATCHET_CLIENT_TOKEN", defaultTok)
 

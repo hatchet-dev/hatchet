@@ -8,9 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/goccy/go-json"
-
 	"github.com/go-co-op/gocron/v2"
+	"github.com/goccy/go-json"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
@@ -26,7 +25,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
-
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
@@ -253,6 +251,9 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgq
 
 	// list the step runs which are startable
 	startableStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(metadata.TenantId, payload.JobRunId, nil)
+	if err != nil {
+		return fmt.Errorf("could not list startable step runs: %w", err)
+	}
 
 	g := new(errgroup.Group)
 

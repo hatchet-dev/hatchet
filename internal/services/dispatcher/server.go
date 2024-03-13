@@ -46,7 +46,7 @@ func (worker *subscribedWorker) StartStepRun(
 	tenantId string,
 	stepRun *db.StepRunModel,
 ) error {
-	ctx, span := telemetry.NewSpan(ctx, "start-step-run")
+	ctx, span := telemetry.NewSpan(ctx, "start-step-run") // nolint:ineffassign
 	defer span.End()
 
 	inputBytes := []byte{}
@@ -79,10 +79,8 @@ func (worker *subscribedWorker) StartGroupKeyAction(
 	tenantId string,
 	workflowRun *db.WorkflowRunModel,
 ) error {
-	ctx, span := telemetry.NewSpan(ctx, "start-group-key-action")
+	ctx, span := telemetry.NewSpan(ctx, "start-group-key-action") // nolint:ineffassign
 	defer span.End()
-
-	inputBytes := []byte{}
 
 	concurrency, ok := workflowRun.WorkflowVersion().Concurrency()
 
@@ -123,8 +121,6 @@ func (worker *subscribedWorker) StartGroupKeyAction(
 		}
 	}
 
-	inputBytes = []byte(inputData)
-
 	getGroupKeyRun, ok := workflowRun.GetGroupKeyRun()
 
 	if !ok {
@@ -137,7 +133,7 @@ func (worker *subscribedWorker) StartGroupKeyAction(
 		GetGroupKeyRunId: getGroupKeyRun.ID,
 		ActionType:       contracts.ActionType_START_GET_GROUP_KEY,
 		ActionId:         concurrencyFn.ActionID,
-		ActionPayload:    string(inputBytes),
+		ActionPayload:    string(inputData),
 	})
 }
 
@@ -146,7 +142,7 @@ func (worker *subscribedWorker) CancelStepRun(
 	tenantId string,
 	stepRun *db.StepRunModel,
 ) error {
-	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run")
+	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run") // nolint:ineffassign
 	defer span.End()
 
 	stepName, _ := stepRun.Step().ReadableID()
@@ -355,17 +351,15 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		return err
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			if err := cleanupQueue(); err != nil {
-				return fmt.Errorf("could not cleanup queue: %w", err)
-			}
-			// drain the existing connections
-			wg.Wait()
-			return nil
+	for range ctx.Done() {
+		if err := cleanupQueue(); err != nil {
+			return fmt.Errorf("could not cleanup queue: %w", err)
 		}
+		// drain the existing connections
+		wg.Wait()
 	}
+
+	return nil
 }
 
 func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
