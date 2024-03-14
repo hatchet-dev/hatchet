@@ -189,6 +189,8 @@ func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *msgqueu
 		return wc.handleGroupKeyRunFinished(ctx, task)
 	case "get-group-key-run-failed":
 		return wc.handleGroupKeyRunFailed(ctx, task)
+	case "get-group-key-run-timed-out":
+		return wc.handleGetGroupKeyRunTimedOut(ctx, task)
 	case "workflow-run-finished":
 		return wc.handleWorkflowRunFinished(ctx, task)
 	}
@@ -353,6 +355,50 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFailed(ctx context.Context, 
 	if err != nil {
 		return fmt.Errorf("could not add cancel group key run timeout task to task queue: %w", err)
 	}
+
+	return nil
+}
+
+func (wc *WorkflowsControllerImpl) handleGetGroupKeyRunTimedOut(ctx context.Context, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpan(ctx, "handle-get-group-key-run-timed-out")
+	defer span.End()
+
+	payload := tasktypes.GetGroupKeyRunTimedOutTaskPayload{}
+	metadata := tasktypes.GetGroupKeyRunTimedOutTaskMetadata{}
+
+	err := wc.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode get group key run run timed out task payload: %w", err)
+	}
+
+	err = wc.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode get group key run run timed out task metadata: %w", err)
+	}
+
+	return wc.cancelGetGroupKeyRun(ctx, metadata.TenantId, payload.GetGroupKeyRunId, "TIMED_OUT")
+}
+
+func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, tenantId, getGroupKeyRunId, reason string) error {
+	ctx, span := telemetry.NewSpan(ctx, "cancel-get-group-key-run")
+	defer span.End()
+
+	// cancel current step run
+	now := time.Now().UTC()
+
+	_, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+		CancelledAt:     &now,
+		CancelledReason: repository.StringPtr(reason),
+		Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not update step run: %w", err)
+	}
+
+	// FIXME: eventually send the cancellation to the worker
 
 	return nil
 }
