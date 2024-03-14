@@ -351,15 +351,17 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		return err
 	}
 
-	for range ctx.Done() {
-		if err := cleanupQueue(); err != nil {
-			return fmt.Errorf("could not cleanup queue: %w", err)
+	for {
+		select {
+		case <-ctx.Done():
+			if err := cleanupQueue(); err != nil {
+				return fmt.Errorf("could not cleanup queue: %w", err)
+			}
+			// drain the existing connections
+			wg.Wait()
+			return nil
 		}
-		// drain the existing connections
-		wg.Wait()
 	}
-
-	return nil
 }
 
 func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
