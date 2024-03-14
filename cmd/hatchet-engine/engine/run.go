@@ -165,6 +165,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	if sc.HasService("grpc") {
 		// create the dispatcher
 		d, err := dispatcher.New(
+			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueue(sc.MessageQueue),
 			dispatcher.WithRepository(sc.Repository),
 			dispatcher.WithLogger(sc.Logger),
