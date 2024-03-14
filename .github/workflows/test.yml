@@ -112,12 +112,7 @@ jobs:
 
       - name: Generate
         run: |
-          cat > .env <<EOF
-          DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          EOF
-          
-          task prisma-migrate
-          task seed-dev
+          go run github.com/steebchen/prisma-client-go db push
           
           task generate-all
           task generate-certs
