@@ -5,9 +5,11 @@ load_dotenv()
 
 client = new_client()
 
-client.event.push(
-    "user:create",
-    {
-        "test": "test"
-    }
-)
+for i in range(10):
+    client.event.push(
+        "user:create",
+        {
+            "test": "test"
+        }
+    )
+

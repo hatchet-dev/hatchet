@@ -278,7 +278,7 @@ WITH step_run AS (
     WHERE
         sr."id" = @stepRunId::uuid AND
         sr."tenantId" = @tenantId::uuid
-    FOR UPDATE
+    FOR UPDATE SKIP LOCKED
 ),
 valid_workers AS (
     SELECT
@@ -303,12 +303,12 @@ valid_workers AS (
             )
         )
     ORDER BY random()
-    FOR UPDATE SKIP LOCKED
 ),
 selected_worker AS (
     SELECT "id", "dispatcherId"
     FROM valid_workers
     LIMIT 1
+    FOR UPDATE SKIP LOCKED
 )
 UPDATE
     "StepRun"

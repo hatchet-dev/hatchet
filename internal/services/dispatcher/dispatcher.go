@@ -18,6 +18,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
+
+	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
 type Dispatcher interface {
@@ -35,6 +37,7 @@ type DispatcherImpl struct {
 	repo         repository.Repository
 	dispatcherId string
 	workers      sync.Map
+	a            *hatcheterrors.Wrapped
 }
 
 type DispatcherOpt func(*DispatcherOpts)
@@ -45,20 +48,30 @@ type DispatcherOpts struct {
 	dv           datautils.DataDecoderValidator
 	repo         repository.Repository
 	dispatcherId string
+	alerter      hatcheterrors.Alerter
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
 	logger := logger.NewDefaultLogger("dispatcher")
+	alerter := hatcheterrors.NoOpAlerter{}
+
 	return &DispatcherOpts{
 		l:            &logger,
 		dv:           datautils.NewDataDecoderValidator(),
 		dispatcherId: uuid.New().String(),
+		alerter:      alerter,
 	}
 }
 
 func WithMessageQueue(mq msgqueue.MessageQueue) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.mq = mq
+	}
+}
+
+func WithAlerter(a hatcheterrors.Alerter) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.alerter = a
 	}
 }
 
@@ -111,6 +124,9 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("could not create scheduler for dispatcher: %w", err)
 	}
 
+	a := hatcheterrors.NewWrapped(opts.alerter)
+	a.WithData(map[string]interface{}{"service": "dispatcher"})
+
 	return &DispatcherImpl{
 		mq:           opts.mq,
 		l:            opts.l,
@@ -119,6 +135,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		dispatcherId: opts.dispatcherId,
 		workers:      sync.Map{},
 		s:            s,
+		a:            a,
 	}, nil
 }
 
@@ -213,11 +230,11 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
 	switch task.ID {
 	case "group-key-action-assigned":
-		return d.handleGroupKeyActionAssignedTask(ctx, task)
+		return d.a.WrapErr(d.handleGroupKeyActionAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-assigned":
-		return d.handleStepRunAssignedTask(ctx, task)
+		return d.a.WrapErr(d.handleStepRunAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-cancelled":
-		return d.handleStepRunCancelled(ctx, task)
+		return d.a.WrapErr(d.handleStepRunCancelled(ctx, task), map[string]interface{}{})
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)

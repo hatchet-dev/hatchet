@@ -72,7 +72,7 @@ WITH get_group_key_run AS (
     WHERE
         ggr."id" = $1::uuid AND
         ggr."tenantId" = $2::uuid
-    FOR UPDATE
+    FOR UPDATE SKIP LOCKED
 ), valid_workers AS (
     SELECT
         w."id", w."dispatcherId"
@@ -88,11 +88,11 @@ WITH get_group_key_run AS (
             WHERE "Action"."tenantId" = $2 AND "Action"."id" = get_group_key_run."actionId"
         )
     ORDER BY random()
-    FOR UPDATE SKIP LOCKED
 ), selected_worker AS (
     SELECT "id", "dispatcherId"
     FROM valid_workers
     LIMIT 1
+    FOR UPDATE SKIP LOCKED
 )
 UPDATE
     "GetGroupKeyRun"
