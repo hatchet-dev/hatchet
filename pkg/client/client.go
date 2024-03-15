@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/hatchet-dev/hatchet/internal/config/client"
 	"github.com/hatchet-dev/hatchet/internal/logger"
@@ -153,20 +154,25 @@ func NewFromConfigFile(cf *client.ClientConfigFile, fs ...ClientOpt) (Client, er
 }
 
 func newFromOpts(opts *ClientOpts) (Client, error) {
-	// if no TLS, exit
-	if opts.tls == nil {
-		return nil, fmt.Errorf("tls config is required")
-	}
-
 	if opts.token == "" {
 		return nil, fmt.Errorf("token is required")
 	}
 
-	opts.l.Debug().Msgf("connecting to %s with TLS server name %s", opts.hostPort, opts.tls.ServerName)
+	var transportCreds credentials.TransportCredentials
+
+	if opts.tls == nil {
+		opts.l.Debug().Msgf("connecting to %s without TLS", opts.hostPort)
+
+		transportCreds = insecure.NewCredentials()
+	} else {
+		opts.l.Debug().Msgf("connecting to %s with TLS server name %s", opts.hostPort, opts.tls.ServerName)
+
+		transportCreds = credentials.NewTLS(opts.tls)
+	}
 
 	conn, err := grpc.Dial(
 		opts.hostPort,
-		grpc.WithTransportCredentials(credentials.NewTLS(opts.tls)),
+		grpc.WithTransportCredentials(transportCreds),
 	)
 
 	if err != nil {
