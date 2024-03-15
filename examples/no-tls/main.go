@@ -22,7 +22,7 @@ func main() {
 	c, err := client.New()
 
 	if err != nil {
-		panic(fmt.Errorf("error creating client: %w", err))
+		panic(fmt.Sprintf("error creating client: %v", err))
 	}
 
 	w, err := worker.NewWorker(
@@ -32,7 +32,7 @@ func main() {
 		worker.WithMaxRuns(1),
 	)
 	if err != nil {
-		panic(fmt.Errorf("error creating worker: %w", err))
+		panic(fmt.Sprintf("error creating worker: %v", err))
 	}
 
 	testSvc := w.NewService("test")
@@ -53,7 +53,7 @@ func main() {
 		},
 	)
 	if err != nil {
-		panic(fmt.Errorf("error registering workflow: %w", err))
+		panic(fmt.Sprintf("error registering workflow: %v", err))
 	}
 
 	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
@@ -61,7 +61,7 @@ func main() {
 
 	cleanup, err := w.Start()
 	if err != nil {
-		panic(fmt.Errorf("error starting worker: %w", err))
+		panic(fmt.Sprintf("error starting worker: %v", err))
 	}
 
 	for {
