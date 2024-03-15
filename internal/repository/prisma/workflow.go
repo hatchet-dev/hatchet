@@ -416,6 +416,8 @@ func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId
 		return nil, fmt.Errorf("failed to fetch workflows: %w", err)
 	}
 
+	span2.End()
+
 	ctx, span3 := telemetry.NewSpan(ctx, "db-get-workflow-versions-for-engine")
 	defer span3.End()
 
