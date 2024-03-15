@@ -359,13 +359,9 @@ func main() {
 		panic(fmt.Sprintf("error starting worker: %v", err))
 	}
 
-	for {
-		select {
-		case <-interruptCtx.Done():
-			cleanup() // nolint: errcheck
-		default:
-			time.Sleep(time.Second)
-		}
+	<-interruptCtx.Done()
+	if err := cleanup(); err != nil {
+		panic(err)
 	}
 }
 ```
