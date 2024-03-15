@@ -397,18 +397,13 @@ func (r *workflowRepository) GetScheduledById(tenantId, scheduleTriggerId string
 }
 
 func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId, eventKey string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error) {
-	ctx, span := telemetry.NewSpan(ctx, "db-list-workflows-for-event")
-	defer span.End()
+	ctx, span1 := telemetry.NewSpan(ctx, "db-list-workflows-for-event")
+	defer span1.End()
 
-	tx, err := r.pool.Begin(context.Background())
+	ctx, span2 := telemetry.NewSpan(ctx, "db-list-workflows-for-event-query")
+	defer span2.End()
 
-	if err != nil {
-		return nil, err
-	}
-
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
-
-	workflowVersionIds, err := r.queries.ListWorkflowsForEvent(ctx, tx, dbsqlc.ListWorkflowsForEventParams{
+	workflowVersionIds, err := r.queries.ListWorkflowsForEvent(ctx, r.pool, dbsqlc.ListWorkflowsForEventParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Eventkey: eventKey,
 	})
@@ -421,19 +416,18 @@ func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId
 		return nil, fmt.Errorf("failed to fetch workflows: %w", err)
 	}
 
-	workflows, err := r.queries.GetWorkflowVersionForEngine(context.Background(), tx, dbsqlc.GetWorkflowVersionForEngineParams{
+	span2.End()
+
+	ctx, span3 := telemetry.NewSpan(ctx, "db-get-workflow-versions-for-engine")
+	defer span3.End()
+
+	workflows, err := r.queries.GetWorkflowVersionForEngine(context.Background(), r.pool, dbsqlc.GetWorkflowVersionForEngineParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Ids:      workflowVersionIds,
 	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch workflow versions: %w", err)
-	}
-
-	err = tx.Commit(context.Background())
-
-	if err != nil {
-		return nil, err
 	}
 
 	return workflows, nil

@@ -603,13 +603,13 @@ func (s *stepRunRepository) updateStepRunCore(
 	ctx, span := telemetry.NewSpan(ctx, "update-step-run-core")
 	defer span.End()
 
-	updateStepRun, err := s.queries.UpdateStepRun(context.Background(), tx, updateParams)
+	updateStepRun, err := s.queries.UpdateStepRun(ctx, tx, updateParams)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not update step run: %w", err)
 	}
 
-	stepRuns, err := s.queries.GetStepRunForEngine(context.Background(), tx, dbsqlc.GetStepRunForEngineParams{
+	stepRuns, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      []pgtype.UUID{updateStepRun.ID},
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
@@ -620,7 +620,7 @@ func (s *stepRunRepository) updateStepRunCore(
 
 	// update the job run lookup data if not nil
 	if updateJobRunLookupDataParams != nil {
-		err = s.queries.UpdateJobRunLookupDataWithStepRun(context.Background(), tx, *updateJobRunLookupDataParams)
+		err = s.queries.UpdateJobRunLookupDataWithStepRun(ctx, tx, *updateJobRunLookupDataParams)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not update job run lookup data: %w", err)

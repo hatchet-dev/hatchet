@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -24,6 +25,22 @@ import (
 type Teardown struct {
 	name string
 	fn   func() error
+}
+
+func init() {
+	svcName := os.Getenv("SERVER_OTEL_SERVICE_NAME")
+	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
+
+	// we do this to we get the tracer set globally, which is needed by some of the otel
+	// integrations for the database before start
+	_, err := telemetry.InitTracer(&telemetry.TracerOpts{
+		ServiceName:  svcName,
+		CollectorURL: collectorURL,
+	})
+
+	if err != nil {
+		panic(fmt.Errorf("could not initialize tracer: %w", err))
+	}
 }
 
 func Run(ctx context.Context, cf *loader.ConfigLoader) error {
