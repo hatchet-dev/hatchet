@@ -31,3 +31,18 @@ func New() *Cache {
 		cache: expirable.NewLRU[string, interface{}](512, nil, time.Minute*1),
 	}
 }
+
+func MakeCacheable[T any](cache Cacheable, id string, f func() (*T, error)) (*T, error) {
+	if v, ok := cache.Get(id); ok {
+		return v.(*T), nil
+	}
+
+	v, err := f()
+	if err != nil {
+		return nil, err
+	}
+
+	cache.Set(id, v)
+
+	return v, nil
+}

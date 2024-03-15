@@ -40,21 +40,11 @@ func (r *tenantRepository) ListTenants() ([]db.TenantModel, error) {
 }
 
 func (r *tenantRepository) GetTenantByID(id string) (*db.TenantModel, error) {
-	if v, ok := r.cache.Get(id); ok {
-		return v.(*db.TenantModel), nil
-	}
-
-	tenant, err := r.client.Tenant.FindUnique(
-		db.Tenant.ID.Equals(id),
-	).Exec(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	r.cache.Set(id, tenant)
-
-	return tenant, nil
+	return cache.MakeCacheable[db.TenantModel](r.cache, id, func() (*db.TenantModel, error) {
+		return r.client.Tenant.FindUnique(
+			db.Tenant.ID.Equals(id),
+		).Exec(context.Background())
+	})
 }
 
 func (r *tenantRepository) GetTenantBySlug(slug string) (*db.TenantModel, error) {

@@ -25,20 +25,11 @@ func NewAPITokenRepository(client *db.PrismaClient, v validator.Validator, cache
 }
 
 func (a *apiTokenRepository) GetAPITokenById(id string) (*db.APITokenModel, error) {
-	if v, ok := a.cache.Get(id); ok {
-		return v.(*db.APITokenModel), nil
-	}
-
-	token, err := a.client.APIToken.FindUnique(
-		db.APIToken.ID.Equals(id),
-	).Exec(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	a.cache.Set(id, token)
-
-	return token, nil
+	return cache.MakeCacheable[db.APITokenModel](a.cache, id, func() (*db.APITokenModel, error) {
+		return a.client.APIToken.FindUnique(
+			db.APIToken.ID.Equals(id),
+		).Exec(context.Background())
+	})
 }
 
 func (a *apiTokenRepository) CreateAPIToken(opts *repository.CreateAPITokenOpts) (*db.APITokenModel, error) {
