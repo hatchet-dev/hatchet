@@ -429,7 +429,7 @@ func (s *stepRunRepository) QueueStepRun(ctx context.Context, tenantId, stepRunI
 
 	var stepRun *dbsqlc.GetStepRunForEngineRow
 
-	err = retrier(s.l, func() error {
+	retrierErr := retrier(s.l, func() error {
 		tx, err := s.pool.Begin(context.Background())
 
 		if err != nil {
@@ -452,22 +452,29 @@ func (s *stepRunRepository) QueueStepRun(ctx context.Context, tenantId, stepRunI
 			return repository.ErrStepRunIsNotPending
 		}
 
-		stepRun, err = s.updateStepRunCore(ctx, tx, tenantId, updateParams, updateJobRunLookupDataParams)
+		sr, err := s.updateStepRunCore(ctx, tx, tenantId, updateParams, updateJobRunLookupDataParams)
+		if err != nil {
+			return err
+		}
+
+		stepRun = sr
 
 		if err != nil {
 			return err
 		}
 
-		if err != nil {
+		if err := tx.Commit(context.Background()); err != nil {
 			return err
 		}
 
-		err = tx.Commit(context.Background())
-
-		return err
+		return nil
 	})
 
-	err = retrier(s.l, func() error {
+	if retrierErr != nil {
+		return nil, fmt.Errorf("could not queue step run: %w", err)
+	}
+
+	retrierExtraErr := retrier(s.l, func() error {
 		tx, err := s.pool.Begin(context.Background())
 
 		if err != nil {
@@ -487,7 +494,7 @@ func (s *stepRunRepository) QueueStepRun(ctx context.Context, tenantId, stepRunI
 		return err
 	})
 
-	if err != nil {
+	if retrierExtraErr != nil {
 		// non-fatal error, log and continue
 		s.l.Err(err).Msg("could not update step run extra")
 		return nil, nil
@@ -600,7 +607,7 @@ func (s *stepRunRepository) updateStepRunCore(
 	updateParams dbsqlc.UpdateStepRunParams,
 	updateJobRunLookupDataParams *dbsqlc.UpdateJobRunLookupDataWithStepRunParams,
 ) (*dbsqlc.GetStepRunForEngineRow, error) {
-	ctx, span := telemetry.NewSpan(ctx, "update-step-run-core")
+	ctx, span := telemetry.NewSpan(ctx, "update-step-run-core") // nolint:ineffassign
 	defer span.End()
 
 	updateStepRun, err := s.queries.UpdateStepRun(ctx, tx, updateParams)
@@ -641,7 +648,7 @@ func (s *stepRunRepository) updateStepRunExtra(
 	resolveJobRunParams dbsqlc.ResolveJobRunStatusParams,
 	resolveLaterStepRunsParams dbsqlc.ResolveLaterStepRunsParams,
 ) (*repository.StepRunUpdateInfo, error) {
-	ctx, span := telemetry.NewSpan(ctx, "update-step-run-extra")
+	ctx, span := telemetry.NewSpan(ctx, "update-step-run-extra") // nolint:ineffassign
 	defer span.End()
 
 	_, err := s.queries.ResolveLaterStepRuns(context.Background(), tx, resolveLaterStepRunsParams)

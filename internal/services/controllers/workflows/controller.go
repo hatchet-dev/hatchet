@@ -199,7 +199,7 @@ func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *msgqueu
 }
 
 func (ec *WorkflowsControllerImpl) handleGroupKeyRunStarted(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "get-group-key-run-started")
+	ctx, span := telemetry.NewSpan(ctx, "get-group-key-run-started") // nolint:ineffassign
 	defer span.End()
 
 	payload := tasktypes.GetGroupKeyRunStartedTaskPayload{}

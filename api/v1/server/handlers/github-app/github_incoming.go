@@ -1,15 +1,15 @@
 package githubapp
 
 import (
+	"fmt"
 	"net/http"
 
+	githubsdk "github.com/google/go-github/v57/github"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/github"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-
-	githubsdk "github.com/google/go-github/v57/github"
 )
 
 func (g *GithubAppService) GithubUpdateTenantWebhook(ctx echo.Context, req gen.GithubUpdateTenantWebhookRequestObject) (gen.GithubUpdateTenantWebhookResponseObject, error) {
@@ -42,7 +42,9 @@ func (g *GithubAppService) GithubUpdateTenantWebhook(ctx echo.Context, req gen.G
 
 	switch event := event.(type) { // nolint: gocritic
 	case *githubsdk.PullRequestEvent:
-		err = g.processPullRequestEvent(webhook.TenantID, event, ctx.Request())
+		if err := g.processPullRequestEvent(webhook.TenantID, event, ctx.Request()); err != nil {
+			return nil, fmt.Errorf("error processing pull request event: %w", err)
+		}
 	}
 
 	return nil, nil
