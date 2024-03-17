@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/exaring/otelpgx"
+	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
-
-	pgxzero "github.com/jackc/pgx-zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/auth/oauth"
@@ -34,8 +34,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
-
-	"github.com/exaring/otelpgx"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -124,7 +122,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 	os.Setenv("DATABASE_URL", databaseUrl)
 
 	c := db.NewClient(
-	// db.WithDatasourceURL(databaseUrl),
+		// db.WithDatasourceURL(databaseUrl),
 	)
 
 	if err := c.Prisma.Connect(); err != nil {
@@ -154,7 +152,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 
 	return &database.Config{
 		Disconnect: c.Prisma.Disconnect,
-		Repository: prisma.NewPrismaRepository(c, pool, prisma.WithLogger(&l)),
+		Repository: prisma.NewPrismaRepository(c, pool, prisma.WithLogger(&l), prisma.WithCacheDuration(cf.CacheDuration)),
 		Seed:       cf.Seed,
 	}, nil
 }

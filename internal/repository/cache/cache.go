@@ -26,8 +26,12 @@ func (c *Cache) Get(key string) (interface{}, bool) {
 	return c.cache.Get(key)
 }
 
-func New() *Cache {
+func New(duration time.Duration) *Cache {
+	if duration == 0 {
+		// consider a duration of 0 a very short expiry instead of no expiry
+		duration = 1 * time.Millisecond
+	}
 	return &Cache{
-		cache: expirable.NewLRU[string, interface{}](512, nil, time.Minute*1),
+		cache: expirable.NewLRU[string, interface{}](512, nil, duration),
 	}
 }

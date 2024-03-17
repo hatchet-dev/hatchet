@@ -1,6 +1,8 @@
 package prisma
 
 import (
+	"time"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -35,8 +37,9 @@ type prismaRepository struct {
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
 
 type PrismaRepositoryOpts struct {
-	v validator.Validator
-	l *zerolog.Logger
+	v             validator.Validator
+	l             *zerolog.Logger
+	cacheDuration time.Duration
 }
 
 func defaultPrismaRepositoryOpts() *PrismaRepositoryOpts {
@@ -57,6 +60,12 @@ func WithLogger(l *zerolog.Logger) PrismaRepositoryOpt {
 	}
 }
 
+func WithCacheDuration(duration time.Duration) PrismaRepositoryOpt {
+	return func(opts *PrismaRepositoryOpts) {
+		opts.cacheDuration = duration
+	}
+}
+
 func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) repository.Repository {
 	opts := defaultPrismaRepositoryOpts()
 
@@ -67,7 +76,7 @@ func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...Pris
 	newLogger := opts.l.With().Str("service", "database").Logger()
 	opts.l = &newLogger
 
-	c := cache.New()
+	c := cache.New(opts.cacheDuration)
 
 	return &prismaRepository{
 		apiToken:       NewAPITokenRepository(client, opts.v, c),
