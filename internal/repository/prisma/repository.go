@@ -37,9 +37,9 @@ type prismaRepository struct {
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
 
 type PrismaRepositoryOpts struct {
-	v             validator.Validator
-	l             *zerolog.Logger
-	cacheDuration time.Duration
+	v     validator.Validator
+	l     *zerolog.Logger
+	cache cache.Cacheable
 }
 
 func defaultPrismaRepositoryOpts() *PrismaRepositoryOpts {
@@ -60,9 +60,9 @@ func WithLogger(l *zerolog.Logger) PrismaRepositoryOpt {
 	}
 }
 
-func WithCacheDuration(duration time.Duration) PrismaRepositoryOpt {
+func WithCache(cache cache.Cacheable) PrismaRepositoryOpt {
 	return func(opts *PrismaRepositoryOpts) {
-		opts.cacheDuration = duration
+		opts.cache = cache
 	}
 }
 
@@ -76,13 +76,15 @@ func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...Pris
 	newLogger := opts.l.With().Str("service", "database").Logger()
 	opts.l = &newLogger
 
-	c := cache.New(opts.cacheDuration)
+	if opts.cache == nil {
+		opts.cache = cache.New(1 * time.Millisecond)
+	}
 
 	return &prismaRepository{
-		apiToken:       NewAPITokenRepository(client, opts.v, c),
+		apiToken:       NewAPITokenRepository(client, opts.v, opts.cache),
 		event:          NewEventRepository(client, pool, opts.v, opts.l),
 		log:            NewLogRepository(client, pool, opts.v, opts.l),
-		tenant:         NewTenantRepository(client, opts.v, c),
+		tenant:         NewTenantRepository(client, opts.v, opts.cache),
 		tenantInvite:   NewTenantInviteRepository(client, opts.v),
 		workflow:       NewWorkflowRepository(client, pool, opts.v, opts.l),
 		workflowRun:    NewWorkflowRunRepository(client, pool, opts.v, opts.l),
