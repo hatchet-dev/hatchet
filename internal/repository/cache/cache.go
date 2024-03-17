@@ -3,7 +3,7 @@ package cache
 import (
 	"time"
 
-	"github.com/hashicorp/golang-lru/v2/expirable"
+	"github.com/patrickmn/go-cache"
 )
 
 type Cacheable interface {
@@ -12,24 +12,19 @@ type Cacheable interface {
 
 	// Get gets a value from the cache with the given key
 	Get(key string) (interface{}, bool)
-
-	Purge()
 }
 
 type Cache struct {
-	cache *expirable.LRU[string, interface{}]
+	cache      *cache.Cache
+	expiration time.Duration
 }
 
 func (c *Cache) Set(key string, value interface{}) {
-	c.cache.Add(key, value)
+	c.cache.Set(key, value, c.expiration)
 }
 
 func (c *Cache) Get(key string) (interface{}, bool) {
 	return c.cache.Get(key)
-}
-
-func (c *Cache) Purge() {
-	c.cache.Purge()
 }
 
 func New(duration time.Duration) *Cache {
@@ -38,6 +33,7 @@ func New(duration time.Duration) *Cache {
 		duration = 1 * time.Millisecond
 	}
 	return &Cache{
-		cache: expirable.NewLRU[string, interface{}](512, nil, duration),
+		expiration: duration,
+		cache:      cache.New(duration, 2*time.Minute),
 	}
 }

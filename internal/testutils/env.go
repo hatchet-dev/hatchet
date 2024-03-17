@@ -47,9 +47,6 @@ func Prepare(t *testing.T) {
 	_ = os.Setenv("DATABASE_LOGGER_LEVEL", "debug")
 	_ = os.Setenv("DATABASE_LOGGER_FORMAT", "console")
 
-	// make sure no cache is used for tests
-	_ = os.Setenv("CACHE_DURATION", "0")
-
 	// read in the local config
 	configLoader := loader.NewConfigLoader(path.Join(testPath, baseDir, "generated"))
 
