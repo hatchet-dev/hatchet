@@ -27,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/github"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
+	"github.com/hatchet-dev/hatchet/internal/repository/cache"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
@@ -149,9 +150,15 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
+	ch := cache.New(cf.CacheDuration)
+
 	return &database.Config{
-		Disconnect: c.Prisma.Disconnect,
-		Repository: prisma.NewPrismaRepository(c, pool, prisma.WithLogger(&l), prisma.WithCacheDuration(cf.CacheDuration)),
+		Disconnect: func() error {
+			ch.Purge()
+
+			return c.Prisma.Disconnect()
+		},
+		Repository: prisma.NewPrismaRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
 		Seed:       cf.Seed,
 	}, nil
 }
