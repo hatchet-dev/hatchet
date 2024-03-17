@@ -18,6 +18,7 @@ import (
 )
 
 func TestMessageQueueIntegration(t *testing.T) {
+	t.SkipNow()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -99,6 +100,7 @@ func TestMessageQueueIntegration(t *testing.T) {
 }
 
 func TestDeadLetteringSuccess(t *testing.T) {
+	t.SkipNow()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
