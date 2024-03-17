@@ -119,11 +119,10 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		cf.PostgresSSLMode,
 	)
 
-	os.Setenv("DATABASE_URL", databaseUrl)
+	// TODO db.WithDatasourceURL(databaseUrl) is not working
+	_ = os.Setenv("DATABASE_URL", databaseUrl)
 
-	c := db.NewClient(
-		// db.WithDatasourceURL(databaseUrl),
-	)
+	c := db.NewClient()
 
 	if err := c.Prisma.Connect(); err != nil {
 		return nil, err
