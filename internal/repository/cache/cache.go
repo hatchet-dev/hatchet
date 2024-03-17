@@ -3,7 +3,7 @@ package cache
 import (
 	"time"
 
-	"github.com/patrickmn/go-cache"
+	"github.com/hatchet-dev/hatchet/internal/cache"
 )
 
 type Cacheable interface {
@@ -12,10 +12,13 @@ type Cacheable interface {
 
 	// Get gets a value from the cache with the given key
 	Get(key string) (interface{}, bool)
+
+	// Stop stops the cache and clears any goroutines
+	Stop()
 }
 
 type Cache struct {
-	cache      *cache.Cache
+	cache      *cache.TTLCache[string, interface{}]
 	expiration time.Duration
 }
 
@@ -27,6 +30,10 @@ func (c *Cache) Get(key string) (interface{}, bool) {
 	return c.cache.Get(key)
 }
 
+func (c *Cache) Stop() {
+	c.cache.Stop()
+}
+
 func New(duration time.Duration) *Cache {
 	if duration == 0 {
 		// consider a duration of 0 a very short expiry instead of no expiry
@@ -34,7 +41,7 @@ func New(duration time.Duration) *Cache {
 	}
 	return &Cache{
 		expiration: duration,
-		cache:      cache.New(duration, 2*time.Minute),
+		cache:      cache.NewTTL[string, interface{}](),
 	}
 }
 

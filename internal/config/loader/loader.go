@@ -153,7 +153,10 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 	ch := cache.New(cf.CacheDuration)
 
 	return &database.Config{
-		Disconnect: c.Prisma.Disconnect,
+		Disconnect: func() error {
+			ch.Stop()
+			return c.Prisma.Disconnect()
+		},
 		Repository: prisma.NewPrismaRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
 		Seed:       cf.Seed,
 	}, nil
