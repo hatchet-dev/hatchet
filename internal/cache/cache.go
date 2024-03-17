@@ -19,8 +19,9 @@ func (i item[V]) isExpired() bool {
 // TTLCache is a generic cache implementation with support for time-to-live
 // (TTL) expiration.
 type TTLCache[K comparable, V any] struct {
-	items map[K]item[V] // The map storing cache items.
-	mu    sync.Mutex    // Mutex for controlling concurrent access to the cache.
+	items map[K]item[V]    // The map storing cache items.
+	mu    sync.Mutex       // Mutex for controlling concurrent access to the cache.
+	stop  chan interface{} // Channel to stop the goroutine that removes expired items.
 }
 
 // NewTTL creates a new TTLCache instance and starts a goroutine to periodically
@@ -28,24 +29,38 @@ type TTLCache[K comparable, V any] struct {
 func NewTTL[K comparable, V any]() *TTLCache[K, V] {
 	c := &TTLCache[K, V]{
 		items: make(map[K]item[V]),
+		stop:  make(chan interface{}),
 	}
 
 	go func() {
-		for range time.Tick(5 * time.Second) {
-			c.mu.Lock()
+		// Create a new ticker to remove expired items every 5 seconds.
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
 
-			// Iterate over the cache items and delete expired ones.
-			for key, item := range c.items {
-				if item.isExpired() {
-					delete(c.items, key)
+		for {
+			select {
+			case <-c.stop:
+				return
+			case <-ticker.C:
+				c.mu.Lock()
+
+				// Iterate over the cache items and delete expired ones.
+				for key, item := range c.items {
+					if item.isExpired() {
+						delete(c.items, key)
+					}
 				}
-			}
 
-			c.mu.Unlock()
+				c.mu.Unlock()
+			}
 		}
 	}()
 
 	return c
+}
+
+func (c *TTLCache[K, V]) Stop() {
+	close(c.stop)
 }
 
 // Set adds a new item to the cache with the specified key, value, and
