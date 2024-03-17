@@ -3,7 +3,7 @@ package cache
 import (
 	"time"
 
-	"github.com/patrickmn/go-cache"
+	"github.com/hatchet-dev/hatchet/internal/cache"
 )
 
 type Cacheable interface {
@@ -15,7 +15,7 @@ type Cacheable interface {
 }
 
 type Cache struct {
-	cache      *cache.Cache
+	cache      *cache.TTLCache[string, interface{}]
 	expiration time.Duration
 }
 
@@ -34,6 +34,6 @@ func New(duration time.Duration) *Cache {
 	}
 	return &Cache{
 		expiration: duration,
-		cache:      cache.New(duration, 2*time.Minute),
+		cache:      cache.NewTTL[string, interface{}](),
 	}
 }
