@@ -61,7 +61,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 			)
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("could not get workflow by name: %w", err)
 	}
 
 	workflowVersion := &workflow.Versions()[0]
@@ -73,7 +73,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	createOpts, err := repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input))
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not create workflow run opts: %w", err)
 	}
 
 	workflowRun, err := a.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenant.ID, createOpts)
@@ -88,6 +88,9 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
 		tasktypes.WorkflowRunQueuedToTask(workflowRun),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("could not queue workflow run: %w", err)
+	}
 
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: workflowRun.ID,

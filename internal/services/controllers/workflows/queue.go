@@ -213,12 +213,12 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 }
 
 func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, workflowRun *db.WorkflowRunModel) error {
-	ctx, span := telemetry.NewSpan(ctx, "process-event")
+	ctx, span := telemetry.NewSpan(ctx, "process-event") // nolint:ineffassign
 	defer span.End()
 
 	jobRuns := workflowRun.JobRuns()
 
-	var err error
+	var returnErr error
 
 	for i := range jobRuns {
 		err := wc.mq.AddMessage(
@@ -228,11 +228,11 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 		)
 
 		if err != nil {
-			err = multierror.Append(err, fmt.Errorf("could not add job run to task queue: %w", err))
+			returnErr = multierror.Append(err, fmt.Errorf("could not add job run to task queue: %w", err))
 		}
 	}
 
-	return err
+	return returnErr
 }
 
 func (wc *WorkflowsControllerImpl) runGetGroupKeyRunRequeue(ctx context.Context) func() {
@@ -303,7 +303,7 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunRequeueTenant(ctx context.Co
 			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
 			if isTimedOut {
-				innerGetGroupKeyRun, err = ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+				_, err := ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 					CancelledAt:     &now,
 					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
 					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),

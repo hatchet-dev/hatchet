@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/exaring/otelpgx"
+	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
-
-	pgxzero "github.com/jackc/pgx-zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/auth/oauth"
@@ -119,11 +119,10 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		cf.PostgresSSLMode,
 	)
 
-	os.Setenv("DATABASE_URL", databaseUrl)
+	// TODO db.WithDatasourceURL(databaseUrl) is not working
+	_ = os.Setenv("DATABASE_URL", databaseUrl)
 
-	c := db.NewClient(
-	// db.WithDatasourceURL(databaseUrl),
-	)
+	c := db.NewClient()
 
 	if err := c.Prisma.Connect(); err != nil {
 		return nil, err
@@ -141,6 +140,8 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		}
 	}
 
+	config.ConnConfig.Tracer = otelpgx.NewTracer()
+
 	config.MaxConns = 20
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
@@ -150,7 +151,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 
 	return &database.Config{
 		Disconnect: c.Prisma.Disconnect,
-		Repository: prisma.NewPrismaRepository(c, pool, prisma.WithLogger(&l)),
+		Repository: prisma.NewPrismaRepository(c, pool, prisma.WithLogger(&l), prisma.WithCacheDuration(cf.CacheDuration)),
 		Seed:       cf.Seed,
 	}, nil
 }

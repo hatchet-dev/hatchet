@@ -8,9 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/goccy/go-json"
-
 	"github.com/go-co-op/gocron/v2"
+	"github.com/goccy/go-json"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
@@ -26,7 +25,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
-
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
@@ -253,6 +251,9 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgq
 
 	// list the step runs which are startable
 	startableStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(metadata.TenantId, payload.JobRunId, nil)
+	if err != nil {
+		return fmt.Errorf("could not list startable step runs: %w", err)
+	}
 
 	g := new(errgroup.Group)
 
@@ -801,13 +802,13 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
 
 	if err != nil {
-		return fmt.Errorf("could not decode step run started task payload: %w", err)
+		return fmt.Errorf("could not decode step run finished task payload: %w", err)
 	}
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
 	if err != nil {
-		return fmt.Errorf("could not decode step run started task metadata: %w", err)
+		return fmt.Errorf("could not decode step run finished task metadata: %w", err)
 	}
 
 	// update the step run in the database
@@ -892,19 +893,19 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
 
 	if err != nil {
-		return fmt.Errorf("could not decode step run started task payload: %w", err)
+		return fmt.Errorf("could not decode step run failed task payload: %w", err)
 	}
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
 	if err != nil {
-		return fmt.Errorf("could not decode step run started task metadata: %w", err)
+		return fmt.Errorf("could not decode step run failed task metadata: %w", err)
 	}
 
 	// update the step run in the database
 	failedAt, err := time.Parse(time.RFC3339, payload.FailedAt)
 	if err != nil {
-		return fmt.Errorf("could not parse started at: %w", err)
+		return fmt.Errorf("could not parse failed at: %w", err)
 	}
 
 	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(metadata.TenantId, payload.StepRunId)
@@ -975,13 +976,13 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *m
 	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
 
 	if err != nil {
-		return fmt.Errorf("could not decode step run started task payload: %w", err)
+		return fmt.Errorf("could not decode step run timed out task payload: %w", err)
 	}
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
 	if err != nil {
-		return fmt.Errorf("could not decode step run started task metadata: %w", err)
+		return fmt.Errorf("could not decode step run timed out task metadata: %w", err)
 	}
 
 	return ec.cancelStepRun(ctx, metadata.TenantId, payload.StepRunId, "TIMED_OUT")

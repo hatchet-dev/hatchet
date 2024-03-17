@@ -3,7 +3,7 @@
 set -eux
 
 set -a
-. .env
+. .env || true
 set +a
 
 exec npx "$@"

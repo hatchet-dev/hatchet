@@ -213,47 +213,15 @@ func (r *eventRepository) CreateEvent(ctx context.Context, opts *repository.Crea
 		createParams.ReplayedFromId = sqlchelpers.UUIDFromStr(*opts.ReplayedEvent)
 	}
 
-	tx, err := r.pool.Begin(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
-
 	e, err := r.queries.CreateEvent(
 		ctx,
-		tx,
+		r.pool,
 		createParams,
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create event: %w", err)
 	}
-
-	err = tx.Commit(ctx)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not commit transaction: %w", err)
-	}
-
-	// params := []db.EventSetParam{
-	// 	db.Event.Data.SetIfPresent(opts.Data),
-	// }
-
-	// if opts.ReplayedEvent != nil {
-	// 	params = append(params, db.Event.ReplayedFrom.Link(
-	// 		db.Event.ID.Equals(*opts.ReplayedEvent),
-	// 	))
-	// }
-
-	// return r.client.Event.CreateOne(
-	// 	db.Event.Key.Set(opts.Key),
-	// 	db.Event.Tenant.Link(
-	// 		db.Tenant.ID.Equals(opts.TenantId),
-	// 	),
-	// 	params...,
-	// ).Exec(ctx)
 
 	return sqlctoprisma.NewConverter[dbsqlc.Event, db.EventModel]().ToPrisma(e), nil
 }
