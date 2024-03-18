@@ -1,6 +1,7 @@
 package testutils
 
 import (
+	"errors"
 	"os"
 	"path"
 	"path/filepath"
@@ -8,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
+	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
 func Prepare(t *testing.T) {
@@ -52,7 +55,27 @@ func Prepare(t *testing.T) {
 		t.Fatalf("could not load server config: %v", err)
 	}
 
+	// check if tenant exists
+	_, err = serverConf.Repository.Tenant().GetTenantByID(tenantId)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			_, err = serverConf.Repository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+				ID:   &tenantId,
+				Name: "test-tenant",
+				Slug: "test-tenant",
+			})
+			if err != nil {
+				t.Fatalf("could not create tenant: %v", err)
+			}
+		} else {
+			t.Fatalf("could not get tenant: %v", err)
+		}
+	}
+
 	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(tenantId, "default")
+	if err != nil {
+		t.Fatalf("could not generate default token: %v", err)
+	}
 
 	_ = os.Setenv("HATCHET_CLIENT_TOKEN", defaultTok)
 

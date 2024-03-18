@@ -34,6 +34,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
+
+	"github.com/exaring/otelpgx"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -140,6 +142,8 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 			LogLevel: tracelog.LogLevelDebug,
 		}
 	}
+
+	config.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	config.MaxConns = 20
 
