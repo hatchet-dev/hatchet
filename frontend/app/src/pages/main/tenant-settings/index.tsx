@@ -92,9 +92,7 @@ function MembersList() {
           tenant={tenant.metadata.id}
           showChangePasswordDialog={showChangePasswordDialog}
           setShowChangePasswordDialog={setShowChangePasswordDialog}
-          onSuccess={() => {
-            // TODO success state
-          }}
+          onSuccess={() => {}}
         />
       )}
     </div>
@@ -363,7 +361,6 @@ function ChangePassword({
     setFieldErrors: setFieldErrors,
   });
 
-  // TODO api.UserChangePassword is not generated
   const updatePasswordMutation = useMutation({
     mutationKey: ['user:update', tenant],
     mutationFn: async (data: UserChangePasswordRequest) => {
@@ -373,8 +370,7 @@ function ChangePassword({
     onMutate: () => {
       setFieldErrors({});
     },
-    onSuccess: (data) => {
-      // setGeneratedToken(data.token);
+    onSuccess: () => {
       onSuccess();
       setShowChangePasswordDialog(false);
     },
