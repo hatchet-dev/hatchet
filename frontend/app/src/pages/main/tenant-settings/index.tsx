@@ -78,7 +78,7 @@ function MembersList() {
       <Separator className="my-4" />
       <DataTable
         columns={membersColumns({
-          onChangePasswordClick: (row) => {
+          onChangePasswordClick: () => {
             setShowChangePasswordDialog(true);
           },
         })}
