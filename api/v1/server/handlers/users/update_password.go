@@ -5,7 +5,6 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -14,6 +13,9 @@ import (
 )
 
 func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdatePasswordRequestObject) (gen.UserUpdatePasswordResponseObject, error) {
+	// determine if the user exists before attempting to write the user
+	existingUser := ctx.Get("user").(*db.UserModel)
+
 	// check that the server supports local registration
 	if !u.config.Auth.ConfigFile.BasicAuthEnabled {
 		return gen.UserUpdatePassword405JSONResponse(
@@ -21,20 +23,12 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 		), nil
 	}
 
-	ctx.Logger().Info("Body: ", request.Body)
-
 	// validate the request
 	if apiErrors, err := u.config.Validator.ValidateAPI(request.Body); err != nil {
 		return nil, err
 	} else if apiErrors != nil {
 		return gen.UserUpdatePassword400JSONResponse(*apiErrors), nil
 	}
-
-	// determine if the user exists before attempting to write the user
-
-	existingUser := ctx.Get("user").(*db.UserModel)
-
-	ctx.Logger().Info("existing user: ", existingUser)
 
 	userPass, err := u.config.Repository.User().GetUserPassword(existingUser.ID)
 
@@ -60,12 +54,6 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 
 	if err != nil {
 		return nil, fmt.Errorf("could not update user: %w", err)
-	}
-
-	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, existingUser)
-
-	if err != nil {
-		return nil, err
 	}
 
 	return gen.UserUpdatePassword200JSONResponse(

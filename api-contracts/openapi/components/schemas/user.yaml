@@ -62,8 +62,8 @@ UserChangePasswordRequest:
       x-oapi-codegen-extra-tags:
         validate: "required,password"
   required:
-    - email
     - password
+    - newPassword
   type: object
 
 UserRegisterRequest:

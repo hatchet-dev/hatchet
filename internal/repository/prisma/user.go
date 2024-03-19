@@ -124,11 +124,8 @@ func (r *userRepository) UpdateUser(id string, opts *repository.UpdateUserOpts) 
 	}
 
 	if opts.Password != nil {
-		txs = append(txs, r.client.UserPassword.UpsertOne(
+		txs = append(txs, r.client.UserPassword.FindUnique(
 			db.UserPassword.UserID.Equals(id),
-		).Create(
-			db.UserPassword.Hash.Set(*opts.Password),
-			db.UserPassword.User.Link(db.User.ID.Equals(id)),
 		).Update(
 			db.UserPassword.Hash.Set(*opts.Password),
 		).Tx())
