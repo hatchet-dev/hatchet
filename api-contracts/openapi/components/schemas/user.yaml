@@ -51,12 +51,6 @@ UserLoginRequest:
 
 UserChangePasswordRequest:
   properties:
-    email:
-      type: string
-      format: email
-      description: The email address of the user.
-      x-oapi-codegen-extra-tags:
-        validate: "required,email"
     password:
       type: string
       description: The password of the user.

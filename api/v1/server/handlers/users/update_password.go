@@ -1,7 +1,6 @@
 package users
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/labstack/echo/v4"
@@ -14,31 +13,28 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
-// TODO UserUpdatePasswordRequestObject is not being generated...
-func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdateLoginRequestObject) (gen.UserUpdateLoginResponseObject, error) {
+func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdatePasswordRequestObject) (gen.UserUpdatePasswordResponseObject, error) {
 	// check that the server supports local registration
 	if !u.config.Auth.ConfigFile.BasicAuthEnabled {
-		return gen.UserUpdateLogin405JSONResponse(
+		return gen.UserUpdatePassword405JSONResponse(
 			apierrors.NewAPIErrors("local registration is not enabled"),
 		), nil
 	}
+
+	ctx.Logger().Info("Body: ", request.Body)
 
 	// validate the request
 	if apiErrors, err := u.config.Validator.ValidateAPI(request.Body); err != nil {
 		return nil, err
 	} else if apiErrors != nil {
-		return gen.UserUpdateLogin400JSONResponse(*apiErrors), nil
+		return gen.UserUpdatePassword400JSONResponse(*apiErrors), nil
 	}
 
 	// determine if the user exists before attempting to write the user
-	existingUser, err := u.config.Repository.User().GetUserByEmail(string(request.Body.Email))
-	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-			return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors("user not found")), nil
-		}
 
-		return nil, err
-	}
+	existingUser := ctx.Get("user").(*db.UserModel)
+
+	ctx.Logger().Info("existing user: ", existingUser)
 
 	userPass, err := u.config.Repository.User().GetUserPassword(existingUser.ID)
 
@@ -47,20 +43,24 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	}
 
 	if verified, err := repository.VerifyPassword(userPass.Hash, request.Body.Password); !verified || err != nil {
-		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors("invalid password")), nil
+		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors("invalid password", "password")), nil
 	}
 
 	// Update the user
 
-	newPass, err := repository.HashPassword(request.Body.Password)
+	newPass, err := repository.HashPassword(*request.Body.NewPassword)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not hash user password: %w", err)
 	}
 
-	u.config.Repository.User().UpdateUser(existingUser.ID, &repository.UpdateUserOpts{
+	user, err := u.config.Repository.User().UpdateUser(existingUser.ID, &repository.UpdateUserOpts{
 		Password: newPass,
 	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not update user: %w", err)
+	}
 
 	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, existingUser)
 
@@ -68,7 +68,7 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 		return nil, err
 	}
 
-	return gen.UserUpdateLogin200JSONResponse(
-		*transformers.ToUser(existingUser),
+	return gen.UserUpdatePassword200JSONResponse(
+		*transformers.ToUser(user),
 	), nil
 }

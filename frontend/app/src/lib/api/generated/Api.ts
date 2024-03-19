@@ -54,6 +54,7 @@ import {
   TriggerWorkflowRunRequest,
   UpdateTenantInviteRequest,
   User,
+  UserChangePasswordRequest,
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
@@ -316,6 +317,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/users/current`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a user password.
+   *
+   * @tags User
+   * @name UserUpdatePassword
+   * @summary Change user password
+   * @request POST:/api/v1/users/password
+   * @secure
+   */
+  userUpdatePassword = (data: UserChangePasswordRequest, params: RequestParams = {}) =>
+    this.request<User, APIErrors>({
+      path: `/api/v1/users/password`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });

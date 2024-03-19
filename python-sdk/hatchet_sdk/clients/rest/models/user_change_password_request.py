@@ -26,10 +26,9 @@ class UserChangePasswordRequest(BaseModel):
     """
     UserChangePasswordRequest
     """ # noqa: E501
-    email: StrictStr = Field(description="The email address of the user.")
     password: StrictStr = Field(description="The password of the user.")
     new_password: Optional[StrictStr] = Field(default=None, description="The new password for the user.", alias="newPassword")
-    __properties: ClassVar[List[str]] = ["email", "password", "newPassword"]
+    __properties: ClassVar[List[str]] = ["password", "newPassword"]
 
     model_config = {
         "populate_by_name": True,
@@ -82,7 +81,6 @@ class UserChangePasswordRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "email": obj.get("email"),
             "password": obj.get("password"),
             "newPassword": obj.get("newPassword")
         })

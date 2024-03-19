@@ -31,6 +31,7 @@ import { RevokeTokenForm } from './components/revoke-token-form';
 import { CreateSNSDialog } from './components/create-sns-dialog';
 import { DeleteSNSForm } from './components/delete-sns-form';
 import { ChangePasswordDialog } from './components/change-password-dialog';
+import { AxiosError } from 'axios';
 
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -62,7 +63,8 @@ export default function TenantSettings() {
 
 function MembersList() {
   const { tenant } = useOutletContext<TenantContextType>();
-  const [showChangePasswordDialog, setShowChangePasswordDialog] = useState(false);
+  const [showChangePasswordDialog, setShowChangePasswordDialog] =
+    useState(false);
 
   const listMembersQuery = useQuery({
     ...queries.members.list(tenant.metadata.id),
@@ -78,7 +80,7 @@ function MembersList() {
         columns={membersColumns({
           onChangePasswordClick: (row) => {
             setShowChangePasswordDialog(true);
-          }
+          },
         })}
         data={listMembersQuery.data?.rows || []}
         filters={[]}
@@ -365,24 +367,36 @@ function ChangePassword({
   const updatePasswordMutation = useMutation({
     mutationKey: ['user:update', tenant],
     mutationFn: async (data: UserChangePasswordRequest) => {
-      // const res = await api.user(tenant, data);
-      // return res.data;
+      const res = await api.userUpdatePassword(data);
+      return res.data;
+    },
+    onMutate: () => {
+      setFieldErrors({});
     },
     onSuccess: (data) => {
       // setGeneratedToken(data.token);
       onSuccess();
+      setShowChangePasswordDialog(false);
     },
-    onError: handleApiError,
+    onError: (e: AxiosError<unknown, any>) => {
+      console.log('error', e);
+      return handleApiError(e);
+    },
   });
 
   return (
-    <Dialog open={showChangePasswordDialog} onOpenChange={setShowChangePasswordDialog}>
+    <Dialog
+      open={showChangePasswordDialog}
+      onOpenChange={setShowChangePasswordDialog}
+    >
       <ChangePasswordDialog
         isLoading={updatePasswordMutation.isPending}
-        onSubmit={(data) => updatePasswordMutation.mutate({ // TODO fix this
-          password: data.password,
-          newPassword: data.newPassword
-        })}
+        onSubmit={(data) =>
+          updatePasswordMutation.mutate({
+            password: data.password,
+            newPassword: data.newPassword,
+          })
+        }
         fieldErrors={fieldErrors}
       />
     </Dialog>

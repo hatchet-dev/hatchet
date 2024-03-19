@@ -70,7 +70,8 @@ update-password:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
-    security: []
+    security:
+      - cookieAuth: []
     summary: Change user password
     tags:
       - User

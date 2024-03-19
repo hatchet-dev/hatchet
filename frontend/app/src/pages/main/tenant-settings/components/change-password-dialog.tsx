@@ -12,11 +12,30 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/loading';
 
-const schema = z.object({
-  password: z.string().min(1).max(255),
-  newPassword: z.string().min(1).max(255),
-  confirmNewPassword: z.string().min(1).max(255),
-});
+const passwordSchema = z
+  .string()
+  .min(8, 'Passwords must be at least 8 characters in length')
+  .max(255)
+  .regex(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/,
+    'Passwords must contain an upper and lowercase letter, and at least one number',
+  );
+
+const schema = z
+  .object({
+    password: z.string(),
+    newPassword: passwordSchema,
+    confirmNewPassword: z.string(),
+  })
+  .superRefine(({ newPassword, confirmNewPassword }, ctx) => {
+    if (newPassword !== confirmNewPassword) {
+      console.log('passwords do not match');
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Passwords do not match',
+      });
+    }
+  });
 
 interface ChangePasswordDialogProps {
   className?: string;
@@ -32,10 +51,13 @@ export function ChangePasswordDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
   });
+
+  // @ts-expect-error - zod doesn't have a good way to get the global error
+  const globalError = errors[''] as z.ZodIssue;
 
   return (
     <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
@@ -59,7 +81,14 @@ export function ChangePasswordDialog({
                 disabled={props.isLoading}
               />
               {errors.password && (
-                <div className="text-sm text-red-500">{errors.password.message}</div>
+                <div className="text-sm text-red-500">
+                  {errors.password.message}
+                </div>
+              )}
+              {props.fieldErrors?.password && (
+                <div className="text-sm text-red-500">
+                  {props.fieldErrors?.password}
+                </div>
               )}
             </div>
             <div className="grid gap-2">
@@ -72,7 +101,9 @@ export function ChangePasswordDialog({
                 disabled={props.isLoading}
               />
               {errors.newPassword && (
-                <div className="text-sm text-red-500">{errors.newPassword.message}</div>
+                <div className="text-sm text-red-500">
+                  {errors.newPassword.message}
+                </div>
               )}
             </div>
             <div className="grid gap-2">
@@ -85,10 +116,17 @@ export function ChangePasswordDialog({
                 disabled={props.isLoading}
               />
               {errors.confirmNewPassword && (
-                <div className="text-sm text-red-500">{errors.confirmNewPassword.message}</div>
+                <div className="text-sm text-red-500">
+                  {errors.confirmNewPassword.message}
+                </div>
+              )}
+              {globalError && (
+                <div className="text-sm text-red-500">
+                  {globalError.message}
+                </div>
               )}
             </div>
-            <Button disabled={props.isLoading}>
+            <Button disabled={props.isLoading} type="submit">
               {props.isLoading && <Spinner />}
               Reset Password
             </Button>

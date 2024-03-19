@@ -50,6 +50,8 @@ paths:
     $ref: "./paths/ingestors/ingestors.yaml#/deleteSNS"
   /api/v1/users/current:
     $ref: "./paths/user/user.yaml#/current"
+  /api/v1/users/password:
+    $ref: "./paths/user/user.yaml#/update-password"
   /api/v1/users/register:
     $ref: "./paths/user/user.yaml#/register"
   /api/v1/users/logout:
