@@ -2,8 +2,15 @@ import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { TenantMember } from '@/lib/api';
 import { capitalize, relativeDate } from '@/lib/utils';
+import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
+import { useOutletContext } from 'react-router-dom';
+import { UserContextType } from '@/lib/outlet';
 
-export const columns = (): ColumnDef<TenantMember>[] => {
+export const columns = ({
+  onChangePasswordClick,
+}: {
+  onChangePasswordClick: (row: TenantMember) => void;
+}): ColumnDef<TenantMember>[] => {
   return [
     {
       accessorKey: 'name',
@@ -38,6 +45,25 @@ export const columns = (): ColumnDef<TenantMember>[] => {
       cell: ({ row }) => (
         <div>{relativeDate(row.original.metadata.createdAt)}</div>
       ),
+    },
+    {
+      id: 'actions',
+      cell: ({ row }) => 
+        {
+          const { user } = useOutletContext<UserContextType>();
+
+          if(user.metadata.id === row.original.metadata.id) return <></>
+
+          return <DataTableRowActions
+          row={row}
+          actions={[
+            {
+              label: 'Change Password',
+              onClick: () => onChangePasswordClick(row.original),
+            },
+          ]}
+        />}
+      ,
     },
   ];
 };
