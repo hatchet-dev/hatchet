@@ -51,7 +51,7 @@ export function ChangePasswordDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors, isValid },
+    formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
   });

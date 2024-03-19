@@ -34,7 +34,9 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Expires" />
       ),
       cell: ({ row }) => {
-        return <div>{new Date(row.original.expiresAt).toLocaleDateString()}</div>;
+        return (
+          <div>{new Date(row.original.expiresAt).toLocaleDateString()}</div>
+        );
       },
     },
     {
