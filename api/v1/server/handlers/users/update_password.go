@@ -42,7 +42,7 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 
 	// Update the user
 
-	newPass, err := repository.HashPassword(*request.Body.NewPassword)
+	newPass, err := repository.HashPassword(request.Body.NewPassword)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not hash user password: %w", err)
