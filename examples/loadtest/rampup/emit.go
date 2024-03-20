@@ -15,7 +15,7 @@ type Event struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func emit(ctx context.Context, startEventsPerSecond, amount int, increase, duration, maxAcceptableSchedule time.Duration, scheduled <-chan time.Duration) int64 {
+func emit(ctx context.Context, startEventsPerSecond, amount int, increase, duration, maxAcceptableSchedule time.Duration, hook <-chan time.Duration, scheduled chan<- int64) int64 {
 	c, err := client.New()
 
 	if err != nil {
@@ -30,7 +30,7 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 
 		var eventsPerSecond int
 		go func() {
-			took := <-scheduled
+			took := <-hook
 			panic(fmt.Errorf("event took too long to schedule: %s at %d events/s", took, eventsPerSecond))
 		}()
 		for {
@@ -60,6 +60,8 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 					if took > maxAcceptableSchedule {
 						panic(fmt.Errorf("event took too long to schedule: %s at %d events/s", took, eventsPerSecond))
 					}
+
+					scheduled <- id
 				}(id)
 			case <-timer:
 				log.Println("done emitting events due to timer at", id)

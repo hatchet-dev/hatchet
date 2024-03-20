@@ -18,7 +18,7 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "my-key", nil
 }
 
-func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptableDuration time.Duration, scheduled chan<- time.Duration) (int64, int64) {
+func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptableDuration time.Duration, hook chan<- time.Duration, executedCh chan<- int64) (int64, int64) {
 	c, err := client.New()
 
 	if err != nil {
@@ -63,8 +63,10 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 					fmt.Println("executing", input.ID, "took", took)
 
 					if took > maxAcceptableDuration {
-						scheduled <- took
+						hook <- took
 					}
+
+					executedCh <- input.ID
 
 					mx.Lock()
 
