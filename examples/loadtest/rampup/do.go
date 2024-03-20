@@ -2,7 +2,6 @@ package rampup
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
 )
@@ -20,18 +19,13 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 		cancel()
 	}()
 
-	go func() {
-		run(ctx, delay, concurrency)
-	}()
-
-	scheduled := make(chan int, 1)
+	scheduled := make(chan time.Duration, 1)
 
 	go func() {
-		x := <-scheduled
-		panic(fmt.Errorf("event took too long to schedule: %s at %d events/s", maxAcceptableDelay, x))
+		run(ctx, delay, concurrency, maxAcceptableDelay, scheduled)
 	}()
 
-	emit(ctx, startEventsPerSecond, amount, increase, duration, maxAcceptableDelay, scheduled)
+	emit(ctx, startEventsPerSecond, amount, increase, duration, scheduled)
 
 	time.Sleep(after)
 
