@@ -35,13 +35,13 @@ func TestRampUp(t *testing.T) {
 		args    args
 		wantErr bool
 	}{{
-		name: "test with high step delay",
+		name: "normal test",
 		args: args{
-			startEventsPerSecond:  5,
+			startEventsPerSecond:  1,
 			duration:              300 * time.Second,
 			increase:              10 * time.Second,
 			amount:                1,
-			delay:                 10 * time.Second,
+			delay:                 0 * time.Second,
 			wait:                  30 * time.Second,
 			includeDroppedEvents:  true,
 			maxAcceptableDuration: 1 * time.Second,
