@@ -16,12 +16,15 @@ func TestRampUp(t *testing.T) {
 	testutils.Prepare(t)
 
 	type args struct {
-		duration              time.Duration
-		increase              time.Duration
-		amount                int
-		delay                 time.Duration
-		wait                  time.Duration
+		duration time.Duration
+		increase time.Duration
+		amount   int
+		delay    time.Duration
+		wait     time.Duration
+		// maxAcceptableDuration is the maximum acceptable duration for a single event to be scheduled (from start to finish)
 		maxAcceptableDuration time.Duration
+		// maxAcceptableSchedule is the maximum acceptable time for an event to be purely scheduled, regardless of whether it will run or not
+		maxAcceptableSchedule time.Duration
 		concurrency           int
 		startEventsPerSecond  int
 	}
@@ -39,6 +42,7 @@ func TestRampUp(t *testing.T) {
 			delay:                 10 * time.Second,
 			wait:                  30 * time.Second,
 			maxAcceptableDuration: 1 * time.Second,
+			maxAcceptableSchedule: 1 * time.Second,
 			concurrency:           0,
 		},
 	}}
@@ -61,7 +65,7 @@ func TestRampUp(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			if err := do(tt.args.duration, tt.args.startEventsPerSecond, tt.args.amount, tt.args.increase, tt.args.delay, tt.args.wait, tt.args.maxAcceptableDuration, tt.args.concurrency); (err != nil) != tt.wantErr {
+			if err := do(tt.args.duration, tt.args.startEventsPerSecond, tt.args.amount, tt.args.increase, tt.args.delay, tt.args.wait, tt.args.maxAcceptableDuration, tt.args.maxAcceptableSchedule, tt.args.concurrency); (err != nil) != tt.wantErr {
 				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

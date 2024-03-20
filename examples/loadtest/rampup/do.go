@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func do(duration time.Duration, startEventsPerSecond, amount int, increase, delay, wait, maxAcceptableDuration time.Duration, concurrency int) error {
+func do(duration time.Duration, startEventsPerSecond, amount int, increase, delay, wait, maxAcceptableDuration, maxAcceptableSchedule time.Duration, concurrency int) error {
 	log.Printf("testing with duration=%s, amount=%d, increase=%d, delay=%s, wait=%s, concurrency=%d", duration, amount, increase, delay, wait, concurrency)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -25,7 +25,7 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 		run(ctx, delay, concurrency, maxAcceptableDuration, scheduled)
 	}()
 
-	emit(ctx, startEventsPerSecond, amount, increase, duration, scheduled)
+	emit(ctx, startEventsPerSecond, amount, increase, duration, maxAcceptableSchedule, scheduled)
 
 	time.Sleep(after)
 
