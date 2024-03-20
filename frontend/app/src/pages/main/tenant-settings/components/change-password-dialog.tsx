@@ -78,6 +78,7 @@ export function ChangePasswordDialog({
                 id="current-password"
                 autoCapitalize="none"
                 autoCorrect="off"
+                type="password"
                 disabled={props.isLoading}
               />
               {errors.password && (
@@ -98,6 +99,7 @@ export function ChangePasswordDialog({
                 id="new-password"
                 autoCapitalize="none"
                 autoCorrect="off"
+                type="password"
                 disabled={props.isLoading}
               />
               {errors.newPassword && (
@@ -113,6 +115,7 @@ export function ChangePasswordDialog({
                 id="confirm-new-password"
                 autoCapitalize="none"
                 autoCorrect="off"
+                type="password"
                 disabled={props.isLoading}
               />
               {errors.confirmNewPassword && (
