@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func do(duration time.Duration, startEventsPerSecond, amount int, increase, delay, wait, maxAcceptableDelay time.Duration, concurrency int) error {
+func do(duration time.Duration, startEventsPerSecond, amount int, increase, delay, wait, maxAcceptableDuration time.Duration, concurrency int) error {
 	log.Printf("testing with duration=%s, amount=%d, increase=%d, delay=%s, wait=%s, concurrency=%d", duration, amount, increase, delay, wait, concurrency)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -22,7 +22,7 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 	scheduled := make(chan time.Duration, 1)
 
 	go func() {
-		run(ctx, delay, concurrency, maxAcceptableDelay, scheduled)
+		run(ctx, delay, concurrency, maxAcceptableDuration, scheduled)
 	}()
 
 	emit(ctx, startEventsPerSecond, amount, increase, duration, scheduled)
