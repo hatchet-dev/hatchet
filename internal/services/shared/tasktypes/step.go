@@ -92,7 +92,6 @@ type StepRunFailedTaskMetadata struct {
 
 type StepRunTimedOutTaskPayload struct {
 	StepRunId string `json:"step_run_id" validate:"required,uuid"`
-	JobRunId  string `json:"job_run_id" validate:"required,uuid"`
 }
 
 type StepRunTimedOutTaskMetadata struct {

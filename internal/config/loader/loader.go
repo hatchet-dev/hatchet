@@ -143,7 +143,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 
 	config.ConnConfig.Tracer = otelpgx.NewTracer()
 
-	config.MaxConns = 20
+	config.MaxConns = int32(cf.MaxConns)
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
@@ -157,8 +157,9 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 			ch.Stop()
 			return c.Prisma.Disconnect()
 		},
-		Repository: prisma.NewPrismaRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
-		Seed:       cf.Seed,
+		APIRepository:    prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
+		EngineRepository: prisma.NewEngineRepository(pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
+		Seed:             cf.Seed,
 	}, nil
 }
 
@@ -172,7 +173,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	}
 
 	ss, err := cookie.NewUserSessionStore(
-		cookie.WithSessionRepository(dc.Repository.UserSession()),
+		cookie.WithSessionRepository(dc.APIRepository.UserSession()),
 		cookie.WithCookieAllowInsecure(cf.Auth.Cookie.Insecure),
 		cookie.WithCookieDomain(cf.Auth.Cookie.Domain),
 		cookie.WithCookieName(cf.Auth.Cookie.Name),
@@ -189,8 +190,8 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	)
 
 	ingestor, err := ingestor.NewIngestor(
-		ingestor.WithEventRepository(dc.Repository.Event()),
-		ingestor.WithLogRepository(dc.Repository.Log()),
+		ingestor.WithEventRepository(dc.EngineRepository.Event()),
+		ingestor.WithLogRepository(dc.EngineRepository.Log()),
 		ingestor.WithMessageQueue(mq),
 	)
 
@@ -243,7 +244,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	}
 
 	// create a new JWT manager
-	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.Repository.APIToken(), &token.TokenOpts{
+	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.EngineRepository.APIToken(), &token.TokenOpts{
 		Issuer:               cf.Runtime.ServerURL,
 		Audience:             cf.Runtime.ServerURL,
 		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
@@ -277,7 +278,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 			return nil, nil, err
 		}
 
-		githubProvider := github.NewGithubVCSProvider(githubAppConf, dc.Repository, cf.Runtime.ServerURL, encryptionSvc)
+		githubProvider := github.NewGithubVCSProvider(githubAppConf, dc.APIRepository, cf.Runtime.ServerURL, encryptionSvc)
 
 		vcsProviders[vcs.VCSRepositoryKindGithub] = githubProvider
 	}
@@ -286,7 +287,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	if cf.Runtime.WorkerEnabled {
 		// get the internal tenant or create if it doesn't exist
-		internalTenant, err := dc.Repository.Tenant().GetTenantBySlug("internal")
+		internalTenant, err := dc.APIRepository.Tenant().GetTenantBySlug("internal")
 
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not get internal tenant: %w", err)

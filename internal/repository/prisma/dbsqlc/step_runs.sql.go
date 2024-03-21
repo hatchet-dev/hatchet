@@ -95,54 +95,13 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 	return &i, err
 }
 
-const assignStepRunToTicker = `-- name: AssignStepRunToTicker :one
-WITH selected_ticker AS (
-    SELECT
-        t."id"
-    FROM
-        "Ticker" t
-    WHERE
-        t."lastHeartbeatAt" > NOW() - INTERVAL '6 seconds'
-    ORDER BY random()
-    LIMIT 1
-)
-UPDATE
-    "StepRun"
-SET
-    "tickerId" = (
-        SELECT "id"
-        FROM selected_ticker
-    )
-WHERE
-    "id" = $1::uuid AND
-    "tenantId" = $2::uuid AND
-    EXISTS (SELECT 1 FROM selected_ticker)
-RETURNING "StepRun"."id", "StepRun"."tickerId"
-`
-
-type AssignStepRunToTickerParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
-}
-
-type AssignStepRunToTickerRow struct {
-	ID       pgtype.UUID `json:"id"`
-	TickerId pgtype.UUID `json:"tickerId"`
-}
-
-func (q *Queries) AssignStepRunToTicker(ctx context.Context, db DBTX, arg AssignStepRunToTickerParams) (*AssignStepRunToTickerRow, error) {
-	row := db.QueryRow(ctx, assignStepRunToTicker, arg.Steprunid, arg.Tenantid)
-	var i AssignStepRunToTickerRow
-	err := row.Scan(&i.ID, &i.TickerId)
-	return &i, err
-}
-
 const assignStepRunToWorker = `-- name: AssignStepRunToWorker :one
 WITH step_run AS (
     SELECT
         sr."id",
         sr."status",
-        a."id" AS "actionId"
+        a."id" AS "actionId",
+        s."timeout" AS "stepTimeout"
     FROM
         "StepRun" sr
     JOIN
@@ -152,7 +111,6 @@ WITH step_run AS (
     WHERE
         sr."id" = $1::uuid AND
         sr."tenantId" = $2::uuid
-    FOR UPDATE SKIP LOCKED
 ),
 valid_workers AS (
     SELECT
@@ -182,7 +140,6 @@ selected_worker AS (
     SELECT "id", "dispatcherId"
     FROM valid_workers
     LIMIT 1
-    FOR UPDATE SKIP LOCKED
 )
 UPDATE
     "StepRun"
@@ -193,7 +150,12 @@ SET
         FROM selected_worker
         LIMIT 1
     ),
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "timeoutAt" = CASE
+        WHEN (SELECT "stepTimeout" FROM step_run) IS NOT NULL THEN
+            CURRENT_TIMESTAMP + convert_duration_to_interval((SELECT "stepTimeout" FROM step_run))
+        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+    END
 WHERE
     "id" = $1::uuid AND
     "tenantId" = $2::uuid AND
@@ -289,29 +251,32 @@ SELECT
 FROM
     "StepRun" sr
 JOIN
-    "Step" s ON sr."stepId" = s."id" AND s."tenantId" = $1::uuid
+    "Step" s ON sr."stepId" = s."id"
 JOIN
-    "Action" a ON s."actionId" = a."actionId" AND a."tenantId" = $1::uuid
+    "Action" a ON s."actionId" = a."actionId"
 JOIN
-    "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."tenantId" = $1::uuid
+    "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
-    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId" AND jrld."tenantId" = $1::uuid
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
 JOIN
-    "Job" j ON jr."jobId" = j."id" AND j."tenantId" = $1::uuid
+    "Job" j ON jr."jobId" = j."id"
 JOIN 
-    "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = $1::uuid
+    "WorkflowRun" wr ON jr."workflowRunId" = wr."id"
 JOIN
     "WorkflowVersion" wv ON wr."workflowVersionId" = wv."id"
 JOIN
-    "Workflow" w ON wv."workflowId" = w."id" AND w."tenantId" = $1::uuid
+    "Workflow" w ON wv."workflowId" = w."id"
 WHERE
-    sr."id" = ANY($2::uuid[]) AND
-    sr."tenantId" = $1::uuid
+    sr."id" = ANY($1::uuid[]) AND
+    (
+        $2::uuid IS NULL OR
+        sr."tenantId" = $2::uuid
+    )
 `
 
 type GetStepRunForEngineParams struct {
-	Tenantid pgtype.UUID   `json:"tenantid"`
 	Ids      []pgtype.UUID `json:"ids"`
+	TenantId pgtype.UUID   `json:"tenantId"`
 }
 
 type GetStepRunForEngineRow struct {
@@ -333,7 +298,7 @@ type GetStepRunForEngineRow struct {
 }
 
 func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepRunForEngineParams) ([]*GetStepRunForEngineRow, error) {
-	rows, err := db.Query(ctx, getStepRunForEngine, arg.Tenantid, arg.Ids)
+	rows, err := db.Query(ctx, getStepRunForEngine, arg.Ids, arg.TenantId)
 	if err != nil {
 		return nil, err
 	}
@@ -386,6 +351,127 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			return nil, err
 		}
 		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStartableStepRuns = `-- name: ListStartableStepRuns :many
+WITH job_run AS (
+    SELECT "status"
+    FROM "JobRun"
+    WHERE "id" = $1::uuid
+)
+SELECT 
+    child_run."id" AS "id"
+FROM 
+    "StepRun" AS child_run
+LEFT JOIN 
+    "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+JOIN
+    job_run ON true
+WHERE 
+    child_run."jobRunId" = $1::uuid
+    AND child_run."status" = 'PENDING'
+    AND job_run."status" = 'RUNNING'
+    -- case on whether parentStepRunId is null
+    AND (
+        ($2::uuid IS NULL AND step_run_order."A" IS NULL) OR 
+        (
+            step_run_order."A" = $2::uuid
+            AND NOT EXISTS (
+                SELECT 1
+                FROM "_StepRunOrder" AS parent_order
+                JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
+                WHERE 
+                    parent_order."B" = child_run."id"
+                    AND parent_run."status" != 'SUCCEEDED'
+            )
+        )
+    )
+`
+
+type ListStartableStepRunsParams struct {
+	Jobrunid        pgtype.UUID `json:"jobrunid"`
+	ParentStepRunId pgtype.UUID `json:"parentStepRunId"`
+}
+
+func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListStartableStepRunsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStartableStepRuns, arg.Jobrunid, arg.ParentStepRunId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepRuns = `-- name: ListStepRuns :many
+SELECT
+    "StepRun"."id"
+FROM
+    "StepRun"
+JOIN
+    "JobRun" ON "StepRun"."jobRunId" = "JobRun"."id"
+WHERE
+    "StepRun"."tenantId" = $1::uuid
+    AND (
+        $2::"StepRunStatus" IS NULL OR
+        "StepRun"."status" = $2::"StepRunStatus"
+    )
+    AND (
+        $3::uuid IS NULL OR
+        "JobRun"."workflowRunId" = $3::uuid
+    )
+    AND (
+        $4::uuid IS NULL OR
+        "StepRun"."jobRunId" = $4::uuid
+    )
+    AND (
+        $5::uuid IS NULL OR
+        "StepRun"."tickerId" = $5::uuid
+    )
+`
+
+type ListStepRunsParams struct {
+	Tenantid      pgtype.UUID       `json:"tenantid"`
+	Status        NullStepRunStatus `json:"status"`
+	WorkflowRunId pgtype.UUID       `json:"workflowRunId"`
+	JobRunId      pgtype.UUID       `json:"jobRunId"`
+	TickerId      pgtype.UUID       `json:"tickerId"`
+}
+
+func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStepRuns,
+		arg.Tenantid,
+		arg.Status,
+		arg.WorkflowRunId,
+		arg.JobRunId,
+		arg.TickerId,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

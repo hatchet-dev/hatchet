@@ -359,16 +359,47 @@ ORDER BY "WorkflowVersion"."workflowId", "WorkflowVersion"."order" DESC;
 SELECT
     sqlc.embed(workflowVersions),
     w."name" as "workflowName",
-    -- return "hasWorkflowConcurrency" if the workflow has concurrency
-    EXISTS (
-        SELECT 1
-        FROM "WorkflowConcurrency" as wc
-        WHERE wc."workflowVersionId" = workflowVersions."id"
-    ) as "hasWorkflowConcurrency"
+    wc."limitStrategy" as "concurrencyLimitStrategy",
+    wc."maxRuns" as "concurrencyMaxRuns"
 FROM
     "WorkflowVersion" as workflowVersions
 JOIN
     "Workflow" as w ON w."id" = workflowVersions."workflowId"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
 WHERE
     workflowVersions."id" = ANY(@ids::uuid[]) AND
     w."tenantId" = @tenantId::uuid;
+
+-- name: GetWorkflowByName :one
+SELECT
+    *
+FROM
+    "Workflow" as workflows
+WHERE
+    workflows."tenantId" = @tenantId::uuid AND
+    workflows."name" = @name::text;
+
+-- name: CreateSchedules :many
+INSERT INTO "WorkflowTriggerScheduledRef" (
+    "id",
+    "parentId",
+    "triggerAt",
+    "input"
+) VALUES (
+    gen_random_uuid(),
+    @workflowRunId::uuid,
+    unnest(@triggerTimes::timestamp[]),
+    @input::jsonb
+) RETURNING *;
+
+-- name: GetWorkflowLatestVersion :one
+SELECT
+    "id"
+FROM
+    "WorkflowVersion" as workflowVersions
+WHERE
+    workflowVersions."workflowId" = @workflowId::uuid
+ORDER BY
+    workflowVersions."order" DESC
+LIMIT 1;

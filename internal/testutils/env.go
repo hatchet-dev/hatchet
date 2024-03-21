@@ -56,10 +56,10 @@ func Prepare(t *testing.T) {
 	}
 
 	// check if tenant exists
-	_, err = serverConf.Repository.Tenant().GetTenantByID(tenantId)
+	_, err = serverConf.APIRepository.Tenant().GetTenantByID(tenantId)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			_, err = serverConf.Repository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+			_, err = serverConf.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
 				ID:   &tenantId,
 				Name: "test-tenant",
 				Slug: "test-tenant",

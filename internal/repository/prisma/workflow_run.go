@@ -20,7 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
-type workflowRunRepository struct {
+type workflowRunAPIRepository struct {
 	client  *db.PrismaClient
 	pool    *pgxpool.Pool
 	v       validator.Validator
@@ -28,10 +28,10 @@ type workflowRunRepository struct {
 	l       *zerolog.Logger
 }
 
-func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowRunRepository {
+func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowRunAPIRepository {
 	queries := dbsqlc.New()
 
-	return &workflowRunRepository{
+	return &workflowRunAPIRepository{
 		client:  client,
 		v:       v,
 		pool:    pool,
@@ -40,11 +40,174 @@ func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v val
 	}
 }
 
-func (w *workflowRunRepository) ListWorkflowRuns(tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
+func (w *workflowRunAPIRepository) ListWorkflowRuns(tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
+	return listWorkflowRuns(context.Background(), w.pool, w.queries, w.l, tenantId, opts)
+}
+
+func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*db.WorkflowRunModel, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	workflowRunId, err := createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := w.client.WorkflowRun.FindUnique(
+		db.WorkflowRun.ID.Equals(workflowRunId),
+	).With(
+		defaultWorkflowRunPopulator()...,
+	).Exec(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (w *workflowRunAPIRepository) GetWorkflowRunById(tenantId, id string) (*db.WorkflowRunModel, error) {
+	return w.client.WorkflowRun.FindUnique(
+		db.WorkflowRun.ID.Equals(id),
+	).With(
+		defaultWorkflowRunPopulator()...,
+	).Exec(context.Background())
+}
+
+func (s *workflowRunAPIRepository) CreateWorkflowRunPullRequest(tenantId, workflowRunId string, opts *repository.CreateWorkflowRunPullRequestOpts) (*db.GithubPullRequestModel, error) {
+	return s.client.GithubPullRequest.CreateOne(
+		db.GithubPullRequest.Tenant.Link(
+			db.Tenant.ID.Equals(tenantId),
+		),
+		db.GithubPullRequest.RepositoryOwner.Set(opts.RepositoryOwner),
+		db.GithubPullRequest.RepositoryName.Set(opts.RepositoryName),
+		db.GithubPullRequest.PullRequestID.Set(opts.PullRequestID),
+		db.GithubPullRequest.PullRequestTitle.Set(opts.PullRequestTitle),
+		db.GithubPullRequest.PullRequestNumber.Set(opts.PullRequestNumber),
+		db.GithubPullRequest.PullRequestHeadBranch.Set(opts.PullRequestHeadBranch),
+		db.GithubPullRequest.PullRequestBaseBranch.Set(opts.PullRequestBaseBranch),
+		db.GithubPullRequest.PullRequestState.Set(opts.PullRequestState),
+		db.GithubPullRequest.WorkflowRuns.Link(
+			db.WorkflowRun.ID.Equals(workflowRunId),
+		),
+	).Exec(context.Background())
+}
+
+func (s *workflowRunAPIRepository) ListPullRequestsForWorkflowRun(tenantId, workflowRunId string, opts *repository.ListPullRequestsForWorkflowRunOpts) ([]db.GithubPullRequestModel, error) {
+	if err := s.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	optionals := []db.GithubPullRequestWhereParam{
+		db.GithubPullRequest.WorkflowRuns.Some(
+			db.WorkflowRun.ID.Equals(workflowRunId),
+			db.WorkflowRun.TenantID.Equals(tenantId),
+		),
+	}
+
+	if opts.State != nil {
+		optionals = append(optionals, db.GithubPullRequest.PullRequestState.Equals(*opts.State))
+	}
+
+	return s.client.GithubPullRequest.FindMany(
+		optionals...,
+	).Exec(context.Background())
+}
+
+type workflowRunEngineRepository struct {
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
+}
+
+func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowRunEngineRepository {
+	queries := dbsqlc.New()
+
+	return &workflowRunEngineRepository{
+		v:       v,
+		pool:    pool,
+		queries: queries,
+		l:       l,
+	}
+}
+
+func (w *workflowRunEngineRepository) GetWorkflowRunById(tenantId, id string) (*dbsqlc.GetWorkflowRunRow, error) {
+	runs, err := w.queries.GetWorkflowRun(context.Background(), w.pool, dbsqlc.GetWorkflowRunParams{
+		Ids: []pgtype.UUID{
+			sqlchelpers.UUIDFromStr(id),
+		},
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(runs) != 1 {
+		return nil, errors.New("workflow run not found")
+	}
+
+	return runs[0], nil
+}
+
+func (w *workflowRunEngineRepository) ListWorkflowRuns(tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	return listWorkflowRuns(context.Background(), w.pool, w.queries, w.l, tenantId, opts)
+}
+
+func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(tenantId, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error) {
+	pgTenantId := &pgtype.UUID{}
+
+	if err := pgTenantId.Scan(tenantId); err != nil {
+		return nil, err
+	}
+
+	tx, err := w.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), w.l, tx.Rollback)
+
+	res, err := w.queries.PopWorkflowRunsRoundRobin(context.Background(), tx, dbsqlc.PopWorkflowRunsRoundRobinParams{
+		Maxruns:  int32(maxRuns),
+		TenantId: *pgTenantId,
+		ID:       sqlchelpers.UUIDFromStr(workflowVersionId),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return "", err
+	}
+
+	return createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
+}
+
+func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
 	res := &repository.ListWorkflowRunsResult{}
 
 	pgTenantId := &pgtype.UUID{}
@@ -120,21 +283,21 @@ func (w *workflowRunRepository) ListWorkflowRuns(tenantId string, opts *reposito
 
 	queryParams.Orderby = orderByField + " " + orderByDirection
 
-	tx, err := w.pool.Begin(context.Background())
+	tx, err := pool.Begin(context.Background())
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), w.l, tx.Rollback)
+	defer deferRollback(context.Background(), l, tx.Rollback)
 
-	workflowRuns, err := w.queries.ListWorkflowRuns(context.Background(), tx, queryParams)
+	workflowRuns, err := queries.ListWorkflowRuns(context.Background(), tx, queryParams)
 
 	if err != nil {
 		return nil, err
 	}
 
-	count, err := w.queries.CountWorkflowRuns(context.Background(), tx, countParams)
+	count, err := queries.CountWorkflowRuns(context.Background(), tx, countParams)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
@@ -152,47 +315,9 @@ func (w *workflowRunRepository) ListWorkflowRuns(tenantId string, opts *reposito
 	return res, nil
 }
 
-func (w *workflowRunRepository) PopWorkflowRunsRoundRobin(tenantId, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error) {
-	pgTenantId := &pgtype.UUID{}
-
-	if err := pgTenantId.Scan(tenantId); err != nil {
-		return nil, err
-	}
-
-	tx, err := w.pool.Begin(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer deferRollback(context.Background(), w.l, tx.Rollback)
-
-	res, err := w.queries.PopWorkflowRunsRoundRobin(context.Background(), tx, dbsqlc.PopWorkflowRunsRoundRobinParams{
-		Maxruns:  int32(maxRuns),
-		TenantId: *pgTenantId,
-		ID:       sqlchelpers.UUIDFromStr(workflowVersionId),
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = tx.Commit(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
-}
-
-func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*db.WorkflowRunModel, error) {
+func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {
 	ctx, span := telemetry.NewSpan(ctx, "db-create-new-workflow-run")
 	defer span.End()
-
-	if err := w.v.Validate(opts); err != nil {
-		return nil, err
-	}
 
 	sqlcWorkflowRun, err := func() (*dbsqlc.WorkflowRun, error) {
 		tx1Ctx, tx1Span := telemetry.NewSpan(ctx, "db-create-new-workflow-run-tx")
@@ -201,13 +326,13 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 		// begin a transaction
 		workflowRunId := uuid.New().String()
 
-		tx, err := w.pool.Begin(tx1Ctx)
+		tx, err := pool.Begin(tx1Ctx)
 
 		if err != nil {
 			return nil, err
 		}
 
-		defer deferRollback(context.Background(), w.l, tx.Rollback)
+		defer deferRollback(context.Background(), l, tx.Rollback)
 
 		pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
@@ -222,7 +347,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 		}
 
 		// create a workflow
-		sqlcWorkflowRun, err := w.queries.CreateWorkflowRun(
+		sqlcWorkflowRun, err := queries.CreateWorkflowRun(
 			tx1Ctx,
 			tx,
 			createParams,
@@ -253,7 +378,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 			scheduledWorkflowId = sqlchelpers.UUIDFromStr(*opts.ScheduledWorkflowId)
 		}
 
-		_, err = w.queries.CreateWorkflowRunTriggeredBy(
+		_, err = queries.CreateWorkflowRunTriggeredBy(
 			tx1Ctx,
 			tx,
 			dbsqlc.CreateWorkflowRunTriggeredByParams{
@@ -283,7 +408,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 				Scheduletimeoutat: sqlchelpers.TimestampFromTime(scheduleTimeoutAt),
 			}
 
-			_, err = w.queries.CreateGetGroupKeyRun(
+			_, err = queries.CreateGetGroupKeyRun(
 				tx1Ctx,
 				tx,
 				params,
@@ -294,7 +419,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 			}
 		}
 
-		jobRunIds, err := w.queries.CreateJobRuns(
+		jobRunIds, err := queries.CreateJobRuns(
 			tx1Ctx,
 			tx,
 			dbsqlc.CreateJobRunsParams{
@@ -321,7 +446,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 			}
 
 			// create the job run lookup data
-			_, err = w.queries.CreateJobRunLookupData(
+			_, err = queries.CreateJobRunLookupData(
 				tx1Ctx,
 				tx,
 				lookupParams,
@@ -331,7 +456,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 				return nil, err
 			}
 
-			err = w.queries.CreateStepRuns(
+			err = queries.CreateStepRuns(
 				tx1Ctx,
 				tx,
 				dbsqlc.CreateStepRunsParams{
@@ -345,7 +470,7 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 			}
 
 			// link all step runs with correct parents/children
-			err = w.queries.LinkStepRunParents(
+			err = queries.LinkStepRunParents(
 				tx1Ctx,
 				tx,
 				jobRunId,
@@ -366,71 +491,10 @@ func (w *workflowRunRepository) CreateNewWorkflowRun(ctx context.Context, tenant
 	}()
 
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	tx2Ctx, tx2Span := telemetry.NewSpan(ctx, "db-create-new-workflow-run-tx2")
-	defer tx2Span.End()
-
-	res, err := w.client.WorkflowRun.FindUnique(
-		db.WorkflowRun.ID.Equals(sqlchelpers.UUIDToStr(sqlcWorkflowRun.ID)),
-	).With(
-		defaultWorkflowRunPopulator()...,
-	).Exec(tx2Ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
-}
-
-func (w *workflowRunRepository) GetWorkflowRunById(tenantId, id string) (*db.WorkflowRunModel, error) {
-	return w.client.WorkflowRun.FindUnique(
-		db.WorkflowRun.ID.Equals(id),
-	).With(
-		defaultWorkflowRunPopulator()...,
-	).Exec(context.Background())
-}
-
-func (s *workflowRunRepository) CreateWorkflowRunPullRequest(tenantId, workflowRunId string, opts *repository.CreateWorkflowRunPullRequestOpts) (*db.GithubPullRequestModel, error) {
-	return s.client.GithubPullRequest.CreateOne(
-		db.GithubPullRequest.Tenant.Link(
-			db.Tenant.ID.Equals(tenantId),
-		),
-		db.GithubPullRequest.RepositoryOwner.Set(opts.RepositoryOwner),
-		db.GithubPullRequest.RepositoryName.Set(opts.RepositoryName),
-		db.GithubPullRequest.PullRequestID.Set(opts.PullRequestID),
-		db.GithubPullRequest.PullRequestTitle.Set(opts.PullRequestTitle),
-		db.GithubPullRequest.PullRequestNumber.Set(opts.PullRequestNumber),
-		db.GithubPullRequest.PullRequestHeadBranch.Set(opts.PullRequestHeadBranch),
-		db.GithubPullRequest.PullRequestBaseBranch.Set(opts.PullRequestBaseBranch),
-		db.GithubPullRequest.PullRequestState.Set(opts.PullRequestState),
-		db.GithubPullRequest.WorkflowRuns.Link(
-			db.WorkflowRun.ID.Equals(workflowRunId),
-		),
-	).Exec(context.Background())
-}
-
-func (s *workflowRunRepository) ListPullRequestsForWorkflowRun(tenantId, workflowRunId string, opts *repository.ListPullRequestsForWorkflowRunOpts) ([]db.GithubPullRequestModel, error) {
-	if err := s.v.Validate(opts); err != nil {
-		return nil, err
-	}
-
-	optionals := []db.GithubPullRequestWhereParam{
-		db.GithubPullRequest.WorkflowRuns.Some(
-			db.WorkflowRun.ID.Equals(workflowRunId),
-			db.WorkflowRun.TenantID.Equals(tenantId),
-		),
-	}
-
-	if opts.State != nil {
-		optionals = append(optionals, db.GithubPullRequest.PullRequestState.Equals(*opts.State))
-	}
-
-	return s.client.GithubPullRequest.FindMany(
-		optionals...,
-	).Exec(context.Background())
+	return sqlchelpers.UUIDToStr(sqlcWorkflowRun.ID), nil
 }
 
 func defaultWorkflowRunPopulator() []db.WorkflowRunRelationWith {

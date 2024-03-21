@@ -25,7 +25,7 @@ func (i *IngestorsService) SnsCreate(ctx echo.Context, req gen.SnsCreateRequestO
 	}
 
 	// create the SNS integration
-	snsIntegration, err := i.config.Repository.SNS().CreateSNSIntegration(tenant.ID, opts)
+	snsIntegration, err := i.config.APIRepository.SNS().CreateSNSIntegration(tenant.ID, opts)
 
 	if err != nil {
 		return nil, err

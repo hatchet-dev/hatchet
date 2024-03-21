@@ -105,3 +105,11 @@ WHERE
         WHERE "id" = @stepRunId::uuid
     )
     AND "tenantId" = @tenantId::uuid;
+
+-- name: ListJobRunsForWorkflowRun :many
+SELECT
+    "id"
+FROM
+    "JobRun" jr
+WHERE
+    jr."workflowRunId" = @workflowRunId::uuid;

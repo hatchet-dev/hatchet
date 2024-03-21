@@ -29,7 +29,7 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 	}
 
 	// get the invite
-	invite, err := u.config.Repository.TenantInvite().GetTenantInvite(inviteId)
+	invite, err := u.config.APIRepository.TenantInvite().GetTenantInvite(inviteId)
 
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 	}
 
 	// update the invite
-	invite, err = u.config.Repository.TenantInvite().UpdateTenantInvite(invite.ID, updateOpts)
+	invite, err = u.config.APIRepository.TenantInvite().UpdateTenantInvite(invite.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

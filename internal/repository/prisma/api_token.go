@@ -4,9 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/cache"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
@@ -73,4 +78,51 @@ func (a *apiTokenRepository) ListAPITokensByTenant(tenantId string) ([]db.APITok
 		db.APIToken.TenantID.Equals(tenantId),
 		db.APIToken.Revoked.Equals(false),
 	).Exec(context.Background())
+}
+
+type engineTokenRepository struct {
+	cache   cache.Cacheable
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
+}
+
+func NewEngineTokenRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cache cache.Cacheable) repository.EngineTokenRepository {
+	queries := dbsqlc.New()
+
+	return &engineTokenRepository{
+		cache:   cache,
+		pool:    pool,
+		v:       v,
+		l:       l,
+		queries: queries,
+	}
+}
+
+func (a *engineTokenRepository) CreateAPIToken(opts *repository.CreateAPITokenOpts) (*dbsqlc.APIToken, error) {
+	if err := a.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	createParams := dbsqlc.CreateAPITokenParams{
+		ID:        sqlchelpers.UUIDFromStr(opts.ID),
+		Expiresat: sqlchelpers.TimestampFromTime(opts.ExpiresAt),
+	}
+
+	if opts.TenantId != nil {
+		createParams.TenantId = sqlchelpers.UUIDFromStr(*opts.TenantId)
+	}
+
+	if opts.Name != nil {
+		createParams.Name = sqlchelpers.TextFromStr(*opts.Name)
+	}
+
+	return a.queries.CreateAPIToken(context.Background(), a.pool, createParams)
+}
+
+func (a *engineTokenRepository) GetAPITokenById(id string) (*dbsqlc.APIToken, error) {
+	return cache.MakeCacheable[dbsqlc.APIToken](a.cache, id, func() (*dbsqlc.APIToken, error) {
+		return a.queries.GetAPITokenById(context.Background(), a.pool, sqlchelpers.UUIDFromStr(id))
+	})
 }

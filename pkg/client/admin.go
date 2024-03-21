@@ -107,15 +107,6 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 		return fmt.Errorf("ScheduleWorkflow error: schedules are required")
 	}
 
-	// get the workflow id from the name
-	workflow, err := a.client.GetWorkflowByName(a.ctx.newContext(context.Background()), &admincontracts.GetWorkflowByNameRequest{
-		Name: workflowName,
-	})
-
-	if err != nil {
-		return fmt.Errorf("could not get workflow: %w", err)
-	}
-
 	pbSchedules := make([]*timestamppb.Timestamp, len(opts.schedules))
 
 	for i, scheduled := range opts.schedules {
@@ -129,9 +120,9 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 	}
 
 	_, err = a.client.ScheduleWorkflow(a.ctx.newContext(context.Background()), &admincontracts.ScheduleWorkflowRequest{
-		WorkflowId: workflow.Id,
-		Schedules:  pbSchedules,
-		Input:      string(inputBytes),
+		Name:      workflowName,
+		Schedules: pbSchedules,
+		Input:     string(inputBytes),
 	})
 
 	if err != nil {

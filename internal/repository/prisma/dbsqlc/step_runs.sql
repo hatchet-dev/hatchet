@@ -28,25 +28,88 @@ SELECT
 FROM
     "StepRun" sr
 JOIN
-    "Step" s ON sr."stepId" = s."id" AND s."tenantId" = @tenantId::uuid
+    "Step" s ON sr."stepId" = s."id"
 JOIN
-    "Action" a ON s."actionId" = a."actionId" AND a."tenantId" = @tenantId::uuid
+    "Action" a ON s."actionId" = a."actionId"
 JOIN
-    "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."tenantId" = @tenantId::uuid
+    "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
-    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId" AND jrld."tenantId" = @tenantId::uuid
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
 JOIN
-    "Job" j ON jr."jobId" = j."id" AND j."tenantId" = @tenantId::uuid
+    "Job" j ON jr."jobId" = j."id"
 JOIN 
-    "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = @tenantId::uuid
+    "WorkflowRun" wr ON jr."workflowRunId" = wr."id"
 JOIN
     "WorkflowVersion" wv ON wr."workflowVersionId" = wv."id"
 JOIN
-    "Workflow" w ON wv."workflowId" = w."id" AND w."tenantId" = @tenantId::uuid
+    "Workflow" w ON wv."workflowId" = w."id"
 WHERE
     sr."id" = ANY(@ids::uuid[]) AND
-    sr."tenantId" = @tenantId::uuid;
-    
+    (
+        sqlc.narg('tenantId')::uuid IS NULL OR
+        sr."tenantId" = sqlc.narg('tenantId')::uuid
+    );
+
+-- name: ListStartableStepRuns :many
+WITH job_run AS (
+    SELECT "status"
+    FROM "JobRun"
+    WHERE "id" = @jobRunId::uuid
+)
+SELECT 
+    child_run."id" AS "id"
+FROM 
+    "StepRun" AS child_run
+LEFT JOIN 
+    "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+JOIN
+    job_run ON true
+WHERE 
+    child_run."jobRunId" = @jobRunId::uuid
+    AND child_run."status" = 'PENDING'
+    AND job_run."status" = 'RUNNING'
+    -- case on whether parentStepRunId is null
+    AND (
+        (sqlc.narg('parentStepRunId')::uuid IS NULL AND step_run_order."A" IS NULL) OR 
+        (
+            step_run_order."A" = sqlc.narg('parentStepRunId')::uuid
+            AND NOT EXISTS (
+                SELECT 1
+                FROM "_StepRunOrder" AS parent_order
+                JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
+                WHERE 
+                    parent_order."B" = child_run."id"
+                    AND parent_run."status" != 'SUCCEEDED'
+            )
+        )
+    );
+
+-- name: ListStepRuns :many
+SELECT
+    "StepRun"."id"
+FROM
+    "StepRun"
+JOIN
+    "JobRun" ON "StepRun"."jobRunId" = "JobRun"."id"
+WHERE
+    "StepRun"."tenantId" = @tenantId::uuid
+    AND (
+        sqlc.narg('status')::"StepRunStatus" IS NULL OR
+        "StepRun"."status" = sqlc.narg('status')::"StepRunStatus"
+    )
+    AND (
+        sqlc.narg('workflowRunId')::uuid IS NULL OR
+        "JobRun"."workflowRunId" = sqlc.narg('workflowRunId')::uuid
+    )
+    AND (
+        sqlc.narg('jobRunId')::uuid IS NULL OR
+        "StepRun"."jobRunId" = sqlc.narg('jobRunId')::uuid
+    )
+    AND (
+        sqlc.narg('tickerId')::uuid IS NULL OR
+        "StepRun"."tickerId" = sqlc.narg('tickerId')::uuid
+    );
+
 -- name: UpdateStepRun :one
 UPDATE
     "StepRun"
@@ -268,7 +331,8 @@ WITH step_run AS (
     SELECT
         sr."id",
         sr."status",
-        a."id" AS "actionId"
+        a."id" AS "actionId",
+        s."timeout" AS "stepTimeout"
     FROM
         "StepRun" sr
     JOIN
@@ -278,7 +342,6 @@ WITH step_run AS (
     WHERE
         sr."id" = @stepRunId::uuid AND
         sr."tenantId" = @tenantId::uuid
-    FOR UPDATE SKIP LOCKED
 ),
 valid_workers AS (
     SELECT
@@ -308,7 +371,6 @@ selected_worker AS (
     SELECT "id", "dispatcherId"
     FROM valid_workers
     LIMIT 1
-    FOR UPDATE SKIP LOCKED
 )
 UPDATE
     "StepRun"
@@ -319,33 +381,14 @@ SET
         FROM selected_worker
         LIMIT 1
     ),
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "timeoutAt" = CASE
+        WHEN (SELECT "stepTimeout" FROM step_run) IS NOT NULL THEN
+            CURRENT_TIMESTAMP + convert_duration_to_interval((SELECT "stepTimeout" FROM step_run))
+        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+    END
 WHERE
     "id" = @stepRunId::uuid AND
     "tenantId" = @tenantId::uuid AND
     EXISTS (SELECT 1 FROM selected_worker)
 RETURNING "StepRun"."id", "StepRun"."workerId", (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId";
-
--- name: AssignStepRunToTicker :one
-WITH selected_ticker AS (
-    SELECT
-        t."id"
-    FROM
-        "Ticker" t
-    WHERE
-        t."lastHeartbeatAt" > NOW() - INTERVAL '6 seconds'
-    ORDER BY random()
-    LIMIT 1
-)
-UPDATE
-    "StepRun"
-SET
-    "tickerId" = (
-        SELECT "id"
-        FROM selected_ticker
-    )
-WHERE
-    "id" = @stepRunId::uuid AND
-    "tenantId" = @tenantId::uuid AND
-    EXISTS (SELECT 1 FROM selected_ticker)
-RETURNING "StepRun"."id", "StepRun"."tickerId";

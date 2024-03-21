@@ -63,7 +63,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	var h *health.Health
 	healthProbes := sc.HasService("health")
 	if healthProbes {
-		h = health.New(sc.Repository, sc.MessageQueue)
+		h = health.New(sc.EngineRepository, sc.MessageQueue)
 		cleanup, err := h.Start()
 		if err != nil {
 			return fmt.Errorf("could not start health: %w", err)
@@ -78,7 +78,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	if sc.HasService("ticker") {
 		t, err := ticker.New(
 			ticker.WithMessageQueue(sc.MessageQueue),
-			ticker.WithRepository(sc.Repository),
+			ticker.WithRepository(sc.EngineRepository),
 			ticker.WithLogger(sc.Logger),
 		)
 
@@ -99,7 +99,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	if sc.HasService("eventscontroller") {
 		ec, err := events.New(
 			events.WithMessageQueue(sc.MessageQueue),
-			events.WithRepository(sc.Repository),
+			events.WithRepository(sc.EngineRepository),
 			events.WithLogger(sc.Logger),
 		)
 		if err != nil {
@@ -120,7 +120,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		jc, err := jobs.New(
 			jobs.WithAlerter(sc.Alerter),
 			jobs.WithMessageQueue(sc.MessageQueue),
-			jobs.WithRepository(sc.Repository),
+			jobs.WithRepository(sc.EngineRepository),
 			jobs.WithLogger(sc.Logger),
 		)
 
@@ -141,7 +141,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	if sc.HasService("workflowscontroller") {
 		wc, err := workflows.New(
 			workflows.WithMessageQueue(sc.MessageQueue),
-			workflows.WithRepository(sc.Repository),
+			workflows.WithRepository(sc.EngineRepository),
 			workflows.WithLogger(sc.Logger),
 		)
 		if err != nil {
@@ -161,7 +161,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	if sc.HasService("heartbeater") {
 		h, err := heartbeat.New(
 			heartbeat.WithMessageQueue(sc.MessageQueue),
-			heartbeat.WithRepository(sc.Repository),
+			heartbeat.WithRepository(sc.EngineRepository),
 			heartbeat.WithLogger(sc.Logger),
 		)
 
@@ -184,7 +184,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueue(sc.MessageQueue),
-			dispatcher.WithRepository(sc.Repository),
+			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithLogger(sc.Logger),
 		)
 		if err != nil {
@@ -199,10 +199,10 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
 			ingestor.WithEventRepository(
-				sc.Repository.Event(),
+				sc.EngineRepository.Event(),
 			),
 			ingestor.WithLogRepository(
-				sc.Repository.Log(),
+				sc.EngineRepository.Log(),
 			),
 			ingestor.WithMessageQueue(sc.MessageQueue),
 		)
@@ -211,7 +211,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		}
 
 		adminSvc, err := admin.NewAdminService(
-			admin.WithRepository(sc.Repository),
+			admin.WithRepository(sc.EngineRepository),
 			admin.WithMessageQueue(sc.MessageQueue),
 		)
 		if err != nil {

@@ -1,99 +1,102 @@
 package servertel
 
 import (
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 
 	"go.opentelemetry.io/otel/trace"
 )
 
-func WithStepRunModel(span trace.Span, stepRun *db.StepRunModel) {
+func WithStepRunModel(span trace.Span, stepRun *dbsqlc.GetStepRunForEngineRow) {
 	telemetry.WithAttributes(
 		span,
-		TenantId(stepRun.TenantID),
-		StepRunId(stepRun.ID),
-		Step(stepRun.StepID),
-		JobRunId(stepRun.JobRunID),
+		TenantId(stepRun.StepRun.TenantId),
+		StepRunId(stepRun.StepRun.ID),
+		Step(stepRun.StepId),
+		JobRunId(stepRun.JobRunId),
 	)
 }
 
-func WithJobRunModel(span trace.Span, jobRun *db.JobRunModel) {
+func WithJobRunModel(span trace.Span, jobRun *dbsqlc.JobRun) {
 	telemetry.WithAttributes(
 		span,
-		TenantId(jobRun.TenantID),
+		TenantId(jobRun.TenantId),
 		JobRunId(jobRun.ID),
-		Job(jobRun.JobID),
+		Job(jobRun.JobId),
 	)
 }
 
-func WithWorkflowRunModel(span trace.Span, workflowRun *db.WorkflowRunModel) {
+func WithWorkflowRunModel(span trace.Span, workflowRun *dbsqlc.GetWorkflowRunRow) {
 	telemetry.WithAttributes(
 		span,
-		TenantId(workflowRun.TenantID),
-		WorkflowRunId(workflowRun.ID),
-		WorkflowVersion(workflowRun.WorkflowVersionID),
+		TenantId(workflowRun.WorkflowRun.TenantId),
+		WorkflowRunId(workflowRun.WorkflowRun.ID),
+		WorkflowVersion(workflowRun.WorkflowVersion.ID),
 	)
 }
 
-func TenantId(tenantId string) telemetry.AttributeKV {
+func TenantId(tenantId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "tenantId",
-		Value: tenantId,
+		Value: sqlchelpers.UUIDToStr(tenantId),
 	}
 }
 
-func StepRunId(stepRunId string) telemetry.AttributeKV {
+func StepRunId(stepRunId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "stepRunId",
-		Value: stepRunId,
+		Value: sqlchelpers.UUIDToStr(stepRunId),
 	}
 }
 
-func Step(step string) telemetry.AttributeKV {
+func Step(step pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "stepId",
-		Value: step,
+		Value: sqlchelpers.UUIDToStr(step),
 	}
 }
 
-func JobRunId(jobRunId string) telemetry.AttributeKV {
+func JobRunId(jobRunId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "jobRunId",
-		Value: jobRunId,
+		Value: sqlchelpers.UUIDToStr(jobRunId),
 	}
 }
 
-func Job(job string) telemetry.AttributeKV {
+func Job(job pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "jobId",
-		Value: job,
+		Value: sqlchelpers.UUIDToStr(job),
 	}
 }
 
-func WorkflowRunId(workflowRunId string) telemetry.AttributeKV {
+func WorkflowRunId(workflowRunId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "workflowRunId",
-		Value: workflowRunId,
+		Value: sqlchelpers.UUIDToStr(workflowRunId),
 	}
 }
 
-func WorkflowVersion(workflowVersion string) telemetry.AttributeKV {
+func WorkflowVersion(workflowVersion pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "workflowVersionId",
-		Value: workflowVersion,
+		Value: sqlchelpers.UUIDToStr(workflowVersion),
 	}
 }
 
-func WorkerId(workerId string) telemetry.AttributeKV {
+func WorkerId(workerId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "workerId",
-		Value: workerId,
+		Value: sqlchelpers.UUIDToStr(workerId),
 	}
 }
 
-func EventId(eventId string) telemetry.AttributeKV {
+func EventId(eventId pgtype.UUID) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "eventId",
-		Value: eventId,
+		Value: sqlchelpers.UUIDToStr(eventId),
 	}
 }
