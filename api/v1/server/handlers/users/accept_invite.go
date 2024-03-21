@@ -29,7 +29,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// get the invite
-	invite, err := u.config.Repository.TenantInvite().GetTenantInvite(inviteId)
+	invite, err := u.config.APIRepository.TenantInvite().GetTenantInvite(inviteId)
 
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// ensure the user is not already a member of the tenant
-	_, err = u.config.Repository.Tenant().GetTenantMemberByEmail(invite.TenantID, user.Email)
+	_, err = u.config.APIRepository.Tenant().GetTenantMemberByEmail(invite.TenantID, user.Email)
 
 	if err != nil && !errors.Is(err, db.ErrNotFound) {
 		return nil, err
@@ -65,14 +65,14 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// update the invite
-	invite, err = u.config.Repository.TenantInvite().UpdateTenantInvite(invite.ID, updateOpts)
+	invite, err = u.config.APIRepository.TenantInvite().UpdateTenantInvite(invite.ID, updateOpts)
 
 	if err != nil {
 		return nil, err
 	}
 
 	// add the user to the tenant
-	_, err = u.config.Repository.Tenant().CreateTenantMember(invite.TenantID, &repository.CreateTenantMemberOpts{
+	_, err = u.config.APIRepository.Tenant().CreateTenantMember(invite.TenantID, &repository.CreateTenantMemberOpts{
 		UserId: user.ID,
 		Role:   string(invite.Role),
 	})

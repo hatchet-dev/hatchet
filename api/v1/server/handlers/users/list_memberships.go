@@ -11,7 +11,7 @@ import (
 func (t *UserService) TenantMembershipsList(ctx echo.Context, request gen.TenantMembershipsListRequestObject) (gen.TenantMembershipsListResponseObject, error) {
 	user := ctx.Get("user").(*db.UserModel)
 
-	memberships, err := t.config.Repository.User().ListTenantMemberships(user.ID)
+	memberships, err := t.config.APIRepository.User().ListTenantMemberships(user.ID)
 
 	if err != nil {
 		return nil, err

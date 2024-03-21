@@ -11,7 +11,7 @@ import (
 func (t *UserService) UserListTenantInvites(ctx echo.Context, request gen.UserListTenantInvitesRequestObject) (gen.UserListTenantInvitesResponseObject, error) {
 	user := ctx.Get("user").(*db.UserModel)
 
-	invites, err := t.config.Repository.TenantInvite().ListTenantInvitesByEmail(user.Email)
+	invites, err := t.config.APIRepository.TenantInvite().ListTenantInvitesByEmail(user.Email)
 
 	if err != nil {
 		return nil, err

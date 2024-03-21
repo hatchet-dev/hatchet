@@ -13,7 +13,7 @@ import (
 func (t *WorkflowService) StepRunGetDiff(ctx echo.Context, request gen.StepRunGetDiffRequestObject) (gen.StepRunGetDiffResponseObject, error) {
 	stepRun := ctx.Get("step-run").(*db.StepRunModel)
 
-	diffs, originalValues, err := vcsutils.GetStepRunOverrideDiffs(t.config.Repository.StepRun(), stepRun)
+	diffs, originalValues, err := vcsutils.GetStepRunOverrideDiffs(t.config.APIRepository.StepRun(), stepRun)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get diffs: %s", err)

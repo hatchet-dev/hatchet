@@ -11,6 +11,48 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createTicker = `-- name: CreateTicker :one
+INSERT INTO
+    "Ticker" ("id", "lastHeartbeatAt", "isActive")
+VALUES
+    ($1::uuid, CURRENT_TIMESTAMP, 't')
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeatAt", "isActive"
+`
+
+func (q *Queries) CreateTicker(ctx context.Context, db DBTX, id pgtype.UUID) (*Ticker, error) {
+	row := db.QueryRow(ctx, createTicker, id)
+	var i Ticker
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastHeartbeatAt,
+		&i.IsActive,
+	)
+	return &i, err
+}
+
+const deleteTicker = `-- name: DeleteTicker :one
+DELETE FROM
+    "Ticker" as tickers
+WHERE
+    "id" = $1::uuid
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeatAt", "isActive"
+`
+
+func (q *Queries) DeleteTicker(ctx context.Context, db DBTX, id pgtype.UUID) (*Ticker, error) {
+	row := db.QueryRow(ctx, deleteTicker, id)
+	var i Ticker
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastHeartbeatAt,
+		&i.IsActive,
+	)
+	return &i, err
+}
+
 const listActiveTickers = `-- name: ListActiveTickers :many
 SELECT
     tickers.id, tickers."createdAt", tickers."updatedAt", tickers."lastHeartbeatAt", tickers."isActive"
@@ -95,30 +137,355 @@ func (q *Queries) ListNewlyStaleTickers(ctx context.Context, db DBTX) ([]*ListNe
 
 const listTickers = `-- name: ListTickers :many
 SELECT
-    tickers.id, tickers."createdAt", tickers."updatedAt", tickers."lastHeartbeatAt", tickers."isActive"
+    id, "createdAt", "updatedAt", "lastHeartbeatAt", "isActive"
 FROM
     "Ticker" as tickers
+WHERE
+    (
+        $1::boolean IS NULL OR
+        "isActive" = $1::boolean
+    )
+    AND
+    (
+        $2::timestamp IS NULL OR
+        tickers."lastHeartbeatAt" > $2::timestamp
+    )
 `
 
-type ListTickersRow struct {
-	Ticker Ticker `json:"ticker"`
+type ListTickersParams struct {
+	IsActive           bool             `json:"isActive"`
+	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
 }
 
-func (q *Queries) ListTickers(ctx context.Context, db DBTX) ([]*ListTickersRow, error) {
-	rows, err := db.Query(ctx, listTickers)
+func (q *Queries) ListTickers(ctx context.Context, db DBTX, arg ListTickersParams) ([]*Ticker, error) {
+	rows, err := db.Query(ctx, listTickers, arg.IsActive, arg.LastHeartbeatAfter)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListTickersRow
+	var items []*Ticker
 	for rows.Next() {
-		var i ListTickersRow
+		var i Ticker
 		if err := rows.Scan(
-			&i.Ticker.ID,
-			&i.Ticker.CreatedAt,
-			&i.Ticker.UpdatedAt,
-			&i.Ticker.LastHeartbeatAt,
-			&i.Ticker.IsActive,
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LastHeartbeatAt,
+			&i.IsActive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pollCronSchedules = `-- name: PollCronSchedules :many
+WITH latest_workflow_versions AS (
+    SELECT
+        "workflowId",
+        MAX("order") as max_order
+    FROM
+        "WorkflowVersion"
+    GROUP BY "workflowId"
+),
+active_cron_schedules AS (
+    SELECT
+        cronSchedule."parentId",
+        versions."id" AS "workflowVersionId",
+        triggers."tenantId" AS "tenantId"
+    FROM
+        "WorkflowTriggerCronRef" as cronSchedule
+    JOIN 
+        "WorkflowTriggers" as triggers ON triggers."id" = cronSchedule."parentId"
+    JOIN
+        "WorkflowVersion" as versions ON versions."id" = triggers."workflowVersionId"
+    JOIN 
+        latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
+    WHERE
+        "tickerId" IS NULL 
+        OR NOT EXISTS (
+            SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+        )
+        OR "tickerId" = $1::uuid
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "WorkflowTriggerCronRef" as cronSchedules
+SET
+    "tickerId" = $1::uuid
+FROM
+    active_cron_schedules
+WHERE
+    cronSchedules."parentId" = active_cron_schedules."parentId"
+RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId", cronschedules.input, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId"
+`
+
+type PollCronSchedulesRow struct {
+	ParentId          pgtype.UUID `json:"parentId"`
+	Cron              string      `json:"cron"`
+	TickerId          pgtype.UUID `json:"tickerId"`
+	Input             []byte      `json:"input"`
+	WorkflowVersionId pgtype.UUID `json:"workflowVersionId"`
+	TenantId          pgtype.UUID `json:"tenantId"`
+}
+
+func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*PollCronSchedulesRow, error) {
+	rows, err := db.Query(ctx, pollCronSchedules, tickerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*PollCronSchedulesRow
+	for rows.Next() {
+		var i PollCronSchedulesRow
+		if err := rows.Scan(
+			&i.ParentId,
+			&i.Cron,
+			&i.TickerId,
+			&i.Input,
+			&i.WorkflowVersionId,
+			&i.TenantId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pollGetGroupKeyRuns = `-- name: PollGetGroupKeyRuns :many
+WITH getGroupKeyRunsToTimeout AS (
+    SELECT
+        getGroupKeyRun."id"
+    FROM
+        "GetGroupKeyRun" as getGroupKeyRun
+    WHERE
+        "status" = 'RUNNING'
+        AND "timeoutAt" < NOW()
+        AND (
+            NOT EXISTS (
+                SELECT 1 FROM "Ticker" WHERE "id" = getGroupKeyRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+            )
+            OR "tickerId" IS NULL 
+        )
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "GetGroupKeyRun" as getGroupKeyRuns
+SET
+    "tickerId" = $1::uuid
+FROM
+    getGroupKeyRunsToTimeout
+WHERE
+    getGroupKeyRuns."id" = getGroupKeyRunsToTimeout."id"
+RETURNING getgroupkeyruns.id, getgroupkeyruns."createdAt", getgroupkeyruns."updatedAt", getgroupkeyruns."deletedAt", getgroupkeyruns."tenantId", getgroupkeyruns."workerId", getgroupkeyruns."tickerId", getgroupkeyruns.status, getgroupkeyruns.input, getgroupkeyruns.output, getgroupkeyruns."requeueAfter", getgroupkeyruns.error, getgroupkeyruns."startedAt", getgroupkeyruns."finishedAt", getgroupkeyruns."timeoutAt", getgroupkeyruns."cancelledAt", getgroupkeyruns."cancelledReason", getgroupkeyruns."cancelledError", getgroupkeyruns."workflowRunId", getgroupkeyruns."scheduleTimeoutAt"
+`
+
+func (q *Queries) PollGetGroupKeyRuns(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*GetGroupKeyRun, error) {
+	rows, err := db.Query(ctx, pollGetGroupKeyRuns, tickerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetGroupKeyRun
+	for rows.Next() {
+		var i GetGroupKeyRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.WorkerId,
+			&i.TickerId,
+			&i.Status,
+			&i.Input,
+			&i.Output,
+			&i.RequeueAfter,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.TimeoutAt,
+			&i.CancelledAt,
+			&i.CancelledReason,
+			&i.CancelledError,
+			&i.WorkflowRunId,
+			&i.ScheduleTimeoutAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pollScheduledWorkflows = `-- name: PollScheduledWorkflows :many
+WITH latest_workflow_versions AS (
+    SELECT
+        "workflowId",
+        MAX("order") as max_order
+    FROM
+        "WorkflowVersion"
+    GROUP BY "workflowId"
+),
+not_run_scheduled_workflows AS (
+    SELECT
+        scheduledWorkflow."id",
+        versions."id" AS "workflowVersionId",
+        workflow."tenantId" AS "tenantId"
+    FROM
+        "WorkflowTriggerScheduledRef" as scheduledWorkflow
+    JOIN
+        "WorkflowVersion" as versions ON versions."id" = scheduledWorkflow."parentId"
+    JOIN 
+        latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
+    JOIN
+        "Workflow" as workflow ON workflow."id" = versions."workflowId"
+    LEFT JOIN
+        "WorkflowRunTriggeredBy" as runTriggeredBy ON runTriggeredBy."scheduledId" = scheduledWorkflow."id"
+    WHERE
+        "triggerAt" <= NOW() + INTERVAL '5 seconds'
+        AND runTriggeredBy IS NULL
+        AND (
+            "tickerId" IS NULL 
+            OR NOT EXISTS (
+                SELECT 1 FROM "Ticker" WHERE "id" = scheduledWorkflow."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+            )
+            OR "tickerId" = $1::uuid
+        )
+),
+active_scheduled_workflows AS (
+    SELECT
+        id, "workflowVersionId", "tenantId"
+    FROM
+        not_run_scheduled_workflows
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "WorkflowTriggerScheduledRef" as scheduledWorkflows
+SET
+    "tickerId" = $1::uuid
+FROM
+    active_scheduled_workflows
+WHERE
+    scheduledWorkflows."id" = active_scheduled_workflows."id"
+RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId"
+`
+
+type PollScheduledWorkflowsRow struct {
+	ID                pgtype.UUID      `json:"id"`
+	ParentId          pgtype.UUID      `json:"parentId"`
+	TriggerAt         pgtype.Timestamp `json:"triggerAt"`
+	TickerId          pgtype.UUID      `json:"tickerId"`
+	Input             []byte           `json:"input"`
+	WorkflowVersionId pgtype.UUID      `json:"workflowVersionId"`
+	TenantId          pgtype.UUID      `json:"tenantId"`
+}
+
+// Finds workflows that are either past their execution time or will be in the next 5 seconds and assigns them
+// to a ticker, or finds workflows that were assigned to a ticker that is no longer active
+func (q *Queries) PollScheduledWorkflows(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*PollScheduledWorkflowsRow, error) {
+	rows, err := db.Query(ctx, pollScheduledWorkflows, tickerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*PollScheduledWorkflowsRow
+	for rows.Next() {
+		var i PollScheduledWorkflowsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentId,
+			&i.TriggerAt,
+			&i.TickerId,
+			&i.Input,
+			&i.WorkflowVersionId,
+			&i.TenantId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pollStepRuns = `-- name: PollStepRuns :many
+WITH stepRunsToTimeout AS (
+    SELECT
+        stepRun."id"
+    FROM
+        "StepRun" as stepRun
+    WHERE
+        "status" = 'RUNNING'
+        AND "timeoutAt" < NOW()
+        AND (
+            NOT EXISTS (
+                SELECT 1 FROM "Ticker" WHERE "id" = stepRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+            )
+            OR "tickerId" IS NULL 
+        )
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "StepRun" as stepRuns
+SET
+    "tickerId" = $1::uuid
+FROM
+    stepRunsToTimeout
+WHERE
+    stepRuns."id" = stepRunsToTimeout."id"
+RETURNING stepruns.id, stepruns."createdAt", stepruns."updatedAt", stepruns."deletedAt", stepruns."tenantId", stepruns."jobRunId", stepruns."stepId", stepruns."order", stepruns."workerId", stepruns."tickerId", stepruns.status, stepruns.input, stepruns.output, stepruns."requeueAfter", stepruns."scheduleTimeoutAt", stepruns.error, stepruns."startedAt", stepruns."finishedAt", stepruns."timeoutAt", stepruns."cancelledAt", stepruns."cancelledReason", stepruns."cancelledError", stepruns."inputSchema", stepruns."callerFiles", stepruns."gitRepoBranch", stepruns."retryCount"
+`
+
+func (q *Queries) PollStepRuns(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*StepRun, error) {
+	rows, err := db.Query(ctx, pollStepRuns, tickerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepRun
+	for rows.Next() {
+		var i StepRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.JobRunId,
+			&i.StepId,
+			&i.Order,
+			&i.WorkerId,
+			&i.TickerId,
+			&i.Status,
+			&i.Input,
+			&i.Output,
+			&i.RequeueAfter,
+			&i.ScheduleTimeoutAt,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.TimeoutAt,
+			&i.CancelledAt,
+			&i.CancelledReason,
+			&i.CancelledError,
+			&i.InputSchema,
+			&i.CallerFiles,
+			&i.GitRepoBranch,
+			&i.RetryCount,
 		); err != nil {
 			return nil, err
 		}
@@ -169,4 +536,32 @@ func (q *Queries) SetTickersInactive(ctx context.Context, db DBTX, ids []pgtype.
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTicker = `-- name: UpdateTicker :one
+UPDATE
+    "Ticker" as tickers
+SET
+    "lastHeartbeatAt" = $1::timestamp
+WHERE
+    "id" = $2::uuid
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeatAt", "isActive"
+`
+
+type UpdateTickerParams struct {
+	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
+	ID              pgtype.UUID      `json:"id"`
+}
+
+func (q *Queries) UpdateTicker(ctx context.Context, db DBTX, arg UpdateTickerParams) (*Ticker, error) {
+	row := db.QueryRow(ctx, updateTicker, arg.LastHeartbeatAt, arg.ID)
+	var i Ticker
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastHeartbeatAt,
+		&i.IsActive,
+	)
+	return &i, err
 }

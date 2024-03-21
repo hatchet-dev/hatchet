@@ -113,7 +113,7 @@ jobs:
       - name: Generate
         run: |
           go run github.com/steebchen/prisma-client-go db push
-          
+
           task generate-all
           task generate-certs
           task generate-local-encryption-keys
@@ -235,6 +235,12 @@ jobs:
         with:
           go-version: "1.21"
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
+
       - name: Compose
         run: docker compose up -d
 
@@ -243,7 +249,8 @@ jobs:
 
       - name: Generate
         run: |
-          go run github.com/steebchen/prisma-client-go db push
+          go run github.com/steebchen/prisma-client-go migrate deploy
+          task generate-all
           task generate-certs
           task generate-local-encryption-keys
 

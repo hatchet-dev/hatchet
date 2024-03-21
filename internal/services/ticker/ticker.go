@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 )
 
 type Ticker interface {
@@ -24,22 +23,15 @@ type Ticker interface {
 type TickerImpl struct {
 	mq   msgqueue.MessageQueue
 	l    *zerolog.Logger
-	repo repository.Repository
+	repo repository.EngineRepository
 	s    gocron.Scheduler
 
 	crons              sync.Map
 	scheduledWorkflows sync.Map
-	stepRuns           sync.Map
-	getGroupKeyRuns    sync.Map
 
 	dv datautils.DataDecoderValidator
 
 	tickerId string
-}
-
-type timeoutCtx struct {
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
 type TickerOpt func(*TickerOpts)
@@ -47,7 +39,7 @@ type TickerOpt func(*TickerOpts)
 type TickerOpts struct {
 	mq       msgqueue.MessageQueue
 	l        *zerolog.Logger
-	repo     repository.Repository
+	repo     repository.EngineRepository
 	tickerId string
 
 	dv datautils.DataDecoderValidator
@@ -68,7 +60,7 @@ func WithMessageQueue(mq msgqueue.MessageQueue) TickerOpt {
 	}
 }
 
-func WithRepository(r repository.Repository) TickerOpt {
+func WithRepository(r repository.EngineRepository) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.repo = r
 	}
@@ -120,7 +112,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 	t.l.Debug().Msgf("starting ticker %s", t.tickerId)
 
 	// register the ticker
-	ticker, err := t.repo.Ticker().CreateNewTicker(&repository.CreateTickerOpts{
+	_, err := t.repo.Ticker().CreateNewTicker(&repository.CreateTickerOpts{
 		ID: t.tickerId,
 	})
 
@@ -141,60 +133,68 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
 	}
 
-	t.s.Start()
-
-	wg := sync.WaitGroup{}
-
-	f := func(task *msgqueue.Message) error {
-		wg.Add(1)
-
-		defer wg.Done()
-
-		err := t.handleTask(ctx, task)
-		if err != nil {
-			t.l.Error().Err(err).Msgf("could not handle ticker task %s", task.ID)
-			return err
-		}
-
-		return nil
-	}
-
-	// subscribe to a task queue with the dispatcher id
-	cleanupQueue, err := t.mq.Subscribe(msgqueue.QueueTypeFromTickerID(ticker.ID), msgqueue.NoOpHook, f)
+	_, err = t.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			t.runPollStepRuns(ctx),
+		),
+	)
 
 	if err != nil {
 		cancel()
-		return nil, err
+		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
 	}
+
+	_, err = t.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			t.runPollGetGroupKeyRuns(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
+	}
+
+	_, err = t.s.NewJob(
+		// crons only have a resolution of 1 minute, so only poll every 15 seconds
+		gocron.DurationJob(time.Second*15),
+		gocron.NewTask(
+			t.runPollCronSchedules(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
+	}
+
+	_, err = t.s.NewJob(
+		// we look ahead every 5 seconds
+		gocron.DurationJob(time.Second*5),
+		gocron.NewTask(
+			t.runPollSchedules(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
+	}
+
+	t.s.Start()
 
 	cleanup := func() error {
 		t.l.Debug().Msg("removing ticker")
 
 		cancel()
 
-		if err := cleanupQueue(); err != nil {
-			return fmt.Errorf("could not cleanup queue: %w", err)
-		}
-
-		wg.Wait()
-
 		// delete the ticker
 		err = t.repo.Ticker().Delete(t.tickerId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not delete ticker")
-			return err
-		}
-
-		// add the task after the ticker is deleted
-		err = t.mq.AddMessage(
-			ctx,
-			msgqueue.JOB_PROCESSING_QUEUE,
-			tickerRemoved(t.tickerId),
-		)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not add ticker removed task")
 			return err
 		}
 
@@ -206,29 +206,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	return cleanup, nil
-}
-
-func (t *TickerImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
-	switch task.ID {
-	case "schedule-step-run-timeout":
-		return t.handleScheduleStepRunTimeout(ctx, task)
-	case "cancel-step-run-timeout":
-		return t.handleCancelStepRunTimeout(ctx, task)
-	case "schedule-get-group-key-run-timeout":
-		return t.handleScheduleGetGroupKeyRunTimeout(ctx, task)
-	case "cancel-get-group-key-run-timeout":
-		return t.handleCancelGetGroupKeyRunTimeout(ctx, task)
-	case "schedule-cron":
-		return t.handleScheduleCron(ctx, task)
-	case "cancel-cron":
-		return t.handleCancelCron(ctx, task)
-	case "schedule-workflow":
-		return t.handleScheduleWorkflow(ctx, task)
-	case "cancel-workflow":
-		return t.handleCancelWorkflow(ctx, task)
-	}
-
-	return fmt.Errorf("unknown task: %s", task.ID)
 }
 
 func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
@@ -245,20 +222,5 @@ func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		if err != nil {
 			t.l.Err(err).Msg("could not update heartbeat")
 		}
-	}
-}
-
-func tickerRemoved(tickerId string) *msgqueue.Message {
-	payload, _ := datautils.ToJSONMap(tasktypes.RemoveTickerTaskPayload{
-		TickerId: tickerId,
-	})
-
-	metadata, _ := datautils.ToJSONMap(tasktypes.RemoveTickerTaskMetadata{})
-
-	return &msgqueue.Message{
-		ID:       "ticker-removed",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
 	}
 }

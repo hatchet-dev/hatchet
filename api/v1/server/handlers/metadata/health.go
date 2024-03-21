@@ -13,7 +13,7 @@ func (u *MetadataService) LivenessGet(ctx echo.Context, request gen.LivenessGetR
 }
 
 func (u *MetadataService) ReadinessGet(ctx echo.Context, request gen.ReadinessGetRequestObject) (gen.ReadinessGetResponseObject, error) {
-	if !u.config.Repository.Health().IsHealthy() {
+	if !u.config.APIRepository.Health().IsHealthy() {
 		return nil, fmt.Errorf("repository is not healthy")
 	}
 

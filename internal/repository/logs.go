@@ -51,10 +51,12 @@ type ListLogsResult struct {
 	Count int
 }
 
-type LogsRepository interface {
-	// PutLog creates a new log line.
-	PutLog(tenantId string, opts *CreateLogLineOpts) (*dbsqlc.LogLine, error)
-
+type LogsAPIRepository interface {
 	// ListLogLines returns a list of log lines for a given step run.
 	ListLogLines(tenantId string, opts *ListLogsOpts) (*ListLogsResult, error)
+}
+
+type LogsEngineRepository interface {
+	// PutLog creates a new log line.
+	PutLog(tenantId string, opts *CreateLogLineOpts) (*dbsqlc.LogLine, error)
 }

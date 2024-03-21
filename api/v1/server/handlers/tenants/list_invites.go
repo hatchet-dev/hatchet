@@ -12,7 +12,7 @@ import (
 func (t *TenantService) TenantInviteList(ctx echo.Context, request gen.TenantInviteListRequestObject) (gen.TenantInviteListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	tenantInvites, err := t.config.Repository.TenantInvite().ListTenantInvitesByTenantId(tenant.ID, &repository.ListTenantInvitesOpts{
+	tenantInvites, err := t.config.APIRepository.TenantInvite().ListTenantInvitesByTenantId(tenant.ID, &repository.ListTenantInvitesOpts{
 		Expired: repository.BoolPtr(false),
 		Status:  repository.StringPtr("PENDING"),
 	})

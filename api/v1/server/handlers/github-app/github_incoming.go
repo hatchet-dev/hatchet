@@ -15,7 +15,7 @@ import (
 func (g *GithubAppService) GithubUpdateTenantWebhook(ctx echo.Context, req gen.GithubUpdateTenantWebhookRequestObject) (gen.GithubUpdateTenantWebhookResponseObject, error) {
 	webhookId := req.Webhook.String()
 
-	webhook, err := g.config.Repository.Github().ReadGithubWebhookById(webhookId)
+	webhook, err := g.config.APIRepository.Github().ReadGithubWebhookById(webhookId)
 
 	if err != nil {
 		return nil, err
@@ -53,13 +53,13 @@ func (g *GithubAppService) GithubUpdateTenantWebhook(ctx echo.Context, req gen.G
 func (g *GithubAppService) processPullRequestEvent(tenantId string, event *githubsdk.PullRequestEvent, r *http.Request) error {
 	pr := github.ToVCSRepositoryPullRequest(*event.GetRepo().GetOwner().Login, event.GetRepo().GetName(), event.GetPullRequest())
 
-	dbPR, err := g.config.Repository.Github().GetPullRequest(tenantId, pr.GetRepoOwner(), pr.GetRepoName(), int(pr.GetPRNumber()))
+	dbPR, err := g.config.APIRepository.Github().GetPullRequest(tenantId, pr.GetRepoOwner(), pr.GetRepoName(), int(pr.GetPRNumber()))
 
 	if err != nil {
 		return err
 	}
 
-	_, err = g.config.Repository.Github().UpdatePullRequest(tenantId, dbPR.ID, &repository.UpdatePullRequestOpts{
+	_, err = g.config.APIRepository.Github().UpdatePullRequest(tenantId, dbPR.ID, &repository.UpdatePullRequestOpts{
 		HeadBranch: repository.StringPtr(pr.GetHeadBranch()),
 		BaseBranch: repository.StringPtr(pr.GetBaseBranch()),
 		Title:      repository.StringPtr(pr.GetTitle()),
