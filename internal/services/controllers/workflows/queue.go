@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 )
 
 func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, task *msgqueue.Message) error {
@@ -47,7 +48,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 
-	// servertel.WithWorkflowRunModel(span, workflowRun)
+	servertel.WithWorkflowRunModel(span, workflowRun)
 
 	wc.l.Info().Msgf("starting workflow run %s", workflowRunId)
 
@@ -114,7 +115,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 
-	// servertel.WithWorkflowRunModel(span, workflowRun)
+	servertel.WithWorkflowRunModel(span, workflowRun)
 
 	wc.l.Info().Msgf("finishing workflow run %s", workflowRunId)
 

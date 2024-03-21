@@ -24,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
@@ -603,7 +604,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 		return ec.a.WrapErr(fmt.Errorf("could not get step run: %w", err), errData)
 	}
 
-	// servertel.WithStepRunModel(span, stepRun)
+	servertel.WithStepRunModel(span, stepRun)
 
 	updateStepOpts := &repository.UpdateStepRunOpts{}
 
@@ -690,8 +691,6 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, stepId, stepRunId string) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-run")
 	defer span.End()
-
-	// servertel.WithStepRunModel(span, stepRun)
 
 	selectedWorkerId, dispatcherId, err := ec.repo.StepRun().AssignStepRunToWorker(tenantId, stepRunId)
 
@@ -958,8 +957,6 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	}
 
 	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
-
-	// servertel.WithStepRunModel(span, stepRun)
 
 	if !stepRun.StepRun.WorkerId.Valid {
 		return fmt.Errorf("step run has no worker id")

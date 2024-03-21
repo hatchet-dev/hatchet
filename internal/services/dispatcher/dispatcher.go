@@ -268,8 +268,6 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
-	// telemetry.WithAttributes(span, servertel.WorkerId(payload.WorkerId))
-
 	// load the workflow run from the database
 	workflowRun, err := d.repo.WorkflowRun().GetWorkflowRunById(metadata.TenantId, payload.WorkflowRunId)
 
@@ -277,7 +275,7 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 		return fmt.Errorf("could not get workflow run: %w", err)
 	}
 
-	// servertel.WithWorkflowRunModel(span, workflowRun)
+	servertel.WithWorkflowRunModel(span, workflowRun)
 
 	groupKeyRunId := sqlchelpers.UUIDToStr(workflowRun.GetGroupKeyRunId)
 
@@ -326,8 +324,6 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
-	// telemetry.WithAttributes(span, servertel.WorkerId(payload.WorkerId))
-
 	// load the step run from the database
 	stepRun, err := d.repo.StepRun().GetStepRunForEngine(metadata.TenantId, payload.StepRunId)
 
@@ -371,8 +367,6 @@ func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqu
 	if err != nil {
 		return fmt.Errorf("could not get worker: %w", err)
 	}
-
-	// telemetry.WithAttributes(span, servertel.WorkerId(payload.WorkerId))
 
 	// load the step run from the database
 	stepRun, err := d.repo.StepRun().GetStepRunForEngine(metadata.TenantId, payload.StepRunId)

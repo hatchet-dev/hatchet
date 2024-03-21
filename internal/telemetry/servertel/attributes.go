@@ -29,12 +29,12 @@ func WithJobRunModel(span trace.Span, jobRun *dbsqlc.JobRun) {
 	)
 }
 
-func WithWorkflowRunModel(span trace.Span, workflowRun *dbsqlc.WorkflowRun) {
+func WithWorkflowRunModel(span trace.Span, workflowRun *dbsqlc.GetWorkflowRunRow) {
 	telemetry.WithAttributes(
 		span,
-		TenantId(workflowRun.TenantId),
-		WorkflowRunId(workflowRun.ID),
-		WorkflowVersion(workflowRun.WorkflowVersionId),
+		TenantId(workflowRun.WorkflowRun.TenantId),
+		WorkflowRunId(workflowRun.WorkflowRun.ID),
+		WorkflowVersion(workflowRun.WorkflowVersion.ID),
 	)
 }
 
