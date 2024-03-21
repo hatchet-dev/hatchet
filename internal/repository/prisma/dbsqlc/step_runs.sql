@@ -342,7 +342,6 @@ WITH step_run AS (
     WHERE
         sr."id" = @stepRunId::uuid AND
         sr."tenantId" = @tenantId::uuid
-    FOR UPDATE
 ),
 valid_workers AS (
     SELECT

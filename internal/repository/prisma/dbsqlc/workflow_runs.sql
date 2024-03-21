@@ -98,7 +98,7 @@ WITH running_count AS (
     SELECT
         r2.id,
         row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt") AS rn,
-        row_number() over (order by r2."id" desc) as seqnum
+        row_number() over (order by r2."createdAt" ASC) as seqnum
     FROM
         "WorkflowRun" r2
     LEFT JOIN
@@ -108,14 +108,28 @@ WITH running_count AS (
         r2."status" = 'QUEUED' AND
         workflowVersion."id" = $2
     ORDER BY
-        rn ASC
+        rn, seqnum ASC
+), min_rn AS (
+    SELECT
+        MIN(rn) as min_rn
+    FROM
+        queued_row_numbers
+), first_partition_count AS (
+    SELECT
+        COUNT(*) as count
+    FROM
+        queued_row_numbers
+    WHERE
+        rn = (SELECT min_rn FROM min_rn)
 ), eligible_runs AS (
     SELECT
         id
     FROM
         queued_row_numbers
     WHERE
-        queued_row_numbers."seqnum" <= (@maxRuns::int) - (SELECT "count" FROM running_count)
+        -- We can run up to maxRuns per group, so we multiple max runs by the number of groups, then subtract the 
+        -- total number of running workflows.
+        queued_row_numbers."seqnum" <= (@maxRuns::int) * (SELECT count FROM first_partition_count) - (SELECT "count" FROM running_count)
     FOR UPDATE SKIP LOCKED
 )
 UPDATE "WorkflowRun"

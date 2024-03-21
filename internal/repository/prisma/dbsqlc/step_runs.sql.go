@@ -111,7 +111,6 @@ WITH step_run AS (
     WHERE
         sr."id" = $1::uuid AND
         sr."tenantId" = $2::uuid
-    FOR UPDATE
 ),
 valid_workers AS (
     SELECT

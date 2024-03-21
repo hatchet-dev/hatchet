@@ -72,7 +72,6 @@ WITH get_group_key_run AS (
     WHERE
         ggr."id" = $1::uuid AND
         ggr."tenantId" = $2::uuid
-    FOR UPDATE
 ), valid_workers AS (
     SELECT
         w."id", w."dispatcherId"
