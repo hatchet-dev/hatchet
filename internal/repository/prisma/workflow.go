@@ -656,13 +656,13 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 			stepId := uuid.New().String()
 
 			var (
-				timeout        string
+				timeout        pgtype.Text
 				customUserData []byte
 				retries        pgtype.Int4
 			)
 
 			if stepOpts.Timeout != nil {
-				timeout = *stepOpts.Timeout
+				timeout = sqlchelpers.TextFromStr(*stepOpts.Timeout)
 			}
 
 			if stepOpts.UserData != nil {
