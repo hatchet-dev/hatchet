@@ -44,3 +44,18 @@ func New(duration time.Duration) *Cache {
 		cache:      cache.NewTTL[string, interface{}](),
 	}
 }
+
+func MakeCacheable[T any](cache Cacheable, id string, f func() (*T, error)) (*T, error) {
+	if v, ok := cache.Get(id); ok {
+		return v.(*T), nil
+	}
+
+	v, err := f()
+	if err != nil {
+		return nil, err
+	}
+
+	cache.Set(id, v)
+
+	return v, nil
+}
