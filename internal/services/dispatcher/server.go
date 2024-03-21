@@ -228,7 +228,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 				s.l.Debug().Msgf("closing stream for worker id: %s", request.WorkerId)
 				return
 			case <-timer.C:
-				if now := time.Now().UTC(); lastHeartbeat.Add(5 * time.Second).Before(now) {
+				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
 					s.l.Debug().Msgf("updating worker %s heartbeat", request.WorkerId)
 
 					_, err := s.repo.Worker().UpdateWorker(tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
