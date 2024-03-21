@@ -31,6 +31,7 @@ type ClientConfig struct {
 	ServerURL            string
 	GRPCBroadcastAddress string
 
+	// TLSConfig will be nil if the strategy is "none"
 	TLSConfig *tls.Config
 }
 
