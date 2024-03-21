@@ -21,6 +21,7 @@ type APIRepository interface {
 
 type EngineRepository interface {
 	Health() HealthRepository
+	APIToken() EngineTokenRepository
 	Dispatcher() DispatcherEngineRepository
 	Event() EventEngineRepository
 	GetGroupKeyRun() GetGroupKeyRunEngineRepository

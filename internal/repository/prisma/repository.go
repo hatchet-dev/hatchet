@@ -1,10 +1,13 @@
 package prisma
 
 import (
+	"time"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/cache"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
@@ -31,8 +34,9 @@ type apiRepository struct {
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
 
 type PrismaRepositoryOpts struct {
-	v validator.Validator
-	l *zerolog.Logger
+	v     validator.Validator
+	l     *zerolog.Logger
+	cache cache.Cacheable
 }
 
 func defaultPrismaRepositoryOpts() *PrismaRepositoryOpts {
@@ -53,6 +57,12 @@ func WithLogger(l *zerolog.Logger) PrismaRepositoryOpt {
 	}
 }
 
+func WithCache(cache cache.Cacheable) PrismaRepositoryOpt {
+	return func(opts *PrismaRepositoryOpts) {
+		opts.cache = cache
+	}
+}
+
 func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) repository.APIRepository {
 	opts := defaultPrismaRepositoryOpts()
 
@@ -63,11 +73,15 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 	newLogger := opts.l.With().Str("service", "database").Logger()
 	opts.l = &newLogger
 
+	if opts.cache == nil {
+		opts.cache = cache.New(1 * time.Millisecond)
+	}
+
 	return &apiRepository{
-		apiToken:     NewAPITokenRepository(client, opts.v),
+		apiToken:     NewAPITokenRepository(client, opts.v, opts.cache),
 		event:        NewEventAPIRepository(client, pool, opts.v, opts.l),
 		log:          NewLogAPIRepository(pool, opts.v, opts.l),
-		tenant:       NewTenantAPIRepository(client, opts.v),
+		tenant:       NewTenantAPIRepository(client, opts.v, opts.cache),
 		tenantInvite: NewTenantInviteRepository(client, opts.v),
 		workflow:     NewWorkflowRepository(client, pool, opts.v, opts.l),
 		workflowRun:  NewWorkflowRunRepository(client, pool, opts.v, opts.l),
@@ -149,6 +163,7 @@ func (r *apiRepository) User() repository.UserRepository {
 
 type engineRepository struct {
 	health         repository.HealthRepository
+	apiToken       repository.EngineTokenRepository
 	dispatcher     repository.DispatcherEngineRepository
 	event          repository.EventEngineRepository
 	getGroupKeyRun repository.GetGroupKeyRunEngineRepository
@@ -164,6 +179,10 @@ type engineRepository struct {
 
 func (r *engineRepository) Health() repository.HealthRepository {
 	return r.health
+}
+
+func (r *engineRepository) APIToken() repository.EngineTokenRepository {
+	return r.apiToken
 }
 
 func (r *engineRepository) Dispatcher() repository.DispatcherEngineRepository {
@@ -220,14 +239,19 @@ func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) reposito
 	newLogger := opts.l.With().Str("service", "database").Logger()
 	opts.l = &newLogger
 
+	if opts.cache == nil {
+		opts.cache = cache.New(1 * time.Millisecond)
+	}
+
 	return &engineRepository{
 		health:         NewHealthEngineRepository(pool),
+		apiToken:       NewEngineTokenRepository(pool, opts.v, opts.l, opts.cache),
 		dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
 		event:          NewEventEngineRepository(pool, opts.v, opts.l),
 		getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 		jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
 		stepRun:        NewStepRunEngineRepository(pool, opts.v, opts.l),
-		tenant:         NewTenantEngineRepository(pool, opts.v, opts.l),
+		tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 		ticker:         NewTickerRepository(pool, opts.v, opts.l),
 		worker:         NewWorkerEngineRepository(pool, opts.v, opts.l),
 		workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l),

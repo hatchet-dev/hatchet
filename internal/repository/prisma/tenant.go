@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/cache"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
@@ -16,12 +17,14 @@ import (
 type tenantAPIRepository struct {
 	client *db.PrismaClient
 	v      validator.Validator
+	cache  cache.Cacheable
 }
 
-func NewTenantAPIRepository(client *db.PrismaClient, v validator.Validator) repository.TenantAPIRepository {
+func NewTenantAPIRepository(client *db.PrismaClient, v validator.Validator, cache cache.Cacheable) repository.TenantAPIRepository {
 	return &tenantAPIRepository{
 		client: client,
 		v:      v,
+		cache:  cache,
 	}
 }
 
@@ -38,9 +41,11 @@ func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*
 }
 
 func (r *tenantAPIRepository) GetTenantByID(id string) (*db.TenantModel, error) {
-	return r.client.Tenant.FindUnique(
-		db.Tenant.ID.Equals(id),
-	).Exec(context.Background())
+	return cache.MakeCacheable[db.TenantModel](r.cache, id, func() (*db.TenantModel, error) {
+		return r.client.Tenant.FindUnique(
+			db.Tenant.ID.Equals(id),
+		).Exec(context.Background())
+	})
 }
 
 func (r *tenantAPIRepository) GetTenantBySlug(slug string) (*db.TenantModel, error) {
@@ -127,16 +132,18 @@ func (r *tenantAPIRepository) DeleteTenantMember(memberId string) (*db.TenantMem
 }
 
 type tenantEngineRepository struct {
+	cache   cache.Cacheable
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	l       *zerolog.Logger
 	queries *dbsqlc.Queries
 }
 
-func NewTenantEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.TenantEngineRepository {
+func NewTenantEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cache cache.Cacheable) repository.TenantEngineRepository {
 	queries := dbsqlc.New()
 
 	return &tenantEngineRepository{
+		cache:   cache,
 		pool:    pool,
 		v:       v,
 		l:       l,
@@ -149,5 +156,7 @@ func (r *tenantEngineRepository) ListTenants() ([]*dbsqlc.Tenant, error) {
 }
 
 func (r *tenantEngineRepository) GetTenantByID(tenantId string) (*dbsqlc.Tenant, error) {
-	return r.queries.GetTenantByID(context.Background(), r.pool, sqlchelpers.UUIDFromStr(tenantId))
+	return cache.MakeCacheable[dbsqlc.Tenant](r.cache, tenantId, func() (*dbsqlc.Tenant, error) {
+		return r.queries.GetTenantByID(context.Background(), r.pool, sqlchelpers.UUIDFromStr(tenantId))
+	})
 }

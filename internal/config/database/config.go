@@ -1,6 +1,8 @@
 package database
 
 import (
+	"time"
+
 	"github.com/spf13/viper"
 
 	"github.com/hatchet-dev/hatchet/internal/config/shared"
@@ -22,6 +24,8 @@ type ConfigFile struct {
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
 
 	LogQueries bool `mapstructure:"logQueries" json:"logQueries,omitempty" default:"false"`
+
+	CacheDuration time.Duration `mapstructure:"cacheDuration" json:"cacheDuration,omitempty" default:"60s"`
 }
 
 type SeedConfigFile struct {
@@ -55,6 +59,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("sslMode", "DATABASE_POSTGRES_SSL_MODE")
 	_ = v.BindEnv("logQueries", "DATABASE_LOG_QUERIES")
 	_ = v.BindEnv("maxConns", "DATABASE_MAX_CONNS")
+
+	_ = v.BindEnv("cacheDuration", "CACHE_DURATION")
 
 	_ = v.BindEnv("seed.adminEmail", "ADMIN_EMAIL")
 	_ = v.BindEnv("seed.adminPassword", "ADMIN_PASSWORD")
