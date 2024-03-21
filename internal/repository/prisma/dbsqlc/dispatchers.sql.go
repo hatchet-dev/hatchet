@@ -11,6 +11,50 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createDispatcher = `-- name: CreateDispatcher :one
+INSERT INTO
+    "Dispatcher" ("id", "lastHeartbeatAt", "isActive")
+VALUES
+    ($1::uuid, CURRENT_TIMESTAMP, 't')
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive"
+`
+
+func (q *Queries) CreateDispatcher(ctx context.Context, db DBTX, id pgtype.UUID) (*Dispatcher, error) {
+	row := db.QueryRow(ctx, createDispatcher, id)
+	var i Dispatcher
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.LastHeartbeatAt,
+		&i.IsActive,
+	)
+	return &i, err
+}
+
+const deleteDispatcher = `-- name: DeleteDispatcher :one
+DELETE FROM
+    "Dispatcher" as dispatchers
+WHERE
+    "id" = $1::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive"
+`
+
+func (q *Queries) DeleteDispatcher(ctx context.Context, db DBTX, id pgtype.UUID) (*Dispatcher, error) {
+	row := db.QueryRow(ctx, deleteDispatcher, id)
+	var i Dispatcher
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.LastHeartbeatAt,
+		&i.IsActive,
+	)
+	return &i, err
+}
+
 const listActiveDispatchers = `-- name: ListActiveDispatchers :many
 SELECT
     dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive"
@@ -173,4 +217,33 @@ func (q *Queries) SetDispatchersInactive(ctx context.Context, db DBTX, ids []pgt
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateDispatcher = `-- name: UpdateDispatcher :one
+UPDATE
+    "Dispatcher" as dispatchers
+SET
+    "lastHeartbeatAt" = $1::timestamp
+WHERE
+    "id" = $2::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive"
+`
+
+type UpdateDispatcherParams struct {
+	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
+	ID              pgtype.UUID      `json:"id"`
+}
+
+func (q *Queries) UpdateDispatcher(ctx context.Context, db DBTX, arg UpdateDispatcherParams) (*Dispatcher, error) {
+	row := db.QueryRow(ctx, updateDispatcher, arg.LastHeartbeatAt, arg.ID)
+	var i Dispatcher
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.LastHeartbeatAt,
+		&i.IsActive,
+	)
+	return &i, err
 }

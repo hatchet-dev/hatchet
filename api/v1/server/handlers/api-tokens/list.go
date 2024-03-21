@@ -11,7 +11,7 @@ import (
 func (a *APITokenService) ApiTokenList(ctx echo.Context, request gen.ApiTokenListRequestObject) (gen.ApiTokenListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	tokens, err := a.config.Repository.APIToken().ListAPITokensByTenant(tenant.ID)
+	tokens, err := a.config.APIRepository.APIToken().ListAPITokensByTenant(tenant.ID)
 
 	if err != nil {
 		return nil, err

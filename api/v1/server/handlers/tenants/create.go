@@ -23,7 +23,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// determine if a tenant with the slug already exists
-	existingTenant, err := t.config.Repository.Tenant().GetTenantBySlug(request.Body.Slug)
+	existingTenant, err := t.config.APIRepository.Tenant().GetTenantBySlug(request.Body.Slug)
 
 	if err != nil && !errors.Is(err, db.ErrNotFound) {
 		return nil, err
@@ -42,14 +42,14 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// write the user to the db
-	tenant, err := t.config.Repository.Tenant().CreateTenant(createOpts)
+	tenant, err := t.config.APIRepository.Tenant().CreateTenant(createOpts)
 
 	if err != nil {
 		return nil, err
 	}
 
 	// add the user as an owner of the tenant
-	_, err = t.config.Repository.Tenant().CreateTenantMember(tenant.ID, &repository.CreateTenantMemberOpts{
+	_, err = t.config.APIRepository.Tenant().CreateTenantMember(tenant.ID, &repository.CreateTenantMemberOpts{
 		UserId: user.ID,
 		Role:   "OWNER",
 	})

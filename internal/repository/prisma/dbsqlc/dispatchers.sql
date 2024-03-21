@@ -33,3 +33,26 @@ SELECT
     sqlc.embed(dispatchers)
 FROM
     "Dispatcher" as dispatchers;
+
+-- name: DeleteDispatcher :one
+DELETE FROM
+    "Dispatcher" as dispatchers
+WHERE
+    "id" = sqlc.arg('id')::uuid
+RETURNING *;
+
+-- name: CreateDispatcher :one
+INSERT INTO
+    "Dispatcher" ("id", "lastHeartbeatAt", "isActive")
+VALUES
+    (sqlc.arg('id')::uuid, CURRENT_TIMESTAMP, 't')
+RETURNING *;
+
+-- name: UpdateDispatcher :one
+UPDATE
+    "Dispatcher" as dispatchers
+SET
+    "lastHeartbeatAt" = sqlc.arg('lastHeartbeatAt')::timestamp
+WHERE
+    "id" = sqlc.arg('id')::uuid
+RETURNING *;

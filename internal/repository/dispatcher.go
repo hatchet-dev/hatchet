@@ -3,7 +3,7 @@ package repository
 import (
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
 
 type CreateDispatcherOpts struct {
@@ -14,20 +14,14 @@ type UpdateDispatcherOpts struct {
 	LastHeartbeatAt *time.Time
 }
 
-type DispatcherRepository interface {
-	// GetDispatcherForWorker returns the dispatcher connected to a given worker.
-	GetDispatcherForWorker(workerId string) (*db.DispatcherModel, error)
-
+type DispatcherEngineRepository interface {
 	// CreateNewDispatcher creates a new dispatcher for a given tenant.
-	CreateNewDispatcher(opts *CreateDispatcherOpts) (*db.DispatcherModel, error)
+	CreateNewDispatcher(opts *CreateDispatcherOpts) (*dbsqlc.Dispatcher, error)
 
 	// UpdateDispatcher updates a dispatcher for a given tenant.
-	UpdateDispatcher(dispatcherId string, opts *UpdateDispatcherOpts) (*db.DispatcherModel, error)
+	UpdateDispatcher(dispatcherId string, opts *UpdateDispatcherOpts) (*dbsqlc.Dispatcher, error)
 
 	Delete(dispatcherId string) error
-
-	// AddWorker adds a worker to a dispatcher.
-	AddWorker(dispatcherId, workerId string) (*db.DispatcherModel, error)
 
 	UpdateStaleDispatchers(onStale func(dispatcherId string, getValidDispatcherId func() string) error) error
 }

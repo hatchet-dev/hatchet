@@ -23,7 +23,6 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type EventsServiceClient interface {
 	Push(ctx context.Context, in *PushEventRequest, opts ...grpc.CallOption) (*Event, error)
-	List(ctx context.Context, in *ListEventRequest, opts ...grpc.CallOption) (*ListEventResponse, error)
 	ReplaySingleEvent(ctx context.Context, in *ReplayEventRequest, opts ...grpc.CallOption) (*Event, error)
 	PutLog(ctx context.Context, in *PutLogRequest, opts ...grpc.CallOption) (*PutLogResponse, error)
 }
@@ -39,15 +38,6 @@ func NewEventsServiceClient(cc grpc.ClientConnInterface) EventsServiceClient {
 func (c *eventsServiceClient) Push(ctx context.Context, in *PushEventRequest, opts ...grpc.CallOption) (*Event, error) {
 	out := new(Event)
 	err := c.cc.Invoke(ctx, "/EventsService/Push", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *eventsServiceClient) List(ctx context.Context, in *ListEventRequest, opts ...grpc.CallOption) (*ListEventResponse, error) {
-	out := new(ListEventResponse)
-	err := c.cc.Invoke(ctx, "/EventsService/List", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +67,6 @@ func (c *eventsServiceClient) PutLog(ctx context.Context, in *PutLogRequest, opt
 // for forward compatibility
 type EventsServiceServer interface {
 	Push(context.Context, *PushEventRequest) (*Event, error)
-	List(context.Context, *ListEventRequest) (*ListEventResponse, error)
 	ReplaySingleEvent(context.Context, *ReplayEventRequest) (*Event, error)
 	PutLog(context.Context, *PutLogRequest) (*PutLogResponse, error)
 	mustEmbedUnimplementedEventsServiceServer()
@@ -89,9 +78,6 @@ type UnimplementedEventsServiceServer struct {
 
 func (UnimplementedEventsServiceServer) Push(context.Context, *PushEventRequest) (*Event, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Push not implemented")
-}
-func (UnimplementedEventsServiceServer) List(context.Context, *ListEventRequest) (*ListEventResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
 }
 func (UnimplementedEventsServiceServer) ReplaySingleEvent(context.Context, *ReplayEventRequest) (*Event, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplaySingleEvent not implemented")
@@ -126,24 +112,6 @@ func _EventsService_Push_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EventsServiceServer).Push(ctx, req.(*PushEventRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _EventsService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListEventRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(EventsServiceServer).List(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/EventsService/List",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(EventsServiceServer).List(ctx, req.(*ListEventRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -194,10 +162,6 @@ var EventsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Push",
 			Handler:    _EventsService_Push_Handler,
-		},
-		{
-			MethodName: "List",
-			Handler:    _EventsService_List_Handler,
 		},
 		{
 			MethodName: "ReplaySingleEvent",

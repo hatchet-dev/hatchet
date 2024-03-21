@@ -47,7 +47,7 @@ func GetGithubAppClientFromRequest(ctx echo.Context, config *server.ServerConfig
 	user := ctx.Get("user").(*db.UserModel)
 	gai := ctx.Get("gh-installation").(*db.GithubAppInstallationModel)
 
-	if canAccess, err := config.Repository.Github().CanUserAccessInstallation(gai.ID, user.ID); err != nil || !canAccess {
+	if canAccess, err := config.APIRepository.Github().CanUserAccessInstallation(gai.ID, user.ID); err != nil || !canAccess {
 		respErr := apierrors.NewAPIErrors("User does not have access to the installation")
 		return nil, &respErr
 	}

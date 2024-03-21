@@ -3,7 +3,6 @@ package tasktypes
 import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
 type WorkflowRunQueuedTaskPayload struct {
@@ -11,8 +10,7 @@ type WorkflowRunQueuedTaskPayload struct {
 }
 
 type WorkflowRunQueuedTaskMetadata struct {
-	TenantId          string `json:"tenant_id" validate:"required,uuid"`
-	WorkflowVersionId string `json:"workflow_version_id" validate:"required,uuid"`
+	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
 type WorkflowRunFinishedTask struct {
@@ -42,14 +40,13 @@ func WorkflowRunFinishedToTask(tenantId, workflowRunId, status string) *msgqueue
 	}
 }
 
-func WorkflowRunQueuedToTask(workflowRun *db.WorkflowRunModel) *msgqueue.Message {
+func WorkflowRunQueuedToTask(tenantId, workflowRunId string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(WorkflowRunQueuedTaskPayload{
-		WorkflowRunId: workflowRun.ID,
+		WorkflowRunId: workflowRunId,
 	})
 
 	metadata, _ := datautils.ToJSONMap(WorkflowRunQueuedTaskMetadata{
-		WorkflowVersionId: workflowRun.WorkflowVersionID,
-		TenantId:          workflowRun.TenantID,
+		TenantId: tenantId,
 	})
 
 	return &msgqueue.Message{

@@ -38,7 +38,7 @@ type WorkerOpts struct {
 	client client.Client
 
 	l            *zerolog.Logger
-	repo         repository.Repository
+	repo         repository.APIRepository
 	vcsProviders map[vcs.VCSRepositoryKind]vcs.VCSProvider
 }
 
@@ -50,7 +50,7 @@ func defaultWorkerOpts() *WorkerOpts {
 	}
 }
 
-func WithRepository(r repository.Repository) WorkerOpt {
+func WithRepository(r repository.APIRepository) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.repo = r
 	}
@@ -78,7 +78,7 @@ type WorkerImpl struct {
 	*worker.Worker
 
 	l            *zerolog.Logger
-	repo         repository.Repository
+	repo         repository.APIRepository
 	vcsProviders map[vcs.VCSRepositoryKind]vcs.VCSProvider
 }
 

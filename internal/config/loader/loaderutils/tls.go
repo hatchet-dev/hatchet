@@ -27,6 +27,8 @@ func LoadClientTLSConfig(tlsConfig *client.ClientTLSConfigFile, serverName strin
 	case "mtls":
 		res.ServerName = tlsConfig.TLSServerName
 		res.RootCAs = ca
+	case "none":
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("invalid TLS strategy: %s", tlsConfig.Base.TLSStrategy)
 	}

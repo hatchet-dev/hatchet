@@ -11,6 +11,35 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const listJobRunsForWorkflowRun = `-- name: ListJobRunsForWorkflowRun :many
+SELECT
+    "id"
+FROM
+    "JobRun" jr
+WHERE
+    jr."workflowRunId" = $1::uuid
+`
+
+func (q *Queries) ListJobRunsForWorkflowRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listJobRunsForWorkflowRun, workflowrunid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const resolveJobRunStatus = `-- name: ResolveJobRunStatus :one
 WITH stepRuns AS (
     SELECT sum(case when runs."status" IN ('PENDING', 'PENDING_ASSIGNMENT') then 1 else 0 end) AS pendingRuns,
