@@ -15,7 +15,7 @@ type CreateEventOpts struct {
 	Key string `validate:"required"`
 
 	// (optional) the event data
-	Data *db.JSON
+	Data []byte
 
 	// (optional) the event that this event is replaying
 	ReplayedEvent *string `validate:"omitempty,uuid"`
@@ -55,7 +55,7 @@ type ListEventResult struct {
 	Count int
 }
 
-type EventRepository interface {
+type EventAPIRepository interface {
 	// ListEvents returns all events for a given tenant.
 	ListEvents(tenantId string, opts *ListEventOpts) (*ListEventResult, error)
 
@@ -65,12 +65,16 @@ type EventRepository interface {
 	// GetEventById returns an event by id.
 	GetEventById(id string) (*db.EventModel, error)
 
-	// GetEventForEngine returns an event for the engine by id.
-	GetEventForEngine(tenantId, id string) (*dbsqlc.GetEventForEngineRow, error)
-
 	// ListEventsById returns a list of events by id.
 	ListEventsById(tenantId string, ids []string) ([]db.EventModel, error)
+}
 
+type EventEngineRepository interface {
 	// CreateEvent creates a new event for a given tenant.
-	CreateEvent(ctx context.Context, opts *CreateEventOpts) (*db.EventModel, error)
+	CreateEvent(ctx context.Context, opts *CreateEventOpts) (*dbsqlc.Event, error)
+
+	// GetEventForEngine returns an event for the engine by id.
+	GetEventForEngine(tenantId, id string) (*dbsqlc.Event, error)
+
+	ListEventsByIds(tenantId string, ids []string) ([]*dbsqlc.Event, error)
 }

@@ -424,36 +424,28 @@ JOIN
 JOIN 
     "StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = @jobRunId::uuid;
 
--- name: ListStartableStepRuns :many
-WITH job_run AS (
-    SELECT "status"
-    FROM "JobRun"
-    WHERE "id" = @jobRunId::uuid
-)
-SELECT 
-    child_run."id" AS "id"
-FROM 
-    "StepRun" AS child_run
-LEFT JOIN 
-    "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
-JOIN
-    job_run ON true
-WHERE 
-    child_run."jobRunId" = @jobRunId::uuid
-    AND child_run."status" = 'PENDING'
-    AND job_run."status" = 'RUNNING'
-    -- case on whether parentStepRunId is null
-    AND (
-        (sqlc.narg('parentStepRunId')::uuid IS NULL AND step_run_order."A" IS NULL) OR 
-        (
-            step_run_order."A" = sqlc.narg('parentStepRunId')::uuid
-            AND NOT EXISTS (
-                SELECT 1
-                FROM "_StepRunOrder" AS parent_order
-                JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
-                WHERE 
-                    parent_order."B" = child_run."id"
-                    AND parent_run."status" != 'SUCCEEDED'
-            )
-        )
-    );
+-- name: GetWorkflowRun :many
+SELECT
+    sqlc.embed(runs), 
+    sqlc.embed(runTriggers), 
+    sqlc.embed(workflowVersion), 
+    workflow."name" as "workflowName",
+    -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
+    wc."limitStrategy" as "concurrencyLimitStrategy",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    groupKeyRun."id" as "getGroupKeyRunId"
+FROM
+    "WorkflowRun" as runs
+LEFT JOIN
+    "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
+LEFT JOIN
+    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
+WHERE
+    runs."id" = ANY(@ids::uuid[]) AND
+    runs."tenantId" = @tenantId::uuid;

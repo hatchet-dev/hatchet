@@ -8,25 +8,22 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
 type dispatcherRepository struct {
-	client  *db.PrismaClient
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 }
 
-func NewDispatcherRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.DispatcherRepository {
+func NewDispatcherRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.DispatcherEngineRepository {
 	queries := dbsqlc.New()
 
 	return &dispatcherRepository{
-		client:  client,
 		pool:    pool,
 		queries: queries,
 		v:       v,
@@ -34,46 +31,27 @@ func NewDispatcherRepository(client *db.PrismaClient, pool *pgxpool.Pool, v vali
 	}
 }
 
-func (d *dispatcherRepository) GetDispatcherForWorker(workerId string) (*db.DispatcherModel, error) {
-	return d.client.Dispatcher.FindFirst(
-		db.Dispatcher.Workers.Some(
-			db.Worker.ID.Equals(workerId),
-		),
-	).Exec(context.Background())
-}
-
-func (d *dispatcherRepository) CreateNewDispatcher(opts *repository.CreateDispatcherOpts) (*db.DispatcherModel, error) {
-	return d.client.Dispatcher.CreateOne(
-		db.Dispatcher.ID.Set(opts.ID),
-	).Exec(context.Background())
-}
-
-func (d *dispatcherRepository) UpdateDispatcher(dispatcherId string, opts *repository.UpdateDispatcherOpts) (*db.DispatcherModel, error) {
+func (d *dispatcherRepository) CreateNewDispatcher(opts *repository.CreateDispatcherOpts) (*dbsqlc.Dispatcher, error) {
 	if err := d.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return d.client.Dispatcher.FindUnique(
-		db.Dispatcher.ID.Equals(dispatcherId),
-	).Update(
-		db.Dispatcher.LastHeartbeatAt.SetIfPresent(opts.LastHeartbeatAt),
-	).Exec(context.Background())
+	return d.queries.CreateDispatcher(context.Background(), d.pool, sqlchelpers.UUIDFromStr(opts.ID))
 }
 
-func (d *dispatcherRepository) AddWorker(dispatcherId, workerId string) (*db.DispatcherModel, error) {
-	return d.client.Dispatcher.FindUnique(
-		db.Dispatcher.ID.Equals(dispatcherId),
-	).Update(
-		db.Dispatcher.Workers.Link(
-			db.Worker.ID.Equals(workerId),
-		),
-	).Exec(context.Background())
+func (d *dispatcherRepository) UpdateDispatcher(dispatcherId string, opts *repository.UpdateDispatcherOpts) (*dbsqlc.Dispatcher, error) {
+	if err := d.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	return d.queries.UpdateDispatcher(context.Background(), d.pool, dbsqlc.UpdateDispatcherParams{
+		ID:              sqlchelpers.UUIDFromStr(dispatcherId),
+		LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
+	})
 }
 
 func (d *dispatcherRepository) Delete(dispatcherId string) error {
-	_, err := d.client.Dispatcher.FindUnique(
-		db.Dispatcher.ID.Equals(dispatcherId),
-	).Delete().Exec(context.Background())
+	_, err := d.queries.DeleteDispatcher(context.Background(), d.pool, sqlchelpers.UUIDFromStr(dispatcherId))
 
 	return err
 }

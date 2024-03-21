@@ -34,7 +34,7 @@ func (t *TenantService) TenantInviteUpdate(ctx echo.Context, request gen.TenantI
 	}
 
 	// update the invite
-	invite, err := t.config.Repository.TenantInvite().UpdateTenantInvite(invite.ID, updateOpts)
+	invite, err := t.config.APIRepository.TenantInvite().UpdateTenantInvite(invite.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

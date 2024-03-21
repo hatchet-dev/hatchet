@@ -2,38 +2,28 @@ package ingestor
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
-	tenant := ctx.Value("tenant").(*db.TenantModel)
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	eventDataMap := map[string]interface{}{}
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	err := json.Unmarshal([]byte(req.Payload), &eventDataMap)
-
-	if err != nil {
-		return nil, err
-	}
-
-	event, err := i.IngestEvent(ctx, tenant.ID, req.Key, eventDataMap)
+	event, err := i.IngestEvent(ctx, tenantId, req.Key, []byte(req.Payload))
 
 	if err != nil {
 		return nil, err
 	}
 
-	e, err := toEvent(*event)
+	e, err := toEvent(event)
 
 	if err != nil {
 		return nil, err
@@ -42,58 +32,24 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	return e, nil
 }
 
-func (i *IngestorImpl) List(ctx context.Context, req *contracts.ListEventRequest) (*contracts.ListEventResponse, error) {
-	tenant := ctx.Value("tenant").(*db.TenantModel)
-
-	offset := int(req.Offset)
-	var keys []string
-
-	if req.Key != "" {
-		keys = []string{req.Key}
-	}
-
-	listResult, err := i.eventRepository.ListEvents(tenant.ID, &repository.ListEventOpts{
-		Keys:   keys,
-		Offset: &offset,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	items := []*contracts.Event{}
-
-	for _, event := range listResult.Rows {
-		e, err := toEventFromSQLC(event)
-
-		if err != nil {
-			return nil, err
-		}
-
-		items = append(items, e)
-	}
-
-	return &contracts.ListEventResponse{
-		Events: items,
-	}, nil
-}
-
 func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.ReplayEventRequest) (*contracts.Event, error) {
-	tenant := ctx.Value("tenant").(*db.TenantModel)
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	oldEvent, err := i.eventRepository.GetEventById(req.EventId)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	if err != nil {
-		return nil, err
-	}
-
-	newEvent, err := i.IngestReplayedEvent(ctx, tenant.ID, oldEvent)
+	oldEvent, err := i.eventRepository.GetEventForEngine(tenantId, req.EventId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	e, err := toEvent(*newEvent)
+	newEvent, err := i.IngestReplayedEvent(ctx, tenantId, oldEvent)
+
+	if err != nil {
+		return nil, err
+	}
+
+	e, err := toEvent(newEvent)
 
 	if err != nil {
 		return nil, err
@@ -103,7 +59,9 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 }
 
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	tenant := ctx.Value("tenant").(*db.TenantModel)
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	var createdAt *time.Time
 
@@ -117,7 +75,7 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 		metadata = []byte(req.Metadata)
 	}
 
-	_, err := i.logRepository.PutLog(tenant.ID, &repository.CreateLogLineOpts{
+	_, err := i.logRepository.PutLog(tenantId, &repository.CreateLogLineOpts{
 		StepRunId: req.StepRunId,
 		CreatedAt: createdAt,
 		Message:   req.Message,
@@ -132,45 +90,15 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 	return &contracts.PutLogResponse{}, nil
 }
 
-func toEventFromSQLC(eventRow *dbsqlc.ListEventsRow) (*contracts.Event, error) {
-	event := eventRow.Event
-
-	var payload string
-
-	if event.Data != nil {
-		payload = string(event.Data)
-	}
+func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
+	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
+	eventId := sqlchelpers.UUIDToStr(e.ID)
 
 	return &contracts.Event{
-		TenantId:       pgUUIDToStr(event.TenantId),
-		EventId:        pgUUIDToStr(event.ID),
-		Key:            event.Key,
-		Payload:        payload,
-		EventTimestamp: timestamppb.New(event.CreatedAt.Time),
-	}, nil
-}
-
-func pgUUIDToStr(uuid pgtype.UUID) string {
-	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid.Bytes[0:4], uuid.Bytes[4:6], uuid.Bytes[6:8], uuid.Bytes[8:10], uuid.Bytes[10:16])
-}
-
-func toEvent(e db.EventModel) (*contracts.Event, error) {
-	var payload string
-
-	if data, ok := e.Data(); ok {
-		payloadBytes := []byte(data)
-		payload = string(payloadBytes)
-	}
-
-	return &contracts.Event{
-		TenantId:       e.TenantID,
-		EventId:        e.ID,
+		TenantId:       tenantId,
+		EventId:        eventId,
 		Key:            e.Key,
-		Payload:        payload,
-		EventTimestamp: timestamppb.New(e.CreatedAt),
+		Payload:        string(e.Data),
+		EventTimestamp: timestamppb.New(e.CreatedAt.Time),
 	}, nil
 }
-
-// func (contracts.UnimplementedEventsServiceServer).List(context.Context, *contracts.ListEventRequest) (*contracts.ListEventResponse, error)
-// func (contracts.UnimplementedEventsServiceServer).Push(context.Context, *contracts.Event) (*contracts.EventPushResponse, error)
-// func (contracts.UnimplementedEventsServiceServer).ReplaySingleEvent(context.Context, *contracts.ReplayEventRequest) (*contracts.EventPushResponse, error)

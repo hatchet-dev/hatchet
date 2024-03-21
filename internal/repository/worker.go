@@ -51,30 +51,26 @@ type ListWorkersOpts struct {
 	Assignable *bool
 }
 
-type WorkerRepository interface {
+type WorkerAPIRepository interface {
 	// ListWorkers lists workers for the tenant
 	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error)
 
 	// ListRecentWorkerStepRuns lists recent step runs for a given worker
 	ListRecentWorkerStepRuns(tenantId, workerId string) ([]db.StepRunModel, error)
 
+	// GetWorkerById returns a worker by its id.
+	GetWorkerById(workerId string) (*db.WorkerModel, error)
+}
+
+type WorkerEngineRepository interface {
 	// CreateNewWorker creates a new worker for a given tenant.
-	CreateNewWorker(tenantId string, opts *CreateWorkerOpts) (*db.WorkerModel, error)
+	CreateNewWorker(tenantId string, opts *CreateWorkerOpts) (*dbsqlc.Worker, error)
 
 	// UpdateWorker updates a worker for a given tenant.
-	UpdateWorker(tenantId, workerId string, opts *UpdateWorkerOpts) (*db.WorkerModel, error)
+	UpdateWorker(tenantId, workerId string, opts *UpdateWorkerOpts) (*dbsqlc.Worker, error)
 
 	// DeleteWorker removes the worker from the database
 	DeleteWorker(tenantId, workerId string) error
 
-	// GetWorkerById returns a worker by its id.
-	GetWorkerById(workerId string) (*db.WorkerModel, error)
-
 	GetWorkerForEngine(tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
-
-	// AddStepRun assigns a step run to a worker.
-	AddStepRun(tenantId, workerId, stepRunId string) error
-
-	// AddGetGroupKeyRun assigns a get group key run to a worker.
-	AddGetGroupKeyRun(tenantId, workerId, getGroupKeyRunId string) error
 }

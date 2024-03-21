@@ -15,6 +15,7 @@ sql:
       - dispatchers.sql
       - workers.sql
       - logs.sql
+      - tenants.sql
     schema:
       - schema.sql
     strict_order_by: false

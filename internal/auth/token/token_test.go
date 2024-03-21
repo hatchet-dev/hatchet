@@ -29,7 +29,7 @@ func TestCreateTenantToken(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		_, err = conf.Repository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+		_, err = conf.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
 			ID:   &tenantId,
 			Name: "test-tenant",
 			Slug: fmt.Sprintf("test-tenant-%s", slugSuffix),
@@ -68,7 +68,7 @@ func TestRevokeTenantToken(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		_, err = conf.Repository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+		_, err = conf.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
 			ID:   &tenantId,
 			Name: "test-tenant",
 			Slug: fmt.Sprintf("test-tenant-%s", slugSuffix),
@@ -90,14 +90,14 @@ func TestRevokeTenantToken(t *testing.T) {
 		assert.NoError(t, err)
 
 		// revoke the token
-		apiTokens, err := conf.Repository.APIToken().ListAPITokensByTenant(tenantId)
+		apiTokens, err := conf.APIRepository.APIToken().ListAPITokensByTenant(tenantId)
 
 		if err != nil {
 			t.Fatal(err.Error())
 		}
 
 		assert.Len(t, apiTokens, 1)
-		err = conf.Repository.APIToken().RevokeAPIToken(apiTokens[0].ID)
+		err = conf.APIRepository.APIToken().RevokeAPIToken(apiTokens[0].ID)
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -127,7 +127,7 @@ func getJWTManager(t *testing.T, conf *database.Config) token.JWTManager {
 		t.Fatal(err.Error())
 	}
 
-	tokenRepo := conf.Repository.APIToken()
+	tokenRepo := conf.APIRepository.APIToken()
 
 	jwtManager, err := token.NewJWTManager(encryptionService, tokenRepo, &token.TokenOpts{
 		Issuer:   "hatchet",

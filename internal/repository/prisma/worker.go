@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,7 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
-type workerRepository struct {
+type workerAPIRepository struct {
 	client  *db.PrismaClient
 	pool    *pgxpool.Pool
 	v       validator.Validator
@@ -26,10 +25,10 @@ type workerRepository struct {
 	l       *zerolog.Logger
 }
 
-func NewWorkerRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkerRepository {
+func NewWorkerAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkerAPIRepository {
 	queries := dbsqlc.New()
 
-	return &workerRepository{
+	return &workerAPIRepository{
 		client:  client,
 		pool:    pool,
 		v:       v,
@@ -38,7 +37,7 @@ func NewWorkerRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validato
 	}
 }
 
-func (w *workerRepository) GetWorkerById(workerId string) (*db.WorkerModel, error) {
+func (w *workerAPIRepository) GetWorkerById(workerId string) (*db.WorkerModel, error) {
 	return w.client.Worker.FindUnique(
 		db.Worker.ID.Equals(workerId),
 	).With(
@@ -47,14 +46,7 @@ func (w *workerRepository) GetWorkerById(workerId string) (*db.WorkerModel, erro
 	).Exec(context.Background())
 }
 
-func (w *workerRepository) GetWorkerForEngine(tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error) {
-	return w.queries.GetWorkerForEngine(context.Background(), w.pool, dbsqlc.GetWorkerForEngineParams{
-		ID:       sqlchelpers.UUIDFromStr(workerId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-	})
-}
-
-func (w *workerRepository) ListRecentWorkerStepRuns(tenantId, workerId string) ([]db.StepRunModel, error) {
+func (w *workerAPIRepository) ListRecentWorkerStepRuns(tenantId, workerId string) ([]db.StepRunModel, error) {
 	return w.client.StepRun.FindMany(
 		db.StepRun.WorkerID.Equals(workerId),
 		db.StepRun.TenantID.Equals(tenantId),
@@ -75,7 +67,7 @@ func (w *workerRepository) ListRecentWorkerStepRuns(tenantId, workerId string) (
 	).Exec(context.Background())
 }
 
-func (r *workerRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error) {
+func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -128,205 +120,199 @@ func (r *workerRepository) ListWorkers(tenantId string, opts *repository.ListWor
 	return workers, nil
 }
 
-func (w *workerRepository) CreateNewWorker(tenantId string, opts *repository.CreateWorkerOpts) (*db.WorkerModel, error) {
+type workerEngineRepository struct {
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
+}
+
+func NewWorkerEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkerEngineRepository {
+	queries := dbsqlc.New()
+
+	return &workerEngineRepository{
+		pool:    pool,
+		v:       v,
+		queries: queries,
+		l:       l,
+	}
+}
+
+func (w *workerEngineRepository) GetWorkerForEngine(tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error) {
+	return w.queries.GetWorkerForEngine(context.Background(), w.pool, dbsqlc.GetWorkerForEngineParams{
+		ID:       sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+}
+
+func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *repository.CreateWorkerOpts) (*dbsqlc.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	txs := []db.PrismaTransaction{}
-
-	workerId := uuid.New().String()
-
-	createTx := w.client.Worker.CreateOne(
-		db.Worker.Tenant.Link(
-			db.Tenant.ID.Equals(tenantId),
-		),
-		db.Worker.Name.Set(opts.Name),
-		db.Worker.Dispatcher.Link(
-			db.Dispatcher.ID.Equals(opts.DispatcherId),
-		),
-		db.Worker.ID.Set(workerId),
-		db.Worker.MaxRuns.SetIfPresent(opts.MaxRuns),
-	).Tx()
-
-	txs = append(txs, createTx)
-
-	for _, svc := range opts.Services {
-		upsertServiceTx := w.client.Service.UpsertOne(
-			db.Service.TenantIDName(
-				db.Service.TenantID.Equals(tenantId),
-				db.Service.Name.Equals(svc),
-			),
-		).Create(
-			db.Service.Name.Set(svc),
-			db.Service.Tenant.Link(
-				db.Tenant.ID.Equals(tenantId),
-			),
-			db.Service.Workers.Link(
-				db.Worker.ID.Equals(workerId),
-			),
-		).Update(
-			db.Service.Workers.Link(
-				db.Worker.ID.Equals(workerId),
-			),
-		).Tx()
-
-		txs = append(txs, upsertServiceTx)
-	}
-
-	if len(opts.Actions) > 0 {
-		for _, action := range opts.Actions {
-			txs = append(txs, w.client.Action.UpsertOne(
-				db.Action.TenantIDActionID(
-					db.Action.TenantID.Equals(tenantId),
-					db.Action.ActionID.Equals(action),
-				),
-			).Create(
-				db.Action.ActionID.Set(action),
-				db.Action.Tenant.Link(
-					db.Tenant.ID.Equals(tenantId),
-				),
-			).Update().Tx())
-
-			// This is unfortunate but due to https://github.com/steebchen/prisma-client-go/issues/1095,
-			// we cannot set db.Worker.Actions.Link multiple times, and since Link required a unique action
-			// where clause, we have to do these in separate transactions
-			txs = append(txs, w.client.Worker.FindUnique(
-				db.Worker.ID.Equals(workerId),
-			).Update(
-				db.Worker.Actions.Link(
-					db.Action.TenantIDActionID(
-						db.Action.TenantID.Equals(tenantId),
-						db.Action.ActionID.Equals(action),
-					),
-				),
-			).Tx())
-		}
-	}
-
-	err := w.client.Prisma.Transaction(txs...).Exec(context.Background())
+	tx, err := w.pool.Begin(context.Background())
 
 	if err != nil {
 		return nil, err
 	}
 
-	return createTx.Result(), nil
+	defer deferRollback(context.Background(), w.l, tx.Rollback)
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	createParams := dbsqlc.CreateWorkerParams{
+		Tenantid:     pgTenantId,
+		Dispatcherid: sqlchelpers.UUIDFromStr(opts.DispatcherId),
+		Name:         opts.Name,
+	}
+
+	if opts.MaxRuns != nil {
+		createParams.MaxRuns = pgtype.Int4{
+			Int32: int32(*opts.MaxRuns),
+			Valid: true,
+		}
+	}
+
+	worker, err := w.queries.CreateWorker(context.Background(), tx, createParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create worker: %w", err)
+	}
+
+	svcUUIDs := make([]pgtype.UUID, len(opts.Services))
+
+	for i, svc := range opts.Services {
+		dbSvc, err := w.queries.UpsertService(context.Background(), tx, dbsqlc.UpsertServiceParams{
+			Name:     svc,
+			Tenantid: pgTenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not upsert service: %w", err)
+		}
+
+		svcUUIDs[i] = dbSvc.ID
+	}
+
+	err = w.queries.LinkServicesToWorker(context.Background(), tx, dbsqlc.LinkServicesToWorkerParams{
+		Services: svcUUIDs,
+		Workerid: worker.ID,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not link services to worker: %w", err)
+	}
+
+	actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+
+	for i, action := range opts.Actions {
+		dbAction, err := w.queries.UpsertAction(context.Background(), tx, dbsqlc.UpsertActionParams{
+			Action:   action,
+			Tenantid: pgTenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not upsert action: %w", err)
+		}
+
+		actionUUIDs[i] = dbAction.ID
+	}
+
+	err = w.queries.LinkActionsToWorker(context.Background(), tx, dbsqlc.LinkActionsToWorkerParams{
+		Actionids: actionUUIDs,
+		Workerid:  worker.ID,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not link actions to worker: %w", err)
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return worker, nil
 }
 
-func (w *workerRepository) UpdateWorker(tenantId, workerId string, opts *repository.UpdateWorkerOpts) (*db.WorkerModel, error) {
+func (w *workerEngineRepository) UpdateWorker(tenantId, workerId string, opts *repository.UpdateWorkerOpts) (*dbsqlc.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	txs := []db.PrismaTransaction{}
+	tx, err := w.pool.Begin(context.Background())
 
-	optionals := []db.WorkerSetParam{}
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), w.l, tx.Rollback)
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	updateParams := dbsqlc.UpdateWorkerParams{
+		ID: sqlchelpers.UUIDFromStr(workerId),
+	}
 
 	if opts.Status != nil {
-		optionals = append(optionals, db.Worker.Status.Set(*opts.Status))
+		updateParams.Status = dbsqlc.NullWorkerStatus{
+			WorkerStatus: dbsqlc.WorkerStatus(*opts.Status),
+			Valid:        true,
+		}
 	}
 
 	if opts.LastHeartbeatAt != nil {
-		optionals = append(optionals, db.Worker.LastHeartbeatAt.Set(*opts.LastHeartbeatAt))
+		updateParams.LastHeartbeatAt = sqlchelpers.TimestampFromTime(*opts.LastHeartbeatAt)
 	}
 
 	if opts.DispatcherId != nil {
-		optionals = append(optionals, db.Worker.Dispatcher.Link(
-			db.Dispatcher.ID.Equals(*opts.DispatcherId),
-		))
+		updateParams.DispatcherId = sqlchelpers.UUIDFromStr(*opts.DispatcherId)
+	}
+
+	worker, err := w.queries.UpdateWorker(context.Background(), tx, updateParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not update worker: %w", err)
 	}
 
 	if len(opts.Actions) > 0 {
-		for _, action := range opts.Actions {
-			txs = append(txs, w.client.Action.UpsertOne(
-				db.Action.TenantIDActionID(
-					db.Action.TenantID.Equals(tenantId),
-					db.Action.ActionID.Equals(action),
-				),
-			).Create(
-				db.Action.ActionID.Set(action),
-				db.Action.Tenant.Link(
-					db.Tenant.ID.Equals(tenantId),
-				),
-			).Update().Tx())
+		actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
 
-			// This is unfortunate but due to https://github.com/steebchen/prisma-client-go/issues/1095,
-			// we cannot set db.Worker.Actions.Link multiple times, and since Link required a unique action
-			// where clause, we have to do these in separate transactions
-			txs = append(txs, w.client.Worker.FindUnique(
-				db.Worker.ID.Equals(workerId),
-			).Update(
-				db.Worker.Actions.Link(
-					db.Action.TenantIDActionID(
-						db.Action.TenantID.Equals(tenantId),
-						db.Action.ActionID.Equals(action),
-					),
-				),
-			).Tx())
+		for i, action := range opts.Actions {
+			dbAction, err := w.queries.UpsertAction(context.Background(), tx, dbsqlc.UpsertActionParams{
+				Action:   action,
+				Tenantid: pgTenantId,
+			})
+
+			if err != nil {
+				return nil, fmt.Errorf("could not upsert action: %w", err)
+			}
+
+			actionUUIDs[i] = dbAction.ID
+		}
+
+		err = w.queries.LinkActionsToWorker(context.Background(), tx, dbsqlc.LinkActionsToWorkerParams{
+			Actionids: actionUUIDs,
+			Workerid:  sqlchelpers.UUIDFromStr(workerId),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not link actions to worker: %w", err)
 		}
 	}
 
-	updateTx := w.client.Worker.FindUnique(
-		db.Worker.ID.Equals(workerId),
-	).Update(
-		optionals...,
-	).Tx()
-
-	txs = append(txs, updateTx)
-
-	err := w.client.Prisma.Transaction(txs...).Exec(context.Background())
+	err = tx.Commit(context.Background())
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
-	return updateTx.Result(), nil
+	return worker, nil
 }
 
-func (w *workerRepository) DeleteWorker(tenantId, workerId string) error {
-	_, err := w.client.Worker.FindUnique(
-		db.Worker.ID.Equals(workerId),
-	).Delete().Exec(context.Background())
-
-	return err
-}
-
-func (w *workerRepository) AddStepRun(tenantId, workerId, stepRunId string) error {
-	tx1 := w.client.Worker.FindUnique(
-		db.Worker.ID.Equals(workerId),
-	).Update(
-		db.Worker.StepRuns.Link(
-			db.StepRun.ID.Equals(stepRunId),
-		),
-	).Tx()
-
-	tx2 := w.client.StepRun.FindUnique(
-		db.StepRun.ID.Equals(stepRunId),
-	).Update(
-		db.StepRun.Status.Set(db.StepRunStatusAssigned),
-	).Tx()
-
-	err := w.client.Prisma.Transaction(tx1, tx2).Exec(context.Background())
-
-	return err
-}
-
-func (w *workerRepository) AddGetGroupKeyRun(tenantId, workerId, getGroupKeyRunId string) error {
-	tx1 := w.client.Worker.FindUnique(
-		db.Worker.ID.Equals(workerId),
-	).Update(
-		db.Worker.GroupKeyRuns.Link(
-			db.GetGroupKeyRun.ID.Equals(getGroupKeyRunId),
-		),
-	).Tx()
-
-	tx2 := w.client.GetGroupKeyRun.FindUnique(
-		db.GetGroupKeyRun.ID.Equals(getGroupKeyRunId),
-	).Update(
-		db.GetGroupKeyRun.Status.Set(db.StepRunStatusAssigned),
-	).Tx()
-
-	err := w.client.Prisma.Transaction(tx1, tx2).Exec(context.Background())
+func (w *workerEngineRepository) DeleteWorker(tenantId, workerId string) error {
+	_, err := w.queries.DeleteWorker(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
 
 	return err
 }

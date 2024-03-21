@@ -16,13 +16,13 @@ import (
 )
 
 type GithubVCSProvider struct {
-	repo      repository.Repository
+	repo      repository.APIRepository
 	appConf   *GithubAppConf
 	serverURL string
 	enc       encryption.EncryptionService
 }
 
-func NewGithubVCSProvider(appConf *GithubAppConf, repo repository.Repository, serverURL string, enc encryption.EncryptionService) GithubVCSProvider {
+func NewGithubVCSProvider(appConf *GithubAppConf, repo repository.APIRepository, serverURL string, enc encryption.EncryptionService) GithubVCSProvider {
 	return GithubVCSProvider{
 		appConf:   appConf,
 		repo:      repo,
@@ -82,7 +82,7 @@ func (g GithubVCSProvider) GetVCSRepositoryFromWorkflow(workflow *db.WorkflowMod
 type GithubVCSRepository struct {
 	repoOwner, repoName string
 	client              *githubsdk.Client
-	repo                repository.Repository
+	repo                repository.APIRepository
 	serverURL           string
 	webhookURL          string
 	enc                 encryption.EncryptionService

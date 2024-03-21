@@ -15,6 +15,8 @@ type ConfigFile struct {
 	PostgresDbName   string `mapstructure:"dbName" json:"dbName,omitempty" default:"hatchet"`
 	PostgresSSLMode  string `mapstructure:"sslMode" json:"sslMode,omitempty" default:"disable"`
 
+	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"5"`
+
 	Seed SeedConfigFile `mapstructure:"seed" json:"seed,omitempty"`
 
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
@@ -37,7 +39,9 @@ type SeedConfigFile struct {
 type Config struct {
 	Disconnect func() error
 
-	Repository repository.Repository
+	APIRepository repository.APIRepository
+
+	EngineRepository repository.EngineRepository
 
 	Seed SeedConfigFile
 }
@@ -50,6 +54,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("dbName", "DATABASE_POSTGRES_DB_NAME")
 	_ = v.BindEnv("sslMode", "DATABASE_POSTGRES_SSL_MODE")
 	_ = v.BindEnv("logQueries", "DATABASE_LOG_QUERIES")
+	_ = v.BindEnv("maxConns", "DATABASE_MAX_CONNS")
 
 	_ = v.BindEnv("seed.adminEmail", "ADMIN_EMAIL")
 	_ = v.BindEnv("seed.adminPassword", "ADMIN_PASSWORD")

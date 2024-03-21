@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
@@ -197,12 +198,18 @@ func (s *Server) startGRPC() (func() error, error) {
 		return status.Errorf(codes.Internal, "An internal error occurred")
 	}
 
+	opts := []logging.Option{
+		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall),
+	}
+
 	serverOpts = append(serverOpts, grpc.ChainStreamInterceptor(
+		logging.StreamServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
 		auth.StreamServerInterceptor(authMiddleware.Middleware),
 		recovery.StreamServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
 
 	serverOpts = append(serverOpts, grpc.ChainUnaryInterceptor(
+		logging.UnaryServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
 		auth.UnaryServerInterceptor(authMiddleware.Middleware),
 		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))

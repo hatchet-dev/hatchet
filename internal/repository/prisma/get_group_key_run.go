@@ -11,57 +11,27 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
 type getGroupKeyRunRepository struct {
-	client  *db.PrismaClient
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	l       *zerolog.Logger
 	queries *dbsqlc.Queries
 }
 
-func NewGetGroupKeyRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.GetGroupKeyRunRepository {
+func NewGetGroupKeyRunRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.GetGroupKeyRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &getGroupKeyRunRepository{
-		client:  client,
 		pool:    pool,
 		v:       v,
 		l:       l,
 		queries: queries,
 	}
-}
-
-func (s *getGroupKeyRunRepository) ListGetGroupKeyRuns(tenantId string, opts *repository.ListGetGroupKeyRunsOpts) ([]db.GetGroupKeyRunModel, error) {
-	if err := s.v.Validate(opts); err != nil {
-		return nil, err
-	}
-
-	params := []db.GetGroupKeyRunWhereParam{
-		db.GetGroupKeyRun.TenantID.Equals(tenantId),
-	}
-
-	if opts.Status != nil {
-		params = append(params, db.GetGroupKeyRun.Status.Equals(*opts.Status))
-	}
-
-	return s.client.GetGroupKeyRun.FindMany(
-		params...,
-	).With(
-		db.GetGroupKeyRun.Ticker.Fetch(),
-		db.GetGroupKeyRun.WorkflowRun.Fetch().With(
-			db.WorkflowRun.WorkflowVersion.Fetch().With(
-				db.WorkflowVersion.Concurrency.Fetch().With(
-					db.WorkflowConcurrency.GetConcurrencyGroup.Fetch(),
-				),
-			),
-		),
-	).Exec(context.Background())
 }
 
 func (s *getGroupKeyRunRepository) ListGetGroupKeyRunsToRequeue(tenantId string) ([]*dbsqlc.GetGroupKeyRun, error) {
@@ -231,21 +201,6 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRun
 	}
 
 	return getGroupKeyRuns[0], nil
-}
-
-func (s *getGroupKeyRunRepository) GetGroupKeyRunById(tenantId, getGroupKeyRunId string) (*db.GetGroupKeyRunModel, error) {
-	return s.client.GetGroupKeyRun.FindUnique(
-		db.GetGroupKeyRun.ID.Equals(getGroupKeyRunId),
-	).With(
-		db.GetGroupKeyRun.Ticker.Fetch(),
-		db.GetGroupKeyRun.WorkflowRun.Fetch().With(
-			db.WorkflowRun.WorkflowVersion.Fetch().With(
-				db.WorkflowVersion.Concurrency.Fetch().With(
-					db.WorkflowConcurrency.GetConcurrencyGroup.Fetch(),
-				),
-			),
-		),
-	).Exec(context.Background())
 }
 
 func (s *getGroupKeyRunRepository) GetGroupKeyRunForEngine(tenantId, getGroupKeyRunId string) (*dbsqlc.GetGroupKeyRunForEngineRow, error) {

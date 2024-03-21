@@ -3,24 +3,29 @@ package prisma
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
-type tenantRepository struct {
+type tenantAPIRepository struct {
 	client *db.PrismaClient
 	v      validator.Validator
 }
 
-func NewTenantRepository(client *db.PrismaClient, v validator.Validator) repository.TenantRepository {
-	return &tenantRepository{
+func NewTenantAPIRepository(client *db.PrismaClient, v validator.Validator) repository.TenantAPIRepository {
+	return &tenantAPIRepository{
 		client: client,
 		v:      v,
 	}
 }
 
-func (r *tenantRepository) CreateTenant(opts *repository.CreateTenantOpts) (*db.TenantModel, error) {
+func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*db.TenantModel, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -32,23 +37,19 @@ func (r *tenantRepository) CreateTenant(opts *repository.CreateTenantOpts) (*db.
 	).Exec(context.Background())
 }
 
-func (r *tenantRepository) ListTenants() ([]db.TenantModel, error) {
-	return r.client.Tenant.FindMany().Exec(context.Background())
-}
-
-func (r *tenantRepository) GetTenantByID(id string) (*db.TenantModel, error) {
+func (r *tenantAPIRepository) GetTenantByID(id string) (*db.TenantModel, error) {
 	return r.client.Tenant.FindUnique(
 		db.Tenant.ID.Equals(id),
 	).Exec(context.Background())
 }
 
-func (r *tenantRepository) GetTenantBySlug(slug string) (*db.TenantModel, error) {
+func (r *tenantAPIRepository) GetTenantBySlug(slug string) (*db.TenantModel, error) {
 	return r.client.Tenant.FindUnique(
 		db.Tenant.Slug.Equals(slug),
 	).Exec(context.Background())
 }
 
-func (r *tenantRepository) CreateTenantMember(tenantId string, opts *repository.CreateTenantMemberOpts) (*db.TenantMemberModel, error) {
+func (r *tenantAPIRepository) CreateTenantMember(tenantId string, opts *repository.CreateTenantMemberOpts) (*db.TenantMemberModel, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -60,13 +61,13 @@ func (r *tenantRepository) CreateTenantMember(tenantId string, opts *repository.
 	).Exec(context.Background())
 }
 
-func (r *tenantRepository) GetTenantMemberByID(memberId string) (*db.TenantMemberModel, error) {
+func (r *tenantAPIRepository) GetTenantMemberByID(memberId string) (*db.TenantMemberModel, error) {
 	return r.client.TenantMember.FindUnique(
 		db.TenantMember.ID.Equals(memberId),
 	).Exec(context.Background())
 }
 
-func (r *tenantRepository) GetTenantMemberByUserID(tenantId string, userId string) (*db.TenantMemberModel, error) {
+func (r *tenantAPIRepository) GetTenantMemberByUserID(tenantId string, userId string) (*db.TenantMemberModel, error) {
 	return r.client.TenantMember.FindUnique(
 		db.TenantMember.TenantIDUserID(
 			db.TenantMember.TenantID.Equals(tenantId),
@@ -75,7 +76,7 @@ func (r *tenantRepository) GetTenantMemberByUserID(tenantId string, userId strin
 	).Exec(context.Background())
 }
 
-func (r *tenantRepository) ListTenantMembers(tenantId string) ([]db.TenantMemberModel, error) {
+func (r *tenantAPIRepository) ListTenantMembers(tenantId string) ([]db.TenantMemberModel, error) {
 	return r.client.TenantMember.FindMany(
 		db.TenantMember.TenantID.Equals(tenantId),
 	).With(
@@ -84,7 +85,7 @@ func (r *tenantRepository) ListTenantMembers(tenantId string) ([]db.TenantMember
 	).Exec(context.Background())
 }
 
-func (r *tenantRepository) GetTenantMemberByEmail(tenantId string, email string) (*db.TenantMemberModel, error) {
+func (r *tenantAPIRepository) GetTenantMemberByEmail(tenantId string, email string) (*db.TenantMemberModel, error) {
 	user, err := r.client.User.FindUnique(
 		db.User.Email.Equals(email),
 	).Exec(context.Background())
@@ -101,7 +102,7 @@ func (r *tenantRepository) GetTenantMemberByEmail(tenantId string, email string)
 	).Exec(context.Background())
 }
 
-func (r *tenantRepository) UpdateTenantMember(memberId string, opts *repository.UpdateTenantMemberOpts) (*db.TenantMemberModel, error) {
+func (r *tenantAPIRepository) UpdateTenantMember(memberId string, opts *repository.UpdateTenantMemberOpts) (*db.TenantMemberModel, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -119,8 +120,34 @@ func (r *tenantRepository) UpdateTenantMember(memberId string, opts *repository.
 	).Exec(context.Background())
 }
 
-func (r *tenantRepository) DeleteTenantMember(memberId string) (*db.TenantMemberModel, error) {
+func (r *tenantAPIRepository) DeleteTenantMember(memberId string) (*db.TenantMemberModel, error) {
 	return r.client.TenantMember.FindUnique(
 		db.TenantMember.ID.Equals(memberId),
 	).Delete().Exec(context.Background())
+}
+
+type tenantEngineRepository struct {
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	l       *zerolog.Logger
+	queries *dbsqlc.Queries
+}
+
+func NewTenantEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.TenantEngineRepository {
+	queries := dbsqlc.New()
+
+	return &tenantEngineRepository{
+		pool:    pool,
+		v:       v,
+		l:       l,
+		queries: queries,
+	}
+}
+
+func (r *tenantEngineRepository) ListTenants() ([]*dbsqlc.Tenant, error) {
+	return r.queries.ListTenants(context.Background(), r.pool)
+}
+
+func (r *tenantEngineRepository) GetTenantByID(tenantId string) (*dbsqlc.Tenant, error) {
+	return r.queries.GetTenantByID(context.Background(), r.pool, sqlchelpers.UUIDFromStr(tenantId))
 }

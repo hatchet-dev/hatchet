@@ -1,6 +1,9 @@
 package repository
 
-import "github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+import (
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+)
 
 type CreateTenantOpts struct {
 	// (required) the tenant name
@@ -22,12 +25,9 @@ type UpdateTenantMemberOpts struct {
 	Role *string `validate:"omitempty,oneof=OWNER ADMIN MEMBER"`
 }
 
-type TenantRepository interface {
+type TenantAPIRepository interface {
 	// CreateTenant creates a new tenant.
 	CreateTenant(opts *CreateTenantOpts) (*db.TenantModel, error)
-
-	// ListTenants lists all tenants in the instance
-	ListTenants() ([]db.TenantModel, error)
 
 	// GetTenantByID returns the tenant with the given id
 	GetTenantByID(tenantId string) (*db.TenantModel, error)
@@ -55,4 +55,12 @@ type TenantRepository interface {
 
 	// DeleteTenantMember deletes the tenant member with the given id
 	DeleteTenantMember(memberId string) (*db.TenantMemberModel, error)
+}
+
+type TenantEngineRepository interface {
+	// ListTenants lists all tenants in the instance
+	ListTenants() ([]*dbsqlc.Tenant, error)
+
+	// GetTenantByID returns the tenant with the given id
+	GetTenantByID(tenantId string) (*dbsqlc.Tenant, error)
 }

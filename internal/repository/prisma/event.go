@@ -2,7 +2,6 @@ package prisma
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -16,12 +15,11 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlctoprisma"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
-type eventRepository struct {
+type eventAPIRepository struct {
 	client  *db.PrismaClient
 	pool    *pgxpool.Pool
 	v       validator.Validator
@@ -29,10 +27,10 @@ type eventRepository struct {
 	l       *zerolog.Logger
 }
 
-func NewEventRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.EventRepository {
+func NewEventAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.EventAPIRepository {
 	queries := dbsqlc.New()
 
-	return &eventRepository{
+	return &eventAPIRepository{
 		client:  client,
 		pool:    pool,
 		v:       v,
@@ -41,7 +39,7 @@ func NewEventRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator
 	}
 }
 
-func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEventOpts) (*repository.ListEventResult, error) {
+func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEventOpts) (*repository.ListEventResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -149,7 +147,7 @@ func (r *eventRepository) ListEvents(tenantId string, opts *repository.ListEvent
 	return res, nil
 }
 
-func (r *eventRepository) ListEventKeys(tenantId string) ([]string, error) {
+func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
 	var rows []struct {
 		Key string `json:"key"`
 	}
@@ -177,24 +175,42 @@ func (r *eventRepository) ListEventKeys(tenantId string) ([]string, error) {
 	return keys, nil
 }
 
-func (r *eventRepository) GetEventById(id string) (*db.EventModel, error) {
+func (r *eventAPIRepository) GetEventById(id string) (*db.EventModel, error) {
 	return r.client.Event.FindUnique(
 		db.Event.ID.Equals(id),
 	).Exec(context.Background())
 }
 
-func (r *eventRepository) GetEventForEngine(tenantId, id string) (*dbsqlc.GetEventForEngineRow, error) {
-	return r.queries.GetEventForEngine(context.Background(), r.pool, sqlchelpers.UUIDFromStr(id))
-}
-
-func (r *eventRepository) ListEventsById(tenantId string, ids []string) ([]db.EventModel, error) {
+func (r *eventAPIRepository) ListEventsById(tenantId string, ids []string) ([]db.EventModel, error) {
 	return r.client.Event.FindMany(
 		db.Event.ID.In(ids),
 		db.Event.TenantID.Equals(tenantId),
 	).Exec(context.Background())
 }
 
-func (r *eventRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*db.EventModel, error) {
+type eventEngineRepository struct {
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
+}
+
+func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.EventEngineRepository {
+	queries := dbsqlc.New()
+
+	return &eventEngineRepository{
+		pool:    pool,
+		v:       v,
+		queries: queries,
+		l:       l,
+	}
+}
+
+func (r *eventEngineRepository) GetEventForEngine(tenantId, id string) (*dbsqlc.Event, error) {
+	return r.queries.GetEventForEngine(context.Background(), r.pool, sqlchelpers.UUIDFromStr(id))
+}
+
+func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "db-create-event")
 	defer span.End()
 
@@ -206,7 +222,7 @@ func (r *eventRepository) CreateEvent(ctx context.Context, opts *repository.Crea
 		ID:       sqlchelpers.UUIDFromStr(uuid.New().String()),
 		Key:      opts.Key,
 		Tenantid: sqlchelpers.UUIDFromStr(opts.TenantId),
-		Data:     []byte(json.RawMessage(*opts.Data)),
+		Data:     opts.Data,
 	}
 
 	if opts.ReplayedEvent != nil {
@@ -223,5 +239,22 @@ func (r *eventRepository) CreateEvent(ctx context.Context, opts *repository.Crea
 		return nil, fmt.Errorf("could not create event: %w", err)
 	}
 
-	return sqlctoprisma.NewConverter[dbsqlc.Event, db.EventModel]().ToPrisma(e), nil
+	return e, nil
+}
+
+func (r *eventEngineRepository) ListEventsByIds(tenantId string, ids []string) ([]*dbsqlc.Event, error) {
+	pgIds := make([]pgtype.UUID, len(ids))
+
+	for i, id := range ids {
+		if err := pgIds[i].Scan(id); err != nil {
+			return nil, err
+		}
+	}
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	return r.queries.ListEventsByIDs(context.Background(), r.pool, dbsqlc.ListEventsByIDsParams{
+		Tenantid: pgTenantId,
+		Ids:      pgIds,
+	})
 }

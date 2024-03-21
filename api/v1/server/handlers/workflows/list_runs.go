@@ -42,7 +42,7 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 		listOpts.EventId = &eventIdStr
 	}
 
-	workflowRuns, err := t.config.Repository.WorkflowRun().ListWorkflowRuns(tenant.ID, listOpts)
+	workflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(tenant.ID, listOpts)
 
 	if err != nil {
 		return nil, err

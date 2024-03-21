@@ -42,7 +42,7 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 	}
 
 	// get the tenant id
-	queriedTenant, err := a.config.Repository.Tenant().GetTenantByID(tenantId)
+	queriedTenant, err := a.config.EngineRepository.Tenant().GetTenantByID(tenantId)
 
 	if err != nil {
 		a.l.Debug().Err(err).Msgf("error getting tenant by id: %s", err)

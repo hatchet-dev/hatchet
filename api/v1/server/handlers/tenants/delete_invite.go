@@ -12,7 +12,7 @@ func (t *TenantService) TenantInviteDelete(ctx echo.Context, request gen.TenantI
 	invite := ctx.Get("tenant-invite").(*db.TenantInviteLinkModel)
 
 	// delete the invite
-	err := t.config.Repository.TenantInvite().DeleteTenantInvite(invite.ID)
+	err := t.config.APIRepository.TenantInvite().DeleteTenantInvite(invite.ID)
 
 	if err != nil {
 		return nil, err

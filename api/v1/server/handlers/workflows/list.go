@@ -22,7 +22,7 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 		Offset: &offset,
 	}
 
-	listResp, err := t.config.Repository.Workflow().ListWorkflows(tenant.ID, listOpts)
+	listResp, err := t.config.APIRepository.Workflow().ListWorkflows(tenant.ID, listOpts)
 
 	if err != nil {
 		return nil, err
