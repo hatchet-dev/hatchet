@@ -26,11 +26,11 @@ type TokenOpts struct {
 type jwtManagerImpl struct {
 	encryption encryption.EncryptionService
 	opts       *TokenOpts
-	tokenRepo  repository.APITokenRepository
+	tokenRepo  repository.EngineTokenRepository
 	verifier   jwt.Verifier
 }
 
-func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo repository.APITokenRepository, opts *TokenOpts) (JWTManager, error) {
+func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo repository.EngineTokenRepository, opts *TokenOpts) (JWTManager, error) {
 	verifier, err := jwt.NewVerifier(encryptionSvc.GetPublicJWTHandle())
 
 	if err != nil {
@@ -150,7 +150,7 @@ func (j *jwtManagerImpl) ValidateTenantToken(token string) (tenantId string, err
 		return "", fmt.Errorf("token has been revoked")
 	}
 
-	if expiresAt, ok := dbToken.ExpiresAt(); ok && expiresAt.Before(time.Now()) {
+	if expiresAt := dbToken.ExpiresAt.Time; expiresAt.Before(time.Now()) {
 		return "", fmt.Errorf("token has expired")
 	}
 

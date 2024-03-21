@@ -15,11 +15,11 @@ import (
 type Health struct {
 	ready bool
 
-	repository repository.Repository
+	repository repository.EngineRepository
 	queue      msgqueue.MessageQueue
 }
 
-func New(prisma repository.Repository, queue msgqueue.MessageQueue) *Health {
+func New(prisma repository.EngineRepository, queue msgqueue.MessageQueue) *Health {
 	return &Health{
 		repository: prisma,
 		queue:      queue,

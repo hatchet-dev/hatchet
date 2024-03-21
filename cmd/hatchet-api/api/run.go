@@ -19,7 +19,7 @@ func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
 
 	if sc.InternalClient != nil {
 		w, err := worker.NewWorker(
-			worker.WithRepository(sc.Repository),
+			worker.WithRepository(sc.APIRepository),
 			worker.WithClient(sc.InternalClient),
 			worker.WithVCSProviders(sc.VCSProviders),
 		)

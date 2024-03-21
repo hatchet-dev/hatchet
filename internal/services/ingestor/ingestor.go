@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/steebchen/prisma-client-go/runtime/types"
-
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -17,25 +16,25 @@ import (
 
 type Ingestor interface {
 	contracts.EventsServiceServer
-	IngestEvent(ctx context.Context, tenantId, eventName string, data any) (*db.EventModel, error)
-	IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *db.EventModel) (*db.EventModel, error)
+	IngestEvent(ctx context.Context, tenantId, eventName string, data []byte) (*dbsqlc.Event, error)
+	IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
 }
 
 type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
-	eventRepository repository.EventRepository
-	logRepository   repository.LogsRepository
+	eventRepository repository.EventEngineRepository
+	logRepository   repository.LogsEngineRepository
 	mq              msgqueue.MessageQueue
 }
 
-func WithEventRepository(r repository.EventRepository) IngestorOptFunc {
+func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.eventRepository = r
 	}
 }
 
-func WithLogRepository(r repository.LogsRepository) IngestorOptFunc {
+func WithLogRepository(r repository.LogsEngineRepository) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.logRepository = r
 	}
@@ -54,8 +53,8 @@ func defaultIngestorOpts() *IngestorOpts {
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
-	eventRepository repository.EventRepository
-	logRepository   repository.LogsRepository
+	eventRepository repository.EventEngineRepository
+	logRepository   repository.LogsEngineRepository
 	mq              msgqueue.MessageQueue
 }
 
@@ -85,21 +84,14 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}, nil
 }
 
-func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data any) (*db.EventModel, error) {
+func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
-
-	// transform data to a JSON object
-	jsonType, err := datautils.ToJSONType(data)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not convert event data to JSON: %w", err)
-	}
 
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
 		TenantId: tenantId,
 		Key:      key,
-		Data:     jsonType,
+		Data:     data,
 	})
 
 	if err != nil {
@@ -120,22 +112,17 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 	return event, nil
 }
 
-func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *db.EventModel) (*db.EventModel, error) {
+func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
 	defer span.End()
 
-	// transform data to a JSON object
-	var data *types.JSON
-
-	if jsonType, ok := replayedEvent.Data(); ok {
-		data = &jsonType
-	}
+	replayedId := sqlchelpers.UUIDToStr(replayedEvent.ID)
 
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
 		TenantId:      tenantId,
 		Key:           replayedEvent.Key,
-		Data:          data,
-		ReplayedEvent: &replayedEvent.ID,
+		Data:          replayedEvent.Data,
+		ReplayedEvent: &replayedId,
 	})
 
 	if err != nil {
@@ -151,14 +138,21 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string,
 	return event, nil
 }
 
-func eventToTask(e *db.EventModel) *msgqueue.Message {
-	payload, _ := datautils.ToJSONMap(tasktypes.EventTaskPayload{
-		EventId: e.ID,
-	})
+func eventToTask(e *dbsqlc.Event) *msgqueue.Message {
+	eventId := sqlchelpers.UUIDToStr(e.ID)
+	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
+
+	payloadTyped := tasktypes.EventTaskPayload{
+		EventId:   eventId,
+		EventKey:  e.Key,
+		EventData: string(e.Data),
+	}
+
+	payload, _ := datautils.ToJSONMap(payloadTyped)
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.EventTaskMetadata{
 		EventKey: e.Key,
-		TenantId: e.TenantID,
+		TenantId: tenantId,
 	})
 
 	return &msgqueue.Message{

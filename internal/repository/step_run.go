@@ -73,12 +73,18 @@ type StepRunUpdateInfo struct {
 	WorkflowRunStatus     string
 }
 
-type StepRunRepository interface {
-	// ListAllStepRuns returns a list of all step runs which match the given options.
-	ListAllStepRuns(opts *ListAllStepRunsOpts) ([]db.StepRunModel, error)
+type StepRunAPIRepository interface {
+	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
 
-	// ListStepRuns returns a list of step runs for a tenant which match the given options.
-	ListStepRuns(tenantId string, opts *ListStepRunsOpts) ([]db.StepRunModel, error)
+	GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error)
+}
+
+type StepRunEngineRepository interface {
+	// ListRunningStepRunsForTicker returns a list of step runs which are currently running for a ticker.
+	ListRunningStepRunsForTicker(tickerId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+
+	// ListRunningStepRunsForWorkflowRun returns a list of step runs which are currently running for a workflow run.
+	ListRunningStepRunsForWorkflowRun(tenantId, workflowRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStepRunsToRequeue returns a list of step runs which are in a requeueable state.
 	ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.StepRun, error)
@@ -95,9 +101,7 @@ type StepRunRepository interface {
 	UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error)
 
 	AssignStepRunToWorker(tenantId, stepRunId string) (workerId string, dispatcherId string, err error)
-	AssignStepRunToTicker(tenantId, stepRunId string) (tickerId string, err error)
 
-	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
 	GetStepRunForEngine(tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 
 	// QueueStepRun is like UpdateStepRun, except that it will only update the step run if it is in
@@ -107,8 +111,4 @@ type StepRunRepository interface {
 	ListStartableStepRuns(tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	ArchiveStepRunResult(tenantId, stepRunId string) error
-
-	ListArchivedStepRunResults(tenantId, stepRunId string) ([]db.StepRunResultArchiveModel, error)
-
-	GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error)
 }

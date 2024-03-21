@@ -10,7 +10,7 @@ import (
 func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.ApiTokenUpdateRevokeRequestObject) (gen.ApiTokenUpdateRevokeResponseObject, error) {
 	apiToken := ctx.Get("api-token").(*db.APITokenModel)
 
-	err := a.config.Repository.APIToken().RevokeAPIToken(apiToken.ID)
+	err := a.config.APIRepository.APIToken().RevokeAPIToken(apiToken.ID)
 
 	if err != nil {
 		return nil, err

@@ -20,7 +20,7 @@ type Heartbeater interface {
 type HeartbeaterImpl struct {
 	mq   msgqueue.MessageQueue
 	l    *zerolog.Logger
-	repo repository.Repository
+	repo repository.EngineRepository
 	s    gocron.Scheduler
 }
 
@@ -29,7 +29,7 @@ type HeartbeaterOpt func(*HeartbeaterOpts)
 type HeartbeaterOpts struct {
 	mq   msgqueue.MessageQueue
 	l    *zerolog.Logger
-	repo repository.Repository
+	repo repository.EngineRepository
 }
 
 func defaultHeartbeaterOpts() *HeartbeaterOpts {
@@ -45,7 +45,7 @@ func WithMessageQueue(mq msgqueue.MessageQueue) HeartbeaterOpt {
 	}
 }
 
-func WithRepository(r repository.Repository) HeartbeaterOpt {
+func WithRepository(r repository.EngineRepository) HeartbeaterOpt {
 	return func(opts *HeartbeaterOpts) {
 		opts.repo = r
 	}
@@ -91,17 +91,6 @@ func New(fs ...HeartbeaterOpt) (*HeartbeaterImpl, error) {
 
 func (t *HeartbeaterImpl) Start() (func() error, error) {
 	t.l.Debug().Msg("starting heartbeater")
-
-	_, err := t.s.NewJob(
-		gocron.DurationJob(time.Second*5),
-		gocron.NewTask(
-			t.removeStaleTickers(),
-		),
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not schedule ticker removal: %w", err)
-	}
 
 	t.s.Start()
 

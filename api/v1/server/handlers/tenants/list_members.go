@@ -11,7 +11,7 @@ import (
 func (t *TenantService) TenantMemberList(ctx echo.Context, request gen.TenantMemberListRequestObject) (gen.TenantMemberListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	members, err := t.config.Repository.Tenant().ListTenantMembers(tenant.ID)
+	members, err := t.config.APIRepository.Tenant().ListTenantMembers(tenant.ID)
 
 	if err != nil {
 		return nil, err

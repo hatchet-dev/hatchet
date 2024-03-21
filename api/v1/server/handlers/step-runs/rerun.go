@@ -26,7 +26,7 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 
 	sixSecAgo := time.Now().Add(-6 * time.Second)
 
-	workers, err := t.config.Repository.Worker().ListWorkers(tenant.ID, &repository.ListWorkersOpts{
+	workers, err := t.config.APIRepository.Worker().ListWorkers(tenant.ID, &repository.ListWorkersOpts{
 		Action:             &action,
 		LastHeartbeatAfter: &sixSecAgo,
 		Assignable:         repository.BoolPtr(true),
@@ -64,13 +64,13 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 	}
 
 	// set the job run and workflow run to running status
-	err = t.config.Repository.JobRun().SetJobRunStatusRunning(tenant.ID, stepRun.JobRunID)
+	err = t.config.APIRepository.JobRun().SetJobRunStatusRunning(tenant.ID, stepRun.JobRunID)
 
 	if err != nil {
 		return nil, err
 	}
 
-	engineStepRun, err := t.config.Repository.StepRun().GetStepRunForEngine(tenant.ID, stepRun.ID)
+	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(tenant.ID, stepRun.ID)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get step run for engine: %w", err)
@@ -89,7 +89,7 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 
 	// wait for a short period of time
 	for i := 0; i < 5; i++ {
-		newStepRun, err := t.config.Repository.StepRun().GetStepRunById(tenant.ID, stepRun.ID)
+		newStepRun, err := t.config.APIRepository.StepRun().GetStepRunById(tenant.ID, stepRun.ID)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not get step run: %w", err)

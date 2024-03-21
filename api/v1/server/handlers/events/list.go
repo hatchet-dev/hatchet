@@ -63,7 +63,7 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 		listOpts.WorkflowRunStatus = statuses
 	}
 
-	listRes, err := t.config.Repository.Event().ListEvents(tenant.ID, listOpts)
+	listRes, err := t.config.APIRepository.Event().ListEvents(tenant.ID, listOpts)
 
 	if err != nil {
 		return nil, err

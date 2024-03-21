@@ -4,6 +4,7 @@ sql:
     # database:
     #   uri: "postgres://hatchet:hatchet@localhost:5431/hatchet"
     queries:
+      - api_tokens.sql
       - health.sql
       - events.sql
       - workflow_runs.sql
@@ -15,6 +16,7 @@ sql:
       - dispatchers.sql
       - workers.sql
       - logs.sql
+      - tenants.sql
     schema:
       - schema.sql
     strict_order_by: false

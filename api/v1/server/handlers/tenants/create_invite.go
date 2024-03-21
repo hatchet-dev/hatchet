@@ -25,7 +25,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}
 
 	// ensure that this user isn't already a member of the tenant
-	if _, err := t.config.Repository.Tenant().GetTenantMemberByEmail(tenant.ID, request.Body.Email); err == nil {
+	if _, err := t.config.APIRepository.Tenant().GetTenantMemberByEmail(tenant.ID, request.Body.Email); err == nil {
 		return gen.TenantInviteCreate400JSONResponse(
 			apierrors.NewAPIErrors("this user is already a member of this tenant"),
 		), nil
@@ -47,7 +47,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}
 
 	// create the invite
-	invite, err := t.config.Repository.TenantInvite().CreateTenantInvite(tenant.ID, createOpts)
+	invite, err := t.config.APIRepository.TenantInvite().CreateTenantInvite(tenant.ID, createOpts)
 
 	if err != nil {
 		return nil, err

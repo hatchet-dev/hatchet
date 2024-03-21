@@ -21,7 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
-type workflowRepository struct {
+type workflowAPIRepository struct {
 	client  *db.PrismaClient
 	pool    *pgxpool.Pool
 	v       validator.Validator
@@ -29,10 +29,10 @@ type workflowRepository struct {
 	l       *zerolog.Logger
 }
 
-func NewWorkflowRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowRepository {
+func NewWorkflowRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowAPIRepository {
 	queries := dbsqlc.New()
 
-	return &workflowRepository{
+	return &workflowAPIRepository{
 		client:  client,
 		v:       v,
 		queries: queries,
@@ -41,7 +41,7 @@ func NewWorkflowRepository(client *db.PrismaClient, pool *pgxpool.Pool, v valida
 	}
 }
 
-func (r *workflowRepository) ListWorkflows(tenantId string, opts *repository.ListWorkflowsOpts) (*repository.ListWorkflowsResult, error) {
+func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.ListWorkflowsOpts) (*repository.ListWorkflowsResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -161,7 +161,94 @@ func (r *workflowRepository) ListWorkflows(tenantId string, opts *repository.Lis
 	return res, nil
 }
 
-func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository.CreateWorkflowVersionOpts) (*db.WorkflowVersionModel, error) {
+func (r *workflowAPIRepository) GetWorkflowById(workflowId string) (*db.WorkflowModel, error) {
+	return r.client.Workflow.FindUnique(
+		db.Workflow.ID.Equals(workflowId),
+	).With(
+		defaultWorkflowPopulator()...,
+	).Exec(context.Background())
+}
+
+func (r *workflowAPIRepository) GetWorkflowByName(tenantId, workflowName string) (*db.WorkflowModel, error) {
+	return r.client.Workflow.FindUnique(
+		db.Workflow.TenantIDName(
+			db.Workflow.TenantID.Equals(tenantId),
+			db.Workflow.Name.Equals(workflowName),
+		),
+	).With(
+		defaultWorkflowPopulator()...,
+	).Exec(context.Background())
+}
+
+func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (*db.WorkflowVersionModel, error) {
+	return r.client.WorkflowVersion.FindUnique(
+		db.WorkflowVersion.ID.Equals(workflowVersionId),
+	).With(
+		defaultWorkflowVersionPopulator()...,
+	).Exec(context.Background())
+}
+
+func (r *workflowAPIRepository) DeleteWorkflow(tenantId, workflowId string) (*db.WorkflowModel, error) {
+	return r.client.Workflow.FindUnique(
+		db.Workflow.ID.Equals(workflowId),
+	).With(
+		defaultWorkflowPopulator()...,
+	).Delete().Exec(context.Background())
+}
+
+func (r *workflowAPIRepository) UpsertWorkflowDeploymentConfig(workflowId string, opts *repository.UpsertWorkflowDeploymentConfigOpts) (*db.WorkflowDeploymentConfigModel, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	// upsert the deployment config
+	deploymentConfig, err := r.client.WorkflowDeploymentConfig.UpsertOne(
+		db.WorkflowDeploymentConfig.WorkflowID.Equals(workflowId),
+	).Create(
+		db.WorkflowDeploymentConfig.Workflow.Link(
+			db.Workflow.ID.Equals(workflowId),
+		),
+		db.WorkflowDeploymentConfig.GitRepoName.Set(opts.GitRepoName),
+		db.WorkflowDeploymentConfig.GitRepoOwner.Set(opts.GitRepoOwner),
+		db.WorkflowDeploymentConfig.GitRepoBranch.Set(opts.GitRepoBranch),
+		db.WorkflowDeploymentConfig.GithubAppInstallation.Link(
+			db.GithubAppInstallation.ID.Equals(opts.GithubAppInstallationId),
+		),
+	).Update(
+		db.WorkflowDeploymentConfig.GitRepoName.Set(opts.GitRepoName),
+		db.WorkflowDeploymentConfig.GitRepoOwner.Set(opts.GitRepoOwner),
+		db.WorkflowDeploymentConfig.GitRepoBranch.Set(opts.GitRepoBranch),
+		db.WorkflowDeploymentConfig.GithubAppInstallation.Link(
+			db.GithubAppInstallation.ID.Equals(opts.GithubAppInstallationId),
+		),
+	).Exec(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return deploymentConfig, nil
+}
+
+type workflowEngineRepository struct {
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
+}
+
+func NewWorkflowEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowEngineRepository {
+	queries := dbsqlc.New()
+
+	return &workflowEngineRepository{
+		v:       v,
+		queries: queries,
+		pool:    pool,
+		l:       l,
+	}
+}
+
+func (r *workflowEngineRepository) CreateNewWorkflow(tenantId string, opts *repository.CreateWorkflowVersionOpts) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -176,15 +263,13 @@ func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository
 	}
 
 	// preflight check to ensure the workflow doesn't already exist
-	workflow, err := r.client.Workflow.FindUnique(
-		db.Workflow.TenantIDName(
-			db.Workflow.TenantID.Equals(tenantId),
-			db.Workflow.Name.Equals(opts.Name),
-		),
-	).Exec(context.Background())
+	workflow, err := r.queries.GetWorkflowByName(context.Background(), r.pool, dbsqlc.GetWorkflowByNameParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Name:     opts.Name,
+	})
 
 	if err != nil {
-		if !errors.Is(err, db.ErrNotFound) {
+		if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
 		}
 	} else if workflow != nil {
@@ -252,20 +337,29 @@ func (r *workflowRepository) CreateNewWorkflow(tenantId string, opts *repository
 		return nil, err
 	}
 
+	workflowVersion, err := r.queries.GetWorkflowVersionForEngine(context.Background(), tx, dbsqlc.GetWorkflowVersionForEngineParams{
+		Tenantid: pgTenantId,
+		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(workflowVersionId)},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflow version: %w", err)
+	}
+
+	if len(workflowVersion) != 1 {
+		return nil, fmt.Errorf("expected 1 workflow version when creating new, got %d", len(workflowVersion))
+	}
+
 	err = tx.Commit(context.Background())
 
 	if err != nil {
 		return nil, err
 	}
 
-	return r.client.WorkflowVersion.FindUnique(
-		db.WorkflowVersion.ID.Equals(workflowVersionId),
-	).With(
-		defaultWorkflowVersionPopulator()...,
-	).Exec(context.Background())
+	return workflowVersion[0], nil
 }
 
-func (r *workflowRepository) CreateWorkflowVersion(tenantId string, opts *repository.CreateWorkflowVersionOpts) (*db.WorkflowVersionModel, error) {
+func (r *workflowEngineRepository) CreateWorkflowVersion(tenantId string, opts *repository.CreateWorkflowVersionOpts) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -280,15 +374,13 @@ func (r *workflowRepository) CreateWorkflowVersion(tenantId string, opts *reposi
 	}
 
 	// preflight check to ensure the workflow already exists
-	workflow, err := r.client.Workflow.FindUnique(
-		db.Workflow.TenantIDName(
-			db.Workflow.TenantID.Equals(tenantId),
-			db.Workflow.Name.Equals(opts.Name),
-		),
-	).Exec(context.Background())
+	workflow, err := r.queries.GetWorkflowByName(context.Background(), r.pool, dbsqlc.GetWorkflowByNameParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Name:     opts.Name,
+	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch workflow: %w", err)
 	}
 
 	if workflow == nil {
@@ -306,13 +398,25 @@ func (r *workflowRepository) CreateWorkflowVersion(tenantId string, opts *reposi
 
 	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
-	workflowId := sqlchelpers.UUIDFromStr(workflow.ID)
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	workflowVersionId, err := r.createWorkflowVersionTxs(context.Background(), tx, pgTenantId, workflowId, opts)
+	workflowVersionId, err := r.createWorkflowVersionTxs(context.Background(), tx, pgTenantId, workflow.ID, opts)
 
 	if err != nil {
 		return nil, err
+	}
+
+	workflowVersion, err := r.queries.GetWorkflowVersionForEngine(context.Background(), tx, dbsqlc.GetWorkflowVersionForEngineParams{
+		Tenantid: pgTenantId,
+		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(workflowVersionId)},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflow version: %w", err)
+	}
+
+	if len(workflowVersion) != 1 {
+		return nil, fmt.Errorf("expected 1 workflow version when creating version, got %d", len(workflowVersion))
 	}
 
 	err = tx.Commit(context.Background())
@@ -321,82 +425,78 @@ func (r *workflowRepository) CreateWorkflowVersion(tenantId string, opts *reposi
 		return nil, err
 	}
 
-	return r.client.WorkflowVersion.FindUnique(
-		db.WorkflowVersion.ID.Equals(workflowVersionId),
-	).With(
-		defaultWorkflowVersionPopulator()...,
-	).Exec(context.Background())
+	return workflowVersion[0], nil
 }
 
-type createScheduleTxResult interface {
-	Result() *db.WorkflowTriggerScheduledRefModel
-}
-
-func (r *workflowRepository) CreateSchedules(
+func (r *workflowEngineRepository) CreateSchedules(
 	tenantId, workflowVersionId string,
 	opts *repository.CreateWorkflowSchedulesOpts,
-) ([]*db.WorkflowTriggerScheduledRefModel, error) {
+) ([]*dbsqlc.WorkflowTriggerScheduledRef, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	txs := []db.PrismaTransaction{}
-	results := []createScheduleTxResult{}
-
-	for _, scheduledTrigger := range opts.ScheduledTriggers {
-		createTx := r.client.WorkflowTriggerScheduledRef.CreateOne(
-			db.WorkflowTriggerScheduledRef.Parent.Link(
-				db.WorkflowVersion.ID.Equals(workflowVersionId),
-			),
-			db.WorkflowTriggerScheduledRef.TriggerAt.Set(scheduledTrigger),
-			db.WorkflowTriggerScheduledRef.Input.SetIfPresent(opts.Input),
-		).Tx()
-
-		txs = append(txs, createTx)
-		results = append(results, createTx)
+	createParams := dbsqlc.CreateSchedulesParams{
+		Workflowrunid: sqlchelpers.UUIDFromStr(workflowVersionId),
+		Input:         opts.Input,
+		Triggertimes:  make([]pgtype.Timestamp, len(opts.ScheduledTriggers)),
 	}
 
-	err := r.client.Prisma.Transaction(txs...).Exec(context.Background())
+	for i, scheduledTrigger := range opts.ScheduledTriggers {
+		createParams.Triggertimes[i] = sqlchelpers.TimestampFromTime(scheduledTrigger)
+	}
+
+	return r.queries.CreateSchedules(context.Background(), r.pool, createParams)
+}
+
+func (r *workflowEngineRepository) GetLatestWorkflowVersion(tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
+	versionId, err := r.queries.GetWorkflowLatestVersion(context.Background(), r.pool, sqlchelpers.UUIDFromStr(workflowId))
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch latest version: %w", err)
 	}
 
-	res := make([]*db.WorkflowTriggerScheduledRefModel, 0)
+	versions, err := r.queries.GetWorkflowVersionForEngine(context.Background(), r.pool, dbsqlc.GetWorkflowVersionForEngineParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      []pgtype.UUID{versionId},
+	})
 
-	for _, result := range results {
-		res = append(res, result.Result())
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflow version: %w", err)
 	}
 
-	return res, nil
+	if len(versions) != 1 {
+		return nil, fmt.Errorf("expected 1 workflow version for latest, got %d", len(versions))
+	}
+
+	return versions[0], nil
 }
 
-func (r *workflowRepository) GetWorkflowById(workflowId string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindUnique(
-		db.Workflow.ID.Equals(workflowId),
-	).With(
-		defaultWorkflowPopulator()...,
-	).Exec(context.Background())
+func (r *workflowEngineRepository) GetWorkflowByName(tenantId, workflowName string) (*dbsqlc.Workflow, error) {
+	return r.queries.GetWorkflowByName(context.Background(), r.pool, dbsqlc.GetWorkflowByNameParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Name:     workflowName,
+	})
 }
 
-func (r *workflowRepository) GetWorkflowByName(tenantId, workflowName string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindUnique(
-		db.Workflow.TenantIDName(
-			db.Workflow.TenantID.Equals(tenantId),
-			db.Workflow.Name.Equals(workflowName),
-		),
-	).With(
-		defaultWorkflowPopulator()...,
-	).Exec(context.Background())
+func (r *workflowEngineRepository) GetWorkflowVersionById(tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
+	versions, err := r.queries.GetWorkflowVersionForEngine(context.Background(), r.pool, dbsqlc.GetWorkflowVersionForEngineParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(workflowId)},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflow version: %w", err)
+	}
+
+	if len(versions) != 1 {
+		return nil, fmt.Errorf("expected 1 workflow version when getting by id, got %d", len(versions))
+	}
+
+	return versions[0], nil
 }
 
-func (r *workflowRepository) GetScheduledById(tenantId, scheduleTriggerId string) (*db.WorkflowTriggerScheduledRefModel, error) {
-	return r.client.WorkflowTriggerScheduledRef.FindUnique(
-		db.WorkflowTriggerScheduledRef.ID.Equals(scheduleTriggerId),
-	).Exec(context.Background())
-}
-
-func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId, eventKey string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error) {
+func (r *workflowEngineRepository) ListWorkflowsForEvent(ctx context.Context, tenantId, eventKey string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 	ctx, span1 := telemetry.NewSpan(ctx, "db-list-workflows-for-event")
 	defer span1.End()
 
@@ -418,7 +518,7 @@ func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId
 
 	span2.End()
 
-	ctx, span3 := telemetry.NewSpan(ctx, "db-get-workflow-versions-for-engine")
+	ctx, span3 := telemetry.NewSpan(ctx, "db-get-workflow-versions-for-engine") // nolint: ineffassign
 	defer span3.End()
 
 	workflows, err := r.queries.GetWorkflowVersionForEngine(context.Background(), r.pool, dbsqlc.GetWorkflowVersionForEngineParams{
@@ -433,7 +533,7 @@ func (r *workflowRepository) ListWorkflowsForEvent(ctx context.Context, tenantId
 	return workflows, nil
 }
 
-func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts) (string, error) {
+func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts) (string, error) {
 	workflowVersionId := uuid.New().String()
 
 	var version pgtype.Text
@@ -696,56 +796,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx pg
 	}
 
 	return workflowVersionId, nil
-}
-
-func (r *workflowRepository) DeleteWorkflow(tenantId, workflowId string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindUnique(
-		db.Workflow.ID.Equals(workflowId),
-	).With(
-		defaultWorkflowPopulator()...,
-	).Delete().Exec(context.Background())
-}
-
-func (r *workflowRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (*db.WorkflowVersionModel, error) {
-	return r.client.WorkflowVersion.FindUnique(
-		db.WorkflowVersion.ID.Equals(workflowVersionId),
-	).With(
-		defaultWorkflowVersionPopulator()...,
-	).Exec(context.Background())
-}
-
-func (r *workflowRepository) UpsertWorkflowDeploymentConfig(workflowId string, opts *repository.UpsertWorkflowDeploymentConfigOpts) (*db.WorkflowDeploymentConfigModel, error) {
-	if err := r.v.Validate(opts); err != nil {
-		return nil, err
-	}
-
-	// upsert the deployment config
-	deploymentConfig, err := r.client.WorkflowDeploymentConfig.UpsertOne(
-		db.WorkflowDeploymentConfig.WorkflowID.Equals(workflowId),
-	).Create(
-		db.WorkflowDeploymentConfig.Workflow.Link(
-			db.Workflow.ID.Equals(workflowId),
-		),
-		db.WorkflowDeploymentConfig.GitRepoName.Set(opts.GitRepoName),
-		db.WorkflowDeploymentConfig.GitRepoOwner.Set(opts.GitRepoOwner),
-		db.WorkflowDeploymentConfig.GitRepoBranch.Set(opts.GitRepoBranch),
-		db.WorkflowDeploymentConfig.GithubAppInstallation.Link(
-			db.GithubAppInstallation.ID.Equals(opts.GithubAppInstallationId),
-		),
-	).Update(
-		db.WorkflowDeploymentConfig.GitRepoName.Set(opts.GitRepoName),
-		db.WorkflowDeploymentConfig.GitRepoOwner.Set(opts.GitRepoOwner),
-		db.WorkflowDeploymentConfig.GitRepoBranch.Set(opts.GitRepoBranch),
-		db.WorkflowDeploymentConfig.GithubAppInstallation.Link(
-			db.GithubAppInstallation.ID.Equals(opts.GithubAppInstallationId),
-		),
-	).Exec(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	return deploymentConfig, nil
 }
 
 func defaultWorkflowPopulator() []db.WorkflowRelationWith {
