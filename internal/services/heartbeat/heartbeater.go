@@ -92,18 +92,6 @@ func New(fs ...HeartbeaterOpt) (*HeartbeaterImpl, error) {
 func (t *HeartbeaterImpl) Start() (func() error, error) {
 	t.l.Debug().Msg("starting heartbeater")
 
-	// TODO: remove dead code
-	// _, err := t.s.NewJob(
-	// 	gocron.DurationJob(time.Second*5),
-	// 	gocron.NewTask(
-	// 		t.removeStaleTickers(),
-	// 	),
-	// )
-
-	// if err != nil {
-	// 	return nil, fmt.Errorf("could not schedule ticker removal: %w", err)
-	// }
-
 	t.s.Start()
 
 	cleanup := func() error {

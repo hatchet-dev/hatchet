@@ -216,8 +216,6 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 		return ec.handleStepRunCancelled(ctx, task)
 	case "step-run-timed-out":
 		return ec.handleStepRunTimedOut(ctx, task)
-	case "ticker-removed":
-		return ec.handleTickerRemoved(ctx, task)
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
@@ -693,12 +691,6 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-run")
 	defer span.End()
 
-	// stepRun, err := ec.repo.StepRun().GetStepRunForEngine(tenantId, stepRunId)
-
-	// if err != nil {
-	// 	return fmt.Errorf("could not get step run: %w", err)
-	// }
-
 	// servertel.WithStepRunModel(span, stepRun)
 
 	selectedWorkerId, dispatcherId, err := ec.repo.StepRun().AssignStepRunToWorker(tenantId, stepRunId)
@@ -712,20 +704,6 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 		return fmt.Errorf("could not assign step run to worker: %w", err)
 	}
 
-	// telemetry.WithAttributes(span, servertel.WorkerId(selectedWorkerId))
-
-	// tickerId, err := ec.repo.StepRun().AssignStepRunToTicker(tenantId, stepRunId)
-
-	// if err != nil {
-	// 	return fmt.Errorf("could not assign step run to ticker: %w", err)
-	// }
-
-	// scheduleTimeoutTask, err := scheduleStepRunTimeoutTask(stepRun)
-
-	// if err != nil {
-	// 	return fmt.Errorf("could not schedule step run timeout task: %w", err)
-	// }
-
 	// send a task to the dispatcher
 	err = ec.mq.AddMessage(
 		ctx,
@@ -736,17 +714,6 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, ste
 	if err != nil {
 		return fmt.Errorf("could not add job assigned task to task queue: %w", err)
 	}
-
-	// send a task to the ticker
-	// err = ec.mq.AddMessage(
-	// 	ctx,
-	// 	msgqueue.QueueTypeFromTickerID(tickerId),
-	// 	scheduleTimeoutTask,
-	// )
-
-	// if err != nil {
-	// 	return fmt.Errorf("could not add schedule step run timeout task to task queue: %w", err)
-	// }
 
 	return nil
 }
@@ -862,23 +829,6 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 		}
 	}
 
-	// cancel the timeout task
-	if stepRun.StepRun.TickerId.Valid {
-		tickerId := sqlchelpers.UUIDToStr(stepRun.StepRun.TickerId)
-		tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
-		stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-
-		err = ec.mq.AddMessage(
-			ctx,
-			msgqueue.QueueTypeFromTickerID(tickerId),
-			cancelStepRunTimeoutTask(tenantId, stepRunId),
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not add cancel step run timeout task to task queue: %w", err)
-		}
-	}
-
 	return nil
 }
 
@@ -933,25 +883,6 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 	}
 
 	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
-
-	// servertel.WithStepRunModel(span, stepRun)
-
-	// cancel the ticker for the step run
-	if stepRun.StepRun.TickerId.Valid {
-		tickerId := sqlchelpers.UUIDToStr(stepRun.StepRun.TickerId)
-		tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
-		stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-
-		err = ec.mq.AddMessage(
-			ctx,
-			msgqueue.QueueTypeFromTickerID(tickerId),
-			cancelStepRunTimeoutTask(tenantId, stepRunId),
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not add cancel step run timeout task to task queue: %w", err)
-		}
-	}
 
 	if shouldRetry {
 		// send a task to the taskqueue
@@ -1091,67 +1022,6 @@ func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *dbsqlc.GetStepRun
 	}
 }
 
-func (ec *JobsControllerImpl) handleTickerRemoved(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-ticker-removed")
-	defer span.End()
-
-	payload := tasktypes.RemoveTickerTaskPayload{}
-	metadata := tasktypes.RemoveTickerTaskMetadata{}
-
-	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
-
-	if err != nil {
-		return fmt.Errorf("could not decode ticker removed task payload: %w", err)
-	}
-
-	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
-
-	if err != nil {
-		return fmt.Errorf("could not decode ticker removed task metadata: %w", err)
-	}
-
-	ec.l.Debug().Msgf("handling ticker removed for ticker %s", payload.TickerId)
-
-	// get all step runs assigned to the ticker
-	// stepRuns, err := ec.repo.StepRun().ListRunningStepRunsForTicker(payload.TickerId)
-
-	// if err != nil {
-	// 	return fmt.Errorf("could not list step runs: %w", err)
-	// }
-
-	// for _, stepRun := range stepRuns {
-	// stepRunCp := stepRun
-
-	// tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
-	// stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-
-	// tickerId, err := ec.repo.StepRun().AssignStepRunToTicker(tenantId, stepRunId)
-
-	// if err != nil {
-	// 	return fmt.Errorf("could not update step run: %w", err)
-	// }
-
-	// scheduleTimeoutTask, err := scheduleStepRunTimeoutTask(stepRunCp)
-
-	// if err != nil {
-	// 	return fmt.Errorf("could not schedule step run timeout task: %w", err)
-	// }
-
-	// send a task to the ticker
-	// err = ec.mq.AddMessage(
-	// 	ctx,
-	// 	msgqueue.QueueTypeFromTickerID(tickerId),
-	// 	scheduleTimeoutTask,
-	// )
-
-	// if err != nil {
-	// 	return fmt.Errorf("could not add schedule step run timeout task to task queue: %w", err)
-	// }
-	// }
-
-	return nil
-}
-
 func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunAssignedTaskPayload{
 		StepRunId: stepRunId,
@@ -1165,65 +1035,6 @@ func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *ms
 
 	return &msgqueue.Message{
 		ID:       "step-run-assigned",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
-	}
-}
-
-func scheduleStepRunTimeoutTask(stepRun *dbsqlc.GetStepRunForEngineRow) (*msgqueue.Message, error) {
-	var durationStr string
-
-	if stepRun.StepScheduleTimeout != "" {
-		durationStr = stepRun.StepScheduleTimeout
-	}
-
-	if durationStr == "" {
-		durationStr = defaults.DefaultStepRunTimeout
-	}
-
-	// get a duration
-	duration, err := time.ParseDuration(durationStr)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not parse duration: %w", err)
-	}
-
-	timeoutAt := time.Now().UTC().Add(duration)
-
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
-
-	payload, _ := datautils.ToJSONMap(tasktypes.ScheduleStepRunTimeoutTaskPayload{
-		StepRunId: stepRunId,
-		JobRunId:  jobRunId,
-		TimeoutAt: timeoutAt.Format(time.RFC3339),
-	})
-
-	metadata, _ := datautils.ToJSONMap(tasktypes.ScheduleStepRunTimeoutTaskMetadata{
-		TenantId: tenantId,
-	})
-
-	return &msgqueue.Message{
-		ID:       "schedule-step-run-timeout",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
-	}, nil
-}
-
-func cancelStepRunTimeoutTask(tenantId, stepRunId string) *msgqueue.Message {
-	payload, _ := datautils.ToJSONMap(tasktypes.CancelStepRunTimeoutTaskPayload{
-		StepRunId: stepRunId,
-	})
-
-	metadata, _ := datautils.ToJSONMap(tasktypes.CancelStepRunTimeoutTaskMetadata{
-		TenantId: tenantId,
-	})
-
-	return &msgqueue.Message{
-		ID:       "cancel-step-run-timeout",
 		Payload:  payload,
 		Metadata: metadata,
 		Retries:  3,
