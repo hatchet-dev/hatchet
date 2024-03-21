@@ -496,7 +496,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 	})
 
 	if retrierErr != nil {
-		return nil, fmt.Errorf("could not queue step run: %w", err)
+		return nil, fmt.Errorf("could not queue step run: %w", retrierErr)
 	}
 
 	retrierExtraErr := retrier(s.l, func() error {
@@ -520,7 +520,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 	})
 
 	if retrierExtraErr != nil {
-		return nil, fmt.Errorf("could not update step run extra: %w", err)
+		return nil, fmt.Errorf("could not update step run extra: %w", retrierExtraErr)
 	}
 
 	return stepRun, nil
