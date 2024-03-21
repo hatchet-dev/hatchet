@@ -244,7 +244,7 @@ type CreateStepParams struct {
 	Tenantid        pgtype.UUID      `json:"tenantid"`
 	Jobid           pgtype.UUID      `json:"jobid"`
 	Actionid        string           `json:"actionid"`
-	Timeout         string           `json:"timeout"`
+	Timeout         pgtype.Text      `json:"timeout"`
 	CustomUserData  []byte           `json:"customUserData"`
 	Retries         pgtype.Int4      `json:"retries"`
 	ScheduleTimeout pgtype.Text      `json:"scheduleTimeout"`

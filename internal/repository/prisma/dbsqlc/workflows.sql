@@ -232,7 +232,7 @@ INSERT INTO "Step" (
     @tenantId::uuid,
     @jobId::uuid,
     @actionId::text,
-    @timeout::text,
+    sqlc.narg('timeout')::text,
     coalesce(sqlc.narg('customUserData')::jsonb, '{}'),
     coalesce(sqlc.narg('retries')::integer, 0),
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m')
