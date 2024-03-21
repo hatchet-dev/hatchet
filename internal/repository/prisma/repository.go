@@ -1,10 +1,13 @@
 package prisma
 
 import (
+	"time"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/cache"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
@@ -34,8 +37,9 @@ type prismaRepository struct {
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
 
 type PrismaRepositoryOpts struct {
-	v validator.Validator
-	l *zerolog.Logger
+	v     validator.Validator
+	l     *zerolog.Logger
+	cache cache.Cacheable
 }
 
 func defaultPrismaRepositoryOpts() *PrismaRepositoryOpts {
@@ -56,6 +60,12 @@ func WithLogger(l *zerolog.Logger) PrismaRepositoryOpt {
 	}
 }
 
+func WithCache(cache cache.Cacheable) PrismaRepositoryOpt {
+	return func(opts *PrismaRepositoryOpts) {
+		opts.cache = cache
+	}
+}
+
 func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) repository.Repository {
 	opts := defaultPrismaRepositoryOpts()
 
@@ -66,11 +76,15 @@ func NewPrismaRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...Pris
 	newLogger := opts.l.With().Str("service", "database").Logger()
 	opts.l = &newLogger
 
+	if opts.cache == nil {
+		opts.cache = cache.New(1 * time.Millisecond)
+	}
+
 	return &prismaRepository{
-		apiToken:       NewAPITokenRepository(client, opts.v),
+		apiToken:       NewAPITokenRepository(client, opts.v, opts.cache),
 		event:          NewEventRepository(client, pool, opts.v, opts.l),
 		log:            NewLogRepository(client, pool, opts.v, opts.l),
-		tenant:         NewTenantRepository(client, opts.v),
+		tenant:         NewTenantRepository(client, opts.v, opts.cache),
 		tenantInvite:   NewTenantInviteRepository(client, opts.v),
 		workflow:       NewWorkflowRepository(client, pool, opts.v, opts.l),
 		workflowRun:    NewWorkflowRunRepository(client, pool, opts.v, opts.l),

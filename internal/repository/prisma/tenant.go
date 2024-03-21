@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/cache"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
@@ -11,12 +12,14 @@ import (
 type tenantRepository struct {
 	client *db.PrismaClient
 	v      validator.Validator
+	cache  cache.Cacheable
 }
 
-func NewTenantRepository(client *db.PrismaClient, v validator.Validator) repository.TenantRepository {
+func NewTenantRepository(client *db.PrismaClient, v validator.Validator, cache cache.Cacheable) repository.TenantRepository {
 	return &tenantRepository{
 		client: client,
 		v:      v,
+		cache:  cache,
 	}
 }
 
@@ -37,9 +40,11 @@ func (r *tenantRepository) ListTenants() ([]db.TenantModel, error) {
 }
 
 func (r *tenantRepository) GetTenantByID(id string) (*db.TenantModel, error) {
-	return r.client.Tenant.FindUnique(
-		db.Tenant.ID.Equals(id),
-	).Exec(context.Background())
+	return cache.MakeCacheable[db.TenantModel](r.cache, id, func() (*db.TenantModel, error) {
+		return r.client.Tenant.FindUnique(
+			db.Tenant.ID.Equals(id),
+		).Exec(context.Background())
+	})
 }
 
 func (r *tenantRepository) GetTenantBySlug(slug string) (*db.TenantModel, error) {

@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/exaring/otelpgx"
+	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
-
-	pgxzero "github.com/jackc/pgx-zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/auth/oauth"
@@ -27,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/github"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
+	"github.com/hatchet-dev/hatchet/internal/repository/cache"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
@@ -34,8 +35,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
-
-	"github.com/exaring/otelpgx"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -121,11 +120,10 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		cf.PostgresSSLMode,
 	)
 
-	os.Setenv("DATABASE_URL", databaseUrl)
+	// TODO db.WithDatasourceURL(databaseUrl) is not working
+	_ = os.Setenv("DATABASE_URL", databaseUrl)
 
-	c := db.NewClient(
-	// db.WithDatasourceURL(databaseUrl),
-	)
+	c := db.NewClient()
 
 	if err := c.Prisma.Connect(); err != nil {
 		return nil, err
@@ -152,9 +150,14 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
+	ch := cache.New(cf.CacheDuration)
+
 	return &database.Config{
-		Disconnect: c.Prisma.Disconnect,
-		Repository: prisma.NewPrismaRepository(c, pool, prisma.WithLogger(&l)),
+		Disconnect: func() error {
+			ch.Stop()
+			return c.Prisma.Disconnect()
+		},
+		Repository: prisma.NewPrismaRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
 		Seed:       cf.Seed,
 	}, nil
 }

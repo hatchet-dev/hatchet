@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/cache"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
@@ -12,19 +13,23 @@ import (
 type apiTokenRepository struct {
 	client *db.PrismaClient
 	v      validator.Validator
+	cache  cache.Cacheable
 }
 
-func NewAPITokenRepository(client *db.PrismaClient, v validator.Validator) repository.APITokenRepository {
+func NewAPITokenRepository(client *db.PrismaClient, v validator.Validator, cache cache.Cacheable) repository.APITokenRepository {
 	return &apiTokenRepository{
 		client: client,
 		v:      v,
+		cache:  cache,
 	}
 }
 
 func (a *apiTokenRepository) GetAPITokenById(id string) (*db.APITokenModel, error) {
-	return a.client.APIToken.FindUnique(
-		db.APIToken.ID.Equals(id),
-	).Exec(context.Background())
+	return cache.MakeCacheable[db.APITokenModel](a.cache, id, func() (*db.APITokenModel, error) {
+		return a.client.APIToken.FindUnique(
+			db.APIToken.ID.Equals(id),
+		).Exec(context.Background())
+	})
 }
 
 func (a *apiTokenRepository) CreateAPIToken(opts *repository.CreateAPITokenOpts) (*db.APITokenModel, error) {
