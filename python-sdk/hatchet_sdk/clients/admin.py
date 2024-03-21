@@ -32,10 +32,10 @@ class AdminClientImpl:
         except grpc.RpcError as e:
             raise ValueError(f"Could not put workflow: {e}")
 
-    def schedule_workflow(self, workflow_id: str, schedules: List[timestamp_pb2.Timestamp]):
+    def schedule_workflow(self, name: str, schedules: List[timestamp_pb2.Timestamp]):
         try:
             self.client.ScheduleWorkflow(ScheduleWorkflowRequest(
-                workflow_id=workflow_id,
+                name=name,
                 schedules=schedules,
             ), metadata=get_metadata(self.token))
 
