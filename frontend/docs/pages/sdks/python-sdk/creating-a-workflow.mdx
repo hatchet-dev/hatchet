@@ -22,7 +22,7 @@ class MyWorkflow:
 
 You'll notice that the workflow defines a workflow trigger (in this case, `on_events`), and the workflow definition. The workflow definition is a series of steps, which can be defined using the `hatchet.step` decorator. Each step must be a method on the class, and must accept a `context` argument. The `context` argument is a `Context` object, which contains information about the workflow, such as the input data and the output data of previous steps.
 
-To create multi-step workflows, you can use `parents` to define the steps which the current step depends on. 
+To create multi-step workflows, you can use `parents` to define the steps which the current step depends on.
 
 ## Getting Access to the Input Data
 
@@ -30,7 +30,7 @@ You can get access to the workflow's input data, such as the event data or other
 
 ```json
 {
-    "name": "test"
+  "name": "test"
 }
 ```
 
@@ -98,9 +98,9 @@ def step1(self, context):
 
 ## Concurrency Limits and Fairness
 
-> __**Note:** this feature is currently in beta, and currently only supports a concurrency strategy which terminates the oldest running workflow run to make room for the new one. This will be expanded in the future to support other strategies.__
+> **Note:** this feature is currently in beta, and currently only supports a concurrency strategy which terminates the oldest running workflow run to make room for the new one. This will be expanded in the future to support other strategies.\*\*
 
-By default, there are no concurrency limits for Hatchet workflows. Workflow runs are immediately executed as soon as they are triggered (by an event, cron, or schedule). However, you can enforce a concurrency limit by decorating a custom function with `hatchet.concurrency`. This function returns a __concurrency group key__, which is a string that is used to group concurrent executions. **Note that this function should not also be used as a `hatchet.step`.** For example, the following workflow will only allow 5 concurrent executions for any workflow execution of `ConcurrencyDemoWorkflow`, since the key is statically set to `concurrency-key`:
+By default, there are no concurrency limits for Hatchet workflows. Workflow runs are immediately executed as soon as they are triggered (by an event, cron, or schedule). However, you can enforce a concurrency limit by decorating a custom function with `hatchet.concurrency`. This function returns a **concurrency group key**, which is a string that is used to group concurrent executions. **Note that this function should not also be used as a `hatchet.step`.** For example, the following workflow will only allow 5 concurrent executions for any workflow execution of `ConcurrencyDemoWorkflow`, since the key is statically set to `concurrency-key`:
 
 ```py
 @hatchet.workflow(on_events=["concurrency-test"])
@@ -133,6 +133,7 @@ class ConcurrencyDemoWorkflow:
 ```
 
 This same approach can be used for:
+
 - Setting concurrency for a specific user session by `session_id` (i.e. multiple chat messages sent)
 - Limiting data or document ingestion by setting an input hash or on-file key.
 - Rudimentary fairness rules by limiting groups per tenant to a certain number of concurrent executions.
@@ -174,7 +175,7 @@ class LoggingWorkflow:
 
         for i in range(1000):
             context.log(f"Logging message {i}")
-        
+
         return {
             "step1": "completed",
         }

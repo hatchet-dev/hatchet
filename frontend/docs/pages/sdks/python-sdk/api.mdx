@@ -1,8 +1,9 @@
 # API
 
-The SDK exposes a `rest` client for interacting with the Hatchet REST API. This allows you to read, create, update, and delete workflows. 
+The SDK exposes a `rest` client for interacting with the Hatchet REST API. This allows you to read, create, update, and delete workflows.
 
 The admin client can be accessed via:
+
 ```py
 hatchet = Hatchet(debug=True)
 
@@ -11,12 +12,12 @@ list : WorkflowList = hatchet.client.rest().workflow_list()
 
 ## Methods
 
-- [workflow\_list](api.mdx#workflow_list)
-- [workflow\_get](api.mdx#workflow_get)
-- [workflow\_version\_get](api.mdx#workflow_version_get) 
-- [workflow\_run\_list](api.mdx#workflow_run_list)
-- [workflow\_run\_get](api.mdx#workflow_run_get)
-- [workflow\_run\_create](api.mdx#workflow_run_create)
+- [workflow_list](api.mdx#workflow_list)
+- [workflow_get](api.mdx#workflow_get)
+- [workflow_version_get](api.mdx#workflow_version_get)
+- [workflow_run_list](api.mdx#workflow_run_list)
+- [workflow_run_get](api.mdx#workflow_run_get)
+- [workflow_run_create](api.mdx#workflow_run_create)
 
 ### workflow_list
 
@@ -38,8 +39,8 @@ Get a workflow by its ID.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
+| Name          | Type  | Description      |
+| :------------ | :---- | :--------------- |
 | `workflow_id` | `str` | The workflow ID. |
 
 #### Returns
@@ -56,10 +57,10 @@ Get a specific version of a workflow.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
+| Name          | Type  | Description      |
+| :------------ | :---- | :--------------- | ----------------------------------------------------------------------- |
 | `workflow_id` | `str` | The workflow ID. |
-| `version` | `str | None` | The version of the workflow. If `None`, the latest version is returned. |
+| `version`     | `str  | None`            | The version of the workflow. If `None`, the latest version is returned. |
 
 #### Returns
 
@@ -75,12 +76,12 @@ List workflow runs, optionally filtered by parameters.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `workflow_id` | `str | None` | The workflow ID to filter by. |
-| `offset` | `int | None` | Pagination offset. |
-| `limit` | `int | None` | Pagination limit. |
-| `event_id` | `str | None` | Event ID to filter by. |
+| Name          | Type | Description |
+| :------------ | :--- | :---------- | ----------------------------- |
+| `workflow_id` | `str | None`       | The workflow ID to filter by. |
+| `offset`      | `int | None`       | Pagination offset.            |
+| `limit`       | `int | None`       | Pagination limit.             |
+| `event_id`    | `str | None`       | Event ID to filter by.        |
 
 #### Returns
 
@@ -96,8 +97,8 @@ Get a specific workflow run.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
+| Name              | Type  | Description                        |
+| :---------------- | :---- | :--------------------------------- |
 | `workflow_run_id` | `str` | The ID of the workflow run to get. |
 
 #### Returns
@@ -114,10 +115,10 @@ Create and trigger a workflow run with specified input.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `workflow_id` | `str` | The ID of the workflow to run. |
-| `input` | `Dict[str, Any]` | The input for the workflow run. |
+| Name          | Type             | Description                     |
+| :------------ | :--------------- | :------------------------------ |
+| `workflow_id` | `str`            | The ID of the workflow to run.  |
+| `input`       | `Dict[str, Any]` | The input for the workflow run. |
 
 #### Returns
 

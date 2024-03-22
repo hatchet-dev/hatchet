@@ -1,12 +1,13 @@
-import { Callout, Card, Cards, Steps, Tabs } from 'nextra/components'
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 
 # Workflows in Hatchet
 
-Now that you understand the foundational [Step](./steps) concept, you can combine these foundational building blocks into a structured sequence of tasks, known as a **workflow**. 
+Now that you understand the foundational [Step](./steps) concept, you can combine these foundational building blocks into a structured sequence of tasks, known as a **workflow**.
 
 Workflows can be as simple as a single step or as complex as a multi-step process with branching logic and parallel execution. Hatchet offers a declarative-first approach, providing a clear, organized blueprint for task execution.
 
 ## Declarative Workflow Design (DAGs)
+
 Hatchet workflows are designed in a **Directed Acyclic Graph (DAG)** format, where each step is a node in the graph, and the dependencies between steps are the edges. This structure ensures that workflows are organized, predictable, and free from circular dependencies. By defining the sequence and dependencies of steps upfront, you can easily understand the actual runtime state as compared to the expected state when debugging or troubleshooting.
 
 ### Example: A Simple DAG Workflow
@@ -14,7 +15,6 @@ Hatchet workflows are designed in a **Directed Acyclic Graph (DAG)** format, whe
 Here's an example of a simpleg graphical DAG workflow in Hatchet, consisting of four steps:
 
 ![Simple DAG](/simple-dag.png)
-
 
 Each Step is represented as a node in the graph, and the arrows between the nodes represent the dependencies between the steps (left to right). In this example, `start` must complete before `load_docs` can start, `load_docs` must complete before `reason_docs` can start, and so on.
 
@@ -59,7 +59,8 @@ class BasicRagWorkflow:
             "status": "complete",
             "message": message,
         }
-```
+
+````
     </Tabs.Tab>
     <Tabs.Tab>
 ```typescript
@@ -94,7 +95,7 @@ const workflow: Workflow = {
       run: (ctx) => {
         const docs = ctx.stepOutput("load_docs")['docs']
         // Reason about the relevant docs
- 
+
         return {
             "status": "writing a response",
             "research": research,
@@ -116,10 +117,11 @@ const workflow: Workflow = {
 
   ],
 };
-```
-    </Tabs.Tab>
-</Tabs>
+````
 
+    </Tabs.Tab>
+
+</Tabs>
 
 ### Accessing Workflow State Within a Step
 
@@ -143,7 +145,7 @@ const workflow: Workflow = {
   steps: [
     // ... other steps
     {
-      name: 'my_step', 
+      name: 'my_step',
       parents=["previous_step"]
       run: async (ctx) => {
         const data = ctx.workflowInput();
@@ -159,13 +161,12 @@ const workflow: Workflow = {
     </Tabs.Tab>
 </Tabs>
 
-{/* ## Spawning Child Workflows
+{/* ## Spawning Child Workflows */}
 
-In Hatchet, while the core of workflow design is declarative, emphasizing upfront definition and organization, the platform provides the flexibility to integrate procedural logic where needed. This approach allows you to respond dynamically to the context within individual steps. This is helpful for:
+{/* In Hatchet, while the core of workflow design is declarative, emphasizing upfront definition and organization, the platform provides the flexibility to integrate procedural logic where needed. This approach allows you to respond dynamically to the context within individual steps. This is helpful for: */}
 
-- **Branching Logic:** Utilize child workflows to navigate complex decision trees or conditional pathways, allowing your main workflow to adapt and respond to diverse outcomes or scenarios.
-- **Task Fan-Out:** Leverage the ability to fan out work by initiating multiple child workflows simultaneously, ideal for parallel processing or when a single step's output necessitates a broad, distributed series of subsequent actions. */}
-
+{/* - **Branching Logic:** Utilize child workflows to navigate complex decision trees or conditional pathways, allowing your main workflow to adapt and respond to diverse outcomes or scenarios. */}
+{/* - **Task Fan-Out:** Leverage the ability to fan out work by initiating multiple child workflows simultaneously, ideal for parallel processing or when a single step's output necessitates a broad, distributed series of subsequent actions. */}
 
 ## Next Steps: Understanding Workers
 
