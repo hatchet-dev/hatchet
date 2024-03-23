@@ -8,10 +8,10 @@ To trigger a workflow at a specific time, you need to configure the `on` propert
 
 ```typescript
 const myWorkflow: Workflow = {
-  id: 'my-workflow',
-  description: 'A workflow triggered by a schedule',
+  id: "my-workflow",
+  description: "A workflow triggered by a schedule",
   on: {
-    schedule: '2023-06-15T09:30:00Z',
+    schedule: "2023-06-15T09:30:00Z",
   },
   steps: [
     // Define your workflow steps here
@@ -31,7 +31,6 @@ When using schedule triggers, there are a few considerations to keep in mind:
 
 3. **One-Time Execution**: Schedule triggers are designed for one-time execution. Once a workflow is triggered by a schedule, it will not be triggered again automatically. If you need recurring executions, consider using cron triggers instead.
 
-
 ## Scheduling Best Practices
 
 When working with schedule triggers, consider the following best practices:
@@ -43,7 +42,6 @@ When working with schedule triggers, consider the following best practices:
 3. **Scheduling Window**: Configure an appropriate scheduling window based on your workflow requirements. Consider factors such as data availability, dependencies, and system load when determining the window size.
 
 4. **Error Handling**: Implement proper error handling and retry mechanisms in your workflows to handle any potential failures or exceptions that may occur during scheduled executions.
-
 
 ## Conclusion
 

@@ -134,7 +134,7 @@ const workflow: Workflow = {
 
 ## Concurrency Limits and Fairness
 
-> \***\*Note:** this feature is currently in beta, and currently only supports a concurrency strategy which terminates the oldest running workflow run to make room for the new one. This will be expanded in the future to support other strategies.\*\*
+> **Note:** this feature is currently in beta, and currently only supports a concurrency strategy which terminates the oldest running workflow run to make room for the new one. This will be expanded in the future to support other strategies.\*\*
 
 By default, there are no concurrency limits for Hatchet workflows. Workflow runs are immediately executed as soon as they are triggered (by an event, cron, or schedule). However, you can enforce a concurrency limit by adding a `concurrency` configuration to your workflow declaration. This configuration includes a key which takes a function that returns a **concurrency group key**, which is a string that is used to group concurrent executions. **Note that this function should not also be used as a `hatchet.step`.** For example, the following workflow will only allow 5 concurrent executions for any workflow execution of `ConcurrencyDemoWorkflow`, since the key is statically set to `concurrency-key`:
 
@@ -177,7 +177,7 @@ const workflow: Workflow = {
       run: (ctx) => {
         console.log(
           "executed step2 after step1 returned ",
-          ctx.stepOutput("step1")
+          ctx.stepOutput("step1"),
         );
         return { step2: "step2 results!" };
       },
@@ -194,7 +194,7 @@ When a concurrent workflow is already running, Hatchet will send a cancellation 
 
 ```ts
 {
-    name: "step1",
+    "step1",
     run: async (ctx) => {
       const { data } = ctx.workflowInput();
       const { signal } = ctx.controller;
@@ -277,17 +277,17 @@ const workflow: Workflow = {
 
 ## Playground Values
 
-Playground values are a way to override variables within a workflow from the Hatchet UI. For example, you could use this to make a prompt or temperature value for an LLM workflow configurable from the UI. These values can be set via the `ctx.playground` method: 
+Playground values are a way to override variables within a workflow from the Hatchet UI. For example, you could use this to make a prompt or temperature value for an LLM workflow configurable from the UI. These values can be set via the `ctx.playground` method:
 
 ```ts
 await worker.registerWorkflow({
-  id: 'playground-demo',
-  description: 'This is a demo of the playground',
+  id: "playground-demo",
+  description: "This is a demo of the playground",
   steps: [
     {
-      name: 'playground',
+      name: "playground",
       run: (ctx: Context<any, any>) => {
-        const prompt = ctx.playground('prompt', 'This is an example prompt');
+        const prompt = ctx.playground("prompt", "This is an example prompt");
 
         return { step1: playground };
       },
@@ -304,20 +304,20 @@ Hatchet comes with a built-in logging view where you can push debug logs from yo
 
 ```ts
 const workflow: Workflow = {
-  id: 'logger-example',
-  description: 'test',
+  id: "logger-example",
+  description: "test",
   on: {
-    event: 'user:create',
+    event: "user:create",
   },
   steps: [
     {
-      name: 'logger-step1',
+      name: "logger-step1",
       run: async (ctx) => {
         for (let i = 0; i < 1000; i++) {
           ctx.log(`log message ${i}`);
         }
 
-        return { step1: 'completed step run' };
+        return { step1: "completed step run" };
       },
     },
   ],

@@ -31,16 +31,16 @@ Here's an example workflow definition with concurrency control:
 
 ```typescript
 export const myWorkflow: Workflow = {
-  id: 'my-workflow',
-  description: 'My workflow with concurrency control',
+  id: "my-workflow",
+  description: "My workflow with concurrency control",
   on: {
-    event: 'my.event',
+    event: "my.event",
   },
   steps: [
     // ...
   ],
   concurrency: {
-    name: 'my-workflow-concurrency',
+    name: "my-workflow-concurrency",
     maxRuns: 10,
     limitStrategy: ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
     key: (ctx) => ctx.userId,
@@ -55,7 +55,7 @@ In this example, the workflow is limited to a maximum of 10 concurrent runs for 
 In addition to setting concurrency limits at the workflow level, you can also control concurrency at the worker level by passing the `maxRuns` option when creating a new `Worker` instance:
 
 ```typescript
-const worker = hatchet.worker('my-worker', {
+const worker = hatchet.worker("my-worker", {
   maxRuns: 5,
 });
 ```

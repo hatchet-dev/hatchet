@@ -19,7 +19,7 @@ load_dotenv() # we'll use dotenv to load the required Hatchet and OpenAI api key
 app = FastAPI()
 hatchet = Hatchet()
 
-# This is required for running a local react app, 
+# This is required for running a local react app,
 # but is not recommended for production.
 app.add_middleware(
     CORSMiddleware,
@@ -57,9 +57,7 @@ class MessageRequest(BaseModel):
 
 ## Create an endpoint to trigger the workflow
 
-Next, let's create an endpoint that the client can call to trigger the workflow. Back in `/backend/src/api/main.py`, let's add a simple `POST` endpoint. 
-
-
+Next, let's create an endpoint that the client can call to trigger the workflow. Back in `/backend/src/api/main.py`, let's add a simple `POST` endpoint.
 
 ```python
 @app.post("/message")
@@ -79,16 +77,17 @@ Using data.dict() allows us to convert the MessageRequest instance to a dictiona
 
 By passing data.dict() as the "request" field in the input dictionary, we ensure that the workflow receives the necessary data (messages and URL) to process the request. The run_workflow method will use this dictionary to access the required information within the workflow.
 
-
 ## Start the FastAPI server
 
 Finally, let's start the FastAPI server using Uvicorn and our poetry script:
+
 ```sh
 poetry run api
 ```
 
 You can use `curl` to make a request to this endpoint and observe the run in the Hatchet Dashboard
-```sh 
+
+```sh
 curl -X POST -H "Content-Type: application/json" -d '{
     "messages": [
         {

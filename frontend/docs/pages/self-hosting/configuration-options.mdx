@@ -6,95 +6,95 @@ This document outlines the environment variables used to configure the server. T
 
 ## Runtime Configuration
 
-| Variable                          | Description                                                   | Default Value                |
-|-----------------------------------|---------------------------------------------------------------|------------------------------|
-| `SERVER_PORT`                     | Port for the core server                                      | `8080`                       |
-| `SERVER_URL`                      | Full server URL, including protocol                           | `http://localhost:8080`      |
-| `SERVER_GRPC_PORT`                | Port for the GRPC service                                     | `7070`                       |
-| `SERVER_GRPC_BIND_ADDRESS`        | GRPC server bind address                                      | `127.0.0.1`                  |
-| `SERVER_GRPC_BROADCAST_ADDRESS`   | GRPC server broadcast address                                 | `127.0.0.1:7070`             |
-| `SERVER_GRPC_INSECURE`            | Controls if the GRPC server is insecure                       | `false`                      |
-| `SERVER_WORKER_ENABLED`           | Whether the internal worker is enabled                        | `false`                      |
+| Variable                        | Description                             | Default Value           |
+| ------------------------------- | --------------------------------------- | ----------------------- |
+| `SERVER_PORT`                   | Port for the core server                | `8080`                  |
+| `SERVER_URL`                    | Full server URL, including protocol     | `http://localhost:8080` |
+| `SERVER_GRPC_PORT`              | Port for the GRPC service               | `7070`                  |
+| `SERVER_GRPC_BIND_ADDRESS`      | GRPC server bind address                | `127.0.0.1`             |
+| `SERVER_GRPC_BROADCAST_ADDRESS` | GRPC server broadcast address           | `127.0.0.1:7070`        |
+| `SERVER_GRPC_INSECURE`          | Controls if the GRPC server is insecure | `false`                 |
+| `SERVER_WORKER_ENABLED`         | Whether the internal worker is enabled  | `false`                 |
 
 ## Services Configuration
 
-| Variable              | Description                 | Default Value                                                                                   |
-|-----------------------|-----------------------------|-------------------------------------------------------------------------------------------------|
-| `SERVER_SERVICES`     | List of enabled services    | `["ticker", "grpc", "eventscontroller", "jobscontroller", "workflowscontroller", "heartbeater"]`|
+| Variable          | Description              | Default Value                                                                                    |
+| ----------------- | ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `SERVER_SERVICES` | List of enabled services | `["ticker", "grpc", "eventscontroller", "jobscontroller", "workflowscontroller", "heartbeater"]` |
 
 ## Encryption Configuration
 
-| Variable                                  | Description                                           | Default Value    |
-|-------------------------------------------|-------------------------------------------------------|------------------|
-| `SERVER_ENCRYPTION_MASTER_KEYSET`         | Raw master keyset, base64-encoded JSON string         |                  |
-| `SERVER_ENCRYPTION_MASTER_KEYSET_FILE`    | Path to the master keyset file                        |                  |
-| `SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET`     | Public JWT keyset, base64-encoded JSON string         |                  |
-| `SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE`| Path to the public JWT keyset file                    |                  |
-| `SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET`    | Private JWT keyset, base64-encoded JSON string        |                  |
-| `SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE`| Path to the private JWT keyset file                   |                  |
-| `SERVER_ENCRYPTION_CLOUDKMS_ENABLED`      | Whether Google Cloud KMS is enabled                    | `false`          |
-| `SERVER_ENCRYPTION_CLOUDKMS_KEY_URI`      | URI of the key in Google Cloud KMS                     |                  |
-| `SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON`| JSON credentials for Google Cloud KMS               |                  |
+| Variable                                      | Description                                    | Default Value |
+| --------------------------------------------- | ---------------------------------------------- | ------------- |
+| `SERVER_ENCRYPTION_MASTER_KEYSET`             | Raw master keyset, base64-encoded JSON string  |               |
+| `SERVER_ENCRYPTION_MASTER_KEYSET_FILE`        | Path to the master keyset file                 |               |
+| `SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET`         | Public JWT keyset, base64-encoded JSON string  |               |
+| `SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE`    | Path to the public JWT keyset file             |               |
+| `SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET`        | Private JWT keyset, base64-encoded JSON string |               |
+| `SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE`   | Path to the private JWT keyset file            |               |
+| `SERVER_ENCRYPTION_CLOUDKMS_ENABLED`          | Whether Google Cloud KMS is enabled            | `false`       |
+| `SERVER_ENCRYPTION_CLOUDKMS_KEY_URI`          | URI of the key in Google Cloud KMS             |               |
+| `SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON` | JSON credentials for Google Cloud KMS          |               |
 
 ## Authentication Configuration
 
-| Variable                                  | Description                                           | Default Value                    |
-|-------------------------------------------|-------------------------------------------------------|----------------------------------|
-| `SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS`    | Restricted email domains                              |                                  |
-| `SERVER_AUTH_BASIC_AUTH_ENABLED`          | Whether basic auth is enabled                         | `true`                           |
-| `SERVER_AUTH_SET_EMAIL_VERIFIED`          | Whether the user's email is set to verified automatically| `false`                      |
-| `SERVER_AUTH_COOKIE_NAME`                 | Name of the cookie                                    | `hatchet`                        |
-| `SERVER_AUTH_COOKIE_DOMAIN`               | Domain for the cookie                                 |                                  |
-| `SERVER_AUTH_COOKIE_SECRETS`              | Cookie secrets                                        |                                  |
-| `SERVER_AUTH_COOKIE_INSECURE`             | Whether the cookie is insecure                        | `false`                          |
-| `SERVER_AUTH_GOOGLE_ENABLED`              | Whether Google auth is enabled                        | `false`                          |
-| `SERVER_AUTH_GOOGLE_CLIENT_ID`            | Google auth client ID                                 |                                  |
-| `SERVER_AUTH_GOOGLE_CLIENT_SECRET`        | Google auth client secret                             |                                  |
-| `SERVER_AUTH_GOOGLE_SCOPES`               | Google auth scopes                                    | `["openid", "profile", "email"]` |
+| Variable                               | Description                                               | Default Value                    |
+| -------------------------------------- | --------------------------------------------------------- | -------------------------------- |
+| `SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS` | Restricted email domains                                  |                                  |
+| `SERVER_AUTH_BASIC_AUTH_ENABLED`       | Whether basic auth is enabled                             | `true`                           |
+| `SERVER_AUTH_SET_EMAIL_VERIFIED`       | Whether the user's email is set to verified automatically | `false`                          |
+| `SERVER_AUTH_COOKIE_NAME`              | Name of the cookie                                        | `hatchet`                        |
+| `SERVER_AUTH_COOKIE_DOMAIN`            | Domain for the cookie                                     |                                  |
+| `SERVER_AUTH_COOKIE_SECRETS`           | Cookie secrets                                            |                                  |
+| `SERVER_AUTH_COOKIE_INSECURE`          | Whether the cookie is insecure                            | `false`                          |
+| `SERVER_AUTH_GOOGLE_ENABLED`           | Whether Google auth is enabled                            | `false`                          |
+| `SERVER_AUTH_GOOGLE_CLIENT_ID`         | Google auth client ID                                     |                                  |
+| `SERVER_AUTH_GOOGLE_CLIENT_SECRET`     | Google auth client secret                                 |                                  |
+| `SERVER_AUTH_GOOGLE_SCOPES`            | Google auth scopes                                        | `["openid", "profile", "email"]` |
 
 ## Task Queue Configuration
 
-| Variable                          | Description                 | Default Value                         |
-|-----------------------------------|-----------------------------|---------------------------------------|
-| `SERVER_TASKQUEUE_RABBITMQ_URL`   | RabbitMQ URL                | `amqp://user:password@localhost:5672/`|
+| Variable                        | Description  | Default Value                          |
+| ------------------------------- | ------------ | -------------------------------------- |
+| `SERVER_TASKQUEUE_RABBITMQ_URL` | RabbitMQ URL | `amqp://user:password@localhost:5672/` |
 
 ## TLS Configuration
 
-| Variable                      | Description               | Default Value    |
-|-------------------------------|---------------------------|------------------|
-| `SERVER_TLS_STRATEGY`         | TLS strategy              |                  |
-| `SERVER_TLS_CERT`             | TLS certificate           |                  |
-| `SERVER_TLS_CERT_FILE`        | Path to the TLS certificate file |          |
-| `SERVER_TLS_KEY`              | TLS key                   |                  |
-| `SERVER_TLS_KEY_FILE`         | Path to the TLS key file  |                  |
-| `SERVER_TLS_ROOT_CA`          | TLS root CA               |                  |
-| `SERVER_TLS_ROOT_CA_FILE`     | Path to the TLS root CA file |                |
-| `SERVER_TLS_SERVER_NAME`      | TLS server name           |                  |
+| Variable                  | Description                      | Default Value |
+| ------------------------- | -------------------------------- | ------------- |
+| `SERVER_TLS_STRATEGY`     | TLS strategy                     |               |
+| `SERVER_TLS_CERT`         | TLS certificate                  |               |
+| `SERVER_TLS_CERT_FILE`    | Path to the TLS certificate file |               |
+| `SERVER_TLS_KEY`          | TLS key                          |               |
+| `SERVER_TLS_KEY_FILE`     | Path to the TLS key file         |               |
+| `SERVER_TLS_ROOT_CA`      | TLS root CA                      |               |
+| `SERVER_TLS_ROOT_CA_FILE` | Path to the TLS root CA file     |               |
+| `SERVER_TLS_SERVER_NAME`  | TLS server name                  |               |
 
 ## Logging Configuration
 
-| Variable                  | Description           | Default Value    |
-|---------------------------|-----------------------|------------------|
-| `SERVER_LOGGER_LEVEL`     | Logger level          |                  |
-| `SERVER_LOGGER_FORMAT`    | Logger format         |                  |
+| Variable               | Description   | Default Value |
+| ---------------------- | ------------- | ------------- |
+| `SERVER_LOGGER_LEVEL`  | Logger level  |               |
+| `SERVER_LOGGER_FORMAT` | Logger format |               |
 
 ## OpenTelemetry Configuration
 
-| Variable                          | Description                         | Default Value    |
-|-----------------------------------|-------------------------------------|------------------|
-| `SERVER_OTEL_SERVICE_NAME`        | Service name for OpenTelemetry      |                  |
-| `SERVER_OTEL_COLLECTOR_URL`       | Collector URL for OpenTelemetry     |                  |
+| Variable                    | Description                     | Default Value |
+| --------------------------- | ------------------------------- | ------------- |
+| `SERVER_OTEL_SERVICE_NAME`  | Service name for OpenTelemetry  |               |
+| `SERVER_OTEL_COLLECTOR_URL` | Collector URL for OpenTelemetry |               |
 
 ## Version Control System (VCS) Configuration
 
-| Variable                                  | Description                               | Default Value    |
-|-------------------------------------------|-------------------------------------------|------------------|
-| `SERVER_VCS_KIND`                         | Type of VCS                               |                  |
-| `SERVER_VCS_GITHUB_ENABLED`               | Whether GitHub is enabled                 |                  |
-| `SERVER_VCS_GITHUB_APP_CLIENT_ID`         | GitHub app client ID                      |                  |
-| `SERVER_VCS_GITHUB_APP_CLIENT_SECRET`     | GitHub app client secret                  |                  |
-| `SERVER_VCS_GITHUB_APP_NAME`              | GitHub app name                           |                  |
-| `SERVER_VCS_GITHUB_APP_WEBHOOK_SECRET`    | GitHub app webhook secret                 |                  |
-| `SERVER_VCS_GITHUB_APP_WEBHOOK_URL`       | GitHub app webhook URL                    |                  |
-| `SERVER_VCS_GITHUB_APP_ID`                | GitHub app ID                             |                  |
-| `SERVER_VCS_GITHUB_APP_SECRET_PATH`       | Path to the GitHub app secret             |                  |
+| Variable                               | Description                   | Default Value |
+| -------------------------------------- | ----------------------------- | ------------- |
+| `SERVER_VCS_KIND`                      | Type of VCS                   |               |
+| `SERVER_VCS_GITHUB_ENABLED`            | Whether GitHub is enabled     |               |
+| `SERVER_VCS_GITHUB_APP_CLIENT_ID`      | GitHub app client ID          |               |
+| `SERVER_VCS_GITHUB_APP_CLIENT_SECRET`  | GitHub app client secret      |               |
+| `SERVER_VCS_GITHUB_APP_NAME`           | GitHub app name               |               |
+| `SERVER_VCS_GITHUB_APP_WEBHOOK_SECRET` | GitHub app webhook secret     |               |
+| `SERVER_VCS_GITHUB_APP_WEBHOOK_URL`    | GitHub app webhook URL        |               |
+| `SERVER_VCS_GITHUB_APP_ID`             | GitHub app ID                 |               |
+| `SERVER_VCS_GITHUB_APP_SECRET_PATH`    | Path to the GitHub app secret |               |
