@@ -12,7 +12,7 @@ import asyncio
 from hatchet_sdk import Hatchet
 
 async def main():
-hatchet = Hatchet(debug=True)
+    hatchet = Hatchet(debug=True)
 
     workflow_run_id = await hatchet.admin.run_workflow("simple-workflow", {
         "test": "test",
@@ -27,29 +27,32 @@ hatchet = Hatchet(debug=True)
     print("done listening for events")
 
 if __name__ == "__main__":
-asyncio.run(main())
+    asyncio.run(main())
 
 ```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript filename="resultStreaming.ts" copy
 import Hatchet from "@hatchet-dev/typescript-sdk";
 
 async function main() {
-const hatchet = Hatchet.init();
+  const hatchet = Hatchet.init();
 
-const workflowRunId = await hatchet.admin.run_workflow("simple-workflow", {
-test: "test",
-});
+  const workflowRunId = await hatchet.admin.run_workflow("simple-workflow", {
+    test: "test",
+  });
 
-const listener = hatchet.listener.stream(workflowRunId);
+  const listener = hatchet.listener.stream(workflowRunId);
 
-console.log("listening for events");
-for await (const event of listener) {
-console.log("event received", event);
-}
-console.log("done listening for events");
+  console.log("listening for events");
+
+  for await (const event of listener) {
+    console.log("event received", event);
+  }
+
+  console.log("done listening for events");
 }
 
 main()
