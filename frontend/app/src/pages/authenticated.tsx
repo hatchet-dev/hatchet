@@ -48,7 +48,7 @@ const invitesRedirector = async (currentUrl: string) => {
 
     const invites = res.data.rows || [];
 
-    if (invites.length > 0 && !currentUrl.includes('/onboarding')) {
+    if (invites.length > 0 && !currentUrl.includes('/onboarding/invites')) {
       throw redirect('/onboarding/invites');
     }
 
