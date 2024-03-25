@@ -42,7 +42,8 @@ type TenantInviteRepository interface {
 	// GetTenantInvite returns the tenant invite with the given id
 	GetTenantInvite(id string) (*db.TenantInviteLinkModel, error)
 
-	// ListTenantInvitesByEmail returns the list of tenant invites for the given invitee email
+	// ListTenantInvitesByEmail returns the list of tenant invites for the given invitee email for invites
+	// which are not expired
 	ListTenantInvitesByEmail(email string) ([]db.TenantInviteLinkModel, error)
 
 	// ListTenantInvitesByTenantId returns the list of tenant invites for the given tenant id
