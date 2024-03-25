@@ -98,6 +98,9 @@ message TriggerWorkflowRequest {
 
     // (optional) the input data for the workflow
     string input = 2;
+
+    // (optional) the parent workflow id
+    optional string parent_id = 3; 
 }
 
 message TriggerWorkflowResponse {

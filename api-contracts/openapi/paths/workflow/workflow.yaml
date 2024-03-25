@@ -388,6 +388,52 @@ workflowRun:
     summary: Get workflow run
     tags:
       - Workflow
+workflowRunChildren:
+  get:
+    x-resources: ["tenant", "workflow-run"]
+    description: Get all children for a workflow run
+    operationId: workflow-run:list:children
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The workflow run id
+        in: path
+        name: workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WorkflowRunList"
+        description: Successfully retrieved the workflow run children
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get workflow run children
+    tags:
+      - Workflow
 linkGithub:
   post:
     x-resources: ["tenant", "workflow"]
