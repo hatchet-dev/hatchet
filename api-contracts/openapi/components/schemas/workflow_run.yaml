@@ -30,6 +30,18 @@ WorkflowRun:
     finishedAt:
       type: string
       format: date-time
+    parentId:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    parentStepRunId:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
   required:
     - metadata
     - tenantId
