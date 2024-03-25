@@ -99,8 +99,11 @@ message TriggerWorkflowRequest {
     // (optional) the input data for the workflow
     string input = 2;
 
-    // (optional) the parent workflow id
+    // (optional) the parent workflow run id
     optional string parent_id = 3; 
+
+    // (optional) the parent step run id
+    optional string parent_step_run_id = 4;
 }
 
 message TriggerWorkflowResponse {
