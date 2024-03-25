@@ -593,10 +593,29 @@ model WorkflowRun {
   // the run finished at
   finishedAt DateTime?
 
+  // a list of dependents for this workflow run
+  children WorkflowRun[] @relation("WorkflowRunOrder")
+
+  // that parent that spawned this workflow run
+  parent   WorkflowRun? @relation("WorkflowRunOrder", fields: [parentId], references: [id])
+  parentId String?      @db.Uuid
+
+  parentStepRun   StepRun? @relation(fields: [parentStepRunId], references: [id])
+  parentStepRunId String?  @db.Uuid
+
+  // if this is a child workflow run, the index of the child
+  childIndex Int?
+
+  // a user-defined key for this workflow run
+  childKey String?
+
   // (optional) the branch for the github repo
   gitRepoBranch String?
 
   pullRequests GithubPullRequest[]
+
+  @@unique([parentId, childIndex])
+  @@unique([parentId, childKey])
 }
 
 model GetGroupKeyRun {
@@ -871,6 +890,8 @@ model StepRun {
   archivedResults StepRunResultArchive[]
 
   logs LogLine[]
+
+  childWorkflowRuns WorkflowRun[]
 }
 
 model StepRunResultArchive {
