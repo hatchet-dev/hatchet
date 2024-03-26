@@ -22,6 +22,14 @@ WHERE
         workflow."id" = sqlc.narg('workflowId')::uuid
     ) AND
     (
+        sqlc.narg('parentId')::uuid IS NULL OR
+        runs."parentId" = sqlc.narg('parentId')::uuid
+    ) AND
+    (
+        sqlc.narg('parentStepRunId')::uuid IS NULL OR
+        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+    ) AND
+    (
         sqlc.narg('eventId')::uuid IS NULL OR
         events."id" = sqlc.narg('eventId')::uuid
     ) AND
@@ -61,6 +69,14 @@ WHERE
     (
         sqlc.narg('workflowId')::uuid IS NULL OR
         workflow."id" = sqlc.narg('workflowId')::uuid
+    ) AND
+    (
+        sqlc.narg('parentId')::uuid IS NULL OR
+        runs."parentId" = sqlc.narg('parentId')::uuid
+    ) AND
+    (
+        sqlc.narg('parentStepRunId')::uuid IS NULL OR
+        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
     ) AND
     (
         sqlc.narg('eventId')::uuid IS NULL OR
@@ -262,7 +278,11 @@ INSERT INTO "WorkflowRun" (
     "status",
     "error",
     "startedAt",
-    "finishedAt"
+    "finishedAt",
+    "childIndex",
+    "childKey",
+    "parentId",
+    "parentStepRunId"
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -274,7 +294,11 @@ INSERT INTO "WorkflowRun" (
     'PENDING', -- default status
     NULL, -- assuming error is not set on creation
     NULL, -- assuming startedAt is not set on creation
-    NULL  -- assuming finishedAt is not set on creation
+    NULL,  -- assuming finishedAt is not set on creation
+    sqlc.narg('childIndex')::int,
+    sqlc.narg('childKey')::text,
+    sqlc.narg('parentId')::uuid,
+    sqlc.narg('parentStepRunId')::uuid
 ) RETURNING *;
 
 -- name: CreateWorkflowRunTriggeredBy :one
@@ -463,3 +487,32 @@ LEFT JOIN
 WHERE
     runs."id" = ANY(@ids::uuid[]) AND
     runs."tenantId" = @tenantId::uuid;
+
+
+-- name: GetChildWorkflowRun :one
+SELECT
+    *
+FROM
+    "WorkflowRun"
+WHERE
+    "parentId" = @parentId::uuid AND
+    "parentStepRunId" = @parentStepRunId::uuid AND
+    (
+        -- if childKey is set, use that
+        (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
+        (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
+    );
+
+-- name: GetScheduledChildWorkflowRun :one
+SELECT
+    *
+FROM
+    "WorkflowTriggerScheduledRef"
+WHERE
+    "parentId" = @parentId::uuid AND
+    "parentStepRunId" = @parentStepRunId::uuid AND
+    (
+        -- if childKey is set, use that
+        (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
+        (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
+    );

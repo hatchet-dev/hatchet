@@ -170,7 +170,7 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     $1::uuid,
     unnest($2::timestamp[]),
     $3::jsonb
-) RETURNING id, "parentId", "triggerAt", "tickerId", input
+) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId"
 `
 
 type CreateSchedulesParams struct {
@@ -194,6 +194,10 @@ func (q *Queries) CreateSchedules(ctx context.Context, db DBTX, arg CreateSchedu
 			&i.TriggerAt,
 			&i.TickerId,
 			&i.Input,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.ParentStepRunId,
+			&i.ParentWorkflowRunId,
 		); err != nil {
 			return nil, err
 		}
@@ -451,7 +455,7 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     $2::timestamp,
     NULL, -- or provide a tickerId if applicable
     NULL -- or provide input if applicable
-) RETURNING id, "parentId", "triggerAt", "tickerId", input
+) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId"
 `
 
 type CreateWorkflowTriggerScheduledRefParams struct {
@@ -468,6 +472,10 @@ func (q *Queries) CreateWorkflowTriggerScheduledRef(ctx context.Context, db DBTX
 		&i.TriggerAt,
 		&i.TickerId,
 		&i.Input,
+		&i.ChildIndex,
+		&i.ChildKey,
+		&i.ParentStepRunId,
+		&i.ParentWorkflowRunId,
 	)
 	return &i, err
 }
@@ -825,7 +833,7 @@ func (q *Queries) ListWorkflowsForEvent(ctx context.Context, db DBTX, arg ListWo
 
 const listWorkflowsLatestRuns = `-- name: ListWorkflowsLatestRuns :many
 SELECT
-    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", workflow."id" as "workflowId"
+    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", workflow."id" as "workflowId"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -897,6 +905,10 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 			&i.WorkflowRun.DisplayName,
 			&i.WorkflowRun.ID,
 			&i.WorkflowRun.GitRepoBranch,
+			&i.WorkflowRun.ChildIndex,
+			&i.WorkflowRun.ChildKey,
+			&i.WorkflowRun.ParentId,
+			&i.WorkflowRun.ParentStepRunId,
 			&i.WorkflowId,
 		); err != nil {
 			return nil, err

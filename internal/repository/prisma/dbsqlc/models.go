@@ -839,6 +839,10 @@ type WorkflowRun struct {
 	DisplayName        pgtype.Text       `json:"displayName"`
 	ID                 pgtype.UUID       `json:"id"`
 	GitRepoBranch      pgtype.Text       `json:"gitRepoBranch"`
+	ChildIndex         pgtype.Int4       `json:"childIndex"`
+	ChildKey           pgtype.Text       `json:"childKey"`
+	ParentId           pgtype.UUID       `json:"parentId"`
+	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 }
 
 type WorkflowRunTriggeredBy struct {
@@ -882,11 +886,15 @@ type WorkflowTriggerEventRef struct {
 }
 
 type WorkflowTriggerScheduledRef struct {
-	ID        pgtype.UUID      `json:"id"`
-	ParentId  pgtype.UUID      `json:"parentId"`
-	TriggerAt pgtype.Timestamp `json:"triggerAt"`
-	TickerId  pgtype.UUID      `json:"tickerId"`
-	Input     []byte           `json:"input"`
+	ID                  pgtype.UUID      `json:"id"`
+	ParentId            pgtype.UUID      `json:"parentId"`
+	TriggerAt           pgtype.Timestamp `json:"triggerAt"`
+	TickerId            pgtype.UUID      `json:"tickerId"`
+	Input               []byte           `json:"input"`
+	ChildIndex          pgtype.Int4      `json:"childIndex"`
+	ChildKey            pgtype.Text      `json:"childKey"`
+	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
+	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
 }
 
 type WorkflowTriggers struct {

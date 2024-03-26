@@ -106,8 +106,6 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/workflowRun"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/prs:
     $ref: "./paths/workflow/workflow.yaml#/listPullRequests"
-  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/children:
-    $ref: "./paths/workflow/workflow.yaml#/workflowRunChildren"
   /api/v1/tenants/{tenant}/step-runs/{step-run}:
     $ref: "./paths/step-run/step-run.yaml#/stepRunScoped"
   /api/v1/tenants/{tenant}/step-runs/{step-run}/rerun:

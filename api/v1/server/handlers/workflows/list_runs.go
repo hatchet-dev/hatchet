@@ -42,6 +42,16 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 		listOpts.EventId = &eventIdStr
 	}
 
+	if request.Params.ParentWorkflowRunId != nil {
+		parentWorkflowRunIdStr := request.Params.ParentWorkflowRunId.String()
+		listOpts.ParentId = &parentWorkflowRunIdStr
+	}
+
+	if request.Params.ParentStepRunId != nil {
+		parentStepRunIdStr := request.Params.ParentStepRunId.String()
+		listOpts.ParentStepRunId = &parentStepRunIdStr
+	}
+
 	workflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(tenant.ID, listOpts)
 
 	if err != nil {
