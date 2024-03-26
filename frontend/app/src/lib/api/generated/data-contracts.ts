@@ -553,6 +553,7 @@ export interface StepRun {
   step?: Step;
   children?: string[];
   parents?: string[];
+  childWorkflowRuns?: string[];
   workerId?: string;
   input?: string;
   output?: string;
