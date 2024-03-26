@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 )
@@ -20,6 +21,21 @@ type HatchetContext interface {
 	TriggeredByEvent() bool
 
 	WorkflowInput(target interface{}) error
+
+	StepName() string
+
+	StepRunId() string
+
+	WorkflowRunId() string
+
+	Log(message string)
+
+	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) *ChildWorkflow
+
+	client() client.Client
+
+	index() int
+	inc()
 }
 
 // TODO: move this into proto definitions
@@ -49,12 +65,21 @@ type hatchetContext struct {
 	context.Context
 	action   *client.Action
 	stepData *StepRunData
+	c        client.Client
+
+	i       int
+	indexMu sync.Mutex
 }
 
-func newHatchetContext(ctx context.Context, action *client.Action) (HatchetContext, error) {
+func newHatchetContext(
+	ctx context.Context,
+	action *client.Action,
+	client client.Client,
+) (HatchetContext, error) {
 	c := &hatchetContext{
 		Context: ctx,
 		action:  action,
+		c:       client,
 	}
 
 	if action.GetGroupKeyRunId != "" {
@@ -72,6 +97,10 @@ func newHatchetContext(ctx context.Context, action *client.Action) (HatchetConte
 	}
 
 	return c, nil
+}
+
+func (h *hatchetContext) client() client.Client {
+	return h.c
 }
 
 func (h *hatchetContext) SetContext(ctx context.Context) {
@@ -96,6 +125,61 @@ func (h *hatchetContext) TriggeredByEvent() bool {
 
 func (h *hatchetContext) WorkflowInput(target interface{}) error {
 	return toTarget(h.stepData.Input, target)
+}
+
+func (h *hatchetContext) StepName() string {
+	return h.action.StepName
+}
+
+func (h *hatchetContext) StepRunId() string {
+	return h.action.StepRunId
+}
+
+func (h *hatchetContext) WorkflowRunId() string {
+	return h.action.WorkflowRunId
+}
+
+func (h *hatchetContext) Log(message string) {
+	h.c.Event().PutLog(h, h.action.StepRunId, message)
+}
+
+func (h *hatchetContext) index() int {
+	return h.i
+}
+
+func (h *hatchetContext) inc() {
+	h.indexMu.Lock()
+	h.i++
+	h.indexMu.Unlock()
+}
+
+type SpawnWorkflowOpts struct {
+	Key string
+}
+
+func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) *ChildWorkflow {
+	workflowRunId, err := h.client().Admin().RunChildWorkflow(
+		workflowName,
+		input,
+		&client.ChildWorkflowOpts{
+			ParentId:        h.WorkflowRunId(),
+			ParentStepRunId: h.StepRunId(),
+			ChildIndex:      h.index(),
+			ChildKey:        &opts.Key,
+		},
+	)
+
+	// increment the index
+	h.inc()
+
+	if err != nil {
+		panic(err)
+	}
+
+	return &ChildWorkflow{
+		workflowRunId: workflowRunId,
+		client:        h.client(),
+	}
 }
 
 func (h *hatchetContext) populateStepDataForGroupKeyRun() error {
@@ -148,6 +232,16 @@ func toTarget(data interface{}, target interface{}) error {
 	}
 
 	err = json.Unmarshal(dataBytes, target)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func toTargetFromBytes(dataBytes []byte, target interface{}) error {
+	err := json.Unmarshal(dataBytes, target)
 
 	if err != nil {
 		return err
