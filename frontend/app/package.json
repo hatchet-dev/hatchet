@@ -56,6 +56,7 @@
     "@visx/vendor": "^3.5.0",
     "axios": "^1.6.2",
     "class-variance-authority": "^0.7.0",
+    "clipboard": "^2.0.11",
     "clsx": "^2.0.0",
     "cmdk": "^0.2.0",
     "cron-parser": "^4.9.0",
