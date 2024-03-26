@@ -1,65 +1,6 @@
-import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
-
 # Real-time Result Streaming in Hatchet
 
 Hatchet offers real-time result streaming, which allows you to subscribe to workflow progress and relay individual step results from background workers to a frontend client. This enables you to provide real-time updates and progress to users as the workflow runs, enhancing the user experience and interactivity of your application.
-
-<Tabs items={['Python', 'Typescript']}>
-  <Tabs.Tab>
-
-```python filename="resultStreaming.py" copy
-import asyncio
-from hatchet_sdk import Hatchet
-
-async def main():
-    hatchet = Hatchet(debug=True)
-
-    workflow_run_id = await hatchet.admin.run_workflow("simple-workflow", {
-        "test": "test",
-    })
-
-    listener = hatchet.listener.stream(workflow_run_id)
-
-    print("listening for events")
-    async for event in listener:
-        print("event received", event)
-
-    print("done listening for events")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-```
-
-  </Tabs.Tab>
-  <Tabs.Tab>
-
-```typescript filename="resultStreaming.ts" copy
-import Hatchet from "@hatchet-dev/typescript-sdk";
-
-async function main() {
-  const hatchet = Hatchet.init();
-
-  const workflowRunId = await hatchet.admin.run_workflow("simple-workflow", {
-    test: "test",
-  });
-
-  const listener = hatchet.listener.stream(workflowRunId);
-
-  console.log("listening for events");
-
-  for await (const event of listener) {
-    console.log("event received", event);
-  }
-
-  console.log("done listening for events");
-}
-
-main()
-
-```
-  </Tabs.Tab>
-</Tabs>
 
 ## How It Works
 
@@ -92,8 +33,5 @@ Real-time progress streaming offers several benefits:
 
 By leveraging real-time progress streaming in Hatchet, you can create more dynamic and interactive applications that provide timely feedback and updates to users as workflows progress.
 
-
-
 ## Related Tutorials
 - [Real-time Result Streaming with Hatchet and FastAPI](../tutorials/fastapi-react/result-streaming.mdx)
-
