@@ -959,6 +959,20 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       workflowId?: string;
+      /**
+       * The parent workflow run id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parentWorkflowRunId?: string;
+      /**
+       * The parent step run id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parentStepRunId?: string;
     },
     params: RequestParams = {},
   ) =>

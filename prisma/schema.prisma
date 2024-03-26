@@ -442,7 +442,22 @@ model WorkflowTriggerScheduledRef {
   // the input parameters to the scheduled workflow
   input Json?
 
+  // that parent that spawned this workflow run
+  parentWorkflowRun   WorkflowRun? @relation(fields: [parentWorkflowRunId], references: [id])
+  parentWorkflowRunId String?      @db.Uuid
+
+  parentStepRun   StepRun? @relation(fields: [parentStepRunId], references: [id])
+  parentStepRunId String?  @db.Uuid
+
+  // if this is a child workflow run, the index of the child
+  childIndex Int?
+
+  // a user-defined key for this workflow run
+  childKey String?
+
   triggered WorkflowRunTriggeredBy?
+
+  @@unique([parentId, parentStepRunId, childKey])
 }
 
 model Job {
@@ -594,10 +609,11 @@ model WorkflowRun {
   finishedAt DateTime?
 
   // a list of dependents for this workflow run
-  children WorkflowRun[] @relation("WorkflowRunOrder")
+  children          WorkflowRun[]                 @relation("WorkflowRunChild")
+  scheduledChildren WorkflowTriggerScheduledRef[]
 
   // that parent that spawned this workflow run
-  parent   WorkflowRun? @relation("WorkflowRunOrder", fields: [parentId], references: [id])
+  parent   WorkflowRun? @relation("WorkflowRunChild", fields: [parentId], references: [id])
   parentId String?      @db.Uuid
 
   parentStepRun   StepRun? @relation(fields: [parentStepRunId], references: [id])
@@ -614,8 +630,7 @@ model WorkflowRun {
 
   pullRequests GithubPullRequest[]
 
-  @@unique([parentId, childIndex])
-  @@unique([parentId, childKey])
+  @@unique([parentId, parentStepRunId, childKey])
 }
 
 model GetGroupKeyRun {
@@ -892,6 +907,7 @@ model StepRun {
   logs LogLine[]
 
   childWorkflowRuns WorkflowRun[]
+  childSchedules    WorkflowTriggerScheduledRef[]
 }
 
 model StepRunResultArchive {
