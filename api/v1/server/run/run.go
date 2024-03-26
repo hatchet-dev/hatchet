@@ -80,7 +80,7 @@ func (t *APIServer) Run() (func() error, error) {
 	populatorMW := populator.NewPopulator(t.config)
 
 	populatorMW.RegisterGetter("tenant", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		tenant, err := config.Repository.Tenant().GetTenantByID(id)
+		tenant, err := config.APIRepository.Tenant().GetTenantByID(id)
 
 		if err != nil {
 			return nil, "", err
@@ -90,7 +90,7 @@ func (t *APIServer) Run() (func() error, error) {
 	})
 
 	populatorMW.RegisterGetter("api-token", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		apiToken, err := config.Repository.APIToken().GetAPITokenById(id)
+		apiToken, err := config.APIRepository.APIToken().GetAPITokenById(id)
 
 		if err != nil {
 			return nil, "", err
@@ -109,7 +109,7 @@ func (t *APIServer) Run() (func() error, error) {
 	})
 
 	populatorMW.RegisterGetter("tenant-invite", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		tenantInvite, err := config.Repository.TenantInvite().GetTenantInvite(id)
+		tenantInvite, err := config.APIRepository.TenantInvite().GetTenantInvite(id)
 
 		if err != nil {
 			return nil, "", err
@@ -119,7 +119,7 @@ func (t *APIServer) Run() (func() error, error) {
 	})
 
 	populatorMW.RegisterGetter("sns", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		snsIntegration, err := config.Repository.SNS().GetSNSIntegrationById(id)
+		snsIntegration, err := config.APIRepository.SNS().GetSNSIntegrationById(id)
 
 		if err != nil {
 			return nil, "", err
@@ -129,7 +129,7 @@ func (t *APIServer) Run() (func() error, error) {
 	})
 
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflow, err := config.Repository.Workflow().GetWorkflowById(id)
+		workflow, err := config.APIRepository.Workflow().GetWorkflowById(id)
 
 		if err != nil {
 			return nil, "", err
@@ -139,7 +139,7 @@ func (t *APIServer) Run() (func() error, error) {
 	})
 
 	populatorMW.RegisterGetter("workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflowRun, err := config.Repository.WorkflowRun().GetWorkflowRunById(parentId, id)
+		workflowRun, err := config.APIRepository.WorkflowRun().GetWorkflowRunById(parentId, id)
 
 		if err != nil {
 			return nil, "", err
@@ -149,7 +149,7 @@ func (t *APIServer) Run() (func() error, error) {
 	})
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		stepRun, err := config.Repository.StepRun().GetStepRunById(parentId, id)
+		stepRun, err := config.APIRepository.StepRun().GetStepRunById(parentId, id)
 
 		if err != nil {
 			return nil, "", err
@@ -159,7 +159,7 @@ func (t *APIServer) Run() (func() error, error) {
 	})
 
 	populatorMW.RegisterGetter("event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		event, err := config.Repository.Event().GetEventById(id)
+		event, err := config.APIRepository.Event().GetEventById(id)
 
 		if err != nil {
 			return nil, "", err
@@ -169,7 +169,7 @@ func (t *APIServer) Run() (func() error, error) {
 	})
 
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		worker, err := config.Repository.Worker().GetWorkerById(id)
+		worker, err := config.APIRepository.Worker().GetWorkerById(id)
 
 		if err != nil {
 			return nil, "", err
@@ -179,7 +179,7 @@ func (t *APIServer) Run() (func() error, error) {
 	})
 
 	populatorMW.RegisterGetter("gh-installation", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		ghInstallation, err := config.Repository.Github().ReadGithubAppInstallationByID(id)
+		ghInstallation, err := config.APIRepository.Github().ReadGithubAppInstallationByID(id)
 
 		if err != nil {
 			return nil, "", err

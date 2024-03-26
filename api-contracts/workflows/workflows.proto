@@ -3,17 +3,12 @@ syntax = "proto3";
 option go_package = "github.com/hatchet-dev/hatchet/internal/services/admin/contracts";
 
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/wrappers.proto"; // For optional fields
 
 // WorkflowService represents a set of RPCs for managing workflows.
 service WorkflowService {
-    rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
     rpc PutWorkflow(PutWorkflowRequest) returns (WorkflowVersion);
     rpc ScheduleWorkflow(ScheduleWorkflowRequest) returns (WorkflowVersion);
     rpc TriggerWorkflow(TriggerWorkflowRequest) returns (TriggerWorkflowResponse);
-    rpc GetWorkflowByName(GetWorkflowByNameRequest) returns (Workflow);
-    rpc ListWorkflowsForEvent(ListWorkflowsForEventRequest) returns (ListWorkflowsResponse);
-    rpc DeleteWorkflow(DeleteWorkflowRequest) returns (Workflow);
 }
 
 message PutWorkflowRequest {
@@ -69,34 +64,13 @@ message CreateWorkflowStepOpts {
 message ListWorkflowsRequest {}
 
 message ScheduleWorkflowRequest {
-    string workflow_id = 1;
+    string name = 1;
     repeated google.protobuf.Timestamp schedules = 2;
 
     // (optional) the input data for the workflow
     string input = 3;
 }
-
-// ListWorkflowsResponse is the response for ListWorkflows.
-message ListWorkflowsResponse {
-    repeated Workflow workflows = 1;
-}
-  
-// ListWorkflowsForEventRequest is the request for ListWorkflowsForEvent.
-message ListWorkflowsForEventRequest {
-    string event_key = 1;
-}
-  
-// Workflow represents the Workflow model.
-message Workflow {
-    string id = 1;
-    google.protobuf.Timestamp created_at = 2;
-    google.protobuf.Timestamp updated_at = 3;
-    string tenant_id = 5;
-    string name = 6;
-    google.protobuf.StringValue description = 7; // Optional
-    repeated WorkflowVersion versions = 8;
-}
-  
+    
 // WorkflowVersion represents the WorkflowVersion model.
 message WorkflowVersion {
     string id = 1;
@@ -105,19 +79,6 @@ message WorkflowVersion {
     string version = 5;
     int32 order = 6;
     string workflow_id = 7;
-    WorkflowTriggers triggers = 8;
-    repeated Job jobs = 9;
-}
-  
-// WorkflowTriggers represents the WorkflowTriggers model.
-message WorkflowTriggers {
-    string id = 1;
-    google.protobuf.Timestamp created_at = 2;
-    google.protobuf.Timestamp updated_at = 3;
-    string workflow_version_id = 5;
-    string tenant_id = 6;
-    repeated WorkflowTriggerEventRef events = 7;
-    repeated WorkflowTriggerCronRef crons = 8;
 }
   
 // WorkflowTriggerEventRef represents the WorkflowTriggerEventRef model.
@@ -132,41 +93,6 @@ message WorkflowTriggerCronRef {
     string cron = 2;
 }
   
-// Job represents the Job model.
-message Job {
-    string id = 1;
-    google.protobuf.Timestamp created_at = 2;
-    google.protobuf.Timestamp updated_at = 3;
-    string tenant_id = 5;
-    string workflow_version_id = 6;
-    string name = 7;
-    google.protobuf.StringValue description = 8; // Optional
-    repeated Step steps = 9;
-    google.protobuf.StringValue timeout = 10; // Optional
-}
-  
-// Step represents the Step model.
-message Step {
-    string id = 1;
-    google.protobuf.Timestamp created_at = 2;
-    google.protobuf.Timestamp updated_at = 3;
-    google.protobuf.StringValue readable_id = 5; // Optional
-    string tenant_id = 6;
-    string job_id = 7;
-    string action = 8;
-    google.protobuf.StringValue timeout = 9; // Optional
-    repeated string parents = 10;
-    repeated string children = 11;
-}
-  
-message DeleteWorkflowRequest {
-    string workflow_id = 1;
-}
-
-message GetWorkflowByNameRequest {
-    string name = 1;
-}
-
 message TriggerWorkflowRequest {
     string name = 1;
 

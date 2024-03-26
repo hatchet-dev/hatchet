@@ -15,11 +15,6 @@ class WorkflowServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.ListWorkflows = channel.unary_unary(
-                '/WorkflowService/ListWorkflows',
-                request_serializer=workflows__pb2.ListWorkflowsRequest.SerializeToString,
-                response_deserializer=workflows__pb2.ListWorkflowsResponse.FromString,
-                )
         self.PutWorkflow = channel.unary_unary(
                 '/WorkflowService/PutWorkflow',
                 request_serializer=workflows__pb2.PutWorkflowRequest.SerializeToString,
@@ -35,32 +30,11 @@ class WorkflowServiceStub(object):
                 request_serializer=workflows__pb2.TriggerWorkflowRequest.SerializeToString,
                 response_deserializer=workflows__pb2.TriggerWorkflowResponse.FromString,
                 )
-        self.GetWorkflowByName = channel.unary_unary(
-                '/WorkflowService/GetWorkflowByName',
-                request_serializer=workflows__pb2.GetWorkflowByNameRequest.SerializeToString,
-                response_deserializer=workflows__pb2.Workflow.FromString,
-                )
-        self.ListWorkflowsForEvent = channel.unary_unary(
-                '/WorkflowService/ListWorkflowsForEvent',
-                request_serializer=workflows__pb2.ListWorkflowsForEventRequest.SerializeToString,
-                response_deserializer=workflows__pb2.ListWorkflowsResponse.FromString,
-                )
-        self.DeleteWorkflow = channel.unary_unary(
-                '/WorkflowService/DeleteWorkflow',
-                request_serializer=workflows__pb2.DeleteWorkflowRequest.SerializeToString,
-                response_deserializer=workflows__pb2.Workflow.FromString,
-                )
 
 
 class WorkflowServiceServicer(object):
     """WorkflowService represents a set of RPCs for managing workflows.
     """
-
-    def ListWorkflows(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
 
     def PutWorkflow(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -80,32 +54,9 @@ class WorkflowServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetWorkflowByName(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ListWorkflowsForEvent(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def DeleteWorkflow(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
 
 def add_WorkflowServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'ListWorkflows': grpc.unary_unary_rpc_method_handler(
-                    servicer.ListWorkflows,
-                    request_deserializer=workflows__pb2.ListWorkflowsRequest.FromString,
-                    response_serializer=workflows__pb2.ListWorkflowsResponse.SerializeToString,
-            ),
             'PutWorkflow': grpc.unary_unary_rpc_method_handler(
                     servicer.PutWorkflow,
                     request_deserializer=workflows__pb2.PutWorkflowRequest.FromString,
@@ -121,21 +72,6 @@ def add_WorkflowServiceServicer_to_server(servicer, server):
                     request_deserializer=workflows__pb2.TriggerWorkflowRequest.FromString,
                     response_serializer=workflows__pb2.TriggerWorkflowResponse.SerializeToString,
             ),
-            'GetWorkflowByName': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetWorkflowByName,
-                    request_deserializer=workflows__pb2.GetWorkflowByNameRequest.FromString,
-                    response_serializer=workflows__pb2.Workflow.SerializeToString,
-            ),
-            'ListWorkflowsForEvent': grpc.unary_unary_rpc_method_handler(
-                    servicer.ListWorkflowsForEvent,
-                    request_deserializer=workflows__pb2.ListWorkflowsForEventRequest.FromString,
-                    response_serializer=workflows__pb2.ListWorkflowsResponse.SerializeToString,
-            ),
-            'DeleteWorkflow': grpc.unary_unary_rpc_method_handler(
-                    servicer.DeleteWorkflow,
-                    request_deserializer=workflows__pb2.DeleteWorkflowRequest.FromString,
-                    response_serializer=workflows__pb2.Workflow.SerializeToString,
-            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'WorkflowService', rpc_method_handlers)
@@ -146,23 +82,6 @@ def add_WorkflowServiceServicer_to_server(servicer, server):
 class WorkflowService(object):
     """WorkflowService represents a set of RPCs for managing workflows.
     """
-
-    @staticmethod
-    def ListWorkflows(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/WorkflowService/ListWorkflows',
-            workflows__pb2.ListWorkflowsRequest.SerializeToString,
-            workflows__pb2.ListWorkflowsResponse.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def PutWorkflow(request,
@@ -212,56 +131,5 @@ class WorkflowService(object):
         return grpc.experimental.unary_unary(request, target, '/WorkflowService/TriggerWorkflow',
             workflows__pb2.TriggerWorkflowRequest.SerializeToString,
             workflows__pb2.TriggerWorkflowResponse.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-
-    @staticmethod
-    def GetWorkflowByName(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/WorkflowService/GetWorkflowByName',
-            workflows__pb2.GetWorkflowByNameRequest.SerializeToString,
-            workflows__pb2.Workflow.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-
-    @staticmethod
-    def ListWorkflowsForEvent(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/WorkflowService/ListWorkflowsForEvent',
-            workflows__pb2.ListWorkflowsForEventRequest.SerializeToString,
-            workflows__pb2.ListWorkflowsResponse.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-
-    @staticmethod
-    def DeleteWorkflow(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/WorkflowService/DeleteWorkflow',
-            workflows__pb2.DeleteWorkflowRequest.SerializeToString,
-            workflows__pb2.Workflow.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

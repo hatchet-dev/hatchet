@@ -57,17 +57,17 @@ func (g *GithubAppService) GithubUpdateGlobalWebhook(ctx echo.Context, req gen.G
 
 func (g *GithubAppService) handleInstallationEvent(senderID int64, i *githubsdk.Installation) error {
 	// make sure the sender exists in the database
-	gao, err := g.config.Repository.Github().ReadGithubAppOAuthByGithubUserID(int(senderID))
+	gao, err := g.config.APIRepository.Github().ReadGithubAppOAuthByGithubUserID(int(senderID))
 
 	if err != nil {
 		return err
 	}
 
-	_, err = g.config.Repository.Github().ReadGithubAppInstallationByInstallationAndAccountID(int(*i.ID), int(*i.Account.ID))
+	_, err = g.config.APIRepository.Github().ReadGithubAppInstallationByInstallationAndAccountID(int(*i.ID), int(*i.Account.ID))
 
 	if err != nil && errors.Is(err, db.ErrNotFound) {
 		// insert account/installation pair into database
-		_, err := g.config.Repository.Github().CreateInstallation(gao.GithubUserID, &repository.CreateInstallationOpts{
+		_, err := g.config.APIRepository.Github().CreateInstallation(gao.GithubUserID, &repository.CreateInstallationOpts{
 			InstallationID:          int(*i.ID),
 			AccountID:               int(*i.Account.ID),
 			AccountName:             *i.Account.Login,
@@ -83,19 +83,19 @@ func (g *GithubAppService) handleInstallationEvent(senderID int64, i *githubsdk.
 	}
 
 	// associate the github user id with this installation in the database
-	_, err = g.config.Repository.Github().AddGithubUserIdToInstallation(int(*i.ID), int(*i.Account.ID), gao.GithubUserID)
+	_, err = g.config.APIRepository.Github().AddGithubUserIdToInstallation(int(*i.ID), int(*i.Account.ID), gao.GithubUserID)
 
 	return err
 }
 
 func (g *GithubAppService) handleDeletionEvent(i *githubsdk.Installation) error {
-	_, err := g.config.Repository.Github().ReadGithubAppInstallationByInstallationAndAccountID(int(*i.ID), int(*i.Account.ID))
+	_, err := g.config.APIRepository.Github().ReadGithubAppInstallationByInstallationAndAccountID(int(*i.ID), int(*i.Account.ID))
 
 	if err != nil {
 		return err
 	}
 
-	_, err = g.config.Repository.Github().DeleteInstallation(int(*i.ID), int(*i.Account.ID))
+	_, err = g.config.APIRepository.Github().DeleteInstallation(int(*i.ID), int(*i.Account.ID))
 
 	if err != nil {
 		return err

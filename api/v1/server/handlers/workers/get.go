@@ -11,7 +11,7 @@ import (
 func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
 	worker := ctx.Get("worker").(*db.WorkerModel)
 
-	stepRuns, err := t.config.Repository.Worker().ListRecentWorkerStepRuns(worker.TenantID, worker.ID)
+	stepRuns, err := t.config.APIRepository.Worker().ListRecentWorkerStepRuns(worker.TenantID, worker.ID)
 
 	if err != nil {
 		return nil, err

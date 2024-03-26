@@ -135,7 +135,12 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		return forbidden
 	}
 
-	user, err := a.config.Repository.User().GetUserByID(userID)
+	user, err := a.config.APIRepository.User().GetUserByID(userID)
+	if err != nil {
+		a.l.Debug().Err(err).Msg("error getting user by id")
+
+		return forbidden
+	}
 
 	// set the user and session in context
 	c.Set("user", user)

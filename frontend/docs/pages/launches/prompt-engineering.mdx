@@ -1,15 +1,15 @@
-import { Tabs, Steps } from 'nextra/components'
-import { Tweet } from 'react-tweet'
+import { Tabs, Steps } from "nextra/components";
+import { Tweet } from "react-tweet";
 
 # A code-first prompt engineering platform
 
-**TL;DR** - [Hatchet](https://github.com/hatchet-dev/hatchet) is a platform for creating and scaling workflows as code. We're launching a set of features that enable teams to **iterate on prompts, optimize context, and debug LLM apps faster** - with all changes written back to your own codebase. 
+**TL;DR** - [Hatchet](https://github.com/hatchet-dev/hatchet) is a platform for creating and scaling workflows as code. We're launching a set of features that enable teams to **iterate on prompts, optimize context, and debug LLM apps faster** - with all changes written back to your own codebase.
 
 ## The problem
 
-Most teams building on LLMs use a prompt engineering platform of some kind - think Humanloop or Promptlayer. These platforms are great for prototyping and collaboration with non-technical team members, but as your application grows, there is a very slim chance that they can capture the expanse of customization that your LLMs require. For example, you might deploy a small LLM internal to your infrastructure, which interacts with your larger LLM downstream, but sits outside the scope of your prompt engineering platform. 
+Most teams building on LLMs use a prompt engineering platform of some kind - think Humanloop or Promptlayer. These platforms are great for prototyping and collaboration with non-technical team members, but as your application grows, there is a very slim chance that they can capture the expanse of customization that your LLMs require. For example, you might deploy a small LLM internal to your infrastructure, which interacts with your larger LLM downstream, but sits outside the scope of your prompt engineering platform.
 
-As you grow, you also realize that you don't hot-swap your prompts as often as you did in the beginning, instead opting for a more rigorous process of testing and deploying your prompts. So you start to introduce tooling that ensures your prompts are tested and versioned. 
+As you grow, you also realize that you don't hot-swap your prompts as often as you did in the beginning, instead opting for a more rigorous process of testing and deploying your prompts. So you start to introduce tooling that ensures your prompts are tested and versioned.
 
 (At this point, you might start to get the suspicion that you're reinventing VCS.)
 
@@ -19,7 +19,7 @@ As your user base grows, you start to encounter even more problems:
 - Keeping your internal prompt engineering tools in sync with your codebase is frustrating and time-consuming, requiring an engineer in the loop.
 - Context tuning (i.e. # of docs or chunk size) can have as much impact as prompt tuning on performance but is hard to experiment with.
 
-At some point, you embrace the inevitable - your prompts **will eventually live in your codebase**, using all the same tooling and versioning that you use for the rest of your application. This is where Hatchet comes in. 
+At some point, you embrace the inevitable - your prompts **will eventually live in your codebase**, using all the same tooling and versioning that you use for the rest of your application. This is where Hatchet comes in.
 
 ## The solution: workflows as code
 
@@ -29,7 +29,7 @@ This is particularly useful for LLM calls, which can be slow, have high variance
 
 <Tweet id="1760080088614175068" />
 
-It's typical to fight the non-deterministic nature of LLM-enabled application by breaking up your LLM calls into smaller steps in a workflow, with optimized prompts and model selection sitting at each step. 
+It's typical to fight the non-deterministic nature of LLM-enabled application by breaking up your LLM calls into smaller steps in a workflow, with optimized prompts and model selection sitting at each step.
 
 These are modeled in Hatchet as a workflow:
 
@@ -106,19 +106,26 @@ class BasicRagWorkflow:
 
 ## What we're launching
 
-We're launching three new features that turn Hatchet into a flexible prompt engineering platform. 
+We're launching three new features that turn Hatchet into a flexible prompt engineering platform.
 
 **A UI for iterating on LLM workflows:** engineers get to choose which variables to expose on the playground, which can then be consumed by any team member:
 
-<div style={{ position: 'relative', paddingTop: '61.36363636363637%' }}>
-      <iframe
-        src="https://customer-yselgi4iabg1w16w.cloudflarestream.com/0da867b78c2be7d2271a73dca75a5340/iframe?poster=https%3A%2F%2Fcustomer-yselgi4iabg1w16w.cloudflarestream.com%2F0da867b78c2be7d2271a73dca75a5340%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600"
-        loading="lazy"
-        style={{ border: 'none', position: 'absolute', top: 0, left: 0, height: '100%', width: '100%' }}
-        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-        allowFullScreen={true}
-      ></iframe>
-    </div>
+<div style={{ position: "relative", paddingTop: "61.36363636363637%" }}>
+  <iframe
+    src="https://customer-yselgi4iabg1w16w.cloudflarestream.com/0da867b78c2be7d2271a73dca75a5340/iframe?poster=https%3A%2F%2Fcustomer-yselgi4iabg1w16w.cloudflarestream.com%2F0da867b78c2be7d2271a73dca75a5340%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600"
+    loading="lazy"
+    style={{
+      border: "none",
+      position: "absolute",
+      top: 0,
+      left: 0,
+      height: "100%",
+      width: "100%",
+    }}
+    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+    allowFullScreen={true}
+  ></iframe>
+</div>
 
 We do this by providing a method in our SDK called `playground` which then exposes the variable in the Hatchet UI:
 
@@ -126,35 +133,47 @@ We do this by providing a method in our SDK called `playground` which then expos
 
 **Full history of customer interactions:** with Hatchet, you automatically get a full history of the inputs and outputs to each step in your workflow, which is particularly useful when debugging bad customer interactions with your LLMs.
 
-<div style={{ position: 'relative', paddingTop: '61.36363636363637%' }}>
-      <iframe
-        src="https://customer-yselgi4iabg1w16w.cloudflarestream.com/1fb52fb3f2b8068c0ea109923de7a503/iframe?poster=https%3A%2F%2Fcustomer-yselgi4iabg1w16w.cloudflarestream.com%2F1fb52fb3f2b8068c0ea109923de7a503%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600"
-        loading="lazy"
-        style={{ border: 'none', position: 'absolute', top: 0, left: 0, height: '100%', width: '100%' }}
-        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-        allowFullScreen={true}
-      ></iframe>
-    </div>
+<div style={{ position: "relative", paddingTop: "61.36363636363637%" }}>
+  <iframe
+    src="https://customer-yselgi4iabg1w16w.cloudflarestream.com/1fb52fb3f2b8068c0ea109923de7a503/iframe?poster=https%3A%2F%2Fcustomer-yselgi4iabg1w16w.cloudflarestream.com%2F1fb52fb3f2b8068c0ea109923de7a503%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600"
+    loading="lazy"
+    style={{
+      border: "none",
+      position: "absolute",
+      top: 0,
+      left: 0,
+      height: "100%",
+      width: "100%",
+    }}
+    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+    allowFullScreen={true}
+  ></iframe>
+</div>
 
 **Sync changes back to Github:** useful for non-technical founders and product managers to quickly request changes to your codebase without waiting for an engineer.
 
-<div style={{ position: 'relative', paddingTop: '61.36363636363637%' }}>
-      <iframe
-        src="https://customer-yselgi4iabg1w16w.cloudflarestream.com/5a6f9797dc2e9b34251b50576f3bbae5/iframe?poster=https%3A%2F%2Fcustomer-yselgi4iabg1w16w.cloudflarestream.com%2F5a6f9797dc2e9b34251b50576f3bbae5%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600"
-        loading="lazy"
-        style={{ border: 'none', position: 'absolute', top: 0, left: 0, height: '100%', width: '100%' }}
-        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-        allowFullScreen={true}
-      ></iframe>
-    </div>
-
-
+<div style={{ position: "relative", paddingTop: "61.36363636363637%" }}>
+  <iframe
+    src="https://customer-yselgi4iabg1w16w.cloudflarestream.com/5a6f9797dc2e9b34251b50576f3bbae5/iframe?poster=https%3A%2F%2Fcustomer-yselgi4iabg1w16w.cloudflarestream.com%2F5a6f9797dc2e9b34251b50576f3bbae5%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600"
+    loading="lazy"
+    style={{
+      border: "none",
+      position: "absolute",
+      top: 0,
+      left: 0,
+      height: "100%",
+      width: "100%",
+    }}
+    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+    allowFullScreen={true}
+  ></iframe>
+</div>
 
 ## Getting started
 
-Let's take a look at how you can get started with a self-hosted instance of Hatchet (if you'd like to use our cloud version, [request access here](https://hatchet.run/request-access)). 
+Let's take a look at how you can get started with a self-hosted instance of Hatchet (if you'd like to use our cloud version, [request access here](https://hatchet.run/request-access)).
 
-We'll be using the [Hatchet Python Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart) repository in this example. It assumes that you have the following tools installed: 
+We'll be using the [Hatchet Python Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart) repository in this example. It assumes that you have the following tools installed:
 
 1. Python 3.7 or higher installed on your machine.
 2. Poetry package manager installed. You can install it by running `pip install poetry`, or by following instructions in the [Poetry Docs](https://python-poetry.org/docs/#installation)
@@ -238,7 +257,7 @@ Click on it to see the inputs and outputs of each step in the workflow.
 
 ### Step 4: Iterate on your workflow
 
-Once you've run the workflow, you can replay it with different inputs from the UI. 
+Once you've run the workflow, you can replay it with different inputs from the UI.
 
 ![Launch 2](/launch-2.png)
 

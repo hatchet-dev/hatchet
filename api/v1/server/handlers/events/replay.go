@@ -7,6 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 )
 
 func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpdateReplayRequestObject) (gen.EventUpdateReplayResponseObject, error) {
@@ -18,30 +19,36 @@ func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpda
 		eventIds[i] = request.Body.EventIds[i].String()
 	}
 
-	events, err := t.config.Repository.Event().ListEventsById(tenant.ID, eventIds)
+	events, err := t.config.EngineRepository.Event().ListEventsByIds(tenant.ID, eventIds)
 
 	if err != nil {
 		return nil, err
 	}
 
-	newEvents := make([]db.EventModel, len(events))
+	newEventIds := make([]string, len(events))
 
 	var allErrs error
 
 	for i := range events {
 		event := events[i]
 
-		newEvent, err := t.config.Ingestor.IngestReplayedEvent(ctx.Request().Context(), tenant.ID, &event)
+		newEvent, err := t.config.Ingestor.IngestReplayedEvent(ctx.Request().Context(), tenant.ID, event)
 
 		if err != nil {
 			allErrs = multierror.Append(allErrs, err)
 		}
 
-		newEvents[i] = *newEvent
+		newEventIds[i] = sqlchelpers.UUIDToStr(newEvent.ID)
 	}
 
 	if allErrs != nil {
 		return nil, allErrs
+	}
+
+	newEvents, err := t.config.APIRepository.Event().ListEventsById(tenant.ID, newEventIds)
+
+	if err != nil {
+		return nil, err
 	}
 
 	rows := make([]gen.Event, len(newEvents))

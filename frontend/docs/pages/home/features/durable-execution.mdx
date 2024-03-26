@@ -7,6 +7,7 @@ This is particularly beneficial for long-running or resource-intensive workflows
 Hatchet provides two primary mechanisms for enabling durable execution:
 
 1. **Automatic Recovery for Transient Failures:** Hatchet can automatically detect and recover from temporary issues, such as network outages, resource limitations, or external service failures. It achieves this through:
+
    - **Task Retries:** Hatchet automatically retries steps that fail due to transient issues.
    - **State Preservation:** The state of each workflow (i.e., results of previous steps) is preserved, allowing Hatchet to resume execution from the point of failure.
    - **Error Isolation:** Errors are isolated to specific steps, minimizing the impact on the overall workflow.

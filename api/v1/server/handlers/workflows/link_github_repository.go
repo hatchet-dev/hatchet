@@ -18,7 +18,7 @@ func (t *WorkflowService) WorkflowUpdateLinkGithub(ctx echo.Context, request gen
 	// check that the user has access to the installation id
 	installationId := request.Body.InstallationId
 
-	_, err := t.config.Repository.Github().ReadGithubAppInstallationByID(installationId)
+	_, err := t.config.APIRepository.Github().ReadGithubAppInstallationByID(installationId)
 
 	if err != nil {
 		return gen.WorkflowUpdateLinkGithub404JSONResponse(
@@ -26,13 +26,13 @@ func (t *WorkflowService) WorkflowUpdateLinkGithub(ctx echo.Context, request gen
 		), nil
 	}
 
-	if canAccess, err := t.config.Repository.Github().CanUserAccessInstallation(installationId, user.ID); err != nil || !canAccess {
+	if canAccess, err := t.config.APIRepository.Github().CanUserAccessInstallation(installationId, user.ID); err != nil || !canAccess {
 		return gen.WorkflowUpdateLinkGithub403JSONResponse(
 			apierrors.NewAPIErrors("User does not have access to the installation"),
 		), nil
 	}
 
-	_, err = t.config.Repository.Workflow().UpsertWorkflowDeploymentConfig(
+	_, err = t.config.APIRepository.Workflow().UpsertWorkflowDeploymentConfig(
 		workflow.ID,
 		&repository.UpsertWorkflowDeploymentConfigOpts{
 			GithubAppInstallationId: installationId,
@@ -46,7 +46,7 @@ func (t *WorkflowService) WorkflowUpdateLinkGithub(ctx echo.Context, request gen
 		return nil, err
 	}
 
-	workflow, err = t.config.Repository.Workflow().GetWorkflowById(workflow.ID)
+	workflow, err = t.config.APIRepository.Workflow().GetWorkflowById(workflow.ID)
 
 	if err != nil {
 		return nil, err

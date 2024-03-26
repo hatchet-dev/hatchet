@@ -6,8 +6,9 @@ AdminClient is a client for interacting with the Hatchet Admin API. This allows 
 and monitor workflows.
 
 The admin client can be accessed via:
+
 ```typescript
-const hatchet = Hatchet.init()
+const hatchet = Hatchet.init();
 const admin = hatchet.admin as AdminClient;
 
 // Now you can use the admin client to interact with the Hatchet Admin API
@@ -20,18 +21,18 @@ admin.list_workflows().then((res) => {
 
 ### Methods
 
-- [get\_workflow](admin-client.mdx#get_workflow)
-- [get\_workflow\_run](admin-client.mdx#get_workflow_run)
-- [get\_workflow\_version](admin-client.mdx#get_workflow_version)
-- [list\_workflow\_runs](admin-client.mdx#list_workflow_runs)
-- [list\_workflows](admin-client.mdx#list_workflows)
-- [put\_workflow](admin-client.mdx#put_workflow)
-- [run\_workflow](admin-client.mdx#run_workflow)
-- [schedule\_workflow](admin-client.mdx#schedule_workflow)
+- [get_workflow](admin-client.mdx#get_workflow)
+- [get_workflow_run](admin-client.mdx#get_workflow_run)
+- [get_workflow_version](admin-client.mdx#get_workflow_version)
+- [list_workflow_runs](admin-client.mdx#list_workflow_runs)
+- [list_workflows](admin-client.mdx#list_workflows)
+- [put_workflow](admin-client.mdx#put_workflow)
+- [run_workflow](admin-client.mdx#run_workflow)
+- [schedule_workflow](admin-client.mdx#schedule_workflow)
 
 ## Methods
 
-### get\_workflow
+### get_workflow
 
 ▸ **get_workflow**(`workflowId`): `Promise`\<[`Workflow`](./_interfaces/APIContracts.Workflow.md)\>
 
@@ -39,8 +40,8 @@ Get a workflow by its ID.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
+| Name         | Type     | Description                                                                 |
+| :----------- | :------- | :-------------------------------------------------------------------------- |
 | `workflowId` | `string` | the workflow ID (**note:** this is not the same as the workflow version id) |
 
 #### Returns
@@ -51,9 +52,9 @@ Get a workflow by its ID.
 
 [src/clients/admin/admin-client.ts:97](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L97)
 
-___
+---
 
-### get\_workflow\_run
+### get_workflow_run
 
 ▸ **get_workflow_run**(`workflowRunId`): `Promise`\<[`WorkflowRun`](./_interfaces/APIContracts.WorkflowRun.md)\>
 
@@ -61,8 +62,8 @@ Get a workflow run.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
+| Name            | Type     | Description                       |
+| :-------------- | :------- | :-------------------------------- |
 | `workflowRunId` | `string` | the id of the workflow run to get |
 
 #### Returns
@@ -75,9 +76,9 @@ the workflow run
 
 [src/clients/admin/admin-client.ts:121](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L121)
 
-___
+---
 
-### get\_workflow\_version
+### get_workflow_version
 
 ▸ **get_workflow_version**(`workflowId`, `version?`): `Promise`\<[`WorkflowVersion`](./_interfaces/APIContracts.WorkflowVersion.md)\>
 
@@ -85,10 +86,10 @@ Get a workflow version.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `workflowId` | `string` | the workflow ID |
-| `version?` | `string` | the version of the workflow to get. If not provided, the latest version will be returned. |
+| Name         | Type     | Description                                                                               |
+| :----------- | :------- | :---------------------------------------------------------------------------------------- |
+| `workflowId` | `string` | the workflow ID                                                                           |
+| `version?`   | `string` | the version of the workflow to get. If not provided, the latest version will be returned. |
 
 #### Returns
 
@@ -100,9 +101,9 @@ the workflow version
 
 [src/clients/admin/admin-client.ts:108](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L108)
 
-___
+---
 
-### list\_workflow\_runs
+### list_workflow_runs
 
 ▸ **list_workflow_runs**(`query`): `Promise`\<[`WorkflowRunList`](./_interfaces/APIContracts.WorkflowRunList.md)\>
 
@@ -110,13 +111,13 @@ List workflow runs in the tenant associated with the API token.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `query` | `Object` | the query to filter the list of workflow runs |
-| `query.eventId?` | `string` | - |
-| `query.limit?` | `number` | - |
-| `query.offset?` | `number` | - |
-| `query.workflowId?` | `string` | - |
+| Name                | Type     | Description                                   |
+| :------------------ | :------- | :-------------------------------------------- |
+| `query`             | `Object` | the query to filter the list of workflow runs |
+| `query.eventId?`    | `string` | -                                             |
+| `query.limit?`      | `number` | -                                             |
+| `query.offset?`     | `number` | -                                             |
+| `query.workflowId?` | `string` | -                                             |
 
 #### Returns
 
@@ -126,9 +127,9 @@ List workflow runs in the tenant associated with the API token.
 
 [src/clients/admin/admin-client.ts:131](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L131)
 
-___
+---
 
-### list\_workflows
+### list_workflows
 
 ▸ **list_workflows**(): `Promise`\<[`WorkflowList`](./_interfaces/APIContracts.WorkflowList.md)\>
 
@@ -144,9 +145,9 @@ a list of all workflows in the tenant
 
 [src/clients/admin/admin-client.ts:87](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L87)
 
-___
+---
 
-### put\_workflow
+### put_workflow
 
 ▸ **put_workflow**(`workflow`): `Promise`\<`void`\>
 
@@ -155,8 +156,8 @@ determine if the workflow definition has changed and create a new version if nec
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
+| Name       | Type                        | Description                     |
+| :--------- | :-------------------------- | :------------------------------ |
 | `workflow` | `CreateWorkflowVersionOpts` | a workflow definition to create |
 
 #### Returns
@@ -167,9 +168,9 @@ determine if the workflow definition has changed and create a new version if nec
 
 [src/clients/admin/admin-client.ts:51](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L51)
 
-___
+---
 
-### run\_workflow
+### run_workflow
 
 ▸ **run_workflow**(`workflowName`, `input`): `Promise`\<`string`\>
 
@@ -178,10 +179,10 @@ new run.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `workflowName` | `string` | the name of the workflow to run |
-| `input` | `object` | an object containing the input to the workflow |
+| Name           | Type     | Description                                    |
+| :------------- | :------- | :--------------------------------------------- |
+| `workflowName` | `string` | the name of the workflow to run                |
+| `input`        | `object` | an object containing the input to the workflow |
 
 #### Returns
 
@@ -193,9 +194,9 @@ the ID of the new workflow run
 
 [src/clients/admin/admin-client.ts:68](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L68)
 
-___
+---
 
-### schedule\_workflow
+### schedule_workflow
 
 ▸ **schedule_workflow**(`workflowId`, `options?`): `void`
 
@@ -203,11 +204,11 @@ Schedule a workflow to run at a specific time or times.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `workflowId` | `string` | the ID of the workflow to schedule |
-| `options?` | `Object` | an object containing the schedules to set |
-| `options.schedules?` | `Date`[] | - |
+| Name                 | Type     | Description                               |
+| :------------------- | :------- | :---------------------------------------- |
+| `workflowId`         | `string` | the ID of the workflow to schedule        |
+| `options?`           | `Object` | an object containing the schedules to set |
+| `options.schedules?` | `Date`[] | -                                         |
 
 #### Returns
 

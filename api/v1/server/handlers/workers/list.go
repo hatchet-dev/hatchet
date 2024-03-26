@@ -16,7 +16,7 @@ func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListReque
 
 	sixSecAgo := time.Now().Add(-6 * time.Second)
 
-	workers, err := t.config.Repository.Worker().ListWorkers(tenant.ID, &repository.ListWorkersOpts{
+	workers, err := t.config.APIRepository.Worker().ListWorkers(tenant.ID, &repository.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
 	})
 

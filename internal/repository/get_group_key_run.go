@@ -33,10 +33,7 @@ type UpdateGetGroupKeyRunOpts struct {
 	Output *string
 }
 
-type GetGroupKeyRunRepository interface {
-	// ListGetGroupKeyRuns returns a list of get group key runs for a tenant which match the given options.
-	ListGetGroupKeyRuns(tenantId string, opts *ListGetGroupKeyRunsOpts) ([]db.GetGroupKeyRunModel, error)
-
+type GetGroupKeyRunEngineRepository interface {
 	// ListStepRunsToRequeue returns a list of step runs which are in a requeueable state.
 	ListGetGroupKeyRunsToRequeue(tenantId string) ([]*dbsqlc.GetGroupKeyRun, error)
 
@@ -47,6 +44,5 @@ type GetGroupKeyRunRepository interface {
 
 	UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId string, opts *UpdateGetGroupKeyRunOpts) (*dbsqlc.GetGroupKeyRunForEngineRow, error)
 
-	GetGroupKeyRunById(tenantId, getGroupKeyRunId string) (*db.GetGroupKeyRunModel, error)
 	GetGroupKeyRunForEngine(tenantId, getGroupKeyRunId string) (*dbsqlc.GetGroupKeyRunForEngineRow, error)
 }

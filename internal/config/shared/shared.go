@@ -1,7 +1,7 @@
 package shared
 
 type TLSConfigFile struct {
-	// TLSStrategy can be "tls" or "mtls"
+	// TLSStrategy can be "tls", "mtls", or "none"
 	TLSStrategy string `mapstructure:"tlsStrategy" json:"tlsStrategy,omitempty" default:"tls"`
 
 	TLSCert       string `mapstructure:"tlsCert" json:"tlsCert,omitempty"`

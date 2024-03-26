@@ -14,7 +14,7 @@ In Hatchet, timeouts are specified using a string in the format `<number><unit>`
 For example:
 
 - `10s` means 10 seconds
-- `4m` means 4 minutes  
+- `4m` means 4 minutes
 - `1h` means 1 hour
 - `2d` means 2 days
 
@@ -32,12 +32,11 @@ Timeouts can be specified at both the workflow and step level:
 
 To specify a timeout for an entire workflow, you can set the `timeout` property in the workflow definition:
 
-
 ```typescript
 const myWorkflow: Workflow = {
-  id: 'my-workflow',
+  id: "my-workflow",
   // ...
-  timeout: '2m',
+  timeout: "2m",
   // ...
 };
 ```
@@ -48,12 +47,11 @@ This would set a timeout of 2 minutes for the entire workflow. If the workflow t
 
 To specify a timeout for an individual step, you can set the `timeout` property in the step definition:
 
-
 ```typescript
 const myStep: CreateStep<any, any> = {
-  name: 'my-step',
-  // ...  
-  timeout: '30s',
+  name: "my-step",
+  // ...
+  timeout: "30s",
   run: async (ctx) => {
     // ...
   },
@@ -66,7 +64,7 @@ This would set a timeout of 30 seconds for this specific step. If the step takes
 
 Timeouts are useful in a variety of scenarios:
 
-- Ensuring workflows don't run indefinitely and consume unnecessary resources 
+- Ensuring workflows don't run indefinitely and consume unnecessary resources
 - Failing workflows early if a critical step takes too long
 - Keeping workflows responsive by ensuring individual steps complete in a timely manner
 - Preventing infinite loops or hung processes from blocking the entire system

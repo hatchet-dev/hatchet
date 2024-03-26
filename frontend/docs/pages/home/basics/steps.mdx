@@ -1,9 +1,8 @@
-import { Callout, Card, Cards, Steps, Tabs } from 'nextra/components'
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 
 # Understanding Steps in Hatchet
 
 In Hatchet, steps are simply a function that satisfies the following signature:
-
 
 <Tabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
@@ -23,15 +22,13 @@ export const myStep = async (ctx: Context): Promise<object> => {
     </Tabs.Tab>
 </Tabs>
 
-
 This function takes a single argument, `context`, which is an object that provides access to the workflow's input, as well as methods to interact with hatchet (i.e. logging). The function returns a JSON-serializable object, which represents the output of the step.
 
 Often, Hatchet users will start by wrapping one large, esisting function into a step, and then break it down into smaller, more focused steps. This approach allows for better reusability and easier testing.
 
-
 ## Best Practices for Defining Independent Steps
 
-A step in Hatchet is a self-sufficient function that encapsulates a specific operation or task. This independence means that while steps can be orchestrated into larger [workflows](./workflows), each step is designed to function effectively in isolation. 
+A step in Hatchet is a self-sufficient function that encapsulates a specific operation or task. This independence means that while steps can be orchestrated into larger [workflows](./workflows), each step is designed to function effectively in isolation.
 
 Here's some key best practices for defining independent steps in Hatchet:
 
@@ -39,8 +36,6 @@ Here's some key best practices for defining independent steps in Hatchet:
 - **Reusability:** Due to their self-contained nature, steps can be reused across different workflows or even within the same workflow, maximizing code reuse and reducing redundancy.
 - **Testing**: Steps can be easily tested in isolation, ensuring that they function as expected and produce the desired output. This testing approach simplifies the debugging process and ensures that steps are reliable and robust.
 - **Logging**: Each step can log its operation, input, and output, providing valuable insights into the workflow's execution and enabling effective monitoring and troubleshooting. Logs can be streamed to the Hatchet dashboard through the [`context.log` method](../features/errors-and-logging.mdx).
-
-
 
 ### The Workflow Input Object
 
@@ -65,7 +60,6 @@ export const myStep = async (ctx: Context): Promise<object> => {
 ```
     </Tabs.Tab>
 </Tabs>
-
 
 This input object can contain any data or parameters required for the step to perform its operation. By using a JSON object as the input, steps can be easily integrated and combined, as the input can be easily serialized and deserialized.
 
@@ -111,12 +105,11 @@ Thin data payload:
 
 It's feasible to adopt a thin payload strategy while still including frequently utilized or critical fields, such as "taskName" in the thin payload, balancing necessity and efficiency.
 
-The choice between thin and full data payloads hinges on the specific requirements: full data payloads offer immediate, comprehensive context, reducing the need for subsequent data retrieval. Thin data payloads, however, enhance performance, and adaptability especially in scalable, distributed environments like Hatchet. 
+The choice between thin and full data payloads hinges on the specific requirements: full data payloads offer immediate, comprehensive context, reducing the need for subsequent data retrieval. Thin data payloads, however, enhance performance, and adaptability especially in scalable, distributed environments like Hatchet.
 
 **Payload Size Considerations**
 
 While Hatchet allows for payloads upto 4mb, it's advisable to maintain smaller payload sizes, to minimize the processing burden on data consumers. For extensive data requirements, consider referencing data through links or URLs within the payload, allowing consumers to access detailed information only as needed. This approach aligns with efficient data handling and consumer-centric design principles in distributed systems.
-
 
 ## What's Next: Composing Steps into Workflows
 

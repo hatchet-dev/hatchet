@@ -9,11 +9,11 @@ Hatchet automatically catches and handles uncaught errors that occur during work
 Here's an example of how an uncaught error thrown in a step's `run` function is handled:
 
 ```typescript
-import { Step, Context } from '@hatchet/types';
+import { Step, Context } from "@hatchet/types";
 
 const myStep: Step<any, any> = async (context: Context<any>) => {
   // Step logic that may throw an error
-  throw new Error('Something went wrong!');
+  throw new Error("Something went wrong!");
 };
 
 export default myStep;
@@ -27,7 +27,6 @@ In this case, since the error was not caught and handled within the step code, t
 
 > It's important to note that if you catch and handle the error within the step code itself, Hatchet will not capture the error. Only uncaught errors will be automatically captured by Hatchet.
 
-
 ## Logging to Hatchet with `context.log()`
 
 In addition to automatic error handling for uncaught errors, Hatchet provides a convenient way to log arbitrary information during step execution. The `context` object passed to the step's `run` function includes a `log` method that allows you to log messages tied to the specific step run.
@@ -35,11 +34,11 @@ In addition to automatic error handling for uncaught errors, Hatchet provides a 
 Here's an example of how to use `context.log()` to log information during step execution:
 
 ```typescript
-import { Step, Context } from '@hatchet/types';
+import { Step, Context } from "@hatchet/types";
 
 const myStep: Step<any, any> = async (context: Context<any>) => {
   // Log information at various points in the step
-  context.log('Starting step execution');
+  context.log("Starting step execution");
 
   // Perform some step logic
   const result = await someAsyncOperation();
@@ -47,7 +46,9 @@ const myStep: Step<any, any> = async (context: Context<any>) => {
   context.log(`Async operation result: ${result}`);
 
   // Log a message with additional metadata
-  context.log('Step completed successfully', { metadata: { resultLength: result.length } });
+  context.log("Step completed successfully", {
+    metadata: { resultLength: result.length },
+  });
 
   return { result };
 };
@@ -60,6 +61,7 @@ In this example, the step uses `context.log()` to log messages at different poin
 {/* TODO dashboard screenshot */}
 
 Logging information using `context.log()` is particularly useful for:
+
 - Tracking the progress of a step
 - Capturing important variable values or intermediate results
 - Providing additional context for understanding the step's behavior

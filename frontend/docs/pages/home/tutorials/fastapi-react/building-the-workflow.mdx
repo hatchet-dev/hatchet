@@ -1,9 +1,10 @@
 # Defining a Hatchet workflow and registering a worker
 
 We'll now work on the core of the application -- the background workflow that:
-1) reads a website and parses the text content
-2) reasons about what information is most relevant to the user request
-3) generates a response for the user
+
+1. reads a website and parses the text content
+2. reasons about what information is most relevant to the user request
+3. generates a response for the user
 
 Here's an overview of what our filesystem will look like after we complete this module:
 
@@ -20,9 +21,8 @@ load_dotenv()  # we'll use dotenv to load the required Hatchet and OpenAI api ke
 
 hatchet = Hatchet(debug=True)
 ```
+
 [View Complete File on GitHub](https://github.com/hatchet-dev/hatchet-python-quickstart/blob/main/fast-api-react/backend/src/workflows/hatchet.py)
-
-
 
 ## Design your Workflow
 
@@ -41,6 +41,7 @@ openai = OpenAI()
 ```
 
 ### Define your workflow
+
 Now, let's create a new workflow by defining a new class `BasicRagWorkflow` and decorating it with `@hatchet.workflow`.
 
 We're also passing the `on_events` prop to the decorator to indicate we want this workflow to run on the `question:create` event:
@@ -51,6 +52,7 @@ class BasicRagWorkflow:
 ```
 
 ### Write your first step
+
 Next, let's add a simple initial step to the workflow. To start, let's add a simple function that will be used just to update the runtime status to `reading hatchet docs` so the client has some visibility into progress.
 
 By defnining this function within our BasicRagWorkflow class and decorating it with `@hatchet.step` we're defining that this step is part of the workflow.
@@ -93,15 +95,15 @@ class BasicRagWorkflow:
         }
 ```
 
-### Agented RAG 
+### Agented RAG
 
-Large Language Models are great at reasoning and generating text, but often struggle with large context windows or multiple tasks at once. It is often helpful to use an intermediate model to reason or identify the most relevant information from a large document or set of documents. 
+Large Language Models are great at reasoning and generating text, but often struggle with large context windows or multiple tasks at once. It is often helpful to use an intermediate model to reason or identify the most relevant information from a large document or set of documents.
 
 {/* TODO link to article */}
 
 With that in mind, we can call OpenAI's less expensive 3.5T model to extract the most helpful sentences in this document which will be passed to a future step for generation. In a more complex system, you may run this step on multiple documents in parallel.
 
->Note: this step depends on the results from the previous `load_docs` parent step. this is accessed through `ctx.step_output("load_docs")`.
+> Note: this step depends on the results from the previous `load_docs` parent step. this is accessed through `ctx.step_output("load_docs")`.
 
 ```py
 @hatchet.workflow(on_events=["question:create"])
@@ -180,6 +182,7 @@ class BasicRagWorkflow:
 ## Listening for Actions
 
 ### Registering the Hatchet Worker
+
 We now need to define the start script so your service can listen for and execute workflow runs.
 
 In a new file `/backend/src/workflows/main.py` let's import our shared Hatchet client and `BasicRagWorkflow` and define a start method to register the workflow with the worker, and start the worker:
@@ -195,35 +198,36 @@ def start():
     worker.start()
 
 ```
+
 [View Complete File on GitHub](https://github.com/hatchet-dev/hatchet-python-quickstart/blob/main/fast-api-react/backend/src/workflows/main.py)
 
 ### Running the Hatchet Worker and testing the workflow
 
 Finally, we can start the worker with:
+
 ```sh
 poetry run hatchet
 ```
 
 Open the Hatchet Dashboard and navigate to the Workflows tab. You should see your `BasicRagWorkflow` in the list. Click the workflow and click "Trigger Workflow".
 
-Submit the form with the following input: 
+Submit the form with the following input:
 
 ```json
 {
-    "messages": [
-        {
-            "role": "user",
-            "content": "how do i install hatchet?"
-        }
-    ],
-    "url": "https://docs.hatchet.run/home"
+  "messages": [
+    {
+      "role": "user",
+      "content": "how do i install hatchet?"
+    }
+  ],
+  "url": "https://docs.hatchet.run/home"
 }
 ```
 
 This will trigger a workflow run and display the results of each intermediate step.
 
 {/* TODO graphic */}
-
 
 [View Complete File on GitHub](https://github.com/hatchet-dev/hatchet-python-quickstart/blob/main/fast-api-react/backend/src/workflows/basicrag.py)
 

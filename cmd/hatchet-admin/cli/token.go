@@ -60,17 +60,13 @@ func runCreateAPIToken() error {
 	configLoader := loader.NewConfigLoader(configDirectory)
 
 	cleanup, serverConf, err := configLoader.LoadServerConfig()
-	defer func() {
-		if err := cleanup(); err != nil {
-			panic(fmt.Errorf("could not cleanup server config: %v", err))
-		}
-	}()
-
 	if err != nil {
 		return err
 	}
 
-	defer serverConf.Disconnect() // nolint: errcheck
+	defer cleanup() // nolint:errcheck
+
+	defer serverConf.Disconnect() // nolint:errcheck
 
 	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(tokenTenantId, tokenName)
 

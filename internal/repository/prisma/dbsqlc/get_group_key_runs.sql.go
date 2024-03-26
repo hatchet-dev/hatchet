@@ -72,7 +72,6 @@ WITH get_group_key_run AS (
     WHERE
         ggr."id" = $1::uuid AND
         ggr."tenantId" = $2::uuid
-    FOR UPDATE
 ), valid_workers AS (
     SELECT
         w."id", w."dispatcherId"
@@ -88,7 +87,6 @@ WITH get_group_key_run AS (
             WHERE "Action"."tenantId" = $2 AND "Action"."id" = get_group_key_run."actionId"
         )
     ORDER BY random()
-    FOR UPDATE SKIP LOCKED
 ), selected_worker AS (
     SELECT "id", "dispatcherId"
     FROM valid_workers
@@ -103,7 +101,8 @@ SET
         FROM selected_worker
         LIMIT 1
     ),
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "timeoutAt" = CURRENT_TIMESTAMP + INTERVAL '5 minutes'
 WHERE
     "id" = $1::uuid AND
     "tenantId" = $2::uuid AND
