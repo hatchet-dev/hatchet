@@ -585,6 +585,7 @@ func defaultWorkflowRunPopulator() []db.WorkflowRunRelationWith {
 				),
 			),
 			db.JobRun.StepRuns.Fetch().With(
+				db.StepRun.ChildWorkflowRuns.Fetch(),
 				db.StepRun.Step.Fetch().With(
 					db.Step.Action.Fetch(),
 					db.Step.Parents.Fetch(),

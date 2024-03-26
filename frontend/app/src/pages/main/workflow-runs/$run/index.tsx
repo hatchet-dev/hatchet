@@ -11,6 +11,7 @@ import { TenantContextType } from '@/lib/outlet';
 import WorkflowRunVisualizer from './components/workflow-run-visualizer';
 import { useEffect, useState } from 'react';
 import { StepRunPlayground } from './components/step-run-playground';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function ExpandedWorkflowRun() {
   const [selectedStepRun, setSelectedStepRun] = useState<StepRun | undefined>();
@@ -46,7 +47,24 @@ export default function ExpandedWorkflowRun() {
     ) {
       setSelectedStepRun(runQuery.data.jobRuns[0].stepRuns[0]);
     }
-  }, [runQuery.data, selectedStepRun]);
+
+    // if there is a selected step run, make sure it's still in the list
+    if (
+      selectedStepRun &&
+      runQuery.data &&
+      runQuery.data.metadata.id === params.run &&
+      runQuery.data.jobRuns &&
+      runQuery.data.jobRuns[0].stepRuns
+    ) {
+      const stepRun = runQuery.data.jobRuns[0].stepRuns.find(
+        (stepRun) => stepRun.metadata.id === selectedStepRun.metadata.id,
+      );
+
+      if (!stepRun) {
+        setSelectedStepRun(runQuery.data.jobRuns[0].stepRuns[0]);
+      }
+    }
+  }, [runQuery.data, params.run, selectedStepRun]);
 
   if (runQuery.isLoading || !runQuery.data) {
     return <Loading />;
@@ -92,28 +110,37 @@ export default function ExpandedWorkflowRun() {
         {run.triggeredBy?.cronSchedule && (
           <TriggeringCronSection cron={run.triggeredBy.cronSchedule} />
         )}
+        <Tabs defaultValue="overview">
+          <TabsList layout="underlined">
+            <TabsTrigger variant="underlined" value="overview">
+              Overview
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="overview">
+            <div className="w-full h-[200px] mt-8">
+              <WorkflowRunVisualizer
+                workflowRun={run}
+                selectedStepRun={selectedStepRun}
+                setSelectedStepRun={(step) => {
+                  setSelectedStepRun(
+                    step.stepId === selectedStepRun?.stepId ? undefined : step,
+                  );
+                }}
+              />
+            </div>
+            <Separator className="my-4" />
+            {!selectedStepRun ? (
+              'Select a step to rerun and view details.'
+            ) : (
+              <StepRunPlayground
+                stepRun={selectedStepRun}
+                setStepRun={setSelectedStepRun}
+                workflowRun={run}
+              />
+            )}
+          </TabsContent>
+        </Tabs>
         <Separator className="my-4" />
-        <div className="w-full h-[150px]">
-          <WorkflowRunVisualizer
-            workflowRun={run}
-            selectedStepRun={selectedStepRun}
-            setSelectedStepRun={(step) => {
-              setSelectedStepRun(
-                step.stepId === selectedStepRun?.stepId ? undefined : step,
-              );
-            }}
-          />
-        </div>
-        <Separator className="my-4" />
-        {!selectedStepRun ? (
-          'Select a step to rerun and view details.'
-        ) : (
-          <StepRunPlayground
-            stepRun={selectedStepRun}
-            setStepRun={setSelectedStepRun}
-            workflowRun={run}
-          />
-        )}
       </div>
     </div>
   );
