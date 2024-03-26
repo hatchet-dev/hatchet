@@ -684,6 +684,8 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 		}
 
 		workflowEvent.EventPayload = unquoted
+		workflowEvent.StepRetries = &stepRun.StepRetries
+		workflowEvent.RetryCount = &stepRun.StepRun.RetryCount
 	} else if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN {
 		if workflowEvent.ResourceId != workflowRunId {
 			return nil, nil

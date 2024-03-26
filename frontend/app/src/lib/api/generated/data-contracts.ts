@@ -463,6 +463,20 @@ export interface WorkflowRun {
   startedAt?: string;
   /** @format date-time */
   finishedAt?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  parentId?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  parentStepRunId?: string;
 }
 
 export interface WorkflowRunList {
