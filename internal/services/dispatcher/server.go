@@ -3,7 +3,6 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -311,17 +310,16 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		return err
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			if err := cleanupQueue(); err != nil {
-				return fmt.Errorf("could not cleanup queue: %w", err)
-			}
-			// drain the existing connections
-			wg.Wait()
-			return nil
+	for range ctx.Done() {
+		if err := cleanupQueue(); err != nil {
+			return fmt.Errorf("could not cleanup queue: %w", err)
 		}
+
+		// drain the existing connections
+		wg.Wait()
 	}
+
+	return nil
 }
 
 func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
@@ -676,12 +674,7 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 			return nil, nil
 		}
 
-		// attempt to unquote the payload
-		unquoted, err := strconv.Unquote(workflowEvent.EventPayload)
-
-		if err != nil {
-			unquoted = workflowEvent.EventPayload
-		}
+		unquoted := workflowEvent.EventPayload
 
 		workflowEvent.EventPayload = unquoted
 		workflowEvent.StepRetries = &stepRun.StepRetries
