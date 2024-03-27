@@ -674,7 +674,6 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 			return nil, nil
 		}
 
-		// attempt to unquote the payload
 		unquoted := workflowEvent.EventPayload
 
 		workflowEvent.EventPayload = unquoted
