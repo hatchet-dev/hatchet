@@ -51,7 +51,7 @@ class ClientImpl(Client):
         self.listener = listener_client
         self.rest_client = rest_client
 
-    def admin(self) -> ListenerClientImpl:
+    def admin(self) -> AdminClientImpl:
         return self.admin
 
     def dispatcher(self) -> DispatcherClientImpl:
