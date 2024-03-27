@@ -16,10 +16,6 @@ type userCreateEvent struct {
 	Data     map[string]string `json:"data"`
 }
 
-type stepOutput struct {
-	Message string `json:"message"`
-}
-
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -63,7 +59,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 	defer cancel()
 
 	err = c.Run().On(interruptCtx, workflowRunId, func(event client.RunEvent) error {
-		fmt.Println(string(event.EventPayload))
+		fmt.Println(event.EventPayload)
 
 		return nil
 	})

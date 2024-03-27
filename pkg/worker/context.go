@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
@@ -66,6 +68,7 @@ type hatchetContext struct {
 	action   *client.Action
 	stepData *StepRunData
 	c        client.Client
+	l        *zerolog.Logger
 
 	i       int
 	indexMu sync.Mutex
@@ -75,11 +78,13 @@ func newHatchetContext(
 	ctx context.Context,
 	action *client.Action,
 	client client.Client,
+	l *zerolog.Logger,
 ) (HatchetContext, error) {
 	c := &hatchetContext{
 		Context: ctx,
 		action:  action,
 		c:       client,
+		l:       l,
 	}
 
 	if action.GetGroupKeyRunId != "" {
@@ -140,7 +145,11 @@ func (h *hatchetContext) WorkflowRunId() string {
 }
 
 func (h *hatchetContext) Log(message string) {
-	h.c.Event().PutLog(h, h.action.StepRunId, message)
+	err := h.c.Event().PutLog(h, h.action.StepRunId, message)
+
+	if err != nil {
+		h.l.Err(err).Msg("could not put log")
+	}
 }
 
 func (h *hatchetContext) index() int {
@@ -232,16 +241,6 @@ func toTarget(data interface{}, target interface{}) error {
 	}
 
 	err = json.Unmarshal(dataBytes, target)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func toTargetFromBytes(dataBytes []byte, target interface{}) error {
-	err := json.Unmarshal(dataBytes, target)
 
 	if err != nil {
 		return err

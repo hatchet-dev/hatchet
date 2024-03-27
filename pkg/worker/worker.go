@@ -373,7 +373,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 
 	w.cancelMap.Store(assignedAction.StepRunId, cancel)
 
-	hCtx, err := newHatchetContext(runContext, assignedAction, w.client)
+	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l)
 
 	if err != nil {
 		return fmt.Errorf("could not create hatchet context: %w", err)
@@ -490,7 +490,7 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 
 	w.cancelConcurrencyMap.Store(assignedAction.WorkflowRunId, cancel)
 
-	hCtx, err := newHatchetContext(runContext, assignedAction, w.client)
+	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l)
 
 	if err != nil {
 		return fmt.Errorf("could not create hatchet context: %w", err)
