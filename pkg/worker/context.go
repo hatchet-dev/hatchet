@@ -188,6 +188,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	return &ChildWorkflow{
 		workflowRunId: workflowRunId,
 		client:        h.client(),
+		l:             h.l,
 	}, nil
 }
 

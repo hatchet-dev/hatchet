@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
@@ -17,6 +18,7 @@ import (
 type ChildWorkflow struct {
 	workflowRunId string
 	client        client.Client
+	l             *zerolog.Logger
 }
 
 type ChildWorkflowResult struct {
@@ -127,6 +129,7 @@ func (c *ChildWorkflow) Result() (*ChildWorkflowResult, error) {
 	case err := <-workflowErrChan:
 		return nil, err
 	case err := <-errChan:
+		c.l.Err(err).Msg("error occurred")
 		return nil, err
 	}
 }
