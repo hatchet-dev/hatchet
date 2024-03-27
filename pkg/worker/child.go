@@ -61,6 +61,7 @@ func (c *ChildWorkflow) Result() (*ChildWorkflowResult, error) {
 
 		if err != nil {
 			errChan <- fmt.Errorf("failed to get workflow run: %w", err)
+			return
 		}
 
 		if workflowRun := resp.JSON200; workflowRun != nil {
@@ -77,6 +78,7 @@ func (c *ChildWorkflow) Result() (*ChildWorkflowResult, error) {
 			}
 		} else {
 			errChan <- fmt.Errorf("request failed with status %d", resp.StatusCode())
+			return
 		}
 	}
 
