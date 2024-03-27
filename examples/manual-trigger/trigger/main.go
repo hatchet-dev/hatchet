@@ -62,10 +62,8 @@ func run(ch <-chan interface{}, events chan<- string) error {
 	interruptCtx, cancel := cmdutils.InterruptContextFromChan(ch)
 	defer cancel()
 
-	err = c.Run().On(interruptCtx, workflowRunId, func(event *client.StepRunEvent) error {
-		if event.Type == client.StepRunEventTypeCompleted {
-			fmt.Println(string(event.Payload))
-		}
+	err = c.Run().On(interruptCtx, workflowRunId, func(event client.RunEvent) error {
+		fmt.Println(string(event.EventPayload))
 
 		return nil
 	})
