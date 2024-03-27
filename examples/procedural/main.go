@@ -12,6 +12,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
+const NUM_CHILDREN = 50
+
 type proceduralChildInput struct {
 	Index int `json:"index"`
 }
@@ -30,7 +32,7 @@ func main() {
 		panic(err)
 	}
 
-	events := make(chan string, 50)
+	events := make(chan string, 5*NUM_CHILDREN)
 	interrupt := cmdutils.InterruptChan()
 
 	cleanup, err := run(events)
@@ -71,9 +73,9 @@ func run(events chan<- string) (func() error, error) {
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(
 					func(ctx worker.HatchetContext) (result *proceduralParentOutput, err error) {
-						childWorkflows := make([]*worker.ChildWorkflow, 10)
+						childWorkflows := make([]*worker.ChildWorkflow, NUM_CHILDREN)
 
-						for i := 0; i < 10; i++ {
+						for i := 0; i < NUM_CHILDREN; i++ {
 							childInput := proceduralChildInput{
 								Index: i,
 							}
@@ -91,9 +93,9 @@ func run(events chan<- string) (func() error, error) {
 
 						eg := errgroup.Group{}
 
-						eg.SetLimit(10)
+						eg.SetLimit(NUM_CHILDREN)
 
-						childOutputs := make([]int, 10)
+						childOutputs := make([]int, NUM_CHILDREN)
 
 						for i, childWorkflow := range childWorkflows {
 							eg.Go(func(i int, childWorkflow *worker.ChildWorkflow) func() error {

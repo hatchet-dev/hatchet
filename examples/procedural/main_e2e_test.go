@@ -19,7 +19,7 @@ func TestProcedural(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	events := make(chan string, 50)
+	events := make(chan string, 5*NUM_CHILDREN)
 
 	cleanup, err := run(events)
 	if err != nil {
@@ -40,7 +40,7 @@ outer:
 
 	expected := []string{}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < NUM_CHILDREN; i++ {
 		expected = append(expected, fmt.Sprintf("child-%d-started", i))
 		expected = append(expected, fmt.Sprintf("child-%d-completed", i))
 	}
