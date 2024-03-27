@@ -85,6 +85,8 @@ func run(events chan<- string) (func() error, error) {
 							}
 
 							childWorkflows[i] = childWorkflow
+
+							events <- fmt.Sprintf("child-%d-started", i)
 						}
 
 						eg := errgroup.Group{}
@@ -111,6 +113,8 @@ func run(events chan<- string) (func() error, error) {
 									}
 
 									childOutputs[i] = childOutput.Index
+
+									events <- fmt.Sprintf("child-%d-completed", childOutput.Index)
 
 									return nil
 
