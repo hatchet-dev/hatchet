@@ -32,7 +32,7 @@ type HatchetContext interface {
 
 	Log(message string)
 
-	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) *ChildWorkflow
+	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error)
 
 	client() client.Client
 
@@ -163,10 +163,10 @@ func (h *hatchetContext) inc() {
 }
 
 type SpawnWorkflowOpts struct {
-	Key string
+	Key *string
 }
 
-func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) *ChildWorkflow {
+func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error) {
 	workflowRunId, err := h.client().Admin().RunChildWorkflow(
 		workflowName,
 		input,
@@ -174,21 +174,21 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 			ParentId:        h.WorkflowRunId(),
 			ParentStepRunId: h.StepRunId(),
 			ChildIndex:      h.index(),
-			ChildKey:        &opts.Key,
+			ChildKey:        opts.Key,
 		},
 	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to spawn workflow: %w", err)
+	}
 
 	// increment the index
 	h.inc()
 
-	if err != nil {
-		panic(err)
-	}
-
 	return &ChildWorkflow{
 		workflowRunId: workflowRunId,
 		client:        h.client(),
-	}
+	}, nil
 }
 
 func (h *hatchetContext) populateStepDataForGroupKeyRun() error {

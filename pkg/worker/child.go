@@ -33,6 +33,10 @@ func (r *ChildWorkflowResult) StepOutput(key string, v interface{}) error {
 		}
 	}
 
+	if outputBytes == nil {
+		return fmt.Errorf("step output for %s not found", key)
+	}
+
 	if err := json.Unmarshal(outputBytes, v); err != nil {
 		return fmt.Errorf("failed to unmarshal output: %w", err)
 	}
