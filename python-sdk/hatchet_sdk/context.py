@@ -1,11 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
-import datetime
 import inspect
 from multiprocessing import Event
-import os
-from .clients.dispatcher import Action, DispatcherClient
-from .clients.events import EventClientImpl
+from .clients.dispatcher import Action
 from .client import ClientImpl
+from .clients.admin import TriggerWorkflowParentOptions
 
 from .dispatcher_pb2 import OverridesData
 from .logger import logger
@@ -16,7 +14,19 @@ def get_caller_file_path():
 
     return caller_frame.filename
 
+class ChildWorkflowRef:
+    workflow_run_id: str
+    client: ClientImpl
+
+    def __init__(self, workflow_run_id: str, client: ClientImpl):
+        self.workflow_run_id = workflow_run_id
+        self.client = client
+
+    
+
 class Context:
+    spawn_index = -1
+
     def __init__(self, action: Action, client: ClientImpl):
         # Check the type of action.action_payload before attempting to load it as JSON
         if isinstance(action.action_payload, (str, bytes, bytearray)):
@@ -30,6 +40,7 @@ class Context:
             # Directly assign the payload to self.data if it's already a dict
             self.data = action.action_payload if isinstance(action.action_payload, dict) else {}
 
+        self.action = action
         self.stepRunId = action.step_run_id
         self.exit_flag = Event()
         self.client = client
@@ -59,6 +70,9 @@ class Context:
     def workflow_input(self):
         return self.input
     
+    def workflow_run_id(self):
+        return self.action.workflow_run_id
+
     def sleep(self, seconds: int):
         self.exit_flag.wait(seconds)
 
@@ -91,6 +105,30 @@ class Context:
 
         return default
     
+    def spawn_workflow(self, workflow_name: str, input: dict = {}, key: str = None):
+        workflow_run_id = self.action.workflow_run_id
+        step_run_id = self.action.step_run_id
+
+        print(f"Spawning workflow {workflow_run_id}")
+        print(f"Spawning workflow {step_run_id}")
+
+        options: TriggerWorkflowParentOptions = {
+            'parent_id': workflow_run_id,
+            'parent_step_run_id': step_run_id,
+            'child_key': key,
+            'child_index': self.spawn_index
+        }
+
+        self.spawn_index += 1
+
+        child_workflow_run_id = self.client.admin.run_workflow(
+            workflow_name,
+            input,
+            options
+        )
+
+        return ChildWorkflowRef(child_workflow_run_id, self.client)
+
     def _log(self, line: str):
         try:
             self.client.event.log(message=line, step_run_id=self.stepRunId)
