@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -259,11 +258,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 
 			a.l.Debug().Msgf("Received action type: %s", actionType)
 
-			unquoted, err := strconv.Unquote(assignedAction.ActionPayload)
-
-			if err != nil {
-				unquoted = assignedAction.ActionPayload
-			}
+			unquoted := assignedAction.ActionPayload
 
 			ch <- &Action{
 				TenantId:         assignedAction.TenantId,

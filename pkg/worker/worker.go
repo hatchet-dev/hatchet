@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -571,13 +570,7 @@ func (w *Worker) getActionEvent(action *client.Action, eventType client.ActionEv
 func (w *Worker) getActionFinishedEvent(action *client.Action, output any) (*client.ActionEvent, error) {
 	event := w.getActionEvent(action, client.ActionEventTypeCompleted)
 
-	outputBytes, err := json.Marshal(output)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal step output: %w", err)
-	}
-
-	event.EventPayload = string(outputBytes)
+	event.EventPayload = output
 
 	return event, nil
 }
