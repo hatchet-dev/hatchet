@@ -4,10 +4,10 @@ import inspect
 from multiprocessing import Event
 import os
 from .clients.dispatcher import Action, DispatcherClient
-from google.protobuf import timestamp_pb2
 from .clients.events import EventClientImpl
+from .client import ClientImpl
+
 from .dispatcher_pb2 import OverridesData
-from .events_pb2 import PutLogRequest
 from .logger import logger
 import json
 
@@ -17,7 +17,7 @@ def get_caller_file_path():
     return caller_frame.filename
 
 class Context:
-    def __init__(self, action: Action, client: DispatcherClient, eventClient: EventClientImpl):
+    def __init__(self, action: Action, client: ClientImpl):
         # Check the type of action.action_payload before attempting to load it as JSON
         if isinstance(action.action_payload, (str, bytes, bytearray)):
             try:
@@ -33,7 +33,6 @@ class Context:
         self.stepRunId = action.step_run_id
         self.exit_flag = Event()
         self.client = client
-        self.eventClient = eventClient
 
         # FIXME: this limits the number of concurrent log requests to 1, which means we can do about
         # 100 log lines per second but this depends on network. 
@@ -81,7 +80,7 @@ class Context:
         
         caller_file = get_caller_file_path()
         
-        self.client.put_overrides_data(
+        self.client.dispatcher.put_overrides_data(
             OverridesData(
                 stepRunId=self.stepRunId,
                 path=name,
@@ -94,7 +93,7 @@ class Context:
     
     def _log(self, line: str):
         try:
-            self.eventClient.log(message=line, step_run_id=self.stepRunId)
+            self.client.event.log(message=line, step_run_id=self.stepRunId)
         except Exception as e:
             logger.error(f"Error logging: {e}")
     
