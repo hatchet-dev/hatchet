@@ -302,7 +302,8 @@ WHERE
             AND prev_sr."status" != 'SUCCEEDED'
     )
 ORDER BY
-    sr."createdAt" ASC;
+    sr."createdAt" ASC
+LIMIT 1000;
 
 -- name: ListStepRunsToRequeue :many
 SELECT
@@ -327,7 +328,8 @@ WHERE
             AND prev_sr."status" != 'SUCCEEDED'
     )
 ORDER BY
-    sr."createdAt" ASC;
+    sr."createdAt" ASC
+LIMIT 1000;
 
 -- name: AssignStepRunToWorker :one
 WITH step_run AS (

@@ -512,6 +512,7 @@ WHERE
     )
 ORDER BY
     sr."createdAt" ASC
+LIMIT 1000
 `
 
 func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*StepRun, error) {
@@ -585,6 +586,7 @@ WHERE
     )
 ORDER BY
     sr."createdAt" ASC
+LIMIT 1000
 `
 
 func (q *Queries) ListStepRunsToRequeue(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*StepRun, error) {

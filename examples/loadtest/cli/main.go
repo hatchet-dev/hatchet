@@ -14,6 +14,7 @@ func main() {
 	var duration time.Duration
 	var wait time.Duration
 	var delay time.Duration
+	var workerDelay time.Duration
 
 	var loadtest = &cobra.Command{
 		Use: "loadtest",
@@ -23,7 +24,7 @@ func main() {
 				panic(err)
 			}
 
-			if err := do(duration, events, delay, wait, concurrency); err != nil {
+			if err := do(duration, events, delay, wait, concurrency, workerDelay); err != nil {
 				log.Println(err)
 				panic("load test failed")
 			}
@@ -35,6 +36,7 @@ func main() {
 	loadtest.Flags().DurationVarP(&duration, "duration", "d", 10*time.Second, "duration specifies the total time to run the load test")
 	loadtest.Flags().DurationVarP(&delay, "delay", "D", 0, "delay specifies the time to wait in each event to simulate slow tasks")
 	loadtest.Flags().DurationVarP(&wait, "wait", "w", 10*time.Second, "wait specifies the total time to wait until events complete")
+	loadtest.Flags().DurationVarP(&workerDelay, "workerDelay", "p", 0*time.Second, "workerDelay specifies the time to wait before starting the worker")
 
 	cmd := &cobra.Command{Use: "app"}
 	cmd.AddCommand(loadtest)

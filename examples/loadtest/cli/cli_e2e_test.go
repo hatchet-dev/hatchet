@@ -22,6 +22,7 @@ func TestLoadCLI(t *testing.T) {
 		eventsPerSecond int
 		delay           time.Duration
 		wait            time.Duration
+		workerDelay     time.Duration
 		concurrency     int
 	}
 	tests := []struct {
@@ -46,6 +47,16 @@ func TestLoadCLI(t *testing.T) {
 			wait:            30 * time.Second,
 			concurrency:     0,
 		},
+	}, {
+		name: "test for many queued events and little worker throughput",
+		args: args{
+			duration:        60 * time.Second,
+			eventsPerSecond: 100,
+			delay:           0 * time.Second,
+			workerDelay:     60 * time.Second,
+			wait:            240 * time.Second,
+			concurrency:     0,
+		},
 	}}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
@@ -65,8 +76,7 @@ func TestLoadCLI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			if err := do(tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.wait, tt.args.concurrency); (err != nil) != tt.wantErr {
+			if err := do(tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.wait, tt.args.concurrency, tt.args.workerDelay); (err != nil) != tt.wantErr {
 				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

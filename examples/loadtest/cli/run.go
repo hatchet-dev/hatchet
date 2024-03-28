@@ -69,8 +69,11 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 					for i := 0; i < len(executed)-1; i++ {
 						if executed[i] == input.ID {
 							duplicate = true
-							fmt.Println("DUPLICATE:", input.ID)
+							break
 						}
+					}
+					if duplicate {
+						fmt.Println("duplicate", input.ID)
 					}
 					if !duplicate {
 						uniques += 1
