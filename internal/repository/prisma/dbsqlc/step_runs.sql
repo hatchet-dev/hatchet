@@ -9,6 +9,7 @@ WHERE
 
 -- name: GetStepRunForEngine :many
 SELECT
+    DISTINCT ON (sr."id")
     sqlc.embed(sr),
     jrld."data" AS "jobRunLookupData",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
@@ -30,7 +31,7 @@ FROM
 JOIN
     "Step" s ON sr."stepId" = s."id"
 JOIN
-    "Action" a ON s."actionId" = a."actionId"
+    "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
 JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
@@ -57,6 +58,7 @@ WITH job_run AS (
     WHERE "id" = @jobRunId::uuid
 )
 SELECT 
+    DISTINCT ON (child_run."id")
     child_run."id" AS "id"
 FROM 
     "StepRun" AS child_run
@@ -86,6 +88,7 @@ WHERE
 
 -- name: ListStepRuns :many
 SELECT
+    DISTINCT ON ("StepRun"."id")
     "StepRun"."id"
 FROM
     "StepRun"
