@@ -232,6 +232,7 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, arg GetStepRunParams)
 
 const getStepRunForEngine = `-- name: GetStepRunForEngine :many
 SELECT
+    DISTINCT ON (sr."id")
     sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount",
     jrld."data" AS "jobRunLookupData",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
@@ -253,7 +254,7 @@ FROM
 JOIN
     "Step" s ON sr."stepId" = s."id"
 JOIN
-    "Action" a ON s."actionId" = a."actionId"
+    "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
 JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
@@ -365,6 +366,7 @@ WITH job_run AS (
     WHERE "id" = $1::uuid
 )
 SELECT 
+    DISTINCT ON (child_run."id")
     child_run."id" AS "id"
 FROM 
     "StepRun" AS child_run
@@ -420,6 +422,7 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 
 const listStepRuns = `-- name: ListStepRuns :many
 SELECT
+    DISTINCT ON ("StepRun"."id")
     "StepRun"."id"
 FROM
     "StepRun"
