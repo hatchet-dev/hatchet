@@ -3,16 +3,11 @@ package client
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"strconv"
 	"time"
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -75,6 +70,9 @@ type Action struct {
 
 	// the step id
 	StepId string
+
+	// the step name
+	StepName string
 
 	// the step run id
 	StepRunId string
@@ -234,23 +232,14 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 					return
 				}
 
-				statusErr, isStatusErr := status.FromError(err)
+				err = a.retrySubscribe(ctx)
 
-				// latter case handles errors like `rpc error: code = Unavailable desc = error reading from server: EOF`
-				// which apparently is not an EOF error
-				if errors.Is(err, io.EOF) || (isStatusErr && statusErr.Code() == codes.Unavailable) {
-					err = a.retrySubscribe(ctx)
-
-					if err != nil {
-						a.l.Error().Msgf("Failed to subscribe: %v", err)
-						panic(fmt.Errorf("failed to subscribe: %w", err))
-					}
-
-					continue
+				if err != nil {
+					a.l.Error().Msgf("Failed to resubscribe: %v", err)
+					panic(fmt.Errorf("failed to resubscribe: %w", err))
 				}
 
-				a.l.Error().Msgf("Failed to receive message: %v", err)
-				panic(fmt.Errorf("failed to receive message: %w", err))
+				continue
 			}
 
 			var actionType ActionType
@@ -269,11 +258,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 
 			a.l.Debug().Msgf("Received action type: %s", actionType)
 
-			unquoted, err := strconv.Unquote(assignedAction.ActionPayload)
-
-			if err != nil {
-				unquoted = assignedAction.ActionPayload
-			}
+			unquoted := assignedAction.ActionPayload
 
 			ch <- &Action{
 				TenantId:         assignedAction.TenantId,
@@ -284,6 +269,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 				JobName:          assignedAction.JobName,
 				JobRunId:         assignedAction.JobRunId,
 				StepId:           assignedAction.StepId,
+				StepName:         assignedAction.StepName,
 				StepRunId:        assignedAction.StepRunId,
 				ActionId:         assignedAction.ActionId,
 				ActionType:       actionType,

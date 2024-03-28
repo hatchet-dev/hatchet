@@ -27,7 +27,7 @@ func SetupEngine(ctx context.Context, t *testing.T) {
 	_ = os.Setenv("SERVER_TLS_KEY_FILE", path.Join(dir, "hack/dev/certs/cluster.key"))
 	_ = os.Setenv("SERVER_TLS_ROOT_CA_FILE", path.Join(dir, "hack/dev/certs/ca.cert"))
 	_ = os.Setenv("SERVER_PORT", "8080")
-	_ = os.Setenv("SERVER_URL", "https://app.dev.hatchet-tools.com")
+	_ = os.Setenv("SERVER_URL", "http://localhost:8080")
 	_ = os.Setenv("SERVER_AUTH_COOKIE_SECRETS", "something something")
 	_ = os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "app.dev.hatchet-tools.com")
 	_ = os.Setenv("SERVER_AUTH_COOKIE_INSECURE", "false")

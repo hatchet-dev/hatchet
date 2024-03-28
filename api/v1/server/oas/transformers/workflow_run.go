@@ -204,6 +204,16 @@ func ToStepRun(stepRun *db.StepRunModel) (*gen.StepRun, error) {
 		res.Step = ToStep(step)
 	}
 
+	if stepRun.RelationsStepRun.ChildWorkflowRuns != nil {
+		childWorkflowRuns := make([]string, 0)
+
+		for _, childWorkflowRun := range stepRun.ChildWorkflowRuns() {
+			childWorkflowRuns = append(childWorkflowRuns, childWorkflowRun.ID)
+		}
+
+		res.ChildWorkflowRuns = &childWorkflowRuns
+	}
+
 	if inputData, ok := stepRun.Input(); ok {
 		res.Input = repository.StringPtr(string(json.RawMessage(inputData)))
 	}

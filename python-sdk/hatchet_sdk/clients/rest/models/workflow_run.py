@@ -20,6 +20,7 @@ import json
 from datetime import datetime
 from pydantic import BaseModel, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
 from hatchet_sdk.clients.rest.models.workflow_run_triggered_by import WorkflowRunTriggeredBy
@@ -42,7 +43,9 @@ class WorkflowRun(BaseModel):
     error: Optional[StrictStr] = None
     started_at: Optional[datetime] = Field(default=None, alias="startedAt")
     finished_at: Optional[datetime] = Field(default=None, alias="finishedAt")
-    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "workflowVersionId", "workflowVersion", "status", "displayName", "jobRuns", "triggeredBy", "input", "error", "startedAt", "finishedAt"]
+    parent_id: Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(default=None, alias="parentId")
+    parent_step_run_id: Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(default=None, alias="parentStepRunId")
+    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "workflowVersionId", "workflowVersion", "status", "displayName", "jobRuns", "triggeredBy", "input", "error", "startedAt", "finishedAt", "parentId", "parentStepRunId"]
 
     model_config = {
         "populate_by_name": True,
@@ -122,7 +125,9 @@ class WorkflowRun(BaseModel):
             "input": obj.get("input"),
             "error": obj.get("error"),
             "startedAt": obj.get("startedAt"),
-            "finishedAt": obj.get("finishedAt")
+            "finishedAt": obj.get("finishedAt"),
+            "parentId": obj.get("parentId"),
+            "parentStepRunId": obj.get("parentStepRunId")
         })
         return _obj
 

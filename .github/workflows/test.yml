@@ -186,7 +186,7 @@ jobs:
 
           DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
           SERVER_PORT=8080
-          SERVER_URL=https://app.dev.hatchet-tools.com
+          SERVER_URL=http://localhost:8080
 
           SERVER_AUTH_COOKIE_SECRETS="kPpegRDNpofgkUsr HoWe67haMOF5qnaB"
           SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
@@ -262,7 +262,7 @@ jobs:
           SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
           SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
           SERVER_PORT=8080
-          SERVER_URL=https://app.dev.hatchet-tools.com
+          SERVER_URL=http://localhost:8080
           SERVER_AUTH_COOKIE_SECRETS="something something"
           SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
           SERVER_AUTH_COOKIE_INSECURE=false

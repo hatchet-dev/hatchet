@@ -34,6 +34,18 @@ type CreateWorkflowRunOpts struct {
 	TriggeredBy string
 
 	GetGroupKeyRun *CreateGroupKeyRunOpts `validate:"omitempty"`
+
+	// (optional) the parent workflow run which this workflow run was triggered from
+	ParentId *string `validate:"omitempty,uuid"`
+
+	// (optional) the parent step run id which this workflow run was triggered from
+	ParentStepRunId *string `validate:"omitempty,uuid"`
+
+	// (optional) the child key of the workflow run, if this is a child run of a different workflow
+	ChildKey *string
+
+	// (optional) the child index of the workflow run, if this is a child run of a different workflow
+	ChildIndex *int
 }
 
 type CreateGroupKeyRunOpts struct {
@@ -41,7 +53,25 @@ type CreateGroupKeyRunOpts struct {
 	Input []byte
 }
 
-func GetCreateWorkflowRunOptsFromManual(workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, input []byte) (*CreateWorkflowRunOpts, error) {
+type CreateWorkflowRunOpt func(*CreateWorkflowRunOpts)
+
+func WithParent(
+	parentId, parentStepRunId string,
+	childIndex int,
+	childKey *string,
+) CreateWorkflowRunOpt {
+	return func(opts *CreateWorkflowRunOpts) {
+		opts.ParentId = &parentId
+		opts.ParentStepRunId = &parentStepRunId
+		opts.ChildIndex = &childIndex
+		opts.ChildKey = childKey
+	}
+}
+
+func GetCreateWorkflowRunOptsFromManual(
+	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
+	input []byte,
+) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
 		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
@@ -49,6 +79,34 @@ func GetCreateWorkflowRunOptsFromManual(workflowVersion *dbsqlc.GetWorkflowVersi
 		TriggeredBy:        string(datautils.TriggeredByManual),
 		InputData:          input,
 	}
+
+	if input != nil {
+		if workflowVersion.ConcurrencyLimitStrategy.Valid {
+			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+				Input: input,
+			}
+		}
+	}
+
+	return opts, nil
+}
+
+func GetCreateWorkflowRunOptsFromParent(
+	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
+	input []byte,
+	parentId, parentStepRunId string,
+	childIndex int,
+	childKey *string,
+) (*CreateWorkflowRunOpts, error) {
+	opts := &CreateWorkflowRunOpts{
+		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
+		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		ManualTriggerInput: StringPtr(string(input)),
+		TriggeredBy:        string(datautils.TriggeredByParent),
+		InputData:          input,
+	}
+
+	WithParent(parentId, parentStepRunId, childIndex, childKey)(opts)
 
 	if input != nil {
 		if workflowVersion.ConcurrencyLimitStrategy.Valid {
@@ -102,7 +160,12 @@ func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion
 	return opts, nil
 }
 
-func GetCreateWorkflowRunOptsFromSchedule(scheduledWorkflowId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, input []byte) (*CreateWorkflowRunOpts, error) {
+func GetCreateWorkflowRunOptsFromSchedule(
+	scheduledWorkflowId string,
+	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
+	input []byte,
+	fs ...CreateWorkflowRunOpt,
+) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:         StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
 		WorkflowVersionId:   sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
@@ -117,6 +180,10 @@ func GetCreateWorkflowRunOptsFromSchedule(scheduledWorkflowId string, workflowVe
 				Input: input,
 			}
 		}
+	}
+
+	for _, f := range fs {
+		f(opts)
 	}
 
 	return opts, nil
@@ -134,6 +201,12 @@ type ListWorkflowRunsOpts struct {
 
 	// (optional) the workflow version id
 	WorkflowVersionId *string `validate:"omitempty,uuid"`
+
+	// (optional) the parent workflow run id
+	ParentId *string `validate:"omitempty,uuid"`
+
+	// (optional) the parent step run id
+	ParentStepRunId *string `validate:"omitempty,uuid"`
 
 	// (optional) the event id that triggered the workflow run
 	EventId *string `validate:"omitempty,uuid"`
@@ -212,6 +285,10 @@ type WorkflowRunAPIRepository interface {
 type WorkflowRunEngineRepository interface {
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
+
+	GetChildWorkflowRun(parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error)
+
+	GetScheduledChildWorkflowRun(parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error)
 
 	PopWorkflowRunsRoundRobin(tenantId, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error)
 

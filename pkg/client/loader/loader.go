@@ -59,21 +59,25 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 	grpcBroadcastAddress := cf.HostPort
 	serverURL := cf.HostPort
 
-	tokenAddresses, err := getAddressesFromJWT(cf.Token)
+	tokenConf, err := getConfFromJWT(cf.Token)
 
 	if err == nil {
-		if grpcBroadcastAddress == "" && tokenAddresses.grpcBroadcastAddress != "" {
-			grpcBroadcastAddress = tokenAddresses.grpcBroadcastAddress
+		if grpcBroadcastAddress == "" && tokenConf.grpcBroadcastAddress != "" {
+			grpcBroadcastAddress = tokenConf.grpcBroadcastAddress
 		}
 
-		if tokenAddresses.serverURL != "" {
-			serverURL = tokenAddresses.serverURL
+		if tokenConf.serverURL != "" {
+			serverURL = tokenConf.serverURL
 		}
 	}
 
 	// if there's no broadcast address at this point, throw an error
 	if grpcBroadcastAddress == "" {
 		return nil, fmt.Errorf("GRPC broadcast address is required. Set it via the HATCHET_CLIENT_HOST_PORT environment variable.")
+	}
+
+	if cf.TenantId == "" {
+		cf.TenantId = tokenConf.tenantId
 	}
 
 	tlsServerName := cf.TLS.TLSServerName

@@ -83,7 +83,7 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	if triggerAt.Before(time.Now()) {
 		t.l.Debug().Msg("ticker: trigger time is in the past, running now")
 
-		t.runScheduledWorkflow(ctx, tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow.Input)()
+		t.runScheduledWorkflow(ctx, tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow)()
 		return nil
 	}
 
@@ -93,7 +93,7 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 			gocron.OneTimeJobStartDateTime(triggerAt),
 		),
 		gocron.NewTask(
-			t.runScheduledWorkflow(ctx, tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow.Input),
+			t.runScheduledWorkflow(ctx, tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow),
 		),
 	)
 
@@ -109,7 +109,7 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	return nil
 }
 
-func (t *TickerImpl) runScheduledWorkflow(ctx context.Context, tenantId, workflowVersionId, scheduledWorkflowId string, input []byte) func() {
+func (t *TickerImpl) runScheduledWorkflow(ctx context.Context, tenantId, workflowVersionId, scheduledWorkflowId string, scheduled *dbsqlc.PollScheduledWorkflowsRow) func() {
 	return func() {
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
 
@@ -120,8 +120,30 @@ func (t *TickerImpl) runScheduledWorkflow(ctx context.Context, tenantId, workflo
 			return
 		}
 
+		fs := make([]repository.CreateWorkflowRunOpt, 0)
+
+		if scheduled.ParentId.Valid {
+			var childKey *string
+
+			if scheduled.ChildKey.Valid {
+				childKey = &scheduled.ChildKey.String
+			}
+
+			fs = append(fs, repository.WithParent(
+				sqlchelpers.UUIDToStr(scheduled.ParentId),
+				sqlchelpers.UUIDToStr(scheduled.ParentStepRunId),
+				int(scheduled.ChildIndex.Int32),
+				childKey,
+			))
+		}
+
 		// create a new workflow run in the database
-		createOpts, err := repository.GetCreateWorkflowRunOptsFromSchedule(scheduledWorkflowId, workflowVersion, input)
+		createOpts, err := repository.GetCreateWorkflowRunOptsFromSchedule(
+			scheduledWorkflowId,
+			workflowVersion,
+			scheduled.Input,
+			fs...,
+		)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not get create workflow run opts")

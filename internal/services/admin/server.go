@@ -25,6 +25,44 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	isParentTriggered := req.ParentId != nil
+
+	// if there's a parent id passed in, we query for an existing workflow run which matches these params
+	if isParentTriggered {
+		if req.ParentStepRunId == nil {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"parent step run id is required when parent id is provided",
+			)
+		}
+
+		if req.ChildIndex == nil {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"child index is required when parent id is provided",
+			)
+		}
+
+		workflowRun, err := a.repo.WorkflowRun().GetChildWorkflowRun(
+			*req.ParentId,
+			*req.ParentStepRunId,
+			int(*req.ChildIndex),
+			req.ChildKey,
+		)
+
+		if err != nil {
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return nil, fmt.Errorf("could not get child workflow run: %w", err)
+			}
+		}
+
+		if err == nil && workflowRun != nil {
+			return &contracts.TriggerWorkflowResponse{
+				WorkflowRunId: sqlchelpers.UUIDToStr(workflowRun.ID),
+			}, nil
+		}
+	}
+
 	workflow, err := a.repo.Workflow().GetWorkflowByName(
 		tenantId,
 		req.Name,
@@ -50,7 +88,21 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		return nil, fmt.Errorf("could not get latest workflow version: %w", err)
 	}
 
-	createOpts, err := repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input))
+	var createOpts *repository.CreateWorkflowRunOpts
+
+	if isParentTriggered {
+		createOpts, err = repository.GetCreateWorkflowRunOptsFromParent(
+			workflowVersion,
+			[]byte(req.Input),
+			// we have already checked for nil values above
+			*req.ParentId,
+			*req.ParentStepRunId,
+			int(*req.ChildIndex),
+			req.ChildKey,
+		)
+	} else {
+		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input))
+	}
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create workflow run opts: %w", err)
@@ -68,6 +120,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
 		tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
 	)
+
 	if err != nil {
 		return nil, fmt.Errorf("could not queue workflow run: %w", err)
 	}
@@ -179,6 +232,41 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		}
 
 		return nil, err
+	}
+
+	isParentTriggered := req.ParentId != nil
+
+	if isParentTriggered {
+		if req.ParentStepRunId == nil {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"parent step run id is required when parent id is provided",
+			)
+		}
+
+		if req.ChildIndex == nil {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"child index is required when parent id is provided",
+			)
+		}
+
+		existing, err := a.repo.WorkflowRun().GetScheduledChildWorkflowRun(
+			*req.ParentId,
+			*req.ParentStepRunId,
+			int(*req.ChildIndex),
+			req.ChildKey,
+		)
+
+		if err != nil {
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return nil, fmt.Errorf("could not get scheduled child workflow run: %w", err)
+			}
+		}
+
+		if err == nil && existing != nil {
+			return toWorkflowVersion(currWorkflow), nil
+		}
 	}
 
 	dbSchedules := make([]time.Time, len(req.Schedules))

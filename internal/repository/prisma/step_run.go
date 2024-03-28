@@ -46,6 +46,7 @@ func (s *stepRunAPIRepository) GetStepRunById(tenantId, stepRunId string) (*db.S
 		db.StepRun.ID.Equals(stepRunId),
 	).With(
 		db.StepRun.Children.Fetch(),
+		db.StepRun.ChildWorkflowRuns.Fetch(),
 		db.StepRun.Parents.Fetch().With(
 			db.StepRun.Step.Fetch(),
 		),

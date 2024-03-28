@@ -38,6 +38,7 @@ class StepRun(BaseModel):
     step: Optional[Step] = None
     children: Optional[List[StrictStr]] = None
     parents: Optional[List[StrictStr]] = None
+    child_workflow_runs: Optional[List[StrictStr]] = Field(default=None, alias="childWorkflowRuns")
     worker_id: Optional[StrictStr] = Field(default=None, alias="workerId")
     input: Optional[StrictStr] = None
     output: Optional[StrictStr] = None
@@ -55,7 +56,7 @@ class StepRun(BaseModel):
     cancelled_at_epoch: Optional[StrictInt] = Field(default=None, alias="cancelledAtEpoch")
     cancelled_reason: Optional[StrictStr] = Field(default=None, alias="cancelledReason")
     cancelled_error: Optional[StrictStr] = Field(default=None, alias="cancelledError")
-    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "jobRunId", "jobRun", "stepId", "step", "children", "parents", "workerId", "input", "output", "status", "requeueAfter", "result", "error", "startedAt", "startedAtEpoch", "finishedAt", "finishedAtEpoch", "timeoutAt", "timeoutAtEpoch", "cancelledAt", "cancelledAtEpoch", "cancelledReason", "cancelledError"]
+    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "jobRunId", "jobRun", "stepId", "step", "children", "parents", "childWorkflowRuns", "workerId", "input", "output", "status", "requeueAfter", "result", "error", "startedAt", "startedAtEpoch", "finishedAt", "finishedAtEpoch", "timeoutAt", "timeoutAtEpoch", "cancelledAt", "cancelledAtEpoch", "cancelledReason", "cancelledError"]
 
     model_config = {
         "populate_by_name": True,
@@ -125,6 +126,7 @@ class StepRun(BaseModel):
             "step": Step.from_dict(obj["step"]) if obj.get("step") is not None else None,
             "children": obj.get("children"),
             "parents": obj.get("parents"),
+            "childWorkflowRuns": obj.get("childWorkflowRuns"),
             "workerId": obj.get("workerId"),
             "input": obj.get("input"),
             "output": obj.get("output"),

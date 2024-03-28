@@ -15,12 +15,21 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
+type ChildWorkflowOpts struct {
+	ParentId        string
+	ParentStepRunId string
+	ChildIndex      int
+	ChildKey        *string
+}
+
 type AdminClient interface {
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
 
 	// RunWorkflow triggers a workflow run and returns the run id
 	RunWorkflow(workflowName string, input interface{}) (string, error)
+
+	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
 }
 
 type adminClientImpl struct {
@@ -146,6 +155,31 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}) (s
 
 	if err != nil {
 		return "", fmt.Errorf("could not trigger workflow: %w", err)
+	}
+
+	return res.WorkflowRunId, nil
+}
+
+func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error) {
+	inputBytes, err := json.Marshal(input)
+
+	if err != nil {
+		return "", fmt.Errorf("could not marshal input: %w", err)
+	}
+
+	childIndex := int32(opts.ChildIndex)
+
+	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.TriggerWorkflowRequest{
+		Name:            workflowName,
+		Input:           string(inputBytes),
+		ParentId:        &opts.ParentId,
+		ParentStepRunId: &opts.ParentStepRunId,
+		ChildIndex:      &childIndex,
+		ChildKey:        opts.ChildKey,
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("could not trigger child workflow: %w", err)
 	}
 
 	return res.WorkflowRunId, nil

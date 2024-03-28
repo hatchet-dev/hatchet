@@ -1699,6 +1699,8 @@ class WorkflowApi:
         limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         event_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The event id to get runs for.")] = None,
         workflow_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The workflow id to get runs for.")] = None,
+        parent_workflow_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent workflow run id")] = None,
+        parent_step_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent step run id")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1726,6 +1728,10 @@ class WorkflowApi:
         :type event_id: str
         :param workflow_id: The workflow id to get runs for.
         :type workflow_id: str
+        :param parent_workflow_run_id: The parent workflow run id
+        :type parent_workflow_run_id: str
+        :param parent_step_run_id: The parent step run id
+        :type parent_step_run_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1754,6 +1760,8 @@ class WorkflowApi:
             limit=limit,
             event_id=event_id,
             workflow_id=workflow_id,
+            parent_workflow_run_id=parent_workflow_run_id,
+            parent_step_run_id=parent_step_run_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1784,6 +1792,8 @@ class WorkflowApi:
         limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         event_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The event id to get runs for.")] = None,
         workflow_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The workflow id to get runs for.")] = None,
+        parent_workflow_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent workflow run id")] = None,
+        parent_step_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent step run id")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1811,6 +1821,10 @@ class WorkflowApi:
         :type event_id: str
         :param workflow_id: The workflow id to get runs for.
         :type workflow_id: str
+        :param parent_workflow_run_id: The parent workflow run id
+        :type parent_workflow_run_id: str
+        :param parent_step_run_id: The parent step run id
+        :type parent_step_run_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1839,6 +1853,8 @@ class WorkflowApi:
             limit=limit,
             event_id=event_id,
             workflow_id=workflow_id,
+            parent_workflow_run_id=parent_workflow_run_id,
+            parent_step_run_id=parent_step_run_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1869,6 +1885,8 @@ class WorkflowApi:
         limit: Annotated[Optional[StrictInt], Field(description="The number to limit by")] = None,
         event_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The event id to get runs for.")] = None,
         workflow_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The workflow id to get runs for.")] = None,
+        parent_workflow_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent workflow run id")] = None,
+        parent_step_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent step run id")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1896,6 +1914,10 @@ class WorkflowApi:
         :type event_id: str
         :param workflow_id: The workflow id to get runs for.
         :type workflow_id: str
+        :param parent_workflow_run_id: The parent workflow run id
+        :type parent_workflow_run_id: str
+        :param parent_step_run_id: The parent step run id
+        :type parent_step_run_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1924,6 +1946,8 @@ class WorkflowApi:
             limit=limit,
             event_id=event_id,
             workflow_id=workflow_id,
+            parent_workflow_run_id=parent_workflow_run_id,
+            parent_step_run_id=parent_step_run_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1949,6 +1973,8 @@ class WorkflowApi:
         limit,
         event_id,
         workflow_id,
+        parent_workflow_run_id,
+        parent_step_run_id,
         _request_auth,
         _content_type,
         _headers,
@@ -1986,6 +2012,14 @@ class WorkflowApi:
         if workflow_id is not None:
             
             _query_params.append(('workflowId', workflow_id))
+            
+        if parent_workflow_run_id is not None:
+            
+            _query_params.append(('parentWorkflowRunId', parent_workflow_run_id))
+            
+        if parent_step_run_id is not None:
+            
+            _query_params.append(('parentStepRunId', parent_step_run_id))
             
         # process the header parameters
         # process the form parameters

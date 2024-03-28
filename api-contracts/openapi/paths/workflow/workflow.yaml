@@ -320,6 +320,24 @@ workflowRuns:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: The parent workflow run id
+        in: query
+        name: parentWorkflowRunId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The parent step run id
+        in: query
+        name: parentStepRunId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
     responses:
       "200":
         content:

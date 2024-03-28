@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -786,13 +785,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	var stepOutput []byte
 
 	if payload.StepOutputData != "" {
-		stepOutputStr, err := strconv.Unquote(payload.StepOutputData)
-
-		if err != nil {
-			stepOutputStr = payload.StepOutputData
-		}
-
-		stepOutput = []byte(stepOutputStr)
+		stepOutput = []byte(payload.StepOutputData)
 	}
 
 	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{

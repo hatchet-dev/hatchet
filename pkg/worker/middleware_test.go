@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
 type testHatchetContext struct {
@@ -28,6 +30,38 @@ func (c *testHatchetContext) TriggeredByEvent() bool {
 
 func (c *testHatchetContext) WorkflowInput(target interface{}) error {
 	return nil
+}
+
+func (c *testHatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error) {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) StepName() string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) StepRunId() string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) WorkflowRunId() string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) Log(message string) {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) index() int {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) inc() {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) client() client.Client {
+	panic("not implemented")
 }
 
 func TestAddMiddleware(t *testing.T) {

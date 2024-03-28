@@ -65,10 +65,25 @@ message ListWorkflowsRequest {}
 
 message ScheduleWorkflowRequest {
     string name = 1;
+
     repeated google.protobuf.Timestamp schedules = 2;
 
     // (optional) the input data for the workflow
     string input = 3;
+
+    // (optional) the parent workflow run id
+    optional string parent_id = 4; 
+
+    // (optional) the parent step run id
+    optional string parent_step_run_id = 5;
+
+    // (optional) the index of the child workflow. if this is set, matches on the index or the
+    // child key will be a no-op, even if the schedule has changed. 
+    optional int32 child_index = 6;
+
+    // (optional) the key for the child. if this is set, matches on the index or the
+    // child key will be a no-op, even if the schedule has changed. 
+    optional string child_key = 7;
 }
     
 // WorkflowVersion represents the WorkflowVersion model.
@@ -98,6 +113,22 @@ message TriggerWorkflowRequest {
 
     // (optional) the input data for the workflow
     string input = 2;
+
+    // (optional) the parent workflow run id
+    optional string parent_id = 3; 
+
+    // (optional) the parent step run id
+    optional string parent_step_run_id = 4;
+
+    // (optional) the index of the child workflow. if this is set, matches on the index or the
+    // child key will return an existing workflow run if the parent id, parent step run id, and
+    // child index/key match an existing workflow run. 
+    optional int32 child_index = 5;
+
+    // (optional) the key for the child. if this is set, matches on the index or the
+    // child key will return an existing workflow run if the parent id, parent step run id, and
+    // child index/key match an existing workflow run. 
+    optional string child_key = 6;
 }
 
 message TriggerWorkflowResponse {
