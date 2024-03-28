@@ -26,5 +26,3 @@ workflow_trigger_event_ref_dict = workflow_trigger_event_ref_instance.to_dict()
 workflow_trigger_event_ref_form_dict = workflow_trigger_event_ref.from_dict(workflow_trigger_event_ref_dict)
 ```
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
-
-

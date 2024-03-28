@@ -1,9 +1,11 @@
-from hatchet_sdk import Hatchet, Context
 from dotenv import load_dotenv
+
+from hatchet_sdk import Context, Hatchet
 
 load_dotenv()
 
 hatchet = Hatchet(debug=True)
+
 
 @hatchet.workflow(on_events=["user:create"])
 class MyWorkflow:
@@ -22,14 +24,15 @@ class MyWorkflow:
         print("executed step1")
         pass
 
-    @hatchet.step(parents=["step1"],timeout='4s')
+    @hatchet.step(parents=["step1"], timeout="4s")
     def step2(self, context):
         print("started step2")
         context.sleep(1)
         print("finished step2")
 
+
 workflow = MyWorkflow()
-worker = hatchet.worker('test-worker', max_runs=4)
+worker = hatchet.worker("test-worker", max_runs=4)
 worker.register_workflow(workflow)
 
 worker.start()

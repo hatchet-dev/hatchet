@@ -29,5 +29,3 @@ workflow_triggers_dict = workflow_triggers_instance.to_dict()
 workflow_triggers_form_dict = workflow_triggers.from_dict(workflow_triggers_dict)
 ```
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
-
-

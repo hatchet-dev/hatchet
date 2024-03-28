@@ -30,5 +30,3 @@ workflow_run_triggered_by_dict = workflow_run_triggered_by_instance.to_dict()
 workflow_run_triggered_by_form_dict = workflow_run_triggered_by.from_dict(workflow_run_triggered_by_dict)
 ```
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
-
-

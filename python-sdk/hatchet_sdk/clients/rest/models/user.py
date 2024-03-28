@@ -13,24 +13,32 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field, StrictBool, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
+
 
 class User(BaseModel):
     """
     User
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
-    name: Optional[StrictStr] = Field(default=None, description="The display name of the user.")
+    name: Optional[StrictStr] = Field(
+        default=None, description="The display name of the user."
+    )
     email: StrictStr = Field(description="The email address of the user.")
-    email_verified: StrictBool = Field(description="Whether the user has verified their email address.", alias="emailVerified")
+    email_verified: StrictBool = Field(
+        description="Whether the user has verified their email address.",
+        alias="emailVerified",
+    )
     __properties: ClassVar[List[str]] = ["metadata", "name", "email", "emailVerified"]
 
     model_config = {
@@ -38,7 +46,6 @@ class User(BaseModel):
         "validate_assignment": True,
         "protected_namespaces": (),
     }
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -64,8 +71,7 @@ class User(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -74,7 +80,7 @@ class User(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         return _dict
 
     @classmethod
@@ -86,12 +92,16 @@ class User(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "name": obj.get("name"),
-            "email": obj.get("email"),
-            "emailVerified": obj.get("emailVerified")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "name": obj.get("name"),
+                "email": obj.get("email"),
+                "emailVerified": obj.get("emailVerified"),
+            }
+        )
         return _obj
-
-

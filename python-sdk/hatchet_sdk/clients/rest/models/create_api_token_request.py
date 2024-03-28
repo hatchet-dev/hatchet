@@ -13,21 +13,24 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field
-from typing import Any, ClassVar, Dict, List
-from typing_extensions import Annotated
-from typing import Optional, Set
-from typing_extensions import Self
+from typing_extensions import Annotated, Self
+
 
 class CreateAPITokenRequest(BaseModel):
     """
     CreateAPITokenRequest
-    """ # noqa: E501
-    name: Annotated[str, Field(strict=True, max_length=255)] = Field(description="A name for the API token.")
+    """  # noqa: E501
+
+    name: Annotated[str, Field(strict=True, max_length=255)] = Field(
+        description="A name for the API token."
+    )
     __properties: ClassVar[List[str]] = ["name"]
 
     model_config = {
@@ -35,7 +38,6 @@ class CreateAPITokenRequest(BaseModel):
         "validate_assignment": True,
         "protected_namespaces": (),
     }
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +63,7 @@ class CreateAPITokenRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -80,9 +81,5 @@ class CreateAPITokenRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "name": obj.get("name")
-        })
+        _obj = cls.model_validate({"name": obj.get("name")})
         return _obj
-
-

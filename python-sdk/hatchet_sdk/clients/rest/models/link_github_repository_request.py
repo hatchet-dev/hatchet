@@ -13,32 +13,45 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field, StrictStr
-from typing import Any, ClassVar, Dict, List
-from typing_extensions import Annotated
-from typing import Optional, Set
-from typing_extensions import Self
+from typing_extensions import Annotated, Self
+
 
 class LinkGithubRepositoryRequest(BaseModel):
     """
     LinkGithubRepositoryRequest
-    """ # noqa: E501
-    installation_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(description="The repository name.", alias="installationId")
-    git_repo_name: StrictStr = Field(description="The repository name.", alias="gitRepoName")
-    git_repo_owner: StrictStr = Field(description="The repository owner.", alias="gitRepoOwner")
-    git_repo_branch: StrictStr = Field(description="The repository branch.", alias="gitRepoBranch")
-    __properties: ClassVar[List[str]] = ["installationId", "gitRepoName", "gitRepoOwner", "gitRepoBranch"]
+    """  # noqa: E501
+
+    installation_id: Annotated[
+        str, Field(min_length=36, strict=True, max_length=36)
+    ] = Field(description="The repository name.", alias="installationId")
+    git_repo_name: StrictStr = Field(
+        description="The repository name.", alias="gitRepoName"
+    )
+    git_repo_owner: StrictStr = Field(
+        description="The repository owner.", alias="gitRepoOwner"
+    )
+    git_repo_branch: StrictStr = Field(
+        description="The repository branch.", alias="gitRepoBranch"
+    )
+    __properties: ClassVar[List[str]] = [
+        "installationId",
+        "gitRepoName",
+        "gitRepoOwner",
+        "gitRepoBranch",
+    ]
 
     model_config = {
         "populate_by_name": True,
         "validate_assignment": True,
         "protected_namespaces": (),
     }
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -64,8 +77,7 @@ class LinkGithubRepositoryRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -83,12 +95,12 @@ class LinkGithubRepositoryRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "installationId": obj.get("installationId"),
-            "gitRepoName": obj.get("gitRepoName"),
-            "gitRepoOwner": obj.get("gitRepoOwner"),
-            "gitRepoBranch": obj.get("gitRepoBranch")
-        })
+        _obj = cls.model_validate(
+            {
+                "installationId": obj.get("installationId"),
+                "gitRepoName": obj.get("gitRepoName"),
+                "gitRepoOwner": obj.get("gitRepoOwner"),
+                "gitRepoBranch": obj.get("gitRepoBranch"),
+            }
+        )
         return _obj
-
-
