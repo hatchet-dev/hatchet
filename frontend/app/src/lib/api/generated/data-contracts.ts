@@ -139,6 +139,13 @@ export interface UserLoginRequest {
   password: string;
 }
 
+export interface UserChangePasswordRequest {
+  /** The password of the user. */
+  password: string;
+  /** The new password for the user. */
+  newPassword?: string;
+}
+
 export interface UserRegisterRequest {
   /** The name of the user. */
   name: string;

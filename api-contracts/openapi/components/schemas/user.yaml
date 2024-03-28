@@ -49,6 +49,23 @@ UserLoginRequest:
     - password
   type: object
 
+UserChangePasswordRequest:
+  properties:
+    password:
+      type: string
+      description: The password of the user.
+      x-oapi-codegen-extra-tags:
+        validate: "required,password"
+    newPassword:
+      type: string
+      description: The new password for the user.
+      x-oapi-codegen-extra-tags:
+        validate: "required,password"
+  required:
+    - password
+    - newPassword
+  type: object
+
 UserRegisterRequest:
   properties:
     name:
