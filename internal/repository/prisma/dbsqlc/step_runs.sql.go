@@ -484,7 +484,6 @@ func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsPar
 
 const listStepRunsToReassign = `-- name: ListStepRunsToReassign :many
 SELECT
-    DISTINCT ON (sr."id")
     sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount"
 FROM
     "StepRun" sr
@@ -564,7 +563,6 @@ func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, tenantid 
 
 const listStepRunsToRequeue = `-- name: ListStepRunsToRequeue :many
 SELECT
-    DISTINCT ON (sr."id")
     sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount"
 FROM
     "StepRun" sr

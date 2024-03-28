@@ -46,7 +46,6 @@ WHERE
 
 -- name: ListGetGroupKeyRunsToRequeue :many
 SELECT
-    DISTINCT ON (ggr."id")
     ggr.*
 FROM
     "GetGroupKeyRun" ggr
@@ -62,7 +61,6 @@ ORDER BY
 
 -- name: ListGetGroupKeyRunsToReassign :many
 SELECT
-    DISTINCT ON (ggr."id")
     ggr.*
 FROM
     "GetGroupKeyRun" ggr

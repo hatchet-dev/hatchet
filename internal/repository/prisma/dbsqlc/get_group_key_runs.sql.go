@@ -212,7 +212,6 @@ func (q *Queries) GetGroupKeyRunForEngine(ctx context.Context, db DBTX, arg GetG
 
 const listGetGroupKeyRunsToReassign = `-- name: ListGetGroupKeyRunsToReassign :many
 SELECT
-    DISTINCT ON (ggr."id")
     ggr.id, ggr."createdAt", ggr."updatedAt", ggr."deletedAt", ggr."tenantId", ggr."workerId", ggr."tickerId", ggr.status, ggr.input, ggr.output, ggr."requeueAfter", ggr.error, ggr."startedAt", ggr."finishedAt", ggr."timeoutAt", ggr."cancelledAt", ggr."cancelledReason", ggr."cancelledError", ggr."workflowRunId", ggr."scheduleTimeoutAt"
 FROM
     "GetGroupKeyRun" ggr
@@ -274,7 +273,6 @@ func (q *Queries) ListGetGroupKeyRunsToReassign(ctx context.Context, db DBTX, te
 
 const listGetGroupKeyRunsToRequeue = `-- name: ListGetGroupKeyRunsToRequeue :many
 SELECT
-    DISTINCT ON (ggr."id")
     ggr.id, ggr."createdAt", ggr."updatedAt", ggr."deletedAt", ggr."tenantId", ggr."workerId", ggr."tickerId", ggr.status, ggr.input, ggr.output, ggr."requeueAfter", ggr.error, ggr."startedAt", ggr."finishedAt", ggr."timeoutAt", ggr."cancelledAt", ggr."cancelledReason", ggr."cancelledError", ggr."workflowRunId", ggr."scheduleTimeoutAt"
 FROM
     "GetGroupKeyRun" ggr

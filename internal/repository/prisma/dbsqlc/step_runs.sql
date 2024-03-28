@@ -275,7 +275,6 @@ RETURNING *;
 
 -- name: ListStepRunsToReassign :many
 SELECT
-    DISTINCT ON (sr."id")
     sr.*
 FROM
     "StepRun" sr
@@ -307,7 +306,6 @@ ORDER BY
 
 -- name: ListStepRunsToRequeue :many
 SELECT
-    DISTINCT ON (sr."id")
     sr.*
 FROM
     "StepRun" sr
