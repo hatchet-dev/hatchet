@@ -2,31 +2,56 @@ import ctypes
 import json
 import signal
 import sys
-from threading import Thread, current_thread
 import threading
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
+from threading import Thread, current_thread
+from typing import Any, Callable, Dict
 
 import grpc
-from typing import Any, Callable, Dict
-from .workflow import WorkflowMeta
-from .clients.dispatcher import GetActionListenerRequest, ActionListenerImpl, Action
-from .dispatcher_pb2 import ActionType, StepActionEvent, StepActionEventType, GroupKeyActionEvent, GroupKeyActionEventType, STEP_EVENT_TYPE_COMPLETED, STEP_EVENT_TYPE_STARTED, STEP_EVENT_TYPE_FAILED, GROUP_KEY_EVENT_TYPE_STARTED, GROUP_KEY_EVENT_TYPE_COMPLETED, GROUP_KEY_EVENT_TYPE_FAILED
-from .client import new_client
-from concurrent.futures import ThreadPoolExecutor, Future
 from google.protobuf.timestamp_pb2 import Timestamp
+
+from .client import new_client
+from .clients.dispatcher import (
+    Action,
+    ActionListenerImpl,
+    GetActionListenerRequest,
+)
 from .context import Context
+from .dispatcher_pb2 import (
+    GROUP_KEY_EVENT_TYPE_COMPLETED,
+    GROUP_KEY_EVENT_TYPE_FAILED,
+    GROUP_KEY_EVENT_TYPE_STARTED,
+    STEP_EVENT_TYPE_COMPLETED,
+    STEP_EVENT_TYPE_FAILED,
+    STEP_EVENT_TYPE_STARTED,
+    ActionType,
+    GroupKeyActionEvent,
+    GroupKeyActionEventType,
+    StepActionEvent,
+    StepActionEventType,
+)
 from .logger import logger
+from .workflow import WorkflowMeta
 
 
 class Worker:
-    def __init__(self, name: str, max_runs: int | None = None, debug=False, handle_kill=True):
+    def __init__(
+        self,
+        name: str,
+        max_runs: int | None = None,
+        debug=False,
+        handle_kill=True,
+    ):
         self.name = name
         self.threads: Dict[str, Thread] = {}  # Store step run ids and threads
         self.max_runs = max_runs
         self.thread_pool = ThreadPoolExecutor(max_workers=max_runs)
         self.futures: Dict[str, Future] = {}  # Store step run ids and futures
-        self.contexts: Dict[str, Context] = {}  # Store step run ids and contexts
-        self.action_registry : dict[str, Callable[..., Any]] = {} 
+        self.contexts: Dict[str, Context] = (
+            {}
+        )  # Store step run ids and contexts
+        self.action_registry: dict[str, Callable[..., Any]] = {}
 
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
@@ -34,9 +59,9 @@ class Worker:
         self.killing = False
         self.handle_kill = handle_kill
 
-    def handle_start_step_run(self, action : Action):
-        action_name = action.action_id  
-        context = Context(action, self.client.dispatcher, self.client.event)  
+    def handle_start_step_run(self, action: Action):
+        action_name = action.action_id
+        context = Context(action, self.client.dispatcher, self.client.event)
 
         self.contexts[action.step_run_id] = context
 
@@ -44,7 +69,8 @@ class Worker:
         action_func = self.action_registry.get(action_name)
 
         if action_func:
-            def callback(future : Future):
+
+            def callback(future: Future):
                 errored = False
 
                 # Get the output from the future
@@ -54,7 +80,9 @@ class Worker:
                     errored = True
 
                     # This except is coming from the application itself, so we want to send that to the Hatchet instance
-                    event = self.get_step_action_event(action, STEP_EVENT_TYPE_FAILED)
+                    event = self.get_step_action_event(
+                        action, STEP_EVENT_TYPE_FAILED
+                    )
                     event.eventPayload = str(e)
 
                     try:
@@ -65,9 +93,13 @@ class Worker:
                 if not errored:
                     # Create an action event
                     try:
-                        event = self.get_step_action_finished_event(action, output)
+                        event = self.get_step_action_finished_event(
+                            action, output
+                        )
                     except Exception as e:
-                        logger.error(f"Could not get action finished event: {e}")
+                        logger.error(
+                            f"Could not get action finished event: {e}"
+                        )
                         raise e
 
                     # Send the action event to the dispatcher
@@ -91,7 +123,9 @@ class Worker:
                 finally:
                     if action.step_run_id in self.threads:
                         # remove the thread id
-                        logger.debug(f"Removing step run id {action.step_run_id} from threads")
+                        logger.debug(
+                            f"Removing step run id {action.step_run_id} from threads"
+                        )
 
                         del self.threads[action.step_run_id]
 
@@ -101,14 +135,16 @@ class Worker:
 
             # send an event that the step run has started
             try:
-                event = self.get_step_action_event(action, STEP_EVENT_TYPE_STARTED)
+                event = self.get_step_action_event(
+                    action, STEP_EVENT_TYPE_STARTED
+                )
             except Exception as e:
                 logger.error(f"Could not create action event: {e}")
 
             # Send the action event to the dispatcher
             self.client.dispatcher.send_step_action_event(event)
 
-    def handle_start_group_key_run(self, action : Action):
+    def handle_start_group_key_run(self, action: Action):
         action_name = action.action_id
         context = Context(action, self.client.dispatcher, self.client.event)
 
@@ -118,7 +154,8 @@ class Worker:
         action_func = self.action_registry.get(action_name)
 
         if action_func:
-            def callback(future : Future):
+
+            def callback(future: Future):
                 errored = False
 
                 # Get the output from the future
@@ -128,20 +165,28 @@ class Worker:
                     errored = True
 
                     # This except is coming from the application itself, so we want to send that to the Hatchet instance
-                    event = self.get_group_key_action_event(action, GROUP_KEY_EVENT_TYPE_FAILED)
+                    event = self.get_group_key_action_event(
+                        action, GROUP_KEY_EVENT_TYPE_FAILED
+                    )
                     event.eventPayload = str(e)
 
                     try:
-                        self.client.dispatcher.send_group_key_action_event(event)
+                        self.client.dispatcher.send_group_key_action_event(
+                            event
+                        )
                     except Exception as e:
                         logger.error(f"Could not send action event: {e}")
 
                 if not errored:
                     # Create an action event
                     try:
-                        event = self.get_group_key_action_finished_event(action, output)
+                        event = self.get_group_key_action_finished_event(
+                            action, output
+                        )
                     except Exception as e:
-                        logger.error(f"Could not get action finished event: {e}")
+                        logger.error(
+                            f"Could not get action finished event: {e}"
+                        )
                         raise e
 
                     # Send the action event to the dispatcher
@@ -165,7 +210,9 @@ class Worker:
                 finally:
                     if action.get_group_key_run_id in self.threads:
                         # remove the thread id
-                        logger.debug(f"Removing step run id {action.get_group_key_run_id} from threads")
+                        logger.debug(
+                            f"Removing step run id {action.get_group_key_run_id} from threads"
+                        )
 
                         del self.threads[action.get_group_key_run_id]
 
@@ -175,7 +222,9 @@ class Worker:
 
             # send an event that the step run has started
             try:
-                event = self.get_group_key_action_event(action, GROUP_KEY_EVENT_TYPE_STARTED)
+                event = self.get_group_key_action_event(
+                    action, GROUP_KEY_EVENT_TYPE_STARTED
+                )
             except Exception as e:
                 logger.error(f"Could not create action event: {e}")
 
@@ -187,7 +236,7 @@ class Worker:
         try:
             if not thread.is_alive():
                 return
-            
+
             logger.info(f"Forcefully terminating thread {thread.ident}")
 
             exc = ctypes.py_object(SystemExit)
@@ -202,7 +251,7 @@ class Worker:
                 # Call with exception set to 0 is needed to cleanup properly.
                 ctypes.pythonapi.PyThreadState_SetAsyncExc(thread.ident, 0)
                 raise SystemError("PyThreadState_SetAsyncExc failed")
-            
+
             logger.info(f"Successfully terminated thread {thread.ident}")
 
             # Immediately add a new thread to the thread pool, because we've actually killed a worker
@@ -210,7 +259,7 @@ class Worker:
             self.thread_pool.submit(lambda: None)
         except Exception as e:
             logger.exception(f"Failed to terminate thread: {e}")
-                
+
     def handle_cancel_action(self, run_id: str):
         # call cancel to signal the context to stop
         context = self.contexts.get(run_id)
@@ -236,8 +285,10 @@ class Worker:
 
                 if run_id in self.threads:
                     del self.threads[run_id]
-    
-    def get_step_action_event(self, action : Action, event_type : StepActionEventType) -> StepActionEvent:
+
+    def get_step_action_event(
+        self, action: Action, event_type: StepActionEventType
+    ) -> StepActionEvent:
         eventTimestamp = Timestamp()
         eventTimestamp.GetCurrentTime()
 
@@ -251,15 +302,19 @@ class Worker:
             eventTimestamp=eventTimestamp,
             eventType=event_type,
         )
-    
-    def get_step_action_finished_event(self, action : Action, output : Any) -> StepActionEvent:
+
+    def get_step_action_finished_event(
+        self, action: Action, output: Any
+    ) -> StepActionEvent:
         try:
-            event = self.get_step_action_event(action, STEP_EVENT_TYPE_COMPLETED)
+            event = self.get_step_action_event(
+                action, STEP_EVENT_TYPE_COMPLETED
+            )
         except Exception as e:
             logger.error(f"Could not create action finished event: {e}")
             raise e
 
-        output_bytes = ''
+        output_bytes = ""
 
         if output is not None:
             output_bytes = json.dumps(output)
@@ -267,8 +322,10 @@ class Worker:
         event.eventPayload = output_bytes
 
         return event
-    
-    def get_group_key_action_event(self, action : Action, event_type : GroupKeyActionEventType) -> GroupKeyActionEvent:
+
+    def get_group_key_action_event(
+        self, action: Action, event_type: GroupKeyActionEventType
+    ) -> GroupKeyActionEvent:
         eventTimestamp = Timestamp()
         eventTimestamp.GetCurrentTime()
 
@@ -280,29 +337,36 @@ class Worker:
             eventTimestamp=eventTimestamp,
             eventType=event_type,
         )
-    
-    def get_group_key_action_finished_event(self, action : Action, output : str) -> StepActionEvent:
+
+    def get_group_key_action_finished_event(
+        self, action: Action, output: str
+    ) -> StepActionEvent:
         try:
-            event = self.get_group_key_action_event(action, GROUP_KEY_EVENT_TYPE_COMPLETED)
+            event = self.get_group_key_action_event(
+                action, GROUP_KEY_EVENT_TYPE_COMPLETED
+            )
         except Exception as e:
             logger.error(f"Could not create action finished event: {e}")
             raise e
-        
+
         try:
             event.eventPayload = output
         except Exception as e:
             event.eventPayload = ""
 
         return event
-    
-    def register_workflow(self, workflow : WorkflowMeta):
+
+    def register_workflow(self, workflow: WorkflowMeta):
         def create_action_function(action_func):
             def action_function(context):
                 return action_func(workflow, context)
+
             return action_function
 
         for action_name, action_func in workflow.get_actions():
-            self.action_registry[action_name] = create_action_function(action_func)
+            self.action_registry[action_name] = create_action_function(
+                action_func
+            )
 
     def exit_gracefully(self, signum, frame):
         self.killing = True
@@ -324,19 +388,23 @@ class Worker:
         if self.handle_kill:
             logger.info("Exiting...")
             sys.exit(0)
-    
+
     def start(self, retry_count=1):
         logger.info("Starting worker...")
 
         self.client = new_client()
 
         try:
-            self.listener : ActionListenerImpl = self.client.dispatcher.get_action_listener(GetActionListenerRequest(
-                worker_name=self.name,
-                services=["default"],
-                actions=self.action_registry.keys(),
-                max_runs=self.max_runs,
-            ))
+            self.listener: ActionListenerImpl = (
+                self.client.dispatcher.get_action_listener(
+                    GetActionListenerRequest(
+                        worker_name=self.name,
+                        services=["default"],
+                        actions=self.action_registry.keys(),
+                        max_runs=self.max_runs,
+                    )
+                )
+            )
 
             generator = self.listener.actions()
 
@@ -344,7 +412,9 @@ class Worker:
                 if action.action_type == ActionType.START_STEP_RUN:
                     self.handle_start_step_run(action)
                 elif action.action_type == ActionType.CANCEL_STEP_RUN:
-                    self.thread_pool.submit(self.handle_cancel_action, action.step_run_id)
+                    self.thread_pool.submit(
+                        self.handle_cancel_action, action.step_run_id
+                    )
                 elif action.action_type == ActionType.START_GET_GROUP_KEY:
                     self.handle_start_group_key_run(action)
                 else:
