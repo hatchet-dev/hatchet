@@ -58,8 +58,6 @@ class ChildWorkflowRef:
             raise Exception(str(e))
 
     def polling(self):
-        import os
-        print(os.environ['REQUESTS_CA_BUNDLE'])
         while self.poll:
             res = self.getResult()
             if res:
