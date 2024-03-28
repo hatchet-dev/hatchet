@@ -58,7 +58,7 @@ tasks:
       - sudo sh ./hack/dev/manage-hosts.sh add 127.0.0.1 app.dev.hatchet-tools.com
   prisma-migrate:
     cmds:
-      - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev
+      - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev --skip-generate
   seed-dev:
     cmds:
       - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev --skip-generate
