@@ -130,6 +130,7 @@ func (q *Queries) AssignGetGroupKeyRunToWorker(ctx context.Context, db DBTX, arg
 
 const getGroupKeyRunForEngine = `-- name: GetGroupKeyRunForEngine :many
 SELECT
+    DISTINCT ON (ggr."id")
     ggr.id, ggr."createdAt", ggr."updatedAt", ggr."deletedAt", ggr."tenantId", ggr."workerId", ggr."tickerId", ggr.status, ggr.input, ggr.output, ggr."requeueAfter", ggr.error, ggr."startedAt", ggr."finishedAt", ggr."timeoutAt", ggr."cancelledAt", ggr."cancelledReason", ggr."cancelledError", ggr."workflowRunId", ggr."scheduleTimeoutAt",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     wr."id" AS "workflowRunId",
@@ -145,7 +146,7 @@ JOIN
 JOIN
     "WorkflowConcurrency" wc ON wv."id" = wc."workflowVersionId"
 JOIN
-    "Action" a ON wc."getConcurrencyGroupId" = a."id"
+    "Action" a ON wc."getConcurrencyGroupId" = a."id" AND a."tenantId" = ggr."tenantId"
 WHERE
     ggr."id" = ANY($1::uuid[]) AND
     ggr."tenantId" = $2::uuid
@@ -211,6 +212,7 @@ func (q *Queries) GetGroupKeyRunForEngine(ctx context.Context, db DBTX, arg GetG
 
 const listGetGroupKeyRunsToReassign = `-- name: ListGetGroupKeyRunsToReassign :many
 SELECT
+    DISTINCT ON (ggr."id")
     ggr.id, ggr."createdAt", ggr."updatedAt", ggr."deletedAt", ggr."tenantId", ggr."workerId", ggr."tickerId", ggr.status, ggr.input, ggr.output, ggr."requeueAfter", ggr.error, ggr."startedAt", ggr."finishedAt", ggr."timeoutAt", ggr."cancelledAt", ggr."cancelledReason", ggr."cancelledError", ggr."workflowRunId", ggr."scheduleTimeoutAt"
 FROM
     "GetGroupKeyRun" ggr
@@ -272,6 +274,7 @@ func (q *Queries) ListGetGroupKeyRunsToReassign(ctx context.Context, db DBTX, te
 
 const listGetGroupKeyRunsToRequeue = `-- name: ListGetGroupKeyRunsToRequeue :many
 SELECT
+    DISTINCT ON (ggr."id")
     ggr.id, ggr."createdAt", ggr."updatedAt", ggr."deletedAt", ggr."tenantId", ggr."workerId", ggr."tickerId", ggr.status, ggr.input, ggr.output, ggr."requeueAfter", ggr.error, ggr."startedAt", ggr."finishedAt", ggr."timeoutAt", ggr."cancelledAt", ggr."cancelledReason", ggr."cancelledError", ggr."workflowRunId", ggr."scheduleTimeoutAt"
 FROM
     "GetGroupKeyRun" ggr
