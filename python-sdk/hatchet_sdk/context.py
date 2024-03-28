@@ -31,15 +31,15 @@ class ChildWorkflowRef:
         self.workflow_run_id = workflow_run_id
         self.client = client
 
-    def getResult(self) -> WorkflowRun:
+    def getResult(self) -> StepRunEvent:
         try:
-            res: WorkflowRun = self.client.rest_client.workflow_run_get(self.workflow_run_id)
-            stepRuns = res.data.jobRuns[0].stepRuns if res.data.jobRuns else []
+            res = self.client.rest_client.workflow_run_get(self.workflow_run_id)
+            step_runs = res.job_runs[0].step_runs if res.job_runs else []
 
-            stepRunOutput = {}
-            for stepRun in stepRuns:
-                stepId = stepRun.step.readableId if stepRun.step else ''
-                stepRunOutput[stepId] = json.loads(stepRun.output) if stepRun.output else {}
+            step_run_output = {}
+            for run in step_runs:
+                stepId = run.step.readable_id if run.step else ''
+                step_run_output[stepId] = json.loads(run.output) if run.output else {}
             
             statusMap = {
                 WorkflowRunStatus.SUCCEEDED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_COMPLETED,
@@ -47,11 +47,11 @@ class ChildWorkflowRef:
                 WorkflowRunStatus.CANCELLED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_CANCELLED,
             }
 
-            if res.data.status in statusMap:
-                return {
-                    'type': statusMap[res.data.status],
-                    'payload': json.dumps(stepRunOutput)
-                }
+            if res.status in statusMap:
+                return StepRunEvent(
+                    type=statusMap[res.status],
+                    payload=json.dumps(step_run_output)
+                )
 
         except Exception as e:
             # TODO
@@ -61,7 +61,7 @@ class ChildWorkflowRef:
         while self.poll:
             res = self.getResult()
             if res:
-                yield self.handle_event(res)
+                yield res
             print('polling')
             time.sleep(DEFAULT_WORKFLOW_POLLING_INTERVAL)
 
@@ -74,7 +74,9 @@ class ChildWorkflowRef:
         try:
             for event in self.stream():
                 print(event.type)
-                self.handle_event(event)
+                res = self.handle_event(event)
+                if res:
+                    return res
         finally:
             self.close()
             print('listener closed')
