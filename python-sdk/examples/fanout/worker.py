@@ -11,7 +11,7 @@ class Parent:
     async def spawn(self, context: Context):
         print("spawning child")
         child = await context.spawn_workflow("Child", key="child").result()
-        print(child)
+        print(f'results {child}')
 
 @hatchet.workflow(on_events=["child:create"])
 class Child:

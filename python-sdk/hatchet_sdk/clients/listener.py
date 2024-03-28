@@ -6,7 +6,7 @@ from ..dispatcher_pb2 import SubscribeToWorkflowEventsRequest, ResourceEventType
 from ..loader import ClientConfig
 from ..metadata import get_metadata
 import json
-import time
+import asyncio
 
 
 DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds
@@ -63,14 +63,14 @@ class HatchetListener:
         self.workflow_run_id = workflow_run_id
         self.token = token
 
-    def __iter__(self):
-        return self._generator()
-
     def abort(self):
         self.stop_signal = True
 
-    def _generator(self, stop_step: str = None) -> List[StepRunEvent]:
-        listener = self.retry_subscribe()
+    def __aiter__(self):
+        return self._generator()
+
+    async def _generator(self):
+        listener = await self.retry_subscribe()
         while listener:
             if self.stop_signal:
                 listener = None
@@ -94,9 +94,7 @@ class HatchetListener:
                         except Exception as e:
                             pass
 
-                        # call the handler
-                        event = StepRunEvent(type=eventType, payload=payload)
-                        yield event
+                        yield StepRunEvent(type=eventType, payload=payload)
                     elif workflow_event.resourceType == RESOURCE_TYPE_WORKFLOW_RUN:
                         if workflow_event.eventType in workflow_run_event_type_mapping:
                             eventType = workflow_run_event_type_mapping[workflow_event.eventType]
@@ -125,7 +123,7 @@ class HatchetListener:
                 elif e.code() == grpc.StatusCode.UNAVAILABLE:
                     # Retry logic
                     # logger.info("Could not connect to Hatchet, retrying...")
-                    listener = self.retry_subscribe()
+                    listener = await self.retry_subscribe()
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                     # logger.info("Deadline exceeded, retrying subscription")
                     continue
@@ -134,13 +132,13 @@ class HatchetListener:
                     # logger.error(f"Failed to receive message: {e}")
                     break
 
-    def retry_subscribe(self):
+    async def retry_subscribe(self):
         retries = 0
 
         while retries < DEFAULT_ACTION_LISTENER_RETRY_COUNT:
             try:
                 if retries > 0:
-                    time.sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL)
+                    await asyncio.sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL)
 
                 listener = self.client.SubscribeToWorkflowEvents(
                     SubscribeToWorkflowEventsRequest(

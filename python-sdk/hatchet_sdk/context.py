@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import inspect
 from multiprocessing import Event
+from typing import Any, AsyncGenerator
 from .clients.dispatcher import Action
 from .client import ClientImpl
 from .clients.admin import TriggerWorkflowParentOptions
@@ -10,12 +11,10 @@ from .dispatcher_pb2 import OverridesData
 from .logger import logger
 import json
 import asyncio
-from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
 from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
-from itertools import chain
-import time
+from aiostream.stream import merge
 
-DEFAULT_WORKFLOW_POLLING_INTERVAL = 5 # Seconds
+DEFAULT_WORKFLOW_POLLING_INTERVAL = 1 # Seconds
 
 def get_caller_file_path():
     caller_frame = inspect.stack()[2]
@@ -57,29 +56,32 @@ class ChildWorkflowRef:
             # TODO
             raise Exception(str(e))
 
-    def polling(self):
+    async def polling(self):
+        self.poll = True
         while self.poll:
             res = self.getResult()
             if res:
                 yield res
-            print('polling')
-            time.sleep(DEFAULT_WORKFLOW_POLLING_INTERVAL)
+            await asyncio.sleep(DEFAULT_WORKFLOW_POLLING_INTERVAL)
 
-    def stream(self):
+    async def stream(self):
         listener_stream = self.client.listener.stream(self.workflow_run_id)
-        self.poll = True
-        return chain(self.polling(), listener_stream)
+        polling_stream = self.polling()
+
+        # FIXME it seems like the merge function is not working as expected
+        # and listener_stream is not being consumed
+        async with merge(polling_stream, listener_stream).stream() as stream:
+            async for event in stream:
+                yield event
 
     async def result(self):
         try:
-            for event in self.stream():
-                print(event.type)
+            async for event in self.stream():
                 res = self.handle_event(event)
                 if res:
                     return res
         finally:
             self.close()
-            print('listener closed')
 
     def close(self):
         self.poll = False
@@ -182,9 +184,6 @@ class Context:
     def spawn_workflow(self, workflow_name: str, input: dict = {}, key: str = None):
         workflow_run_id = self.action.workflow_run_id
         step_run_id = self.action.step_run_id
-
-        print(f"Spawning workflow {workflow_run_id}")
-        print(f"Spawning workflow {step_run_id}")
 
         options: TriggerWorkflowParentOptions = {
             'parent_id': workflow_run_id,
