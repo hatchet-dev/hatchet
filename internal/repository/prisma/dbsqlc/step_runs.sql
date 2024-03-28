@@ -365,7 +365,7 @@ valid_workers AS (
             w."maxRuns" > (
                 SELECT COUNT(*)
                 FROM "StepRun" srs
-                WHERE srs."workerId" = w."id" AND srs."status" = 'RUNNING'
+                WHERE srs."workerId" = w."id" AND (srs."status" = 'RUNNING' OR srs."status" = 'ASSIGNED')
             )
         )
     ORDER BY random()

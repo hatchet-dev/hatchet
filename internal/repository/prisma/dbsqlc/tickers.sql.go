@@ -267,7 +267,7 @@ WITH getGroupKeyRunsToTimeout AS (
     FROM
         "GetGroupKeyRun" as getGroupKeyRun
     WHERE
-        "status" = 'RUNNING'
+        ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
         AND "timeoutAt" < NOW()
         AND (
             NOT EXISTS (
@@ -429,7 +429,7 @@ WITH stepRunsToTimeout AS (
     FROM
         "StepRun" as stepRun
     WHERE
-        "status" = 'RUNNING'
+        ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
         AND "timeoutAt" < NOW()
         AND (
             NOT EXISTS (
