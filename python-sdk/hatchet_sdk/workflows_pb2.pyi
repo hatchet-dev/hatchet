@@ -91,14 +91,22 @@ class ListWorkflowsRequest(_message.Message):
     def __init__(self) -> None: ...
 
 class ScheduleWorkflowRequest(_message.Message):
-    __slots__ = ("name", "schedules", "input")
+    __slots__ = ("name", "schedules", "input", "parent_id", "parent_step_run_id", "child_index", "child_key")
     NAME_FIELD_NUMBER: _ClassVar[int]
     SCHEDULES_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
+    PARENT_ID_FIELD_NUMBER: _ClassVar[int]
+    PARENT_STEP_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    CHILD_INDEX_FIELD_NUMBER: _ClassVar[int]
+    CHILD_KEY_FIELD_NUMBER: _ClassVar[int]
     name: str
     schedules: _containers.RepeatedCompositeFieldContainer[_timestamp_pb2.Timestamp]
     input: str
-    def __init__(self, name: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., input: _Optional[str] = ...) -> None: ...
+    parent_id: str
+    parent_step_run_id: str
+    child_index: int
+    child_key: str
+    def __init__(self, name: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_step_run_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ...) -> None: ...
 
 class WorkflowVersion(_message.Message):
     __slots__ = ("id", "created_at", "updated_at", "version", "order", "workflow_id")
@@ -133,12 +141,20 @@ class WorkflowTriggerCronRef(_message.Message):
     def __init__(self, parent_id: _Optional[str] = ..., cron: _Optional[str] = ...) -> None: ...
 
 class TriggerWorkflowRequest(_message.Message):
-    __slots__ = ("name", "input")
+    __slots__ = ("name", "input", "parent_id", "parent_step_run_id", "child_index", "child_key")
     NAME_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
+    PARENT_ID_FIELD_NUMBER: _ClassVar[int]
+    PARENT_STEP_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    CHILD_INDEX_FIELD_NUMBER: _ClassVar[int]
+    CHILD_KEY_FIELD_NUMBER: _ClassVar[int]
     name: str
     input: str
-    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ...) -> None: ...
+    parent_id: str
+    parent_step_run_id: str
+    child_index: int
+    child_key: str
+    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_step_run_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ...) -> None: ...
 
 class TriggerWorkflowResponse(_message.Message):
     __slots__ = ("workflow_run_id",)

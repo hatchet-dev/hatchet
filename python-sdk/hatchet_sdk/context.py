@@ -1,23 +1,107 @@
 from concurrent.futures import ThreadPoolExecutor
-import datetime
 import inspect
 from multiprocessing import Event
-import os
-from .clients.dispatcher import Action, DispatcherClient
-from google.protobuf import timestamp_pb2
-from .clients.events import EventClientImpl
+from .clients.dispatcher import Action
+from .client import ClientImpl
+from .clients.admin import TriggerWorkflowParentOptions
+from .clients.listener import HatchetListener, StepRunEvent, WorkflowRunEventType
+
 from .dispatcher_pb2 import OverridesData
-from .events_pb2 import PutLogRequest
 from .logger import logger
 import json
+import asyncio
+from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
+from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
+from itertools import chain
+import time
+
+DEFAULT_WORKFLOW_POLLING_INTERVAL = 5 # Seconds
 
 def get_caller_file_path():
     caller_frame = inspect.stack()[2]
 
     return caller_frame.filename
 
+class ChildWorkflowRef:
+    workflow_run_id: str
+    client: ClientImpl
+    poll: bool = True
+    
+    def __init__(self, workflow_run_id: str, client: ClientImpl):
+        self.workflow_run_id = workflow_run_id
+        self.client = client
+
+    def getResult(self) -> StepRunEvent:
+        try:
+            res = self.client.rest_client.workflow_run_get(self.workflow_run_id)
+            step_runs = res.job_runs[0].step_runs if res.job_runs else []
+
+            step_run_output = {}
+            for run in step_runs:
+                stepId = run.step.readable_id if run.step else ''
+                step_run_output[stepId] = json.loads(run.output) if run.output else {}
+            
+            statusMap = {
+                WorkflowRunStatus.SUCCEEDED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_COMPLETED,
+                WorkflowRunStatus.FAILED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FAILED,
+                WorkflowRunStatus.CANCELLED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_CANCELLED,
+            }
+
+            if res.status in statusMap:
+                return StepRunEvent(
+                    type=statusMap[res.status],
+                    payload=json.dumps(step_run_output)
+                )
+
+        except Exception as e:
+            # TODO
+            raise Exception(str(e))
+
+    def polling(self):
+        while self.poll:
+            res = self.getResult()
+            if res:
+                yield res
+            print('polling')
+            time.sleep(DEFAULT_WORKFLOW_POLLING_INTERVAL)
+
+    def stream(self):
+        listener_stream = self.client.listener.stream(self.workflow_run_id)
+        self.poll = True
+        return chain(self.polling(), listener_stream)
+
+    async def result(self):
+        try:
+            for event in self.stream():
+                print(event.type)
+                res = self.handle_event(event)
+                if res:
+                    return res
+        finally:
+            self.close()
+            print('listener closed')
+
+    def close(self):
+        self.poll = False
+
+    def handle_event(self, event: StepRunEvent):
+        if (
+            event.type == WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FAILED
+            or event.type == WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_CANCELLED
+            or event.type == WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_TIMED_OUT
+        ): 
+            self.close()
+            raise RuntimeError(event.type)
+
+        if event.type == WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_COMPLETED:
+            self.close()
+            return json.loads(event.payload)
+
+
 class Context:
-    def __init__(self, action: Action, client: DispatcherClient, eventClient: EventClientImpl):
+    spawn_index = -1
+
+    def __init__(self, action: Action, client: ClientImpl):
         # Check the type of action.action_payload before attempting to load it as JSON
         if isinstance(action.action_payload, (str, bytes, bytearray)):
             try:
@@ -30,10 +114,10 @@ class Context:
             # Directly assign the payload to self.data if it's already a dict
             self.data = action.action_payload if isinstance(action.action_payload, dict) else {}
 
+        self.action = action
         self.stepRunId = action.step_run_id
         self.exit_flag = Event()
         self.client = client
-        self.eventClient = eventClient
 
         # FIXME: this limits the number of concurrent log requests to 1, which means we can do about
         # 100 log lines per second but this depends on network. 
@@ -60,6 +144,9 @@ class Context:
     def workflow_input(self):
         return self.input
     
+    def workflow_run_id(self):
+        return self.action.workflow_run_id
+
     def sleep(self, seconds: int):
         self.exit_flag.wait(seconds)
 
@@ -81,7 +168,7 @@ class Context:
         
         caller_file = get_caller_file_path()
         
-        self.client.put_overrides_data(
+        self.client.dispatcher.put_overrides_data(
             OverridesData(
                 stepRunId=self.stepRunId,
                 path=name,
@@ -92,9 +179,33 @@ class Context:
 
         return default
     
+    def spawn_workflow(self, workflow_name: str, input: dict = {}, key: str = None):
+        workflow_run_id = self.action.workflow_run_id
+        step_run_id = self.action.step_run_id
+
+        print(f"Spawning workflow {workflow_run_id}")
+        print(f"Spawning workflow {step_run_id}")
+
+        options: TriggerWorkflowParentOptions = {
+            'parent_id': workflow_run_id,
+            'parent_step_run_id': step_run_id,
+            'child_key': key,
+            'child_index': self.spawn_index
+        }
+
+        self.spawn_index += 1
+
+        child_workflow_run_id = self.client.admin.run_workflow(
+            workflow_name,
+            input,
+            options
+        )
+
+        return ChildWorkflowRef(child_workflow_run_id, self.client)
+
     def _log(self, line: str):
         try:
-            self.eventClient.log(message=line, step_run_id=self.stepRunId)
+            self.client.event.log(message=line, step_run_id=self.stepRunId)
         except Exception as e:
             logger.error(f"Error logging: {e}")
     
