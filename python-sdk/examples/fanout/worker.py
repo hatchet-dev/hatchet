@@ -7,12 +7,11 @@ hatchet = Hatchet(debug=True)
 
 @hatchet.workflow(on_events=["parent:create"])
 class Parent:
-    @hatchet.step()
-    def spawn(self, context: Context):
+    @hatchet.step(timeout='10s')
+    async def spawn(self, context: Context):
         print("spawning child")
-        id = context.spawn_workflow("Child", key="child")
-        print(f"spawned child {id}")
-        pass
+        child = await context.spawn_workflow("Child", key="child").result()
+        print(child)
 
 @hatchet.workflow(on_events=["child:create"])
 class Child:

@@ -4,10 +4,18 @@ from multiprocessing import Event
 from .clients.dispatcher import Action
 from .client import ClientImpl
 from .clients.admin import TriggerWorkflowParentOptions
+from .clients.listener import HatchetListener, StepRunEvent, WorkflowRunEventType
 
 from .dispatcher_pb2 import OverridesData
 from .logger import logger
 import json
+import asyncio
+from hatchet_sdk.clients.rest.models.workflow import Workflow
+from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
+from itertools import chain
+import time
+
+DEFAULT_WORKFLOW_POLLING_INTERVAL = 5 # Seconds
 
 def get_caller_file_path():
     caller_frame = inspect.stack()[2]
@@ -17,12 +25,78 @@ def get_caller_file_path():
 class ChildWorkflowRef:
     workflow_run_id: str
     client: ClientImpl
-
+    poll: bool = True
+    
     def __init__(self, workflow_run_id: str, client: ClientImpl):
         self.workflow_run_id = workflow_run_id
         self.client = client
 
-    
+    def getResult(self) -> Workflow:
+        try:
+            res: Workflow = self.client.rest_client.workflow_get(self.workflow_run_id)
+            stepRuns = res.data.jobRuns[0].stepRuns if res.data.jobRuns else []
+
+            stepRunOutput = {}
+            for stepRun in stepRuns:
+                stepId = stepRun.step.readableId if stepRun.step else ''
+                stepRunOutput[stepId] = json.loads(stepRun.output) if stepRun.output else {}
+            
+            statusMap = {
+                WorkflowRunStatus.SUCCEEDED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_COMPLETED,
+                WorkflowRunStatus.FAILED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FAILED,
+                WorkflowRunStatus.CANCELLED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_CANCELLED,
+            }
+
+            if res.data.status in statusMap:
+                return {
+                    'type': statusMap[res.data.status],
+                    'payload': json.dumps(stepRunOutput)
+                }
+
+        except Exception as e:
+            # TODO
+            raise Exception(str(e))
+
+    def polling(self):
+        import os
+        print(os.environ['REQUESTS_CA_BUNDLE'])
+        while self.poll:
+            res = self.getResult()
+            if res:
+                yield self.handle_event(res)
+            print('polling')
+            time.sleep(DEFAULT_WORKFLOW_POLLING_INTERVAL)
+
+    def stream(self):
+        listener_stream = self.client.listener.stream(self.workflow_run_id)
+        self.poll = True
+        return chain(self.polling(), listener_stream)
+
+    async def result(self):
+        try:
+            for event in self.stream():
+                print(event.type)
+                self.handle_event(event)
+        finally:
+            self.close()
+            print('listener closed')
+
+    def close(self):
+        self.poll = False
+
+    def handle_event(self, event: StepRunEvent):
+        if (
+            event.type == WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FAILED
+            or event.type == WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_CANCELLED
+            or event.type == WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_TIMED_OUT
+        ): 
+            self.close()
+            raise RuntimeError(event.type)
+
+        if event.type == WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_COMPLETED:
+            self.close()
+            return json.loads(event.payload)
+
 
 class Context:
     spawn_index = -1
