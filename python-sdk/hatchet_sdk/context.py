@@ -10,7 +10,7 @@ from .dispatcher_pb2 import OverridesData
 from .logger import logger
 import json
 import asyncio
-from hatchet_sdk.clients.rest.models.workflow import Workflow
+from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
 from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
 from itertools import chain
 import time
@@ -31,9 +31,9 @@ class ChildWorkflowRef:
         self.workflow_run_id = workflow_run_id
         self.client = client
 
-    def getResult(self) -> Workflow:
+    def getResult(self) -> WorkflowRun:
         try:
-            res: Workflow = self.client.rest_client.workflow_get(self.workflow_run_id)
+            res: WorkflowRun = self.client.rest_client.workflow_run_get(self.workflow_run_id)
             stepRuns = res.data.jobRuns[0].stepRuns if res.data.jobRuns else []
 
             stepRunOutput = {}
