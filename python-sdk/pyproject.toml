@@ -20,3 +20,18 @@ urllib3 = "^2.2.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+
+[tool.isort]
+profile = "black"
+known_third_party = [
+  "grpcio",
+  "grpcio_tools",
+  "loguru",
+  "protobuf",
+  "pydantic",
+  "python_dotenv",
+  "python_dateutil",
+  "pyyaml",
+  "urllib3"
+]

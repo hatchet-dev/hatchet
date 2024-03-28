@@ -1,12 +1,20 @@
+import json
 from datetime import datetime
 from typing import List, Union
+
 import grpc
 from google.protobuf import timestamp_pb2
-from ..workflows_pb2_grpc import WorkflowServiceStub
-from ..workflows_pb2 import CreateWorkflowVersionOpts, ScheduleWorkflowRequest, TriggerWorkflowRequest, PutWorkflowRequest, TriggerWorkflowResponse
+
 from ..loader import ClientConfig
 from ..metadata import get_metadata
-import json
+from ..workflows_pb2 import (
+    CreateWorkflowVersionOpts,
+    PutWorkflowRequest,
+    ScheduleWorkflowRequest,
+    TriggerWorkflowRequest,
+    TriggerWorkflowResponse,
+)
+from ..workflows_pb2_grpc import WorkflowServiceStub
 
 
 def new_admin(conn, config: ClientConfig):
@@ -32,9 +40,12 @@ class AdminClientImpl:
         except grpc.RpcError as e:
             raise ValueError(f"Could not put workflow: {e}")
 
-
-
-    def schedule_workflow(self, name: str, schedules: List[Union[datetime, timestamp_pb2.Timestamp]], input={}):
+    def schedule_workflow(
+        self,
+        name: str,
+        schedules: List[Union[datetime, timestamp_pb2.Timestamp]],
+        input={},
+    ):
         timestamp_schedules = []
         for schedule in schedules:
             if isinstance(schedule, datetime):
@@ -46,14 +57,19 @@ class AdminClientImpl:
             elif isinstance(schedule, timestamp_pb2.Timestamp):
                 timestamp_schedules.append(schedule)
             else:
-                raise ValueError("Invalid schedule type. Must be datetime or timestamp_pb2.Timestamp.")
+                raise ValueError(
+                    "Invalid schedule type. Must be datetime or timestamp_pb2.Timestamp."
+                )
 
         try:
-            self.client.ScheduleWorkflow(ScheduleWorkflowRequest(
-                name=name,
-                schedules=timestamp_schedules,
-                input=json.dumps(input),
-            ), metadata=get_metadata(self.token))
+            self.client.ScheduleWorkflow(
+                ScheduleWorkflowRequest(
+                    name=name,
+                    schedules=timestamp_schedules,
+                    input=json.dumps(input),
+                ),
+                metadata=get_metadata(self.token),
+            )
 
         except grpc.RpcError as e:
             raise ValueError(f"gRPC error: {e}")
@@ -62,10 +78,13 @@ class AdminClientImpl:
         try:
             payload_data = json.dumps(input)
 
-            resp: TriggerWorkflowResponse = self.client.TriggerWorkflow(TriggerWorkflowRequest(
-                name=workflow_name,
-                input=payload_data,
-            ), metadata=get_metadata(self.token))
+            resp: TriggerWorkflowResponse = self.client.TriggerWorkflow(
+                TriggerWorkflowRequest(
+                    name=workflow_name,
+                    input=payload_data,
+                ),
+                metadata=get_metadata(self.token),
+            )
 
             return resp.workflow_run_id
         except grpc.RpcError as e:

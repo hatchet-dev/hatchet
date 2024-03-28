@@ -13,23 +13,33 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field, StrictInt
-from typing import Any, ClassVar, Dict, List, Optional
-from typing import Optional, Set
 from typing_extensions import Self
+
 
 class EventWorkflowRunSummary(BaseModel):
     """
     EventWorkflowRunSummary
-    """ # noqa: E501
-    pending: Optional[StrictInt] = Field(default=None, description="The number of pending runs.")
-    running: Optional[StrictInt] = Field(default=None, description="The number of running runs.")
-    succeeded: Optional[StrictInt] = Field(default=None, description="The number of succeeded runs.")
-    failed: Optional[StrictInt] = Field(default=None, description="The number of failed runs.")
+    """  # noqa: E501
+
+    pending: Optional[StrictInt] = Field(
+        default=None, description="The number of pending runs."
+    )
+    running: Optional[StrictInt] = Field(
+        default=None, description="The number of running runs."
+    )
+    succeeded: Optional[StrictInt] = Field(
+        default=None, description="The number of succeeded runs."
+    )
+    failed: Optional[StrictInt] = Field(
+        default=None, description="The number of failed runs."
+    )
     __properties: ClassVar[List[str]] = ["pending", "running", "succeeded", "failed"]
 
     model_config = {
@@ -37,7 +47,6 @@ class EventWorkflowRunSummary(BaseModel):
         "validate_assignment": True,
         "protected_namespaces": (),
     }
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +72,7 @@ class EventWorkflowRunSummary(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -82,12 +90,12 @@ class EventWorkflowRunSummary(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "pending": obj.get("pending"),
-            "running": obj.get("running"),
-            "succeeded": obj.get("succeeded"),
-            "failed": obj.get("failed")
-        })
+        _obj = cls.model_validate(
+            {
+                "pending": obj.get("pending"),
+                "running": obj.get("running"),
+                "succeeded": obj.get("succeeded"),
+                "failed": obj.get("failed"),
+            }
+        )
         return _obj
-
-

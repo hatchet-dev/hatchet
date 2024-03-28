@@ -13,35 +13,59 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.github_app_installation import GithubAppInstallation
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
+from hatchet_sdk.clients.rest.models.github_app_installation import (
+    GithubAppInstallation,
+)
+
 
 class WorkflowDeploymentConfig(BaseModel):
     """
     WorkflowDeploymentConfig
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
-    git_repo_name: StrictStr = Field(description="The repository name.", alias="gitRepoName")
-    git_repo_owner: StrictStr = Field(description="The repository owner.", alias="gitRepoOwner")
-    git_repo_branch: StrictStr = Field(description="The repository branch.", alias="gitRepoBranch")
-    github_app_installation: Optional[GithubAppInstallation] = Field(default=None, description="The Github App installation.", alias="githubAppInstallation")
-    github_app_installation_id: StrictStr = Field(description="The id of the Github App installation.", alias="githubAppInstallationId")
-    __properties: ClassVar[List[str]] = ["metadata", "gitRepoName", "gitRepoOwner", "gitRepoBranch", "githubAppInstallation", "githubAppInstallationId"]
+    git_repo_name: StrictStr = Field(
+        description="The repository name.", alias="gitRepoName"
+    )
+    git_repo_owner: StrictStr = Field(
+        description="The repository owner.", alias="gitRepoOwner"
+    )
+    git_repo_branch: StrictStr = Field(
+        description="The repository branch.", alias="gitRepoBranch"
+    )
+    github_app_installation: Optional[GithubAppInstallation] = Field(
+        default=None,
+        description="The Github App installation.",
+        alias="githubAppInstallation",
+    )
+    github_app_installation_id: StrictStr = Field(
+        description="The id of the Github App installation.",
+        alias="githubAppInstallationId",
+    )
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "gitRepoName",
+        "gitRepoOwner",
+        "gitRepoBranch",
+        "githubAppInstallation",
+        "githubAppInstallationId",
+    ]
 
     model_config = {
         "populate_by_name": True,
         "validate_assignment": True,
         "protected_namespaces": (),
     }
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -67,8 +91,7 @@ class WorkflowDeploymentConfig(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -77,10 +100,10 @@ class WorkflowDeploymentConfig(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of github_app_installation
         if self.github_app_installation:
-            _dict['githubAppInstallation'] = self.github_app_installation.to_dict()
+            _dict["githubAppInstallation"] = self.github_app_installation.to_dict()
         return _dict
 
     @classmethod
@@ -92,14 +115,22 @@ class WorkflowDeploymentConfig(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "gitRepoName": obj.get("gitRepoName"),
-            "gitRepoOwner": obj.get("gitRepoOwner"),
-            "gitRepoBranch": obj.get("gitRepoBranch"),
-            "githubAppInstallation": GithubAppInstallation.from_dict(obj["githubAppInstallation"]) if obj.get("githubAppInstallation") is not None else None,
-            "githubAppInstallationId": obj.get("githubAppInstallationId")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "gitRepoName": obj.get("gitRepoName"),
+                "gitRepoOwner": obj.get("gitRepoOwner"),
+                "gitRepoBranch": obj.get("gitRepoBranch"),
+                "githubAppInstallation": (
+                    GithubAppInstallation.from_dict(obj["githubAppInstallation"])
+                    if obj.get("githubAppInstallation") is not None
+                    else None
+                ),
+                "githubAppInstallationId": obj.get("githubAppInstallationId"),
+            }
+        )
         return _obj
-
-

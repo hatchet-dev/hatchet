@@ -13,20 +13,23 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.api_meta_auth import APIMetaAuth
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.api_meta_auth import APIMetaAuth
+
 
 class APIMeta(BaseModel):
     """
     APIMeta
-    """ # noqa: E501
+    """  # noqa: E501
+
     auth: Optional[APIMetaAuth] = None
     __properties: ClassVar[List[str]] = ["auth"]
 
@@ -35,7 +38,6 @@ class APIMeta(BaseModel):
         "validate_assignment": True,
         "protected_namespaces": (),
     }
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +63,7 @@ class APIMeta(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -71,7 +72,7 @@ class APIMeta(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of auth
         if self.auth:
-            _dict['auth'] = self.auth.to_dict()
+            _dict["auth"] = self.auth.to_dict()
         return _dict
 
     @classmethod
@@ -83,9 +84,13 @@ class APIMeta(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "auth": APIMetaAuth.from_dict(obj["auth"]) if obj.get("auth") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "auth": (
+                    APIMetaAuth.from_dict(obj["auth"])
+                    if obj.get("auth") is not None
+                    else None
+                )
+            }
+        )
         return _obj
-
-

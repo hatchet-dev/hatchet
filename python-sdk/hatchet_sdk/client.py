@@ -1,19 +1,20 @@
 # relative imports
 import os
 from typing import Any
-from .clients.admin import AdminClientImpl, new_admin
-from .clients.events import EventClientImpl, new_event
-from .clients.dispatcher import DispatcherClientImpl, new_dispatcher
-from .clients.listener import ListenerClientImpl, new_listener
 
-from .loader import ConfigLoader, ClientConfig
 import grpc
 
-from .clients.rest.api_client import ApiClient
+from .clients.admin import AdminClientImpl, new_admin
+from .clients.dispatcher import DispatcherClientImpl, new_dispatcher
+from .clients.events import EventClientImpl, new_event
+from .clients.listener import ListenerClientImpl, new_listener
 from .clients.rest.api.workflow_api import WorkflowApi
 from .clients.rest.api.workflow_run_api import WorkflowRunApi
+from .clients.rest.api_client import ApiClient
 from .clients.rest.configuration import Configuration
 from .clients.rest_client import RestApi
+from .loader import ClientConfig, ConfigLoader
+
 
 class Client:
     def admin(self):
@@ -27,20 +28,20 @@ class Client:
 
     def listener(self):
         raise NotImplementedError
-    
+
     def rest(self):
         raise NotImplementedError
 
 
 class ClientImpl(Client):
     def __init__(
-            self,
-            event_client: EventClientImpl,
-            admin_client: AdminClientImpl,
-            dispatcher_client: DispatcherClientImpl,
-            listener_client: ListenerClientImpl,
-            rest_client: RestApi
-        ):
+        self,
+        event_client: EventClientImpl,
+        admin_client: AdminClientImpl,
+        dispatcher_client: DispatcherClientImpl,
+        listener_client: ListenerClientImpl,
+        rest_client: RestApi,
+    ):
         # self.conn = conn
         # self.tenant_id = tenant_id
         # self.logger = logger
@@ -62,9 +63,10 @@ class ClientImpl(Client):
 
     def listener(self) -> ListenerClientImpl:
         return self.listener
-    
+
     def rest(self) -> RestApi:
         return self.rest_client
+
 
 def with_host_port(host: str, port: int):
     def with_host_port_impl(config: ClientConfig):
@@ -89,24 +91,27 @@ def new_client(*opts_functions):
     credentials: grpc.ChannelCredentials | None = None
 
     # load channel credentials
-    if config.tls_config.tls_strategy == 'tls':
+    if config.tls_config.tls_strategy == "tls":
         root: Any | None = None
 
         if config.tls_config.ca_file:
             root = open(config.tls_config.ca_file, "rb").read()
 
         credentials = grpc.ssl_channel_credentials(root_certificates=root)
-    elif config.tls_config.tls_strategy == 'mtls':
+    elif config.tls_config.tls_strategy == "mtls":
         root = open(config.tls_config.ca_file, "rb").read()
         private_key = open(config.tls_config.key_file, "rb").read()
         certificate_chain = open(config.tls_config.cert_file, "rb").read()
 
         credentials = grpc.ssl_channel_credentials(
-            root_certificates=root, private_key=private_key, certificate_chain=certificate_chain)
-    
-    conn : grpc.Channel = None
+            root_certificates=root,
+            private_key=private_key,
+            certificate_chain=certificate_chain,
+        )
 
-    if config.tls_config.tls_strategy == 'none':
+    conn: grpc.Channel = None
+
+    if config.tls_config.tls_strategy == "none":
         conn = grpc.insecure_channel(
             target=config.host_port,
         )
@@ -114,8 +119,7 @@ def new_client(*opts_functions):
         conn = grpc.secure_channel(
             target=config.host_port,
             credentials=credentials,
-            options=[('grpc.ssl_target_name_override',
-                    config.tls_config.server_name)],
+            options=[("grpc.ssl_target_name_override", config.tls_config.server_name)],
         )
 
     # Instantiate client implementations
@@ -125,4 +129,6 @@ def new_client(*opts_functions):
     listener_client = new_listener(conn, config)
     rest_client = RestApi(config.server_url, config.token, config.tenant_id)
 
-    return ClientImpl(event_client, admin_client, dispatcher_client, listener_client, rest_client)
+    return ClientImpl(
+        event_client, admin_client, dispatcher_client, listener_client, rest_client
+    )
