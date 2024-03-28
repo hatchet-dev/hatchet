@@ -87,10 +87,12 @@ func main() {
 		time.Sleep(5 * time.Second)
 
 		executeAt := time.Now().Add(time.Second * 10)
+		executeAt2 := time.Now().Add(time.Second * 20)
+		executeAt3 := time.Now().Add(time.Second * 30)
 
 		err = c.Admin().ScheduleWorkflow(
 			"scheduled-workflow",
-			client.WithSchedules(executeAt),
+			client.WithSchedules(executeAt, executeAt2, executeAt3),
 			client.WithInput(&scheduledInput{
 				ScheduledAt: time.Now(),
 				ExecuteAt:   executeAt,

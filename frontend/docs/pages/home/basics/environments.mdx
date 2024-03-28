@@ -1,4 +1,4 @@
-import { Bleed } from 'nextra-theme-docs'
+import { Bleed } from "nextra-theme-docs";
 
 # Managing Environments with Hatchet
 
@@ -28,7 +28,6 @@ To take advantage of multi-tenancy in Hatchet, follow these steps:
   />
 </Bleed>
 
-
 1. **Access the Tenant Dropdown:** In the Hatchet dashboard, locate the tenant dropdown in the bottom left corner of the screen.
 2. **Create a New Tenant:** Click on the tenant dropdown and select the "Add New Tenant" option.
 3. **Provide a Tenant Name:** Give your new tenant a descriptive name that reflects its purpose, such as "Development", "Staging", or "Production".
@@ -41,8 +40,8 @@ By creating separate tenants for different environments, you can ensure that eve
 ## Best Practices for Environment Management
 
 To effectively manage environments with Hatchet, consider the following best practices:
+
 - **Clearly Define Environment Purposes:** Determine the specific purposes of each environment, such as development, staging, and production. Clearly communicate these purposes to your team to ensure everyone understands the role of each environment. Create one tenant per local developer to prevent conflicts.
 - **Use Descriptive Tenant Names:** Choose descriptive names for your tenants that reflect their intended purpose. This helps avoid confusion and makes it easier to identify the correct tenant for each environment.
 - **Secure Your Tokens:** Treat tenant tokens as sensitive information and keep them secure. Avoid sharing tokens across different environments or exposing them publicly.
 - **Regularly Review and Update Configurations:** Periodically review your environment configurations to ensure they are up to date and aligned with your current needs. Update the `.env` file and other relevant configurations as necessary.
-

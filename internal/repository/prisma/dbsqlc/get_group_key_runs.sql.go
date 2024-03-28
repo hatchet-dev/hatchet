@@ -72,7 +72,6 @@ WITH get_group_key_run AS (
     WHERE
         ggr."id" = $1::uuid AND
         ggr."tenantId" = $2::uuid
-    FOR UPDATE
 ), valid_workers AS (
     SELECT
         w."id", w."dispatcherId"
@@ -88,7 +87,6 @@ WITH get_group_key_run AS (
             WHERE "Action"."tenantId" = $2 AND "Action"."id" = get_group_key_run."actionId"
         )
     ORDER BY random()
-    FOR UPDATE SKIP LOCKED
 ), selected_worker AS (
     SELECT "id", "dispatcherId"
     FROM valid_workers
@@ -103,7 +101,8 @@ SET
         FROM selected_worker
         LIMIT 1
     ),
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "timeoutAt" = CURRENT_TIMESTAMP + INTERVAL '5 minutes'
 WHERE
     "id" = $1::uuid AND
     "tenantId" = $2::uuid AND
@@ -131,6 +130,7 @@ func (q *Queries) AssignGetGroupKeyRunToWorker(ctx context.Context, db DBTX, arg
 
 const getGroupKeyRunForEngine = `-- name: GetGroupKeyRunForEngine :many
 SELECT
+    DISTINCT ON (ggr."id")
     ggr.id, ggr."createdAt", ggr."updatedAt", ggr."deletedAt", ggr."tenantId", ggr."workerId", ggr."tickerId", ggr.status, ggr.input, ggr.output, ggr."requeueAfter", ggr.error, ggr."startedAt", ggr."finishedAt", ggr."timeoutAt", ggr."cancelledAt", ggr."cancelledReason", ggr."cancelledError", ggr."workflowRunId", ggr."scheduleTimeoutAt",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     wr."id" AS "workflowRunId",
@@ -146,7 +146,7 @@ JOIN
 JOIN
     "WorkflowConcurrency" wc ON wv."id" = wc."workflowVersionId"
 JOIN
-    "Action" a ON wc."getConcurrencyGroupId" = a."id"
+    "Action" a ON wc."getConcurrencyGroupId" = a."id" AND a."tenantId" = ggr."tenantId"
 WHERE
     ggr."id" = ANY($1::uuid[]) AND
     ggr."tenantId" = $2::uuid

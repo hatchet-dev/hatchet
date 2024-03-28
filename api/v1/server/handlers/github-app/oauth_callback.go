@@ -67,7 +67,7 @@ func (g *GithubAppService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen
 	}
 
 	// upsert in database
-	_, err = g.config.Repository.Github().UpsertGithubAppOAuth(user.ID, &repository.CreateGithubAppOAuthOpts{
+	_, err = g.config.APIRepository.Github().UpsertGithubAppOAuth(user.ID, &repository.CreateGithubAppOAuthOpts{
 		GithubUserID: int(*githubUser.ID),
 		AccessToken:  accessTokenEncrypted,
 		RefreshToken: &refreshTokenEncrypted,

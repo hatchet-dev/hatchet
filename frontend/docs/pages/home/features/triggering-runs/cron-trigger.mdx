@@ -8,10 +8,10 @@ To trigger a workflow with a cron schedule, you need to configure the `on` prope
 
 ```typescript
 const myWorkflow: Workflow = {
-  id: 'my-workflow',
-  description: 'A workflow triggered by a cron schedule',
+  id: "my-workflow",
+  description: "A workflow triggered by a cron schedule",
   on: {
-    cron: '0 0 * * *', // Run every day at midnight
+    cron: "0 0 * * *", // Run every day at midnight
   },
   steps: [
     // Define your workflow steps here

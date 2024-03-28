@@ -7,11 +7,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/testutils"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSessionStoreSave(t *testing.T) {
@@ -79,7 +80,7 @@ func newSessionStore(t *testing.T, conf *database.Config, cookieName string) *co
 		cookie.WithCookieDomain("hatchet.run"),
 		cookie.WithCookieName(cookieName),
 		cookie.WithCookieAllowInsecure(false),
-		cookie.WithSessionRepository(conf.Repository.UserSession()),
+		cookie.WithSessionRepository(conf.APIRepository.UserSession()),
 	)
 
 	if err != nil {

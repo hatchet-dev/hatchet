@@ -1,9 +1,6 @@
 -- name: GetEventForEngine :one
 SELECT
-    "id",
-    "key",
-    "data",
-    "tenantId"
+    *
 FROM
     "Event"
 WHERE
@@ -120,3 +117,12 @@ GROUP BY
     event_hour
 ORDER BY
     event_hour;
+
+-- name: ListEventsByIDs :many
+SELECT
+    * 
+FROM
+    "Event" as events
+WHERE
+    "tenantId" = @tenantId::uuid AND
+    "id" = ANY (sqlc.arg('ids')::uuid[]);

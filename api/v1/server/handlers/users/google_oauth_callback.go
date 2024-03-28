@@ -87,11 +87,11 @@ func (u *UserService) upsertGoogleUserFromToken(config *server.ServerConfig, tok
 		ExpiresAt:      &expiresAt,
 	}
 
-	user, err := u.config.Repository.User().GetUserByEmail(gInfo.Email)
+	user, err := u.config.APIRepository.User().GetUserByEmail(gInfo.Email)
 
 	switch err {
 	case nil:
-		user, err = u.config.Repository.User().UpdateUser(user.ID, &repository.UpdateUserOpts{
+		user, err = u.config.APIRepository.User().UpdateUser(user.ID, &repository.UpdateUserOpts{
 			EmailVerified: repository.BoolPtr(gInfo.EmailVerified),
 			Name:          repository.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,
@@ -101,7 +101,7 @@ func (u *UserService) upsertGoogleUserFromToken(config *server.ServerConfig, tok
 			return nil, fmt.Errorf("failed to update user: %s", err.Error())
 		}
 	case db.ErrNotFound:
-		user, err = u.config.Repository.User().CreateUser(&repository.CreateUserOpts{
+		user, err = u.config.APIRepository.User().CreateUser(&repository.CreateUserOpts{
 			Email:         gInfo.Email,
 			EmailVerified: repository.BoolPtr(gInfo.EmailVerified),
 			Name:          repository.StringPtr(gInfo.Name),

@@ -36,7 +36,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		workflowVersionId = versions[0].ID
 	}
 
-	workflowVersion, err := t.config.Repository.Workflow().GetWorkflowVersionById(tenant.ID, workflowVersionId)
+	workflowVersion, err := t.config.EngineRepository.Workflow().GetWorkflowVersionById(tenant.ID, workflowVersionId)
 
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
@@ -63,7 +63,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, err
 	}
 
-	workflowRun, err := t.config.Repository.WorkflowRun().CreateNewWorkflowRun(ctx.Request().Context(), tenant.ID, createOpts)
+	workflowRun, err := t.config.APIRepository.WorkflowRun().CreateNewWorkflowRun(ctx.Request().Context(), tenant.ID, createOpts)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create workflow run: %w", err)
@@ -73,7 +73,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 	err = t.config.MessageQueue.AddMessage(
 		ctx.Request().Context(),
 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
-		tasktypes.WorkflowRunQueuedToTask(workflowRun),
+		tasktypes.WorkflowRunQueuedToTask(workflowRun.TenantID, workflowRun.ID),
 	)
 
 	if err != nil {

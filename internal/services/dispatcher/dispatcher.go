@@ -14,10 +14,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
+
+	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
 type Dispatcher interface {
@@ -32,9 +35,10 @@ type DispatcherImpl struct {
 	mq           msgqueue.MessageQueue
 	l            *zerolog.Logger
 	dv           datautils.DataDecoderValidator
-	repo         repository.Repository
+	repo         repository.EngineRepository
 	dispatcherId string
 	workers      sync.Map
+	a            *hatcheterrors.Wrapped
 }
 
 type DispatcherOpt func(*DispatcherOpts)
@@ -43,16 +47,20 @@ type DispatcherOpts struct {
 	mq           msgqueue.MessageQueue
 	l            *zerolog.Logger
 	dv           datautils.DataDecoderValidator
-	repo         repository.Repository
+	repo         repository.EngineRepository
 	dispatcherId string
+	alerter      hatcheterrors.Alerter
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
 	logger := logger.NewDefaultLogger("dispatcher")
+	alerter := hatcheterrors.NoOpAlerter{}
+
 	return &DispatcherOpts{
 		l:            &logger,
 		dv:           datautils.NewDataDecoderValidator(),
 		dispatcherId: uuid.New().String(),
+		alerter:      alerter,
 	}
 }
 
@@ -62,7 +70,13 @@ func WithMessageQueue(mq msgqueue.MessageQueue) DispatcherOpt {
 	}
 }
 
-func WithRepository(r repository.Repository) DispatcherOpt {
+func WithAlerter(a hatcheterrors.Alerter) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.alerter = a
+	}
+}
+
+func WithRepository(r repository.EngineRepository) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.repo = r
 	}
@@ -111,6 +125,9 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("could not create scheduler for dispatcher: %w", err)
 	}
 
+	a := hatcheterrors.NewWrapped(opts.alerter)
+	a.WithData(map[string]interface{}{"service": "dispatcher"})
+
 	return &DispatcherImpl{
 		mq:           opts.mq,
 		l:            opts.l,
@@ -119,6 +136,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		dispatcherId: opts.dispatcherId,
 		workers:      sync.Map{},
 		s:            s,
+		a:            a,
 	}, nil
 }
 
@@ -164,7 +182,8 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	// subscribe to a task queue with the dispatcher id
-	cleanupQueue, err := d.mq.Subscribe(msgqueue.QueueTypeFromDispatcherID(dispatcher.ID), f, msgqueue.NoOpHook)
+	dispatcherId := sqlchelpers.UUIDToStr(dispatcher.ID)
+	cleanupQueue, err := d.mq.Subscribe(msgqueue.QueueTypeFromDispatcherID(dispatcherId), f, msgqueue.NoOpHook)
 
 	if err != nil {
 		cancel()
@@ -192,12 +211,12 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 			return true
 		})
 
-		err = d.repo.Dispatcher().Delete(dispatcher.ID)
+		err = d.repo.Dispatcher().Delete(dispatcherId)
 		if err != nil {
 			return fmt.Errorf("could not delete dispatcher: %w", err)
 		}
 
-		d.l.Debug().Msgf("deleted dispatcher %s", dispatcher.ID)
+		d.l.Debug().Msgf("deleted dispatcher %s", dispatcherId)
 
 		if err := d.s.Shutdown(); err != nil {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)
@@ -213,11 +232,11 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
 	switch task.ID {
 	case "group-key-action-assigned":
-		return d.handleGroupKeyActionAssignedTask(ctx, task)
+		return d.a.WrapErr(d.handleGroupKeyActionAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-assigned":
-		return d.handleStepRunAssignedTask(ctx, task)
+		return d.a.WrapErr(d.handleStepRunAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-cancelled":
-		return d.handleStepRunCancelled(ctx, task)
+		return d.a.WrapErr(d.handleStepRunCancelled(ctx, task), map[string]interface{}{})
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
@@ -249,8 +268,6 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
-	telemetry.WithAttributes(span, servertel.WorkerId(payload.WorkerId))
-
 	// load the workflow run from the database
 	workflowRun, err := d.repo.WorkflowRun().GetWorkflowRunById(metadata.TenantId, payload.WorkflowRunId)
 
@@ -260,7 +277,19 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 
 	servertel.WithWorkflowRunModel(span, workflowRun)
 
-	err = w.StartGroupKeyAction(ctx, metadata.TenantId, workflowRun)
+	groupKeyRunId := sqlchelpers.UUIDToStr(workflowRun.GetGroupKeyRunId)
+
+	if groupKeyRunId == "" {
+		return fmt.Errorf("could not get group key run")
+	}
+
+	sqlcGroupKeyRun, err := d.repo.GetGroupKeyRun().GetGroupKeyRunForEngine(metadata.TenantId, groupKeyRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get group key run for engine: %w", err)
+	}
+
+	err = w.StartGroupKeyAction(ctx, metadata.TenantId, sqlcGroupKeyRun)
 
 	if err != nil {
 		return fmt.Errorf("could not send group key action to worker: %w", err)
@@ -295,10 +324,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
-	telemetry.WithAttributes(span, servertel.WorkerId(payload.WorkerId))
-
 	// load the step run from the database
-	stepRun, err := d.repo.StepRun().GetStepRunById(metadata.TenantId, payload.StepRunId)
+	stepRun, err := d.repo.StepRun().GetStepRunForEngine(metadata.TenantId, payload.StepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
@@ -341,10 +368,8 @@ func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqu
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
-	telemetry.WithAttributes(span, servertel.WorkerId(payload.WorkerId))
-
 	// load the step run from the database
-	stepRun, err := d.repo.StepRun().GetStepRunById(metadata.TenantId, payload.StepRunId)
+	stepRun, err := d.repo.StepRun().GetStepRunForEngine(metadata.TenantId, payload.StepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
