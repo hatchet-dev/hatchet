@@ -56,7 +56,7 @@ async def fanout_pages(self, context: Context):
         future = context.spawn_workflow("process-page", key=page, index=f'page-{index}')
         futures.append(future.result())
 
-    results = asyncio.gather(*futures)
+    results = await asyncio.gather(*futures)
 
     return {
         "results": results
