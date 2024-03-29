@@ -24,7 +24,8 @@ class ChildWorkflowRef:
     workflow_run_id: str
     client: ClientImpl
     poll: bool = True
-    
+    pollAttempts = 0
+
     def __init__(self, workflow_run_id: str, client: ClientImpl):
         self.workflow_run_id = workflow_run_id
         self.client = client
@@ -56,11 +57,13 @@ class ChildWorkflowRef:
 
     async def polling(self):
         self.poll = True
+        self.pollAttempts = 0
         while self.poll:
+            self.pollAttempts += 1
             res = self.getResult()
             if res:
                 yield res
-            await asyncio.sleep(DEFAULT_WORKFLOW_POLLING_INTERVAL)
+            await asyncio.sleep(DEFAULT_WORKFLOW_POLLING_INTERVAL if self.pollAttempts > 10 else 0.5)
 
     async def stream(self):
         listener_stream = self.client.listener.stream(self.workflow_run_id)
