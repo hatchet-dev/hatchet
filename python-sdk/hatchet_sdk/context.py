@@ -67,7 +67,12 @@ class ChildWorkflowRef:
         polling_stream = self.polling()
         async with merge(listener_stream, polling_stream).stream() as stream:
             async for event in stream:
-                yield event
+                if event.payload is None:
+                    res = self.getResult()
+                    if res:
+                        yield res
+                else:
+                    yield event
 
     async def result(self):
         try:
