@@ -1,14 +1,16 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+
 # `v0.18` - Child Workflows
 
-**TL;DR** - we're releasing `v0.18.0` of Hatchet, which adds support for child workflows. Child workflows allow you to spawn workflow runs on-the-fly, with support for durability by default. This means that even if your parent workflow fails, times out, or gets rescheduled, child workflows will only be spawned once, and the parent workflows will resume with all child workflows in an identical state. This is ideal for **dynamic error handling, scatter/gather, and fanout workflows**.
+**TL;DR** - we're releasing `v0.18.0` of Hatchet, which adds support for child workflows in the engine and all SDKs (Typescript, Python, Go). Child workflows allow you to spawn workflow runs on-the-fly, with support for durability by default. This means that even if your parent workflow fails, times out, or gets rescheduled, child workflows will only be spawned once, and the parent workflows will resume with all child workflows in an identical state. This is ideal for **batch processing, dynamic error handling, scatter/gather, and fanout workflows**.
 
 Here's a video that explains the feature in more detail:
 
 <iframe
-    className="aspect-video w-full my-4"
-    src="https://www.youtube.com/embed/UKrfQsXqiPY?si=_dIQe9zOFUP34qQ6"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-    allowFullScreen
+  className="aspect-video w-full my-4"
+  src="https://www.youtube.com/embed/UKrfQsXqiPY?si=_dIQe9zOFUP34qQ6"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
 />
 
 ## What are child workflows?
@@ -23,6 +25,8 @@ We've had support for spawning new workflows programatically for a while, but th
 
 For a practical example, say we have a workflow which extracts text from PDFs. PDF parsing and extraction is an expensive operation, so we'd like to parse each page separately, collect the text from each PDF, and pass it downstream to a future step in our workflow. We can model each page as a child workflow. For example, in the Typescript SDK:
 
+<Tabs items={['Typescript', 'Python', 'Go']}>
+  <Tabs.Tab>
 ```ts
 async function (ctx) {
     const { pages } = ctx.workflowInput();
@@ -37,8 +41,93 @@ async function (ctx) {
     return {
         results,
     };
+
 }
+
+````
+</Tabs.Tab>
+<Tabs.Tab>
+```py
+@hatchet.step()
+async def fanout_pages(self, context: Context):
+    pages = context.workflow_input()["pages"]
+    futures = []
+    for index, page in enumerate(pages):
+        future = context.spawn_workflow("process-page", key=page, index=f'page-{index}')
+        futures.append(future.result())
+
+    results = asyncio.gather(*futures)
+
+    return {
+        "results": results
+    }
+````
+
+</Tabs.Tab>
+<Tabs.Tab>
+```go
+func(ctx worker.HatchetContext) error {
+    input := &parentInput{}
+    err = ctx.WorkflowInput(input)
+
+    if err != nil {
+        return nil, err
+    }
+
+    childWorkflows := make([]*worker.ChildWorkflow, input.pages)
+
+    for i := 0; i < input.pages; i++ {
+        childInput := &childInput{
+            Index: i,
+        }
+
+        childWorkflow, err := ctx.SpawnWorkflow("procedural-child-workflow", childInput, &worker.SpawnWorkflowOpts{})
+
+        if err != nil {
+            return nil, err
+        }
+
+        childWorkflows[i] = childWorkflow
+    }
+
+    eg := errgroup.Group{}
+
+    eg.SetLimit(input.pages)
+
+    childOutputs := make([]int, input.pages)
+
+    for i, childWorkflow := range childWorkflows {
+        eg.Go(func(i int, childWorkflow *worker.ChildWorkflow) func() error {
+            return func() error {
+                childResult, err := childWorkflow.Result()
+
+                if err != nil {
+                    return err
+                }
+
+                childOutput := proceduralChildOutput{}
+
+                err = childResult.StepOutput("step-one", &childOutput)
+
+                if err != nil {
+                    return err
+                }
+
+                childOutputs[i] = childOutput.Index
+
+                return nil
+
+            }
+        }(i, childWorkflow))
+    }
+
+    return eg.Wait()
+
+}
+
 ```
+</Tabs.Tab>
+</Tabs>
 
 What happens if our workflow fails during the `await Promise.all`, for example when exceeding a timeout? Because we've already called `spawnWorkflow` for each page, when this workflow is rerun, we'll simply enter the `Promise.all` method again with the same child workflows.
 
@@ -54,4 +143,7 @@ Child workflows can be used to support more complex use-cases, like:
 
 ## Feedback
 
+The example repository illustrating child workflows can be found [here](https://github.com/hatchet-dev/hatchet-typescript-quickstart/tree/main/child-workfows).
+
 Child workflows are available in engine version `v0.18.0` and above, and on all the latest SDK versions. We'd love to hear your feedback in our [Discord](https://discord.gg/ZMeUafwH89)!
+```
