@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "0.18.0"
+version = "0.19.0"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -16,6 +16,7 @@ loguru = "^0.7.2"
 pydantic = "^2.6.3"
 python-dateutil = "^2.9.0.post0"
 urllib3 = "^2.2.1"
+aiostream = "^0.5.2"
 
 [build-system]
 requires = ["poetry-core"]

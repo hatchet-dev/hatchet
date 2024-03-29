@@ -7,7 +7,7 @@ from ..workflows_pb2 import CreateWorkflowVersionOpts, ScheduleWorkflowRequest, 
 from ..loader import ClientConfig
 from ..metadata import get_metadata
 import json
-
+from typing import TypedDict, Optional
 
 def new_admin(conn, config: ClientConfig):
     return AdminClientImpl(
@@ -15,6 +15,11 @@ def new_admin(conn, config: ClientConfig):
         token=config.token,
     )
 
+class TriggerWorkflowParentOptions(TypedDict):
+    parent_id: Optional[str]
+    parent_step_run_id: Optional[str]
+    child_index: Optional[int]
+    child_key: Optional[str]
 
 class AdminClientImpl:
     def __init__(self, client: WorkflowServiceStub, token):
@@ -32,9 +37,7 @@ class AdminClientImpl:
         except grpc.RpcError as e:
             raise ValueError(f"Could not put workflow: {e}")
 
-
-
-    def schedule_workflow(self, name: str, schedules: List[Union[datetime, timestamp_pb2.Timestamp]], input={}):
+    def schedule_workflow(self, name: str, schedules: List[Union[datetime, timestamp_pb2.Timestamp]], input={}, options: TriggerWorkflowParentOptions = None):
         timestamp_schedules = []
         for schedule in schedules:
             if isinstance(schedule, datetime):
@@ -53,18 +56,20 @@ class AdminClientImpl:
                 name=name,
                 schedules=timestamp_schedules,
                 input=json.dumps(input),
+                **(options or {})
             ), metadata=get_metadata(self.token))
 
         except grpc.RpcError as e:
             raise ValueError(f"gRPC error: {e}")
 
-    def run_workflow(self, workflow_name: str, input: any):
+    def run_workflow(self, workflow_name: str, input: any, options: TriggerWorkflowParentOptions = None):
         try:
             payload_data = json.dumps(input)
 
             resp: TriggerWorkflowResponse = self.client.TriggerWorkflow(TriggerWorkflowRequest(
                 name=workflow_name,
                 input=payload_data,
+                **(options or {})
             ), metadata=get_metadata(self.token))
 
             return resp.workflow_run_id
