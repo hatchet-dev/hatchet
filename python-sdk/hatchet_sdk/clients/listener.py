@@ -1,5 +1,6 @@
-from typing import List
+from typing import AsyncGenerator
 import grpc
+from hatchet_sdk.connection import new_conn
 from ..dispatcher_pb2_grpc import DispatcherStub
 
 from ..dispatcher_pb2 import SubscribeToWorkflowEventsRequest, ResourceEventType, WorkflowEvent, RESOURCE_TYPE_STEP_RUN, RESOURCE_TYPE_WORKFLOW_RUN
@@ -53,15 +54,18 @@ def new_listener(conn, config: ClientConfig):
     return ListenerClientImpl(
         client=DispatcherStub(conn),
         token=config.token,
+        config=config
     )
 
 
 class HatchetListener:
-    def __init__(self, client: DispatcherStub, workflow_run_id: str, token: str):
-        self.client = client
+    def __init__(self, workflow_run_id: str, token: str, config: ClientConfig):
+        conn = new_conn(config, True)
+        self.client = DispatcherStub(conn)
         self.stop_signal = False
         self.workflow_run_id = workflow_run_id
         self.token = token
+        self.config = config
 
     def abort(self):
         self.stop_signal = True
@@ -69,7 +73,7 @@ class HatchetListener:
     def __aiter__(self):
         return self._generator()
 
-    async def _generator(self):
+    async def _generator(self) -> AsyncGenerator[StepRunEvent, None]:
         listener = await self.retry_subscribe()
         while listener:
             if self.stop_signal:
@@ -77,9 +81,8 @@ class HatchetListener:
                 break
 
             try:
-                for workflow_event in listener:
+                async for workflow_event in listener:
                     eventType = None
-
                     if workflow_event.resourceType == RESOURCE_TYPE_STEP_RUN:
                         if workflow_event.eventType in step_run_event_type_mapping:
                             eventType = step_run_event_type_mapping[workflow_event.eventType]
@@ -153,12 +156,13 @@ class HatchetListener:
 
 
 class ListenerClientImpl:
-    def __init__(self, client: DispatcherStub, token: str):
+    def __init__(self, client: DispatcherStub, token: str, config: ClientConfig):
         self.client = client
         self.token = token
+        self.config = config
 
     def stream(self, workflow_run_id: str):
-        return HatchetListener(self.client, workflow_run_id, self.token)
+        return HatchetListener(workflow_run_id, self.token, self.config)
 
     def on(self, workflow_run_id: str, handler: callable = None):
         for event in self.stream(workflow_run_id):
