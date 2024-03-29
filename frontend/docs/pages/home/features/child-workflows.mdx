@@ -59,7 +59,7 @@ const parentWorkflow: Workflow = {
               .spawnWorkflow<string>("child-workflow", {
                 input: `child-input-${i}`,
               })
-              .result()
+              .result(),
           );
         }
 
