@@ -81,7 +81,7 @@ func(ctx worker.HatchetContext) error {
             Index: i,
         }
 
-        childWorkflow, err := ctx.SpawnWorkflow("procedural-child-workflow", childInput, &worker.SpawnWorkflowOpts{})
+        childWorkflow, err := ctx.SpawnWorkflow("process-page", childInput, &worker.SpawnWorkflowOpts{})
 
         if err != nil {
             return nil, err
@@ -90,41 +90,19 @@ func(ctx worker.HatchetContext) error {
         childWorkflows[i] = childWorkflow
     }
 
-    eg := errgroup.Group{}
-
-    eg.SetLimit(input.pages)
-
-    childOutputs := make([]int, input.pages)
+    childOutputs := make([]childOutput, input.pages)
 
     for i, childWorkflow := range childWorkflows {
-        eg.Go(func(i int, childWorkflow *worker.ChildWorkflow) func() error {
-            return func() error {
-                childResult, err := childWorkflow.Result()
+        childResult, _ = childWorkflow.Result()
 
-                if err != nil {
-                    return err
-                }
+        childOutput := childOutput{}
+        childResult.StepOutput("step-one", &childOutput)
 
-                childOutput := proceduralChildOutput{}
-
-                err = childResult.StepOutput("step-one", &childOutput)
-
-                if err != nil {
-                    return err
-                }
-
-                childOutputs[i] = childOutput.Index
-
-                return nil
-
-            }
-        }(i, childWorkflow))
+        childOutputs[i] = childOutput
     }
 
-    return eg.Wait()
-
+    return nil
 }
-
 ```
 </Tabs.Tab>
 </Tabs>
