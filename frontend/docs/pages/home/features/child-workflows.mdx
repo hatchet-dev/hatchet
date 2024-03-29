@@ -2,7 +2,7 @@
 
 While workflows in Hatchet implement a DAG, there are many cases where the structure of a workflow isn't known ahead of time. For example, you may have a batch processing workflow where the number of tasks is determined by the input - for example, running a workflow per page in a PDF. In these cases, you can use child workflows to dynamically create new workflows as needed.
 
-Note that spawning child workflows is a **durable** operation, meaning that spawning a child workflow will persist the state of the parent workflow. This means that if the parent workflow is interrupted, it will pick up the child workflow in the exact same state when it resumes. The index of the child workflow will be used as the default key, but custom keys can be specified if the order of the child workflows can vary. 
+Note that spawning child workflows is a **durable** operation, meaning that spawning a child workflow will persist the state of the parent workflow. This means that if the parent workflow is interrupted, it will pick up the child workflow in the exact same state when it resumes. The index of the child workflow will be used as the default key, but custom keys can be specified if the order of the child workflows can vary.
 
 ## Looping Workflows
 
@@ -10,21 +10,23 @@ To loop through a list and create a new workflow per element in the list, you ca
 
 ```typescript
 const parentWorkflow: Workflow = {
-  id: 'parent-workflow',
-  description: 'Example workflow for spawning child workflows',
+  id: "parent-workflow",
+  description: "Example workflow for spawning child workflows",
   on: {
-    event: 'fanout:create',
+    event: "fanout:create",
   },
   steps: [
     {
-      name: 'parent-spawn',
-      timeout: '10s',
+      name: "parent-spawn",
+      timeout: "10s",
       run: async (ctx) => {
         for (let i = 0; i < 5; i++) {
-            ctx.spawnWorkflow<string>('child-workflow', { input: `child-input-${i}` });
+          ctx.spawnWorkflow<string>("child-workflow", {
+            input: `child-input-${i}`,
+          });
         }
 
-        return {}
+        return {};
       },
     },
   ],
@@ -35,25 +37,29 @@ Note that calling `spawnWorkflow` will return immediately, and the child workflo
 
 ## Scatter/Gather Workflows
 
-To run all child workflows in parallel, and then wait for all of them to complete, you can use the `result` method on the returned method. 
+To run all child workflows in parallel, and then wait for all of them to complete, you can use the `result` method on the returned method.
 
 ```typescript
 const parentWorkflow: Workflow = {
-  id: 'parent-workflow',
-  description: 'Example workflow for spawning child workflows',
+  id: "parent-workflow",
+  description: "Example workflow for spawning child workflows",
   on: {
-    event: 'fanout:create',
+    event: "fanout:create",
   },
   steps: [
     {
-      name: 'parent-spawn',
-      timeout: '10s',
+      name: "parent-spawn",
+      timeout: "10s",
       run: async (ctx) => {
         const promises: Promise<string>[] = [];
 
         for (let i = 0; i < 5; i++) {
           promises.push(
-            ctx.spawnWorkflow<string>('child-workflow', { input: `child-input-${i}` }).result()
+            ctx
+              .spawnWorkflow<string>("child-workflow", {
+                input: `child-input-${i}`,
+              })
+              .result()
           );
         }
 
@@ -74,25 +80,27 @@ If child workflows fail, an error will be raised to the parent, which can be cau
 
 ```typescript
 const parentWorkflow: Workflow = {
-  id: 'parent-workflow',
-  description: 'Example workflow for spawning child workflows',
+  id: "parent-workflow",
+  description: "Example workflow for spawning child workflows",
   on: {
-    event: 'fanout:create',
+    event: "fanout:create",
   },
   steps: [
     {
-      name: 'parent-spawn',
-      timeout: '10s',
+      name: "parent-spawn",
+      timeout: "10s",
       run: async (ctx) => {
         try {
-            const result = await ctx.spawnWorkflow<string>('child-workflow', { input: `child-input` }).result()
-            return result;
+          const result = await ctx
+            .spawnWorkflow<string>("child-workflow", { input: `child-input` })
+            .result();
+          return result;
         } catch (e) {
-            // Spawn a recovery workflow
-            ctx.spawnWorkflow<string>('recovery-workflow', { error: e });
+          // Spawn a recovery workflow
+          ctx.spawnWorkflow<string>("recovery-workflow", { error: e });
         }
 
-        return {}
+        return {};
       },
     },
   ],
