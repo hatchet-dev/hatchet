@@ -4,6 +4,13 @@
 
 Here's a video that explains the feature in more detail:
 
+<iframe
+    className="aspect-video w-full my-4"
+    src="https://www.youtube.com/embed/UKrfQsXqiPY?si=_dIQe9zOFUP34qQ6"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+/>
+
 ## What are child workflows?
 
 While workflows in Hatchet implement a DAG, there are many cases where the structure of a workflow isn't known ahead of time. For example, you may have a batch processing workflow where the number of tasks is determined by the input - for example, running a workflow per page in a PDF. In these cases, you can use child workflows to dynamically create new workflows as needed.
