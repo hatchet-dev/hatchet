@@ -177,7 +177,7 @@ const workflow: Workflow = {
       run: (ctx) => {
         console.log(
           "executed step2 after step1 returned ",
-          ctx.stepOutput("step1")
+          ctx.stepOutput("step1"),
         );
         return { step2: "step2 results!" };
       },

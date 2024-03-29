@@ -40,7 +40,7 @@ interface MyStepOutput {
 }
 
 const myStep: Step<MyStepInput, MyStepOutput> = async (
-  context: Context<MyStepInput>
+  context: Context<MyStepInput>,
 ) => {
   const { message } = context.workflowInput();
 
