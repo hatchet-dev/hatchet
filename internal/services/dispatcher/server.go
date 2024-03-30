@@ -258,6 +258,100 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 	}
 }
 
+// ListenV2 is like Listen, but implementation does not include heartbeats. This should only used by SDKs
+// against engine version v0.18.1+
+func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenV2Server) error {
+	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
+
+	worker, err := s.repo.Worker().GetWorkerForEngine(tenantId, request.WorkerId)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
+		return err
+	}
+
+	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
+	if worker.DispatcherId.Valid && sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId {
+		_, err = s.repo.Worker().UpdateWorker(tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+			DispatcherId: &s.dispatcherId,
+		})
+
+		if err != nil {
+			s.l.Error().Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
+			return err
+		}
+	}
+
+	fin := make(chan bool)
+
+	s.workers.Store(request.WorkerId, subscribedWorker{stream: stream, finished: fin})
+
+	defer func() {
+		// non-blocking send
+		select {
+		case fin <- true:
+		default:
+		}
+
+		s.workers.Delete(request.WorkerId)
+
+		inactive := db.WorkerStatusInactive
+
+		_, err := s.repo.Worker().UpdateWorker(tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+			Status: &inactive,
+		})
+
+		if err != nil {
+			s.l.Error().Err(err).Msgf("could not update worker %s status to inactive", request.WorkerId)
+		}
+	}()
+
+	ctx := stream.Context()
+
+	// Keep the connection alive for sending messages
+	for {
+		select {
+		case <-fin:
+			s.l.Debug().Msgf("closing stream for worker id: %s", request.WorkerId)
+			return nil
+		case <-ctx.Done():
+			s.l.Debug().Msgf("worker id %s has disconnected", request.WorkerId)
+			return nil
+		}
+	}
+}
+
+const HeartbeatInterval = 4 * time.Second
+
+// Heartbeat is used to update the last heartbeat time for a worker
+func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.HeartbeatRequest) (*contracts.HeartbeatResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	heartbeatAt := time.Now().UTC()
+
+	s.l.Debug().Msgf("Received heartbeat request from ID: %s", req.WorkerId)
+
+	// if heartbeat time is greater than expected heartbeat interval, show a warning
+	if req.HeartbeatAt.AsTime().Before(heartbeatAt.Add(-1 * HeartbeatInterval)) {
+		s.l.Warn().Msgf("heartbeat time is greater than expected heartbeat interval")
+	}
+
+	_, err := s.repo.Worker().UpdateWorker(tenantId, req.WorkerId, &repository.UpdateWorkerOpts{
+		// use the system time for heartbeat
+		LastHeartbeatAt: &heartbeatAt,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.HeartbeatResponse{}, nil
+}
+
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)

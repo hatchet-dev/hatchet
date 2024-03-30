@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-hatchet = Hatchet()
+hatchet = Hatchet(debug=True)
 
 @hatchet.workflow(on_events=["user:create"],schedule_timeout="10m")
 class MyWorkflow:

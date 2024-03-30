@@ -24,6 +24,11 @@ const _ = grpc.SupportPackageIsVersion7
 type DispatcherClient interface {
 	Register(ctx context.Context, in *WorkerRegisterRequest, opts ...grpc.CallOption) (*WorkerRegisterResponse, error)
 	Listen(ctx context.Context, in *WorkerListenRequest, opts ...grpc.CallOption) (Dispatcher_ListenClient, error)
+	// ListenV2 is like listen, but implementation does not include heartbeats. This should only used by SDKs
+	// against engine version v0.18.1+
+	ListenV2(ctx context.Context, in *WorkerListenRequest, opts ...grpc.CallOption) (Dispatcher_ListenV2Client, error)
+	// Heartbeat is a method for workers to send heartbeats to the dispatcher
+	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 	SubscribeToWorkflowEvents(ctx context.Context, in *SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsClient, error)
 	SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
@@ -80,8 +85,49 @@ func (x *dispatcherListenClient) Recv() (*AssignedAction, error) {
 	return m, nil
 }
 
+func (c *dispatcherClient) ListenV2(ctx context.Context, in *WorkerListenRequest, opts ...grpc.CallOption) (Dispatcher_ListenV2Client, error) {
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[1], "/Dispatcher/ListenV2", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dispatcherListenV2Client{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Dispatcher_ListenV2Client interface {
+	Recv() (*AssignedAction, error)
+	grpc.ClientStream
+}
+
+type dispatcherListenV2Client struct {
+	grpc.ClientStream
+}
+
+func (x *dispatcherListenV2Client) Recv() (*AssignedAction, error) {
+	m := new(AssignedAction)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *dispatcherClient) Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error) {
+	out := new(HeartbeatResponse)
+	err := c.cc.Invoke(ctx, "/Dispatcher/Heartbeat", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dispatcherClient) SubscribeToWorkflowEvents(ctx context.Context, in *SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[1], "/Dispatcher/SubscribeToWorkflowEvents", opts...)
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[2], "/Dispatcher/SubscribeToWorkflowEvents", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +200,11 @@ func (c *dispatcherClient) Unsubscribe(ctx context.Context, in *WorkerUnsubscrib
 type DispatcherServer interface {
 	Register(context.Context, *WorkerRegisterRequest) (*WorkerRegisterResponse, error)
 	Listen(*WorkerListenRequest, Dispatcher_ListenServer) error
+	// ListenV2 is like listen, but implementation does not include heartbeats. This should only used by SDKs
+	// against engine version v0.18.1+
+	ListenV2(*WorkerListenRequest, Dispatcher_ListenV2Server) error
+	// Heartbeat is a method for workers to send heartbeats to the dispatcher
+	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error
 	SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error)
@@ -171,6 +222,12 @@ func (UnimplementedDispatcherServer) Register(context.Context, *WorkerRegisterRe
 }
 func (UnimplementedDispatcherServer) Listen(*WorkerListenRequest, Dispatcher_ListenServer) error {
 	return status.Errorf(codes.Unimplemented, "method Listen not implemented")
+}
+func (UnimplementedDispatcherServer) ListenV2(*WorkerListenRequest, Dispatcher_ListenV2Server) error {
+	return status.Errorf(codes.Unimplemented, "method ListenV2 not implemented")
+}
+func (UnimplementedDispatcherServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
 }
 func (UnimplementedDispatcherServer) SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribeToWorkflowEvents not implemented")
@@ -237,6 +294,45 @@ type dispatcherListenServer struct {
 
 func (x *dispatcherListenServer) Send(m *AssignedAction) error {
 	return x.ServerStream.SendMsg(m)
+}
+
+func _Dispatcher_ListenV2_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WorkerListenRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DispatcherServer).ListenV2(m, &dispatcherListenV2Server{stream})
+}
+
+type Dispatcher_ListenV2Server interface {
+	Send(*AssignedAction) error
+	grpc.ServerStream
+}
+
+type dispatcherListenV2Server struct {
+	grpc.ServerStream
+}
+
+func (x *dispatcherListenV2Server) Send(m *AssignedAction) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Dispatcher_Heartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HeartbeatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).Heartbeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/Dispatcher/Heartbeat",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).Heartbeat(ctx, req.(*HeartbeatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Dispatcher_SubscribeToWorkflowEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -344,6 +440,10 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Dispatcher_Register_Handler,
 		},
 		{
+			MethodName: "Heartbeat",
+			Handler:    _Dispatcher_Heartbeat_Handler,
+		},
+		{
 			MethodName: "SendStepActionEvent",
 			Handler:    _Dispatcher_SendStepActionEvent_Handler,
 		},
@@ -364,6 +464,11 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Listen",
 			Handler:       _Dispatcher_Listen_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ListenV2",
+			Handler:       _Dispatcher_ListenV2_Handler,
 			ServerStreams: true,
 		},
 		{
