@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 )
 
 func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration) error {
-	log.Printf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
+	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -24,10 +23,10 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	durations := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*3)
 	go func() {
 		if workerDelay.Seconds() > 0 {
-			log.Printf("wait %s before starting the worker", workerDelay)
+			l.Info().Msgf("wait %s before starting the worker", workerDelay)
 			time.Sleep(workerDelay)
 		}
-		log.Printf("start worker now")
+		l.Info().Msg("starting worker now")
 		count, uniques := run(ctx, delay, durations, concurrency)
 		ch <- count
 		ch <- uniques
@@ -40,7 +39,7 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	executed := <-ch
 	uniques := <-ch
 
-	log.Printf("ℹ️ emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, eventsPerSecond)
+	l.Info().Msgf("emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, eventsPerSecond)
 
 	if executed == 0 {
 		return fmt.Errorf("❌ no events executed")
@@ -51,24 +50,24 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 		totalDurationExecuted += <-durations
 	}
 	durationPerEventExecuted := totalDurationExecuted / time.Duration(executed)
-	log.Printf("ℹ️ average duration per executed event: %s", durationPerEventExecuted)
+	l.Info().Msgf("ℹ️ average duration per executed event: %s", durationPerEventExecuted)
 
 	var totalDurationScheduled time.Duration
 	for i := 0; i < int(emitted); i++ {
 		totalDurationScheduled += <-scheduled
 	}
 	scheduleTimePerEvent := totalDurationScheduled / time.Duration(emitted)
-	log.Printf("ℹ️ average scheduling time per event: %s", scheduleTimePerEvent)
+	l.Info().Msgf("ℹ️ average scheduling time per event: %s", scheduleTimePerEvent)
 
 	if emitted != executed {
-		log.Printf("⚠️ warning: emitted and executed counts do not match: %d != %d", emitted, executed)
+		l.Warn().Msgf("⚠️ warning: emitted and executed counts do not match: %d != %d", emitted, executed)
 	}
 
 	if emitted != uniques {
 		return fmt.Errorf("❌ emitted and unique executed counts do not match: %d != %d", emitted, uniques)
 	}
 
-	log.Printf("✅ success")
+	l.Info().Msg("✅ success")
 
 	return nil
 }

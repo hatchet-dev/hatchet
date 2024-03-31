@@ -126,19 +126,16 @@ valid_workers AS (
             INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
             WHERE "Action"."tenantId" = $2 AND "Action"."id" = step_run."actionId"
         )
-        AND (
-            w."maxRuns" IS NULL OR
-            w."maxRuns" > (
-                SELECT COUNT(*)
-                FROM "StepRun" srs
-                WHERE srs."workerId" = w."id" AND (srs."status" = 'RUNNING' OR srs."status" = 'ASSIGNED')
-            )
-        )
     ORDER BY random()
 ),
 selected_worker AS (
     SELECT "id", "dispatcherId"
-    FROM valid_workers
+    FROM valid_workers w
+    LEFT JOIN 
+        "WorkerSemaphore" ws ON w."id" = ws."workerId"
+    WHERE
+        ws."workerId" IS NULL OR
+        ws."slots" > 0
     LIMIT 1
 )
 UPDATE
@@ -483,88 +480,9 @@ func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsPar
 }
 
 const listStepRunsToReassign = `-- name: ListStepRunsToReassign :many
-SELECT
-    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount"
-FROM
-    "StepRun" sr
-LEFT JOIN
-    "Worker" w ON sr."workerId" = w."id"
-JOIN
-    "Step" s ON sr."stepId" = s."id"
-WHERE
-    sr."tenantId" = $1::uuid
-    AND ((
-        sr."status" = 'RUNNING'
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
-        AND s."retries" > sr."retryCount"
-    ) OR (
-        sr."status" = 'ASSIGNED'
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '5 seconds'
-    ))
-    -- Step run cannot have a failed parent
-    AND NOT EXISTS (
-        SELECT 1
-        FROM "_StepRunOrder" AS order_table
-        JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-        WHERE 
-            order_table."B" = sr."id"
-            AND prev_sr."status" != 'SUCCEEDED'
-    )
-ORDER BY
-    sr."createdAt" ASC
-LIMIT 1000
-`
-
-func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, listStepRunsToReassign, tenantid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*StepRun
-	for rows.Next() {
-		var i StepRun
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.TenantId,
-			&i.JobRunId,
-			&i.StepId,
-			&i.Order,
-			&i.WorkerId,
-			&i.TickerId,
-			&i.Status,
-			&i.Input,
-			&i.Output,
-			&i.RequeueAfter,
-			&i.ScheduleTimeoutAt,
-			&i.Error,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.TimeoutAt,
-			&i.CancelledAt,
-			&i.CancelledReason,
-			&i.CancelledError,
-			&i.InputSchema,
-			&i.CallerFiles,
-			&i.GitRepoBranch,
-			&i.RetryCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listStepRunsToRequeue = `-- name: ListStepRunsToRequeue :many
 WITH valid_workers AS (
     SELECT
+        DISTINCT ON (w."id")
         w."id",
         w."maxRuns",
         COUNT(sr."id") AS "runningStepRuns"
@@ -575,82 +493,188 @@ WITH valid_workers AS (
     WHERE
         w."tenantId" = $1::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    GROUP BY
+        w."id"
 ),
 total_max_runs AS (
     SELECT
         -- if maxRuns is null, then we assume the worker can run 100 step runs
-        SUM(COALESCE("maxRuns", 100) - "runningStepRuns") AS "totalMaxRuns"
+        SUM(GREATEST(COALESCE("maxRuns", 100) - "runningStepRuns", 0)) AS "totalMaxRuns"
     FROM
         valid_workers
+),
+limit_max_runs AS (
+    SELECT
+        GREATEST("totalMaxRuns", 100) AS "limitMaxRuns"
+    FROM
+        total_max_runs
+),
+step_runs AS (
+    SELECT
+        sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount"
+    FROM
+        "StepRun" sr
+    LEFT JOIN
+        "Worker" w ON sr."workerId" = w."id"
+    JOIN
+        "JobRun" jr ON sr."jobRunId" = jr."id"
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    WHERE
+        sr."tenantId" = $1::uuid
+        AND ((
+            sr."status" = 'RUNNING'
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
+            AND s."retries" > sr."retryCount"
+        ) OR (
+            sr."status" = 'ASSIGNED'
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
+        ))
+        AND jr."status" = 'RUNNING'
+        AND sr."input" IS NOT NULL
+        -- Step run cannot have a failed parent
+        AND NOT EXISTS (
+            SELECT 1
+            FROM "_StepRunOrder" AS order_table
+            JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
+            WHERE 
+                order_table."B" = sr."id"
+                AND prev_sr."status" != 'SUCCEEDED'
+        )
+    ORDER BY
+        sr."createdAt" ASC
+    LIMIT
+        (SELECT "limitMaxRuns" FROM limit_max_runs)
+),
+locked_step_runs AS (
+    SELECT
+        sr."id", sr."status", sr."workerId"
+    FROM
+        step_runs sr
+    FOR UPDATE SKIP LOCKED
 )
-SELECT
-    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount"
-FROM
-    "StepRun" sr
-LEFT JOIN
-    "Worker" w ON sr."workerId" = w."id"
-JOIN
-    "JobRun" jr ON sr."jobRunId" = jr."id"
+UPDATE
+    "StepRun"
+SET
+    "status" = 'PENDING_ASSIGNMENT',
+    -- requeue after now plus 4 seconds
+    "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
+    "updatedAt" = CURRENT_TIMESTAMP
+FROM 
+    locked_step_runs
 WHERE
-    sr."tenantId" = $1::uuid
-    AND sr."requeueAfter" < NOW()
-    AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
-    AND jr."status" = 'RUNNING'
-    AND NOT EXISTS (
-        SELECT 1
-        FROM "_StepRunOrder" AS order_table
-        JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-        WHERE 
-            order_table."B" = sr."id"
-            AND prev_sr."status" != 'SUCCEEDED'
-    )
-ORDER BY
-    sr."createdAt" ASC
-LIMIT
-    (SELECT "totalMaxRuns" FROM total_max_runs)
+    "StepRun"."id" = locked_step_runs."id"
+RETURNING "StepRun"."id"
 `
 
 // Count the total number of maxRuns - runningStepRuns across all workers
-func (q *Queries) ListStepRunsToRequeue(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*StepRun, error) {
+func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStepRunsToReassign, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepRunsToRequeue = `-- name: ListStepRunsToRequeue :many
+WITH valid_workers AS (
+    SELECT
+        DISTINCT ON (w."id")
+        w."id",
+        w."maxRuns",
+        COUNT(sr."id") AS "runningStepRuns"
+    FROM
+        "Worker" w
+    LEFT JOIN
+        "StepRun" sr ON w."id" = sr."workerId" AND (sr."status" = 'RUNNING' OR sr."status" = 'ASSIGNED')
+    WHERE
+        w."tenantId" = $1::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    GROUP BY
+        w."id"
+),
+total_max_runs AS (
+    SELECT
+        -- if maxRuns is null, then we assume the worker can run 100 step runs
+        SUM(GREATEST(COALESCE("maxRuns", 100) - "runningStepRuns", 0)) AS "totalMaxRuns"
+    FROM
+        valid_workers
+),
+step_runs AS (
+    SELECT
+        sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount"
+    FROM
+        "StepRun" sr
+    LEFT JOIN
+        "Worker" w ON sr."workerId" = w."id"
+    JOIN
+        "JobRun" jr ON sr."jobRunId" = jr."id"
+    WHERE
+        sr."tenantId" = $1::uuid
+        AND sr."requeueAfter" < NOW()
+        AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
+        AND jr."status" = 'RUNNING'
+        AND sr."input" IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1
+            FROM "_StepRunOrder" AS order_table
+            JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
+            WHERE 
+                order_table."B" = sr."id"
+                AND prev_sr."status" != 'SUCCEEDED'
+        )
+    ORDER BY
+        sr."createdAt" ASC
+    LIMIT
+        COALESCE((SELECT "totalMaxRuns" FROM total_max_runs), 100)
+),
+locked_step_runs AS (
+    SELECT
+        sr."id", sr."status", sr."workerId"
+    FROM
+        step_runs sr
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "StepRun"
+SET
+    "status" = 'PENDING_ASSIGNMENT',
+    -- requeue after now plus 4 seconds
+    "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
+    "updatedAt" = CURRENT_TIMESTAMP
+FROM 
+    locked_step_runs
+WHERE
+    "StepRun"."id" = locked_step_runs."id"
+RETURNING "StepRun"."id"
+`
+
+// Count the total number of maxRuns - runningStepRuns across all workers
+func (q *Queries) ListStepRunsToRequeue(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
 	rows, err := db.Query(ctx, listStepRunsToRequeue, tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*StepRun
+	var items []pgtype.UUID
 	for rows.Next() {
-		var i StepRun
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.TenantId,
-			&i.JobRunId,
-			&i.StepId,
-			&i.Order,
-			&i.WorkerId,
-			&i.TickerId,
-			&i.Status,
-			&i.Input,
-			&i.Output,
-			&i.RequeueAfter,
-			&i.ScheduleTimeoutAt,
-			&i.Error,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.TimeoutAt,
-			&i.CancelledAt,
-			&i.CancelledReason,
-			&i.CancelledError,
-			&i.InputSchema,
-			&i.CallerFiles,
-			&i.GitRepoBranch,
-			&i.RetryCount,
-		); err != nil {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -920,4 +944,50 @@ func (q *Queries) UpdateStepRunOverridesData(ctx context.Context, db DBTX, arg U
 	var input []byte
 	err := row.Scan(&input)
 	return input, err
+}
+
+const upsertWorkerSemaphore = `-- name: UpsertWorkerSemaphore :one
+WITH worker AS (
+    SELECT
+        "id",
+        "maxRuns"
+    FROM
+        "Worker"
+    WHERE
+        "id" = $1::uuid AND
+        "tenantId" = $2::uuid
+),
+running_runs AS (
+    SELECT
+        COUNT(*) AS "runningRuns"
+    FROM
+        "StepRun"
+    WHERE
+        "workerId" = $1::uuid AND
+        "status" IN ('RUNNING', 'ASSIGNED')
+),
+slots AS (
+    SELECT
+        COALESCE((SELECT "maxRuns" FROM worker), 100) - (SELECT "runningRuns" FROM running_runs) AS "slots"
+)
+INSERT INTO "WorkerSemaphore" ("workerId", "slots")
+SELECT
+    $1::uuid,
+    (SELECT "slots" FROM slots)
+ON CONFLICT ("workerId") DO UPDATE
+SET
+    "slots" = EXCLUDED."slots"
+RETURNING "workerId", slots
+`
+
+type UpsertWorkerSemaphoreParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) UpsertWorkerSemaphore(ctx context.Context, db DBTX, arg UpsertWorkerSemaphoreParams) (*WorkerSemaphore, error) {
+	row := db.QueryRow(ctx, upsertWorkerSemaphore, arg.Workerid, arg.Tenantid)
+	var i WorkerSemaphore
+	err := row.Scan(&i.WorkerId, &i.Slots)
+	return &i, err
 }

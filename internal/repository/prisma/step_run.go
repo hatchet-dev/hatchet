@@ -157,7 +157,7 @@ func (s *stepRunEngineRepository) ListRunningStepRunsForWorkflowRun(tenantId, wo
 	return res, err
 }
 
-func (s *stepRunEngineRepository) ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.StepRun, error) {
+func (s *stepRunEngineRepository) ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	tx, err := s.pool.Begin(context.Background())
@@ -169,7 +169,16 @@ func (s *stepRunEngineRepository) ListStepRunsToRequeue(tenantId string) ([]*dbs
 	defer deferRollback(context.Background(), s.l, tx.Rollback)
 
 	// get the step run and make sure it's still in pending
-	stepRuns, err := s.queries.ListStepRunsToRequeue(context.Background(), tx, pgTenantId)
+	stepRunIds, err := s.queries.ListStepRunsToRequeue(context.Background(), tx, pgTenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepRuns, err := s.queries.GetStepRunForEngine(context.Background(), tx, dbsqlc.GetStepRunForEngineParams{
+		Ids:      stepRunIds,
+		TenantId: pgTenantId,
+	})
 
 	if err != nil {
 		return nil, err
@@ -184,7 +193,7 @@ func (s *stepRunEngineRepository) ListStepRunsToRequeue(tenantId string) ([]*dbs
 	return stepRuns, nil
 }
 
-func (s *stepRunEngineRepository) ListStepRunsToReassign(tenantId string) ([]*dbsqlc.StepRun, error) {
+func (s *stepRunEngineRepository) ListStepRunsToReassign(tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	tx, err := s.pool.Begin(context.Background())
@@ -196,7 +205,16 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(tenantId string) ([]*db
 	defer deferRollback(context.Background(), s.l, tx.Rollback)
 
 	// get the step run and make sure it's still in pending
-	stepRuns, err := s.queries.ListStepRunsToReassign(context.Background(), tx, pgTenantId)
+	stepRunIds, err := s.queries.ListStepRunsToReassign(context.Background(), tx, pgTenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepRuns, err := s.queries.GetStepRunForEngine(context.Background(), tx, dbsqlc.GetStepRunForEngineParams{
+		Ids:      stepRunIds,
+		TenantId: pgTenantId,
+	})
 
 	if err != nil {
 		return nil, err
@@ -266,7 +284,20 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(tenantId, stepRunId stri
 			return "", "", repository.ErrNoWorkerAvailable
 		}
 
-		return "", "", err
+		return "", "", fmt.Errorf("query to assign worker failed: %w", err)
+	}
+
+	semaphore, err := s.queries.UpsertWorkerSemaphore(context.Background(), tx, dbsqlc.UpsertWorkerSemaphoreParams{
+		Workerid: assigned.WorkerId,
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return "", "", fmt.Errorf("could not upsert worker semaphore: %w", err)
+	}
+
+	if semaphore.Slots <= 0 {
+		return "", "", repository.ErrNoWorkerAvailable
 	}
 
 	err = tx.Commit(context.Background())
@@ -454,6 +485,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 	}
 
 	var stepRun *dbsqlc.GetStepRunForEngineRow
+	var isNotPending bool
 
 	retrierErr := retrier(s.l, func() error {
 		tx, err := s.pool.Begin(context.Background())
@@ -474,8 +506,11 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 			return err
 		}
 
+		// if the step run is not pending, we can't queue it, but we still want to update other input params
 		if innerStepRun.Status != dbsqlc.StepRunStatusPENDING {
-			return repository.ErrStepRunIsNotPending
+			updateParams.Status = dbsqlc.NullStepRunStatus{}
+
+			isNotPending = true
 		}
 
 		sr, err := s.updateStepRunCore(ctx, tx, tenantId, updateParams, updateJobRunLookupDataParams)
@@ -498,6 +533,10 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 
 	if retrierErr != nil {
 		return nil, fmt.Errorf("could not queue step run: %w", retrierErr)
+	}
+
+	if isNotPending {
+		return nil, repository.ErrStepRunIsNotPending
 	}
 
 	retrierExtraErr := retrier(s.l, func() error {
@@ -726,7 +765,7 @@ func (s *stepRunEngineRepository) GetStepRunForEngine(tenantId, stepRunId string
 	}
 
 	if len(res) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("could not find step run %s", stepRunId)
 	}
 
 	return res[0], nil

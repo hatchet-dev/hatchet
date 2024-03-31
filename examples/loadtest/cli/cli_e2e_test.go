@@ -11,6 +11,8 @@ import (
 
 	"go.uber.org/goleak"
 
+	"github.com/hatchet-dev/hatchet/internal/config/shared"
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 )
 
@@ -25,6 +27,15 @@ func TestLoadCLI(t *testing.T) {
 		workerDelay     time.Duration
 		concurrency     int
 	}
+
+	l = logger.NewStdErr(
+		&shared.LoggerConfigFile{
+			Level:  "warn",
+			Format: "console",
+		},
+		"loadtest",
+	)
+
 	tests := []struct {
 		name    string
 		args    args

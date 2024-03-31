@@ -99,6 +99,19 @@ func defaultClientOpts(cf *client.ClientConfigFile) *ClientOpts {
 	}
 }
 
+func WithLogLevel(lvl string) ClientOpt {
+	return func(opts *ClientOpts) {
+		logger := logger.NewDefaultLogger("worker")
+		lvl, err := zerolog.ParseLevel(lvl)
+
+		if err == nil {
+			logger = logger.Level(lvl)
+		}
+
+		opts.l = &logger
+	}
+}
+
 func WithTenantId(tenantId string) ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.tenantId = tenantId
