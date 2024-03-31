@@ -18,20 +18,11 @@ from .clients.rest.configuration import Configuration
 from .clients.rest_client import RestApi
 
 class Client:
-    def admin(self):
-        raise NotImplementedError
-
-    def dispatcher(self):
-        raise NotImplementedError
-
-    def event(self):
-        raise NotImplementedError
-
-    def listener(self):
-        raise NotImplementedError
-    
-    def rest(self):
-        raise NotImplementedError
+    admin: AdminClientImpl
+    dispatcher: DispatcherClientImpl
+    event: EventClientImpl
+    listener: ListenerClientImpl
+    rest: RestApi
 
 
 class ClientImpl(Client):
@@ -43,30 +34,11 @@ class ClientImpl(Client):
             listener_client: ListenerClientImpl,
             rest_client: RestApi
         ):
-        # self.conn = conn
-        # self.tenant_id = tenant_id
-        # self.logger = logger
-        # self.validator = validator
         self.admin = admin_client
         self.dispatcher = dispatcher_client
         self.event = event_client
         self.listener = listener_client
-        self.rest_client = rest_client
-
-    def admin(self) -> AdminClientImpl:
-        return self.admin
-
-    def dispatcher(self) -> DispatcherClientImpl:
-        return self.dispatcher
-
-    def event(self) -> EventClientImpl:
-        return self.event
-
-    def listener(self) -> ListenerClientImpl:
-        return self.listener
-    
-    def rest(self) -> RestApi:
-        return self.rest_client
+        self.rest = rest_client
 
 def with_host_port(host: str, port: int):
     def with_host_port_impl(config: ClientConfig):
