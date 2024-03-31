@@ -10,6 +10,8 @@ service EventsService {
     rpc ReplaySingleEvent(ReplayEventRequest) returns (Event) {}
 
     rpc PutLog(PutLogRequest) returns (PutLogResponse) {}
+
+    rpc PutStreamEvent(PutStreamEventRequest) returns (PutStreamEventResponse) {}
 }
 
 message Event {
