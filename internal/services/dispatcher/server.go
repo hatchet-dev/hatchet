@@ -279,6 +279,9 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 	f := func(task *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
+
+		// TODO - handle database look up for the task data
+
 		e, err := s.tenantTaskToWorkflowEvent(task, tenantId, request.WorkflowRunId)
 
 		if err != nil {
@@ -295,6 +298,8 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 			s.l.Error().Err(err).Msgf("could not send workflow event to client")
 			return nil
 		}
+
+		// TODO -- if task has a Stream Event type then cleanup the db
 
 		if e.Hangup {
 			cancel()
@@ -653,6 +658,11 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_TIMED_OUT
+	case "step-run-stream-event":
+		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
+		workflowEvent.ResourceId = stepRunId
+		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM
 	case "workflow-run-finished":
 		workflowRunId := task.Payload["workflow_run_id"].(string)
 		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN

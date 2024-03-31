@@ -2,14 +2,18 @@ package ingestor
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 )
 
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
@@ -75,7 +79,7 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 		metadata = []byte(req.Metadata)
 	}
 
-	_, err := i.streamEventRepository.PutStreamEvent(tenantId, &repository.CreateStreamEventOpts{
+	streamEvent, err := i.streamEventRepository.PutStreamEvent(tenantId, &repository.CreateStreamEventOpts{
 		StepRunId: req.StepRunId,
 		CreatedAt: createdAt,
 		Message:   req.Message,
@@ -86,8 +90,7 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 		return nil, err
 	}
 
-	// TODO publish event to message queue
-	// err = i.mq.AddMessage(context.Background(), msgqueue., streamEventToTask(streamEvent))
+	err = i.mq.AddMessage(context.Background(), msgqueue.JOB_PROCESSING_QUEUE, streamEventToTask(streamEvent))
 
 	if err != nil {
 		return nil, err
@@ -139,4 +142,27 @@ func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
 		Payload:        string(e.Data),
 		EventTimestamp: timestamppb.New(e.CreatedAt.Time),
 	}, nil
+}
+
+func streamEventToTask(e *dbsqlc.StreamEvent) *msgqueue.Message {
+	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
+
+	payloadTyped := tasktypes.StepRunStreamEventTaskPayload{
+		StepRunId:     sqlchelpers.UUIDToStr(e.StepRunId),
+		CreatedAt:     e.CreatedAt.Time.String(),
+		StreamEventId: strconv.FormatInt(e.ID, 10),
+	}
+
+	payload, _ := datautils.ToJSONMap(payloadTyped)
+
+	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunStreamEventTaskMetadata{
+		TenantId: tenantId,
+	})
+
+	return &msgqueue.Message{
+		ID:       "step-run-stream-event",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	}
 }
