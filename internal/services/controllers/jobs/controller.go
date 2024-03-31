@@ -487,9 +487,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 				return nil
 			}
 
-			stepId := sqlchelpers.UUIDToStr(stepRunCp.StepId)
-
-			return ec.scheduleStepRun(ctx, tenantId, stepId, stepRunId)
+			return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
 		})
 	}
 
@@ -580,9 +578,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 				return nil
 			}
 
-			stepId := sqlchelpers.UUIDToStr(stepRunCp.StepId)
-
-			return ec.scheduleStepRun(ctx, tenantId, stepId, stepRunId)
+			return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
 		})
 	}
 
@@ -676,7 +672,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	updateStepOpts.Status = repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment)
 
 	// indicate that the step run is pending assignment
-	_, err = ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, updateStepOpts)
+	stepRun, err = ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, updateStepOpts)
 
 	if err != nil {
 		if errors.Is(err, repository.ErrStepRunIsNotPending) {
@@ -687,14 +683,17 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 		return ec.a.WrapErr(fmt.Errorf("could not update step run: %w", err), errData)
 	}
 
-	return ec.a.WrapErr(ec.scheduleStepRun(ctx, tenantId, stepId, stepRunId), errData)
+	return ec.a.WrapErr(ec.scheduleStepRun(ctx, tenantId, stepRun), errData)
 }
 
-func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, stepId, stepRunId string) error {
+func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.GetStepRunForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-run")
 	defer span.End()
 
-	selectedWorkerId, dispatcherId, err := ec.repo.StepRun().AssignStepRunToWorker(tenantId, stepRunId)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
+	actionId := stepRun.ActionId
+
+	selectedWorkerId, dispatcherId, err := ec.repo.StepRun().AssignStepRunToWorker(ctx, tenantId, stepRunId, actionId, stepRun.StepTimeout)
 
 	if err != nil {
 		if errors.Is(err, repository.ErrNoWorkerAvailable) {

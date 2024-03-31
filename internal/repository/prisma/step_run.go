@@ -265,7 +265,7 @@ var retrier = func(l *zerolog.Logger, f func() error) error {
 	return nil
 }
 
-func (s *stepRunEngineRepository) AssignStepRunToWorker(tenantId, stepRunId string) (string, string, error) {
+func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, tenantId, stepRunId, actionId string, stepTimeout pgtype.Text) (string, string, error) {
 	tx, err := s.pool.Begin(context.Background())
 
 	if err != nil {
@@ -274,9 +274,11 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(tenantId, stepRunId stri
 
 	defer deferRollback(context.Background(), s.l, tx.Rollback)
 
-	assigned, err := s.queries.AssignStepRunToWorker(context.Background(), tx, dbsqlc.AssignStepRunToWorkerParams{
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+	assigned, err := s.queries.AssignStepRunToWorker(ctx, tx, dbsqlc.AssignStepRunToWorkerParams{
+		Steprunid:   sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Actionid:    actionId,
+		StepTimeout: stepTimeout,
 	})
 
 	if err != nil {
@@ -287,9 +289,10 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(tenantId, stepRunId stri
 		return "", "", fmt.Errorf("query to assign worker failed: %w", err)
 	}
 
-	semaphore, err := s.queries.UpsertWorkerSemaphore(context.Background(), tx, dbsqlc.UpsertWorkerSemaphoreParams{
-		Workerid: assigned.WorkerId,
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	semaphore, err := s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
+		Inc:       -1,
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 	})
 
 	if err != nil {
@@ -697,6 +700,21 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 		}
 	}
 
+	if updateParams.Status.Valid && isFinalStepRunStatus(updateParams.Status.StepRunStatus) {
+		_, err := s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
+			Inc:       1,
+			Steprunid: updateStepRun.ID,
+			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			// not a fatal error if there's not a semaphore to update
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return nil, fmt.Errorf("could not upsert worker semaphore: %w", err)
+			}
+		}
+	}
+
 	if len(stepRuns) == 0 {
 		return nil, fmt.Errorf("could not find step run for engine")
 	}
@@ -743,6 +761,13 @@ func (s *stepRunEngineRepository) updateStepRunExtra(
 		WorkflowRunId:         sqlchelpers.UUIDToStr(workflowRun.ID),
 		WorkflowRunStatus:     string(workflowRun.Status),
 	}, nil
+}
+
+func isFinalStepRunStatus(status dbsqlc.StepRunStatus) bool {
+	return status != dbsqlc.StepRunStatusPENDING &&
+		status != dbsqlc.StepRunStatusPENDINGASSIGNMENT &&
+		status != dbsqlc.StepRunStatusASSIGNED &&
+		status != dbsqlc.StepRunStatusRUNNING
 }
 
 func isFinalJobRunStatus(status dbsqlc.JobRunStatus) bool {

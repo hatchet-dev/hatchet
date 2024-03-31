@@ -17,6 +17,7 @@ SELECT
     wr."id" AS "workflowRunId",
     s."id" AS "stepId",
     s."retries" AS "stepRetries",
+    s."timeout" AS "stepTimeout",
     s."scheduleTimeout" AS "stepScheduleTimeout",
     s."readableId" AS "stepReadableId",
     s."customUserData" AS "stepCustomUserData",
@@ -278,23 +279,21 @@ WITH valid_workers AS (
     SELECT
         DISTINCT ON (w."id")
         w."id",
-        w."maxRuns",
-        COUNT(sr."id") AS "runningStepRuns"
+        COALESCE(SUM(ws."slots"), 100) AS "slots"
     FROM
         "Worker" w
     LEFT JOIN
-        "StepRun" sr ON w."id" = sr."workerId" AND (sr."status" = 'RUNNING' OR sr."status" = 'ASSIGNED')
+        "WorkerSemaphore" ws ON ws."workerId" = w."id"
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     GROUP BY
         w."id"
 ),
--- Count the total number of maxRuns - runningStepRuns across all workers
+-- Count the total number of slots across all workers
 total_max_runs AS (
     SELECT
-        -- if maxRuns is null, then we assume the worker can run 100 step runs
-        SUM(GREATEST(COALESCE("maxRuns", 100) - "runningStepRuns", 0)) AS "totalMaxRuns"
+        SUM("slots") AS "totalMaxRuns"
     FROM
         valid_workers
 ),
@@ -366,12 +365,11 @@ WITH valid_workers AS (
     SELECT
         DISTINCT ON (w."id")
         w."id",
-        w."maxRuns",
-        COUNT(sr."id") AS "runningStepRuns"
+        COALESCE(SUM(ws."slots"), 100) AS "slots"
     FROM
         "Worker" w
     LEFT JOIN
-        "StepRun" sr ON w."id" = sr."workerId" AND (sr."status" = 'RUNNING' OR sr."status" = 'ASSIGNED')
+        "WorkerSemaphore" ws ON w."id" = ws."workerId"
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
@@ -382,7 +380,7 @@ WITH valid_workers AS (
 total_max_runs AS (
     SELECT
         -- if maxRuns is null, then we assume the worker can run 100 step runs
-        SUM(GREATEST(COALESCE("maxRuns", 100) - "runningStepRuns", 0)) AS "totalMaxRuns"
+        SUM("slots") AS "totalMaxRuns"
     FROM
         valid_workers
 ),
@@ -435,46 +433,28 @@ WHERE
 RETURNING "StepRun"."id";
 
 -- name: AssignStepRunToWorker :one
-WITH step_run AS (
+WITH selected_worker AS (
     SELECT
-        sr."id",
-        sr."status",
-        a."id" AS "actionId",
-        s."timeout" AS "stepTimeout"
+        w."id", w."dispatcherId", ws."slots"
     FROM
-        "StepRun" sr
-    JOIN
-        "Step" s ON sr."stepId" = s."id"
-    JOIN
-        "Action" a ON s."actionId" = a."actionId" AND a."tenantId" = @tenantId::uuid
-    WHERE
-        sr."id" = @stepRunId::uuid AND
-        sr."tenantId" = @tenantId::uuid
-),
-valid_workers AS (
-    SELECT
-        w."id", w."dispatcherId"
-    FROM
-        "Worker" w, step_run
+        "Worker" w
+    LEFT JOIN 
+        "WorkerSemaphore" ws ON w."id" = ws."workerId"
     WHERE
         w."tenantId" = @tenantId::uuid
+        AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
             INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = @tenantId AND "Action"."id" = step_run."actionId"
+            WHERE "Action"."tenantId" = @tenantId AND "Action"."actionId" = @actionId::text
         )
-    ORDER BY random()
-),
-selected_worker AS (
-    SELECT "id", "dispatcherId"
-    FROM valid_workers w
-    LEFT JOIN 
-        "WorkerSemaphore" ws ON w."id" = ws."workerId"
-    WHERE
-        ws."workerId" IS NULL OR
-        ws."slots" > 0
+        AND (
+            ws."workerId" IS NULL OR
+            ws."slots" > 0
+        )
+    ORDER BY ws."slots" DESC NULLS FIRST
     LIMIT 1
 )
 UPDATE
@@ -488,45 +468,42 @@ SET
     ),
     "updatedAt" = CURRENT_TIMESTAMP,
     "timeoutAt" = CASE
-        WHEN (SELECT "stepTimeout" FROM step_run) IS NOT NULL THEN
-            CURRENT_TIMESTAMP + convert_duration_to_interval((SELECT "stepTimeout" FROM step_run))
+        WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
+            CURRENT_TIMESTAMP + convert_duration_to_interval(sqlc.narg('stepTimeout')::text)
         ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
     END
 WHERE
-    "id" = @stepRunId::uuid AND
-    "tenantId" = @tenantId::uuid AND
+    "StepRun"."id" = @stepRunId::uuid AND
+    "StepRun"."tenantId" = @tenantId::uuid AND
+    "StepRun"."status" = 'PENDING_ASSIGNMENT' AND
     EXISTS (SELECT 1 FROM selected_worker)
 RETURNING "StepRun"."id", "StepRun"."workerId", (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId";
 
--- name: UpsertWorkerSemaphore :one
-WITH worker AS (
+-- name: UpdateWorkerSemaphore :one
+WITH worker_id AS (
+    SELECT
+        "workerId"
+    FROM
+        "StepRun"
+    WHERE
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid
+),
+worker AS (
     SELECT
         "id",
         "maxRuns"
     FROM
         "Worker"
     WHERE
-        "id" = @workerId::uuid AND
-        "tenantId" = @tenantId::uuid
-),
-running_runs AS (
-    SELECT
-        COUNT(*) AS "runningRuns"
-    FROM
-        "StepRun"
-    WHERE
-        "workerId" = @workerId::uuid AND
-        "status" IN ('RUNNING', 'ASSIGNED')
-),
-slots AS (
-    SELECT
-        COALESCE((SELECT "maxRuns" FROM worker), 100) - (SELECT "runningRuns" FROM running_runs) AS "slots"
+        "id" = (SELECT "workerId" FROM worker_id)
 )
-INSERT INTO "WorkerSemaphore" ("workerId", "slots")
-SELECT
-    @workerId::uuid,
-    (SELECT "slots" FROM slots)
-ON CONFLICT ("workerId") DO UPDATE
+UPDATE
+    "WorkerSemaphore"
 SET
-    "slots" = EXCLUDED."slots"
+    "slots" = ("WorkerSemaphore"."slots" + @inc::int)
+FROM
+    worker
+WHERE
+    "WorkerSemaphore"."workerId" = (SELECT "workerId" FROM worker_id)
 RETURNING *;

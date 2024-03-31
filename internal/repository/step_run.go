@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
@@ -100,7 +102,7 @@ type StepRunEngineRepository interface {
 
 	UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error)
 
-	AssignStepRunToWorker(tenantId, stepRunId string) (workerId string, dispatcherId string, err error)
+	AssignStepRunToWorker(ctx context.Context, tenantId, stepRunId, actionId string, stepTimeout pgtype.Text) (workerId string, dispatcherId string, err error)
 
 	GetStepRunForEngine(tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 
