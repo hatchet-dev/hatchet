@@ -23,6 +23,7 @@ RETURNING "GetGroupKeyRun".*;
 
 -- name: GetGroupKeyRunForEngine :many
 SELECT
+    DISTINCT ON (ggr."id")
     sqlc.embed(ggr),
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     wr."id" AS "workflowRunId",
@@ -38,7 +39,7 @@ JOIN
 JOIN
     "WorkflowConcurrency" wc ON wv."id" = wc."workflowVersionId"
 JOIN
-    "Action" a ON wc."getConcurrencyGroupId" = a."id"
+    "Action" a ON wc."getConcurrencyGroupId" = a."id" AND a."tenantId" = ggr."tenantId"
 WHERE
     ggr."id" = ANY(@ids::uuid[]) AND
     ggr."tenantId" = @tenantId::uuid;

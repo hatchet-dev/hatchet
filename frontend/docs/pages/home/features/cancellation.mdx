@@ -2,7 +2,6 @@
 
 Hatchet provides a mechanism for canceling workflow executions gracefully, allowing you to stop running workflows and their associated steps when needed. Cancellation can be triggered on graceful termination of a worker or automatically through concurrency control strategies like [`CANCEL_IN_PROGRESS`](./concurrency/cancel-in-progress), which cancels currently running workflow instances to free up slots for new instances when the concurrency limit is reached.
 
-
 ## Cancellation Mechanism in Node.js
 
 {/* TODO Python, GO */}
@@ -31,7 +30,7 @@ const myStep: Step = async (context: Context) => {
   // ...
 
   // You can also register an event listener for cancellation
-  signal.addEventListener('abort', () => {
+  signal.addEventListener("abort", () => {
     // Cancellation signal received
     // Perform any necessary cleanup or termination logic
   });
@@ -52,13 +51,13 @@ One common use case for cancellation is aborting network requests that are no lo
 Here's an example of how to pass the `AbortSignal` to an `axios` request:
 
 ```typescript
-import axios from 'axios';
+import axios from "axios";
 
 const myStep: Step = async (context: Context) => {
   const { signal } = context.controller;
 
   try {
-    const response = await axios.get('https://api.example.com/data', {
+    const response = await axios.get("https://api.example.com/data", {
       signal,
     });
     // Handle the response
@@ -66,7 +65,7 @@ const myStep: Step = async (context: Context) => {
   } catch (error) {
     if (axios.isCancel(error)) {
       // Request was canceled
-      console.log('Request canceled');
+      console.log("Request canceled");
     } else {
       // Handle other errors
       // ...

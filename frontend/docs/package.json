@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "lint:check": "npm run prettier:check",
+    "lint:fix": "npm run prettier:fix",
+    "prettier:check": "prettier \"pages/**/*.{tsx,mdx}\" --list-different",
+    "prettier:fix": "prettier \"pages/**/*.{tsx,mdx}\" --write"
   },
   "repository": {
     "type": "git",
@@ -32,6 +36,7 @@
   },
   "devDependencies": {
     "@types/node": "18.11.10",
+    "prettier": "^3.2.5",
     "typescript": "^4.9.3"
   }
 }

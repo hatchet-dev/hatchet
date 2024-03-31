@@ -216,6 +216,12 @@ message WorkflowEvent {
     // whether this is the last event for the workflow run - server 
     // will hang up the connection but clients might want to case
     bool hangup = 7;
+
+    // (optional) the max number of retries this step can handle
+    optional int32 stepRetries = 8;
+
+    // (optional) the retry count of this step
+    optional int32 retryCount = 9;
 }
 
 message OverridesData {

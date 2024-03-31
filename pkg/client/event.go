@@ -14,6 +14,8 @@ import (
 
 type EventClient interface {
 	Push(ctx context.Context, eventKey string, payload interface{}) error
+
+	PutLog(ctx context.Context, stepRunId, msg string) error
 }
 
 type eventClientImpl struct {
@@ -56,4 +58,14 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	}
 
 	return nil
+}
+
+func (a *eventClientImpl) PutLog(ctx context.Context, stepRunId, msg string) error {
+	_, err := a.client.PutLog(a.ctx.newContext(ctx), &eventcontracts.PutLogRequest{
+		CreatedAt: timestamppb.Now(),
+		StepRunId: stepRunId,
+		Message:   msg,
+	})
+
+	return err
 }

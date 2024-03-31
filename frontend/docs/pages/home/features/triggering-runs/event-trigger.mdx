@@ -8,10 +8,10 @@ To trigger a workflow based on an event, you need to configure the `on` property
 
 ```typescript
 const myWorkflow: Workflow = {
-  id: 'my-workflow',
-  description: 'A workflow triggered by an event',
+  id: "my-workflow",
+  description: "A workflow triggered by an event",
   on: {
-    event: 'user:created',
+    event: "user:created",
   },
   steps: [
     // Define your workflow steps here
@@ -32,7 +32,7 @@ const myStep: Step = async (context: Context<UserCreatedEvent>) => {
   const eventPayload = context.workflowInput();
   const userId = eventPayload.userId;
   const userEmail = eventPayload.email;
-  
+
   // Use the event payload data in your step logic
   // ...
 };

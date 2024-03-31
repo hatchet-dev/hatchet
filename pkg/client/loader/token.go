@@ -7,12 +7,13 @@ import (
 	"strings"
 )
 
-type addresses struct {
+type tokenConf struct {
 	serverURL            string
 	grpcBroadcastAddress string
+	tenantId             string
 }
 
-func getAddressesFromJWT(token string) (*addresses, error) {
+func getConfFromJWT(token string) (*tokenConf, error) {
 	claims, err := extractClaimsFromJWT(token)
 	if err != nil {
 		return nil, err
@@ -28,9 +29,16 @@ func getAddressesFromJWT(token string) (*addresses, error) {
 		return nil, fmt.Errorf("grpc_broadcast_address claim not found")
 	}
 
-	return &addresses{
+	tenantId, ok := claims["sub"].(string)
+
+	if !ok {
+		return nil, fmt.Errorf("sub claim not found")
+	}
+
+	return &tokenConf{
 		serverURL:            serverURL,
 		grpcBroadcastAddress: grpcBroadcastAddress,
+		tenantId:             tenantId,
 	}, nil
 }
 

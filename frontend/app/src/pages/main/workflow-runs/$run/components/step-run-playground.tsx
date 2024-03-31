@@ -17,12 +17,7 @@ import { GitHubLogoIcon, PlayIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
 import { Loading } from '@/components/ui/loading';
-import {
-  StepConfigurationSection,
-  StepDurationSection,
-  StepStatusDetails,
-  StepStatusSection,
-} from '..';
+import { StepStatusDetails } from '..';
 import {
   TooltipProvider,
   Tooltip,
@@ -34,6 +29,8 @@ import { CreatePRDialog } from './create-pr-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepRunLogs } from './step-run-logs';
 import { RunStatus } from '../../components/run-statuses';
+import { DataTable } from '@/components/molecules/data-table/data-table';
+import { columns } from '../../components/workflow-runs-columns';
 
 export function StepRunPlayground({
   stepRun,
@@ -374,7 +371,7 @@ export function StepRunPlayground({
             <div className="flex-grow flex-col flex gap-4 w-1/2 ">
               <Tabs defaultValue="output" className="flex flex-col">
                 <div className="flex flex-row justify-between items-center">
-                  <div className="flex flex-row justify-start items-center gap-6">
+                  <div className="flex flex-row justify-start items-center gap-6 mb-2">
                     <TabsList>
                       <TabsTrigger value="output" className="px-8">
                         Output
@@ -410,15 +407,21 @@ export function StepRunPlayground({
                 <TabsContent value="logs">
                   <StepRunLogs stepRun={stepRun} />
                 </TabsContent>
-
-                <StepStatusSection stepRun={stepRun} />
-                <StepDurationSection stepRun={stepRun} />
-                <StepConfigurationSection stepRun={stepRun} />
               </Tabs>
             </div>
           </div>
         </>
       )}
+      {stepRun &&
+        stepRun.childWorkflowRuns &&
+        stepRun.childWorkflowRuns.length > 0 && (
+          <div className="flex flex-col gap-4 mt-4">
+            <div className="text-lg font-semibold tracking-tight mb-4">
+              Child Workflow Runs
+            </div>
+            <ChildWorkflowRuns stepRun={stepRun} workflowRun={workflowRun} />
+          </div>
+        )}
       {stepRun && workflowRun?.workflowVersion?.workflowId && (
         <CreatePRDialog
           show={showPRDialog}
@@ -430,5 +433,37 @@ export function StepRunPlayground({
       )}
       {errors.length > 0 && <div className="mt-4"></div>}
     </div>
+  );
+}
+
+export function ChildWorkflowRuns({
+  stepRun,
+  workflowRun,
+}: {
+  stepRun: StepRun | undefined;
+  workflowRun: WorkflowRun;
+}) {
+  const { tenant } = useOutletContext<TenantContextType>();
+  invariant(tenant);
+
+  const listWorkflowRunsQuery = useQuery({
+    ...queries.workflowRuns.list(tenant.metadata.id, {
+      parentWorkflowRunId: workflowRun.metadata.id,
+      parentStepRunId: stepRun?.metadata.id,
+    }),
+    enabled: !!workflowRun && !!stepRun,
+    refetchInterval: 5000,
+  });
+
+  if (listWorkflowRunsQuery.isLoading) {
+    return <Loading />;
+  }
+
+  return (
+    <DataTable
+      columns={columns}
+      data={listWorkflowRunsQuery.data?.rows || []}
+      filters={[]}
+    />
   );
 }

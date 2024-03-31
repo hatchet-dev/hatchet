@@ -51,7 +51,10 @@ export default memo(({ data }: { data: StepRunNodeProps }) => {
             {data.stepRun.step?.readableId || data.stepRun.metadata.id}
           </div>
         </div>
-        {getTiming({ stepRun: data.stepRun })}
+        <div className="flex flex-col mt-1">
+          {getTiming({ stepRun: data.stepRun })}
+          {getChildren({ stepRun: data.stepRun })}
+        </div>
       </CardContent>
       {(variant == 'default' || variant == 'output_only') && (
         <Handle
@@ -94,6 +97,21 @@ export function getTiming({ stepRun }: { stepRun: StepRun }) {
       <span className="font-bold mr-2 text-xs">Started</span>
       <span className="text-gray-500 font-medium text-xs">
         {relativeDate(stepRun.startedAt)}
+      </span>
+    </Label>
+  );
+}
+
+function getChildren({ stepRun }: { stepRun: StepRun }) {
+  if (stepRun.childWorkflowRuns?.length === 0) {
+    return null;
+  }
+
+  return (
+    <Label className="cursor-pointer">
+      <span className="font-bold mr-2 text-xs">Children</span>
+      <span className="text-gray-500 font-medium text-xs">
+        {stepRun.childWorkflowRuns?.length}
       </span>
     </Label>
   );
