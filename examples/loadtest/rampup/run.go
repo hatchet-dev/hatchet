@@ -19,7 +19,9 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 }
 
 func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptableDuration time.Duration, hook chan<- time.Duration, executedCh chan<- int64) (int64, int64) {
-	c, err := client.New()
+	c, err := client.New(
+		client.WithLogLevel("warn"),
+	)
 
 	if err != nil {
 		panic(err)
@@ -29,6 +31,8 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 		worker.WithClient(
 			c,
 		),
+		worker.WithLogLevel("warn"),
+		worker.WithMaxRuns(200),
 	)
 
 	if err != nil {

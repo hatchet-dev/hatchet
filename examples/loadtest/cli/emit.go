@@ -36,6 +36,7 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration, sche
 				id++
 
 				go func(id int64) {
+					var err error
 					ev := Event{CreatedAt: time.Now(), ID: id}
 					l.Info().Msgf("pushed event %d", ev.ID)
 					err = c.Event().Push(context.Background(), "load-test:event", ev)
