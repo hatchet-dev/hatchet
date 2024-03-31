@@ -302,7 +302,8 @@ WHERE
             AND prev_sr."status" != 'SUCCEEDED'
     )
 ORDER BY
-    sr."createdAt" ASC;
+    sr."createdAt" ASC
+LIMIT 1000;
 
 -- name: ListStepRunsToRequeue :many
 WITH valid_workers AS (

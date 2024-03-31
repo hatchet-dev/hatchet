@@ -369,8 +369,25 @@ func (t *MessageQueueImpl) subscribe(
 						defer wg.Done()
 						msg := &msgWithQueue{}
 
+						if len(rabbitMsg.Body) == 0 {
+							t.l.Error().Msgf("empty message body for message: %s", rabbitMsg.MessageId)
+
+							// reject this message
+							if err := rabbitMsg.Reject(false); err != nil {
+								t.l.Error().Msgf("error rejecting message: %v", err)
+							}
+
+							return
+						}
+
 						if err := json.Unmarshal(rabbitMsg.Body, msg); err != nil {
 							t.l.Error().Msgf("error unmarshaling message: %v", err)
+
+							// reject this message
+							if err := rabbitMsg.Reject(false); err != nil {
+								t.l.Error().Msgf("error rejecting message: %v", err)
+							}
+
 							return
 						}
 
