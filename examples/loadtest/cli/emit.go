@@ -34,7 +34,6 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration, sche
 			case <-ticker.C:
 				mx.Lock()
 				id++
-				mx.Unlock()
 
 				go func(id int64) {
 					ev := Event{CreatedAt: time.Now(), ID: id}
@@ -47,6 +46,8 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration, sche
 					l.Info().Msgf("pushed event %d took %s", ev.ID, took)
 					scheduled <- took
 				}(id)
+
+				mx.Unlock()
 			case <-timer:
 				l.Info().Msg("done emitting events due to timer")
 				return

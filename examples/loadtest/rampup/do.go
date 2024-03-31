@@ -3,6 +3,7 @@ package rampup
 import (
 	"context"
 	"fmt"
+	"log"
 	"slices"
 	"sync"
 	"time"
@@ -76,7 +77,7 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 
 	time.Sleep(after)
 
-	l.Info().Msgf("✅ success")
+	log.Printf("✅ success")
 
 	return nil
 }

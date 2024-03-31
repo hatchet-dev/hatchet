@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -50,24 +51,25 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 		totalDurationExecuted += <-durations
 	}
 	durationPerEventExecuted := totalDurationExecuted / time.Duration(executed)
-	l.Info().Msgf("ℹ️ average duration per executed event: %s", durationPerEventExecuted)
+	log.Printf("ℹ️ average duration per executed event: %s", durationPerEventExecuted)
 
 	var totalDurationScheduled time.Duration
 	for i := 0; i < int(emitted); i++ {
 		totalDurationScheduled += <-scheduled
 	}
 	scheduleTimePerEvent := totalDurationScheduled / time.Duration(emitted)
-	l.Info().Msgf("ℹ️ average scheduling time per event: %s", scheduleTimePerEvent)
+
+	log.Printf("ℹ️ average scheduling time per event: %s", scheduleTimePerEvent)
 
 	if emitted != executed {
-		l.Warn().Msgf("⚠️ warning: emitted and executed counts do not match: %d != %d", emitted, executed)
+		log.Printf("⚠️ warning: emitted and executed counts do not match: %d != %d", emitted, executed)
 	}
 
 	if emitted != uniques {
 		return fmt.Errorf("❌ emitted and unique executed counts do not match: %d != %d", emitted, uniques)
 	}
 
-	l.Info().Msg("✅ success")
+	log.Printf("✅ success")
 
 	return nil
 }

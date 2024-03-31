@@ -45,17 +45,16 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 			case <-time.After(time.Second / time.Duration(eventsPerSecond)):
 				mx.Lock()
 				id += 1
-				mx.Unlock()
 
 				go func(id int64) {
 					ev := Event{CreatedAt: time.Now(), ID: id}
-					fmt.Println("pushed event", ev.ID)
+					l.Debug().Msgf("pushed event %d", ev.ID)
 					err = c.Event().Push(context.Background(), "load-test:event", ev)
 					if err != nil {
 						panic(fmt.Errorf("error pushing event: %w", err))
 					}
 					took := time.Since(ev.CreatedAt)
-					fmt.Println("pushed event", ev.ID, "took", took)
+					l.Debug().Msgf("pushed event %d took %s", ev.ID, took)
 
 					if took > maxAcceptableSchedule {
 						panic(fmt.Errorf("event took too long to schedule: %s at %d events/s", took, eventsPerSecond))
@@ -63,6 +62,8 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 
 					scheduled <- id
 				}(id)
+
+				mx.Unlock()
 			case <-timer:
 				log.Println("done emitting events due to timer at", id)
 				return
