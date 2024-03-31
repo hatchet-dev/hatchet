@@ -201,6 +201,9 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			ingestor.WithEventRepository(
 				sc.EngineRepository.Event(),
 			),
+			ingestor.WithStreamEventsRepository(
+				sc.EngineRepository.StreamEvent(),
+			),
 			ingestor.WithLogRepository(
 				sc.EngineRepository.Log(),
 			),

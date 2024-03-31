@@ -714,6 +714,18 @@ export enum PullRequestState {
   Closed = "closed",
 }
 
+export interface StreamEvent {
+  /**
+   * The creation date of the stream event line.
+   * @format date-time
+   */
+  createdAt: string;
+  /** The stream event message. */
+  message: bytes;
+  /** The stream event metadata. */
+  metadata: object;
+}
+
 export interface LogLine {
   /**
    * The creation date of the log line.

@@ -10,13 +10,13 @@ type CreateStreamEventOpts struct {
 	// The step run id
 	StepRunId string `validate:"required,uuid"`
 
-	// (optional) The time when the StreamEvent line was created.
+	// (optional) The time when the StreamEvent was created.
 	CreatedAt *time.Time
 
-	// (required) The message of the StreamEvent line.
-	Message byte `validate:"required,min=1,max=10000"` // TODO validation string
+	// (required) The message of the Stream Event.
+	Message []byte `validate:"required,min=1,max=10000"` // TODO validation string
 
-	// (optional) The metadata of the StreamEvent line.
+	// (optional) The metadata of the Stream Event.
 	Metadata []byte
 }
 

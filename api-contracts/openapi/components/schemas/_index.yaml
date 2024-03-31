@@ -156,6 +156,8 @@ PullRequest:
   $ref: "./workflow_run.yaml#/PullRequest"
 PullRequestState:
   $ref: "./workflow_run.yaml#/PullRequestState"
+StreamEvent:
+  $ref: "./stream_event.yaml#/StreamEvent"
 LogLine:
   $ref: "./logs.yaml#/LogLine"
 LogLineLevel:

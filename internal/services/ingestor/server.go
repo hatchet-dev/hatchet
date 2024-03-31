@@ -58,6 +58,44 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 	return e, nil
 }
 
+func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	var createdAt *time.Time
+
+	if t := req.CreatedAt.AsTime(); !t.IsZero() {
+		createdAt = &t
+	}
+
+	var metadata []byte
+
+	if req.Metadata != "" {
+		metadata = []byte(req.Metadata)
+	}
+
+	_, err := i.streamEventRepository.PutStreamEvent(tenantId, &repository.CreateStreamEventOpts{
+		StepRunId: req.StepRunId,
+		CreatedAt: createdAt,
+		Message:   req.Message,
+		Metadata:  metadata,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO publish event to message queue
+	// err = i.mq.AddMessage(context.Background(), msgqueue., streamEventToTask(streamEvent))
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.PutStreamEventResponse{}, nil
+}
+
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 

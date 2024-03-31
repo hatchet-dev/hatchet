@@ -1,0 +1,16 @@
+StreamEvent:
+  properties:
+    createdAt:
+      type: string
+      format: date-time
+      description: The creation date of the stream event line.
+    message:
+      type: bytes
+      description: The stream event message.
+    metadata:
+      type: object
+      description: The stream event metadata.
+  required:
+    - createdAt
+    - message
+    - metadata

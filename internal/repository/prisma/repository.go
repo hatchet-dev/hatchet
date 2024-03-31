@@ -15,6 +15,7 @@ import (
 type apiRepository struct {
 	apiToken     repository.APITokenRepository
 	event        repository.EventAPIRepository
+	streamEvent  repository.StreamEventsAPIRepository
 	log          repository.LogsAPIRepository
 	tenant       repository.TenantAPIRepository
 	tenantInvite repository.TenantInviteRepository
@@ -80,6 +81,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 	return &apiRepository{
 		apiToken:     NewAPITokenRepository(client, opts.v, opts.cache),
 		event:        NewEventAPIRepository(client, pool, opts.v, opts.l),
+		streamEvent:  NewStreamEventAPIRepository(pool, opts.v, opts.l),
 		log:          NewLogAPIRepository(pool, opts.v, opts.l),
 		tenant:       NewTenantAPIRepository(client, opts.v, opts.cache),
 		tenantInvite: NewTenantInviteRepository(client, opts.v),
@@ -107,6 +109,10 @@ func (r *apiRepository) APIToken() repository.APITokenRepository {
 
 func (r *apiRepository) Event() repository.EventAPIRepository {
 	return r.event
+}
+
+func (r *apiRepository) StreamEvent() repository.StreamEventsAPIRepository {
+	return r.streamEvent
 }
 
 func (r *apiRepository) Log() repository.LogsAPIRepository {
@@ -174,6 +180,7 @@ type engineRepository struct {
 	worker         repository.WorkerEngineRepository
 	workflow       repository.WorkflowEngineRepository
 	workflowRun    repository.WorkflowRunEngineRepository
+	streamEvent    repository.StreamEventsEngineRepository
 	log            repository.LogsEngineRepository
 }
 
@@ -225,6 +232,10 @@ func (r *engineRepository) WorkflowRun() repository.WorkflowRunEngineRepository 
 	return r.workflowRun
 }
 
+func (r *engineRepository) StreamEvent() repository.StreamEventsEngineRepository {
+	return r.streamEvent
+}
+
 func (r *engineRepository) Log() repository.LogsEngineRepository {
 	return r.log
 }
@@ -256,6 +267,7 @@ func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) reposito
 		worker:         NewWorkerEngineRepository(pool, opts.v, opts.l),
 		workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l),
 		workflowRun:    NewWorkflowRunEngineRepository(pool, opts.v, opts.l),
+		streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 		log:            NewLogEngineRepository(pool, opts.v, opts.l),
 	}
 }

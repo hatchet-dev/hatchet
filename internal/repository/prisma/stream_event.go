@@ -123,7 +123,7 @@ type streamEventEngineRepository struct {
 	l       *zerolog.Logger
 }
 
-func NewStreamEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.StreamEventsEngineRepository {
+func NewStreamEventsEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.StreamEventsEngineRepository {
 	queries := dbsqlc.New()
 
 	return &streamEventEngineRepository{
