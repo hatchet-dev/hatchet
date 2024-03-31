@@ -17,7 +17,6 @@ FROM "StreamEvent"
 WHERE
   "tenantId" = $1::uuid AND
   ($2::uuid IS NULL OR "stepRunId" = $2::uuid) AND
-  -- (sqlc.narg('search')::text IS NULL OR "message" LIKE concat('%', sqlc.narg('search')::text, '%')) AND
   ($3::"LogLineLevel"[] IS NULL OR "level" = ANY($3::"LogLineLevel"[]))
 `
 
@@ -83,7 +82,6 @@ SELECT id, "createdAt", "tenantId", "stepRunId", message, metadata FROM "StreamE
 WHERE
   "tenantId" = $1::uuid AND
   ($2::uuid IS NULL OR "stepRunId" = $2::uuid)
-  -- (sqlc.narg('search')::text IS NULL OR "message" LIKE concat('%', sqlc.narg('search')::text, '%'))
 ORDER BY
   CASE WHEN $3::text = 'createdAt ASC' THEN "createdAt" END ASC,
   CASE WHEN $3::text = 'createdAt DESC' THEN "createdAt" END DESC,
