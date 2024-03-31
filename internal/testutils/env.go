@@ -42,9 +42,9 @@ func Prepare(t *testing.T) {
 	_ = os.Setenv("SERVER_AUTH_COOKIE_INSECURE", "false")
 	_ = os.Setenv("SERVER_AUTH_SET_EMAIL_VERIFIED", "true")
 
-	_ = os.Setenv("SERVER_LOGGER_LEVEL", "disabled")
+	_ = os.Setenv("SERVER_LOGGER_LEVEL", "error")
 	_ = os.Setenv("SERVER_LOGGER_FORMAT", "json")
-	_ = os.Setenv("DATABASE_LOGGER_LEVEL", "disabled")
+	_ = os.Setenv("DATABASE_LOGGER_LEVEL", "error")
 	_ = os.Setenv("DATABASE_LOGGER_FORMAT", "json")
 
 	// read in the local config
