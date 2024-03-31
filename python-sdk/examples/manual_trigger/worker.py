@@ -1,4 +1,4 @@
-from hatchet_sdk import Hatchet
+from hatchet_sdk import Hatchet, Context
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,8 +9,11 @@ hatchet = Hatchet(debug=True)
 @hatchet.workflow(on_events=["man:create"])
 class ManualTriggerWorkflow:
     @hatchet.step()
-    def step1(self, context):
+    def step1(self, context: Context):
         res = context.playground('res', "HELLO")
+
+
+        context.put_stream("streaming data")
 
         context.sleep(3)
         print("executed step1")
@@ -22,22 +25,6 @@ class ManualTriggerWorkflow:
         context.sleep(1)
         print("finished step2")
         return {"step2": "data2"}
-
-    # @hatchet.step()
-    # def stepb(self, context):
-    #     res = context.playground('res', "HELLO")
-
-    #     context.sleep(3)
-    #     print("executed step1")
-    #     return {"step1": "data1 "+res}
-
-    # @hatchet.step(parents=["stepb"], timeout='4s')
-    # def stepc(self, context):
-    #     print("started step2")
-    #     context.sleep(1)
-    #     print("finished step2")
-    #     return {"step2": "data2"}
-
 
 workflow = ManualTriggerWorkflow()
 worker = hatchet.worker('manual-worker', max_runs=4)
