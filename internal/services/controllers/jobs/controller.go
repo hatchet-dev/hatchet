@@ -134,7 +134,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 	wg := sync.WaitGroup{}
 
 	_, err := jc.s.NewJob(
-		gocron.DurationJob(time.Second*5),
+		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			jc.runStepRunRequeue(ctx),
 		),
@@ -146,7 +146,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = jc.s.NewJob(
-		gocron.DurationJob(time.Second*5),
+		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			jc.runStepRunReassign(ctx),
 		),

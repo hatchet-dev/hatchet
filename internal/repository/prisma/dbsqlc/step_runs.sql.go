@@ -562,6 +562,26 @@ func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, tenantid 
 }
 
 const listStepRunsToRequeue = `-- name: ListStepRunsToRequeue :many
+WITH valid_workers AS (
+    SELECT
+        w."id",
+        w."maxRuns",
+        COUNT(sr."id") AS "runningStepRuns"
+    FROM
+        "Worker" w
+    LEFT JOIN
+        "StepRun" sr ON w."id" = sr."workerId" AND (sr."status" = 'RUNNING' OR sr."status" = 'ASSIGNED')
+    WHERE
+        w."tenantId" = $1::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+),
+total_max_runs AS (
+    SELECT
+        -- if maxRuns is null, then we assume the worker can run 100 step runs
+        SUM(COALESCE("maxRuns", 100) - "runningStepRuns") AS "totalMaxRuns"
+    FROM
+        valid_workers
+)
 SELECT
     sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount"
 FROM
@@ -585,8 +605,11 @@ WHERE
     )
 ORDER BY
     sr."createdAt" ASC
+LIMIT
+    (SELECT "totalMaxRuns" FROM total_max_runs)
 `
 
+// Count the total number of maxRuns - runningStepRuns across all workers
 func (q *Queries) ListStepRunsToRequeue(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*StepRun, error) {
 	rows, err := db.Query(ctx, listStepRunsToRequeue, tenantid)
 	if err != nil {

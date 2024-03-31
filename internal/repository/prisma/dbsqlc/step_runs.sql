@@ -305,6 +305,27 @@ ORDER BY
     sr."createdAt" ASC;
 
 -- name: ListStepRunsToRequeue :many
+WITH valid_workers AS (
+    SELECT
+        w."id",
+        w."maxRuns",
+        COUNT(sr."id") AS "runningStepRuns"
+    FROM
+        "Worker" w
+    LEFT JOIN
+        "StepRun" sr ON w."id" = sr."workerId" AND (sr."status" = 'RUNNING' OR sr."status" = 'ASSIGNED')
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+),
+-- Count the total number of maxRuns - runningStepRuns across all workers
+total_max_runs AS (
+    SELECT
+        -- if maxRuns is null, then we assume the worker can run 100 step runs
+        SUM(COALESCE("maxRuns", 100) - "runningStepRuns") AS "totalMaxRuns"
+    FROM
+        valid_workers
+)
 SELECT
     sr.*
 FROM
@@ -327,7 +348,9 @@ WHERE
             AND prev_sr."status" != 'SUCCEEDED'
     )
 ORDER BY
-    sr."createdAt" ASC;
+    sr."createdAt" ASC
+LIMIT
+    (SELECT "totalMaxRuns" FROM total_max_runs);
 
 -- name: AssignStepRunToWorker :one
 WITH step_run AS (
