@@ -696,6 +696,15 @@ type StepRunResultArchive struct {
 	CancelledError  pgtype.Text      `json:"cancelledError"`
 }
 
+type StreamEvent struct {
+	ID        int64            `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+	StepRunId pgtype.UUID      `json:"stepRunId"`
+	Message   []byte           `json:"message"`
+	Metadata  []byte           `json:"metadata"`
+}
+
 type Tenant struct {
 	ID        pgtype.UUID      `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
