@@ -37,6 +37,22 @@ class PutLogResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
+class PutStreamEventRequest(_message.Message):
+    __slots__ = ("stepRunId", "createdAt", "message", "metadata")
+    STEPRUNID_FIELD_NUMBER: _ClassVar[int]
+    CREATEDAT_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
+    stepRunId: str
+    createdAt: _timestamp_pb2.Timestamp
+    message: bytes
+    metadata: str
+    def __init__(self, stepRunId: _Optional[str] = ..., createdAt: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[bytes] = ..., metadata: _Optional[str] = ...) -> None: ...
+
+class PutStreamEventResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
 class PushEventRequest(_message.Message):
     __slots__ = ("key", "payload", "eventTimestamp")
     KEY_FIELD_NUMBER: _ClassVar[int]
