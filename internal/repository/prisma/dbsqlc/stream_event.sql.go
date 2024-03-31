@@ -44,7 +44,7 @@ INSERT INTO "StreamEvent" (
     coalesce($1::timestamp, now()),
     $2::uuid,
     $3::uuid,
-    $4::bytes,
+    $4::bytea,
     coalesce($5::jsonb, '{}'::jsonb)
 ) RETURNING id, "createdAt", "tenantId", "stepRunId", message, metadata
 `
@@ -53,7 +53,7 @@ type CreateStreamEventParams struct {
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
 	Tenantid  pgtype.UUID      `json:"tenantid"`
 	Steprunid pgtype.UUID      `json:"steprunid"`
-	Message   interface{}      `json:"message"`
+	Message   []byte           `json:"message"`
 	Metadata  []byte           `json:"metadata"`
 }
 

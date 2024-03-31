@@ -169,7 +169,7 @@ func (r *streamEventEngineRepository) PutStreamEvent(tenantId string, opts *repo
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create stream devent: %w", err)
+		return nil, fmt.Errorf("could not create stream event: %w", err)
 	}
 
 	err = tx.Commit(context.Background())

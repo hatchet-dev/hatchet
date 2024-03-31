@@ -9,7 +9,7 @@ INSERT INTO "StreamEvent" (
     coalesce(sqlc.narg('createdAt')::timestamp, now()),
     @tenantId::uuid,
     @stepRunId::uuid,
-    @message::bytes,
+    @message::bytea,
     coalesce(sqlc.narg('metadata')::jsonb, '{}'::jsonb)
 ) RETURNING *;
 
