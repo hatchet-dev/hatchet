@@ -166,8 +166,8 @@ class ListenerClientImpl:
     def stream(self, workflow_run_id: str):
         return HatchetListener(workflow_run_id, self.token, self.config)
 
-    def on(self, workflow_run_id: str, handler: callable = None):
-        for event in self.stream(workflow_run_id):
+    async def on(self, workflow_run_id: str, handler: callable = None):
+        async for event in self.stream(workflow_run_id):
             # call the handler if provided
             if handler:
                 handler(event)
