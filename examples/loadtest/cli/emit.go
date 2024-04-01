@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -34,25 +33,27 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration, sche
 			select {
 			case <-ticker.C:
 				mx.Lock()
-				id += 1
-				mx.Unlock()
+				id++
 
 				go func(id int64) {
+					var err error
 					ev := Event{CreatedAt: time.Now(), ID: id}
-					fmt.Println("pushed event", ev.ID)
+					l.Info().Msgf("pushed event %d", ev.ID)
 					err = c.Event().Push(context.Background(), "load-test:event", ev)
 					if err != nil {
 						panic(fmt.Errorf("error pushing event: %w", err))
 					}
 					took := time.Since(ev.CreatedAt)
-					fmt.Println("pushed event", ev.ID, "took", took)
+					l.Info().Msgf("pushed event %d took %s", ev.ID, took)
 					scheduled <- took
 				}(id)
+
+				mx.Unlock()
 			case <-timer:
-				log.Println("done emitting events due to timer at", id)
+				l.Info().Msg("done emitting events due to timer")
 				return
 			case <-ctx.Done():
-				log.Println("done emitting events due to interruption at", id)
+				l.Info().Msgf("done emitting events due to interruption at %d", id)
 				return
 			}
 		}

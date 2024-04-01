@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int) error {
-	log.Printf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
+func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration) error {
+	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -23,6 +23,11 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	ch := make(chan int64, 2)
 	durations := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*3)
 	go func() {
+		if workerDelay.Seconds() > 0 {
+			l.Info().Msgf("wait %s before starting the worker", workerDelay)
+			time.Sleep(workerDelay)
+		}
+		l.Info().Msg("starting worker now")
 		count, uniques := run(ctx, delay, durations, concurrency)
 		ch <- count
 		ch <- uniques
@@ -35,7 +40,7 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	executed := <-ch
 	uniques := <-ch
 
-	log.Printf("ℹ️ emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, eventsPerSecond)
+	l.Info().Msgf("emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, eventsPerSecond)
 
 	if executed == 0 {
 		return fmt.Errorf("❌ no events executed")
@@ -53,6 +58,7 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 		totalDurationScheduled += <-scheduled
 	}
 	scheduleTimePerEvent := totalDurationScheduled / time.Duration(emitted)
+
 	log.Printf("ℹ️ average scheduling time per event: %s", scheduleTimePerEvent)
 
 	if emitted != executed {

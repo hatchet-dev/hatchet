@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/config/shared"
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 )
 
@@ -30,6 +32,15 @@ func TestRampUp(t *testing.T) {
 		concurrency           int
 		startEventsPerSecond  int
 	}
+
+	l = logger.NewStdErr(
+		&shared.LoggerConfigFile{
+			Level:  "warn",
+			Format: "console",
+		},
+		"loadtest",
+	)
+
 	tests := []struct {
 		name    string
 		args    args

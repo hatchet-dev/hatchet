@@ -7,10 +7,14 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
+var l zerolog.Logger
+
 func do(duration time.Duration, startEventsPerSecond, amount int, increase, delay, wait, maxAcceptableDuration, maxAcceptableSchedule time.Duration, includeDroppedEvents bool, concurrency int) error {
-	log.Printf("testing with duration=%s, amount=%d, increase=%d, delay=%s, wait=%s, concurrency=%d", duration, amount, increase, delay, wait, concurrency)
+	l.Debug().Msgf("testing with duration=%s, amount=%d, increase=%d, delay=%s, wait=%s, concurrency=%d", duration, amount, increase, delay, wait, concurrency)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -32,7 +36,7 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 
 	go func() {
 		for s := range scheduled {
-			log.Printf("scheduled %d", s)
+			l.Debug().Msgf("scheduled %d", s)
 			idLock.Lock()
 			ids = append(ids, s)
 			idLock.Unlock()
@@ -46,7 +50,7 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 						if includeDroppedEvents {
 							panic(fmt.Errorf("event %d did not execute in time", s))
 						} else {
-							log.Printf("warning: event %d did not execute in time", s)
+							l.Warn().Msgf("event %d did not execute in time", s)
 						}
 					}
 				}
@@ -56,7 +60,7 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 
 	go func() {
 		for e := range executed {
-			log.Printf("executed %d", e)
+			l.Debug().Msgf("executed %d", e)
 			idLock.Lock()
 			ids = slices.DeleteFunc(ids, func(s int64) bool {
 				return s == e

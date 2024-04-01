@@ -134,7 +134,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 	wg := sync.WaitGroup{}
 
 	_, err := jc.s.NewJob(
-		gocron.DurationJob(time.Second*5),
+		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			jc.runStepRunRequeue(ctx),
 		),
@@ -146,7 +146,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = jc.s.NewJob(
-		gocron.DurationJob(time.Second*5),
+		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			jc.runStepRunReassign(ctx),
 		),
@@ -442,7 +442,11 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 	stepRuns, err := ec.repo.StepRun().ListStepRunsToRequeue(tenantId)
 
 	if err != nil {
-		return fmt.Errorf("could not list step runs: %w", err)
+		return fmt.Errorf("could not list step runs to requeue: %w", err)
+	}
+
+	if num := len(stepRuns); num > 0 {
+		ec.l.Info().Msgf("requeueing %d step runs", num)
 	}
 
 	g := new(errgroup.Group)
@@ -452,19 +456,14 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 
 		// wrap in func to get defer on the span to avoid leaking spans
 		g.Go(func() error {
-			var innerStepRun *dbsqlc.GetStepRunForEngineRow
-
 			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue-step-run")
 			defer span.End()
 
-			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.ID)
-
-			ec.l.Debug().Msgf("requeueing step run %s", stepRunId)
-
-			now := time.Now().UTC().UTC()
+			now := time.Now().UTC()
+			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
 
 			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-			scheduleTimeoutAt := stepRunCp.ScheduleTimeoutAt.Time
+			scheduleTimeoutAt := stepRunCp.StepRun.ScheduleTimeoutAt.Time
 
 			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
 			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
@@ -473,7 +472,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 			if isTimedOut {
 				var updateInfo *repository.StepRunUpdateInfo
 
-				innerStepRun, updateInfo, err = ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
+				stepRunCp, updateInfo, err = ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
 					CancelledAt:     &now,
 					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
 					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
@@ -483,24 +482,12 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 					return fmt.Errorf("could not update step run %s: %w", stepRunId, err)
 				}
 
-				defer ec.handleStepRunUpdateInfo(innerStepRun, updateInfo)
+				defer ec.handleStepRunUpdateInfo(stepRunCp, updateInfo)
 
 				return nil
 			}
 
-			requeueAfter := time.Now().UTC().Add(time.Second * 4)
-
-			innerStepRun, _, err := ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
-				RequeueAfter: &requeueAfter,
-			})
-
-			if err != nil {
-				return fmt.Errorf("could not update step run %s: %w", stepRunId, err)
-			}
-
-			stepId := sqlchelpers.UUIDToStr(innerStepRun.StepId)
-
-			return ec.scheduleStepRun(ctx, tenantId, stepId, stepRunId)
+			return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
 		})
 	}
 
@@ -546,7 +533,11 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 	stepRuns, err := ec.repo.StepRun().ListStepRunsToReassign(tenantId)
 
 	if err != nil {
-		return fmt.Errorf("could not list step runs: %w", err)
+		return fmt.Errorf("could not list step runs to reassign: %w", err)
+	}
+
+	if num := len(stepRuns); num > 0 {
+		ec.l.Info().Msgf("reassigning %d step runs", num)
 	}
 
 	g := new(errgroup.Group)
@@ -556,30 +547,38 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 
 		// wrap in func to get defer on the span to avoid leaking spans
 		g.Go(func() error {
-			var innerStepRun *dbsqlc.GetStepRunForEngineRow
-
 			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign-step-run")
 			defer span.End()
 
-			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.ID)
+			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
 
-			ec.l.Info().Msgf("reassigning step run %s", stepRunId)
+			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
+			now := time.Now().UTC().UTC()
+			scheduleTimeoutAt := stepRunCp.StepRun.ScheduleTimeoutAt.Time
 
-			requeueAfter := time.Now().UTC().Add(time.Second * 4)
+			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
+			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
+			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
-			// update the step to a pending assignment state
-			innerStepRun, _, err := ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
-				Status:       repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment),
-				RequeueAfter: &requeueAfter,
-			})
+			if isTimedOut {
+				var updateInfo *repository.StepRunUpdateInfo
 
-			if err != nil {
-				return fmt.Errorf("could not update step run %s: %w", stepRunId, err)
+				stepRunCp, updateInfo, err = ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
+					CancelledAt:     &now,
+					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
+					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
+				})
+
+				if err != nil {
+					return fmt.Errorf("could not update step run %s: %w", stepRunId, err)
+				}
+
+				defer ec.handleStepRunUpdateInfo(stepRunCp, updateInfo)
+
+				return nil
 			}
 
-			stepId := sqlchelpers.UUIDToStr(innerStepRun.StepId)
-
-			return ec.scheduleStepRun(ctx, tenantId, stepId, stepRunId)
+			return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
 		})
 	}
 
@@ -673,7 +672,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	updateStepOpts.Status = repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment)
 
 	// indicate that the step run is pending assignment
-	_, err = ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, updateStepOpts)
+	stepRun, err = ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, updateStepOpts)
 
 	if err != nil {
 		if errors.Is(err, repository.ErrStepRunIsNotPending) {
@@ -684,14 +683,17 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 		return ec.a.WrapErr(fmt.Errorf("could not update step run: %w", err), errData)
 	}
 
-	return ec.a.WrapErr(ec.scheduleStepRun(ctx, tenantId, stepId, stepRunId), errData)
+	return ec.a.WrapErr(ec.scheduleStepRun(ctx, tenantId, stepRun), errData)
 }
 
-func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId, stepId, stepRunId string) error {
+func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.GetStepRunForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-run")
 	defer span.End()
 
-	selectedWorkerId, dispatcherId, err := ec.repo.StepRun().AssignStepRunToWorker(tenantId, stepRunId)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
+	actionId := stepRun.ActionId
+
+	selectedWorkerId, dispatcherId, err := ec.repo.StepRun().AssignStepRunToWorker(ctx, tenantId, stepRunId, actionId, stepRun.StepTimeout)
 
 	if err != nil {
 		if errors.Is(err, repository.ErrNoWorkerAvailable) {
