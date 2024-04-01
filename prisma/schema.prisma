@@ -1270,7 +1270,7 @@ model StreamEvent {
   stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   stepRunId String?  @db.Uuid
 
-  // the log line message
+  // the stream event bytes
   message Bytes
 
   // (optional) the stream event metadata
