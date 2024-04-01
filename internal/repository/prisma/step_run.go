@@ -707,11 +707,9 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		})
 
-		if err != nil {
-			// not a fatal error if there's not a semaphore to update
-			if !errors.Is(err, pgx.ErrNoRows) {
-				return nil, fmt.Errorf("could not upsert worker semaphore: %w", err)
-			}
+		// not a fatal error if there's not a semaphore to update
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("could not upsert worker semaphore: %w", err)
 		}
 	}
 
