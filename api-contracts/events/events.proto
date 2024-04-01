@@ -7,11 +7,11 @@ import "google/protobuf/timestamp.proto";
 service EventsService {
     rpc Push(PushEventRequest) returns (Event) {}
 
-    rpc List(ListEventRequest) returns (ListEventResponse) {}
-
     rpc ReplaySingleEvent(ReplayEventRequest) returns (Event) {}
 
     rpc PutLog(PutLogRequest) returns (PutLogResponse) {}
+
+    rpc PutStreamEvent(PutStreamEventRequest) returns (PutStreamEventResponse) {}
 }
 
 message Event {
@@ -50,6 +50,22 @@ message PutLogRequest {
 
 message PutLogResponse {}
 
+message PutStreamEventRequest {
+    // the step run id for the request
+    string stepRunId = 1;
+
+    // when the stream event was created
+    google.protobuf.Timestamp createdAt = 2;
+
+    // the stream event message
+    bytes message = 3;
+
+    // associated stream event metadata
+    string metadata = 5;
+}
+
+message PutStreamEventResponse {}
+
 message PushEventRequest {
     // the key for the event
     string key = 1;
@@ -59,19 +75,6 @@ message PushEventRequest {
 
     // when the event was generated
     google.protobuf.Timestamp eventTimestamp = 3;
-}
-
-message ListEventRequest {
-    // (optional) the number of events to skip
-    int32 offset = 1; 
-
-    // (optional) the key for the event
-    string key = 2;
-}
-
-message ListEventResponse {
-    // the events
-    repeated Event events = 1;
 }
 
 message ReplayEventRequest {

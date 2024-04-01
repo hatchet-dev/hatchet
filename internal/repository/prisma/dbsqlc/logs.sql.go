@@ -48,14 +48,18 @@ INSERT INTO "LogLine" (
     "message",
     "level",
     "metadata"
-) VALUES (
+)
+SELECT
     coalesce($1::timestamp, now()),
     $2::uuid,
     $3::uuid,
     $4::text,
     coalesce($5::"LogLineLevel", 'INFO'::"LogLineLevel"),
     coalesce($6::jsonb, '{}'::jsonb)
-) RETURNING id, "createdAt", "tenantId", "stepRunId", message, level, metadata
+FROM "StepRun"
+WHERE "StepRun"."id" = $3::uuid
+AND "StepRun"."tenantId" = $2::uuid
+RETURNING id, "createdAt", "tenantId", "stepRunId", message, level, metadata
 `
 
 type CreateLogLineParams struct {

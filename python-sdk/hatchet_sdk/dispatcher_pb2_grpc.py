@@ -23,6 +23,16 @@ class DispatcherStub(object):
                 request_serializer=dispatcher__pb2.WorkerListenRequest.SerializeToString,
                 response_deserializer=dispatcher__pb2.AssignedAction.FromString,
                 )
+        self.ListenV2 = channel.unary_stream(
+                '/Dispatcher/ListenV2',
+                request_serializer=dispatcher__pb2.WorkerListenRequest.SerializeToString,
+                response_deserializer=dispatcher__pb2.AssignedAction.FromString,
+                )
+        self.Heartbeat = channel.unary_unary(
+                '/Dispatcher/Heartbeat',
+                request_serializer=dispatcher__pb2.HeartbeatRequest.SerializeToString,
+                response_deserializer=dispatcher__pb2.HeartbeatResponse.FromString,
+                )
         self.SubscribeToWorkflowEvents = channel.unary_stream(
                 '/Dispatcher/SubscribeToWorkflowEvents',
                 request_serializer=dispatcher__pb2.SubscribeToWorkflowEventsRequest.SerializeToString,
@@ -61,6 +71,21 @@ class DispatcherServicer(object):
 
     def Listen(self, request, context):
         """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListenV2(self, request, context):
+        """ListenV2 is like listen, but implementation does not include heartbeats. This should only used by SDKs
+        against engine version v0.18.1+
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Heartbeat(self, request, context):
+        """Heartbeat is a method for workers to send heartbeats to the dispatcher
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -107,6 +132,16 @@ def add_DispatcherServicer_to_server(servicer, server):
                     servicer.Listen,
                     request_deserializer=dispatcher__pb2.WorkerListenRequest.FromString,
                     response_serializer=dispatcher__pb2.AssignedAction.SerializeToString,
+            ),
+            'ListenV2': grpc.unary_stream_rpc_method_handler(
+                    servicer.ListenV2,
+                    request_deserializer=dispatcher__pb2.WorkerListenRequest.FromString,
+                    response_serializer=dispatcher__pb2.AssignedAction.SerializeToString,
+            ),
+            'Heartbeat': grpc.unary_unary_rpc_method_handler(
+                    servicer.Heartbeat,
+                    request_deserializer=dispatcher__pb2.HeartbeatRequest.FromString,
+                    response_serializer=dispatcher__pb2.HeartbeatResponse.SerializeToString,
             ),
             'SubscribeToWorkflowEvents': grpc.unary_stream_rpc_method_handler(
                     servicer.SubscribeToWorkflowEvents,
@@ -174,6 +209,40 @@ class Dispatcher(object):
         return grpc.experimental.unary_stream(request, target, '/Dispatcher/Listen',
             dispatcher__pb2.WorkerListenRequest.SerializeToString,
             dispatcher__pb2.AssignedAction.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ListenV2(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/Dispatcher/ListenV2',
+            dispatcher__pb2.WorkerListenRequest.SerializeToString,
+            dispatcher__pb2.AssignedAction.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Heartbeat(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/Dispatcher/Heartbeat',
+            dispatcher__pb2.HeartbeatRequest.SerializeToString,
+            dispatcher__pb2.HeartbeatResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

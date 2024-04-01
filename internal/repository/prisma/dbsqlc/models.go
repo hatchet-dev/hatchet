@@ -696,6 +696,15 @@ type StepRunResultArchive struct {
 	CancelledError  pgtype.Text      `json:"cancelledError"`
 }
 
+type StreamEvent struct {
+	ID        int64            `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+	StepRunId pgtype.UUID      `json:"stepRunId"`
+	Message   []byte           `json:"message"`
+	Metadata  []byte           `json:"metadata"`
+}
+
 type Tenant struct {
 	ID        pgtype.UUID      `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
@@ -793,6 +802,11 @@ type Worker struct {
 	MaxRuns         pgtype.Int4      `json:"maxRuns"`
 }
 
+type WorkerSemaphore struct {
+	WorkerId pgtype.UUID `json:"workerId"`
+	Slots    int32       `json:"slots"`
+}
+
 type Workflow struct {
 	ID          pgtype.UUID      `json:"id"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`
@@ -839,6 +853,10 @@ type WorkflowRun struct {
 	DisplayName        pgtype.Text       `json:"displayName"`
 	ID                 pgtype.UUID       `json:"id"`
 	GitRepoBranch      pgtype.Text       `json:"gitRepoBranch"`
+	ChildIndex         pgtype.Int4       `json:"childIndex"`
+	ChildKey           pgtype.Text       `json:"childKey"`
+	ParentId           pgtype.UUID       `json:"parentId"`
+	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 }
 
 type WorkflowRunTriggeredBy struct {
@@ -882,11 +900,15 @@ type WorkflowTriggerEventRef struct {
 }
 
 type WorkflowTriggerScheduledRef struct {
-	ID        pgtype.UUID      `json:"id"`
-	ParentId  pgtype.UUID      `json:"parentId"`
-	TriggerAt pgtype.Timestamp `json:"triggerAt"`
-	TickerId  pgtype.UUID      `json:"tickerId"`
-	Input     []byte           `json:"input"`
+	ID                  pgtype.UUID      `json:"id"`
+	ParentId            pgtype.UUID      `json:"parentId"`
+	TriggerAt           pgtype.Timestamp `json:"triggerAt"`
+	TickerId            pgtype.UUID      `json:"tickerId"`
+	Input               []byte           `json:"input"`
+	ChildIndex          pgtype.Int4      `json:"childIndex"`
+	ChildKey            pgtype.Text      `json:"childKey"`
+	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
+	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
 }
 
 type WorkflowTriggers struct {

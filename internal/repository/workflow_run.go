@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
@@ -35,6 +34,18 @@ type CreateWorkflowRunOpts struct {
 	TriggeredBy string
 
 	GetGroupKeyRun *CreateGroupKeyRunOpts `validate:"omitempty"`
+
+	// (optional) the parent workflow run which this workflow run was triggered from
+	ParentId *string `validate:"omitempty,uuid"`
+
+	// (optional) the parent step run id which this workflow run was triggered from
+	ParentStepRunId *string `validate:"omitempty,uuid"`
+
+	// (optional) the child key of the workflow run, if this is a child run of a different workflow
+	ChildKey *string
+
+	// (optional) the child index of the workflow run, if this is a child run of a different workflow
+	ChildIndex *int
 }
 
 type CreateGroupKeyRunOpts struct {
@@ -42,17 +53,35 @@ type CreateGroupKeyRunOpts struct {
 	Input []byte
 }
 
-func GetCreateWorkflowRunOptsFromManual(workflowVersion *db.WorkflowVersionModel, input []byte) (*CreateWorkflowRunOpts, error) {
+type CreateWorkflowRunOpt func(*CreateWorkflowRunOpts)
+
+func WithParent(
+	parentId, parentStepRunId string,
+	childIndex int,
+	childKey *string,
+) CreateWorkflowRunOpt {
+	return func(opts *CreateWorkflowRunOpts) {
+		opts.ParentId = &parentId
+		opts.ParentStepRunId = &parentStepRunId
+		opts.ChildIndex = &childIndex
+		opts.ChildKey = childKey
+	}
+}
+
+func GetCreateWorkflowRunOptsFromManual(
+	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
+	input []byte,
+) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
-		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.Workflow().Name)),
-		WorkflowVersionId:  workflowVersion.ID,
+		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
+		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
 		ManualTriggerInput: StringPtr(string(input)),
 		TriggeredBy:        string(datautils.TriggeredByManual),
 		InputData:          input,
 	}
 
 	if input != nil {
-		if _, hasConcurrency := workflowVersion.Concurrency(); hasConcurrency {
+		if workflowVersion.ConcurrencyLimitStrategy.Valid {
 			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
 				Input: input,
 			}
@@ -62,70 +91,102 @@ func GetCreateWorkflowRunOptsFromManual(workflowVersion *db.WorkflowVersionModel
 	return opts, nil
 }
 
-func GetCreateWorkflowRunOptsFromEvent(event *dbsqlc.GetEventForEngineRow, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (*CreateWorkflowRunOpts, error) {
-	eventId := sqlchelpers.UUIDToStr(event.ID)
+func GetCreateWorkflowRunOptsFromParent(
+	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
+	input []byte,
+	parentId, parentStepRunId string,
+	childIndex int,
+	childKey *string,
+) (*CreateWorkflowRunOpts, error) {
+	opts := &CreateWorkflowRunOpts{
+		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
+		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		ManualTriggerInput: StringPtr(string(input)),
+		TriggeredBy:        string(datautils.TriggeredByParent),
+		InputData:          input,
+	}
 
+	WithParent(parentId, parentStepRunId, childIndex, childKey)(opts)
+
+	if input != nil {
+		if workflowVersion.ConcurrencyLimitStrategy.Valid {
+			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+				Input: input,
+			}
+		}
+	}
+
+	return opts, nil
+}
+
+func GetCreateWorkflowRunOptsFromEvent(eventId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, input []byte) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:       StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
 		WorkflowVersionId: sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
 		TriggeringEventId: &eventId,
 		TriggeredBy:       string(datautils.TriggeredByEvent),
-		InputData:         event.Data,
+		InputData:         input,
 	}
 
-	if event.Data != nil {
-		if workflowVersion.HasWorkflowConcurrency {
+	if input != nil {
+		if workflowVersion.ConcurrencyLimitStrategy.Valid {
 			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
-				Input: event.Data,
+				Input: input,
 			}
 		}
 	}
 
-	var err error
-
-	return opts, err
+	return opts, nil
 }
 
-func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
+func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, input []byte) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
-		DisplayName:       StringPtr(getWorkflowRunDisplayName(workflowVersion.Workflow().Name)),
-		WorkflowVersionId: workflowVersion.ID,
+		DisplayName:       StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
+		WorkflowVersionId: sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
 		Cron:              &cron,
 		CronParentId:      &cronParentId,
 		TriggeredBy:       string(datautils.TriggeredByCron),
+		InputData:         input,
 	}
 
-	var err error
-
-	return opts, err
-}
-
-func GetCreateWorkflowRunOptsFromSchedule(scheduledTrigger *db.WorkflowTriggerScheduledRefModel, workflowVersion *db.WorkflowVersionModel) (*CreateWorkflowRunOpts, error) {
-	opts := &CreateWorkflowRunOpts{
-		DisplayName:         StringPtr(getWorkflowRunDisplayName(workflowVersion.Workflow().Name)),
-		WorkflowVersionId:   workflowVersion.ID,
-		ScheduledWorkflowId: &scheduledTrigger.ID,
-		TriggeredBy:         string(datautils.TriggeredBySchedule),
-	}
-
-	data := scheduledTrigger.InnerWorkflowTriggerScheduledRef.Input
-	var jobRunData []byte
-
-	var err error
-
-	if data != nil {
-		jobRunData = []byte(json.RawMessage(*data))
-
-		if _, hasConcurrency := workflowVersion.Concurrency(); hasConcurrency {
+	if input != nil {
+		if workflowVersion.ConcurrencyLimitStrategy.Valid {
 			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
-				Input: jobRunData,
+				Input: input,
 			}
 		}
 	}
 
-	opts.InputData = jobRunData
+	return opts, nil
+}
 
-	return opts, err
+func GetCreateWorkflowRunOptsFromSchedule(
+	scheduledWorkflowId string,
+	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
+	input []byte,
+	fs ...CreateWorkflowRunOpt,
+) (*CreateWorkflowRunOpts, error) {
+	opts := &CreateWorkflowRunOpts{
+		DisplayName:         StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
+		WorkflowVersionId:   sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		ScheduledWorkflowId: &scheduledWorkflowId,
+		TriggeredBy:         string(datautils.TriggeredBySchedule),
+		InputData:           input,
+	}
+
+	if input != nil {
+		if workflowVersion.ConcurrencyLimitStrategy.Valid {
+			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+				Input: input,
+			}
+		}
+	}
+
+	for _, f := range fs {
+		f(opts)
+	}
+
+	return opts, nil
 }
 
 func getWorkflowRunDisplayName(workflowName string) string {
@@ -140,6 +201,12 @@ type ListWorkflowRunsOpts struct {
 
 	// (optional) the workflow version id
 	WorkflowVersionId *string `validate:"omitempty,uuid"`
+
+	// (optional) the parent workflow run id
+	ParentId *string `validate:"omitempty,uuid"`
+
+	// (optional) the parent step run id
+	ParentStepRunId *string `validate:"omitempty,uuid"`
 
 	// (optional) the event id that triggered the workflow run
 	EventId *string `validate:"omitempty,uuid"`
@@ -200,11 +267,9 @@ type ListWorkflowRunRoundRobinsOpts struct {
 	Limit *int
 }
 
-type WorkflowRunRepository interface {
+type WorkflowRunAPIRepository interface {
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
-
-	PopWorkflowRunsRoundRobin(tenantId, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*db.WorkflowRunModel, error)
@@ -215,4 +280,21 @@ type WorkflowRunRepository interface {
 	CreateWorkflowRunPullRequest(tenantId, workflowRunId string, opts *CreateWorkflowRunPullRequestOpts) (*db.GithubPullRequestModel, error)
 
 	ListPullRequestsForWorkflowRun(tenantId, workflowRunId string, opts *ListPullRequestsForWorkflowRunOpts) ([]db.GithubPullRequestModel, error)
+}
+
+type WorkflowRunEngineRepository interface {
+	// ListWorkflowRuns returns workflow runs for a given workflow version id.
+	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
+
+	GetChildWorkflowRun(parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error)
+
+	GetScheduledChildWorkflowRun(parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error)
+
+	PopWorkflowRunsRoundRobin(tenantId, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error)
+
+	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
+	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (string, error)
+
+	// GetWorkflowRunById returns a workflow run by id.
+	GetWorkflowRunById(tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)
 }

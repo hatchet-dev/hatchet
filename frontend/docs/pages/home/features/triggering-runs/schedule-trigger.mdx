@@ -8,10 +8,10 @@ To trigger a workflow at a specific time, you need to configure the `on` propert
 
 ```typescript
 const myWorkflow: Workflow = {
-  id: 'my-workflow',
-  description: 'A workflow triggered by a schedule',
+  id: "my-workflow",
+  description: "A workflow triggered by a schedule",
   on: {
-    schedule: '2023-06-15T09:30:00Z',
+    schedule: "2023-06-15T09:30:00Z",
   },
   steps: [
     // Define your workflow steps here
@@ -20,6 +20,55 @@ const myWorkflow: Workflow = {
 ```
 
 In this example, the `on` property is set to an object with a `schedule` property. The `schedule` property specifies the exact date and time when the workflow should be triggered. The date and time should be provided in the ISO 8601 format (`YYYY-MM-DDTHH:mm:ssZ`).
+
+## Delaying Events Using Child Workflows
+
+In addition to triggering workflows at specific times using schedule triggers, Hatchet also provides the ability to delay events by leveraging child workflows. This approach allows you to schedule a workflow to run at a future time and proxy relevant data to it.
+
+Here's an example of how you can delay events using child workflows in Hatchet:
+
+```python copy
+from datetime import datetime, timedelta
+from hatchet_sdk import Hatchet, Context
+
+hatchet = Hatchet(debug=True)
+
+@hatchet.workflow(on_events=["printer:schedule"])
+class PrintSchedule:
+    @hatchet.step()
+    def schedule(self, context: Context):
+        now = datetime.now()
+        print(f"The time is \t {now.strftime("%H:%M:%S")}")
+        future_time = now + timedelta(seconds=15)
+        print(f"Scheduling for \t {future_time.strftime("%H:%M:%S")}")
+
+        # schdule the run in the future
+        hatchet.client.admin.schedule_workflow(
+            'PrintPrinter',
+            [future_time],
+            context.workflow_input()
+        )
+
+@hatchet.workflow()
+class PrintPrinter:
+    @hatchet.step()
+    def step1(self, context: Context):
+        now = datetime.now()
+        print(f"Printed at \t {now.strftime("%H:%M:%S")}")
+        print(f"Message \t {context.workflow_input()['message']}")
+```
+
+In this example, we have two workflows: `PrintSchedule` and `PrintPrinter`. The `PrintSchedule` workflow is triggered by the `printer:schedule` event. When this workflow is executed, it performs the following steps:
+
+1. It retrieves the current time using `datetime.now()` and prints it.
+2. It calculates a future time by adding a specified delay (in this case, 15 seconds) to the current time using `timedelta`.
+3. It schedules the `PrintPrinter` workflow to run at the calculated future time using `hatchet.client.admin.schedule_workflow()`. The future time is passed as an argument, and the input data for the child workflow is obtained from `context.workflow_input()`.
+
+By scheduling the `PrintPrinter` workflow to run at a future time, you effectively delay the execution of the event.
+
+This approach provides flexibility in delaying events and passing relevant data to the delayed workflow. You can customize the delay duration based on your specific requirements and include any necessary data in the workflow input.
+
+Remember to register both workflows with the Hatchet worker and start the worker to enable the execution of the workflows.
 
 ## Scheduling Considerations
 
@@ -30,7 +79,6 @@ When using schedule triggers, there are a few considerations to keep in mind:
 2. **Execution Time**: Hatchet makes a best-effort attempt to start the workflow at the exact scheduled time. However, there may be slight delays due to system load or other factors. The actual execution time may vary slightly from the scheduled time.
 
 3. **One-Time Execution**: Schedule triggers are designed for one-time execution. Once a workflow is triggered by a schedule, it will not be triggered again automatically. If you need recurring executions, consider using cron triggers instead.
-
 
 ## Scheduling Best Practices
 
@@ -43,7 +91,6 @@ When working with schedule triggers, consider the following best practices:
 3. **Scheduling Window**: Configure an appropriate scheduling window based on your workflow requirements. Consider factors such as data availability, dependencies, and system load when determining the window size.
 
 4. **Error Handling**: Implement proper error handling and retry mechanisms in your workflows to handle any potential failures or exceptions that may occur during scheduled executions.
-
 
 ## Conclusion
 

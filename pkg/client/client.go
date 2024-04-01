@@ -1,8 +1,10 @@
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
+	"net/http"
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
@@ -13,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/client/loader"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -20,7 +23,9 @@ type Client interface {
 	Admin() AdminClient
 	Dispatcher() DispatcherClient
 	Event() EventClient
-	Run() RunClient
+	Subscribe() SubscribeClient
+	API() *rest.ClientWithResponses
+	TenantId() string
 }
 
 type clientImpl struct {
@@ -29,7 +34,8 @@ type clientImpl struct {
 	admin      AdminClient
 	dispatcher DispatcherClient
 	event      EventClient
-	run        RunClient
+	subscribe  SubscribeClient
+	rest       *rest.ClientWithResponses
 
 	// the tenant id
 	tenantId string
@@ -44,12 +50,13 @@ type ClientOpt func(*ClientOpts)
 type filesLoaderFunc func() []*types.Workflow
 
 type ClientOpts struct {
-	tenantId string
-	l        *zerolog.Logger
-	v        validator.Validator
-	tls      *tls.Config
-	hostPort string
-	token    string
+	tenantId  string
+	l         *zerolog.Logger
+	v         validator.Validator
+	tls       *tls.Config
+	hostPort  string
+	serverURL string
+	token     string
 
 	filesLoader   filesLoaderFunc
 	initWorkflows bool
@@ -87,7 +94,21 @@ func defaultClientOpts(cf *client.ClientConfigFile) *ClientOpts {
 		v:           validator.NewDefaultValidator(),
 		tls:         clientConfig.TLSConfig,
 		hostPort:    clientConfig.GRPCBroadcastAddress,
+		serverURL:   clientConfig.ServerURL,
 		filesLoader: types.DefaultLoader,
+	}
+}
+
+func WithLogLevel(lvl string) ClientOpt {
+	return func(opts *ClientOpts) {
+		logger := logger.NewDefaultLogger("worker")
+		lvl, err := zerolog.ParseLevel(lvl)
+
+		if err == nil {
+			logger = logger.Level(lvl)
+		}
+
+		opts.l = &logger
 	}
 }
 
@@ -189,7 +210,15 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	admin := newAdmin(conn, shared)
 	dispatcher := newDispatcher(conn, shared)
 	event := newEvent(conn, shared)
-	run := newRun(conn, shared)
+	subscribe := newSubscribe(conn, shared)
+	rest, err := rest.NewClientWithResponses(opts.serverURL, rest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
+		return nil
+	}))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create rest client: %w", err)
+	}
 
 	// if init workflows is set, then we need to initialize the workflows
 	if opts.initWorkflows {
@@ -204,9 +233,10 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		l:          opts.l,
 		admin:      admin,
 		dispatcher: dispatcher,
-		run:        run,
+		subscribe:  subscribe,
 		event:      event,
 		v:          opts.v,
+		rest:       rest,
 	}, nil
 }
 
@@ -222,8 +252,16 @@ func (c *clientImpl) Event() EventClient {
 	return c.event
 }
 
-func (c *clientImpl) Run() RunClient {
-	return c.run
+func (c *clientImpl) Subscribe() SubscribeClient {
+	return c.subscribe
+}
+
+func (c *clientImpl) API() *rest.ClientWithResponses {
+	return c.rest
+}
+
+func (c *clientImpl) TenantId() string {
+	return c.tenantId
 }
 
 func initWorkflows(fl filesLoaderFunc, adminClient AdminClient) error {

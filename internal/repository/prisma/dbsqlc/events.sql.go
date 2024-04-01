@@ -125,31 +125,25 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 
 const getEventForEngine = `-- name: GetEventForEngine :one
 SELECT
-    "id",
-    "key",
-    "data",
-    "tenantId"
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data
 FROM
     "Event"
 WHERE
     "id" = $1::uuid
 `
 
-type GetEventForEngineRow struct {
-	ID       pgtype.UUID `json:"id"`
-	Key      string      `json:"key"`
-	Data     []byte      `json:"data"`
-	TenantId pgtype.UUID `json:"tenantId"`
-}
-
-func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id pgtype.UUID) (*GetEventForEngineRow, error) {
+func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id pgtype.UUID) (*Event, error) {
 	row := db.QueryRow(ctx, getEventForEngine, id)
-	var i GetEventForEngineRow
+	var i Event
 	err := row.Scan(
 		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 		&i.Key,
-		&i.Data,
 		&i.TenantId,
+		&i.ReplayedFromId,
+		&i.Data,
 	)
 	return &i, err
 }
@@ -290,6 +284,50 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Runningruns,
 			&i.Succeededruns,
 			&i.Failedruns,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEventsByIDs = `-- name: ListEventsByIDs :many
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data 
+FROM
+    "Event" as events
+WHERE
+    "tenantId" = $1::uuid AND
+    "id" = ANY ($2::uuid[])
+`
+
+type ListEventsByIDsParams struct {
+	Tenantid pgtype.UUID   `json:"tenantid"`
+	Ids      []pgtype.UUID `json:"ids"`
+}
+
+func (q *Queries) ListEventsByIDs(ctx context.Context, db DBTX, arg ListEventsByIDsParams) ([]*Event, error) {
+	rows, err := db.Query(ctx, listEventsByIDs, arg.Tenantid, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Event
+	for rows.Next() {
+		var i Event
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Key,
+			&i.TenantId,
+			&i.ReplayedFromId,
+			&i.Data,
 		); err != nil {
 			return nil, err
 		}

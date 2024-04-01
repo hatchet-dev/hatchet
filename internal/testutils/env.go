@@ -35,17 +35,17 @@ func Prepare(t *testing.T) {
 	_ = os.Setenv("SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE", path.Join(testPath, baseDir, "hack/dev/encryption-keys/public_ec256.key"))
 
 	_ = os.Setenv("SERVER_PORT", "8080")
-	_ = os.Setenv("SERVER_URL", "https://app.dev.hatchet-tools.com")
+	_ = os.Setenv("SERVER_URL", "http://localhost:8080")
 
 	_ = os.Setenv("SERVER_AUTH_COOKIE_SECRETS", "something something")
 	_ = os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "app.dev.hatchet-tools.com")
 	_ = os.Setenv("SERVER_AUTH_COOKIE_INSECURE", "false")
 	_ = os.Setenv("SERVER_AUTH_SET_EMAIL_VERIFIED", "true")
 
-	_ = os.Setenv("SERVER_LOGGER_LEVEL", "debug")
-	_ = os.Setenv("SERVER_LOGGER_FORMAT", "console")
-	_ = os.Setenv("DATABASE_LOGGER_LEVEL", "debug")
-	_ = os.Setenv("DATABASE_LOGGER_FORMAT", "console")
+	_ = os.Setenv("SERVER_LOGGER_LEVEL", "error")
+	_ = os.Setenv("SERVER_LOGGER_FORMAT", "json")
+	_ = os.Setenv("DATABASE_LOGGER_LEVEL", "error")
+	_ = os.Setenv("DATABASE_LOGGER_FORMAT", "json")
 
 	// read in the local config
 	configLoader := loader.NewConfigLoader(path.Join(testPath, baseDir, "generated"))
@@ -56,10 +56,10 @@ func Prepare(t *testing.T) {
 	}
 
 	// check if tenant exists
-	_, err = serverConf.Repository.Tenant().GetTenantByID(tenantId)
+	_, err = serverConf.APIRepository.Tenant().GetTenantByID(tenantId)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			_, err = serverConf.Repository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+			_, err = serverConf.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
 				ID:   &tenantId,
 				Name: "test-tenant",
 				Slug: "test-tenant",

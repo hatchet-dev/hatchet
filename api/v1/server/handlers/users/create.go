@@ -37,7 +37,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	}
 
 	// determine if the user exists before attempting to write the user
-	existingUser, err := u.config.Repository.User().GetUserByEmail(string(request.Body.Email))
+	existingUser, err := u.config.APIRepository.User().GetUserByEmail(string(request.Body.Email))
 
 	if err != nil && !errors.Is(err, db.ErrNotFound) {
 		return nil, err
@@ -68,7 +68,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	}
 
 	// write the user to the db
-	user, err := u.config.Repository.User().CreateUser(createOpts)
+	user, err := u.config.APIRepository.User().CreateUser(createOpts)
 	if err != nil {
 		return nil, err
 	}

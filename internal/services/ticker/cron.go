@@ -9,33 +9,61 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 )
 
-func (t *TickerImpl) handleScheduleCron(ctx context.Context, task *msgqueue.Message) error {
+func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
+	return func() {
+		t.l.Debug().Msgf("ticker: polling cron schedules")
+
+		crons, err := t.repo.Ticker().PollCronSchedules(t.tickerId)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not poll cron schedules")
+			return
+		}
+
+		existingCrons := make(map[string]bool)
+
+		t.crons.Range(func(key, value interface{}) bool {
+			existingCrons[key.(string)] = false
+			return true
+		})
+
+		for _, cron := range crons {
+			workflowVersionId := sqlchelpers.UUIDToStr(cron.WorkflowVersionId)
+
+			t.l.Debug().Msgf("ticker: handling cron %s for version %s", cron.Cron, workflowVersionId)
+
+			// if the cron is already scheduled, mark it as existing
+			if _, ok := existingCrons[getCronKey(workflowVersionId, cron.Cron)]; ok {
+				existingCrons[getCronKey(workflowVersionId, cron.Cron)] = true
+				continue
+			}
+
+			// if the cron is not scheduled, schedule it
+			if err := t.handleScheduleCron(ctx, cron); err != nil {
+				t.l.Err(err).Msg("could not schedule cron")
+			}
+
+			existingCrons[getCronKey(workflowVersionId, cron.Cron)] = true
+		}
+
+		// cancel any crons that are no longer assigned to this ticker
+		for key, exists := range existingCrons {
+			if !exists {
+				if err := t.handleCancelCron(ctx, key); err != nil {
+					t.l.Err(err).Msg("could not cancel cron")
+				}
+			}
+		}
+	}
+}
+
+func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCronSchedulesRow) error {
 	t.l.Debug().Msg("ticker: scheduling cron")
-
-	payload := tasktypes.ScheduleCronTaskPayload{}
-	metadata := tasktypes.ScheduleCronTaskMetadata{}
-
-	err := t.dv.DecodeAndValidate(task.Payload, &payload)
-
-	if err != nil {
-		return fmt.Errorf("could not decode ticker task payload: %w", err)
-	}
-
-	err = t.dv.DecodeAndValidate(task.Metadata, &metadata)
-
-	if err != nil {
-		return fmt.Errorf("could not decode ticker task metadata: %w", err)
-	}
-
-	workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(metadata.TenantId, payload.WorkflowVersionId)
-
-	if err != nil {
-		return fmt.Errorf("could not get workflow version: %w", err)
-	}
 
 	// create a new scheduler
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
@@ -44,11 +72,15 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, task *msgqueue.Mess
 		return fmt.Errorf("could not create scheduler: %w", err)
 	}
 
+	tenantId := sqlchelpers.UUIDToStr(cron.TenantId)
+	workflowVersionId := sqlchelpers.UUIDToStr(cron.WorkflowVersionId)
+	cronParentId := sqlchelpers.UUIDToStr(cron.ParentId)
+
 	// schedule the cron
 	_, err = t.s.NewJob(
-		gocron.CronJob(payload.Cron, false),
+		gocron.CronJob(cron.Cron, false),
 		gocron.NewTask(
-			t.runCronWorkflow(ctx, metadata.TenantId, &payload, workflowVersion),
+			t.runCronWorkflow(ctx, tenantId, workflowVersionId, cron.Cron, cronParentId, cron.Input),
 		),
 	)
 
@@ -57,38 +89,53 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, task *msgqueue.Mess
 	}
 
 	// store the schedule in the cron map
-	t.crons.Store(getCronKey(payload.WorkflowVersionId, payload.Cron), s)
+	t.crons.Store(getCronKey(workflowVersionId, cron.Cron), s)
 
 	s.Start()
 
 	return nil
 }
 
-func (t *TickerImpl) runCronWorkflow(ctx context.Context, tenantId string, payload *tasktypes.ScheduleCronTaskPayload, workflowVersion *db.WorkflowVersionModel) func() {
+func (t *TickerImpl) runCronWorkflow(ctx context.Context, tenantId, workflowVersionId, cron, cronParentId string, input []byte) func() {
 	return func() {
-		t.l.Debug().Msgf("ticker: running workflow %s", payload.WorkflowVersionId)
+		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
+
+		workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(tenantId, workflowVersionId)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not get workflow version")
+			return
+		}
 
 		// create a new workflow run in the database
-		createOpts, err := repository.GetCreateWorkflowRunOptsFromCron(payload.Cron, payload.CronParentId, workflowVersion)
+		createOpts, err := repository.GetCreateWorkflowRunOptsFromCron(cron, cronParentId, workflowVersion, input)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not get create workflow run opts")
 			return
 		}
 
-		workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
+		workflowRunId, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not create workflow run")
 			return
 		}
 
-		for _, jobRun := range workflowRun.JobRuns() {
-			jobRunCp := jobRun
+		jobRuns, err := t.repo.JobRun().ListJobRunsForWorkflowRun(tenantId, workflowRunId)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not list job runs for workflow run")
+			return
+		}
+
+		for _, jobRunId := range jobRuns {
+			jobRunStr := sqlchelpers.UUIDToStr(jobRunId)
+
 			err = t.mq.AddMessage(
 				context.Background(),
 				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.JobRunQueuedToTask(jobRun.Job(), &jobRunCp),
+				tasktypes.JobRunQueuedToTask(tenantId, jobRunStr),
 			)
 
 			if err != nil {
@@ -99,32 +146,17 @@ func (t *TickerImpl) runCronWorkflow(ctx context.Context, tenantId string, paylo
 	}
 }
 
-func (t *TickerImpl) handleCancelCron(ctx context.Context, task *msgqueue.Message) error {
+func (t *TickerImpl) handleCancelCron(ctx context.Context, key string) error {
 	t.l.Debug().Msg("ticker: canceling cron")
 
-	payload := tasktypes.CancelCronTaskPayload{}
-	metadata := tasktypes.CancelCronTaskMetadata{}
-
-	err := t.dv.DecodeAndValidate(task.Payload, &payload)
-
-	if err != nil {
-		return fmt.Errorf("could not decode ticker task payload: %w", err)
-	}
-
-	err = t.dv.DecodeAndValidate(task.Metadata, &metadata)
-
-	if err != nil {
-		return fmt.Errorf("could not decode ticker task metadata: %w", err)
-	}
-
 	// get the scheduler
-	schedulerVal, ok := t.crons.Load(getCronKey(payload.WorkflowVersionId, payload.Cron))
+	schedulerVal, ok := t.crons.Load(key)
 
 	if !ok {
-		return fmt.Errorf("could not find cron %s with schedule %s", payload.WorkflowVersionId, payload.Cron)
+		return fmt.Errorf("could not find cron with key %s ", key)
 	}
 
-	defer t.crons.Delete(getCronKey(payload.WorkflowVersionId, payload.Cron))
+	defer t.crons.Delete(key)
 
 	scheduler := schedulerVal.(gocron.Scheduler)
 

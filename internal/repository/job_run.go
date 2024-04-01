@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
@@ -21,16 +23,16 @@ func JobRunStatusPtr(status db.JobRunStatus) *db.JobRunStatus {
 	return &status
 }
 
-type JobRunRepository interface {
-	ListAllJobRuns(opts *ListAllJobRunsOpts) ([]db.JobRunModel, error)
+type JobRunAPIRepository interface {
+	// SetJobRunStatusRunning resets the status of a job run to a RUNNING status. This is useful if a step
+	// run is being manually replayed, but shouldn't be used by most callers.
+	SetJobRunStatusRunning(tenantId, jobRunId string) error
+}
 
-	GetJobRunById(tenantId, jobRunId string) (*db.JobRunModel, error)
-
+type JobRunEngineRepository interface {
 	// SetJobRunStatusRunning resets the status of a job run to a RUNNING status. This is useful if a step
 	// run is being manually replayed, but shouldn't be used by most callers.
 	SetJobRunStatusRunning(tenantId, jobRunId string) error
 
-	GetJobRunLookupData(tenantId, jobRunId string) (*db.JobRunLookupDataModel, error)
-
-	UpdateJobRunLookupData(tenantId, jobRunId string, opts *UpdateJobRunLookupDataOpts) error
+	ListJobRunsForWorkflowRun(tenantId, workflowRunId string) ([]pgtype.UUID, error)
 }

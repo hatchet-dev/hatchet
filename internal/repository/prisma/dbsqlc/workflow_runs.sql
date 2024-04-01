@@ -22,6 +22,14 @@ WHERE
         workflow."id" = sqlc.narg('workflowId')::uuid
     ) AND
     (
+        sqlc.narg('parentId')::uuid IS NULL OR
+        runs."parentId" = sqlc.narg('parentId')::uuid
+    ) AND
+    (
+        sqlc.narg('parentStepRunId')::uuid IS NULL OR
+        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+    ) AND
+    (
         sqlc.narg('eventId')::uuid IS NULL OR
         events."id" = sqlc.narg('eventId')::uuid
     ) AND
@@ -63,6 +71,14 @@ WHERE
         workflow."id" = sqlc.narg('workflowId')::uuid
     ) AND
     (
+        sqlc.narg('parentId')::uuid IS NULL OR
+        runs."parentId" = sqlc.narg('parentId')::uuid
+    ) AND
+    (
+        sqlc.narg('parentStepRunId')::uuid IS NULL OR
+        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+    ) AND
+    (
         sqlc.narg('eventId')::uuid IS NULL OR
         events."id" = sqlc.narg('eventId')::uuid
     ) AND
@@ -98,7 +114,7 @@ WITH running_count AS (
     SELECT
         r2.id,
         row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt") AS rn,
-        row_number() over (order by r2."id" desc) as seqnum
+        row_number() over (order by r2."createdAt" ASC) as seqnum
     FROM
         "WorkflowRun" r2
     LEFT JOIN
@@ -108,14 +124,28 @@ WITH running_count AS (
         r2."status" = 'QUEUED' AND
         workflowVersion."id" = $2
     ORDER BY
-        rn ASC
+        rn, seqnum ASC
+), min_rn AS (
+    SELECT
+        MIN(rn) as min_rn
+    FROM
+        queued_row_numbers
+), first_partition_count AS (
+    SELECT
+        COUNT(*) as count
+    FROM
+        queued_row_numbers
+    WHERE
+        rn = (SELECT min_rn FROM min_rn)
 ), eligible_runs AS (
     SELECT
         id
     FROM
         queued_row_numbers
     WHERE
-        queued_row_numbers."seqnum" <= (@maxRuns::int) - (SELECT "count" FROM running_count)
+        -- We can run up to maxRuns per group, so we multiple max runs by the number of groups, then subtract the 
+        -- total number of running workflows.
+        queued_row_numbers."seqnum" <= (@maxRuns::int) * (SELECT count FROM first_partition_count) - (SELECT "count" FROM running_count)
     FOR UPDATE SKIP LOCKED
 )
 UPDATE "WorkflowRun"
@@ -248,7 +278,11 @@ INSERT INTO "WorkflowRun" (
     "status",
     "error",
     "startedAt",
-    "finishedAt"
+    "finishedAt",
+    "childIndex",
+    "childKey",
+    "parentId",
+    "parentStepRunId"
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -260,7 +294,11 @@ INSERT INTO "WorkflowRun" (
     'PENDING', -- default status
     NULL, -- assuming error is not set on creation
     NULL, -- assuming startedAt is not set on creation
-    NULL  -- assuming finishedAt is not set on creation
+    NULL,  -- assuming finishedAt is not set on creation
+    sqlc.narg('childIndex')::int,
+    sqlc.narg('childKey')::text,
+    sqlc.narg('parentId')::uuid,
+    sqlc.narg('parentStepRunId')::uuid
 ) RETURNING *;
 
 -- name: CreateWorkflowRunTriggeredBy :one
@@ -424,36 +462,57 @@ JOIN
 JOIN 
     "StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = @jobRunId::uuid;
 
--- name: ListStartableStepRuns :many
-WITH job_run AS (
-    SELECT "status"
-    FROM "JobRun"
-    WHERE "id" = @jobRunId::uuid
-)
-SELECT 
-    child_run."id" AS "id"
-FROM 
-    "StepRun" AS child_run
-LEFT JOIN 
-    "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
-JOIN
-    job_run ON true
-WHERE 
-    child_run."jobRunId" = @jobRunId::uuid
-    AND child_run."status" = 'PENDING'
-    AND job_run."status" = 'RUNNING'
-    -- case on whether parentStepRunId is null
-    AND (
-        (sqlc.narg('parentStepRunId')::uuid IS NULL AND step_run_order."A" IS NULL) OR 
-        (
-            step_run_order."A" = sqlc.narg('parentStepRunId')::uuid
-            AND NOT EXISTS (
-                SELECT 1
-                FROM "_StepRunOrder" AS parent_order
-                JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
-                WHERE 
-                    parent_order."B" = child_run."id"
-                    AND parent_run."status" != 'SUCCEEDED'
-            )
-        )
+-- name: GetWorkflowRun :many
+SELECT
+    sqlc.embed(runs), 
+    sqlc.embed(runTriggers), 
+    sqlc.embed(workflowVersion), 
+    workflow."name" as "workflowName",
+    -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
+    wc."limitStrategy" as "concurrencyLimitStrategy",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    groupKeyRun."id" as "getGroupKeyRunId"
+FROM
+    "WorkflowRun" as runs
+LEFT JOIN
+    "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
+LEFT JOIN
+    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
+WHERE
+    runs."id" = ANY(@ids::uuid[]) AND
+    runs."tenantId" = @tenantId::uuid;
+
+
+-- name: GetChildWorkflowRun :one
+SELECT
+    *
+FROM
+    "WorkflowRun"
+WHERE
+    "parentId" = @parentId::uuid AND
+    "parentStepRunId" = @parentStepRunId::uuid AND
+    (
+        -- if childKey is set, use that
+        (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
+        (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
+    );
+
+-- name: GetScheduledChildWorkflowRun :one
+SELECT
+    *
+FROM
+    "WorkflowTriggerScheduledRef"
+WHERE
+    "parentId" = @parentId::uuid AND
+    "parentStepRunId" = @parentStepRunId::uuid AND
+    (
+        -- if childKey is set, use that
+        (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
+        (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
     );

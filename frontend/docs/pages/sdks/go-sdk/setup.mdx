@@ -10,7 +10,7 @@ go get github.com/hatchet-dev/hatchet
 
 ## Usage
 
-You should have generated a set of client certificates (or received them through Hatchet cloud). These certificates are `ca.cert`, `client-worker.pem`, and `client-worker.key`. You should also make note of the Hatchet server address and the tenant ID you'd like to connect to. 
+You should have generated a set of client certificates (or received them through Hatchet cloud). These certificates are `ca.cert`, `client-worker.pem`, and `client-worker.key`. You should also make note of the Hatchet server address and the tenant ID you'd like to connect to.
 
 ```sh
 HATCHET_CLIENT_TENANT_ID=<tenant-id>
@@ -20,9 +20,9 @@ HATCHET_CLIENT_TLS_KEY_FILE=./certs/client-worker.key
 HATCHET_CLIENT_TLS_SERVER_NAME=<hatchet-domain>
 ```
 
-Assuming these variables are set in the environment, you can then initialize a client with the following code: 
+Assuming these variables are set in the environment, you can then initialize a client with the following code:
 
-```go 
+```go
 c, err := client.New(
 	client.WithHostPort("<hatchet-domain>", 443),
 )

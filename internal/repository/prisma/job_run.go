@@ -3,6 +3,7 @@ package prisma
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -13,7 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
-type jobRunRepository struct {
+type jobRunAPIRepository struct {
 	client  *db.PrismaClient
 	pool    *pgxpool.Pool
 	v       validator.Validator
@@ -21,10 +22,10 @@ type jobRunRepository struct {
 	l       *zerolog.Logger
 }
 
-func NewJobRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.JobRunRepository {
+func NewJobRunAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.JobRunAPIRepository {
 	queries := dbsqlc.New()
 
-	return &jobRunRepository{
+	return &jobRunAPIRepository{
 		client:  client,
 		v:       v,
 		pool:    pool,
@@ -33,73 +34,46 @@ func NewJobRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validato
 	}
 }
 
-func (j *jobRunRepository) ListAllJobRuns(opts *repository.ListAllJobRunsOpts) ([]db.JobRunModel, error) {
-	if err := j.v.Validate(opts); err != nil {
-		return nil, err
-	}
-
-	params := []db.JobRunWhereParam{}
-
-	if opts.TickerId != nil {
-		params = append(params, db.JobRun.TickerID.Equals(*opts.TickerId))
-	}
-
-	if opts.Status != nil {
-		params = append(params, db.JobRun.Status.Equals(*opts.Status))
-	}
-
-	if opts.NoTickerId != nil && *opts.NoTickerId {
-		params = append(params, db.JobRun.TickerID.IsNull())
-	}
-
-	return j.client.JobRun.FindMany(
-		params...,
-	).With(
-		db.JobRun.LookupData.Fetch(),
-		db.JobRun.StepRuns.Fetch().With(
-			db.StepRun.Step.Fetch().With(
-				db.Step.Children.Fetch(),
-				db.Step.Parents.Fetch(),
-				db.Step.Action.Fetch(),
-			),
-		),
-		db.JobRun.Job.Fetch().With(
-			db.Job.Workflow.Fetch(),
-		),
-	).Exec(context.Background())
+func (j *jobRunAPIRepository) SetJobRunStatusRunning(tenantId, jobRunId string) error {
+	return setJobRunStatusRunning(context.Background(), j.pool, j.queries, j.l, tenantId, jobRunId)
 }
 
-func (j *jobRunRepository) GetJobRunById(tenantId, jobRunId string) (*db.JobRunModel, error) {
-	return j.client.JobRun.FindUnique(
-		db.JobRun.ID.Equals(jobRunId),
-	).With(
-		db.JobRun.LookupData.Fetch(),
-		db.JobRun.StepRuns.Fetch().With(
-			db.StepRun.Parents.Fetch(),
-			db.StepRun.Children.Fetch(),
-			db.StepRun.Step.Fetch().With(
-				db.Step.Children.Fetch(),
-				db.Step.Parents.Fetch(),
-				db.Step.Action.Fetch(),
-			),
-		),
-		db.JobRun.Job.Fetch().With(
-			db.Job.Workflow.Fetch(),
-		),
-		db.JobRun.Ticker.Fetch(),
-	).Exec(context.Background())
+type jobRunEngineRepository struct {
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func (j *jobRunRepository) SetJobRunStatusRunning(tenantId, jobRunId string) error {
-	tx, err := j.pool.Begin(context.Background())
+func NewJobRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.JobRunEngineRepository {
+	queries := dbsqlc.New()
+
+	return &jobRunEngineRepository{
+		v:       v,
+		pool:    pool,
+		queries: queries,
+		l:       l,
+	}
+}
+
+func (j *jobRunEngineRepository) SetJobRunStatusRunning(tenantId, jobRunId string) error {
+	return setJobRunStatusRunning(context.Background(), j.pool, j.queries, j.l, tenantId, jobRunId)
+}
+
+func (j *jobRunEngineRepository) ListJobRunsForWorkflowRun(tenantId, workflowRunId string) ([]pgtype.UUID, error) {
+	return j.queries.ListJobRunsForWorkflowRun(context.Background(), j.pool, sqlchelpers.UUIDFromStr(workflowRunId))
+}
+
+func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId, jobRunId string) error {
+	tx, err := pool.Begin(context.Background())
 
 	if err != nil {
 		return err
 	}
 
-	defer deferRollback(context.Background(), j.l, tx.Rollback)
+	defer deferRollback(context.Background(), l, tx.Rollback)
 
-	jobRun, err := j.queries.UpdateJobRunStatus(context.Background(), tx, dbsqlc.UpdateJobRunStatusParams{
+	jobRun, err := queries.UpdateJobRunStatus(context.Background(), tx, dbsqlc.UpdateJobRunStatusParams{
 		ID:       sqlchelpers.UUIDFromStr(jobRunId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Status:   dbsqlc.JobRunStatusRUNNING,
@@ -109,7 +83,7 @@ func (j *jobRunRepository) SetJobRunStatusRunning(tenantId, jobRunId string) err
 		return err
 	}
 
-	_, err = j.queries.UpdateWorkflowRun(
+	_, err = queries.UpdateWorkflowRun(
 		context.Background(),
 		tx,
 		dbsqlc.UpdateWorkflowRunParams{
@@ -119,45 +93,6 @@ func (j *jobRunRepository) SetJobRunStatusRunning(tenantId, jobRunId string) err
 				WorkflowRunStatus: dbsqlc.WorkflowRunStatusRUNNING,
 				Valid:             true,
 			},
-		},
-	)
-
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit(context.Background())
-}
-
-func (j *jobRunRepository) GetJobRunLookupData(tenantId, jobRunId string) (*db.JobRunLookupDataModel, error) {
-	return j.client.JobRunLookupData.FindUnique(
-		db.JobRunLookupData.JobRunIDTenantID(
-			db.JobRunLookupData.JobRunID.Equals(jobRunId),
-			db.JobRunLookupData.TenantID.Equals(tenantId),
-		),
-	).Exec(context.Background())
-}
-
-func (j *jobRunRepository) UpdateJobRunLookupData(tenantId, jobRunId string, opts *repository.UpdateJobRunLookupDataOpts) error {
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-	pgJobRunId := sqlchelpers.UUIDFromStr(jobRunId)
-
-	tx, err := j.pool.Begin(context.Background())
-
-	if err != nil {
-		return err
-	}
-
-	defer deferRollback(context.Background(), j.l, tx.Rollback)
-
-	err = j.queries.UpsertJobRunLookupData(
-		context.Background(),
-		tx,
-		dbsqlc.UpsertJobRunLookupDataParams{
-			Jobrunid:  pgJobRunId,
-			Tenantid:  pgTenantId,
-			Fieldpath: opts.FieldPath,
-			Jsondata:  opts.Data,
 		},
 	)
 

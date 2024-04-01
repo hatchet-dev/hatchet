@@ -15,14 +15,14 @@ type AdminService interface {
 type AdminServiceImpl struct {
 	contracts.UnimplementedWorkflowServiceServer
 
-	repo repository.Repository
+	repo repository.EngineRepository
 	mq   msgqueue.MessageQueue
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
 
 type AdminServiceOpts struct {
-	repo repository.Repository
+	repo repository.EngineRepository
 	mq   msgqueue.MessageQueue
 }
 
@@ -30,7 +30,7 @@ func defaultAdminServiceOpts() *AdminServiceOpts {
 	return &AdminServiceOpts{}
 }
 
-func WithRepository(r repository.Repository) AdminServiceOpt {
+func WithRepository(r repository.EngineRepository) AdminServiceOpt {
 	return func(opts *AdminServiceOpts) {
 		opts.repo = r
 	}

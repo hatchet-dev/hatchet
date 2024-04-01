@@ -23,6 +23,7 @@ RETURNING "GetGroupKeyRun".*;
 
 -- name: GetGroupKeyRunForEngine :many
 SELECT
+    DISTINCT ON (ggr."id")
     sqlc.embed(ggr),
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     wr."id" AS "workflowRunId",
@@ -38,7 +39,7 @@ JOIN
 JOIN
     "WorkflowConcurrency" wc ON wv."id" = wc."workflowVersionId"
 JOIN
-    "Action" a ON wc."getConcurrencyGroupId" = a."id"
+    "Action" a ON wc."getConcurrencyGroupId" = a."id" AND a."tenantId" = ggr."tenantId"
 WHERE
     ggr."id" = ANY(@ids::uuid[]) AND
     ggr."tenantId" = @tenantId::uuid;
@@ -96,7 +97,6 @@ WITH get_group_key_run AS (
     WHERE
         ggr."id" = @getGroupKeyRunId::uuid AND
         ggr."tenantId" = @tenantId::uuid
-    FOR UPDATE SKIP LOCKED
 ), valid_workers AS (
     SELECT
         w."id", w."dispatcherId"
@@ -116,7 +116,6 @@ WITH get_group_key_run AS (
     SELECT "id", "dispatcherId"
     FROM valid_workers
     LIMIT 1
-    FOR UPDATE SKIP LOCKED
 )
 UPDATE
     "GetGroupKeyRun"
@@ -127,7 +126,8 @@ SET
         FROM selected_worker
         LIMIT 1
     ),
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "timeoutAt" = CURRENT_TIMESTAMP + INTERVAL '5 minutes'
 WHERE
     "id" = @getGroupKeyRunId::uuid AND
     "tenantId" = @tenantId::uuid AND

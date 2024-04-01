@@ -23,9 +23,9 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type EventsServiceClient interface {
 	Push(ctx context.Context, in *PushEventRequest, opts ...grpc.CallOption) (*Event, error)
-	List(ctx context.Context, in *ListEventRequest, opts ...grpc.CallOption) (*ListEventResponse, error)
 	ReplaySingleEvent(ctx context.Context, in *ReplayEventRequest, opts ...grpc.CallOption) (*Event, error)
 	PutLog(ctx context.Context, in *PutLogRequest, opts ...grpc.CallOption) (*PutLogResponse, error)
+	PutStreamEvent(ctx context.Context, in *PutStreamEventRequest, opts ...grpc.CallOption) (*PutStreamEventResponse, error)
 }
 
 type eventsServiceClient struct {
@@ -39,15 +39,6 @@ func NewEventsServiceClient(cc grpc.ClientConnInterface) EventsServiceClient {
 func (c *eventsServiceClient) Push(ctx context.Context, in *PushEventRequest, opts ...grpc.CallOption) (*Event, error) {
 	out := new(Event)
 	err := c.cc.Invoke(ctx, "/EventsService/Push", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *eventsServiceClient) List(ctx context.Context, in *ListEventRequest, opts ...grpc.CallOption) (*ListEventResponse, error) {
-	out := new(ListEventResponse)
-	err := c.cc.Invoke(ctx, "/EventsService/List", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -72,14 +63,23 @@ func (c *eventsServiceClient) PutLog(ctx context.Context, in *PutLogRequest, opt
 	return out, nil
 }
 
+func (c *eventsServiceClient) PutStreamEvent(ctx context.Context, in *PutStreamEventRequest, opts ...grpc.CallOption) (*PutStreamEventResponse, error) {
+	out := new(PutStreamEventResponse)
+	err := c.cc.Invoke(ctx, "/EventsService/PutStreamEvent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EventsServiceServer is the server API for EventsService service.
 // All implementations must embed UnimplementedEventsServiceServer
 // for forward compatibility
 type EventsServiceServer interface {
 	Push(context.Context, *PushEventRequest) (*Event, error)
-	List(context.Context, *ListEventRequest) (*ListEventResponse, error)
 	ReplaySingleEvent(context.Context, *ReplayEventRequest) (*Event, error)
 	PutLog(context.Context, *PutLogRequest) (*PutLogResponse, error)
+	PutStreamEvent(context.Context, *PutStreamEventRequest) (*PutStreamEventResponse, error)
 	mustEmbedUnimplementedEventsServiceServer()
 }
 
@@ -90,14 +90,14 @@ type UnimplementedEventsServiceServer struct {
 func (UnimplementedEventsServiceServer) Push(context.Context, *PushEventRequest) (*Event, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Push not implemented")
 }
-func (UnimplementedEventsServiceServer) List(context.Context, *ListEventRequest) (*ListEventResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
-}
 func (UnimplementedEventsServiceServer) ReplaySingleEvent(context.Context, *ReplayEventRequest) (*Event, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplaySingleEvent not implemented")
 }
 func (UnimplementedEventsServiceServer) PutLog(context.Context, *PutLogRequest) (*PutLogResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutLog not implemented")
+}
+func (UnimplementedEventsServiceServer) PutStreamEvent(context.Context, *PutStreamEventRequest) (*PutStreamEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutStreamEvent not implemented")
 }
 func (UnimplementedEventsServiceServer) mustEmbedUnimplementedEventsServiceServer() {}
 
@@ -126,24 +126,6 @@ func _EventsService_Push_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EventsServiceServer).Push(ctx, req.(*PushEventRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _EventsService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListEventRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(EventsServiceServer).List(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/EventsService/List",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(EventsServiceServer).List(ctx, req.(*ListEventRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -184,6 +166,24 @@ func _EventsService_PutLog_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EventsService_PutStreamEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutStreamEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EventsServiceServer).PutStreamEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/EventsService/PutStreamEvent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EventsServiceServer).PutStreamEvent(ctx, req.(*PutStreamEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // EventsService_ServiceDesc is the grpc.ServiceDesc for EventsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -196,16 +196,16 @@ var EventsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _EventsService_Push_Handler,
 		},
 		{
-			MethodName: "List",
-			Handler:    _EventsService_List_Handler,
-		},
-		{
 			MethodName: "ReplaySingleEvent",
 			Handler:    _EventsService_ReplaySingleEvent_Handler,
 		},
 		{
 			MethodName: "PutLog",
 			Handler:    _EventsService_PutLog_Handler,
+		},
+		{
+			MethodName: "PutStreamEvent",
+			Handler:    _EventsService_PutStreamEvent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

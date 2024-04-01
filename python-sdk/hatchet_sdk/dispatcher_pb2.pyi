@@ -41,6 +41,7 @@ class ResourceEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     RESOURCE_EVENT_TYPE_FAILED: _ClassVar[ResourceEventType]
     RESOURCE_EVENT_TYPE_CANCELLED: _ClassVar[ResourceEventType]
     RESOURCE_EVENT_TYPE_TIMED_OUT: _ClassVar[ResourceEventType]
+    RESOURCE_EVENT_TYPE_STREAM: _ClassVar[ResourceEventType]
 START_STEP_RUN: ActionType
 CANCEL_STEP_RUN: ActionType
 START_GET_GROUP_KEY: ActionType
@@ -61,6 +62,7 @@ RESOURCE_EVENT_TYPE_COMPLETED: ResourceEventType
 RESOURCE_EVENT_TYPE_FAILED: ResourceEventType
 RESOURCE_EVENT_TYPE_CANCELLED: ResourceEventType
 RESOURCE_EVENT_TYPE_TIMED_OUT: ResourceEventType
+RESOURCE_EVENT_TYPE_STREAM: ResourceEventType
 
 class WorkerRegisterRequest(_message.Message):
     __slots__ = ("workerName", "actions", "services", "maxRuns")
@@ -187,7 +189,7 @@ class SubscribeToWorkflowEventsRequest(_message.Message):
     def __init__(self, workflowRunId: _Optional[str] = ...) -> None: ...
 
 class WorkflowEvent(_message.Message):
-    __slots__ = ("workflowRunId", "resourceType", "eventType", "resourceId", "eventTimestamp", "eventPayload", "hangup")
+    __slots__ = ("workflowRunId", "resourceType", "eventType", "resourceId", "eventTimestamp", "eventPayload", "hangup", "stepRetries", "retryCount")
     WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
     RESOURCETYPE_FIELD_NUMBER: _ClassVar[int]
     EVENTTYPE_FIELD_NUMBER: _ClassVar[int]
@@ -195,6 +197,8 @@ class WorkflowEvent(_message.Message):
     EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     EVENTPAYLOAD_FIELD_NUMBER: _ClassVar[int]
     HANGUP_FIELD_NUMBER: _ClassVar[int]
+    STEPRETRIES_FIELD_NUMBER: _ClassVar[int]
+    RETRYCOUNT_FIELD_NUMBER: _ClassVar[int]
     workflowRunId: str
     resourceType: ResourceType
     eventType: ResourceEventType
@@ -202,7 +206,9 @@ class WorkflowEvent(_message.Message):
     eventTimestamp: _timestamp_pb2.Timestamp
     eventPayload: str
     hangup: bool
-    def __init__(self, workflowRunId: _Optional[str] = ..., resourceType: _Optional[_Union[ResourceType, str]] = ..., eventType: _Optional[_Union[ResourceEventType, str]] = ..., resourceId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventPayload: _Optional[str] = ..., hangup: bool = ...) -> None: ...
+    stepRetries: int
+    retryCount: int
+    def __init__(self, workflowRunId: _Optional[str] = ..., resourceType: _Optional[_Union[ResourceType, str]] = ..., eventType: _Optional[_Union[ResourceEventType, str]] = ..., resourceId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventPayload: _Optional[str] = ..., hangup: bool = ..., stepRetries: _Optional[int] = ..., retryCount: _Optional[int] = ...) -> None: ...
 
 class OverridesData(_message.Message):
     __slots__ = ("stepRunId", "path", "value", "callerFilename")
@@ -217,5 +223,17 @@ class OverridesData(_message.Message):
     def __init__(self, stepRunId: _Optional[str] = ..., path: _Optional[str] = ..., value: _Optional[str] = ..., callerFilename: _Optional[str] = ...) -> None: ...
 
 class OverridesDataResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class HeartbeatRequest(_message.Message):
+    __slots__ = ("workerId", "heartbeatAt")
+    WORKERID_FIELD_NUMBER: _ClassVar[int]
+    HEARTBEATAT_FIELD_NUMBER: _ClassVar[int]
+    workerId: str
+    heartbeatAt: _timestamp_pb2.Timestamp
+    def __init__(self, workerId: _Optional[str] = ..., heartbeatAt: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+
+class HeartbeatResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...

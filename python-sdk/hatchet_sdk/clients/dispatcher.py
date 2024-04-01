@@ -1,5 +1,6 @@
 # relative imports
-from ..dispatcher_pb2 import GroupKeyActionEvent, StepActionEvent, ActionEventResponse, ActionType, AssignedAction, WorkerListenRequest, WorkerRegisterRequest, WorkerUnsubscribeRequest, WorkerRegisterResponse, OverridesData
+import threading
+from ..dispatcher_pb2 import GroupKeyActionEvent, StepActionEvent, ActionEventResponse, ActionType, AssignedAction, WorkerListenRequest, WorkerRegisterRequest, WorkerUnsubscribeRequest, WorkerRegisterResponse, OverridesData, HeartbeatRequest
 from ..dispatcher_pb2_grpc import DispatcherStub
 
 import time
@@ -9,6 +10,7 @@ import json
 import grpc
 from typing import Callable, List, Union
 from ..metadata import get_metadata
+from .events import proto_timestamp_now
 import time
 
 
@@ -72,8 +74,43 @@ class ActionListenerImpl(WorkerActionListener):
         self.worker_id = worker_id
         self.retries = 0
         self.last_connection_attempt = 0
-        # self.logger = logger
-        # self.validator = validator
+        self.heartbeat_thread = None
+        self.run_heartbeat = True
+        self.listen_strategy = "v2"
+
+    def heartbeat(self):
+        # send a heartbeat every 4 seconds
+        while True:
+            if not self.run_heartbeat:
+                break
+
+            try:
+                self.client.Heartbeat(
+                    HeartbeatRequest(
+                        workerId=self.worker_id,
+                        heartbeatAt=proto_timestamp_now(),
+                    ),
+                    timeout=DEFAULT_REGISTER_TIMEOUT,
+                    metadata=get_metadata(self.token),
+                )
+            except grpc.RpcError as e:
+                # we don't reraise the error here, as we don't want to stop the heartbeat thread
+                logger.error(f"Failed to send heartbeat: {e}")
+
+                if e.code() == grpc.StatusCode.UNIMPLEMENTED:
+                    break
+
+            time.sleep(4)
+
+    def start_heartbeater(self):
+        if self.heartbeat_thread is not None:
+            return
+        
+        # create a new thread to send heartbeats
+        heartbeat_thread = threading.Thread(target=self.heartbeat)
+        heartbeat_thread.start()
+
+        self.heartbeat_thread = heartbeat_thread
 
     def actions(self):
         while True:
@@ -119,6 +156,12 @@ class ActionListenerImpl(WorkerActionListener):
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                     logger.info("Deadline exceeded, retrying subscription")
                     continue
+                elif self.listen_strategy == "v2" and e.code() == grpc.StatusCode.UNIMPLEMENTED:
+                    # ListenV2 is not available, fallback to Listen
+                    self.listen_strategy = "v1"
+                    self.run_heartbeat = False
+                    logger.info("ListenV2 not available, falling back to Listen")
+                    continue
                 else:
                     # Unknown error, report and break
                     # self.logger.error(f"Failed to receive message: {e}")
@@ -160,13 +203,23 @@ class ActionListenerImpl(WorkerActionListener):
             time.sleep(DEFAULT_ACTION_LISTENER_RETRY_INTERVAL)
             logger.info(
                 f"Could not connect to Hatchet, retrying... {self.retries}/{DEFAULT_ACTION_LISTENER_RETRY_COUNT}")
+            
+        if self.listen_strategy == "v2":
+            listener = self.client.ListenV2(WorkerListenRequest(
+                workerId=self.worker_id
+            ),
+                metadata=get_metadata(self.token),
+            )
 
-        listener = self.client.Listen(WorkerListenRequest(
-            workerId=self.worker_id
-        ),
-            timeout=DEFAULT_ACTION_TIMEOUT,
-            metadata=get_metadata(self.token),
-        )
+            self.start_heartbeater()
+        else:
+            # if ListenV2 is not available, fallback to Listen
+            listener = self.client.Listen(WorkerListenRequest(
+                workerId=self.worker_id
+            ),
+                timeout=DEFAULT_ACTION_TIMEOUT,
+                metadata=get_metadata(self.token),
+            )
 
         self.last_connection_attempt = current_time
 
@@ -174,6 +227,8 @@ class ActionListenerImpl(WorkerActionListener):
         return listener
 
     def unregister(self):
+        self.run_heartbeat = False
+
         try:
             self.client.Unsubscribe(
                 WorkerUnsubscribeRequest(

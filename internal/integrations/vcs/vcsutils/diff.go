@@ -15,7 +15,7 @@ import (
 
 // GetStepRunOverrideDiffs returns a map of the override keys to the override values which have changed
 // between the first step run and the latest step run.
-func GetStepRunOverrideDiffs(repo repository.StepRunRepository, stepRun *db.StepRunModel) (diffs map[string]string, original map[string]string, err error) {
+func GetStepRunOverrideDiffs(repo repository.StepRunAPIRepository, stepRun *db.StepRunModel) (diffs map[string]string, original map[string]string, err error) {
 	// get the first step run archived result, there will be at least one
 	var archivedResult inputtable
 

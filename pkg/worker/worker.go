@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -106,6 +105,19 @@ func defaultWorkerOpts() *WorkerOpts {
 		l:            &logger,
 		integrations: []integrations.Integration{},
 		alerter:      errors.NoOpAlerter{},
+	}
+}
+
+func WithLogLevel(lvl string) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		logger := logger.NewDefaultLogger("worker")
+		lvl, err := zerolog.ParseLevel(lvl)
+
+		if err == nil {
+			logger = logger.Level(lvl)
+		}
+
+		opts.l = &logger
 	}
 }
 
@@ -373,7 +385,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 
 	w.cancelMap.Store(assignedAction.StepRunId, cancel)
 
-	hCtx, err := newHatchetContext(runContext, assignedAction)
+	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l)
 
 	if err != nil {
 		return fmt.Errorf("could not create hatchet context: %w", err)
@@ -490,7 +502,7 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 
 	w.cancelConcurrencyMap.Store(assignedAction.WorkflowRunId, cancel)
 
-	hCtx, err := newHatchetContext(runContext, assignedAction)
+	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l)
 
 	if err != nil {
 		return fmt.Errorf("could not create hatchet context: %w", err)
@@ -571,13 +583,7 @@ func (w *Worker) getActionEvent(action *client.Action, eventType client.ActionEv
 func (w *Worker) getActionFinishedEvent(action *client.Action, output any) (*client.ActionEvent, error) {
 	event := w.getActionEvent(action, client.ActionEventTypeCompleted)
 
-	outputBytes, err := json.Marshal(output)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal step output: %w", err)
-	}
-
-	event.EventPayload = string(outputBytes)
+	event.EventPayload = output
 
 	return event, nil
 }

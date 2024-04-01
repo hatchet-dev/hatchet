@@ -30,16 +30,16 @@ To use the `GROUP_ROUND_ROBIN` concurrency limit strategy, define a `concurrency
 
 ```typescript
 export const myWorkflow: Workflow = {
-  id: 'my-workflow',
-  description: 'My workflow with GROUP_ROUND_ROBIN concurrency limit',
+  id: "my-workflow",
+  description: "My workflow with GROUP_ROUND_ROBIN concurrency limit",
   on: {
-    event: 'my.event',
+    event: "my.event",
   },
   steps: [
     // ...
   ],
   concurrency: {
-    name: 'my-workflow-concurrency',
+    name: "my-workflow-concurrency",
     maxRuns: 10,
     limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     key: (ctx) => ctx.workflowInput().userId,
@@ -54,4 +54,3 @@ In this example:
 - `key` is a function that takes the workflow context and returns a string key. This key is used to group workflow instances for the purpose of concurrency limiting and round-robin processing. In this example, instances are grouped by `userId`, so the concurrency limit and round-robin processing are applied separately for each unique user.
 
 With this configuration, Hatchet will automatically manage your workflow's concurrency, processing instances within each group in a round-robin fashion and ensuring fair distribution of resources across groups.
-

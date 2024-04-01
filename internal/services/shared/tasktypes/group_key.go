@@ -72,7 +72,6 @@ type GetGroupKeyRunFailedTaskMetadata struct {
 
 type GetGroupKeyRunTimedOutTaskPayload struct {
 	GetGroupKeyRunId string `json:"get_group_key_run_id" validate:"required,uuid"`
-	WorkflowRunId    string `json:"workflow_run_id" validate:"required,uuid"`
 }
 
 type GetGroupKeyRunTimedOutTaskMetadata struct {

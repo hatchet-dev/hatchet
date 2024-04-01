@@ -125,6 +125,7 @@ model Tenant {
   githubPullRequests        GithubPullRequest[]
   githubPullRequestComments GithubPullRequestComment[]
   githubWebhooks            GithubWebhook[]
+  streamEvents              StreamEvent[]
   logs                      LogLine[]
   snsIntegrations           SNSIntegration[]
 }
@@ -442,7 +443,22 @@ model WorkflowTriggerScheduledRef {
   // the input parameters to the scheduled workflow
   input Json?
 
+  // that parent that spawned this workflow run
+  parentWorkflowRun   WorkflowRun? @relation(fields: [parentWorkflowRunId], references: [id])
+  parentWorkflowRunId String?      @db.Uuid
+
+  parentStepRun   StepRun? @relation(fields: [parentStepRunId], references: [id])
+  parentStepRunId String?  @db.Uuid
+
+  // if this is a child workflow run, the index of the child
+  childIndex Int?
+
+  // a user-defined key for this workflow run
+  childKey String?
+
   triggered WorkflowRunTriggeredBy?
+
+  @@unique([parentId, parentStepRunId, childKey])
 }
 
 model Job {
@@ -593,10 +609,29 @@ model WorkflowRun {
   // the run finished at
   finishedAt DateTime?
 
+  // a list of dependents for this workflow run
+  children          WorkflowRun[]                 @relation("WorkflowRunChild")
+  scheduledChildren WorkflowTriggerScheduledRef[]
+
+  // that parent that spawned this workflow run
+  parent   WorkflowRun? @relation("WorkflowRunChild", fields: [parentId], references: [id])
+  parentId String?      @db.Uuid
+
+  parentStepRun   StepRun? @relation(fields: [parentStepRunId], references: [id])
+  parentStepRunId String?  @db.Uuid
+
+  // if this is a child workflow run, the index of the child
+  childIndex Int?
+
+  // a user-defined key for this workflow run
+  childKey String?
+
   // (optional) the branch for the github repo
   gitRepoBranch String?
 
   pullRequests GithubPullRequest[]
+
+  @@unique([parentId, parentStepRunId, childKey])
 }
 
 model GetGroupKeyRun {
@@ -870,7 +905,11 @@ model StepRun {
 
   archivedResults StepRunResultArchive[]
 
+  streamEvents StreamEvent[]
   logs LogLine[]
+
+  childWorkflowRuns WorkflowRun[]
+  childSchedules    WorkflowTriggerScheduledRef[]
 }
 
 model StepRunResultArchive {
@@ -990,6 +1029,17 @@ model Worker {
 
   // the runs which retrieve the group keys
   groupKeyRuns GetGroupKeyRun[]
+
+  semaphore WorkerSemaphore?
+}
+
+model WorkerSemaphore {
+  // the parent worker
+  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workerId String @unique @db.Uuid
+
+  // keeps track of maxRuns - runningRuns on the worker
+  slots Int
 }
 
 model Service {
@@ -1215,6 +1265,26 @@ model LogLine {
   level LogLineLevel @default(INFO)
 
   // (optional) the log line metadata
+  metadata Json?
+}
+
+model StreamEvent {
+  // base fields
+  id        BigInt   @id @default(autoincrement()) @db.BigInt
+  createdAt DateTime @default(now())
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // the step run id this stream event is associated with
+  stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  stepRunId String?  @db.Uuid
+
+  // the stream event bytes
+  message Bytes
+
+  // (optional) the stream event metadata
   metadata Json?
 }
 

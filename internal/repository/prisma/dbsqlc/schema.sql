@@ -339,6 +339,18 @@ CREATE TABLE "StepRunResultArchive" (
 );
 
 -- CreateTable
+CREATE TABLE "StreamEvent" (
+    "id" BIGSERIAL NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "tenantId" UUID NOT NULL,
+    "stepRunId" UUID,
+    "message" BYTEA NOT NULL,
+    "metadata" JSONB,
+
+    CONSTRAINT "StreamEvent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Tenant" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -464,6 +476,12 @@ CREATE TABLE "Worker" (
 );
 
 -- CreateTable
+CREATE TABLE "WorkerSemaphore" (
+    "workerId" UUID NOT NULL,
+    "slots" INTEGER NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "Workflow" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -519,6 +537,10 @@ CREATE TABLE "WorkflowRun" (
     "displayName" TEXT,
     "id" UUID NOT NULL,
     "gitRepoBranch" TEXT,
+    "childIndex" INTEGER,
+    "childKey" TEXT,
+    "parentId" UUID,
+    "parentStepRunId" UUID,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -573,6 +595,10 @@ CREATE TABLE "WorkflowTriggerScheduledRef" (
     "triggerAt" TIMESTAMP(3) NOT NULL,
     "tickerId" UUID,
     "input" JSONB,
+    "childIndex" INTEGER,
+    "childKey" TEXT,
+    "parentStepRunId" UUID,
+    "parentWorkflowRunId" UUID,
 
     CONSTRAINT "WorkflowTriggerScheduledRef_pkey" PRIMARY KEY ("id")
 );
@@ -791,6 +817,9 @@ CREATE UNIQUE INDEX "UserSession_id_key" ON "UserSession"("id" ASC);
 CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WorkerSemaphore_workerId_key" ON "WorkerSemaphore"("workerId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Workflow_id_key" ON "Workflow"("id" ASC);
 
 -- CreateIndex
@@ -810,6 +839,9 @@ CREATE UNIQUE INDEX "WorkflowDeploymentConfig_workflowId_key" ON "WorkflowDeploy
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRun_id_key" ON "WorkflowRun"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowRun_parentId_parentStepRunId_childKey_key" ON "WorkflowRun"("parentId" ASC, "parentStepRunId" ASC, "childKey" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_id_key" ON "WorkflowRunTriggeredBy"("id" ASC);
@@ -834,6 +866,9 @@ CREATE UNIQUE INDEX "WorkflowTriggerEventRef_parentId_eventKey_key" ON "Workflow
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggerScheduledRef_id_key" ON "WorkflowTriggerScheduledRef"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowTriggerScheduledRef_parentId_parentStepRunId_childK_key" ON "WorkflowTriggerScheduledRef"("parentId" ASC, "parentStepRunId" ASC, "childKey" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggers_id_key" ON "WorkflowTriggers"("id" ASC);
@@ -1001,6 +1036,12 @@ ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("worke
 ALTER TABLE "StepRunResultArchive" ADD CONSTRAINT "StepRunResultArchive_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "TenantInviteLink" ADD CONSTRAINT "TenantInviteLink_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1028,6 +1069,9 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dis
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "WorkerSemaphore" ADD CONSTRAINT "WorkerSemaphore_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Workflow" ADD CONSTRAINT "Workflow_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1041,6 +1085,12 @@ ALTER TABLE "WorkflowDeploymentConfig" ADD CONSTRAINT "WorkflowDeploymentConfig_
 
 -- AddForeignKey
 ALTER TABLE "WorkflowDeploymentConfig" ADD CONSTRAINT "WorkflowDeploymentConfig_workflowId_fkey" FOREIGN KEY ("workflowId") REFERENCES "Workflow"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentStepRunId_fkey" FOREIGN KEY ("parentStepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1077,6 +1127,12 @@ ALTER TABLE "WorkflowTriggerEventRef" ADD CONSTRAINT "WorkflowTriggerEventRef_pa
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentStepRunId_fkey" FOREIGN KEY ("parentStepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentWorkflowRunId_fkey" FOREIGN KEY ("parentWorkflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_tickerId_fkey" FOREIGN KEY ("tickerId") REFERENCES "Ticker"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -6,11 +6,13 @@ import (
 	"log"
 	"os"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/spf13/cobra"
 
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 )
 
 // seedCmd seeds the database with initial data
@@ -55,11 +57,11 @@ func runSeed(cf *loader.ConfigLoader) error {
 			return err
 		}
 
-		user, err := dc.Repository.User().GetUserByEmail(dc.Seed.AdminEmail)
+		user, err := dc.APIRepository.User().GetUserByEmail(dc.Seed.AdminEmail)
 
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
-				user, err = dc.Repository.User().CreateUser(&repository.CreateUserOpts{
+				user, err = dc.APIRepository.User().CreateUser(&repository.CreateUserOpts{
 					Email:         dc.Seed.AdminEmail,
 					Name:          repository.StringPtr(dc.Seed.AdminName),
 					EmailVerified: repository.BoolPtr(true),
@@ -77,13 +79,13 @@ func runSeed(cf *loader.ConfigLoader) error {
 		userId = user.ID
 	}
 
-	tenant, err := dc.Repository.Tenant().GetTenantBySlug("default")
+	tenant, err := dc.APIRepository.Tenant().GetTenantBySlug("default")
 
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			// seed an example tenant
 			// initialize a tenant
-			tenant, err = dc.Repository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+			tenant, err = dc.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
 				ID:   &dc.Seed.DefaultTenantID,
 				Name: dc.Seed.DefaultTenantName,
 				Slug: dc.Seed.DefaultTenantSlug,
@@ -96,7 +98,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 			fmt.Println("created tenant", tenant.ID)
 
 			// add the user to the tenant
-			_, err = dc.Repository.Tenant().CreateTenantMember(tenant.ID, &repository.CreateTenantMemberOpts{
+			_, err = dc.APIRepository.Tenant().CreateTenantMember(tenant.ID, &repository.CreateTenantMemberOpts{
 				Role:   "OWNER",
 				UserId: userId,
 			})
@@ -110,7 +112,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 	}
 
 	if dc.Seed.IsDevelopment {
-		err = seedDev(dc.Repository, tenant.ID)
+		err = seedDev(dc.EngineRepository, tenant.ID)
 
 		if err != nil {
 			return err
@@ -120,11 +122,11 @@ func runSeed(cf *loader.ConfigLoader) error {
 	return nil
 }
 
-func seedDev(repo repository.Repository, tenantId string) error {
+func seedDev(repo repository.EngineRepository, tenantId string) error {
 	_, err := repo.Workflow().GetWorkflowByName(tenantId, "test-workflow")
 
 	if err != nil {
-		if !errors.Is(err, db.ErrNotFound) {
+		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
 
@@ -173,7 +175,9 @@ func seedDev(repo repository.Repository, tenantId string) error {
 			return err
 		}
 
-		fmt.Println("created workflow", wf.ID, wf.Workflow().Name)
+		workflowVersionId := sqlchelpers.UUIDToStr(wf.WorkflowVersion.ID)
+
+		fmt.Println("created workflow version", workflowVersionId)
 	}
 
 	return nil

@@ -1,5 +1,5 @@
 from ..events_pb2_grpc import EventsServiceStub
-from ..events_pb2 import PushEventRequest, PutLogRequest
+from ..events_pb2 import PushEventRequest, PutLogRequest, PutStreamEventRequest
 
 import datetime
 from ..loader import ClientConfig
@@ -22,7 +22,7 @@ def proto_timestamp_now():
     return timestamp_pb2.Timestamp(seconds=seconds, nanos=nanos)
 
 class EventClientImpl:
-    def __init__(self, client, token):
+    def __init__(self, client: EventsServiceStub, token):
         self.client = client
         self.token = token
 
@@ -54,3 +54,21 @@ class EventClientImpl:
             self.client.PutLog(request, metadata=get_metadata(self.token))
         except Exception as e:
             raise ValueError(f"Error logging: {e}")
+        
+    def stream(self, data: str | bytes, step_run_id: str):
+        try:
+            if isinstance(data, str):
+                data_bytes = data.encode('utf-8')
+            elif isinstance(data, bytes):
+                data_bytes = data
+            else:
+                raise ValueError("Invalid data type. Expected str, bytes, or file.")
+            
+            request = PutStreamEventRequest(
+                stepRunId=step_run_id,
+                createdAt=proto_timestamp_now(),
+                message=data_bytes,
+            )
+            self.client.PutStreamEvent(request, metadata=get_metadata(self.token))
+        except Exception as e:
+            raise ValueError(f"Error putting stream event: {e}")

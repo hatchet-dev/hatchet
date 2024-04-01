@@ -11,7 +11,7 @@ import (
 func (g *GithubAppService) GithubAppListInstallations(ctx echo.Context, req gen.GithubAppListInstallationsRequestObject) (gen.GithubAppListInstallationsResponseObject, error) {
 	user := ctx.Get("user").(*db.UserModel)
 
-	gais, err := g.config.Repository.Github().ListGithubAppInstallationsByUserID(user.ID)
+	gais, err := g.config.APIRepository.Github().ListGithubAppInstallationsByUserID(user.ID)
 
 	if err != nil {
 		return nil, err

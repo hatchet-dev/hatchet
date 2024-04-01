@@ -18,7 +18,7 @@ func (t *WorkflowService) WorkflowRunListPullRequests(ctx echo.Context, request 
 		listOpts.State = repository.StringPtr(string(*request.Params.State))
 	}
 
-	prs, err := t.config.Repository.WorkflowRun().ListPullRequestsForWorkflowRun(
+	prs, err := t.config.APIRepository.WorkflowRun().ListPullRequestsForWorkflowRun(
 		workflowRun.TenantID,
 		workflowRun.ID,
 		listOpts,

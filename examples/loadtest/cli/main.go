@@ -5,8 +5,14 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+
+	"github.com/hatchet-dev/hatchet/internal/config/shared"
+	"github.com/hatchet-dev/hatchet/internal/logger"
 )
+
+var l zerolog.Logger
 
 func main() {
 	var events int
@@ -14,6 +20,8 @@ func main() {
 	var duration time.Duration
 	var wait time.Duration
 	var delay time.Duration
+	var workerDelay time.Duration
+	var logLevel string
 
 	var loadtest = &cobra.Command{
 		Use: "loadtest",
@@ -23,7 +31,15 @@ func main() {
 				panic(err)
 			}
 
-			if err := do(duration, events, delay, wait, concurrency); err != nil {
+			l = logger.NewStdErr(
+				&shared.LoggerConfigFile{
+					Level:  logLevel,
+					Format: "console",
+				},
+				"loadtest",
+			)
+
+			if err := do(duration, events, delay, wait, concurrency, workerDelay); err != nil {
 				log.Println(err)
 				panic("load test failed")
 			}
@@ -35,6 +51,8 @@ func main() {
 	loadtest.Flags().DurationVarP(&duration, "duration", "d", 10*time.Second, "duration specifies the total time to run the load test")
 	loadtest.Flags().DurationVarP(&delay, "delay", "D", 0, "delay specifies the time to wait in each event to simulate slow tasks")
 	loadtest.Flags().DurationVarP(&wait, "wait", "w", 10*time.Second, "wait specifies the total time to wait until events complete")
+	loadtest.Flags().DurationVarP(&workerDelay, "workerDelay", "p", 0*time.Second, "workerDelay specifies the time to wait before starting the worker")
+	loadtest.Flags().StringVarP(&logLevel, "level", "l", "info", "logLevel specifies the log level (debug, info, warn, error)")
 
 	cmd := &cobra.Command{Use: "app"}
 	cmd.AddCommand(loadtest)

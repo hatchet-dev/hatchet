@@ -27,15 +27,11 @@ func SetupEngine(ctx context.Context, t *testing.T) {
 	_ = os.Setenv("SERVER_TLS_KEY_FILE", path.Join(dir, "hack/dev/certs/cluster.key"))
 	_ = os.Setenv("SERVER_TLS_ROOT_CA_FILE", path.Join(dir, "hack/dev/certs/ca.cert"))
 	_ = os.Setenv("SERVER_PORT", "8080")
-	_ = os.Setenv("SERVER_URL", "https://app.dev.hatchet-tools.com")
+	_ = os.Setenv("SERVER_URL", "http://localhost:8080")
 	_ = os.Setenv("SERVER_AUTH_COOKIE_SECRETS", "something something")
 	_ = os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "app.dev.hatchet-tools.com")
 	_ = os.Setenv("SERVER_AUTH_COOKIE_INSECURE", "false")
 	_ = os.Setenv("SERVER_AUTH_SET_EMAIL_VERIFIED", "true")
-	_ = os.Setenv("SERVER_LOGGER_LEVEL", "debug")
-	_ = os.Setenv("SERVER_LOGGER_FORMAT", "console")
-	_ = os.Setenv("DATABASE_LOGGER_LEVEL", "debug")
-	_ = os.Setenv("DATABASE_LOGGER_FORMAT", "console")
 
 	cf := loader.NewConfigLoader(path.Join(dir, "./generated/"))
 

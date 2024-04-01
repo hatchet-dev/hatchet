@@ -2,38 +2,32 @@ package ingestor
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"strconv"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 )
 
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
-	tenant := ctx.Value("tenant").(*db.TenantModel)
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	eventDataMap := map[string]interface{}{}
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	err := json.Unmarshal([]byte(req.Payload), &eventDataMap)
-
-	if err != nil {
-		return nil, err
-	}
-
-	event, err := i.IngestEvent(ctx, tenant.ID, req.Key, eventDataMap)
+	event, err := i.IngestEvent(ctx, tenantId, req.Key, []byte(req.Payload))
 
 	if err != nil {
 		return nil, err
 	}
 
-	e, err := toEvent(*event)
+	e, err := toEvent(event)
 
 	if err != nil {
 		return nil, err
@@ -42,68 +36,79 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	return e, nil
 }
 
-func (i *IngestorImpl) List(ctx context.Context, req *contracts.ListEventRequest) (*contracts.ListEventResponse, error) {
-	tenant := ctx.Value("tenant").(*db.TenantModel)
+func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.ReplayEventRequest) (*contracts.Event, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	offset := int(req.Offset)
-	var keys []string
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	if req.Key != "" {
-		keys = []string{req.Key}
+	oldEvent, err := i.eventRepository.GetEventForEngine(tenantId, req.EventId)
+
+	if err != nil {
+		return nil, err
 	}
 
-	listResult, err := i.eventRepository.ListEvents(tenant.ID, &repository.ListEventOpts{
-		Keys:   keys,
-		Offset: &offset,
+	newEvent, err := i.IngestReplayedEvent(ctx, tenantId, oldEvent)
+
+	if err != nil {
+		return nil, err
+	}
+
+	e, err := toEvent(newEvent)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return e, nil
+}
+
+func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	var createdAt *time.Time
+
+	if t := req.CreatedAt.AsTime().UTC(); !t.IsZero() {
+		createdAt = &t
+	}
+
+	var metadata []byte
+
+	if req.Metadata != "" {
+		metadata = []byte(req.Metadata)
+	}
+
+	streamEvent, err := i.streamEventRepository.PutStreamEvent(tenantId, &repository.CreateStreamEventOpts{
+		StepRunId: req.StepRunId,
+		CreatedAt: createdAt,
+		Message:   req.Message,
+		Metadata:  metadata,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	items := []*contracts.Event{}
-
-	for _, event := range listResult.Rows {
-		e, err := toEventFromSQLC(event)
-
-		if err != nil {
-			return nil, err
-		}
-
-		items = append(items, e)
-	}
-
-	return &contracts.ListEventResponse{
-		Events: items,
-	}, nil
-}
-
-func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.ReplayEventRequest) (*contracts.Event, error) {
-	tenant := ctx.Value("tenant").(*db.TenantModel)
-
-	oldEvent, err := i.eventRepository.GetEventById(req.EventId)
+	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	newEvent, err := i.IngestReplayedEvent(ctx, tenant.ID, oldEvent)
+	err = i.mq.AddMessage(context.Background(), q, streamEventToTask(streamEvent))
 
 	if err != nil {
 		return nil, err
 	}
 
-	e, err := toEvent(*newEvent)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return e, nil
+	return &contracts.PutStreamEventResponse{}, nil
 }
 
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	tenant := ctx.Value("tenant").(*db.TenantModel)
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	var createdAt *time.Time
 
@@ -117,7 +122,7 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 		metadata = []byte(req.Metadata)
 	}
 
-	_, err := i.logRepository.PutLog(tenant.ID, &repository.CreateLogLineOpts{
+	_, err := i.logRepository.PutLog(tenantId, &repository.CreateLogLineOpts{
 		StepRunId: req.StepRunId,
 		CreatedAt: createdAt,
 		Message:   req.Message,
@@ -132,45 +137,39 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 	return &contracts.PutLogResponse{}, nil
 }
 
-func toEventFromSQLC(eventRow *dbsqlc.ListEventsRow) (*contracts.Event, error) {
-	event := eventRow.Event
-
-	var payload string
-
-	if event.Data != nil {
-		payload = string(event.Data)
-	}
+func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
+	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
+	eventId := sqlchelpers.UUIDToStr(e.ID)
 
 	return &contracts.Event{
-		TenantId:       pgUUIDToStr(event.TenantId),
-		EventId:        pgUUIDToStr(event.ID),
-		Key:            event.Key,
-		Payload:        payload,
-		EventTimestamp: timestamppb.New(event.CreatedAt.Time),
-	}, nil
-}
-
-func pgUUIDToStr(uuid pgtype.UUID) string {
-	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid.Bytes[0:4], uuid.Bytes[4:6], uuid.Bytes[6:8], uuid.Bytes[8:10], uuid.Bytes[10:16])
-}
-
-func toEvent(e db.EventModel) (*contracts.Event, error) {
-	var payload string
-
-	if data, ok := e.Data(); ok {
-		payloadBytes := []byte(data)
-		payload = string(payloadBytes)
-	}
-
-	return &contracts.Event{
-		TenantId:       e.TenantID,
-		EventId:        e.ID,
+		TenantId:       tenantId,
+		EventId:        eventId,
 		Key:            e.Key,
-		Payload:        payload,
-		EventTimestamp: timestamppb.New(e.CreatedAt),
+		Payload:        string(e.Data),
+		EventTimestamp: timestamppb.New(e.CreatedAt.Time),
 	}, nil
 }
 
-// func (contracts.UnimplementedEventsServiceServer).List(context.Context, *contracts.ListEventRequest) (*contracts.ListEventResponse, error)
-// func (contracts.UnimplementedEventsServiceServer).Push(context.Context, *contracts.Event) (*contracts.EventPushResponse, error)
-// func (contracts.UnimplementedEventsServiceServer).ReplaySingleEvent(context.Context, *contracts.ReplayEventRequest) (*contracts.EventPushResponse, error)
+func streamEventToTask(e *dbsqlc.StreamEvent) *msgqueue.Message {
+	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
+
+	payloadTyped := tasktypes.StepRunStreamEventTaskPayload{
+		StepRunId:     sqlchelpers.UUIDToStr(e.StepRunId),
+		CreatedAt:     e.CreatedAt.Time.String(),
+		StreamEventId: strconv.FormatInt(e.ID, 10),
+	}
+
+	payload, _ := datautils.ToJSONMap(payloadTyped)
+
+	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunStreamEventTaskMetadata{
+		TenantId:      tenantId,
+		StreamEventId: strconv.FormatInt(e.ID, 10),
+	})
+
+	return &msgqueue.Message{
+		ID:       "step-run-stream-event",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	}
+}

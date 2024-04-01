@@ -1,8 +1,7 @@
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
-from google.protobuf.internal import containers as _containers
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
+from typing import ClassVar as _ClassVar, Mapping as _Mapping, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -38,6 +37,22 @@ class PutLogResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
+class PutStreamEventRequest(_message.Message):
+    __slots__ = ("stepRunId", "createdAt", "message", "metadata")
+    STEPRUNID_FIELD_NUMBER: _ClassVar[int]
+    CREATEDAT_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
+    stepRunId: str
+    createdAt: _timestamp_pb2.Timestamp
+    message: bytes
+    metadata: str
+    def __init__(self, stepRunId: _Optional[str] = ..., createdAt: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[bytes] = ..., metadata: _Optional[str] = ...) -> None: ...
+
+class PutStreamEventResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
 class PushEventRequest(_message.Message):
     __slots__ = ("key", "payload", "eventTimestamp")
     KEY_FIELD_NUMBER: _ClassVar[int]
@@ -47,20 +62,6 @@ class PushEventRequest(_message.Message):
     payload: str
     eventTimestamp: _timestamp_pb2.Timestamp
     def __init__(self, key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
-
-class ListEventRequest(_message.Message):
-    __slots__ = ("offset", "key")
-    OFFSET_FIELD_NUMBER: _ClassVar[int]
-    KEY_FIELD_NUMBER: _ClassVar[int]
-    offset: int
-    key: str
-    def __init__(self, offset: _Optional[int] = ..., key: _Optional[str] = ...) -> None: ...
-
-class ListEventResponse(_message.Message):
-    __slots__ = ("events",)
-    EVENTS_FIELD_NUMBER: _ClassVar[int]
-    events: _containers.RepeatedCompositeFieldContainer[Event]
-    def __init__(self, events: _Optional[_Iterable[_Union[Event, _Mapping]]] = ...) -> None: ...
 
 class ReplayEventRequest(_message.Message):
     __slots__ = ("eventId",)
