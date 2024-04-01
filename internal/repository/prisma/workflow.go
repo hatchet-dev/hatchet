@@ -730,6 +730,25 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 					return "", err
 				}
 			}
+
+			if len(stepOpts.RateLimits) > 0 {
+				for _, rateLimit := range stepOpts.RateLimits {
+					_, err := r.queries.CreateStepRateLimit(
+						context.Background(),
+						tx,
+						dbsqlc.CreateStepRateLimitParams{
+							Stepid:       sqlchelpers.UUIDFromStr(stepId),
+							Ratelimitkey: rateLimit.Key,
+							Units:        int32(rateLimit.Units),
+							Tenantid:     tenantId,
+						},
+					)
+
+					if err != nil {
+						return "", err
+					}
+				}
+			}
 		}
 	}
 

@@ -762,6 +762,76 @@ func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg Resolve
 	return items, nil
 }
 
+const updateRateLimit = `-- name: UpdateRateLimit :many
+WITH step_rate_limits AS (
+    SELECT
+        rl."units" AS "units",
+        rl."rateLimitKey" AS "rateLimitKey"
+    FROM
+        "StepRateLimit" rl
+    WHERE
+        rl."stepId" = $1::uuid AND
+        rl."tenantId" = $2::uuid
+), locked_rate_limits AS (
+    SELECT
+        srl."tenantId", srl.key, srl.max, srl.value, srl."window", srl."lastRefill",
+        step_rate_limits."units"
+    FROM
+        step_rate_limits
+    JOIN
+        "RateLimit" srl ON srl."key" = step_rate_limits."rateLimitKey" AND srl."tenantId" = $2::uuid
+    FOR UPDATE
+)
+UPDATE
+    "RateLimit" srl
+SET
+    "value" = get_refill_value(srl) - lrl."units",
+    "lastRefill" = CASE
+        WHEN NOW() - srl."lastRefill" >= srl."window"::INTERVAL THEN
+            CURRENT_TIMESTAMP
+        ELSE
+            srl."lastRefill"
+    END
+FROM
+    locked_rate_limits lrl
+WHERE
+    srl."tenantId" = lrl."tenantId" AND
+    srl."key" = lrl."key"
+RETURNING srl."tenantId", srl.key, srl.max, srl.value, srl."window", srl."lastRefill"
+`
+
+type UpdateRateLimitParams struct {
+	Stepid   pgtype.UUID `json:"stepid"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) UpdateRateLimit(ctx context.Context, db DBTX, arg UpdateRateLimitParams) ([]*RateLimit, error) {
+	rows, err := db.Query(ctx, updateRateLimit, arg.Stepid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*RateLimit
+	for rows.Next() {
+		var i RateLimit
+		if err := rows.Scan(
+			&i.TenantId,
+			&i.Key,
+			&i.Max,
+			&i.Value,
+			&i.Window,
+			&i.LastRefill,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateStepRun = `-- name: UpdateStepRun :one
 UPDATE
     "StepRun"

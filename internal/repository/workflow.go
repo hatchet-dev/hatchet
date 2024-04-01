@@ -116,6 +116,17 @@ type CreateWorkflowStepOpts struct {
 
 	// (optional) the step retry max
 	Retries *int `validate:"omitempty,min=0"`
+
+	// (optional) rate limits for this step
+	RateLimits []CreateWorkflowStepRateLimitOpts `validate:"dive"`
+}
+
+type CreateWorkflowStepRateLimitOpts struct {
+	// (required) the rate limit key
+	Key string `validate:"required"`
+
+	// (required) the rate limit units to consume
+	Units int
 }
 
 type ListWorkflowsOpts struct {

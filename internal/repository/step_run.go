@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
@@ -67,6 +65,7 @@ func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
 
 var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
 var ErrNoWorkerAvailable = fmt.Errorf("no worker available")
+var ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded")
 
 type StepRunUpdateInfo struct {
 	JobRunFinalState      bool
@@ -102,7 +101,7 @@ type StepRunEngineRepository interface {
 
 	UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error)
 
-	AssignStepRunToWorker(ctx context.Context, tenantId, stepRunId, actionId string, stepTimeout pgtype.Text) (workerId string, dispatcherId string, err error)
+	AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (workerId string, dispatcherId string, err error)
 
 	GetStepRunForEngine(tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 

@@ -295,6 +295,25 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	return resp, nil
 }
 
+func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	createOpts := &repository.CreateRateLimitOpts{
+		Key:  req.Key,
+		Max:  int(req.Limit),
+		Unit: req.Unit,
+	}
+
+	_, err := a.repo.RateLimit().CreateRateLimit(tenantId, createOpts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.PutRateLimitResponse{}, nil
+}
+
 func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.CreateWorkflowVersionOpts, error) {
 	jobs := make([]repository.CreateWorkflowJobOpts, len(req.Opts.Jobs))
 
