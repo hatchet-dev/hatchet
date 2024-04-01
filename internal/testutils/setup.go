@@ -32,10 +32,6 @@ func SetupEngine(ctx context.Context, t *testing.T) {
 	_ = os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "app.dev.hatchet-tools.com")
 	_ = os.Setenv("SERVER_AUTH_COOKIE_INSECURE", "false")
 	_ = os.Setenv("SERVER_AUTH_SET_EMAIL_VERIFIED", "true")
-	_ = os.Setenv("SERVER_LOGGER_LEVEL", "debug")
-	_ = os.Setenv("SERVER_LOGGER_FORMAT", "console")
-	_ = os.Setenv("DATABASE_LOGGER_LEVEL", "debug")
-	_ = os.Setenv("DATABASE_LOGGER_FORMAT", "console")
 
 	cf := loader.NewConfigLoader(path.Join(dir, "./generated/"))
 
