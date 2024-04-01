@@ -586,8 +586,11 @@ type User struct {
 	Email openapi_types.Email `json:"email"`
 
 	// EmailVerified Whether the user has verified their email address.
-	EmailVerified bool            `json:"emailVerified"`
-	Metadata      APIResourceMeta `json:"metadata"`
+	EmailVerified bool `json:"emailVerified"`
+
+	// HasPassword Whether the user has a password set.
+	HasPassword *bool           `json:"hasPassword,omitempty"`
+	Metadata    APIResourceMeta `json:"metadata"`
 
 	// Name The display name of the user.
 	Name *string `json:"name,omitempty"`

@@ -31,7 +31,8 @@ class User(BaseModel):
     name: Optional[StrictStr] = Field(default=None, description="The display name of the user.")
     email: StrictStr = Field(description="The email address of the user.")
     email_verified: StrictBool = Field(description="Whether the user has verified their email address.", alias="emailVerified")
-    __properties: ClassVar[List[str]] = ["metadata", "name", "email", "emailVerified"]
+    has_password: Optional[StrictBool] = Field(default=None, description="Whether the user has a password set.", alias="hasPassword")
+    __properties: ClassVar[List[str]] = ["metadata", "name", "email", "emailVerified", "hasPassword"]
 
     model_config = {
         "populate_by_name": True,
@@ -90,7 +91,8 @@ class User(BaseModel):
             "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
             "name": obj.get("name"),
             "email": obj.get("email"),
-            "emailVerified": obj.get("emailVerified")
+            "emailVerified": obj.get("emailVerified"),
+            "hasPassword": obj.get("hasPassword")
         })
         return _obj
 

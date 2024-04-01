@@ -66,6 +66,15 @@ function MemberActions({
   onChangePasswordClick: (row: TenantMember) => void;
 }) {
   const { user } = useOutletContext<UserContextType>();
+  const actions = [];
+
+  if(user.hasPassword) {
+    actions.push({
+      label: 'Change Password',
+      onClick: () => onChangePasswordClick(row.original),
+    });
+  }
+  console.log('user', user);
 
   if (user.metadata.id === row.original.metadata.id) {
     return <></>;
@@ -74,12 +83,7 @@ function MemberActions({
   return (
     <DataTableRowActions
       row={row}
-      actions={[
-        {
-          label: 'Change Password',
-          onClick: () => onChangePasswordClick(row.original),
-        },
-      ]}
+      actions={actions}
     />
   );
 }

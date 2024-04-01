@@ -12,6 +12,9 @@ User:
     emailVerified:
       type: boolean
       description: Whether the user has verified their email address.
+    hasPassword:
+      type: boolean
+      description: Whether the user has a password set.
   required:
     - metadata
     - email
