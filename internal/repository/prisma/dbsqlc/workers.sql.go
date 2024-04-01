@@ -63,6 +63,28 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 	return &i, err
 }
 
+const createWorkerSemaphore = `-- name: CreateWorkerSemaphore :one
+INSERT INTO "WorkerSemaphore" (
+    "workerId",
+    "slots"
+) VALUES (
+    $1::uuid,
+    COALESCE($2::int, 100)
+) RETURNING "workerId", slots
+`
+
+type CreateWorkerSemaphoreParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	MaxRuns  pgtype.Int4 `json:"maxRuns"`
+}
+
+func (q *Queries) CreateWorkerSemaphore(ctx context.Context, db DBTX, arg CreateWorkerSemaphoreParams) (*WorkerSemaphore, error) {
+	row := db.QueryRow(ctx, createWorkerSemaphore, arg.Workerid, arg.MaxRuns)
+	var i WorkerSemaphore
+	err := row.Scan(&i.WorkerId, &i.Slots)
+	return &i, err
+}
+
 const deleteWorker = `-- name: DeleteWorker :one
 DELETE FROM
     "Worker"

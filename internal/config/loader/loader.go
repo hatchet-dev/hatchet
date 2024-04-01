@@ -144,6 +144,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 	config.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	config.MaxConns = int32(cf.MaxConns)
+	config.MinConns = int32(cf.MaxConns)
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {

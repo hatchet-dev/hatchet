@@ -65,6 +65,15 @@ INSERT INTO "Worker" (
     sqlc.narg('maxRuns')::int
 ) RETURNING *;
 
+-- name: CreateWorkerSemaphore :one
+INSERT INTO "WorkerSemaphore" (
+    "workerId",
+    "slots"
+) VALUES (
+    @workerId::uuid,
+    COALESCE(sqlc.narg('maxRuns')::int, 100)
+) RETURNING *;
+
 -- name: UpdateWorker :one
 UPDATE
     "Worker"

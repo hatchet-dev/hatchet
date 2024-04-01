@@ -166,8 +166,15 @@ func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *reposito
 		Name:         opts.Name,
 	}
 
+	createSemParams := dbsqlc.CreateWorkerSemaphoreParams{}
+
 	if opts.MaxRuns != nil {
 		createParams.MaxRuns = pgtype.Int4{
+			Int32: int32(*opts.MaxRuns),
+			Valid: true,
+		}
+
+		createSemParams.MaxRuns = pgtype.Int4{
 			Int32: int32(*opts.MaxRuns),
 			Valid: true,
 		}
@@ -177,6 +184,14 @@ func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *reposito
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create worker: %w", err)
+	}
+
+	createSemParams.Workerid = worker.ID
+
+	_, err = w.queries.CreateWorkerSemaphore(context.Background(), tx, createSemParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create worker semaphore: %w", err)
 	}
 
 	svcUUIDs := make([]pgtype.UUID, len(opts.Services))

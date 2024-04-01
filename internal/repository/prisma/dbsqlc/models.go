@@ -802,6 +802,11 @@ type Worker struct {
 	MaxRuns         pgtype.Int4      `json:"maxRuns"`
 }
 
+type WorkerSemaphore struct {
+	WorkerId pgtype.UUID `json:"workerId"`
+	Slots    int32       `json:"slots"`
+}
+
 type Workflow struct {
 	ID          pgtype.UUID      `json:"id"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`

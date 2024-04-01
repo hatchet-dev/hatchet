@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
@@ -87,10 +89,10 @@ type StepRunEngineRepository interface {
 	ListRunningStepRunsForWorkflowRun(tenantId, workflowRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStepRunsToRequeue returns a list of step runs which are in a requeueable state.
-	ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.StepRun, error)
+	ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
-	ListStepRunsToReassign(tenantId string) ([]*dbsqlc.StepRun, error)
+	ListStepRunsToReassign(tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *StepRunUpdateInfo, error)
 
@@ -100,7 +102,7 @@ type StepRunEngineRepository interface {
 
 	UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error)
 
-	AssignStepRunToWorker(tenantId, stepRunId string) (workerId string, dispatcherId string, err error)
+	AssignStepRunToWorker(ctx context.Context, tenantId, stepRunId, actionId string, stepTimeout pgtype.Text) (workerId string, dispatcherId string, err error)
 
 	GetStepRunForEngine(tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 
