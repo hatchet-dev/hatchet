@@ -29,7 +29,7 @@ jobs:
         run: go run github.com/steebchen/prisma-client-go generate
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3.2.0
+        uses: golangci/golangci-lint-action@v4.0.0
         with:
           version: v1.55.0
           args: --config .golangci.yml --timeout 5m --max-issues-per-linter 0 --max-same-issues 0
