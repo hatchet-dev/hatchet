@@ -13,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
-import { GitHubLogoIcon, PlayIcon } from '@radix-ui/react-icons';
+import { GitHubLogoIcon, PlayIcon, StopIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
 import { Loading } from '@/components/ui/loading';
@@ -213,6 +213,39 @@ export function StepRunPlayground({
     onError: handleApiError,
   });
 
+  const cancelStepMutation = useMutation({
+    mutationKey: [
+      'step-run:update:cancel',
+      stepRun?.tenantId,
+      stepRun?.metadata.id,
+    ],
+    mutationFn: async () => {
+      invariant(stepRun?.tenantId, 'has tenantId');
+
+      const res = await api.stepRunUpdateCancel(
+        stepRun?.tenantId,
+        stepRun?.metadata.id,
+      );
+
+      return res.data;
+    },
+    onMutate: () => {
+      setErrors([]);
+    },
+    onSuccess: (stepRun: StepRun) => {
+      queryClient.invalidateQueries({
+        queryKey: queries.workflowRuns.get(
+          tenant.metadata.id,
+          workflowRun.metadata.id,
+        ).queryKey,
+      });
+
+      setStepRun(stepRun);
+      getStepRunQuery.refetch();
+    },
+    onError: handleApiError,
+  });
+
   useEffect(() => {
     if (getStepRunQuery.data) {
       setStepRun(getStepRunQuery.data);
@@ -227,6 +260,10 @@ export function StepRunPlayground({
   const handleOnPlay = () => {
     const inputObj = JSON.parse(stepInput);
     rerunStepMutation.mutate(inputObj);
+  };
+
+  const handleOnCancel = () => {
+    cancelStepMutation.mutate();
   };
 
   const [mode, setMode] = useState<'form' | 'json'>(
@@ -290,6 +327,15 @@ export function StepRunPlayground({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              <Button
+                className="w-fit"
+                onClick={handleOnCancel}
+              >
+                  <>
+                    <StopIcon className={cn('h-4 w-4 mr-2')} />
+                    Cancel
+                  </>
+              </Button>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
