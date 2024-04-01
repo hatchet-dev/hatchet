@@ -15,6 +15,7 @@ sql:
       - tickers.sql
       - dispatchers.sql
       - workers.sql
+      - stream_event.sql
       - logs.sql
       - tenants.sql
     schema:

@@ -10,6 +10,8 @@ service EventsService {
     rpc ReplaySingleEvent(ReplayEventRequest) returns (Event) {}
 
     rpc PutLog(PutLogRequest) returns (PutLogResponse) {}
+
+    rpc PutStreamEvent(PutStreamEventRequest) returns (PutStreamEventResponse) {}
 }
 
 message Event {
@@ -47,6 +49,22 @@ message PutLogRequest {
 }
 
 message PutLogResponse {}
+
+message PutStreamEventRequest {
+    // the step run id for the request
+    string stepRunId = 1;
+
+    // when the stream event was created
+    google.protobuf.Timestamp createdAt = 2;
+
+    // the stream event message
+    bytes message = 3;
+
+    // associated stream event metadata
+    string metadata = 5;
+}
+
+message PutStreamEventResponse {}
 
 message PushEventRequest {
     // the key for the event

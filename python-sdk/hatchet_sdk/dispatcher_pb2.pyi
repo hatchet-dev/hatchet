@@ -41,6 +41,7 @@ class ResourceEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     RESOURCE_EVENT_TYPE_FAILED: _ClassVar[ResourceEventType]
     RESOURCE_EVENT_TYPE_CANCELLED: _ClassVar[ResourceEventType]
     RESOURCE_EVENT_TYPE_TIMED_OUT: _ClassVar[ResourceEventType]
+    RESOURCE_EVENT_TYPE_STREAM: _ClassVar[ResourceEventType]
 START_STEP_RUN: ActionType
 CANCEL_STEP_RUN: ActionType
 START_GET_GROUP_KEY: ActionType
@@ -61,6 +62,7 @@ RESOURCE_EVENT_TYPE_COMPLETED: ResourceEventType
 RESOURCE_EVENT_TYPE_FAILED: ResourceEventType
 RESOURCE_EVENT_TYPE_CANCELLED: ResourceEventType
 RESOURCE_EVENT_TYPE_TIMED_OUT: ResourceEventType
+RESOURCE_EVENT_TYPE_STREAM: ResourceEventType
 
 class WorkerRegisterRequest(_message.Message):
     __slots__ = ("workerName", "actions", "services", "maxRuns")

@@ -52,6 +52,10 @@ func (c *testHatchetContext) Log(message string) {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) StreamEvent(message []byte) {
+	panic("not implemented")
+}
+
 func (c *testHatchetContext) index() int {
 	panic("not implemented")
 }

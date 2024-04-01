@@ -217,7 +217,6 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 	case "step-run-timed-out":
 		return ec.handleStepRunTimedOut(ctx, task)
 	}
-
 	return fmt.Errorf("unknown task: %s", task.ID)
 }
 

@@ -125,6 +125,7 @@ model Tenant {
   githubPullRequests        GithubPullRequest[]
   githubPullRequestComments GithubPullRequestComment[]
   githubWebhooks            GithubWebhook[]
+  streamEvents              StreamEvent[]
   logs                      LogLine[]
   snsIntegrations           SNSIntegration[]
 }
@@ -904,6 +905,7 @@ model StepRun {
 
   archivedResults StepRunResultArchive[]
 
+  streamEvents StreamEvent[]
   logs LogLine[]
 
   childWorkflowRuns WorkflowRun[]
@@ -1263,6 +1265,26 @@ model LogLine {
   level LogLineLevel @default(INFO)
 
   // (optional) the log line metadata
+  metadata Json?
+}
+
+model StreamEvent {
+  // base fields
+  id        BigInt   @id @default(autoincrement()) @db.BigInt
+  createdAt DateTime @default(now())
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // the step run id this stream event is associated with
+  stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  stepRunId String?  @db.Uuid
+
+  // the stream event bytes
+  message Bytes
+
+  // (optional) the stream event metadata
   metadata Json?
 }
 

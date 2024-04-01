@@ -14,17 +14,24 @@ import (
 
 type RunEvent *dispatchercontracts.WorkflowEvent
 
-type RunHandler func(event RunEvent) error
+type StreamEvent struct {
+	Message []byte
+}
 
-type RunClient interface {
+type RunHandler func(event RunEvent) error
+type StreamHandler func(event StreamEvent) error
+
+type SubscribeClient interface {
 	On(ctx context.Context, workflowRunId string, handler RunHandler) error
+
+	Stream(ctx context.Context, workflowRunId string, handler StreamHandler) error
 }
 
 type ClientEventListener interface {
 	OnRunEvent(ctx context.Context, event *RunEvent) error
 }
 
-type runClientImpl struct {
+type subscribeClientImpl struct {
 	client dispatchercontracts.DispatcherClient
 
 	l *zerolog.Logger
@@ -34,8 +41,8 @@ type runClientImpl struct {
 	ctx *contextLoader
 }
 
-func newRun(conn *grpc.ClientConn, opts *sharedClientOpts) RunClient {
-	return &runClientImpl{
+func newSubscribe(conn *grpc.ClientConn, opts *sharedClientOpts) SubscribeClient {
+	return &subscribeClientImpl{
 		client: dispatchercontracts.NewDispatcherClient(conn),
 		l:      opts.l,
 		v:      opts.v,
@@ -43,7 +50,7 @@ func newRun(conn *grpc.ClientConn, opts *sharedClientOpts) RunClient {
 	}
 }
 
-func (r *runClientImpl) On(ctx context.Context, workflowRunId string, handler RunHandler) error {
+func (r *subscribeClientImpl) On(ctx context.Context, workflowRunId string, handler RunHandler) error {
 	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
 		WorkflowRunId: workflowRunId,
 	})
@@ -63,7 +70,43 @@ func (r *runClientImpl) On(ctx context.Context, workflowRunId string, handler Ru
 			return err
 		}
 
+		if event.EventType == dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
+			continue
+		}
+
 		if err := handler(event); err != nil {
+			return err
+		}
+	}
+}
+
+func (r *subscribeClientImpl) Stream(ctx context.Context, workflowRunId string, handler StreamHandler) error {
+	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
+		WorkflowRunId: workflowRunId,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for {
+		event, err := stream.Recv()
+
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+
+			return err
+		}
+
+		if event.EventType != dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
+			continue
+		}
+
+		if err := handler(StreamEvent{
+			Message: []byte(event.EventPayload),
+		}); err != nil {
 			return err
 		}
 	}

@@ -174,6 +174,7 @@ type engineRepository struct {
 	worker         repository.WorkerEngineRepository
 	workflow       repository.WorkflowEngineRepository
 	workflowRun    repository.WorkflowRunEngineRepository
+	streamEvent    repository.StreamEventsEngineRepository
 	log            repository.LogsEngineRepository
 }
 
@@ -225,6 +226,10 @@ func (r *engineRepository) WorkflowRun() repository.WorkflowRunEngineRepository 
 	return r.workflowRun
 }
 
+func (r *engineRepository) StreamEvent() repository.StreamEventsEngineRepository {
+	return r.streamEvent
+}
+
 func (r *engineRepository) Log() repository.LogsEngineRepository {
 	return r.log
 }
@@ -256,6 +261,7 @@ func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) reposito
 		worker:         NewWorkerEngineRepository(pool, opts.v, opts.l),
 		workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l),
 		workflowRun:    NewWorkflowRunEngineRepository(pool, opts.v, opts.l),
+		streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 		log:            NewLogEngineRepository(pool, opts.v, opts.l),
 	}
 }

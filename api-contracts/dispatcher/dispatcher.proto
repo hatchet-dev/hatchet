@@ -203,6 +203,7 @@ enum ResourceEventType {
     RESOURCE_EVENT_TYPE_FAILED = 3;
     RESOURCE_EVENT_TYPE_CANCELLED = 4;
     RESOURCE_EVENT_TYPE_TIMED_OUT = 5;
+    RESOURCE_EVENT_TYPE_STREAM = 6;
 }
 
 message WorkflowEvent {
