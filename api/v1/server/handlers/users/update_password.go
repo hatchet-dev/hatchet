@@ -30,7 +30,7 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 		return gen.UserUpdatePassword400JSONResponse(*apiErrors), nil
 	}
 
-	userPass, err := u.config.Repository.User().GetUserPassword(existingUser.ID)
+	userPass, err := u.config.APIRepository.User().GetUserPassword(existingUser.ID)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get user password: %w", err)
@@ -48,7 +48,7 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 		return nil, fmt.Errorf("could not hash user password: %w", err)
 	}
 
-	user, err := u.config.Repository.User().UpdateUser(existingUser.ID, &repository.UpdateUserOpts{
+	user, err := u.config.APIRepository.User().UpdateUser(existingUser.ID, &repository.UpdateUserOpts{
 		Password: newPass,
 	})
 
