@@ -223,3 +223,15 @@ class OverridesData(_message.Message):
 class OverridesDataResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class HeartbeatRequest(_message.Message):
+    __slots__ = ("workerId", "heartbeatAt")
+    WORKERID_FIELD_NUMBER: _ClassVar[int]
+    HEARTBEATAT_FIELD_NUMBER: _ClassVar[int]
+    workerId: str
+    heartbeatAt: _timestamp_pb2.Timestamp
+    def __init__(self, workerId: _Optional[str] = ..., heartbeatAt: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+
+class HeartbeatResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
