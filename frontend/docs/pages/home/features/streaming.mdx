@@ -1,3 +1,5 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+
 # Streaming in Hatchet
 
 Hatchet offers real-time result streaming of data from a background worker allowing you to subscribe to workflow progress, relay individual step results, and send data from an inprogress step run. This feature enables you to provide real-time updates and progress to users as the workflow runs, enhancing the user experience and interactivity of your application.
@@ -27,7 +29,7 @@ Here's an example of how to create a listener:
 
 <Tabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
-```python
+``` python
 async def listen_for_files():
     workflowRunId = hatchet.admin.run_workflow("ManualTriggerWorkflow", {"test": "test"})
     listener = hatchet.listener.stream(workflowRunId)
@@ -40,10 +42,10 @@ async def listen_for_files():
         })
         print("data: " + data + "\n\n")
 
-```
+````
   </Tabs.Tab>
   <Tabs.Tab>
-```typescript
+```typescript copy
 async function listen_for_files() {
   const workflowRunId = await hatchet.admin.run_workflow('simple-workflow', {});
   const stream = await hatchet.listener.stream(workflowRunId);
@@ -51,7 +53,8 @@ async function listen_for_files() {
     console.log('event received', event);
   }
 }
-```
+````
+
   </Tabs.Tab>
 </Tabs>
 
@@ -111,7 +114,8 @@ def step1(self, context: Context):
 
     # continue with the step run...
     return {"step1": "results"}
-```
+
+````
   </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
@@ -167,7 +171,8 @@ async def listen_for_files():
 
             with open(payload_path, "wb") as f:
                 f.write(decoded_payload)
-```
+````
+
 </Tabs.Tab><Tabs.Tab>
 ```typescript
 import * as fs from 'fs';
@@ -203,7 +208,7 @@ const decodedPayload = Buffer.from(event.payload, 'base64');
 }
 }
 
-```
+````
 </Tabs.Tab>
 </Tabs>
 ## Consuming Streams on Frontend
@@ -225,7 +230,7 @@ def event_stream_generator(workflowRunId):
                 "messageId": workflowRunId
             })
             yield "data: " + data + "\n\n"
-```
+````
 
 Next, create a streaming `GET` endpoint that the client connects to in order to receive real-time progress updates:
 
