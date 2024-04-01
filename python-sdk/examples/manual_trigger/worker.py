@@ -1,5 +1,7 @@
 from hatchet_sdk import Hatchet, Context
 from dotenv import load_dotenv
+import base64
+import os
 
 load_dotenv()
 
@@ -12,8 +14,23 @@ class ManualTriggerWorkflow:
     def step1(self, context: Context):
         res = context.playground('res', "HELLO")
 
+        # Get the directory of the current script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Construct the path to the image file relative to the script's directory
+        image_path = os.path.join(script_dir, "image.jpeg")
+        
+        # Load the image file
+        with open(image_path, "rb") as image_file:
+            image_data = image_file.read()
+        
+        print(len(image_data))
 
-        context.put_stream("streaming data")
+        # Encode the image data as base64
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+        
+        # Stream the base64-encoded image data
+        context.put_stream(base64_image)
 
         context.sleep(3)
         print("executed step1")
