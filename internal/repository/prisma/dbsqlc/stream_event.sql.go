@@ -11,6 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cleanupStreamEvents = `-- name: CleanupStreamEvents :exec
+DELETE FROM "StreamEvent"
+WHERE
+    -- older than than 5 minutes ago
+    "createdAt" > NOW () - INTERVAL '5 minutes'
+`
+
+func (q *Queries) CleanupStreamEvents(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, cleanupStreamEvents)
+	return err
+}
+
 const countStreamEvents = `-- name: CountStreamEvents :one
 SELECT COUNT(*) AS total
 FROM "StreamEvent"
@@ -65,6 +77,59 @@ func (q *Queries) CreateStreamEvent(ctx context.Context, db DBTX, arg CreateStre
 		arg.Message,
 		arg.Metadata,
 	)
+	var i StreamEvent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.TenantId,
+		&i.StepRunId,
+		&i.Message,
+		&i.Metadata,
+	)
+	return &i, err
+}
+
+const deleteStreamEvent = `-- name: DeleteStreamEvent :one
+DELETE FROM "StreamEvent"
+WHERE
+  "tenantId" = $1::uuid AND
+  "id" = $2::bigint
+RETURNING id, "createdAt", "tenantId", "stepRunId", message, metadata
+`
+
+type DeleteStreamEventParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	ID       int64       `json:"id"`
+}
+
+func (q *Queries) DeleteStreamEvent(ctx context.Context, db DBTX, arg DeleteStreamEventParams) (*StreamEvent, error) {
+	row := db.QueryRow(ctx, deleteStreamEvent, arg.Tenantid, arg.ID)
+	var i StreamEvent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.TenantId,
+		&i.StepRunId,
+		&i.Message,
+		&i.Metadata,
+	)
+	return &i, err
+}
+
+const getStreamEvent = `-- name: GetStreamEvent :one
+SELECT id, "createdAt", "tenantId", "stepRunId", message, metadata FROM "StreamEvent"
+WHERE
+  "tenantId" = $1::uuid AND
+  "id" = $2::bigint
+`
+
+type GetStreamEventParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	ID       int64       `json:"id"`
+}
+
+func (q *Queries) GetStreamEvent(ctx context.Context, db DBTX, arg GetStreamEventParams) (*StreamEvent, error) {
+	row := db.QueryRow(ctx, getStreamEvent, arg.Tenantid, arg.ID)
 	var i StreamEvent
 	err := row.Scan(
 		&i.ID,

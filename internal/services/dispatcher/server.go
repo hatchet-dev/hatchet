@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -280,8 +281,6 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		wg.Add(1)
 		defer wg.Done()
 
-		// TODO - handle database look up for the task data
-
 		e, err := s.tenantTaskToWorkflowEvent(task, tenantId, request.WorkflowRunId)
 
 		if err != nil {
@@ -298,8 +297,6 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 			s.l.Error().Err(err).Msgf("could not send workflow event to client")
 			return nil
 		}
-
-		// TODO -- if task has a Stream Event type then cleanup the db
 
 		if e.Hangup {
 			cancel()
@@ -376,18 +373,6 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 	if err != nil {
 		return nil, err
 	}
-
-	// jsonSchemaBytes, err := schema.SchemaBytesFromBytes(input)
-
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// _, err = s.repo.StepRun().UpdateStepRunInputSchema(tenantId, request.StepRunId, jsonSchemaBytes)
-
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	return &contracts.OverridesDataResponse{}, nil
 }
@@ -684,11 +669,24 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 			return nil, nil
 		}
 
-		unquoted := workflowEvent.EventPayload
-
-		workflowEvent.EventPayload = unquoted
 		workflowEvent.StepRetries = &stepRun.StepRetries
 		workflowEvent.RetryCount = &stepRun.StepRun.RetryCount
+
+		if workflowEvent.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
+			streamEventId, err := strconv.ParseInt(task.Metadata["stream_event_id"].(string), 10, 64)
+			if err != nil {
+				return nil, err
+			}
+
+			streamEvent, err := s.repo.StreamEvent().DeleteStreamEvent(tenantId, streamEventId)
+
+			if err != nil {
+				return nil, err
+			}
+
+			workflowEvent.EventPayload = string(streamEvent.Message)
+		}
+
 	} else if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN {
 		if workflowEvent.ResourceId != workflowRunId {
 			return nil, nil

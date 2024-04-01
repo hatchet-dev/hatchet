@@ -97,6 +97,7 @@ class HatchetListener:
                             if workflow_event.eventPayload:
                                 payload = json.loads(workflow_event.eventPayload)
                         except Exception as e:
+                            payload = workflow_event.eventPayload
                             pass
 
                         yield StepRunEvent(type=eventType, payload=payload)

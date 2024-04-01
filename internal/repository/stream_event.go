@@ -50,4 +50,13 @@ type StreamEventsAPIRepository interface {
 type StreamEventsEngineRepository interface {
 	// PutStreamEvent creates a new StreamEvent line.
 	PutStreamEvent(tenantId string, opts *CreateStreamEventOpts) (*dbsqlc.StreamEvent, error)
+
+	// GetStreamEvent returns a StreamEvent line by id.
+	GetStreamEvent(tenantId string, streamEventId int64) (*dbsqlc.StreamEvent, error)
+
+	// DeleteStreamEvent deletes a StreamEvent line by id.
+	DeleteStreamEvent(tenantId string, streamEventId int64) (*dbsqlc.StreamEvent, error)
+
+	// CleanupStreamEvents deletes all stale StreamEvents.
+	CleanupStreamEvents() error
 }
