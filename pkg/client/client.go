@@ -23,7 +23,7 @@ type Client interface {
 	Admin() AdminClient
 	Dispatcher() DispatcherClient
 	Event() EventClient
-	Run() RunClient
+	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
 	TenantId() string
 }
@@ -34,7 +34,7 @@ type clientImpl struct {
 	admin      AdminClient
 	dispatcher DispatcherClient
 	event      EventClient
-	run        RunClient
+	subscribe  SubscribeClient
 	rest       *rest.ClientWithResponses
 
 	// the tenant id
@@ -210,7 +210,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	admin := newAdmin(conn, shared)
 	dispatcher := newDispatcher(conn, shared)
 	event := newEvent(conn, shared)
-	run := newRun(conn, shared)
+	subscribe := newSubscribe(conn, shared)
 	rest, err := rest.NewClientWithResponses(opts.serverURL, rest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
 		return nil
@@ -233,7 +233,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		l:          opts.l,
 		admin:      admin,
 		dispatcher: dispatcher,
-		run:        run,
+		subscribe:  subscribe,
 		event:      event,
 		v:          opts.v,
 		rest:       rest,
@@ -252,8 +252,8 @@ func (c *clientImpl) Event() EventClient {
 	return c.event
 }
 
-func (c *clientImpl) Run() RunClient {
-	return c.run
+func (c *clientImpl) Subscribe() SubscribeClient {
+	return c.subscribe
 }
 
 func (c *clientImpl) API() *rest.ClientWithResponses {
