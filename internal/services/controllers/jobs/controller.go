@@ -459,7 +459,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue-step-run")
 			defer span.End()
 
-			now := time.Now().UTC().UTC()
+			now := time.Now().UTC()
 			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
 
 			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
