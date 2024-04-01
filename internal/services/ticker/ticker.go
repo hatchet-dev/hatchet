@@ -184,7 +184,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Second*5),
+		gocron.DurationJob(time.Minute*5),
 		gocron.NewTask(
 			t.runStreamEventCleanup(),
 		),

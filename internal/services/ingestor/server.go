@@ -69,7 +69,7 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 
 	var createdAt *time.Time
 
-	if t := req.CreatedAt.AsTime(); !t.IsZero() {
+	if t := req.CreatedAt.AsTime().UTC(); !t.IsZero() {
 		createdAt = &t
 	}
 

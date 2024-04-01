@@ -52,5 +52,5 @@ WHERE
 -- name: CleanupStreamEvents :exec
 DELETE FROM "StreamEvent"
 WHERE
-    -- older than than 5 minutes ago
-    "createdAt" > NOW () - INTERVAL '5 minutes';
+  -- older than than 5 minutes ago
+  "createdAt" < NOW() - INTERVAL '5 minutes';
