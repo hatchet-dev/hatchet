@@ -87,7 +87,8 @@ type StepRunStreamEventTaskPayload struct {
 }
 
 type StepRunStreamEventTaskMetadata struct {
-	TenantId string `json:"tenant_id" validate:"required,uuid"`
+	TenantId      string `json:"tenant_id" validate:"required,uuid"`
+	StreamEventId string `json:"stream_event_id" validate:"required,integer"`
 }
 
 type StepRunFailedTaskPayload struct {

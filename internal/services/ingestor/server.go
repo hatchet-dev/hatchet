@@ -90,7 +90,13 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 		return nil, err
 	}
 
-	err = i.mq.AddMessage(context.Background(), msgqueue.JOB_PROCESSING_QUEUE, streamEventToTask(streamEvent))
+	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = i.mq.AddMessage(context.Background(), q, streamEventToTask(streamEvent))
 
 	if err != nil {
 		return nil, err
@@ -156,7 +162,8 @@ func streamEventToTask(e *dbsqlc.StreamEvent) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(payloadTyped)
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunStreamEventTaskMetadata{
-		TenantId: tenantId,
+		TenantId:      tenantId,
+		StreamEventId: strconv.FormatInt(e.ID, 10),
 	})
 
 	return &msgqueue.Message{
