@@ -3,7 +3,6 @@ package rampup
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -40,7 +39,7 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 			if eventsPerSecond < 1 {
 				eventsPerSecond = 1
 			}
-			log.Printf("emitting %d events per second", eventsPerSecond)
+			l.Debug().Msgf("emitting %d events per second", eventsPerSecond)
 			select {
 			case <-time.After(time.Second / time.Duration(eventsPerSecond)):
 				mx.Lock()
@@ -66,10 +65,10 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 
 				mx.Unlock()
 			case <-timer:
-				log.Println("done emitting events due to timer at", id)
+				l.Debug().Msgf("done emitting events due to timer at %d", id)
 				return
 			case <-ctx.Done():
-				log.Println("done emitting events due to interruption at", id)
+				l.Debug().Msgf("done emitting events due to interruption at %d", id)
 				return
 			}
 		}
