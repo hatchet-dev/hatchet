@@ -20,33 +20,6 @@ type CreateStreamEventOpts struct {
 	Metadata []byte
 }
 
-type ListStreamEventsOpts struct {
-	// (optional) number of StreamEvents to skip
-	Offset *int
-
-	// (optional) number of StreamEvents to return
-	Limit *int `validate:"omitnil,min=1,max=1000"`
-
-	// (optional) a step run id to filter by
-	StepRunId *string `validate:"omitempty,uuid"`
-
-	// (optional) the order by field
-	OrderBy *string `validate:"omitempty,oneof=createdAt"`
-
-	// (optional) the order direction
-	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
-}
-
-type ListStreamEventsResult struct {
-	Rows  []*dbsqlc.StreamEvent
-	Count int
-}
-
-type StreamEventsAPIRepository interface {
-	// ListStreamEvents returns a list of StreamEvent lines for a given step run.
-	ListStreamEvents(tenantId string, opts *ListStreamEventsOpts) (*ListStreamEventsResult, error)
-}
-
 type StreamEventsEngineRepository interface {
 	// PutStreamEvent creates a new StreamEvent line.
 	PutStreamEvent(tenantId string, opts *CreateStreamEventOpts) (*dbsqlc.StreamEvent, error)
