@@ -8,6 +8,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -145,6 +147,13 @@ func newDispatcher(conn *grpc.ClientConn, opts *sharedClientOpts) DispatcherClie
 	}
 }
 
+type ListenerStrategy string
+
+const (
+	ListenerStrategyV1 ListenerStrategy = "v1"
+	ListenerStrategyV2 ListenerStrategy = "v2"
+)
+
 type actionListenerImpl struct {
 	client dispatchercontracts.DispatcherClient
 
@@ -159,6 +168,8 @@ type actionListenerImpl struct {
 	v validator.Validator
 
 	ctx *contextLoader
+
+	listenerStrategy ListenerStrategy
 }
 
 func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetActionListenerRequest) (*actionListenerImpl, error) {
@@ -188,7 +199,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	d.l.Debug().Msgf("Registered worker with id: %s", resp.WorkerId)
 
 	// subscribe to the worker
-	listener, err := d.client.Listen(d.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
+	listener, err := d.client.ListenV2(d.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
 		WorkerId: resp.WorkerId,
 	})
 
@@ -197,13 +208,14 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	}
 
 	return &actionListenerImpl{
-		client:       d.client,
-		listenClient: listener,
-		workerId:     resp.WorkerId,
-		l:            d.l,
-		v:            d.v,
-		tenantId:     d.tenantId,
-		ctx:          d.ctx,
+		client:           d.client,
+		listenClient:     listener,
+		workerId:         resp.WorkerId,
+		l:                d.l,
+		v:                d.v,
+		tenantId:         d.tenantId,
+		ctx:              d.ctx,
+		listenerStrategy: ListenerStrategyV2,
 	}, nil
 }
 
@@ -211,6 +223,42 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 	ch := make(chan *Action)
 
 	a.l.Debug().Msgf("Starting to listen for actions")
+
+	// update the worker with a last heartbeat time every 4 seconds as long as the worker is connected
+	go func() {
+		timer := time.NewTicker(100 * time.Millisecond)
+		defer timer.Stop()
+
+		// set last heartbeat to 5 seconds ago so that the first heartbeat is sent immediately
+		lastHeartbeat := time.Now().Add(-5 * time.Second)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
+					a.l.Debug().Msgf("updating worker %s heartbeat", a.workerId)
+
+					_, err := a.client.Heartbeat(a.ctx.newContext(ctx), &dispatchercontracts.HeartbeatRequest{
+						WorkerId:    a.workerId,
+						HeartbeatAt: timestamppb.New(now),
+					})
+
+					if err != nil {
+						a.l.Error().Err(err).Msgf("could not update worker %s heartbeat", a.workerId)
+
+						// if the heartbeat method is unimplemented, don't continue to send heartbeats
+						if status.Code(err) == codes.Unimplemented {
+							return
+						}
+					}
+
+					lastHeartbeat = time.Now().UTC()
+				}
+			}
+		}
+	}()
 
 	go func() {
 		for {
@@ -230,6 +278,12 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 					}
 
 					return
+				}
+
+				// if this is an unimplemented error, default to v1
+				if a.listenerStrategy == ListenerStrategyV2 && status.Code(err) == codes.Unimplemented {
+					a.l.Debug().Msgf("Falling back to v1 listener strategy")
+					a.listenerStrategy = ListenerStrategyV1
 				}
 
 				err = a.retrySubscribe(ctx)
@@ -287,9 +341,18 @@ func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
 	for retries < DefaultActionListenerRetryCount {
 		time.Sleep(DefaultActionListenerRetryInterval)
 
-		listenClient, err := a.client.Listen(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
-			WorkerId: a.workerId,
-		})
+		var err error
+		var listenClient dispatchercontracts.Dispatcher_ListenClient
+
+		if a.listenerStrategy == ListenerStrategyV1 {
+			listenClient, err = a.client.Listen(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
+				WorkerId: a.workerId,
+			})
+		} else if a.listenerStrategy == ListenerStrategyV2 {
+			listenClient, err = a.client.ListenV2(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
+				WorkerId: a.workerId,
+			})
+		}
 
 		if err != nil {
 			retries++

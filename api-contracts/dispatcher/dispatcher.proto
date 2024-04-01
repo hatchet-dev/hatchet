@@ -9,6 +9,13 @@ service Dispatcher {
 
     rpc Listen(WorkerListenRequest) returns (stream AssignedAction) {}
 
+    // ListenV2 is like listen, but implementation does not include heartbeats. This should only used by SDKs
+    // against engine version v0.18.1+
+    rpc ListenV2(WorkerListenRequest) returns (stream AssignedAction) {}
+
+    // Heartbeat is a method for workers to send heartbeats to the dispatcher
+    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse) {}
+
     rpc SubscribeToWorkflowEvents(SubscribeToWorkflowEventsRequest) returns (stream WorkflowEvent) {}
 
     rpc SendStepActionEvent(StepActionEvent) returns (ActionEventResponse) {}
@@ -239,3 +246,13 @@ message OverridesData {
 }
 
 message OverridesDataResponse {}
+
+message HeartbeatRequest {
+    // the id of the worker
+    string workerId = 1;
+
+    // heartbeatAt is the time the worker sent the heartbeat
+    google.protobuf.Timestamp heartbeatAt = 2;
+}
+
+message HeartbeatResponse {}
