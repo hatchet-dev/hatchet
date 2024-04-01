@@ -466,6 +466,7 @@ SET
         FROM selected_worker
         LIMIT 1
     ),
+    "tickerId" = NULL,
     "updatedAt" = CURRENT_TIMESTAMP,
     "timeoutAt" = CASE
         WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
