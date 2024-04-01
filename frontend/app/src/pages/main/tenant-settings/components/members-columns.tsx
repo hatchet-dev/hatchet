@@ -68,7 +68,7 @@ function MemberActions({
   const { user } = useOutletContext<UserContextType>();
   const actions = [];
 
-  if(user.hasPassword) {
+  if (user.hasPassword) {
     actions.push({
       label: 'Change Password',
       onClick: () => onChangePasswordClick(row.original),
@@ -80,10 +80,5 @@ function MemberActions({
     return <></>;
   }
 
-  return (
-    <DataTableRowActions
-      row={row}
-      actions={actions}
-    />
-  );
+  return <DataTableRowActions row={row} actions={actions} />;
 }
