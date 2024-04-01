@@ -143,7 +143,7 @@ export interface UserChangePasswordRequest {
   /** The password of the user. */
   password: string;
   /** The new password for the user. */
-  newPassword?: string;
+  newPassword: string;
 }
 
 export interface UserRegisterRequest {

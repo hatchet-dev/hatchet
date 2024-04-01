@@ -18,7 +18,7 @@ import re  # noqa: F401
 import json
 
 from pydantic import BaseModel, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -27,7 +27,7 @@ class UserChangePasswordRequest(BaseModel):
     UserChangePasswordRequest
     """ # noqa: E501
     password: StrictStr = Field(description="The password of the user.")
-    new_password: Optional[StrictStr] = Field(default=None, description="The new password for the user.", alias="newPassword")
+    new_password: StrictStr = Field(description="The new password for the user.", alias="newPassword")
     __properties: ClassVar[List[str]] = ["password", "newPassword"]
 
     model_config = {
