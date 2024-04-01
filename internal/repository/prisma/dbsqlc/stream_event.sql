@@ -5,35 +5,23 @@ INSERT INTO "StreamEvent" (
     "stepRunId",
     "message",
     "metadata"
-) VALUES (
+)
+SELECT
     coalesce(sqlc.narg('createdAt')::timestamp, now()),
     @tenantId::uuid,
     @stepRunId::uuid,
     @message::bytea,
     coalesce(sqlc.narg('metadata')::jsonb, '{}'::jsonb)
-) RETURNING *;
+FROM "StepRun"
+WHERE "StepRun"."id" = @stepRunId::uuid
+AND "StepRun"."tenantId" = @tenantId::uuid
+RETURNING *;
 
 -- name: GetStreamEvent :one
 SELECT * FROM "StreamEvent"
 WHERE
   "tenantId" = @tenantId::uuid AND
   "id" = @id::bigint;
-
--- name: DeleteStreamEvent :one
-DELETE FROM "StreamEvent"
-WHERE
-  "tenantId" = @tenantId::uuid AND
-  "id" = @id::bigint
-RETURNING *;
-
--- name: CountStreamEvents :one
-SELECT COUNT(*) AS total
-FROM "StreamEvent"
-WHERE
-  "tenantId" = @tenantId::uuid AND
-  (sqlc.narg('stepRunId')::uuid IS NULL OR "stepRunId" = sqlc.narg('stepRunId')::uuid) AND
-  (sqlc.narg('levels')::"LogLineLevel"[] IS NULL OR "level" = ANY(sqlc.narg('levels')::"LogLineLevel"[]));
-
 
 -- name: CleanupStreamEvents :exec
 DELETE FROM "StreamEvent"

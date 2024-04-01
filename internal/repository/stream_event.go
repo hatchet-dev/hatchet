@@ -27,9 +27,6 @@ type StreamEventsEngineRepository interface {
 	// GetStreamEvent returns a StreamEvent line by id.
 	GetStreamEvent(tenantId string, streamEventId int64) (*dbsqlc.StreamEvent, error)
 
-	// DeleteStreamEvent deletes a StreamEvent line by id.
-	DeleteStreamEvent(tenantId string, streamEventId int64) (*dbsqlc.StreamEvent, error)
-
 	// CleanupStreamEvents deletes all stale StreamEvents.
 	CleanupStreamEvents() error
 }

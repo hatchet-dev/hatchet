@@ -110,34 +110,6 @@ func (r *streamEventEngineRepository) GetStreamEvent(tenantId string, streamEven
 	return streamEvent, nil
 }
 
-func (r *streamEventEngineRepository) DeleteStreamEvent(tenantId string, streamEventId int64) (*dbsqlc.StreamEvent, error) {
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
-	tx, err := r.pool.Begin(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
-
-	streamEvent, err := r.queries.DeleteStreamEvent(context.Background(), tx, dbsqlc.DeleteStreamEventParams{
-		ID:       streamEventId,
-		Tenantid: pgTenantId,
-	})
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("stream event not found")
-		}
-		return nil, fmt.Errorf("could not delete stream event: %w", err)
-	}
-
-	err = tx.Commit(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("could not commit transaction: %w", err)
-	}
-
-	return streamEvent, nil
-}
-
 func (r *streamEventEngineRepository) CleanupStreamEvents() error {
 	tx, err := r.pool.Begin(context.Background())
 	if err != nil {

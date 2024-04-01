@@ -678,7 +678,7 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 				return nil, err
 			}
 
-			streamEvent, err := s.repo.StreamEvent().DeleteStreamEvent(tenantId, streamEventId)
+			streamEvent, err := s.repo.StreamEvent().GetStreamEvent(tenantId, streamEventId)
 
 			if err != nil {
 				return nil, err

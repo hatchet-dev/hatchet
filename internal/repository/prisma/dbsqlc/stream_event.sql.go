@@ -23,28 +23,6 @@ func (q *Queries) CleanupStreamEvents(ctx context.Context, db DBTX) error {
 	return err
 }
 
-const countStreamEvents = `-- name: CountStreamEvents :one
-SELECT COUNT(*) AS total
-FROM "StreamEvent"
-WHERE
-  "tenantId" = $1::uuid AND
-  ($2::uuid IS NULL OR "stepRunId" = $2::uuid) AND
-  ($3::"LogLineLevel"[] IS NULL OR "level" = ANY($3::"LogLineLevel"[]))
-`
-
-type CountStreamEventsParams struct {
-	Tenantid  pgtype.UUID    `json:"tenantid"`
-	StepRunId pgtype.UUID    `json:"stepRunId"`
-	Levels    []LogLineLevel `json:"levels"`
-}
-
-func (q *Queries) CountStreamEvents(ctx context.Context, db DBTX, arg CountStreamEventsParams) (int64, error) {
-	row := db.QueryRow(ctx, countStreamEvents, arg.Tenantid, arg.StepRunId, arg.Levels)
-	var total int64
-	err := row.Scan(&total)
-	return total, err
-}
-
 const createStreamEvent = `-- name: CreateStreamEvent :one
 INSERT INTO "StreamEvent" (
     "createdAt",
@@ -52,13 +30,17 @@ INSERT INTO "StreamEvent" (
     "stepRunId",
     "message",
     "metadata"
-) VALUES (
+)
+SELECT
     coalesce($1::timestamp, now()),
     $2::uuid,
     $3::uuid,
     $4::bytea,
     coalesce($5::jsonb, '{}'::jsonb)
-) RETURNING id, "createdAt", "tenantId", "stepRunId", message, metadata
+FROM "StepRun"
+WHERE "StepRun"."id" = $3::uuid
+AND "StepRun"."tenantId" = $2::uuid
+RETURNING id, "createdAt", "tenantId", "stepRunId", message, metadata
 `
 
 type CreateStreamEventParams struct {
@@ -77,33 +59,6 @@ func (q *Queries) CreateStreamEvent(ctx context.Context, db DBTX, arg CreateStre
 		arg.Message,
 		arg.Metadata,
 	)
-	var i StreamEvent
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.TenantId,
-		&i.StepRunId,
-		&i.Message,
-		&i.Metadata,
-	)
-	return &i, err
-}
-
-const deleteStreamEvent = `-- name: DeleteStreamEvent :one
-DELETE FROM "StreamEvent"
-WHERE
-  "tenantId" = $1::uuid AND
-  "id" = $2::bigint
-RETURNING id, "createdAt", "tenantId", "stepRunId", message, metadata
-`
-
-type DeleteStreamEventParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       int64       `json:"id"`
-}
-
-func (q *Queries) DeleteStreamEvent(ctx context.Context, db DBTX, arg DeleteStreamEventParams) (*StreamEvent, error) {
-	row := db.QueryRow(ctx, deleteStreamEvent, arg.Tenantid, arg.ID)
 	var i StreamEvent
 	err := row.Scan(
 		&i.ID,
