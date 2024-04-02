@@ -1,4 +1,4 @@
-from .client import new_client 
+from .client import ClientImpl, new_client 
 from typing import List
 import asyncio
 from functools import wraps
@@ -8,6 +8,8 @@ from .logger import logger
 from .workflows_pb2 import ConcurrencyLimitStrategy
 
 class Hatchet:
+    client: ClientImpl
+
     def __init__(self, debug=False):
         # initialize a client
         self.client = new_client()
