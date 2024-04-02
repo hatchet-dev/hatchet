@@ -9,6 +9,7 @@ service WorkflowService {
     rpc PutWorkflow(PutWorkflowRequest) returns (WorkflowVersion);
     rpc ScheduleWorkflow(ScheduleWorkflowRequest) returns (WorkflowVersion);
     rpc TriggerWorkflow(TriggerWorkflowRequest) returns (TriggerWorkflowResponse);
+    rpc PutRateLimit(PutRateLimitRequest) returns (PutRateLimitResponse);
 }
 
 message PutWorkflowRequest {
@@ -58,6 +59,12 @@ message CreateWorkflowStepOpts {
     repeated string parents = 5; // (optional) the step parents. if none are passed in, this is a root step
     string user_data = 6; // (optional) the custom step user data, assuming string representation of JSON
     int32 retries = 7; // (optional) the number of retries for the step, default 0
+    repeated CreateStepRateLimit rate_limits = 8; // (optional) the rate limits for the step
+}
+
+message CreateStepRateLimit {
+    string key = 1; // (required) the key for the rate limit
+    int32 units = 2; // (required) the number of units this step consumes
 }
 
 // ListWorkflowsRequest is the request for ListWorkflows.
@@ -134,3 +141,22 @@ message TriggerWorkflowRequest {
 message TriggerWorkflowResponse {
     string workflow_run_id = 1;
 }
+
+enum RateLimitDuration {
+    SECOND = 0;
+    MINUTE = 1;
+    HOUR = 2;
+}
+
+message PutRateLimitRequest {
+    // (required) the global key for the rate limit
+    string key = 1;
+
+    // (required) the max limit for the rate limit (per unit of time)
+    int32 limit = 2;
+
+    // (required) the duration of time for the rate limit (second|minute|hour)
+    RateLimitDuration duration = 3;
+}
+
+message PutRateLimitResponse {}

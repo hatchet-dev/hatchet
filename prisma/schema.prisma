@@ -128,6 +128,8 @@ model Tenant {
   streamEvents              StreamEvent[]
   logs                      LogLine[]
   snsIntegrations           SNSIntegration[]
+  rateLimits                RateLimit[]
+  stepRateLimits            StepRateLimit[]
 }
 
 enum TenantMemberRole {
@@ -561,8 +563,51 @@ model Step {
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")
 
+  rateLimits StepRateLimit[]
+
   // readable ids are unique per job
   @@unique([jobId, readableId])
+}
+
+model StepRateLimit {
+  units Int
+
+  step   Step   @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepId String @db.Uuid
+
+  rateLimit    RateLimit @relation(fields: [tenantId, rateLimitKey], references: [tenantId, key])
+  rateLimitKey String
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  @@unique([stepId, rateLimitKey])
+}
+
+model RateLimit {
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // the rate limit key
+  key String
+
+  // The max number of requests allowed in the window
+  limitValue Int
+
+  // the current rate limit bucket value
+  value Int
+
+  // the rate limit window
+  window String
+
+  // the time the rate limit was last refilled
+  lastRefill DateTime @default(now())
+
+  stepRunLimits StepRateLimit[]
+
+  // rate limits are unique per tenant
+  @@unique([tenantId, key])
 }
 
 enum WorkflowRunStatus {
@@ -906,7 +951,7 @@ model StepRun {
   archivedResults StepRunResultArchive[]
 
   streamEvents StreamEvent[]
-  logs LogLine[]
+  logs         LogLine[]
 
   childWorkflowRuns WorkflowRun[]
   childSchedules    WorkflowTriggerScheduledRef[]

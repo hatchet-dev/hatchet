@@ -466,6 +466,7 @@ SET
         FROM selected_worker
         LIMIT 1
     ),
+    "tickerId" = NULL,
     "updatedAt" = CURRENT_TIMESTAMP,
     "timeoutAt" = CASE
         WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
@@ -507,3 +508,40 @@ FROM
 WHERE
     "WorkerSemaphore"."workerId" = (SELECT "workerId" FROM worker_id)
 RETURNING *;
+
+-- name: UpdateStepRateLimits :many
+WITH step_rate_limits AS (
+    SELECT
+        rl."units" AS "units",
+        rl."rateLimitKey" AS "rateLimitKey"
+    FROM
+        "StepRateLimit" rl
+    WHERE
+        rl."stepId" = @stepId::uuid AND
+        rl."tenantId" = @tenantId::uuid
+), locked_rate_limits AS (
+    SELECT
+        srl.*,
+        step_rate_limits."units"
+    FROM
+        step_rate_limits
+    JOIN
+        "RateLimit" srl ON srl."key" = step_rate_limits."rateLimitKey" AND srl."tenantId" = @tenantId::uuid
+    FOR UPDATE
+)
+UPDATE
+    "RateLimit" srl
+SET
+    "value" = get_refill_value(srl) - lrl."units",
+    "lastRefill" = CASE
+        WHEN NOW() - srl."lastRefill" >= srl."window"::INTERVAL THEN
+            CURRENT_TIMESTAMP
+        ELSE
+            srl."lastRefill"
+    END
+FROM
+    locked_rate_limits lrl
+WHERE
+    srl."tenantId" = lrl."tenantId" AND
+    srl."key" = lrl."key"
+RETURNING srl.*;

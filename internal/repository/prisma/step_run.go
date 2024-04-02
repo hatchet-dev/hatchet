@@ -265,7 +265,7 @@ var retrier = func(l *zerolog.Logger, f func() error) error {
 	return nil
 }
 
-func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, tenantId, stepRunId, actionId string, stepTimeout pgtype.Text) (string, string, error) {
+func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (string, string, error) {
 	tx, err := s.pool.Begin(context.Background())
 
 	if err != nil {
@@ -275,10 +275,10 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ten
 	defer deferRollback(context.Background(), s.l, tx.Rollback)
 
 	assigned, err := s.queries.AssignStepRunToWorker(ctx, tx, dbsqlc.AssignStepRunToWorkerParams{
-		Steprunid:   sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
-		Actionid:    actionId,
-		StepTimeout: stepTimeout,
+		Steprunid:   stepRun.StepRun.ID,
+		Tenantid:    stepRun.StepRun.TenantId,
+		Actionid:    stepRun.ActionId,
+		StepTimeout: stepRun.StepTimeout,
 	})
 
 	if err != nil {
@@ -291,16 +291,33 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ten
 
 	semaphore, err := s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
 		Inc:       -1,
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Steprunid: stepRun.StepRun.ID,
+		Tenantid:  stepRun.StepRun.TenantId,
 	})
 
 	if err != nil {
 		return "", "", fmt.Errorf("could not upsert worker semaphore: %w", err)
 	}
 
-	if semaphore.Slots <= 0 {
+	if semaphore.Slots < 0 {
 		return "", "", repository.ErrNoWorkerAvailable
+	}
+
+	rateLimits, err := s.queries.UpdateStepRateLimits(ctx, tx, dbsqlc.UpdateStepRateLimitsParams{
+		Stepid:   stepRun.StepId,
+		Tenantid: stepRun.StepRun.TenantId,
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", "", fmt.Errorf("could not update rate limit: %w", err)
+	}
+
+	if len(rateLimits) > 0 {
+		for _, rateLimit := range rateLimits {
+			if rateLimit.Value < 0 {
+				return "", "", repository.ErrRateLimitExceeded
+			}
+		}
 	}
 
 	err = tx.Commit(context.Background())

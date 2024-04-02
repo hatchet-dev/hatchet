@@ -176,6 +176,7 @@ type engineRepository struct {
 	workflowRun    repository.WorkflowRunEngineRepository
 	streamEvent    repository.StreamEventsEngineRepository
 	log            repository.LogsEngineRepository
+	rateLimit      repository.RateLimitEngineRepository
 }
 
 func (r *engineRepository) Health() repository.HealthRepository {
@@ -234,6 +235,10 @@ func (r *engineRepository) Log() repository.LogsEngineRepository {
 	return r.log
 }
 
+func (r *engineRepository) RateLimit() repository.RateLimitEngineRepository {
+	return r.rateLimit
+}
+
 func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) repository.EngineRepository {
 	opts := defaultPrismaRepositoryOpts()
 
@@ -263,5 +268,6 @@ func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) reposito
 		workflowRun:    NewWorkflowRunEngineRepository(pool, opts.v, opts.l),
 		streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 		log:            NewLogEngineRepository(pool, opts.v, opts.l),
+		rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
 	}
 }

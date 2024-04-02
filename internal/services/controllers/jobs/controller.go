@@ -690,13 +690,17 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId stri
 	defer span.End()
 
 	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-	actionId := stepRun.ActionId
 
-	selectedWorkerId, dispatcherId, err := ec.repo.StepRun().AssignStepRunToWorker(ctx, tenantId, stepRunId, actionId, stepRun.StepTimeout)
+	selectedWorkerId, dispatcherId, err := ec.repo.StepRun().AssignStepRunToWorker(ctx, stepRun)
 
 	if err != nil {
 		if errors.Is(err, repository.ErrNoWorkerAvailable) {
 			ec.l.Debug().Msgf("no worker available for step run %s, requeueing", stepRunId)
+			return nil
+		}
+
+		if errors.Is(err, repository.ErrRateLimitExceeded) {
+			ec.l.Debug().Msgf("rate limit exceeded for step run %s, requeueing", stepRunId)
 			return nil
 		}
 
