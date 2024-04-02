@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from hatchet_sdk.rate_limit import RateLimit
 from .client import ClientImpl, new_client 
 from typing import List
 import asyncio
@@ -8,15 +8,6 @@ from .worker import Worker
 from .logger import logger
 from .workflows_pb2 import ConcurrencyLimitStrategy, CreateStepRateLimit
 
-@dataclass
-class RateLimit:
-    key: str
-    units: int
-
-class RateLimitDuration:
-    SECOND='SECOND'
-    MINUTE='MINUTE'
-    HOUR='HOUR'
 
 class Hatchet:
     client: ClientImpl

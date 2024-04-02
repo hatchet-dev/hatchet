@@ -1,6 +1,6 @@
 from hatchet_sdk import Hatchet, Context
 from dotenv import load_dotenv
-from hatchet_sdk.workflows_pb2 import RateLimitDuration
+from hatchet_sdk.rate_limit import RateLimit, RateLimitDuration
 
 load_dotenv()
 
@@ -11,7 +11,7 @@ class RateLimitWorkflow:
     def __init__(self):
         self.my_value = "test"
 
-    @hatchet.step()
+    @hatchet.step(rate_limits = [RateLimit(key='test-limit', units=1)])
     def step1(self, context: Context):
         print("executed step1")
         pass
