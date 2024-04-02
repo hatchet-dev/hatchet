@@ -104,6 +104,54 @@ rerunStepRun:
     summary: Rerun step run
     tags:
       - Step Run
+
+cancelStepRun:
+  post:
+    x-resources: ["tenant", "step-run"]
+    description: Attempts to cancel a step run
+    operationId: step-run:update:cancel
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The step run id
+        in: path
+        name: step-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/StepRun"
+        description: Successfully dispatched the cancellation
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Attempts to cancel a step run
+    tags:
+      - Step Run
+
 getSchema:
   get:
     x-resources: ["tenant", "step-run"]

@@ -129,6 +129,7 @@ SET
         FROM selected_worker
         LIMIT 1
     ),
+    "tickerId" = NULL,
     "updatedAt" = CURRENT_TIMESTAMP,
     "timeoutAt" = CASE
         WHEN $1::text IS NOT NULL THEN
