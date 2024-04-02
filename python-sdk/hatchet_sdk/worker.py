@@ -27,6 +27,7 @@ class Worker:
         self.futures: Dict[str, Future] = {}  # Store step run ids and futures
         self.contexts: Dict[str, Context] = {}  # Store step run ids and contexts
         self.action_registry : dict[str, Callable[..., Any]] = {} 
+        self.client = new_client()
 
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
@@ -296,6 +297,8 @@ class Worker:
         return event
     
     def register_workflow(self, workflow : WorkflowMeta):
+        self.client.admin.put_workflow(workflow.get_name(), workflow.get_create_opts())
+
         def create_action_function(action_func):
             def action_function(context):
                 return action_func(workflow, context)
@@ -327,8 +330,6 @@ class Worker:
     
     def start(self, retry_count=1):
         logger.info("Starting worker...")
-
-        self.client = new_client()
 
         try:
             self.listener : ActionListenerImpl = self.client.dispatcher.get_action_listener(GetActionListenerRequest(

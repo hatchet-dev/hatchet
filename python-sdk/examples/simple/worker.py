@@ -1,4 +1,4 @@
-from hatchet_sdk import Hatchet, Context
+from hatchet_sdk import Hatchet, Context, CreateWorkflowVersionOpts
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -31,5 +31,15 @@ class MyWorkflow:
 workflow = MyWorkflow()
 worker = hatchet.worker('test-worker', max_runs=4)
 worker.register_workflow(workflow)
+
+# workflow1 = hatchet.client.admin.put_workflow(
+#     "workflow-copy-2",
+#     MyWorkflow(), 
+#     overrides=CreateWorkflowVersionOpts(
+#         cron_triggers=["*/15 * * * *"],
+#     ),
+# )
+
+# print(workflow1)
 
 worker.start()
