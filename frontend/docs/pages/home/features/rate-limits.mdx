@@ -22,27 +22,11 @@ Here's an example of how to define your limits:
 
 <Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-``` python
-    def put_rate_limit(self, key: str, limit: int, duration: RateLimitDuration = RateLimitDuration.SECOND):
-
-````
-
-example:
-
 ```python
     hatchet.admin.put_rate_limit('example-limit', 10, RateLimitDuration.MINUTE)
 ````
   </Tabs.Tab>
   <Tabs.Tab>
-```typescript copy
-  async put_rate_limit(
-    key: string,
-    limit: number,
-    duration: RateLimitDuration = RateLimitDuration.SECOND
-  )
-````
-
-example:
 ```typescript
   await hatchet.admin.put_rate_limit('test-limit', 1, RateLimitDuration.MINUTE);
 ````
@@ -52,7 +36,7 @@ example:
 ```go copy
 	err = c.Admin().PutRateLimit("example-limit", &types.RateLimitOpts{
 		Max:      3,
-		Duration: "second",
+		Duration: "minute",
 	})
 ````
 
