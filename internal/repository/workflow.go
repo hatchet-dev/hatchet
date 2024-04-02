@@ -29,6 +29,9 @@ type CreateWorkflowVersionOpts struct {
 	// (optional) cron triggers for the workflow
 	CronTriggers []string `validate:"dive,cron"`
 
+	// (optional) the input bytes for the cron triggers
+	CronInput []byte
+
 	// (optional) scheduled triggers for the workflow
 	ScheduledTriggers []time.Time
 

@@ -395,6 +395,12 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		}
 	}
 
+	var cronInput []byte
+
+	if req.Opts.CronInput != nil {
+		cronInput = []byte(*req.Opts.CronInput)
+	}
+
 	return &repository.CreateWorkflowVersionOpts{
 		Name:              req.Opts.Name,
 		Concurrency:       concurrency,
@@ -402,6 +408,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		Version:           &req.Opts.Version,
 		EventTriggers:     req.Opts.EventTriggers,
 		CronTriggers:      req.Opts.CronTriggers,
+		CronInput:         cronInput,
 		ScheduledTriggers: scheduledTriggers,
 		Jobs:              jobs,
 		ScheduleTimeout:   req.Opts.ScheduleTimeout,

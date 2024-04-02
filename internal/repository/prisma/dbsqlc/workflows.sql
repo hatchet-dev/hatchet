@@ -332,10 +332,12 @@ INSERT INTO "WorkflowTriggerEventRef" (
 -- name: CreateWorkflowTriggerCronRef :one
 INSERT INTO "WorkflowTriggerCronRef" (
     "parentId",
-    "cron"
+    "cron",
+    "input"
 ) VALUES (
     @workflowTriggersId::uuid,
-    @cronTrigger::text
+    @cronTrigger::text,
+    sqlc.narg('input')::jsonb
 ) RETURNING *;
 
 -- name: CreateWorkflowTriggerScheduledRef :one

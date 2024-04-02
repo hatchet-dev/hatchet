@@ -1,3 +1,4 @@
+import json
 from hatchet_sdk import Hatchet, Context, CreateWorkflowVersionOpts
 from dotenv import load_dotenv
 
@@ -36,7 +37,8 @@ worker.register_workflow(workflow)
 #     "workflow-copy-2",
 #     MyWorkflow(), 
 #     overrides=CreateWorkflowVersionOpts(
-#         cron_triggers=["*/15 * * * *"],
+#         cron_triggers=["* * * * *"],
+#         cron_input=json.dumps({"test": "test"}),
 #     ),
 # )
 

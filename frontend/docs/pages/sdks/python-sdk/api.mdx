@@ -43,9 +43,10 @@ class BaseWorkflow:
 
 hatchet.client.admin.put_workflow(
     "workflow-copy",
-    MyWorkflow(), 
+    BaseWorkflow(),
     overrides=CreateWorkflowVersionOpts(
         cron_triggers=["*/15 * * * *"],
+        cron_input=json.dumps({"test": "test"}),
     ),
 )
 ```
