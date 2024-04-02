@@ -10,7 +10,7 @@ CREATE TABLE "StepRateLimit" (
 CREATE TABLE "RateLimit" (
     "tenantId" UUID NOT NULL,
     "key" TEXT NOT NULL,
-    "max" INTEGER NOT NULL,
+    "limitValue" INTEGER NOT NULL,
     "value" INTEGER NOT NULL,
     "window" TEXT NOT NULL,
     "lastRefill" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -58,7 +58,7 @@ DECLARE
     refill_amount INTEGER;
 BEGIN
     IF NOW() - rate_limit."lastRefill" >= rate_limit."window"::INTERVAL THEN
-        refill_amount := rate_limit."max";
+        refill_amount := rate_limit."limitValue";
     ELSE
         refill_amount := rate_limit."value";
     END IF;

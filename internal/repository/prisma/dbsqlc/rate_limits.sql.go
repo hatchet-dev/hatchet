@@ -11,11 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createRateLimit = `-- name: CreateRateLimit :one
+const upsertRateLimit = `-- name: UpsertRateLimit :one
 INSERT INTO "RateLimit" (
     "tenantId", 
     "key", 
-    "max", 
+    "limitValue", 
     "value", 
     "window"
 ) VALUES (
@@ -24,28 +24,31 @@ INSERT INTO "RateLimit" (
     $3::int,
     $3::int,
     COALESCE($4::text, '1 minute')
-) RETURNING "tenantId", key, max, value, "window", "lastRefill"
+) ON CONFLICT ("tenantId", "key") DO UPDATE SET 
+    "limitValue" = $3::int,
+    "window" = COALESCE($4::text, '1 minute')
+RETURNING "tenantId", key, "limitValue", value, "window", "lastRefill"
 `
 
-type CreateRateLimitParams struct {
+type UpsertRateLimitParams struct {
 	Tenantid pgtype.UUID `json:"tenantid"`
 	Key      string      `json:"key"`
-	Max      int32       `json:"max"`
+	Limit    int32       `json:"limit"`
 	Window   pgtype.Text `json:"window"`
 }
 
-func (q *Queries) CreateRateLimit(ctx context.Context, db DBTX, arg CreateRateLimitParams) (*RateLimit, error) {
-	row := db.QueryRow(ctx, createRateLimit,
+func (q *Queries) UpsertRateLimit(ctx context.Context, db DBTX, arg UpsertRateLimitParams) (*RateLimit, error) {
+	row := db.QueryRow(ctx, upsertRateLimit,
 		arg.Tenantid,
 		arg.Key,
-		arg.Max,
+		arg.Limit,
 		arg.Window,
 	)
 	var i RateLimit
 	err := row.Scan(
 		&i.TenantId,
 		&i.Key,
-		&i.Max,
+		&i.LimitValue,
 		&i.Value,
 		&i.Window,
 		&i.LastRefill,

@@ -31,22 +31,25 @@ func NewRateLimitEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *
 	}
 }
 
-func (r *rateLimitEngineRepository) CreateRateLimit(tenantId string, opts *repository.CreateRateLimitOpts) (*dbsqlc.RateLimit, error) {
+func (r *rateLimitEngineRepository) UpsertRateLimit(tenantId string, key string, opts *repository.UpsertRateLimitOpts) (*dbsqlc.RateLimit, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	createParams := dbsqlc.CreateRateLimitParams{
+	upsertParams := dbsqlc.UpsertRateLimitParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Key:      opts.Key,
-		Max:      int32(opts.Max),
-		Window:   sqlchelpers.TextFromStr(fmt.Sprintf("1 %s", opts.Unit)),
+		Key:      key,
+		Limit:    int32(opts.Limit),
 	}
 
-	rateLimit, err := r.queries.CreateRateLimit(context.Background(), r.pool, createParams)
+	if opts.Duration != nil {
+		upsertParams.Window = sqlchelpers.TextFromStr(fmt.Sprintf("1 %s", *opts.Duration))
+	}
+
+	rateLimit, err := r.queries.UpsertRateLimit(context.Background(), r.pool, upsertParams)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create rate limit: %w", err)
+		return nil, fmt.Errorf("could not upsert rate limit: %w", err)
 	}
 
 	return rateLimit, nil

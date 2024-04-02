@@ -508,7 +508,7 @@ WHERE
     "WorkerSemaphore"."workerId" = (SELECT "workerId" FROM worker_id)
 RETURNING *;
 
--- name: UpdateRateLimit :many
+-- name: UpdateStepRateLimits :many
 WITH step_rate_limits AS (
     SELECT
         rl."units" AS "units",

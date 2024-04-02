@@ -291,7 +291,7 @@ const createStepRateLimit = `-- name: CreateStepRateLimit :one
 INSERT INTO "StepRateLimit" (
     "units",
     "stepId",
-    "rateLimit",
+    "rateLimitKey",
     "tenantId"
 ) VALUES (
     $1::integer,

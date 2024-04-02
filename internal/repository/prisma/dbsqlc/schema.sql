@@ -247,7 +247,7 @@ CREATE TABLE "LogLine" (
 CREATE TABLE "RateLimit" (
     "tenantId" UUID NOT NULL,
     "key" TEXT NOT NULL,
-    "max" INTEGER NOT NULL,
+    "limitValue" INTEGER NOT NULL,
     "value" INTEGER NOT NULL,
     "window" TEXT NOT NULL,
     "lastRefill" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP

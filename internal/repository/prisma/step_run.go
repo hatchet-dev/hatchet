@@ -303,7 +303,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		return "", "", repository.ErrNoWorkerAvailable
 	}
 
-	rateLimits, err := s.queries.UpdateRateLimit(ctx, tx, dbsqlc.UpdateRateLimitParams{
+	rateLimits, err := s.queries.UpdateStepRateLimits(ctx, tx, dbsqlc.UpdateStepRateLimitsParams{
 		Stepid:   stepRun.StepId,
 		Tenantid: stepRun.StepRun.TenantId,
 	})

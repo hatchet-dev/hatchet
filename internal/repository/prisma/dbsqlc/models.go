@@ -604,7 +604,7 @@ type LogLine struct {
 type RateLimit struct {
 	TenantId   pgtype.UUID      `json:"tenantId"`
 	Key        string           `json:"key"`
-	Max        int32            `json:"max"`
+	LimitValue int32            `json:"limitValue"`
 	Value      int32            `json:"value"`
 	Window     string           `json:"window"`
 	LastRefill pgtype.Timestamp `json:"lastRefill"`

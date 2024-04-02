@@ -30,6 +30,8 @@ type AdminClient interface {
 	RunWorkflow(workflowName string, input interface{}) (string, error)
 
 	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
+
+	PutRateLimit(key string, opts *types.RateLimitOpts) error
 }
 
 type adminClientImpl struct {
@@ -185,6 +187,36 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 	return res.WorkflowRunId, nil
 }
 
+func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) error {
+	if err := a.v.Validate(opts); err != nil {
+		return fmt.Errorf("could not validate rate limit opts: %w", err)
+	}
+
+	putParams := &admincontracts.PutRateLimitRequest{
+		Key:   key,
+		Limit: int32(opts.Max),
+	}
+
+	switch opts.Duration {
+	case types.Second:
+		putParams.Duration = admincontracts.RateLimitDuration_SECOND
+	case types.Minute:
+		putParams.Duration = admincontracts.RateLimitDuration_MINUTE
+	case types.Hour:
+		putParams.Duration = admincontracts.RateLimitDuration_HOUR
+	default:
+		putParams.Duration = admincontracts.RateLimitDuration_SECOND
+	}
+
+	_, err := a.client.PutRateLimit(a.ctx.newContext(context.Background()), putParams)
+
+	if err != nil {
+		return fmt.Errorf("could not upsert rate limit: %w", err)
+	}
+
+	return nil
+}
+
 func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontracts.PutWorkflowRequest, error) {
 	opts := &admincontracts.CreateWorkflowVersionOpts{
 		Name:          workflow.Name,
@@ -239,6 +271,13 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 				Inputs:     string(inputBytes),
 				Parents:    step.Parents,
 				Retries:    int32(step.Retries),
+			}
+
+			for _, rateLimit := range step.RateLimits {
+				stepOpt.RateLimits = append(stepOpt.RateLimits, &admincontracts.CreateStepRateLimit{
+					Key:   rateLimit.Key,
+					Units: int32(rateLimit.Units),
+				})
 			}
 
 			stepOpts[i] = stepOpt

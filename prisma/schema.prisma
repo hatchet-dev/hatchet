@@ -593,7 +593,7 @@ model RateLimit {
   key String
 
   // The max number of requests allowed in the window
-  max Int
+  limitValue Int
 
   // the current rate limit bucket value
   value Int

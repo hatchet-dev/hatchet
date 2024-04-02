@@ -142,6 +142,12 @@ message TriggerWorkflowResponse {
     string workflow_run_id = 1;
 }
 
+enum RateLimitDuration {
+    SECOND = 0;
+    MINUTE = 1;
+    HOUR = 2;
+}
+
 message PutRateLimitRequest {
     // (required) the global key for the rate limit
     string key = 1;
@@ -149,8 +155,8 @@ message PutRateLimitRequest {
     // (required) the max limit for the rate limit (per unit of time)
     int32 limit = 2;
 
-    // (required) the unit of time for the rate limit (second|minute|hour)
-    string unit = 3;
+    // (required) the duration of time for the rate limit (second|minute|hour)
+    RateLimitDuration duration = 3;
 }
 
 message PutRateLimitResponse {}

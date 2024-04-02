@@ -252,7 +252,7 @@ JOIN
 INSERT INTO "StepRateLimit" (
     "units",
     "stepId",
-    "rateLimit",
+    "rateLimitKey",
     "tenantId"
 ) VALUES (
     @units::integer,

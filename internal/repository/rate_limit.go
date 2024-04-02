@@ -2,18 +2,15 @@ package repository
 
 import "github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 
-type CreateRateLimitOpts struct {
-	// The rate limit key
-	Key string `validate:"required"`
-
+type UpsertRateLimitOpts struct {
 	// The rate limit max value
-	Max int `validate:"required"`
+	Limit int
 
-	// The rate limit unit
-	Unit string `validate:"required,oneof=second minute hour"`
+	// The rate limit duration
+	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR"`
 }
 
 type RateLimitEngineRepository interface {
 	// CreateRateLimit creates a new rate limit record
-	CreateRateLimit(tenantId string, opts *CreateRateLimitOpts) (*dbsqlc.RateLimit, error)
+	UpsertRateLimit(tenantId string, key string, opts *UpsertRateLimitOpts) (*dbsqlc.RateLimit, error)
 }
