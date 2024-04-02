@@ -1064,6 +1064,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Attempts to cancel a step run
+   *
+   * @tags Step Run
+   * @name StepRunUpdateCancel
+   * @summary Attempts to cancel a step run
+   * @request POST:/api/v1/tenants/{tenant}/step-runs/{step-run}/cancel
+   * @secure
+   */
+  stepRunUpdateCancel = (tenant: string, stepRun: string, params: RequestParams = {}) =>
+    this.request<StepRun, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}/cancel`,
+      method: "POST",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Get the schema for a step run
    *
    * @tags Step Run

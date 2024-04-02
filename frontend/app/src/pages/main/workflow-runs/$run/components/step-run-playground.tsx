@@ -31,6 +31,7 @@ import { StepRunLogs } from './step-run-logs';
 import { RunStatus } from '../../components/run-statuses';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from '../../components/workflow-runs-columns';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 
 export function StepRunPlayground({
   stepRun,
@@ -213,6 +214,39 @@ export function StepRunPlayground({
     onError: handleApiError,
   });
 
+  const cancelStepMutation = useMutation({
+    mutationKey: [
+      'step-run:update:cancel',
+      stepRun?.tenantId,
+      stepRun?.metadata.id,
+    ],
+    mutationFn: async () => {
+      invariant(stepRun?.tenantId, 'has tenantId');
+
+      const res = await api.stepRunUpdateCancel(
+        stepRun?.tenantId,
+        stepRun?.metadata.id,
+      );
+
+      return res.data;
+    },
+    onMutate: () => {
+      setErrors([]);
+    },
+    onSuccess: (stepRun: StepRun) => {
+      queryClient.invalidateQueries({
+        queryKey: queries.workflowRuns.get(
+          tenant.metadata.id,
+          workflowRun.metadata.id,
+        ).queryKey,
+      });
+
+      setStepRun(stepRun);
+      getStepRunQuery.refetch();
+    },
+    onError: handleApiError,
+  });
+
   useEffect(() => {
     if (getStepRunQuery.data) {
       setStepRun(getStepRunQuery.data);
@@ -227,6 +261,10 @@ export function StepRunPlayground({
   const handleOnPlay = () => {
     const inputObj = JSON.parse(stepInput);
     rerunStepMutation.mutate(inputObj);
+  };
+
+  const handleOnCancel = () => {
+    cancelStepMutation.mutate();
   };
 
   const [mode, setMode] = useState<'form' | 'json'>(
@@ -408,6 +446,20 @@ export function StepRunPlayground({
                   <StepRunLogs stepRun={stepRun} />
                 </TabsContent>
               </Tabs>
+
+              {isLoading && disabled && (
+                <>
+                  <Button className="w-fit" onClick={handleOnCancel}>
+                    <>
+                      <XMarkIcon className={cn('h-4 w-4 mr-2')} />
+                      Attempt Cancel
+                    </>
+                  </Button>
+                  <a href="https://docs.hatchet.run/home/features/cancellation">
+                    Beta: How to handle cancelation signaling
+                  </a>
+                </>
+              )}
             </div>
           </div>
         </>

@@ -1126,6 +1126,9 @@ type ClientInterface interface {
 	// StepRunGet request
 	StepRunGet(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// StepRunUpdateCancel request
+	StepRunUpdateCancel(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// StepRunUpdateRerunWithBody request with any body
 	StepRunUpdateRerunWithBody(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1653,6 +1656,18 @@ func (c *Client) SnsCreate(ctx context.Context, tenant openapi_types.UUID, body 
 
 func (c *Client) StepRunGet(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunGetRequest(c.Server, tenant, stepRun)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) StepRunUpdateCancel(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStepRunUpdateCancelRequest(c.Server, tenant, stepRun)
 	if err != nil {
 		return nil, err
 	}
@@ -3399,6 +3414,47 @@ func NewStepRunGetRequest(server string, tenant openapi_types.UUID, stepRun open
 	return req, nil
 }
 
+// NewStepRunUpdateCancelRequest generates requests for StepRunUpdateCancel
+func NewStepRunUpdateCancelRequest(server string, tenant openapi_types.UUID, stepRun openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "step-run", runtime.ParamLocationPath, stepRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/step-runs/%s/cancel", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewStepRunUpdateRerunRequest calls the generic StepRunUpdateRerun builder with application/json body
 func NewStepRunUpdateRerunRequest(server string, tenant openapi_types.UUID, stepRun openapi_types.UUID, body StepRunUpdateRerunJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -4655,6 +4711,9 @@ type ClientWithResponsesInterface interface {
 	// StepRunGetWithResponse request
 	StepRunGetWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetResponse, error)
 
+	// StepRunUpdateCancelWithResponse request
+	StepRunUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunUpdateCancelResponse, error)
+
 	// StepRunUpdateRerunWithBodyWithResponse request with any body
 	StepRunUpdateRerunWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StepRunUpdateRerunResponse, error)
 
@@ -5459,6 +5518,30 @@ func (r StepRunGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r StepRunGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type StepRunUpdateCancelResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *StepRun
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r StepRunUpdateCancelResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StepRunUpdateCancelResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6408,6 +6491,15 @@ func (c *ClientWithResponses) StepRunGetWithResponse(ctx context.Context, tenant
 		return nil, err
 	}
 	return ParseStepRunGetResponse(rsp)
+}
+
+// StepRunUpdateCancelWithResponse request returning *StepRunUpdateCancelResponse
+func (c *ClientWithResponses) StepRunUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunUpdateCancelResponse, error) {
+	rsp, err := c.StepRunUpdateCancel(ctx, tenant, stepRun, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStepRunUpdateCancelResponse(rsp)
 }
 
 // StepRunUpdateRerunWithBodyWithResponse request with arbitrary body returning *StepRunUpdateRerunResponse
@@ -7867,6 +7959,46 @@ func ParseStepRunGetResponse(rsp *http.Response) (*StepRunGetResponse, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStepRunUpdateCancelResponse parses an HTTP response from a StepRunUpdateCancelWithResponse call
+func ParseStepRunUpdateCancelResponse(rsp *http.Response) (*StepRunUpdateCancelResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StepRunUpdateCancelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest StepRun
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

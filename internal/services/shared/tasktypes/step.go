@@ -161,6 +161,27 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 	}
 }
 
+func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string) *msgqueue.Message {
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
+
+	payload, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskPayload{
+		StepRunId:       stepRunId,
+		CancelledReason: reason,
+	})
+
+	metadata, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskMetadata{
+		TenantId: tenantId,
+	})
+
+	return &msgqueue.Message{
+		ID:       "step-run-cancelled",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	}
+}
+
 func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(StepRunTaskPayload{
 		JobRunId:  sqlchelpers.UUIDToStr(stepRun.JobRunId),
