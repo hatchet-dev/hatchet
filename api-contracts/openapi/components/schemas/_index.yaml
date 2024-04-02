@@ -20,6 +20,8 @@ UserTenantPublic:
   $ref: "./user.yaml#/UserTenantPublic"
 UserLoginRequest:
   $ref: "./user.yaml#/UserLoginRequest"
+UserChangePasswordRequest:
+  $ref: "./user.yaml#/UserChangePasswordRequest"
 UserRegisterRequest:
   $ref: "./user.yaml#/UserRegisterRequest"
 UserTenantMembershipsList:

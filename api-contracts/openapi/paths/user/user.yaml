@@ -36,6 +36,45 @@ login:
     summary: Login user
     tags:
       - User
+update-password:
+  post:
+    description: Update a user password.
+    operationId: user:update:password
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/UserChangePasswordRequest"
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/User"
+        description: Successfully changed password
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
+    security:
+      - cookieAuth: []
+    summary: Change user password
+    tags:
+      - User
 current:
   get:
     description: Gets the current user

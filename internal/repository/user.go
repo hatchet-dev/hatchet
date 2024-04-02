@@ -15,8 +15,8 @@ type CreateUserOpts struct {
 	Name          *string
 
 	// auth options
-	Password *string    `validate:"omitempty,required_without=OAuth,excluded_with=OAuth"`
-	OAuth    *OAuthOpts `validate:"omitempty,required_without=Password,excluded_with=Password"`
+	Password *string    `validate:"omitempty,excluded_with=OAuth"`
+	OAuth    *OAuthOpts `validate:"omitempty,excluded_with=Password"`
 }
 
 type OAuthOpts struct {
@@ -31,7 +31,9 @@ type UpdateUserOpts struct {
 	EmailVerified *bool
 	Name          *string
 
-	OAuth *OAuthOpts `validate:"omitempty"`
+	// auth options
+	Password *string    `validate:"omitempty,required_without=OAuth,excluded_with=OAuth"`
+	OAuth    *OAuthOpts `validate:"omitempty,required_without=Password,excluded_with=Password"`
 }
 
 type UserRepository interface {

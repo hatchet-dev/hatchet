@@ -586,11 +586,23 @@ type User struct {
 	Email openapi_types.Email `json:"email"`
 
 	// EmailVerified Whether the user has verified their email address.
-	EmailVerified bool            `json:"emailVerified"`
-	Metadata      APIResourceMeta `json:"metadata"`
+	EmailVerified bool `json:"emailVerified"`
+
+	// HasPassword Whether the user has a password set.
+	HasPassword *bool           `json:"hasPassword,omitempty"`
+	Metadata    APIResourceMeta `json:"metadata"`
 
 	// Name The display name of the user.
 	Name *string `json:"name,omitempty"`
+}
+
+// UserChangePasswordRequest defines model for UserChangePasswordRequest.
+type UserChangePasswordRequest struct {
+	// NewPassword The new password for the user.
+	NewPassword string `json:"newPassword" validate:"required,password"`
+
+	// Password The password of the user.
+	Password string `json:"password" validate:"required,password"`
 }
 
 // UserLoginRequest defines model for UserLoginRequest.
@@ -940,6 +952,9 @@ type TenantInviteRejectJSONRequestBody = RejectInviteRequest
 // UserUpdateLoginJSONRequestBody defines body for UserUpdateLogin for application/json ContentType.
 type UserUpdateLoginJSONRequestBody = UserLoginRequest
 
+// UserUpdatePasswordJSONRequestBody defines body for UserUpdatePassword for application/json ContentType.
+type UserUpdatePasswordJSONRequestBody = UserChangePasswordRequest
+
 // UserCreateJSONRequestBody defines body for UserCreate for application/json ContentType.
 type UserCreateJSONRequestBody = UserRegisterRequest
 
@@ -1190,6 +1205,11 @@ type ClientInterface interface {
 
 	// TenantMembershipsList request
 	TenantMembershipsList(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UserUpdatePasswordWithBody request with any body
+	UserUpdatePasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UserUpdatePassword(ctx context.Context, body UserUpdatePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UserCreateWithBody request with any body
 	UserCreateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1932,6 +1952,30 @@ func (c *Client) UserUpdateLogout(ctx context.Context, reqEditors ...RequestEdit
 
 func (c *Client) TenantMembershipsList(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantMembershipsListRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UserUpdatePasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUserUpdatePasswordRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UserUpdatePassword(ctx context.Context, body UserUpdatePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUserUpdatePasswordRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4194,6 +4238,46 @@ func NewTenantMembershipsListRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewUserUpdatePasswordRequest calls the generic UserUpdatePassword builder with application/json body
+func NewUserUpdatePasswordRequest(server string, body UserUpdatePasswordJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUserUpdatePasswordRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUserUpdatePasswordRequestWithBody generates requests for UserUpdatePassword with any type of body
+func NewUserUpdatePasswordRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/users/password")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewUserCreateRequest calls the generic UserCreate builder with application/json body
 func NewUserCreateRequest(server string, body UserCreateJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -4775,6 +4859,11 @@ type ClientWithResponsesInterface interface {
 
 	// TenantMembershipsListWithResponse request
 	TenantMembershipsListWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*TenantMembershipsListResponse, error)
+
+	// UserUpdatePasswordWithBodyWithResponse request with any body
+	UserUpdatePasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UserUpdatePasswordResponse, error)
+
+	UserUpdatePasswordWithResponse(ctx context.Context, body UserUpdatePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*UserUpdatePasswordResponse, error)
 
 	// UserCreateWithBodyWithResponse request with any body
 	UserCreateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UserCreateResponse, error)
@@ -5970,6 +6059,31 @@ func (r TenantMembershipsListResponse) StatusCode() int {
 	return 0
 }
 
+type UserUpdatePasswordResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *User
+	JSON400      *APIErrors
+	JSON401      *APIErrors
+	JSON405      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r UserUpdatePasswordResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UserUpdatePasswordResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type UserCreateResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -6694,6 +6808,23 @@ func (c *ClientWithResponses) TenantMembershipsListWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseTenantMembershipsListResponse(rsp)
+}
+
+// UserUpdatePasswordWithBodyWithResponse request with arbitrary body returning *UserUpdatePasswordResponse
+func (c *ClientWithResponses) UserUpdatePasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UserUpdatePasswordResponse, error) {
+	rsp, err := c.UserUpdatePasswordWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUserUpdatePasswordResponse(rsp)
+}
+
+func (c *ClientWithResponses) UserUpdatePasswordWithResponse(ctx context.Context, body UserUpdatePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*UserUpdatePasswordResponse, error) {
+	rsp, err := c.UserUpdatePassword(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUserUpdatePasswordResponse(rsp)
 }
 
 // UserCreateWithBodyWithResponse request with arbitrary body returning *UserCreateResponse
@@ -8637,6 +8768,53 @@ func ParseTenantMembershipsListResponse(rsp *http.Response) (*TenantMembershipsL
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUserUpdatePasswordResponse parses an HTTP response from a UserUpdatePasswordWithResponse call
+func ParseUserUpdatePasswordResponse(rsp *http.Response) (*UserUpdatePasswordResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UserUpdatePasswordResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest User
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
 
 	}
 
