@@ -1,9 +1,16 @@
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, Row } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { TenantMember } from '@/lib/api';
 import { capitalize, relativeDate } from '@/lib/utils';
+import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
+import { useOutletContext } from 'react-router-dom';
+import { UserContextType } from '@/lib/outlet';
 
-export const columns = (): ColumnDef<TenantMember>[] => {
+export const columns = ({
+  onChangePasswordClick,
+}: {
+  onChangePasswordClick: (row: TenantMember) => void;
+}): ColumnDef<TenantMember>[] => {
   return [
     {
       accessorKey: 'name',
@@ -39,5 +46,39 @@ export const columns = (): ColumnDef<TenantMember>[] => {
         <div>{relativeDate(row.original.metadata.createdAt)}</div>
       ),
     },
+    {
+      id: 'actions',
+      cell: ({ row }) => (
+        <MemberActions
+          row={row}
+          onChangePasswordClick={onChangePasswordClick}
+        />
+      ),
+    },
   ];
 };
+
+function MemberActions({
+  row,
+  onChangePasswordClick,
+}: {
+  row: Row<TenantMember>;
+  onChangePasswordClick: (row: TenantMember) => void;
+}) {
+  const { user } = useOutletContext<UserContextType>();
+  const actions = [];
+
+  if (user.hasPassword) {
+    actions.push({
+      label: 'Change Password',
+      onClick: () => onChangePasswordClick(row.original),
+    });
+  }
+  console.log('user', user);
+
+  if (user.metadata.id === row.original.metadata.id) {
+    return <></>;
+  }
+
+  return <DataTableRowActions row={row} actions={actions} />;
+}

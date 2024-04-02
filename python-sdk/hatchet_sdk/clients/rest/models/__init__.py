@@ -73,6 +73,7 @@ from hatchet_sdk.clients.rest.models.tenant_member_role import TenantMemberRole
 from hatchet_sdk.clients.rest.models.trigger_workflow_run_request import TriggerWorkflowRunRequest
 from hatchet_sdk.clients.rest.models.update_tenant_invite_request import UpdateTenantInviteRequest
 from hatchet_sdk.clients.rest.models.user import User
+from hatchet_sdk.clients.rest.models.user_change_password_request import UserChangePasswordRequest
 from hatchet_sdk.clients.rest.models.user_login_request import UserLoginRequest
 from hatchet_sdk.clients.rest.models.user_register_request import UserRegisterRequest
 from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import UserTenantMembershipsList
