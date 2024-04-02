@@ -39,7 +39,7 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 	err = t.config.MessageQueue.AddMessage(
 		ctx.Request().Context(),
 		msgqueue.JOB_PROCESSING_QUEUE,
-		tasktypes.StepRunCancelToTask(engineStepRun, &reason),
+		tasktypes.StepRunCancelToTask(engineStepRun, reason),
 	)
 
 	if err != nil {

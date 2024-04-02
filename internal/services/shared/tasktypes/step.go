@@ -161,13 +161,13 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 	}
 }
 
-func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason *string) *msgqueue.Message {
+func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string) *msgqueue.Message {
 	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
 	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
 
 	payload, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskPayload{
 		StepRunId:       stepRunId,
-		CancelledReason: *reason,
+		CancelledReason: reason,
 	})
 
 	metadata, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskMetadata{
