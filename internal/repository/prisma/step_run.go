@@ -295,11 +295,13 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		Tenantid:  stepRun.StepRun.TenantId,
 	})
 
-	if err != nil {
+	isNoRowsErr := err != nil && errors.Is(err, pgx.ErrNoRows)
+
+	if err != nil && !isNoRowsErr {
 		return "", "", fmt.Errorf("could not upsert worker semaphore: %w", err)
 	}
 
-	if semaphore.Slots < 0 {
+	if !isNoRowsErr && semaphore.Slots < 0 {
 		return "", "", repository.ErrNoWorkerAvailable
 	}
 
