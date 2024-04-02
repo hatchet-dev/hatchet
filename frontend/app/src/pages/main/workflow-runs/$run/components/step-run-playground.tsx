@@ -31,6 +31,7 @@ import { StepRunLogs } from './step-run-logs';
 import { RunStatus } from '../../components/run-statuses';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from '../../components/workflow-runs-columns';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 
 export function StepRunPlayground({
   stepRun,
@@ -327,15 +328,6 @@ export function StepRunPlayground({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              <Button
-                className="w-fit"
-                onClick={handleOnCancel}
-              >
-                  <>
-                    <StopIcon className={cn('h-4 w-4 mr-2')} />
-                    Cancel
-                  </>
-              </Button>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -454,6 +446,19 @@ export function StepRunPlayground({
                   <StepRunLogs stepRun={stepRun} />
                 </TabsContent>
               </Tabs>
+
+              {isLoading && disabled && <>
+                <Button
+                  className="w-fit"
+                  onClick={handleOnCancel}
+                >
+                    <>
+                      <XMarkIcon className={cn('h-4 w-4 mr-2')} />
+                      Attempt Cancel
+                    </>
+                </Button>
+                <a href="https://docs.hatchet.run/home/features/cancellation">Beta: How to handle cancelation signaling</a>
+              </>}
             </div>
           </div>
         </>
