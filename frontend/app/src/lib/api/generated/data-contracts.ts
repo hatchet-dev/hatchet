@@ -117,6 +117,8 @@ export interface User {
   email: string;
   /** Whether the user has verified their email address. */
   emailVerified: boolean;
+  /** Whether the user has a password set. */
+  hasPassword?: boolean;
 }
 
 export interface UserTenantPublic {
@@ -137,6 +139,13 @@ export interface UserLoginRequest {
   email: string;
   /** The password of the user. */
   password: string;
+}
+
+export interface UserChangePasswordRequest {
+  /** The password of the user. */
+  password: string;
+  /** The new password for the user. */
+  newPassword: string;
 }
 
 export interface UserRegisterRequest {

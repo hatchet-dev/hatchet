@@ -17,22 +17,18 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, Field, StrictBool, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
+from pydantic import BaseModel, Field, StrictStr
+from typing import Any, ClassVar, Dict, List
 from typing import Optional, Set
 from typing_extensions import Self
 
-class User(BaseModel):
+class UserChangePasswordRequest(BaseModel):
     """
-    User
+    UserChangePasswordRequest
     """ # noqa: E501
-    metadata: APIResourceMeta
-    name: Optional[StrictStr] = Field(default=None, description="The display name of the user.")
-    email: StrictStr = Field(description="The email address of the user.")
-    email_verified: StrictBool = Field(description="Whether the user has verified their email address.", alias="emailVerified")
-    has_password: Optional[StrictBool] = Field(default=None, description="Whether the user has a password set.", alias="hasPassword")
-    __properties: ClassVar[List[str]] = ["metadata", "name", "email", "emailVerified", "hasPassword"]
+    password: StrictStr = Field(description="The password of the user.")
+    new_password: StrictStr = Field(description="The new password for the user.", alias="newPassword")
+    __properties: ClassVar[List[str]] = ["password", "newPassword"]
 
     model_config = {
         "populate_by_name": True,
@@ -52,7 +48,7 @@ class User(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of User from a JSON string"""
+        """Create an instance of UserChangePasswordRequest from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -73,14 +69,11 @@ class User(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # override the default output from pydantic by calling `to_dict()` of metadata
-        if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of User from a dict"""
+        """Create an instance of UserChangePasswordRequest from a dict"""
         if obj is None:
             return None
 
@@ -88,11 +81,8 @@ class User(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "name": obj.get("name"),
-            "email": obj.get("email"),
-            "emailVerified": obj.get("emailVerified"),
-            "hasPassword": obj.get("hasPassword")
+            "password": obj.get("password"),
+            "newPassword": obj.get("newPassword")
         })
         return _obj
 
