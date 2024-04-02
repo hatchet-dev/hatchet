@@ -27,14 +27,6 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 		), nil
 	}
 
-	// TODO do we need this write...?
-	// // set the job run and workflow run to running status
-	// err = t.config.APIRepository.JobRun().SetJobRunStatusRunning(tenant.ID, stepRun.JobRunID)
-
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(tenant.ID, stepRun.ID)
 
 	if err != nil {
