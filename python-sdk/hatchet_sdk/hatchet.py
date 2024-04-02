@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from .client import ClientImpl, new_client 
 from typing import List
 import asyncio
@@ -5,7 +6,17 @@ from functools import wraps
 from .workflow import WorkflowMeta
 from .worker import Worker
 from .logger import logger
-from .workflows_pb2 import ConcurrencyLimitStrategy
+from .workflows_pb2 import ConcurrencyLimitStrategy, CreateStepRateLimit
+
+@dataclass
+class RateLimit:
+    key: str
+    units: int
+
+class RateLimitDuration:
+    SECOND='SECOND'
+    MINUTE='MINUTE'
+    HOUR='HOUR'
 
 class Hatchet:
     client: ClientImpl
@@ -42,7 +53,11 @@ class Hatchet:
         
         return inner
 
-    def step(self, name: str='', timeout: str='', parents: List[str] = [], retries: int = 0):
+    def step(self, name: str='',
+              timeout: str='', 
+              parents: List[str] = [], 
+              retries: int = 0, 
+              rate_limits: List[RateLimit] | None = None):
         def inner(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
@@ -51,10 +66,15 @@ class Hatchet:
                 else:
                     return func(*args, **kwargs)
 
+            limits = None
+            if rate_limits:
+                limits = [CreateStepRateLimit(key=rate_limit.key, units=rate_limit.units) for rate_limit in rate_limits or []]
+
             wrapper._step_name = name or func.__name__
             wrapper._step_parents = parents
             wrapper._step_timeout = timeout
             wrapper._step_retries = retries
+            wrapper._step_rate_limits = limits
             return wrapper
 
         return inner
