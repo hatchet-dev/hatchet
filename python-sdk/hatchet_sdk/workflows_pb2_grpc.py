@@ -30,6 +30,11 @@ class WorkflowServiceStub(object):
                 request_serializer=workflows__pb2.TriggerWorkflowRequest.SerializeToString,
                 response_deserializer=workflows__pb2.TriggerWorkflowResponse.FromString,
                 )
+        self.PutRateLimit = channel.unary_unary(
+                '/WorkflowService/PutRateLimit',
+                request_serializer=workflows__pb2.PutRateLimitRequest.SerializeToString,
+                response_deserializer=workflows__pb2.PutRateLimitResponse.FromString,
+                )
 
 
 class WorkflowServiceServicer(object):
@@ -54,6 +59,12 @@ class WorkflowServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def PutRateLimit(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WorkflowServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -71,6 +82,11 @@ def add_WorkflowServiceServicer_to_server(servicer, server):
                     servicer.TriggerWorkflow,
                     request_deserializer=workflows__pb2.TriggerWorkflowRequest.FromString,
                     response_serializer=workflows__pb2.TriggerWorkflowResponse.SerializeToString,
+            ),
+            'PutRateLimit': grpc.unary_unary_rpc_method_handler(
+                    servicer.PutRateLimit,
+                    request_deserializer=workflows__pb2.PutRateLimitRequest.FromString,
+                    response_serializer=workflows__pb2.PutRateLimitResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -131,5 +147,22 @@ class WorkflowService(object):
         return grpc.experimental.unary_unary(request, target, '/WorkflowService/TriggerWorkflow',
             workflows__pb2.TriggerWorkflowRequest.SerializeToString,
             workflows__pb2.TriggerWorkflowResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def PutRateLimit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/WorkflowService/PutRateLimit',
+            workflows__pb2.PutRateLimitRequest.SerializeToString,
+            workflows__pb2.PutRateLimitResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
