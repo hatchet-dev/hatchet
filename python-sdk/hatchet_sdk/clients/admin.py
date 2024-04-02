@@ -3,7 +3,7 @@ from typing import List, Union
 import grpc
 from google.protobuf import timestamp_pb2
 from ..workflows_pb2_grpc import WorkflowServiceStub
-from ..workflows_pb2 import CreateWorkflowVersionOpts, ScheduleWorkflowRequest, TriggerWorkflowRequest, PutWorkflowRequest, TriggerWorkflowResponse
+from ..workflows_pb2 import CreateWorkflowVersionOpts, PutRateLimitRequest, RateLimitDuration, ScheduleWorkflowRequest, TriggerWorkflowRequest, PutWorkflowRequest, TriggerWorkflowResponse
 from ..loader import ClientConfig
 from ..metadata import get_metadata
 import json
@@ -36,6 +36,19 @@ class AdminClientImpl:
             )
         except grpc.RpcError as e:
             raise ValueError(f"Could not put workflow: {e}")
+        
+    def put_rate_limit(self, key: str, limit: int, duration: RateLimitDuration = RateLimitDuration.SECOND):
+        try:
+            self.client.PutRateLimit(
+                PutRateLimitRequest(
+                    key=key,
+                    limit=limit,
+                    duration=duration,
+                ),
+                metadata=get_metadata(self.token),
+            )
+        except grpc.RpcError as e:
+            raise ValueError(f"Could not put rate limit: {e}")
 
     def schedule_workflow(self, name: str, schedules: List[Union[datetime, timestamp_pb2.Timestamp]], input={}, options: TriggerWorkflowParentOptions = None):
         timestamp_schedules = []
