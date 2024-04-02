@@ -10,6 +10,8 @@ You can use Hatchet to enforce rate limits on step runs in your workflows. Rate 
 1. Decalre a global rate limit that can be consumed by any step run across all workflow runs.
 2. Specify the units of consumption for a specific key for a step.
 
+Hatchet will enforce the rate limits you define by tracking the number of units consumed by each step run. If a step run exceeds the rate limit, Hatchet will re-queue the step run until the rate limit is no longer exceeded.
+
 ## Declare Your Global Limits
 
 First, we need to define the global rate limits that can be consumed by any step run across all workflow runs. These limits are defined by the `put_rate_limit` method in the `Admin` client within your code.
