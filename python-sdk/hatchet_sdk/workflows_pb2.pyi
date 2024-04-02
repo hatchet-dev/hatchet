@@ -13,10 +13,19 @@ class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     DROP_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
     QUEUE_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
     GROUP_ROUND_ROBIN: _ClassVar[ConcurrencyLimitStrategy]
+
+class RateLimitDuration(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    SECOND: _ClassVar[RateLimitDuration]
+    MINUTE: _ClassVar[RateLimitDuration]
+    HOUR: _ClassVar[RateLimitDuration]
 CANCEL_IN_PROGRESS: ConcurrencyLimitStrategy
 DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy
 GROUP_ROUND_ROBIN: ConcurrencyLimitStrategy
+SECOND: RateLimitDuration
+MINUTE: RateLimitDuration
+HOUR: RateLimitDuration
 
 class PutWorkflowRequest(_message.Message):
     __slots__ = ("opts",)
@@ -69,7 +78,7 @@ class CreateWorkflowJobOpts(_message.Message):
     def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., timeout: _Optional[str] = ..., steps: _Optional[_Iterable[_Union[CreateWorkflowStepOpts, _Mapping]]] = ...) -> None: ...
 
 class CreateWorkflowStepOpts(_message.Message):
-    __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "user_data", "retries")
+    __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "user_data", "retries", "rate_limits")
     READABLE_ID_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     TIMEOUT_FIELD_NUMBER: _ClassVar[int]
@@ -77,6 +86,7 @@ class CreateWorkflowStepOpts(_message.Message):
     PARENTS_FIELD_NUMBER: _ClassVar[int]
     USER_DATA_FIELD_NUMBER: _ClassVar[int]
     RETRIES_FIELD_NUMBER: _ClassVar[int]
+    RATE_LIMITS_FIELD_NUMBER: _ClassVar[int]
     readable_id: str
     action: str
     timeout: str
@@ -84,7 +94,16 @@ class CreateWorkflowStepOpts(_message.Message):
     parents: _containers.RepeatedScalarFieldContainer[str]
     user_data: str
     retries: int
-    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., user_data: _Optional[str] = ..., retries: _Optional[int] = ...) -> None: ...
+    rate_limits: _containers.RepeatedCompositeFieldContainer[CreateStepRateLimit]
+    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., user_data: _Optional[str] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateStepRateLimit, _Mapping]]] = ...) -> None: ...
+
+class CreateStepRateLimit(_message.Message):
+    __slots__ = ("key", "units")
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    UNITS_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    units: int
+    def __init__(self, key: _Optional[str] = ..., units: _Optional[int] = ...) -> None: ...
 
 class ListWorkflowsRequest(_message.Message):
     __slots__ = ()
@@ -161,3 +180,17 @@ class TriggerWorkflowResponse(_message.Message):
     WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
     workflow_run_id: str
     def __init__(self, workflow_run_id: _Optional[str] = ...) -> None: ...
+
+class PutRateLimitRequest(_message.Message):
+    __slots__ = ("key", "limit", "duration")
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    DURATION_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    limit: int
+    duration: RateLimitDuration
+    def __init__(self, key: _Optional[str] = ..., limit: _Optional[int] = ..., duration: _Optional[_Union[RateLimitDuration, str]] = ...) -> None: ...
+
+class PutRateLimitResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...

@@ -51,6 +51,7 @@ class WorkflowMeta(type):
                 inputs='{}',
                 parents=[x for x in func._step_parents],
                 retries=func._step_retries,
+                rate_limits=func._step_rate_limits,
             )
             for func_name, func in attrs.items() if hasattr(func, '_step_name')
         ]
