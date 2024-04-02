@@ -434,20 +434,23 @@ func (q *Queries) CreateWorkflowConcurrency(ctx context.Context, db DBTX, arg Cr
 const createWorkflowTriggerCronRef = `-- name: CreateWorkflowTriggerCronRef :one
 INSERT INTO "WorkflowTriggerCronRef" (
     "parentId",
-    "cron"
+    "cron",
+    "input"
 ) VALUES (
     $1::uuid,
-    $2::text
+    $2::text,
+    $3::jsonb
 ) RETURNING "parentId", cron, "tickerId", input
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
 	Workflowtriggersid pgtype.UUID `json:"workflowtriggersid"`
 	Crontrigger        string      `json:"crontrigger"`
+	Input              []byte      `json:"input"`
 }
 
 func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefParams) (*WorkflowTriggerCronRef, error) {
-	row := db.QueryRow(ctx, createWorkflowTriggerCronRef, arg.Workflowtriggersid, arg.Crontrigger)
+	row := db.QueryRow(ctx, createWorkflowTriggerCronRef, arg.Workflowtriggersid, arg.Crontrigger, arg.Input)
 	var i WorkflowTriggerCronRef
 	err := row.Scan(
 		&i.ParentId,

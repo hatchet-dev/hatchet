@@ -791,6 +791,7 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 			dbsqlc.CreateWorkflowTriggerCronRefParams{
 				Workflowtriggersid: sqlcWorkflowTriggers.ID,
 				Crontrigger:        cronTrigger,
+				Input:              opts.CronInput,
 			},
 		)
 

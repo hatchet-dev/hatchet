@@ -12,12 +12,44 @@ list : WorkflowList = hatchet.client.rest().workflow_list()
 
 ## Methods
 
+- [put_workflow](api.mdx#put_workflow)
 - [workflow_list](api.mdx#workflow_list)
 - [workflow_get](api.mdx#workflow_get)
 - [workflow_version_get](api.mdx#workflow_version_get)
 - [workflow_run_list](api.mdx#workflow_run_list)
 - [workflow_run_get](api.mdx#workflow_run_get)
 - [workflow_run_create](api.mdx#workflow_run_create)
+
+### put_workflow
+
+▸ **put_workflow**(`name: str, workflow: CreateWorkflowVersionOpts | WorkflowMeta, overrides: CreateWorkflowVersionOpts | None = None`): `list`
+
+Creates or updates a workflow. This can use an existing workflow class to extend from and overwrite. For example:
+
+```py
+@hatchet.workflow()
+class BaseWorkflow:
+    @hatchet.step()
+    def step1(self, context: Context):
+        return {
+            "result": "success!"
+        }
+
+    @hatchet.step(parents=["step1"],timeout='4s')
+    def step2(self, context):
+        return {
+            "result2": "success!"
+        }
+
+hatchet.client.admin.put_workflow(
+    "workflow-copy",
+    BaseWorkflow(),
+    overrides=CreateWorkflowVersionOpts(
+        cron_triggers=["*/15 * * * *"],
+        cron_input=json.dumps({"test": "test"}),
+    ),
+)
+```
 
 ### workflow_list
 

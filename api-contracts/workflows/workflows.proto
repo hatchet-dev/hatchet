@@ -27,6 +27,7 @@ message CreateWorkflowVersionOpts {
     repeated CreateWorkflowJobOpts jobs = 7; // (required) the workflow jobs
     WorkflowConcurrencyOpts concurrency = 8; // (optional) the workflow concurrency options
     optional string schedule_timeout = 9; // (optional) the timeout for the schedule
+    optional string cron_input = 10; // (optional) the input for the cron trigger
 }
 
 enum ConcurrencyLimitStrategy {

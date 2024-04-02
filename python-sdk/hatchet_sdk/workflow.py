@@ -1,4 +1,3 @@
-from .client import new_client 
 from .workflows_pb2 import CreateWorkflowVersionOpts, CreateWorkflowJobOpts, CreateWorkflowStepOpts, WorkflowConcurrencyOpts
 from typing import Callable, List, Tuple, Any
 
@@ -31,11 +30,6 @@ class WorkflowMeta(type):
         for step_name, step_func in steps:
             attrs[step_name] = step_func
 
-        # create a new hatchet client
-        client = attrs['client'] if 'client' in attrs else new_client()
-
-        attrs['client'] = client
-
         name = attrs['name']
         event_triggers = attrs['on_events']
         cron_triggers = attrs['on_crons']
@@ -67,20 +61,27 @@ class WorkflowMeta(type):
                 limit_strategy=action[1]._concurrency_limit_strategy,
             )
 
-        client.admin.put_workflow(CreateWorkflowVersionOpts(
-            name=name,
-            version=version,
-            event_triggers=event_triggers,
-            cron_triggers=cron_triggers,
-            schedule_timeout=schedule_timeout,
-            jobs=[
-                CreateWorkflowJobOpts(
-                    name=name,
-                    timeout=workflowTimeout,
-                    steps=createStepOpts,
-                )
-            ],
-            concurrency=concurrency,
-        ))
+        def get_create_opts(self):
+            return CreateWorkflowVersionOpts(
+                name=name,
+                version=version,
+                event_triggers=event_triggers,
+                cron_triggers=cron_triggers,
+                schedule_timeout=schedule_timeout,
+                jobs=[
+                    CreateWorkflowJobOpts(
+                        name=name,
+                        timeout=workflowTimeout,
+                        steps=createStepOpts,
+                    )
+                ],
+                concurrency=concurrency,
+            )
+    
+        def get_name(self):
+            return name
+        
+        attrs['get_create_opts'] = get_create_opts
+        attrs['get_name'] = get_name
 
         return super(WorkflowMeta, cls).__new__(cls, name, bases, attrs)

@@ -34,7 +34,7 @@ class PutWorkflowRequest(_message.Message):
     def __init__(self, opts: _Optional[_Union[CreateWorkflowVersionOpts, _Mapping]] = ...) -> None: ...
 
 class CreateWorkflowVersionOpts(_message.Message):
-    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "scheduled_triggers", "jobs", "concurrency", "schedule_timeout")
+    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "scheduled_triggers", "jobs", "concurrency", "schedule_timeout", "cron_input")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -44,6 +44,7 @@ class CreateWorkflowVersionOpts(_message.Message):
     JOBS_FIELD_NUMBER: _ClassVar[int]
     CONCURRENCY_FIELD_NUMBER: _ClassVar[int]
     SCHEDULE_TIMEOUT_FIELD_NUMBER: _ClassVar[int]
+    CRON_INPUT_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
     version: str
@@ -53,7 +54,8 @@ class CreateWorkflowVersionOpts(_message.Message):
     jobs: _containers.RepeatedCompositeFieldContainer[CreateWorkflowJobOpts]
     concurrency: WorkflowConcurrencyOpts
     schedule_timeout: str
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., scheduled_triggers: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., jobs: _Optional[_Iterable[_Union[CreateWorkflowJobOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[WorkflowConcurrencyOpts, _Mapping]] = ..., schedule_timeout: _Optional[str] = ...) -> None: ...
+    cron_input: str
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., scheduled_triggers: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., jobs: _Optional[_Iterable[_Union[CreateWorkflowJobOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[WorkflowConcurrencyOpts, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., cron_input: _Optional[str] = ...) -> None: ...
 
 class WorkflowConcurrencyOpts(_message.Message):
     __slots__ = ("action", "max_runs", "limit_strategy")

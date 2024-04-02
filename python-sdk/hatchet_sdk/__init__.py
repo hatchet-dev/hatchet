@@ -3,8 +3,7 @@ from .clients.listener import StepRunEventType
 from .worker import Worker
 from .client import new_client
 from .context import Context
-from .workflows_pb2 import ConcurrencyLimitStrategy
-from .workflows_pb2 import RateLimitDuration
+from .workflows_pb2 import ConcurrencyLimitStrategy, CreateWorkflowVersionOpts, RateLimitDuration
 
 # import models into sdk package
 from hatchet_sdk.clients.rest.models.api_error import APIError
