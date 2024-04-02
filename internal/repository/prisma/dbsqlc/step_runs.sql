@@ -456,6 +456,18 @@ WITH selected_worker AS (
         )
     ORDER BY ws."slots" DESC NULLS FIRST
     LIMIT 1
+),
+step_run AS (
+    SELECT
+        "id", "workerId"
+    FROM
+        "StepRun"
+    WHERE
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid AND
+        "status" = 'PENDING_ASSIGNMENT' AND
+        EXISTS (SELECT 1 FROM selected_worker)
+    FOR UPDATE
 )
 UPDATE
     "StepRun"
@@ -474,9 +486,9 @@ SET
         ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
     END
 WHERE
-    "StepRun"."id" = @stepRunId::uuid AND
-    "StepRun"."tenantId" = @tenantId::uuid AND
-    "StepRun"."status" = 'PENDING_ASSIGNMENT' AND
+    "id" = @stepRunId::uuid AND
+    "tenantId" = @tenantId::uuid AND
+    "status" = 'PENDING_ASSIGNMENT' AND
     EXISTS (SELECT 1 FROM selected_worker)
 RETURNING "StepRun"."id", "StepRun"."workerId", (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId";
 
@@ -487,27 +499,26 @@ WITH worker_id AS (
     FROM
         "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND
-        "tenantId" = @tenantId::uuid
+        "id" = @stepRunId::uuid AND "tenantId" = @tenantId::uuid
 ),
-worker AS (
+semaphore AS (
     SELECT
-        "id",
-        "maxRuns"
+        "slots"
     FROM
-        "Worker"
+        "WorkerSemaphore" ws, worker_id
     WHERE
-        "id" = (SELECT "workerId" FROM worker_id)
+        ws."workerId" = worker_id."workerId"
+    FOR UPDATE
 )
 UPDATE
-    "WorkerSemaphore"
+    "WorkerSemaphore" ws
 SET
-    "slots" = ("WorkerSemaphore"."slots" + @inc::int)
+    "slots" = (semaphore."slots" + @inc::int)
 FROM
-    worker
+    semaphore, worker_id
 WHERE
-    "WorkerSemaphore"."workerId" = (SELECT "workerId" FROM worker_id)
-RETURNING *;
+    ws."workerId" = worker_id."workerId"
+RETURNING ws.*;
 
 -- name: UpdateStepRateLimits :many
 WITH step_rate_limits AS (

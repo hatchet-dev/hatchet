@@ -119,6 +119,18 @@ WITH selected_worker AS (
         )
     ORDER BY ws."slots" DESC NULLS FIRST
     LIMIT 1
+),
+step_run AS (
+    SELECT
+        "id", "workerId"
+    FROM
+        "StepRun"
+    WHERE
+        "id" = $2::uuid AND
+        "tenantId" = $3::uuid AND
+        "status" = 'PENDING_ASSIGNMENT' AND
+        EXISTS (SELECT 1 FROM selected_worker)
+    FOR UPDATE
 )
 UPDATE
     "StepRun"
@@ -137,9 +149,9 @@ SET
         ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
     END
 WHERE
-    "StepRun"."id" = $2::uuid AND
-    "StepRun"."tenantId" = $3::uuid AND
-    "StepRun"."status" = 'PENDING_ASSIGNMENT' AND
+    "id" = $2::uuid AND
+    "tenantId" = $3::uuid AND
+    "status" = 'PENDING_ASSIGNMENT' AND
     EXISTS (SELECT 1 FROM selected_worker)
 RETURNING "StepRun"."id", "StepRun"."workerId", (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId"
 `
@@ -1014,27 +1026,26 @@ WITH worker_id AS (
     FROM
         "StepRun"
     WHERE
-        "id" = $2::uuid AND
-        "tenantId" = $3::uuid
+        "id" = $2::uuid AND "tenantId" = $3::uuid
 ),
-worker AS (
+semaphore AS (
     SELECT
-        "id",
-        "maxRuns"
+        "slots"
     FROM
-        "Worker"
+        "WorkerSemaphore" ws, worker_id
     WHERE
-        "id" = (SELECT "workerId" FROM worker_id)
+        ws."workerId" = worker_id."workerId"
+    FOR UPDATE
 )
 UPDATE
-    "WorkerSemaphore"
+    "WorkerSemaphore" ws
 SET
-    "slots" = ("WorkerSemaphore"."slots" + $1::int)
+    "slots" = (semaphore."slots" + $1::int)
 FROM
-    worker
+    semaphore, worker_id
 WHERE
-    "WorkerSemaphore"."workerId" = (SELECT "workerId" FROM worker_id)
-RETURNING id, "maxRuns", "workerId", slots
+    ws."workerId" = worker_id."workerId"
+RETURNING ws."workerId", ws.slots
 `
 
 type UpdateWorkerSemaphoreParams struct {
@@ -1043,21 +1054,9 @@ type UpdateWorkerSemaphoreParams struct {
 	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 
-type UpdateWorkerSemaphoreRow struct {
-	ID       pgtype.UUID `json:"id"`
-	MaxRuns  pgtype.Int4 `json:"maxRuns"`
-	WorkerId pgtype.UUID `json:"workerId"`
-	Slots    int32       `json:"slots"`
-}
-
-func (q *Queries) UpdateWorkerSemaphore(ctx context.Context, db DBTX, arg UpdateWorkerSemaphoreParams) (*UpdateWorkerSemaphoreRow, error) {
+func (q *Queries) UpdateWorkerSemaphore(ctx context.Context, db DBTX, arg UpdateWorkerSemaphoreParams) (*WorkerSemaphore, error) {
 	row := db.QueryRow(ctx, updateWorkerSemaphore, arg.Inc, arg.Steprunid, arg.Tenantid)
-	var i UpdateWorkerSemaphoreRow
-	err := row.Scan(
-		&i.ID,
-		&i.MaxRuns,
-		&i.WorkerId,
-		&i.Slots,
-	)
+	var i WorkerSemaphore
+	err := row.Scan(&i.WorkerId, &i.Slots)
 	return &i, err
 }
