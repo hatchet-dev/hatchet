@@ -4,6 +4,6 @@
   "retries": "Retries",
   "timeouts": "Timeouts",
   "errors-and-logging": "Errors and Logging",
-  "streaming": "Result Streaming",
+  "streaming": "Streaming",
   "triggering-runs": "Triggering Runs"
 }
