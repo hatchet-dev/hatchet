@@ -13,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
-import { GitHubLogoIcon, PlayIcon, StopIcon } from '@radix-ui/react-icons';
+import { GitHubLogoIcon, PlayIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
 import { Loading } from '@/components/ui/loading';
