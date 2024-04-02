@@ -40,13 +40,13 @@ export default function Workers() {
         {listWorkersQuery.data?.rows.length === 0 && (
           <Card className="w-full">
             <CardHeader>
-              {' '}
-              <CardTitle>No Active Workers</CardTitle>{' '}
+              <CardTitle>No Active Workers</CardTitle>
               <CardDescription>
                 <p className="text-gray-300 mb-4">
                   There are no worker processes currently running and connected
                   to the Hatchet engine for this tenant. To enable workflow
-                  execution, please attempt to start a worker process or <a href="support@hatchet.run">contact support</a>.
+                  execution, please attempt to start a worker process or{' '}
+                  <a href="support@hatchet.run">contact support</a>.
                 </p>
               </CardDescription>
             </CardHeader>
