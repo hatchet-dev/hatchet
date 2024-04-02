@@ -33,7 +33,7 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 		return nil, fmt.Errorf("could not get step run for engine: %w", err)
 	}
 
-	var reason = "cancelled by user"
+	var reason = "CANCELLED_BY_USER"
 
 	// send a task to the taskqueue
 	err = t.config.MessageQueue.AddMessage(
