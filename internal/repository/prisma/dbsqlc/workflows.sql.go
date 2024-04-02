@@ -287,6 +287,44 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 	return &i, err
 }
 
+const createStepRateLimit = `-- name: CreateStepRateLimit :one
+INSERT INTO "StepRateLimit" (
+    "units",
+    "stepId",
+    "rateLimitKey",
+    "tenantId"
+) VALUES (
+    $1::integer,
+    $2::uuid,
+    $3::text,
+    $4::uuid
+) RETURNING units, "stepId", "rateLimitKey", "tenantId"
+`
+
+type CreateStepRateLimitParams struct {
+	Units        int32       `json:"units"`
+	Stepid       pgtype.UUID `json:"stepid"`
+	Ratelimitkey string      `json:"ratelimitkey"`
+	Tenantid     pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) CreateStepRateLimit(ctx context.Context, db DBTX, arg CreateStepRateLimitParams) (*StepRateLimit, error) {
+	row := db.QueryRow(ctx, createStepRateLimit,
+		arg.Units,
+		arg.Stepid,
+		arg.Ratelimitkey,
+		arg.Tenantid,
+	)
+	var i StepRateLimit
+	err := row.Scan(
+		&i.Units,
+		&i.StepId,
+		&i.RateLimitKey,
+		&i.TenantId,
+	)
+	return &i, err
+}
+
 const createWorkflow = `-- name: CreateWorkflow :one
 INSERT INTO "Workflow" (
     "id",

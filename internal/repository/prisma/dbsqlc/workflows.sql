@@ -248,6 +248,19 @@ FROM
 JOIN 
     "Step" AS step ON step."readableId" = parent_readable_id AND step."jobId" = @jobId::uuid;
 
+-- name: CreateStepRateLimit :one
+INSERT INTO "StepRateLimit" (
+    "units",
+    "stepId",
+    "rateLimitKey",
+    "tenantId"
+) VALUES (
+    @units::integer,
+    @stepId::uuid,
+    @rateLimitKey::text,
+    @tenantId::uuid
+) RETURNING *;
+
 -- name: UpsertAction :one
 INSERT INTO "Action" (
     "id",

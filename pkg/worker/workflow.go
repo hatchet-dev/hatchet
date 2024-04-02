@@ -255,17 +255,33 @@ type WorkflowStep struct {
 	Parents []string
 
 	Retries int
+
+	RateLimit []RateLimit
+}
+
+type RateLimit struct {
+	// Units is the amount of units this step consumes
+	Units int
+
+	// Key is the rate limit key
+	Key string
 }
 
 func Fn(f any) *WorkflowStep {
 	return &WorkflowStep{
-		Function: f,
-		Parents:  []string{},
+		Function:  f,
+		Parents:   []string{},
+		RateLimit: []RateLimit{},
 	}
 }
 
 func (w *WorkflowStep) SetName(name string) *WorkflowStep {
 	w.Name = name
+	return w
+}
+
+func (w *WorkflowStep) SetRateLimit(rateLimit RateLimit) *WorkflowStep {
+	w.RateLimit = append(w.RateLimit, rateLimit)
 	return w
 }
 
@@ -334,6 +350,13 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int) (*Step, error) 
 		ActionID: w.GetActionId(svcName, index),
 		Parents:  []string{},
 		Retries:  w.Retries,
+	}
+
+	for _, rateLimit := range w.RateLimit {
+		res.APIStep.RateLimits = append(res.APIStep.RateLimits, types.RateLimit{
+			Key:   rateLimit.Key,
+			Units: rateLimit.Units,
+		})
 	}
 
 	inputs, err := decodeFnArgTypes(fnType)

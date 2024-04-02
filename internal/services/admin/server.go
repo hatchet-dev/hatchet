@@ -295,6 +295,34 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	return resp, nil
 }
 
+func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	if req.Key == "" {
+		return nil, status.Error(
+			codes.InvalidArgument,
+			"key is required",
+		)
+	}
+
+	limit := int(req.Limit)
+	duration := req.Duration.String()
+
+	createOpts := &repository.UpsertRateLimitOpts{
+		Limit:    limit,
+		Duration: &duration,
+	}
+
+	_, err := a.repo.RateLimit().UpsertRateLimit(tenantId, req.Key, createOpts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.PutRateLimitResponse{}, nil
+}
+
 func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.CreateWorkflowVersionOpts, error) {
 	jobs := make([]repository.CreateWorkflowJobOpts, len(req.Opts.Jobs))
 
@@ -320,6 +348,13 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 				Timeout:    &stepCp.Timeout,
 				Parents:    stepCp.Parents,
 				Retries:    &retries,
+			}
+
+			for _, rateLimit := range stepCp.RateLimits {
+				steps[j].RateLimits = append(steps[j].RateLimits, repository.CreateWorkflowStepRateLimitOpts{
+					Key:   rateLimit.Key,
+					Units: int(rateLimit.Units),
+				})
 			}
 
 			if stepCp.UserData != "" {
