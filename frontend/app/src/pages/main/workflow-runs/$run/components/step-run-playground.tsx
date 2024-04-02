@@ -447,18 +447,19 @@ export function StepRunPlayground({
                 </TabsContent>
               </Tabs>
 
-              {isLoading && disabled && <>
-                <Button
-                  className="w-fit"
-                  onClick={handleOnCancel}
-                >
+              {isLoading && disabled && (
+                <>
+                  <Button className="w-fit" onClick={handleOnCancel}>
                     <>
                       <XMarkIcon className={cn('h-4 w-4 mr-2')} />
                       Attempt Cancel
                     </>
-                </Button>
-                <a href="https://docs.hatchet.run/home/features/cancellation">Beta: How to handle cancelation signaling</a>
-              </>}
+                  </Button>
+                  <a href="https://docs.hatchet.run/home/features/cancellation">
+                    Beta: How to handle cancelation signaling
+                  </a>
+                </>
+              )}
             </div>
           </div>
         </>
