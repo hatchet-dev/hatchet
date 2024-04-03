@@ -388,6 +388,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		err = stream.Send(e)
 
 		if err != nil {
+			cancel() // FIXME is this necessary?
 			s.l.Error().Err(err).Msgf("could not send workflow event to client")
 			return nil
 		}
@@ -406,14 +407,13 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		return err
 	}
 
-	for range ctx.Done() {
-		if err := cleanupQueue(); err != nil {
-			return fmt.Errorf("could not cleanup queue: %w", err)
-		}
-
-		// drain the existing connections
-		wg.Wait()
+	<-ctx.Done()
+	if err := cleanupQueue(); err != nil {
+		return fmt.Errorf("could not cleanup queue: %w", err)
 	}
+
+	// drain the existing connections
+	wg.Wait()
 
 	return nil
 }
