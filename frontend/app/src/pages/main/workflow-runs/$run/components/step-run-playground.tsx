@@ -31,7 +31,7 @@ import { StepRunLogs } from './step-run-logs';
 import { RunStatus } from '../../components/run-statuses';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from '../../components/workflow-runs-columns';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 export function StepRunPlayground({
   stepRun,
@@ -456,7 +456,15 @@ export function StepRunPlayground({
                     </>
                   </Button>
                   <a href="https://docs.hatchet.run/home/features/cancellation">
-                    Beta: How to handle cancelation signaling
+                    <Button
+                      onClick={handleOnCancel}
+                      variant="link"
+                      className="p-0 w-fit"
+                      asChild
+                    >
+                      <QuestionMarkCircleIcon className={cn('h-4 w-4 mr-2')} />
+                      Help: How to handle cancelation signaling
+                    </Button>
                   </a>
                 </>
               )}
