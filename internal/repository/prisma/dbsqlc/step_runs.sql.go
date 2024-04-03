@@ -1040,9 +1040,9 @@ semaphore AS (
 UPDATE
     "WorkerSemaphore" ws
 SET
-    "slots" = (semaphore."slots" + $1::int)
+    "slots" = (ws."slots" + $1::int)
 FROM
-    semaphore, worker_id
+    worker_id
 WHERE
     ws."workerId" = worker_id."workerId"
 RETURNING ws."workerId", ws.slots

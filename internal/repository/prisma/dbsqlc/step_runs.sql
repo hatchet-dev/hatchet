@@ -513,9 +513,9 @@ semaphore AS (
 UPDATE
     "WorkerSemaphore" ws
 SET
-    "slots" = (semaphore."slots" + @inc::int)
+    "slots" = (ws."slots" + @inc::int)
 FROM
-    semaphore, worker_id
+    worker_id
 WHERE
     ws."workerId" = worker_id."workerId"
 RETURNING ws.*;
