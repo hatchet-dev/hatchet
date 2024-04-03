@@ -462,8 +462,12 @@ export function StepRunPlayground({
                       className="p-0 w-fit"
                       asChild
                     >
-                      <QuestionMarkCircleIcon className={cn('h-4 w-4 mr-2')} />
-                      Help: How to handle cancelation signaling
+                      <>
+                        <QuestionMarkCircleIcon
+                          className={cn('h-4 w-4 mr-2')}
+                        />
+                        Help: How to handle cancelation signaling
+                      </>
                     </Button>
                   </a>
                 </>
