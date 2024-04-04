@@ -412,10 +412,24 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		return fmt.Errorf("could not cleanup queue: %w", err)
 	}
 
-	// drain the existing connections
-	wg.Wait()
+	waitFor(&wg, 60*time.Second)
 
 	return nil
+}
+
+func waitFor(wg *sync.WaitGroup, timeout time.Duration) {
+
+	done := make(chan struct{})
+
+	go func() {
+		wg.Wait()
+		defer close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(timeout):
+	}
 }
 
 func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
