@@ -283,3 +283,13 @@ LinkGithubRepositoryRequest:
     - gitRepoName
     - gitRepoOwner
     - gitRepoBranch
+
+WorkflowMetrics:
+  type: object
+  properties:
+    groupKeyRunsCount:
+      type: integer
+      description: The number of runs for a specific group key (passed via filter)
+    groupKeyCount:
+      type: integer
+      description: The total number of concurrency group keys.

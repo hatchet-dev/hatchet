@@ -96,6 +96,8 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/workflowVersionDefinition"
   /api/v1/workflows/{workflow}/link-github:
     $ref: "./paths/workflow/workflow.yaml#/linkGithub"
+  /api/v1/workflows/{workflow}/metrics:
+    $ref: "./paths/workflow/workflow.yaml#/getMetrics"
   /api/v1/step-runs/{step-run}/create-pr:
     $ref: "./paths/workflow/workflow.yaml#/createPullRequest"
   /api/v1/step-runs/{step-run}/logs:

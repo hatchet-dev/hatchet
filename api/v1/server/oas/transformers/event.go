@@ -34,6 +34,7 @@ func ToEventFromSQLC(eventRow *dbsqlc.ListEventsRow) *gen.Event {
 		Running:   &eventRow.Runningruns,
 		Succeeded: &eventRow.Succeededruns,
 		Pending:   &eventRow.Pendingruns,
+		Queued:    &eventRow.Queuedruns,
 	}
 
 	return res

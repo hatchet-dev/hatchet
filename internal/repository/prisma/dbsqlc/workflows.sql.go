@@ -49,6 +49,74 @@ func (q *Queries) AddWorkflowTag(ctx context.Context, db DBTX, arg AddWorkflowTa
 	return err
 }
 
+const countRoundRobinGroupKeys = `-- name: CountRoundRobinGroupKeys :one
+SELECT
+    COUNT(DISTINCT "concurrencyGroupId") AS total
+FROM
+    "WorkflowRun" r1
+JOIN
+    "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
+WHERE
+    r1."tenantId" = $1::uuid AND
+    (
+        $2::"WorkflowRunStatus" IS NULL OR
+        r1."status" = $2::"WorkflowRunStatus"
+    ) AND
+    workflowVersion."workflowId" = $3::uuid
+`
+
+type CountRoundRobinGroupKeysParams struct {
+	Tenantid   pgtype.UUID           `json:"tenantid"`
+	Status     NullWorkflowRunStatus `json:"status"`
+	Workflowid pgtype.UUID           `json:"workflowid"`
+}
+
+func (q *Queries) CountRoundRobinGroupKeys(ctx context.Context, db DBTX, arg CountRoundRobinGroupKeysParams) (int64, error) {
+	row := db.QueryRow(ctx, countRoundRobinGroupKeys, arg.Tenantid, arg.Status, arg.Workflowid)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
+const countWorkflowRunsRoundRobin = `-- name: CountWorkflowRunsRoundRobin :one
+SELECT COUNT(*) AS total
+FROM
+    "WorkflowRun" r1
+JOIN
+    "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
+WHERE
+    r1."tenantId" = $1::uuid AND
+    (
+        $2::"WorkflowRunStatus" IS NULL OR
+        r1."status" = $2::"WorkflowRunStatus"
+    ) AND
+    workflowVersion."workflowId" = $3::uuid AND
+    r1."concurrencyGroupId" IS NOT NULL AND
+    (
+        $4::text IS NULL OR
+        r1."concurrencyGroupId" = $4::text
+    )
+`
+
+type CountWorkflowRunsRoundRobinParams struct {
+	Tenantid   pgtype.UUID           `json:"tenantid"`
+	Status     NullWorkflowRunStatus `json:"status"`
+	Workflowid pgtype.UUID           `json:"workflowid"`
+	GroupKey   pgtype.Text           `json:"groupKey"`
+}
+
+func (q *Queries) CountWorkflowRunsRoundRobin(ctx context.Context, db DBTX, arg CountWorkflowRunsRoundRobinParams) (int64, error) {
+	row := db.QueryRow(ctx, countWorkflowRunsRoundRobin,
+		arg.Tenantid,
+		arg.Status,
+		arg.Workflowid,
+		arg.GroupKey,
+	)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const countWorkflows = `-- name: CountWorkflows :one
 SELECT
     count(workflows) OVER() AS total

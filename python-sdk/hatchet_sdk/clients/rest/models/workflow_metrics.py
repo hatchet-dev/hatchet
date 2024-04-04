@@ -22,16 +22,13 @@ from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
 
-class EventWorkflowRunSummary(BaseModel):
+class WorkflowMetrics(BaseModel):
     """
-    EventWorkflowRunSummary
+    WorkflowMetrics
     """ # noqa: E501
-    pending: Optional[StrictInt] = Field(default=None, description="The number of pending runs.")
-    running: Optional[StrictInt] = Field(default=None, description="The number of running runs.")
-    queued: Optional[StrictInt] = Field(default=None, description="The number of queued runs.")
-    succeeded: Optional[StrictInt] = Field(default=None, description="The number of succeeded runs.")
-    failed: Optional[StrictInt] = Field(default=None, description="The number of failed runs.")
-    __properties: ClassVar[List[str]] = ["pending", "running", "queued", "succeeded", "failed"]
+    group_key_runs_count: Optional[StrictInt] = Field(default=None, description="The number of runs for a specific group key (passed via filter)", alias="groupKeyRunsCount")
+    group_key_count: Optional[StrictInt] = Field(default=None, description="The total number of concurrency group keys.", alias="groupKeyCount")
+    __properties: ClassVar[List[str]] = ["groupKeyRunsCount", "groupKeyCount"]
 
     model_config = {
         "populate_by_name": True,
@@ -51,7 +48,7 @@ class EventWorkflowRunSummary(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of EventWorkflowRunSummary from a JSON string"""
+        """Create an instance of WorkflowMetrics from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -76,7 +73,7 @@ class EventWorkflowRunSummary(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of EventWorkflowRunSummary from a dict"""
+        """Create an instance of WorkflowMetrics from a dict"""
         if obj is None:
             return None
 
@@ -84,11 +81,8 @@ class EventWorkflowRunSummary(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "pending": obj.get("pending"),
-            "running": obj.get("running"),
-            "queued": obj.get("queued"),
-            "succeeded": obj.get("succeeded"),
-            "failed": obj.get("failed")
+            "groupKeyRunsCount": obj.get("groupKeyRunsCount"),
+            "groupKeyCount": obj.get("groupKeyCount")
         })
         return _obj
 

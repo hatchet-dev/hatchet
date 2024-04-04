@@ -99,20 +99,10 @@ LIMIT
     COALESCE(sqlc.narg('limit'), 50);
 
 -- name: PopWorkflowRunsRoundRobin :many
-WITH running_count AS (
-    SELECT
-        COUNT(*) AS "count"
-    FROM
-        "WorkflowRun" r1
-    JOIN
-        "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
-    WHERE
-        r1."tenantId" = $1 AND
-        r1."status" = 'RUNNING' AND
-        workflowVersion."id" = $2
-), queued_row_numbers AS (
+WITH workflow_runs AS (
     SELECT
         r2.id,
+        r2."status",
         row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt") AS rn,
         row_number() over (order by r2."createdAt" ASC) as seqnum
     FROM
@@ -120,32 +110,42 @@ WITH running_count AS (
     LEFT JOIN
         "WorkflowVersion" workflowVersion ON r2."workflowVersionId" = workflowVersion."id"
     WHERE
-        r2."tenantId" = $1 AND
-        r2."status" = 'QUEUED' AND
-        workflowVersion."id" = $2
+        r2."tenantId" = @tenantId::uuid AND
+        (r2."status" = 'QUEUED' OR r2."status" = 'RUNNING') AND
+        workflowVersion."workflowId" = @workflowId::uuid
     ORDER BY
         rn, seqnum ASC
 ), min_rn AS (
     SELECT
         MIN(rn) as min_rn
     FROM
-        queued_row_numbers
-), first_partition_count AS (
+        workflow_runs
+), total_group_count AS ( -- counts the number of groups
     SELECT
         COUNT(*) as count
     FROM
-        queued_row_numbers
+        workflow_runs
     WHERE
         rn = (SELECT min_rn FROM min_rn)
 ), eligible_runs AS (
     SELECT
         id
     FROM
-        queued_row_numbers
+        "WorkflowRun" wr
     WHERE
-        -- We can run up to maxRuns per group, so we multiple max runs by the number of groups, then subtract the 
-        -- total number of running workflows.
-        queued_row_numbers."seqnum" <= (@maxRuns::int) * (SELECT count FROM first_partition_count) - (SELECT "count" FROM running_count)
+        wr."id" IN (
+            SELECT
+                id
+            FROM
+                workflow_runs
+            ORDER BY
+                rn, seqnum ASC
+            LIMIT
+                -- We can run up to maxRuns per group, so we multiple max runs by the number of groups, then subtract the 
+                -- total number of running workflows.
+                (@maxRuns::int) * (SELECT count FROM total_group_count)
+        ) AND
+        wr."status" = 'QUEUED'
     FOR UPDATE SKIP LOCKED
 )
 UPDATE "WorkflowRun"
@@ -154,7 +154,8 @@ SET
 FROM
     eligible_runs
 WHERE
-    "WorkflowRun".id = eligible_runs.id
+    "WorkflowRun".id = eligible_runs.id AND
+    "WorkflowRun"."status" = 'QUEUED'
 RETURNING
     "WorkflowRun".*;
 

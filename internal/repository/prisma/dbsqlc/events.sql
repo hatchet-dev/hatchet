@@ -62,7 +62,8 @@ INSERT INTO "Event" (
 -- name: ListEvents :many
 SELECT
     sqlc.embed(events),
-    sum(case when runs."status" = 'PENDING' OR runs."status" = 'QUEUED' then 1 else 0 end) AS pendingRuns,
+    sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
+    sum(case when runs."status" = 'QUEUED' then 1 else 0 end) AS queuedRuns,
     sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
     sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
     sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns

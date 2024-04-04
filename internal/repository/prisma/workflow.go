@@ -230,6 +230,56 @@ func (r *workflowAPIRepository) UpsertWorkflowDeploymentConfig(workflowId string
 	return deploymentConfig, nil
 }
 
+func (r *workflowAPIRepository) GetWorkflowMetrics(tenantId, workflowId string, opts *repository.GetWorkflowMetricsOpts) (*repository.WorkflowMetrics, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgWorkflowId := sqlchelpers.UUIDFromStr(workflowId)
+
+	countRunsParams := dbsqlc.CountWorkflowRunsRoundRobinParams{
+		Tenantid:   pgTenantId,
+		Workflowid: pgWorkflowId,
+	}
+
+	countGroupKeysParams := dbsqlc.CountRoundRobinGroupKeysParams{
+		Tenantid:   pgTenantId,
+		Workflowid: pgWorkflowId,
+	}
+
+	if opts.Status != nil {
+		status := dbsqlc.NullWorkflowRunStatus{
+			Valid:             true,
+			WorkflowRunStatus: dbsqlc.WorkflowRunStatus(*opts.Status),
+		}
+
+		countRunsParams.Status = status
+		countGroupKeysParams.Status = status
+	}
+
+	if opts.GroupKey != nil {
+		countRunsParams.GroupKey = sqlchelpers.TextFromStr(*opts.GroupKey)
+	}
+
+	runsCount, err := r.queries.CountWorkflowRunsRoundRobin(context.Background(), r.pool, countRunsParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflow run counts: %w", err)
+	}
+
+	groupKeysCount, err := r.queries.CountRoundRobinGroupKeys(context.Background(), r.pool, countGroupKeysParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch group key counts: %w", err)
+	}
+
+	return &repository.WorkflowMetrics{
+		GroupKeyRunsCount: int(runsCount),
+		GroupKeyCount:     int(groupKeysCount),
+	}, nil
+}
+
 type workflowEngineRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator

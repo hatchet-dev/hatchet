@@ -114,6 +114,7 @@ from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurrency
 from hatchet_sdk.clients.rest.models.workflow_deployment_config import WorkflowDeploymentConfig
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
+from hatchet_sdk.clients.rest.models.workflow_metrics import WorkflowMetrics
 from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
 from hatchet_sdk.clients.rest.models.workflow_run_list import WorkflowRunList
 from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus

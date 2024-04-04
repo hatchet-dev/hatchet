@@ -99,6 +99,7 @@ const (
 	CANCELLED WorkflowRunStatus = "CANCELLED"
 	FAILED    WorkflowRunStatus = "FAILED"
 	PENDING   WorkflowRunStatus = "PENDING"
+	QUEUED    WorkflowRunStatus = "QUEUED"
 	RUNNING   WorkflowRunStatus = "RUNNING"
 	SUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 )
@@ -258,6 +259,9 @@ type EventWorkflowRunSummary struct {
 
 	// Pending The number of pending runs.
 	Pending *int64 `json:"pending,omitempty"`
+
+	// Queued The number of queued runs.
+	Queued *int64 `json:"queued,omitempty"`
 
 	// Running The number of running runs.
 	Running *int64 `json:"running,omitempty"`
@@ -725,6 +729,15 @@ type WorkflowList struct {
 	Rows       *[]Workflow         `json:"rows,omitempty"`
 }
 
+// WorkflowMetrics defines model for WorkflowMetrics.
+type WorkflowMetrics struct {
+	// GroupKeyCount The total number of concurrency group keys.
+	GroupKeyCount *int `json:"groupKeyCount,omitempty"`
+
+	// GroupKeyRunsCount The number of runs for a specific group key (passed via filter)
+	GroupKeyRunsCount *int `json:"groupKeyRunsCount,omitempty"`
+}
+
 // WorkflowRun defines model for WorkflowRun.
 type WorkflowRun struct {
 	DisplayName       *string                 `json:"displayName,omitempty"`
@@ -899,6 +912,15 @@ type WorkflowRunListParams struct {
 
 	// ParentStepRunId The parent step run id
 	ParentStepRunId *openapi_types.UUID `form:"parentStepRunId,omitempty" json:"parentStepRunId,omitempty"`
+}
+
+// WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
+type WorkflowGetMetricsParams struct {
+	// Status A status of workflow runs to filter by
+	Status *WorkflowRunStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// GroupKey A group key to filter metrics by
+	GroupKey *string `form:"groupKey,omitempty" json:"groupKey,omitempty"`
 }
 
 // WorkflowRunCreateParams defines parameters for WorkflowRunCreate.
@@ -1229,6 +1251,9 @@ type ClientInterface interface {
 	WorkflowUpdateLinkGithubWithBody(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	WorkflowUpdateLinkGithub(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateLinkGithubJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowGetMetrics request
+	WorkflowGetMetrics(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunCreateWithBody request with any body
 	WorkflowRunCreateWithBody(ctx context.Context, workflow openapi_types.UUID, params *WorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2060,6 +2085,18 @@ func (c *Client) WorkflowUpdateLinkGithubWithBody(ctx context.Context, workflow 
 
 func (c *Client) WorkflowUpdateLinkGithub(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateLinkGithubJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowUpdateLinkGithubRequest(c.Server, workflow, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowGetMetrics(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowGetMetricsRequest(c.Server, workflow, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4467,6 +4504,78 @@ func NewWorkflowUpdateLinkGithubRequestWithBody(server string, workflow openapi_
 	return req, nil
 }
 
+// NewWorkflowGetMetricsRequest generates requests for WorkflowGetMetrics
+func NewWorkflowGetMetricsRequest(server string, workflow openapi_types.UUID, params *WorkflowGetMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workflow", runtime.ParamLocationPath, workflow)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/workflows/%s/metrics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.GroupKey != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "groupKey", runtime.ParamLocationQuery, *params.GroupKey); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWorkflowRunCreateRequest calls the generic WorkflowRunCreate builder with application/json body
 func NewWorkflowRunCreateRequest(server string, workflow openapi_types.UUID, params *WorkflowRunCreateParams, body WorkflowRunCreateJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -4883,6 +4992,9 @@ type ClientWithResponsesInterface interface {
 	WorkflowUpdateLinkGithubWithBodyWithResponse(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowUpdateLinkGithubResponse, error)
 
 	WorkflowUpdateLinkGithubWithResponse(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateLinkGithubJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowUpdateLinkGithubResponse, error)
+
+	// WorkflowGetMetricsWithResponse request
+	WorkflowGetMetricsWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowGetMetricsResponse, error)
 
 	// WorkflowRunCreateWithBodyWithResponse request with any body
 	WorkflowRunCreateWithBodyWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunCreateResponse, error)
@@ -6206,6 +6318,31 @@ func (r WorkflowUpdateLinkGithubResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowGetMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkflowMetrics
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowGetMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowGetMetricsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowRunCreateResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -6886,6 +7023,15 @@ func (c *ClientWithResponses) WorkflowUpdateLinkGithubWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseWorkflowUpdateLinkGithubResponse(rsp)
+}
+
+// WorkflowGetMetricsWithResponse request returning *WorkflowGetMetricsResponse
+func (c *ClientWithResponses) WorkflowGetMetricsWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowGetMetricsResponse, error) {
+	rsp, err := c.WorkflowGetMetrics(ctx, workflow, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowGetMetricsResponse(rsp)
 }
 
 // WorkflowRunCreateWithBodyWithResponse request with arbitrary body returning *WorkflowRunCreateResponse
@@ -9004,6 +9150,53 @@ func ParseWorkflowUpdateLinkGithubResponse(rsp *http.Response) (*WorkflowUpdateL
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Workflow
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowGetMetricsResponse parses an HTTP response from a WorkflowGetMetricsWithResponse call
+func ParseWorkflowGetMetricsResponse(rsp *http.Response) (*WorkflowGetMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowGetMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkflowMetrics
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
