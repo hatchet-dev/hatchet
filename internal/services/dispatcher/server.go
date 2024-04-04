@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/rs/zerolog"
 )
 
 func (d *DispatcherImpl) GetWorker(workerId string) (*subscribedWorker, error) {
@@ -412,12 +413,12 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		return fmt.Errorf("could not cleanup queue: %w", err)
 	}
 
-	waitFor(&wg, 60*time.Second)
+	waitFor(&wg, 60*time.Second, s.l)
 
 	return nil
 }
 
-func waitFor(wg *sync.WaitGroup, timeout time.Duration) {
+func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 
 	done := make(chan struct{})
 
@@ -429,6 +430,7 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration) {
 	select {
 	case <-done:
 	case <-time.After(timeout):
+		l.Error().Msg("timed out waiting for wait group")
 	}
 }
 
