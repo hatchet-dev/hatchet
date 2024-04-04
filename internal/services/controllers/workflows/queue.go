@@ -503,12 +503,13 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 	defer span.End()
 
 	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
+	workflowId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId)
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
 	wc.l.Info().Msgf("handling queue with strategy GROUP_ROUND_ROBIN for workflow version %s", workflowVersionId)
 
 	// get workflow runs which are queued for this group key
-	poppedWorkflowRuns, err := wc.repo.WorkflowRun().PopWorkflowRunsRoundRobin(tenantId, workflowVersionId, maxRuns)
+	poppedWorkflowRuns, err := wc.repo.WorkflowRun().PopWorkflowRunsRoundRobin(tenantId, workflowId, maxRuns)
 
 	if err != nil {
 		return fmt.Errorf("could not list queued workflow runs: %w", err)

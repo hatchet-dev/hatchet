@@ -56,6 +56,10 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow:get', workflow],
       queryFn: async () => (await api.workflowGet(workflow)).data,
     }),
+    getMetrics: (workflow: string) => ({
+      queryKey: ['workflow:get:metrics', workflow],
+      queryFn: async () => (await api.workflowGetMetrics(workflow)).data,
+    }),
     getVersion: (workflow: string, version?: string) => ({
       queryKey: ['workflow-version:get', workflow, version],
       queryFn: async () =>

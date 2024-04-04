@@ -601,3 +601,58 @@ getDiff:
     summary: Get diff
     tags:
       - Workflow
+getMetrics:
+  get:
+    x-resources: ["tenant", "workflow"]
+    description: Get the metrics for a workflow version
+    operationId: workflow:get:metrics
+    parameters:
+      - description: The workflow id
+        in: path
+        name: workflow
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: A status of workflow runs to filter by
+        in: query
+        name: status
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/WorkflowRunStatus"
+      - description: A group key to filter metrics by
+        in: query
+        name: groupKey
+        required: false
+        schema:
+          type: string
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WorkflowMetrics"
+        description: Successfully retrieved the workflow version metrics
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Get workflow metrics
+    tags:
+      - Workflow

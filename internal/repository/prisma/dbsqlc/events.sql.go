@@ -190,7 +190,8 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 const listEvents = `-- name: ListEvents :many
 SELECT
     events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data,
-    sum(case when runs."status" = 'PENDING' OR runs."status" = 'QUEUED' then 1 else 0 end) AS pendingRuns,
+    sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
+    sum(case when runs."status" = 'QUEUED' then 1 else 0 end) AS queuedRuns,
     sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
     sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
     sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns
@@ -248,6 +249,7 @@ type ListEventsParams struct {
 type ListEventsRow struct {
 	Event         Event `json:"event"`
 	Pendingruns   int64 `json:"pendingruns"`
+	Queuedruns    int64 `json:"queuedruns"`
 	Runningruns   int64 `json:"runningruns"`
 	Succeededruns int64 `json:"succeededruns"`
 	Failedruns    int64 `json:"failedruns"`
@@ -281,6 +283,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Event.ReplayedFromId,
 			&i.Event.Data,
 			&i.Pendingruns,
+			&i.Queuedruns,
 			&i.Runningruns,
 			&i.Succeededruns,
 			&i.Failedruns,

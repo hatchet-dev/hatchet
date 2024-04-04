@@ -287,6 +287,11 @@ export interface EventWorkflowRunSummary {
    */
   running?: number;
   /**
+   * The number of queued runs.
+   * @format int64
+   */
+  queued?: number;
+  /**
    * The number of succeeded runs.
    * @format int64
    */
@@ -499,6 +504,7 @@ export enum WorkflowRunStatus {
   SUCCEEDED = "SUCCEEDED",
   FAILED = "FAILED",
   CANCELLED = "CANCELLED",
+  QUEUED = "QUEUED",
 }
 
 export type WorkflowRunStatusList = WorkflowRunStatus[];
@@ -781,4 +787,11 @@ export interface ListSNSIntegrations {
 export interface CreateSNSIntegrationRequest {
   /** The Amazon Resource Name (ARN) of the SNS topic. */
   topicArn: string;
+}
+
+export interface WorkflowMetrics {
+  /** The number of runs for a specific group key (passed via filter) */
+  groupKeyRunsCount?: number;
+  /** The total number of concurrency group keys. */
+  groupKeyCount?: number;
 }

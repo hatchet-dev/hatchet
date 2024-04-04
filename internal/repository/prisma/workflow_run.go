@@ -199,38 +199,12 @@ func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(parentId, par
 	return w.queries.GetScheduledChildWorkflowRun(context.Background(), w.pool, params)
 }
 
-func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(tenantId, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error) {
-	pgTenantId := &pgtype.UUID{}
-
-	if err := pgTenantId.Scan(tenantId); err != nil {
-		return nil, err
-	}
-
-	tx, err := w.pool.Begin(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer deferRollback(context.Background(), w.l, tx.Rollback)
-
-	res, err := w.queries.PopWorkflowRunsRoundRobin(context.Background(), tx, dbsqlc.PopWorkflowRunsRoundRobinParams{
-		Maxruns:  int32(maxRuns),
-		TenantId: *pgTenantId,
-		ID:       sqlchelpers.UUIDFromStr(workflowVersionId),
+func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error) {
+	return w.queries.PopWorkflowRunsRoundRobin(context.Background(), w.pool, dbsqlc.PopWorkflowRunsRoundRobinParams{
+		Maxruns:    int32(maxRuns),
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
 	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = tx.Commit(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
 }
 
 func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {

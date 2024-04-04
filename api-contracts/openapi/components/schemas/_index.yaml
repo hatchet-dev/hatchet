@@ -178,3 +178,5 @@ ListSNSIntegrations:
   $ref: "./sns.yaml#/ListSNSIntegrations"
 CreateSNSIntegrationRequest:
   $ref: "./sns.yaml#/CreateSNSIntegrationRequest"
+WorkflowMetrics:
+  $ref: "./workflow.yaml#/WorkflowMetrics"
