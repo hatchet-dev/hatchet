@@ -88,12 +88,6 @@ func main() {
 		panic(err)
 	}
 
-	_, err = w.Start()
-
-	if err != nil {
-		panic(fmt.Errorf("error cleaning up: %w", err))
-	}
-
 	for i := 0; i < 12; i++ {
 		_, err = c.Admin().RunWorkflow("rate-limit-workflow", &rateLimitInput{
 			Index: i,
