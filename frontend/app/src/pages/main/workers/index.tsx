@@ -2,11 +2,19 @@ import { Separator } from '@/components/ui/separator';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
-import { relativeDate } from '@/lib/utils';
+import { cn, relativeDate } from '@/lib/utils';
 import { Link, useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from '@/components/ui/card';
+import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 
 export default function Workers() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -14,6 +22,7 @@ export default function Workers() {
 
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenant.metadata.id),
+    refetchInterval: 5000,
   });
 
   if (listWorkersQuery.isLoading || !listWorkersQuery.data?.rows) {
@@ -28,6 +37,33 @@ export default function Workers() {
         </h2>
         <Separator className="my-4" />
         {/* Grid of workers */}
+        {listWorkersQuery.data?.rows.length === 0 && (
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle>No Active Workers</CardTitle>
+              <CardDescription>
+                <p className="text-gray-300 mb-4">
+                  There are no worker processes currently running and connected
+                  to the Hatchet engine for this tenant. To enable workflow
+                  execution, please attempt to start a worker process or{' '}
+                  <a href="support@hatchet.run">contact support</a>.
+                </p>
+              </CardDescription>
+            </CardHeader>
+            <CardFooter>
+              <a
+                href="https://docs.hatchet.run/home/basics/workers"
+                className="flex flex-row item-center"
+              >
+                <Button onClick={() => {}} variant="link" className="p-0 w-fit">
+                  <QuestionMarkCircleIcon className={cn('h-4 w-4 mr-2')} />
+                  Docs: Understanding Workers in Hatchet
+                </Button>
+              </a>
+            </CardFooter>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {listWorkersQuery.data?.rows.map((worker) => (
             <div
