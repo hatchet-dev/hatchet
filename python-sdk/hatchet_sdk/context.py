@@ -32,7 +32,7 @@ class ChildWorkflowRef:
 
     def getResult(self) -> StepRunEvent:
         try:
-            res = self.client.rest_client.workflow_run_get(self.workflow_run_id)
+            res = self.client.rest.workflow_run_get(self.workflow_run_id)
             step_runs = res.job_runs[0].step_runs if res.job_runs else []
 
             step_run_output = {}
