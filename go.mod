@@ -20,7 +20,7 @@ require (
 	github.com/oapi-codegen/runtime v1.1.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/spf13/cobra v1.8.0
-	github.com/spf13/viper v1.16.0
+	github.com/spf13/viper v1.18.2
 	github.com/steebchen/prisma-client-go v0.35.0
 	github.com/tink-crypto/tink-go v0.0.0-20230613075026-d6de17e3f164
 	github.com/tink-crypto/tink-go-gcpkms v0.0.0-20230602082706-31d0d09ccc8d
@@ -72,7 +72,10 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
+	github.com/sagikazarmark/locafero v0.4.0 // indirect
+	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
+	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
@@ -80,6 +83,8 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.46.1 // indirect
 	go.opentelemetry.io/otel/metric v1.23.1 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
+	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/exp v0.0.0-20231219180239-dc181d75b848 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240102182953-50ed04b92917 // indirect
@@ -89,7 +94,7 @@ require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.9.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/exaring/otelpgx v0.5.4
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/getsentry/sentry-go v0.25.0
 	github.com/go-chi/chi v1.5.5
 	github.com/go-playground/validator/v10 v10.16.0
@@ -112,9 +117,8 @@ require (
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/zerolog v1.31.0
 	github.com/slack-go/slack v0.12.3
-	github.com/spf13/afero v1.10.0 // indirect
-	github.com/spf13/cast v1.5.1 // indirect
-	github.com/spf13/jwalterweatherman v1.1.0 // indirect
+	github.com/spf13/afero v1.11.0 // indirect
+	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.9.0
 	github.com/subosito/gotenv v1.6.0 // indirect
