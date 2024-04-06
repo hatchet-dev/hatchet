@@ -6,7 +6,8 @@ class RateLimit:
     key: str
     units: int
 
+
 class RateLimitDuration:
-    SECOND='SECOND'
-    MINUTE='MINUTE'
-    HOUR='HOUR'
+    SECOND = "SECOND"
+    MINUTE = "MINUTE"
+    HOUR = "HOUR"

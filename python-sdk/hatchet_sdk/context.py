@@ -1,24 +1,28 @@
-from concurrent.futures import ThreadPoolExecutor
-import inspect
-from multiprocessing import Event
-from .clients.dispatcher import Action
-from .client import ClientImpl
-from .clients.admin import TriggerWorkflowParentOptions
-from .clients.listener import StepRunEvent, WorkflowRunEventType
-
-from .dispatcher_pb2 import OverridesData
-from .logger import logger
-import json
 import asyncio
-from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
+import inspect
+import json
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import Event
+
 from aiostream.stream import merge
 
-DEFAULT_WORKFLOW_POLLING_INTERVAL = 5 # Seconds
+from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
+
+from .client import ClientImpl
+from .clients.admin import TriggerWorkflowParentOptions
+from .clients.dispatcher import Action
+from .clients.listener import StepRunEvent, WorkflowRunEventType
+from .dispatcher_pb2 import OverridesData
+from .logger import logger
+
+DEFAULT_WORKFLOW_POLLING_INTERVAL = 5  # Seconds
+
 
 def get_caller_file_path():
     caller_frame = inspect.stack()[2]
 
     return caller_frame.filename
+
 
 class ChildWorkflowRef:
     workflow_run_id: str
@@ -37,9 +41,9 @@ class ChildWorkflowRef:
 
             step_run_output = {}
             for run in step_runs:
-                stepId = run.step.readable_id if run.step else ''
+                stepId = run.step.readable_id if run.step else ""
                 step_run_output[stepId] = json.loads(run.output) if run.output else {}
-            
+
             statusMap = {
                 WorkflowRunStatus.SUCCEEDED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_COMPLETED,
                 WorkflowRunStatus.FAILED: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FAILED,
@@ -48,8 +52,7 @@ class ChildWorkflowRef:
 
             if res.status in statusMap:
                 return StepRunEvent(
-                    type=statusMap[res.status],
-                    payload=json.dumps(step_run_output)
+                    type=statusMap[res.status], payload=json.dumps(step_run_output)
                 )
 
         except Exception as e:
@@ -63,7 +66,9 @@ class ChildWorkflowRef:
             res = self.getResult()
             if res:
                 yield res
-            await asyncio.sleep(DEFAULT_WORKFLOW_POLLING_INTERVAL if self.pollAttempts > 10 else 0.5)
+            await asyncio.sleep(
+                DEFAULT_WORKFLOW_POLLING_INTERVAL if self.pollAttempts > 10 else 0.5
+            )
 
     async def stream(self):
         listener_stream = self.client.listener.stream(self.workflow_run_id)
@@ -94,7 +99,7 @@ class ChildWorkflowRef:
             event.type == WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FAILED
             or event.type == WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_CANCELLED
             or event.type == WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_TIMED_OUT
-        ): 
+        ):
             self.close()
             raise RuntimeError(event.type)
 
@@ -117,7 +122,9 @@ class Context:
                 self.data = {}
         else:
             # Directly assign the payload to self.data if it's already a dict
-            self.data = action.action_payload if isinstance(action.action_payload, dict) else {}
+            self.data = (
+                action.action_payload if isinstance(action.action_payload, dict) else {}
+            )
 
         self.action = action
         self.stepRunId = action.step_run_id
@@ -125,31 +132,31 @@ class Context:
         self.client = client
 
         # FIXME: this limits the number of concurrent log requests to 1, which means we can do about
-        # 100 log lines per second but this depends on network. 
+        # 100 log lines per second but this depends on network.
         self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)
         self.stream_event_thread_pool = ThreadPoolExecutor(max_workers=1)
 
         # store each key in the overrides field in a lookup table
         # overrides_data is a dictionary of key-value pairs
-        self.overrides_data = self.data.get('overrides', {})
+        self.overrides_data = self.data.get("overrides", {})
 
         if action.get_group_key_run_id != "":
             self.input = self.data
         else:
-            self.input = self.data.get('input', {})
+            self.input = self.data.get("input", {})
 
     def step_output(self, step: str):
         try:
-            return self.data['parents'][step]
+            return self.data["parents"][step]
         except KeyError:
             raise ValueError(f"Step output for '{step}' not found")
 
     def triggered_by_event(self) -> bool:
-        return self.data.get('triggered_by', '') == 'event'
+        return self.data.get("triggered_by", "") == "event"
 
     def workflow_input(self):
         return self.input
-    
+
     def workflow_run_id(self):
         return self.action.workflow_run_id
 
@@ -158,7 +165,7 @@ class Context:
 
         if self.exit_flag.is_set():
             raise Exception("Context cancelled")
-    
+
     def cancel(self):
         logger.info("Cancelling step...")
         self.exit_flag.set()
@@ -166,42 +173,40 @@ class Context:
     # done returns true if the context has been cancelled
     def done(self):
         return self.exit_flag.is_set()
-    
+
     def playground(self, name: str, default: str = None):
         # if the key exists in the overrides_data field, return the value
         if name in self.overrides_data:
             return self.overrides_data[name]
-        
+
         caller_file = get_caller_file_path()
-        
+
         self.client.dispatcher.put_overrides_data(
             OverridesData(
                 stepRunId=self.stepRunId,
                 path=name,
                 value=json.dumps(default),
-                callerFilename=caller_file
+                callerFilename=caller_file,
             )
         )
 
         return default
-    
+
     def spawn_workflow(self, workflow_name: str, input: dict = {}, key: str = None):
         workflow_run_id = self.action.workflow_run_id
         step_run_id = self.action.step_run_id
 
         options: TriggerWorkflowParentOptions = {
-            'parent_id': workflow_run_id,
-            'parent_step_run_id': step_run_id,
-            'child_key': key,
-            'child_index': self.spawn_index
+            "parent_id": workflow_run_id,
+            "parent_step_run_id": step_run_id,
+            "child_key": key,
+            "child_index": self.spawn_index,
         }
 
         self.spawn_index += 1
 
         child_workflow_run_id = self.client.admin.run_workflow(
-            workflow_name,
-            input,
-            options
+            workflow_name, input, options
         )
 
         return ChildWorkflowRef(child_workflow_run_id, self.client)
@@ -211,11 +216,11 @@ class Context:
             self.client.event.log(message=line, step_run_id=self.stepRunId)
         except Exception as e:
             logger.error(f"Error logging: {e}")
-    
+
     def log(self, line: str):
         if self.stepRunId == "":
             return
-        
+
         self.logger_thread_pool.submit(self._log, line)
 
     def _put_stream(self, data: str | bytes):
@@ -223,9 +228,9 @@ class Context:
             self.client.event.stream(data=data, step_run_id=self.stepRunId)
         except Exception as e:
             logger.error(f"Error putting stream event: {e}")
-    
+
     def put_stream(self, data: str | bytes):
         if self.stepRunId == "":
             return
-        
+
         self.stream_event_thread_pool.submit(self._put_stream, data)

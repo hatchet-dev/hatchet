@@ -29,5 +29,3 @@ workflow_version_meta_dict = workflow_version_meta_instance.to_dict()
 workflow_version_meta_form_dict = workflow_version_meta.from_dict(workflow_version_meta_dict)
 ```
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
-
-

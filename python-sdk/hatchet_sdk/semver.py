@@ -9,11 +9,11 @@ def bump_minor_version(version: str) -> str:
     """
     # if it starts with a v, remove it
     had_v = False
-    if version.startswith('v'):
+    if version.startswith("v"):
         version = version[1:]
         had_v = True
 
-    parts = version.split('.')
+    parts = version.split(".")
     if len(parts) != 3:
         raise ValueError(f"Invalid semantic version: {version}")
 

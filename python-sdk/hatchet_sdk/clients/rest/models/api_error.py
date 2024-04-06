@@ -13,23 +13,33 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field, StrictInt, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from typing import Optional, Set
 from typing_extensions import Self
+
 
 class APIError(BaseModel):
     """
     APIError
-    """ # noqa: E501
-    code: Optional[StrictInt] = Field(default=None, description="a custom Hatchet error code")
-    field: Optional[StrictStr] = Field(default=None, description="the field that this error is associated with, if applicable")
+    """  # noqa: E501
+
+    code: Optional[StrictInt] = Field(
+        default=None, description="a custom Hatchet error code"
+    )
+    field: Optional[StrictStr] = Field(
+        default=None,
+        description="the field that this error is associated with, if applicable",
+    )
     description: StrictStr = Field(description="a description for this error")
-    docs_link: Optional[StrictStr] = Field(default=None, description="a link to the documentation for this error, if it exists")
+    docs_link: Optional[StrictStr] = Field(
+        default=None,
+        description="a link to the documentation for this error, if it exists",
+    )
     __properties: ClassVar[List[str]] = ["code", "field", "description", "docs_link"]
 
     model_config = {
@@ -37,7 +47,6 @@ class APIError(BaseModel):
         "validate_assignment": True,
         "protected_namespaces": (),
     }
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +72,7 @@ class APIError(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -82,12 +90,12 @@ class APIError(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "code": obj.get("code"),
-            "field": obj.get("field"),
-            "description": obj.get("description"),
-            "docs_link": obj.get("docs_link")
-        })
+        _obj = cls.model_validate(
+            {
+                "code": obj.get("code"),
+                "field": obj.get("field"),
+                "description": obj.get("description"),
+                "docs_link": obj.get("docs_link"),
+            }
+        )
         return _obj
-
-
