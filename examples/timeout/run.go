@@ -11,7 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-func run(events chan<- string) (func() error, error) {
+func run(done chan<- string) (func() error, error) {
 	c, err := client.New()
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
@@ -29,14 +29,14 @@ func run(events chan<- string) (func() error, error) {
 	err = w.On(
 		worker.Events("user:create:timeout"),
 		&worker.WorkflowJob{
-			Timeout:     "10s",
+			//Timeout:     "10s",
 			Name:        "timeout",
 			Description: "timeout",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					time.Sleep(time.Second * 60)
 					return nil, nil
-				}).SetName("step-one"),
+				}).SetName("step-one").SetTimeout("10s"),
 			},
 		},
 	)
@@ -65,7 +65,7 @@ func run(events chan<- string) (func() error, error) {
 			panic(fmt.Errorf("error pushing event: %w", err))
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(20 * time.Second)
 
 		client := db.NewClient()
 		if err := client.Connect(); err != nil {
@@ -95,17 +95,19 @@ func run(events chan<- string) (func() error, error) {
 			for _, workflowRun := range event.WorkflowRuns() {
 				for _, jobRuns := range workflowRun.Parent().JobRuns() {
 					for _, stepRun := range jobRuns.StepRuns() {
-						if stepRun.Status != db.StepRunStatusFailed {
+						if stepRun.Status != db.StepRunStatusCancelled {
 							panic(fmt.Errorf("expected step run to be failed, got %s", stepRun.Status))
 						}
-						//reason, _ := stepRun.CancelledReason()
-						//if reason != "TODO" {
-						//	panic(fmt.Errorf("expected step run to be failed, got %s", reason))
-						//}
+						reason, _ := stepRun.CancelledReason()
+						if reason != "TIMED_OUT" {
+							panic(fmt.Errorf("expected step run to be failed, got %s", reason))
+						}
 					}
 				}
 			}
 		}
+
+		done <- "done"
 	}()
 
 	cleanup, err := w.Start()

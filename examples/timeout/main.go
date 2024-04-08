@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/joho/godotenv"
-
-	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 )
 
 type userCreateEvent struct {
@@ -25,13 +23,12 @@ func main() {
 	}
 
 	events := make(chan string, 50)
-	ch := cmdutils.InterruptChan()
 	cleanup, err := run(events)
 	if err != nil {
 		panic(err)
 	}
 
-	<-ch
+	<-events
 
 	if err := cleanup(); err != nil {
 		panic(fmt.Errorf("cleanup() error = %v", err))

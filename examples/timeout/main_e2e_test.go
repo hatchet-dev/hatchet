@@ -15,7 +15,7 @@ import (
 func TestTimeout(t *testing.T) {
 	testutils.Prepare(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	events := make(chan string, 50)
