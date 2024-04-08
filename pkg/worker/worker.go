@@ -199,8 +199,10 @@ func (w *Worker) Use(mws ...MiddlewareFunc) {
 }
 
 func (w *Worker) NewService(name string) *Service {
+	namespace := w.client.Namespace()
+
 	svc := &Service{
-		Name:   name,
+		Name:   namespace + name,
 		worker: w,
 		mws:    newMiddlewares(),
 	}

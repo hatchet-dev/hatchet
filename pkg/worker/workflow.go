@@ -11,7 +11,7 @@ import (
 )
 
 type triggerConverter interface {
-	ToWorkflowTriggers(*types.WorkflowTriggers)
+	ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string)
 }
 
 type cron string
@@ -20,7 +20,7 @@ func Cron(c string) cron {
 	return cron(c)
 }
 
-func (c cron) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+func (c cron) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	if wt.Cron == nil {
 		wt.Cron = []string{}
 	}
@@ -34,7 +34,7 @@ func Crons(c ...string) cronArr {
 	return cronArr(c)
 }
 
-func (c cronArr) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+func (c cronArr) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	if wt.Cron == nil {
 		wt.Cron = []string{}
 	}
@@ -48,7 +48,7 @@ func NoTrigger() noTrigger {
 	return noTrigger{}
 }
 
-func (n noTrigger) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+func (n noTrigger) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	// do nothing
 }
 
@@ -58,7 +58,7 @@ func At(t ...time.Time) scheduled {
 	return t
 }
 
-func (s scheduled) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+func (s scheduled) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	if wt.Schedules == nil {
 		wt.Schedules = []time.Time{}
 	}
@@ -91,7 +91,7 @@ func Event(e string) event {
 	return event(e)
 }
 
-func (e event) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+func (e event) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	if wt.Events == nil {
 		wt.Events = []string{}
 	}
@@ -105,7 +105,7 @@ func Events(events ...string) eventsArr {
 	return events
 }
 
-func (e eventsArr) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
+func (e eventsArr) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	if wt.Events == nil {
 		wt.Events = []string{}
 	}
@@ -114,7 +114,7 @@ func (e eventsArr) ToWorkflowTriggers(wt *types.WorkflowTriggers) {
 }
 
 type workflowConverter interface {
-	ToWorkflow(svcName string) types.Workflow
+	ToWorkflow(svcName string, namespace string) types.Workflow
 	ToActionMap(svcName string) map[string]any
 }
 
@@ -160,8 +160,9 @@ func (c *WorkflowConcurrency) LimitStrategy(limitStrategy types.WorkflowConcurre
 	return c
 }
 
-func (j *WorkflowJob) ToWorkflow(svcName string) types.Workflow {
-	apiJob, err := j.ToWorkflowJob(svcName)
+func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflow {
+
+	apiJob, err := j.ToWorkflowJob(svcName, namespace)
 
 	if err != nil {
 		panic(err)
@@ -172,13 +173,13 @@ func (j *WorkflowJob) ToWorkflow(svcName string) types.Workflow {
 	}
 
 	w := types.Workflow{
-		Name: j.Name,
+		Name: namespace + j.Name,
 		Jobs: jobs,
 	}
 
 	if j.Concurrency != nil {
 		w.Concurrency = &types.WorkflowConcurrency{
-			ActionID: "concurrency:" + getFnName(j.Concurrency.fn),
+			ActionID: "concurrency:" + getFnName(j.Concurrency.fn), // TODO this should also be namespaced
 		}
 
 		if j.Concurrency.maxRuns != nil {
@@ -193,7 +194,7 @@ func (j *WorkflowJob) ToWorkflow(svcName string) types.Workflow {
 	return w
 }
 
-func (j *WorkflowJob) ToWorkflowJob(svcName string) (*types.WorkflowJob, error) {
+func (j *WorkflowJob) ToWorkflowJob(svcName string, namespace string) (*types.WorkflowJob, error) {
 	apiJob := &types.WorkflowJob{
 		Description: j.Description,
 		Timeout:     j.Timeout,
@@ -201,19 +202,8 @@ func (j *WorkflowJob) ToWorkflowJob(svcName string) (*types.WorkflowJob, error) 
 	}
 
 	for i := range j.Steps {
-		// parentSteps := []step{}
 
-		// for _, parentId := range j.Steps[i].Parents {
-		// 	parentStep, exists := stepMap[parentId]
-
-		// 	if !exists {
-		// 		return nil, fmt.Errorf("step %s does not exist", parentId)
-		// 	}
-
-		// 	parentSteps = append(parentSteps, *parentStep)
-		// }
-
-		newStep, err := j.Steps[i].ToWorkflowStep(svcName, i)
+		newStep, err := j.Steps[i].ToWorkflowStep(svcName, i, namespace)
 
 		if err != nil {
 			return nil, err
@@ -300,7 +290,7 @@ func (w *WorkflowStep) AddParents(parents ...string) *WorkflowStep {
 	return w
 }
 
-func (w *WorkflowStep) ToWorkflow(svcName string) types.Workflow {
+func (w *WorkflowStep) ToWorkflow(svcName string, namespace string) types.Workflow {
 	jobName := w.Name
 
 	if jobName == "" {
@@ -313,7 +303,7 @@ func (w *WorkflowStep) ToWorkflow(svcName string) types.Workflow {
 		},
 	}
 
-	return workflowJob.ToWorkflow(svcName)
+	return workflowJob.ToWorkflow(svcName, namespace)
 }
 
 func (w *WorkflowStep) ToActionMap(svcName string) map[string]any {
@@ -336,7 +326,7 @@ type Step struct {
 	APIStep types.WorkflowStep
 }
 
-func (w *WorkflowStep) ToWorkflowStep(svcName string, index int) (*Step, error) {
+func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace string) (*Step, error) {
 	fnType := reflect.TypeOf(w.Function)
 
 	res := &Step{}
