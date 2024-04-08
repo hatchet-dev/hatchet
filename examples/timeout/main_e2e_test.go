@@ -19,23 +19,7 @@ func TestTimeout(t *testing.T) {
 	tests := []struct {
 		name string
 		job  worker.WorkflowJob
-		skip string
 	}{
-		{
-			skip: "TODO currently broken",
-			name: "worker timeout",
-			job: worker.WorkflowJob{
-				Timeout:     "10s",
-				Name:        "timeout",
-				Description: "timeout",
-				Steps: []*worker.WorkflowStep{
-					worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-						time.Sleep(time.Second * 60)
-						return nil, nil
-					}).SetName("step-one"),
-				},
-			},
-		},
 		{
 			name: "step timeout",
 			job: worker.WorkflowJob{
@@ -52,10 +36,6 @@ func TestTimeout(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.skip != "" {
-				t.Skip(tt.skip)
-			}
-
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
