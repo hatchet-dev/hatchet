@@ -11,7 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-func run(done chan<- string) (func() error, error) {
+func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 	c, err := client.New()
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
@@ -28,17 +28,7 @@ func run(done chan<- string) (func() error, error) {
 
 	err = w.On(
 		worker.Events("user:create:timeout"),
-		&worker.WorkflowJob{
-			//Timeout:     "10s",
-			Name:        "timeout",
-			Description: "timeout",
-			Steps: []*worker.WorkflowStep{
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					time.Sleep(time.Second * 60)
-					return nil, nil
-				}).SetName("step-one").SetTimeout("10s"),
-			},
-		},
+		&job,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)

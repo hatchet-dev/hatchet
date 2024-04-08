@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/joho/godotenv"
+
+	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
 type userCreateEvent struct {
@@ -23,7 +26,16 @@ func main() {
 	}
 
 	events := make(chan string, 50)
-	cleanup, err := run(events)
+	cleanup, err := run(events, worker.WorkflowJob{
+		Name:        "timeout",
+		Description: "timeout",
+		Steps: []*worker.WorkflowStep{
+			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+				time.Sleep(time.Second * 60)
+				return nil, nil
+			}).SetName("step-one").SetTimeout("10s"),
+		},
+	})
 	if err != nil {
 		panic(err)
 	}
