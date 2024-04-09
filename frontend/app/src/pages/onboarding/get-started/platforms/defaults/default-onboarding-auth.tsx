@@ -11,7 +11,7 @@ export const DefaultOnboardingAuth: React.FC<{
   onAuthComplete: () => void;
 }> = ({ tenant, onAuthComplete }) => {
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [_, setFieldErrors] = useState<Record<string, string>>({});
 
   const { handleApiError } = useApiError({ setFieldErrors: setFieldErrors });
 

@@ -15,7 +15,7 @@ export const DefaultOnboardingWorkflow: React.FC<{
   workflowName = 'first-workflow',
   setWorkflowTriggered,
 }) => {
-  const [errors, setErrors] = useState<string[]>([]);
+  const [_, setErrors] = useState<string[]>([]);
 
   const { handleApiError } = useApiError({
     setErrors,
