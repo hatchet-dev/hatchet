@@ -14,6 +14,7 @@ import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-a
 import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboarding-workflow';
 import { OnboardingInterface } from './platforms/_onboarding.interface';
 import {
+  BiAlarm,
   BiBook,
   BiCalendar,
   BiLogoDiscordAlt,
@@ -24,6 +25,7 @@ import {
 import { IconType } from 'react-icons/lib';
 import { typescriptOnboarding } from './platforms/typescript';
 import { WorkerListener } from './platforms/defaults/default-worker-listener';
+import { Badge } from '@/components/ui/badge';
 
 const DEFAULT_OPEN = ['platform'];
 
@@ -131,16 +133,25 @@ export default function GetStarted() {
   return (
     <div className="flex flex-col items-center w-full h-full overflow-auto">
       <div className="container mx-auto px-4 py-8 lg:px-8 lg:py-12 max-w-4xl">
-        <div className="flex flex-col justify-center space-y-8">
+        <div className="flex flex-col justify-center space-y-4">
           <div className="flex flex-row justify-between">
             <h1 className="text-3xl font-bold">Learn Hatchet in 5 steps</h1>
+
             <a href="/">
               <Button variant="outline">Skip Tutorial</Button>
             </a>
           </div>
+          <p>
+            <Badge>
+              <BiAlarm className="mr-2" /> Estimated 6 min
+            </Badge>
+          </p>
+
           <p className="text-lg">
-            Set up a project and run your first workflow to understand the
-            fundamentals of building your application.{' '}
+            Get started with Hatchet Cloud by creating a new project, connecting
+            your worker, and triggering your first workflow run! At the end of
+            this tutorial, you'll have the skills needed to deploy distributed
+            workflows with hatchet.{' '}
             <a
               href="https://docs.hatchet.run"
               className="text-purple-500 hover:underline"
