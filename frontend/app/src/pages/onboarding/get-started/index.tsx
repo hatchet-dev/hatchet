@@ -123,7 +123,12 @@ export default function GetStarted() {
     <div className="flex flex-col items-center justify-center w-full h-full">
       <div className="container mx-auto px-4 py-8 lg:px-8 lg:py-12 max-w-4xl">
         <div className="flex flex-col justify-center space-y-8">
-          <h1 className="text-3xl font-bold">Learn Hatchet in 5 steps</h1>
+          <div className="flex flex-row justify-between">
+            <h1 className="text-3xl font-bold">Learn Hatchet in 5 steps</h1>
+            <a href="/">
+              <Button variant="outline">Skip Tutorial</Button>
+            </a>
+          </div>
           <p className="text-lg">
             Set up a project and run your first workflow to understand the
             fundamentals of building your application.{' '}
