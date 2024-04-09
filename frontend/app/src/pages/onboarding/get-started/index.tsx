@@ -59,6 +59,8 @@ export default function GetStarted() {
   const [steps, setSteps] = useState(DEFAULT_OPEN);
   const [platform, setPlatform] = useState<(typeof PLATFORMS)[0] | undefined>();
 
+  const [authComplete, setAuthComplete] = useState(false);
+
   const progressToStep = (step: string) => {
     setSteps((steps) => [...steps, step]);
   };
@@ -86,14 +88,15 @@ export default function GetStarted() {
     </AccordionTrigger>
   );
 
-  const Next = ({ step }: { step: string }) => (
+  const Next = ({ step, disabled }: { step: string, disabled?: boolean }) => (
     <div className="flex justify-end mt-4">
       {!steps.includes(step) && (
         <Button
           onClick={() => progressToStep(step)}
           className="bg-purple-500 text-white px-6 py-2 rounded-lg"
+          disabled={disabled}
         >
-          Next
+          Continue
         </Button>
       )}
     </div>
@@ -162,8 +165,10 @@ export default function GetStarted() {
                 Generate your Hatchet Auth token
               </Trigger>
               <AccordionContent className="py-4 px-6">
-                <DefaultOnboardingAuth tenant={currTenant.metadata.id} />
-                <Next step="worker" />
+                <DefaultOnboardingAuth tenant={currTenant.metadata.id} onAuthComplete={()=>{
+                  setAuthComplete(true);
+                }} />
+                <Next step="worker" disabled={!authComplete} />
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="worker">

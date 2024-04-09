@@ -6,7 +6,7 @@ import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 
-export const DefaultOnboardingAuth: React.FC<{ tenant: string }> = ({ tenant }) => {
+export const DefaultOnboardingAuth: React.FC<{ tenant: string, onAuthComplete: ()=>void }> = ({ tenant, onAuthComplete }) => {
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -33,7 +33,7 @@ export const DefaultOnboardingAuth: React.FC<{ tenant: string }> = ({ tenant }) 
         <p className="mb-4">
           This is the only time we will show you this token. Make sure to copy it somewhere safe and do not share it with others. You can manage your tokens from the settings page.
         </p>
-        <div className="rounded-lg p-4 mb-6">
+        <div className="rounded-lg p-4 mb-6" onClick={onAuthComplete}>
           <CodeHighlighter
             language="plaintext"
             className="text-sm"
