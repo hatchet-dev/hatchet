@@ -130,8 +130,6 @@ type WorkflowJob struct {
 
 	Description string
 
-	Timeout string
-
 	Concurrency *WorkflowConcurrency
 
 	// The steps that are run in the job
@@ -196,7 +194,6 @@ func (j *WorkflowJob) ToWorkflow(svcName string) types.Workflow {
 func (j *WorkflowJob) ToWorkflowJob(svcName string) (*types.WorkflowJob, error) {
 	apiJob := &types.WorkflowJob{
 		Description: j.Description,
-		Timeout:     j.Timeout,
 		Steps:       []types.WorkflowStep{},
 	}
 
