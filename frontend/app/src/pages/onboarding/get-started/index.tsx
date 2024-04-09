@@ -15,10 +15,9 @@ import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboardi
 import { OnboardingInterface } from './platforms/_onboarding.interface';
 import { BiLogoGoLang, BiLogoPython, BiLogoTypescript } from 'react-icons/bi';
 import { IconType } from 'react-icons/lib';
+import { typescriptOnboarding } from './platforms/typescript';
 
 const DEFAULT_OPEN = ['platform'];
-
-const ALL_OPEN = ['platform', 'auth', 'worker', 'workflow'];
 
 const PLATFORMS: {
   name: string;
@@ -29,23 +28,20 @@ const PLATFORMS: {
     name: 'Python',
     icon: BiLogoPython,
     onboarding: {
-      platform: () => <div>Python</div>,
+      setup: () => <div></div>,
       worker: () => <div>Python</div>,
     },
   },
   {
     name: 'Typescript',
     icon: BiLogoTypescript,
-    onboarding: {
-      platform: () => <div>Typescript</div>,
-      worker: () => <div>Typescript</div>,
-    },
+    onboarding: typescriptOnboarding,
   },
   {
     name: 'Go',
     icon: BiLogoGoLang,
     onboarding: {
-      platform: () => <div>GoLang</div>,
+      setup: () => <div>GoLang</div>,
       worker: () => <div>GoLang</div>,
     },
   },
@@ -88,7 +84,7 @@ export default function GetStarted() {
     </AccordionTrigger>
   );
 
-  const Next = ({ step, disabled }: { step: string, disabled?: boolean }) => (
+  const Next = ({ step, disabled }: { step: string; disabled?: boolean }) => (
     <div className="flex justify-end mt-4">
       {!steps.includes(step) && (
         <Button
@@ -123,7 +119,7 @@ export default function GetStarted() {
   );
 
   return (
-    <div className="flex flex-col items-center justify-center w-full h-full">
+    <div className="flex flex-col items-center w-full h-full overflow-auto">
       <div className="container mx-auto px-4 py-8 lg:px-8 lg:py-12 max-w-4xl">
         <div className="flex flex-col justify-center space-y-8">
           <div className="flex flex-row justify-between">
@@ -156,7 +152,7 @@ export default function GetStarted() {
                 Setup your application
               </Trigger>
               <AccordionContent className="py-4 px-6">
-                {platform && platform.onboarding.platform({})}
+                {platform && platform.onboarding.setup({})}
                 <Next step="auth" />
               </AccordionContent>
             </AccordionItem>
@@ -165,9 +161,12 @@ export default function GetStarted() {
                 Generate your Hatchet Auth token
               </Trigger>
               <AccordionContent className="py-4 px-6">
-                <DefaultOnboardingAuth tenant={currTenant.metadata.id} onAuthComplete={()=>{
-                  setAuthComplete(true);
-                }} />
+                <DefaultOnboardingAuth
+                  tenant={currTenant.metadata.id}
+                  onAuthComplete={() => {
+                    setAuthComplete(true);
+                  }}
+                />
                 <Next step="worker" disabled={!authComplete} />
               </AccordionContent>
             </AccordionItem>
