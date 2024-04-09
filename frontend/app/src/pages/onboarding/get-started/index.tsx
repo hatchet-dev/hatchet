@@ -79,7 +79,7 @@ export default function GetStarted() {
       hideChevron={true}
       disabled
     >
-      <span className="flex items-center justify-center w-10 h-10 bg-blue-500 text-white rounded-full mr-4">
+      <span className="flex items-center justify-center w-10 h-10 bg-purple-500 text-white rounded-full mr-4">
         {i}
       </span>
       {children}
@@ -91,7 +91,7 @@ export default function GetStarted() {
       {!steps.includes(step) && (
         <Button
           onClick={() => progressToStep(step)}
-          className="bg-blue-500 text-white px-6 py-2 rounded-lg"
+          className="bg-purple-500 text-white px-6 py-2 rounded-lg"
         >
           Next
         </Button>
@@ -134,7 +134,7 @@ export default function GetStarted() {
             fundamentals of building your application.{' '}
             <a
               href="https://docs.hatchet.run"
-              className="text-blue-500 hover:underline"
+              className="text-purple-500 hover:underline"
             >
               Read the docs.
             </a>
