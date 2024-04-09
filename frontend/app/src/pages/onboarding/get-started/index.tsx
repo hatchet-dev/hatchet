@@ -13,12 +13,19 @@ import { Button } from '@/components/ui/button';
 import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
 import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboarding-workflow';
 import { OnboardingInterface } from './platforms/_onboarding.interface';
-import { BiLogoGoLang, BiLogoPython, BiLogoTypescript } from 'react-icons/bi';
+import {
+  BiBook,
+  BiCalendar,
+  BiLogoDiscordAlt,
+  BiLogoGoLang,
+  BiLogoPython,
+  BiLogoTypescript,
+} from 'react-icons/bi';
 import { IconType } from 'react-icons/lib';
 import { typescriptOnboarding } from './platforms/typescript';
 import { WorkerListener } from './platforms/defaults/default-worker-listener';
 
-const DEFAULT_OPEN = ['platform', 'worker', 'workflow'];
+const DEFAULT_OPEN = ['platform'];
 
 const PLATFORMS: {
   name: string;
@@ -58,7 +65,7 @@ export default function GetStarted() {
 
   const [authComplete, setAuthComplete] = useState(false);
   const [workerConnected, setWorkerConnected] = useState(false);
-  const [workflowTriggered, setWorkflowTriggered] = useState(false);
+  const [workflowTriggered, setWorkflowTriggered] = useState<string>();
 
   const progressToStep = (step: string) => {
     setSteps((steps) => [...steps, step]);
@@ -200,9 +207,68 @@ export default function GetStarted() {
                   setWorkflowTriggered={setWorkflowTriggered}
                 />
 
+                <Button
+                  disabled={!workflowTriggered}
+                  onClick={() => {
+                    // Open the latest workflow run in the Hatchet dashboard
+                    window.open(`/workflow-runs/${workflowTriggered}`);
+                  }}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg mt-5 "
+                >
+                  Open Latest Run in the Dashboard
+                </Button>
               </AccordionContent>
             </AccordionItem>
           </Accordion>
+
+          <div className={`mt-8 pb-10 ${!workflowTriggered ?? 'hidden'}`}>
+            {workflowTriggered ? (
+              <h2 className="text-2xl font-bold mb-4">What's Next?</h2>
+            ) : (
+              <h2 className="text-2xl font-bold mb-4">Get Stuck?</h2>
+            )}{' '}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Button
+                onClick={() => {
+                  // Explore advanced topics in the docs
+                  window.open(
+                    'https://docs.hatchet.run/home/basics/steps',
+                    '_blank',
+                  );
+                }}
+                className=" px-6 py-3 rounded-lg"
+                variant={'outline'}
+              >
+                <BiBook className="mr-2" />
+                Explore Docs
+              </Button>
+              <Button
+                onClick={() => {
+                  // Schedule a meeting with the Hatchet team
+                  window.open(
+                    'https://discord.com/invite/ZMeUafwH89',
+                    '_blank',
+                  );
+                }}
+                className=" px-6 py-3 rounded-lg"
+                variant={'outline'}
+              >
+                <BiLogoDiscordAlt className="mr-2" />
+                Join the Hatchet Discord
+              </Button>
+              <Button
+                onClick={() => {
+                  // Schedule a meeting with the Hatchet team
+                  window.open('https://hatchet.run/office-hours', '_blank');
+                }}
+                className=" px-6 py-3 rounded-lg"
+                variant={'outline'}
+              >
+                <BiCalendar className="mr-2" />
+                Meet with the Hatchet Team
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

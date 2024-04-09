@@ -8,8 +8,13 @@ export const DefaultOnboardingWorkflow: React.FC<{
   tenantId: string;
   workerConnected: boolean;
   workflowName?: string;
-  setWorkflowTriggered: (val: boolean) => void;
-}> = ({ tenantId, workerConnected, workflowName='first-workflow', setWorkflowTriggered }) => {
+  setWorkflowTriggered: (val: string) => void;
+}> = ({
+  tenantId,
+  workerConnected,
+  workflowName = 'first-workflow',
+  setWorkflowTriggered,
+}) => {
   const [errors, setErrors] = useState<string[]>([]);
 
   const { handleApiError } = useApiError({
@@ -45,6 +50,8 @@ export const DefaultOnboardingWorkflow: React.FC<{
       if (!workflowRun) {
         return;
       }
+
+      setWorkflowTriggered(workflowRun.metadata.id);
     },
     onError: handleApiError,
   });
@@ -55,7 +62,6 @@ export const DefaultOnboardingWorkflow: React.FC<{
     setIsButtonClicked(true);
     triggerWorkflowMutation.mutate({});
     setTimeout(() => setIsButtonClicked(false), 1000);
-    setWorkflowTriggered(true);
   };
 
   if (!workerConnected) {
@@ -74,9 +80,9 @@ export const DefaultOnboardingWorkflow: React.FC<{
       <p>
         Your TypeScript application is now set up, and your worker is connected!
       </p>
-      <p>
-        Click the button below to trigger a run, and check out your terminal for
-        log output!
+      <p className="mt-4">
+        Click the button below to trigger a run, and check out your worker
+        terminal for log output!
       </p>
 
       <Button
