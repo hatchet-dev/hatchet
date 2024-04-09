@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/button';
-import { UserCircleIcon } from '@heroicons/react/24/outline';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +21,7 @@ import {
   BiHelpCircle,
   BiLogoDiscordAlt,
   BiSolidGraduation,
+  BiUserCircle,
 } from 'react-icons/bi';
 
 interface MainNavProps {
@@ -53,7 +53,7 @@ export default function MainNav({ user }: MainNavProps) {
         >
           <img src={hatchet} alt="Hatchet" className="h-9 rounded" />
         </button>
-        <div className="ml-auto flex items-center space-x-4">
+        <div className="ml-auto flex items-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -105,7 +105,7 @@ export default function MainNav({ user }: MainNavProps) {
                 variant="ghost"
                 className="relative h-10 w-10 rounded-full p-1"
               >
-                <UserCircleIcon className="h-6 w-6 text-foreground cursor-pointer" />
+                <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="end" forceMount>
