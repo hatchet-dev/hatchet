@@ -184,9 +184,12 @@ export default function GetStarted() {
               </Trigger>
               <AccordionContent className="py-4 px-6">
                 <DefaultOnboardingAuth
-                  tenant={currTenant.metadata.id}
+                  tenantId={currTenant.metadata.id}
                   onAuthComplete={() => {
                     setAuthComplete(true);
+                  }}
+                  skip={() => {
+                    progressToStep('worker');
                   }}
                 />
                 <Next step="worker" disabled={!authComplete} />

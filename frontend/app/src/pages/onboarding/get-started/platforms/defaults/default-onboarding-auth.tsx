@@ -1,23 +1,29 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import api, { CreateAPITokenRequest } from '@/lib/api';
+import api, { CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 export const DefaultOnboardingAuth: React.FC<{
-  tenant: string;
+  tenantId: string;
   onAuthComplete: () => void;
-}> = ({ tenant, onAuthComplete }) => {
+  skip: () => void;
+}> = ({ tenantId, onAuthComplete, skip }) => {
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
 
   const { handleApiError } = useApiError({});
 
+  const tokenQuery = useQuery({
+    ...queries.tokens.list(tenantId),
+    refetchInterval: 5000,
+  });
+
   const createTokenMutation = useMutation({
-    mutationKey: ['api-token:create', tenant],
+    mutationKey: ['api-token:create', tenantId],
     mutationFn: async (data: CreateAPITokenRequest) => {
-      const res = await api.apiTokenCreate(tenant, data);
+      const res = await api.apiTokenCreate(tenantId, data);
       return res.data;
     },
     onSuccess: (data) => {
@@ -62,9 +68,19 @@ export const DefaultOnboardingAuth: React.FC<{
       <p className="mb-4">
         Before you can start your worker, you need to generate an Auth token.
       </p>
-      <Button onClick={() => createTokenMutation.mutate({ name: 'default' })}>
+      <Button
+        onClick={() => createTokenMutation.mutate({ name: 'default' })}
+        className="mr-2"
+        variant="default"
+        size={'lg'}
+      >
         Generate Auth token
       </Button>
+      {(tokenQuery.data?.rows ?? []).length > 0 && (
+        <Button onClick={() => skip()} size={'lg'} variant="outline">
+          Skip
+        </Button>
+      )}
     </div>
   );
 };
