@@ -84,6 +84,15 @@ const routes = [
               }),
           },
           {
+            path: '/onboarding/get-started',
+            lazy: async () =>
+              import('./pages/onboarding/get-started').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
             path: '/onboarding/invites',
             lazy: async () =>
               import('./pages/onboarding/invites').then((res) => {
