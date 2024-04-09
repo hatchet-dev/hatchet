@@ -12,10 +12,44 @@ import { PropsWithChildren, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
 import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboarding-workflow';
+import { OnboardingInterface } from './platforms/_onboarding.interface';
+import { BiLogoGoLang, BiLogoPython, BiLogoTypescript } from 'react-icons/bi';
+import { IconType } from 'react-icons/lib';
 
 const DEFAULT_OPEN = ['platform'];
 
 const ALL_OPEN = ['platform', 'auth', 'worker', 'workflow'];
+
+const PLATFORMS: {
+  name: string;
+  icon: IconType;
+  onboarding: OnboardingInterface;
+}[] = [
+  {
+    name: 'Python',
+    icon: BiLogoPython,
+    onboarding: {
+      platform: () => <div>Python</div>,
+      worker: () => <div>Python</div>,
+    },
+  },
+  {
+    name: 'Typescript',
+    icon: BiLogoTypescript,
+    onboarding: {
+      platform: () => <div>Typescript</div>,
+      worker: () => <div>Typescript</div>,
+    },
+  },
+  {
+    name: 'Go',
+    icon: BiLogoGoLang,
+    onboarding: {
+      platform: () => <div>GoLang</div>,
+      worker: () => <div>GoLang</div>,
+    },
+  },
+];
 
 export default function GetStarted() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -23,6 +57,7 @@ export default function GetStarted() {
   const [currTenant] = useTenantContext();
 
   const [steps, setSteps] = useState(DEFAULT_OPEN);
+  const [platform, setPlatform] = useState<(typeof PLATFORMS)[0] | undefined>();
 
   const progressToStep = (step: string) => {
     setSteps((steps) => [...steps, step]);
@@ -64,6 +99,26 @@ export default function GetStarted() {
     </div>
   );
 
+  const PlatformPicker = () => (
+    <div className="flex flex-row gap-4">
+      {PLATFORMS.map((item) => (
+        <Button
+          key={item.name}
+          onClick={() => {
+            setPlatform(item);
+            progressToStep('setup');
+          }}
+          className={`flex flex-col items-center justify-center space-y-2 bg-white text-gray-800 w-24 h-24 rounded-lg shadow-md hover:bg-gray-100 ${!platform || platform?.name === item.name ? 'opacity-100' : 'opacity-50'}`}
+        >
+          <div className="flex items-center justify-center rounded-md w-16 h-16">
+            {item.icon && item.icon({ size: 48 })}
+          </div>
+          <span className="text-xs font-semibold">{item.name}</span>
+        </Button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="flex flex-col items-center justify-center w-full h-full">
       <div className="container mx-auto px-4 py-8 lg:px-8 lg:py-12 max-w-4xl">
@@ -71,7 +126,8 @@ export default function GetStarted() {
           <h1 className="text-3xl font-bold">Learn Hatchet in 5 steps</h1>
           <p className="text-lg">
             Set up a project and run your first workflow to understand the
-            fundamentals of building your application. <a
+            fundamentals of building your application.{' '}
+            <a
               href="https://docs.hatchet.run"
               className="text-blue-500 hover:underline"
             >
@@ -83,9 +139,8 @@ export default function GetStarted() {
               <Trigger stepComplete={steps.includes('platform')} i={1}>
                 Choose your platform
               </Trigger>
-              <AccordionContent className="py-4 px-6">
-                {/* TODO platform picker */}
-                <Next step='setup' />
+              <AccordionContent className="py-4 px-6 mb-4">
+                <PlatformPicker />
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="setup">
@@ -93,8 +148,8 @@ export default function GetStarted() {
                 Setup your application
               </Trigger>
               <AccordionContent className="py-4 px-6">
-                {/* TODO platform specific instructions */}
-                <Next step='auth' />
+                {platform && platform.onboarding.platform({})}
+                <Next step="auth" />
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="auth">
@@ -103,7 +158,7 @@ export default function GetStarted() {
               </Trigger>
               <AccordionContent className="py-4 px-6">
                 <DefaultOnboardingAuth />
-               <Next step='worker' />
+                <Next step="worker" />
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="worker">
@@ -111,8 +166,8 @@ export default function GetStarted() {
                 Start your worker
               </Trigger>
               <AccordionContent className="py-4 px-6">
-                {/* TODO platform specific run instructions */}
-                <Next step='workflow' />
+                {platform && platform.onboarding.worker({})}
+                <Next step="workflow" />
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="workflow">
@@ -120,8 +175,8 @@ export default function GetStarted() {
                 Trigger your first workflow run
               </Trigger>
               <AccordionContent className="py-4 px-6">
-                 <DefaultOnboardingWorkflow />
-                 {/* TODO continue to inspect workflow run */}
+                <DefaultOnboardingWorkflow />
+                {/* TODO continue to inspect workflow run */}
               </AccordionContent>
             </AccordionItem>
           </Accordion>
