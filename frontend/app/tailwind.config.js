@@ -6,7 +6,7 @@ module.exports = {
     './components/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
     './src/**/*.{ts,tsx}',
-	],
+  ],
   theme: {
     container: {
       center: true,
@@ -107,13 +107,20 @@ module.exports = {
             transform: "rotate(90deg)",
           },
         },
+        "jiggle": {
+          '0%, 100%': { transform: 'rotate(0deg)' },
+          '25%': { transform: 'rotate(5deg)' },
+          '75%': { transform: 'rotate(-5deg)' },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "flip": "flip 6s infinite steps(2, end)",
-            "rotate": "rotate 3s linear infinite both",
-      },    
+        "rotate": "rotate 3s linear infinite both",
+        "jiggle": 'jiggle 0.5s ease-in-out',
+
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],

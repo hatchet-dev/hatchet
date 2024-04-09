@@ -85,39 +85,41 @@ const TypescriptSetup = () => (
       <CodeHighlighter
         language="typescript"
         code={`import Hatchet, { Workflow } from "@hatchet-dev/typescript-sdk";
-  import dotenv from "dotenv";
-  
-  dotenv.config();
-  
-  const hatchet = Hatchet.init();
-  
-  const workflow: Workflow = {
-    id: "first-typescript-workflow",
-    description: "This is my first workflow",
-    on: {
-      event: "user:create",
-    },
-    steps: [
-      {
-        name: "step1",
-        run: async (ctx) => {
-          console.log(
-            "starting step1 with the following input",
-            ctx.workflowInput(),
-          );
-          return { result: "success!" };
-        },
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const hatchet = Hatchet.init();
+
+const workflow: Workflow = {
+  id: "first-workflow",
+  description: "This is my first workflow",
+  on: {
+    event: "tutorial:create",
+  },
+  steps: [
+    {
+      name: "first-step",
+      run: async (ctx) => {
+        console.log(
+          "Congratulations! You've successfully triggered your first workflow run! 🎉",
+        );
+
+        return {
+          result: "success!",
+        };
       },
-    ],
-  };
-  
-  async function main() {
-    const worker = await hatchet.worker("example-worker");
-    await worker.registerWorkflow(workflow);
-    worker.start();
-  }
-  
-  main();`}
+    },
+  ],
+};
+
+async function main() {
+  const worker = await hatchet.worker("tutorial-worker");
+  await worker.registerWorkflow(workflow);
+  worker.start();
+}
+
+main();`}
         copy
       />
     </div>

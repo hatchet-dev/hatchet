@@ -18,7 +18,7 @@ import { IconType } from 'react-icons/lib';
 import { typescriptOnboarding } from './platforms/typescript';
 import { WorkerListener } from './platforms/defaults/default-worker-listener';
 
-const DEFAULT_OPEN = ['platform'];
+const DEFAULT_OPEN = ['platform', 'worker', 'workflow'];
 
 const PLATFORMS: {
   name: string;
@@ -58,6 +58,7 @@ export default function GetStarted() {
 
   const [authComplete, setAuthComplete] = useState(false);
   const [workerConnected, setWorkerConnected] = useState(false);
+  const [workflowTriggered, setWorkflowTriggered] = useState(false);
 
   const progressToStep = (step: string) => {
     setSteps((steps) => [...steps, step]);
@@ -179,13 +180,12 @@ export default function GetStarted() {
               </Trigger>
               <AccordionContent className="py-4 px-6">
                 {platform && platform.onboarding.worker({})}
-                <div className='mt-5 text-xl'>
-
-                <WorkerListener
-                  tenantId={currTenant.metadata.id}
-                  setWorkerConnected={setWorkerConnected}
+                <div className="mt-5 text-xl">
+                  <WorkerListener
+                    tenantId={currTenant.metadata.id}
+                    setWorkerConnected={setWorkerConnected}
                   />
-                  </div>
+                </div>
                 <Next step="workflow" disabled={!workerConnected} />
               </AccordionContent>
             </AccordionItem>
@@ -194,8 +194,12 @@ export default function GetStarted() {
                 Trigger your first workflow run
               </Trigger>
               <AccordionContent className="py-4 px-6">
-                <DefaultOnboardingWorkflow />
-                {/* TODO continue to inspect workflow run */}
+                <DefaultOnboardingWorkflow
+                  tenantId={currTenant.metadata.id}
+                  workerConnected={workerConnected}
+                  setWorkflowTriggered={setWorkflowTriggered}
+                />
+
               </AccordionContent>
             </AccordionItem>
           </Accordion>

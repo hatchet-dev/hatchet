@@ -15,20 +15,20 @@ export const WorkerListener: React.FC<{
 
   const prevConnectedRef = useRef(false);
 
-useEffect(() => {
+  useEffect(() => {
     const connected =
-        listWorkersQuery.data?.rows && listWorkersQuery.data.rows.length > 0;
+      listWorkersQuery.data?.rows && listWorkersQuery.data.rows.length > 0;
 
     if (connected && !prevConnectedRef.current) {
-        const jsConfetti = new JSConfetti();
-        jsConfetti.addConfetti({
-            emojis: ['🪓'],
-        });
+      const jsConfetti = new JSConfetti();
+      jsConfetti.addConfetti({
+        emojis: ['🪓'],
+      });
     }
 
     prevConnectedRef.current = connected ?? false;
     setWorkerConnected(!!connected);
-}, [listWorkersQuery.data?.rows]);
+  }, [listWorkersQuery.data?.rows]);
 
   if (
     listWorkersQuery.isLoading ||
