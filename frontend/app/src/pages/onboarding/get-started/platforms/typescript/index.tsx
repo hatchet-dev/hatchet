@@ -163,7 +163,6 @@ const TypescriptWorker = () => (
       code={'npm run worker'}
       copy
     />
-    <p className="text-lg mt-8">Listener....</p>
   </div>
 );
 

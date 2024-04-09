@@ -16,6 +16,7 @@ import { OnboardingInterface } from './platforms/_onboarding.interface';
 import { BiLogoGoLang, BiLogoPython, BiLogoTypescript } from 'react-icons/bi';
 import { IconType } from 'react-icons/lib';
 import { typescriptOnboarding } from './platforms/typescript';
+import { WorkerListener } from './platforms/defaults/default-worker-listener';
 
 const DEFAULT_OPEN = ['platform'];
 
@@ -56,6 +57,7 @@ export default function GetStarted() {
   const [platform, setPlatform] = useState<(typeof PLATFORMS)[0] | undefined>();
 
   const [authComplete, setAuthComplete] = useState(false);
+  const [workerConnected, setWorkerConnected] = useState(false);
 
   const progressToStep = (step: string) => {
     setSteps((steps) => [...steps, step]);
@@ -138,6 +140,7 @@ export default function GetStarted() {
               Read the docs.
             </a>
           </p>
+
           <Accordion type="multiple" value={steps} className="w-full">
             <AccordionItem value="platform">
               <Trigger stepComplete={steps.includes('platform')} i={1}>
@@ -176,7 +179,14 @@ export default function GetStarted() {
               </Trigger>
               <AccordionContent className="py-4 px-6">
                 {platform && platform.onboarding.worker({})}
-                <Next step="workflow" />
+                <div className='mt-5 text-xl'>
+
+                <WorkerListener
+                  tenantId={currTenant.metadata.id}
+                  setWorkerConnected={setWorkerConnected}
+                  />
+                  </div>
+                <Next step="workflow" disabled={!workerConnected} />
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="workflow">
