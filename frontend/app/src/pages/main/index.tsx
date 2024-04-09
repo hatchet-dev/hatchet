@@ -7,12 +7,9 @@ import {
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
-
 import { Link, Outlet, useOutletContext } from 'react-router-dom';
 import { Tenant, TenantMember } from '@/lib/api';
-import {
-  GearIcon,
-} from '@radix-ui/react-icons';
+import { GearIcon } from '@radix-ui/react-icons';
 import React from 'react';
 import {
   MembershipsContextType,
@@ -135,4 +132,3 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
     </div>
   );
 }
-

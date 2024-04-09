@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import {
   BuildingOffice2Icon,
   // ChartBarSquareIcon,
-  CheckIcon
+  CheckIcon,
 } from '@heroicons/react/24/outline';
 import invariant from 'tiny-invariant';
 import {
@@ -11,7 +11,7 @@ import {
   CommandEmpty,
   CommandItem,
   CommandList,
-  CommandSeparator
+  CommandSeparator,
 } from '@/components/ui/command';
 import { Link } from 'react-router-dom';
 import { Tenant, TenantMember } from '@/lib/api';
@@ -19,7 +19,7 @@ import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import {
   PopoverTrigger,
   Popover,
-  PopoverContent
+  PopoverContent,
 } from '@radix-ui/react-popover';
 import React from 'react';
 import { useTenantContext } from '@/lib/atoms';
@@ -31,7 +31,9 @@ interface TenantSwitcherProps {
   currTenant: Tenant;
 }
 export function TenantSwitcher({
-  className, memberships, currTenant,
+  className,
+  memberships,
+  currTenant,
 }: TenantSwitcherProps) {
   const setCurrTenant = useTenantContext()[1];
   const [open, setOpen] = React.useState(false);
@@ -77,8 +79,9 @@ export function TenantSwitcher({
                     'ml-auto h-4 w-4',
                     currTenant.slug === membership.tenant?.slug
                       ? 'opacity-100'
-                      : 'opacity-0'
-                  )} />
+                      : 'opacity-0',
+                  )}
+                />
               </CommandItem>
             ))}
           </CommandList>
