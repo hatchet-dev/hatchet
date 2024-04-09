@@ -159,10 +159,10 @@ export default function GetStarted() {
             </AccordionItem>
             <AccordionItem value="auth">
               <Trigger stepComplete={steps.includes('auth')} i={3}>
-                Generate your Auth token
+                Generate your Hatchet Auth token
               </Trigger>
               <AccordionContent className="py-4 px-6">
-                <DefaultOnboardingAuth />
+                <DefaultOnboardingAuth tenant={currTenant.metadata.id} />
                 <Next step="worker" />
               </AccordionContent>
             </AccordionItem>
