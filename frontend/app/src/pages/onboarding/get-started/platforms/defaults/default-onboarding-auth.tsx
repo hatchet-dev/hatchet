@@ -11,9 +11,8 @@ export const DefaultOnboardingAuth: React.FC<{
   onAuthComplete: () => void;
 }> = ({ tenant, onAuthComplete }) => {
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
-  const [_, setFieldErrors] = useState<Record<string, string>>({});
 
-  const { handleApiError } = useApiError({ setFieldErrors: setFieldErrors });
+  const { handleApiError } = useApiError({});
 
   const createTokenMutation = useMutation({
     mutationKey: ['api-token:create', tenant],

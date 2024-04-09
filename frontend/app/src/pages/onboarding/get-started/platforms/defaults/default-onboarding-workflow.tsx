@@ -15,11 +15,7 @@ export const DefaultOnboardingWorkflow: React.FC<{
   workflowName = 'first-workflow',
   setWorkflowTriggered,
 }) => {
-  const [_, setErrors] = useState<string[]>([]);
-
-  const { handleApiError } = useApiError({
-    setErrors,
-  });
+  const { handleApiError } = useApiError({});
 
   const listWorkflows = useQuery({
     ...queries.workflows.list(tenantId),
@@ -42,9 +38,6 @@ export const DefaultOnboardingWorkflow: React.FC<{
       });
 
       return res.data;
-    },
-    onMutate: () => {
-      setErrors([]);
     },
     onSuccess: (workflowRun: WorkflowRun | undefined) => {
       if (!workflowRun) {
