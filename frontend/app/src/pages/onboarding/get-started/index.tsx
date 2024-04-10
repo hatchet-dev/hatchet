@@ -98,7 +98,7 @@ export default function GetStarted() {
       {!steps.includes(step) && (
         <Button
           onClick={() => progressToStep(step)}
-          className="bg-purple-500 text-white px-6 py-2 rounded-lg"
+          className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-lg"
           disabled={disabled}
         >
           Continue
