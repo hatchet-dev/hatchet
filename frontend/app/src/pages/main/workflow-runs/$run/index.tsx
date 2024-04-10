@@ -165,6 +165,9 @@ export const StepStatusDetails = ({ stepRun }: { stepRun: StepRun }) => {
       statusText = 'This step was cancelled';
 
       switch (stepRun.cancelledReason) {
+        case 'CANCELLED_BY_USER':
+          statusText = 'This step was cancelled by a user';
+          break;
         case 'TIMED_OUT':
           statusText = `This step was cancelled because it exceeded its timeout of ${
             stepRun.step?.timeout || '60s'

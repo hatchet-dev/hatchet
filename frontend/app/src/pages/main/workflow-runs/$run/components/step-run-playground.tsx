@@ -434,9 +434,8 @@ export function StepRunPlayground({
                     isLoading={isLoading}
                     errors={
                       [
-                        stepRun.cancelledReason,
                         ...errors,
-                        stepRun.error
+                        stepRun.error || stepRun.cancelledReason
                           ? StepStatusDetails({ stepRun })
                           : undefined,
                       ].filter((e) => !!e) as string[]
