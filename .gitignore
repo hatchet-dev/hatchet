@@ -1,7 +1,7 @@
 .DS_Store
 .env
 *.env
-docker/.env
+.envrc
 *.pem
 app
 !frontend/app
