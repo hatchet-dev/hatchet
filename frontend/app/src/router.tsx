@@ -12,7 +12,11 @@ const routes: RouteObject[] = [
   {
     path: '/',
     element: <Root />,
-    errorElement: <Root><ErrorBoundary /></Root>,
+    errorElement: (
+      <Root>
+        <ErrorBoundary />
+      </Root>
+    ),
     children: [
       {
         path: '/auth',
