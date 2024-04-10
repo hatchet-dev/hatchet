@@ -14,7 +14,7 @@ export default function ErrorBoundary() {
           <div className="mx-auto flex w-40 flex-col justify-center space-y-6 sm:w-[350px]">
             <div className="flex flex-col space-y-2 text-center">
               <h1 className="text-2xl font-semibold tracking-tight">
-                {error.statusText || error.status}
+                {error.statusText || error.status || 'Something went wrong'}
               </h1>
               <Button onClick={() => navigate('/')}>Return to Dashboard</Button>
             </div>
