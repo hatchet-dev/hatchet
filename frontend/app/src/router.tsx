@@ -2,18 +2,21 @@ import { FC } from 'react';
 import {
   createBrowserRouter,
   redirect,
+  RouteObject,
   RouterProvider,
 } from 'react-router-dom';
+import ErrorBoundary from './pages/error/index.tsx';
+import Root from './pages/root.tsx';
 
-const routes = [
+const routes: RouteObject[] = [
   {
     path: '/',
-    lazy: async () =>
-      import('./pages/root.tsx').then((res) => {
-        return {
-          Component: res.default,
-        };
-      }),
+    element: <Root />,
+    errorElement: (
+      <Root>
+        <ErrorBoundary />
+      </Root>
+    ),
     children: [
       {
         path: '/auth',
@@ -78,6 +81,15 @@ const routes = [
             path: '/onboarding/create-tenant',
             lazy: async () =>
               import('./pages/onboarding/create-tenant').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/onboarding/get-started',
+            lazy: async () =>
+              import('./pages/onboarding/get-started').then((res) => {
                 return {
                   Component: res.default,
                 };

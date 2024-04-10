@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/button';
-import { UserCircleIcon } from '@heroicons/react/24/outline';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +15,14 @@ import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
 import { useSidebar } from '@/components/sidebar-provider';
+import {
+  BiBook,
+  BiCalendar,
+  BiHelpCircle,
+  BiLogoDiscordAlt,
+  BiSolidGraduation,
+  BiUserCircle,
+} from 'react-icons/bi';
 
 interface MainNavProps {
   user: User;
@@ -46,14 +53,59 @@ export default function MainNav({ user }: MainNavProps) {
         >
           <img src={hatchet} alt="Hatchet" className="h-9 rounded" />
         </button>
-        <div className="ml-auto flex items-center space-x-4">
+        <div className="ml-auto flex items-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 className="relative h-10 w-10 rounded-full p-1"
               >
-                <UserCircleIcon className="h-6 w-6 text-foreground cursor-pointer" />
+                <BiHelpCircle className="h-6 w-6 text-foreground cursor-pointer" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuItem
+                onClick={() =>
+                  window.open(
+                    'https://docs.hatchet.run/home/basics/steps',
+                    '_blank',
+                  )
+                }
+              >
+                <BiBook className="mr-2" />
+                Documentation
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() =>
+                  window.open('https://discord.com/invite/ZMeUafwH89', '_blank')
+                }
+              >
+                <BiLogoDiscordAlt className="mr-2" />
+                Join Discord
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() =>
+                  window.open('https://hatchet.run/office-hours', '_blank')
+                }
+              >
+                <BiCalendar className="mr-2" />
+                Schedule Office Hours
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => window.open('/onboarding/get-started', '_self')}
+              >
+                <BiSolidGraduation className="mr-2" />
+                Restart Tutorial
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="relative h-10 w-10 rounded-full p-1"
+              >
+                <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="end" forceMount>

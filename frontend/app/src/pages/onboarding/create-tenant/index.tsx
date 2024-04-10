@@ -19,11 +19,15 @@ export default function CreateTenant() {
   const createMutation = useMutation({
     mutationKey: ['user:update:login'],
     mutationFn: async (data: CreateTenantRequest) => {
-      await api.tenantCreate(data);
+      const tenant = await api.tenantCreate(data);
+      return tenant.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (tenant) => {
       await listMembershipsQuery.refetch();
-      navigate('/');
+      navigate({
+        pathname: `/onboarding/get-started`,
+        search: `tenant=${tenant.metadata.id}`,
+      });
     },
     onError: handleApiError,
   });
