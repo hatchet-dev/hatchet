@@ -15,6 +15,7 @@ SyntaxHighlighter.registerLanguage('json', json);
 
 export function CodeHighlighter({
   code,
+  copyCode,
   setCode,
   language,
   className,
@@ -24,6 +25,7 @@ export function CodeHighlighter({
   wrapLines = true,
 }: {
   code: string;
+  copyCode?: string;
   setCode?: (code: string) => void;
   language: string;
   className?: string;
@@ -76,7 +78,7 @@ export function CodeHighlighter({
           {code.trim()}
         </SyntaxHighlighter>
       </div>
-      {copy && <CopyToClipboard text={code.trim()} withText />}
+      {copy && <CopyToClipboard text={(copyCode || code).trim()} withText />}
     </div>
   );
 }
