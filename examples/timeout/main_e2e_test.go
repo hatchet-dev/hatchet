@@ -18,19 +18,28 @@ func TestTimeout(t *testing.T) {
 
 	tests := []struct {
 		name string
-		job  worker.WorkflowJob
+		job  func(done func()) worker.WorkflowJob
 	}{
 		{
 			name: "step timeout",
-			job: worker.WorkflowJob{
-				Name:        "timeout",
-				Description: "timeout",
-				Steps: []*worker.WorkflowStep{
-					worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-						time.Sleep(time.Second * 60)
-						return nil, nil
-					}).SetName("step-one").SetTimeout("10s"),
-				},
+			job: func(done func()) worker.WorkflowJob {
+				return worker.WorkflowJob{
+					Name:        "timeout",
+					Description: "timeout",
+					Steps: []*worker.WorkflowStep{
+						worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+							select {
+							case <-time.After(time.Second * 30):
+								return &stepOneOutput{
+									Message: "finished",
+								}, nil
+							case <-ctx.Done():
+								done()
+								return nil, nil
+							}
+						}).SetName("step-one").SetTimeout("10s"),
+					},
+				}
 			},
 		},
 	}
@@ -41,7 +50,9 @@ func TestTimeout(t *testing.T) {
 
 			events := make(chan string, 50)
 
-			cleanup, err := run(events, tt.job)
+			cleanup, err := run(events, tt.job(func() {
+				events <- "done"
+			}))
 			if err != nil {
 				t.Fatalf("run() error = %s", err)
 			}
@@ -59,7 +70,8 @@ func TestTimeout(t *testing.T) {
 			}
 
 			assert.Equal(t, []string{
-				"done",
+				"done", // cancellation signal
+				"done", // test check
 			}, items)
 
 			if err := cleanup(); err != nil {
