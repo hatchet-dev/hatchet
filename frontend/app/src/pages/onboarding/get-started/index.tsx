@@ -26,6 +26,8 @@ import { IconType } from 'react-icons/lib';
 import { typescriptOnboarding } from './platforms/typescript';
 import { WorkerListener } from './platforms/defaults/default-worker-listener';
 import { Badge } from '@/components/ui/badge';
+import { pythonOnboarding } from './platforms/python';
+import { goOnboarding } from './platforms/go';
 
 const DEFAULT_OPEN = ['platform'];
 
@@ -37,10 +39,7 @@ const PLATFORMS: {
   {
     name: 'Python',
     icon: BiLogoPython,
-    onboarding: {
-      setup: () => <div></div>,
-      worker: () => <div>Python</div>,
-    },
+    onboarding: pythonOnboarding
   },
   {
     name: 'Typescript',
@@ -50,10 +49,7 @@ const PLATFORMS: {
   {
     name: 'Go',
     icon: BiLogoGoLang,
-    onboarding: {
-      setup: () => <div>GoLang</div>,
-      worker: () => <div>GoLang</div>,
-    },
+    onboarding: goOnboarding
   },
 ];
 
