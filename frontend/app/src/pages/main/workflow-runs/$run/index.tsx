@@ -151,7 +151,9 @@ const getStatusText = (stepRun: StepRun): string => {
     case StepRunStatus.RUNNING:
       return 'This step is currently running';
     case StepRunStatus.FAILED:
-      return stepRun.error ? `This step failed with error ${stepRun.error}` : 'This step failed';
+      return stepRun.error
+        ? `This step failed with error ${stepRun.error}`
+        : 'This step failed';
     case StepRunStatus.CANCELLED:
       return getCancelledStatusText(stepRun);
     case StepRunStatus.SUCCEEDED:
