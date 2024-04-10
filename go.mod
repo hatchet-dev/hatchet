@@ -104,7 +104,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.2.1
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.1
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/invopop/jsonschema v0.12.0
