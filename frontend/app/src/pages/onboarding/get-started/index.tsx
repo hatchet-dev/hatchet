@@ -64,6 +64,7 @@ export default function GetStarted() {
 
   const [steps, setSteps] = useState(DEFAULT_OPEN);
   const [platform, setPlatform] = useState<(typeof PLATFORMS)[0] | undefined>();
+  const [existingProject, setExistingProject] = useState<boolean>();
 
   const [authComplete, setAuthComplete] = useState(false);
   const [workerConnected, setWorkerConnected] = useState(false);
@@ -111,13 +112,13 @@ export default function GetStarted() {
   );
 
   const PlatformPicker = () => (
+    <>
     <div className="flex flex-row gap-4">
       {PLATFORMS.map((item) => (
         <Button
           key={item.name}
           onClick={() => {
             setPlatform(item);
-            progressToStep('setup');
           }}
           className={`flex flex-col items-center justify-center space-y-2 bg-white text-gray-800 w-24 h-24 rounded-lg shadow-md hover:bg-gray-100 ${!platform || platform?.name === item.name ? 'opacity-100' : 'opacity-50'}`}
         >
@@ -128,6 +129,28 @@ export default function GetStarted() {
         </Button>
       ))}
     </div>
+    { platform && <div className="flex flex-row gap-4 mt-4">
+        <Button
+          onClick={() => {
+            setExistingProject(true)
+            progressToStep('setup');
+          }}
+          className={`flex flex-col items-center justify-center space-y-2 bg-white text-gray-800 rounded-lg shadow-md hover:bg-gray-100 ${existingProject === undefined || existingProject ? 'opacity-100' : 'opacity-50'}`}
+        >
+          <span className="text-xs font-semibold">Add Hatchet to an Existing Project</span>
+        </Button>
+        <Button
+          onClick={() => {
+            setExistingProject(false)
+            progressToStep('setup');
+          }}
+          className={`flex flex-col items-center justify-center space-y-2 bg-white text-gray-800  rounded-lg shadow-md hover:bg-gray-100 ${existingProject === undefined || !existingProject ? 'opacity-100' : 'opacity-50'}`}
+        >
+  
+          <span className="text-xs font-semibold">Start a New Tutorial Project from Scratch</span>
+        </Button>
+    </div>}
+    </>
   );
 
   return (
@@ -174,7 +197,10 @@ export default function GetStarted() {
                 Setup your application
               </Trigger>
               <AccordionContent className="py-4 px-6">
-                {platform && platform.onboarding.setup({})}
+                {platform &&
+                  platform.onboarding.setup({
+                    existingProject: !!existingProject,
+                  })}
                 <Next step="auth" />
               </AccordionContent>
             </AccordionItem>

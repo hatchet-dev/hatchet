@@ -2,30 +2,42 @@ import { Badge } from '@/components/ui/badge';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { OnboardingInterface } from '../_onboarding.interface';
 
-const TypescriptSetup = () => (
+const TypescriptSetup: typeof typescriptOnboarding.setup = ({
+  existingProject,
+}) => (
   <div className="space-y-8">
-    <div>
-      <h3 className="text-xl font-semibold mb-2">
-        Create a new project directory and cd into it
-      </h3>
-      <CodeHighlighter
-        language="plaintext"
-        className="text-sm"
-        wrapLines={false}
-        code={'mkdir hatchet-tutorial && cd hatchet-tutorial'}
-        copy
-      />
-    </div>
-    <div>
-      <h3 className="text-xl font-semibold mb-2">Init a new npm project</h3>
-      <CodeHighlighter
-        language="plaintext"
-        className="text-sm"
-        wrapLines={false}
-        code={'npm init -y'}
-        copy
-      />
-    </div>
+    {existingProject ? (
+      <div>
+        <h3 className="text-xl font-semibold mb-2">
+          Open a new terminal and cd into your project directory
+        </h3>
+      </div>
+    ) : (
+      <>
+        <div>
+          <h3 className="text-xl font-semibold mb-2">
+            Create a new project directory and cd into it
+          </h3>
+          <CodeHighlighter
+            language="plaintext"
+            className="text-sm"
+            wrapLines={false}
+            code={'mkdir hatchet-tutorial && cd hatchet-tutorial'}
+            copy
+          />
+        </div>
+        <div>
+          <h3 className="text-xl font-semibold mb-2">Init a new npm project</h3>
+          <CodeHighlighter
+            language="plaintext"
+            className="text-sm"
+            wrapLines={false}
+            code={'npm init -y'}
+            copy
+          />
+        </div>
+      </>
+    )}
     <div>
       <h3 className="text-xl font-semibold mb-2">
         Install Hatchet and dev dependencies
@@ -34,8 +46,13 @@ const TypescriptSetup = () => (
         language="plaintext"
         className="text-sm"
         wrapLines={false}
-        code={`npm i @hatchet-dev/typescript-sdk
-npm i typescript @types/node ts-node dotenv --save-dev`}
+        code={
+          existingProject
+            ? `npm i @hatchet-dev/typescript-sdk
+npm i typescript @types/node ts-node dotenv --save-dev`
+            : `npm i @hatchet-dev/typescript-sdk
+npm i ts-node dotenv --save-dev`
+        }
         copy
       />
       <p className="mt-2">
@@ -44,20 +61,21 @@ npm i typescript @types/node ts-node dotenv --save-dev`}
         variables.
       </p>
     </div>
-    <div>
-      <h3 className="text-xl font-semibold mb-2">
-        Setup your TypeScript configuration
-      </h3>
-      <p className="mb-2">
-        Copy the following code into a new file called{' '}
-        <Badge variant="secondary">tsconfig.json</Badge> in your project root
-        directory.
-      </p>
-      <CodeHighlighter
-        language="json"
-        className="text-sm"
-        wrapLines={false}
-        code={`{
+    {!existingProject && (
+      <div>
+        <h3 className="text-xl font-semibold mb-2">
+          Setup your TypeScript configuration
+        </h3>
+        <p className="mb-2">
+          Copy the following code into a new file called{' '}
+          <Badge variant="secondary">tsconfig.json</Badge> in your project root
+          directory.
+        </p>
+        <CodeHighlighter
+          language="json"
+          className="text-sm"
+          wrapLines={false}
+          code={`{
     "include": ["src/**/*.ts"],
     "exclude": ["./dist"],
     "compilerOptions": {
@@ -73,15 +91,16 @@ npm i typescript @types/node ts-node dotenv --save-dev`}
       "skipLibCheck": true
     }
   }`}
-        copy
-      />
-    </div>
+          copy
+        />
+      </div>
+    )}
     <div>
       <h3 className="text-xl font-semibold mb-2">Define your first workflow</h3>
       <p className="mb-2">
         Copy the following code into a new file called{' '}
-        <Badge variant="secondary">index.ts</Badge> in your project root
-        directory.
+        <Badge variant="secondary">first-workflow.ts</Badge> in your project
+        root directory.
       </p>
       <CodeHighlighter
         language="typescript"
@@ -136,11 +155,12 @@ main();`}
         language="json"
         className="text-sm"
         wrapLines={false}
+        copyCode={`"worker": "ts-node first-workflow.ts"`}
         code={`{
     // ... the rest of your package.json
     "scripts": {
       // ... other scripts
-      "worker": "ts-node index.ts"
+      "worker": "ts-node first-workflow.ts"
     }
   }`}
         copy
@@ -153,7 +173,7 @@ main();`}
   </div>
 );
 
-const TypescriptWorker = () => (
+const TypescriptWorker: typeof typescriptOnboarding.worker = () => (
   <div>
     <p className="mb-2">
       Your TypeScript application is now set up. To start your worker, run the
@@ -170,6 +190,6 @@ const TypescriptWorker = () => (
 );
 
 export const typescriptOnboarding: OnboardingInterface = {
-  setup: () => <TypescriptSetup />,
-  worker: () => <TypescriptWorker />,
+  setup: TypescriptSetup,
+  worker: TypescriptWorker,
 };
