@@ -2,18 +2,17 @@ import { FC } from 'react';
 import {
   createBrowserRouter,
   redirect,
+  RouteObject,
   RouterProvider,
 } from 'react-router-dom';
+import ErrorBoundary from './pages/error/index.tsx';
+import Root from './pages/root.tsx';
 
-const routes = [
+const routes: RouteObject[] = [
   {
     path: '/',
-    lazy: async () =>
-      import('./pages/root.tsx').then((res) => {
-        return {
-          Component: res.default,
-        };
-      }),
+    element: <Root />,
+    errorElement: <Root><ErrorBoundary /></Root>,
     children: [
       {
         path: '/auth',
