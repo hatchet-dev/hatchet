@@ -113,43 +113,48 @@ export default function GetStarted() {
 
   const PlatformPicker = () => (
     <>
-    <div className="flex flex-row gap-4">
-      {PLATFORMS.map((item) => (
-        <Button
-          key={item.name}
-          onClick={() => {
-            setPlatform(item);
-          }}
-          className={`flex flex-col items-center justify-center space-y-2 bg-white text-gray-800 w-24 h-24 rounded-lg shadow-md hover:bg-gray-100 ${!platform || platform?.name === item.name ? 'opacity-100' : 'opacity-50'}`}
-        >
-          <div className="flex items-center justify-center rounded-md w-16 h-16">
-            {item.icon && item.icon({ size: 48 })}
-          </div>
-          <span className="text-xs font-semibold">{item.name}</span>
-        </Button>
-      ))}
-    </div>
-    { platform && <div className="flex flex-row gap-4 mt-4">
-        <Button
-          onClick={() => {
-            setExistingProject(true)
-            progressToStep('setup');
-          }}
-          className={`flex flex-col items-center justify-center space-y-2 bg-white text-gray-800 rounded-lg shadow-md hover:bg-gray-100 ${existingProject === undefined || existingProject ? 'opacity-100' : 'opacity-50'}`}
-        >
-          <span className="text-xs font-semibold">Add Hatchet to an Existing Project</span>
-        </Button>
-        <Button
-          onClick={() => {
-            setExistingProject(false)
-            progressToStep('setup');
-          }}
-          className={`flex flex-col items-center justify-center space-y-2 bg-white text-gray-800  rounded-lg shadow-md hover:bg-gray-100 ${existingProject === undefined || !existingProject ? 'opacity-100' : 'opacity-50'}`}
-        >
-  
-          <span className="text-xs font-semibold">Start a New Tutorial Project from Scratch</span>
-        </Button>
-    </div>}
+      <div className="flex flex-row gap-4">
+        {PLATFORMS.map((item) => (
+          <Button
+            key={item.name}
+            onClick={() => {
+              setPlatform(item);
+            }}
+            className={`flex flex-col items-center justify-center space-y-2 bg-white text-gray-800 w-24 h-24 rounded-lg shadow-md hover:bg-gray-100 ${!platform || platform?.name === item.name ? 'opacity-100' : 'opacity-50'}`}
+          >
+            <div className="flex items-center justify-center rounded-md w-16 h-16">
+              {item.icon && item.icon({ size: 48 })}
+            </div>
+            <span className="text-xs font-semibold">{item.name}</span>
+          </Button>
+        ))}
+      </div>
+      {platform && (
+        <div className="flex flex-row gap-4 mt-4">
+          <Button
+            onClick={() => {
+              setExistingProject(true);
+              progressToStep('setup');
+            }}
+            className={`flex flex-col items-center justify-center space-y-2 bg-white text-gray-800 rounded-lg shadow-md hover:bg-gray-100 ${existingProject === undefined || existingProject ? 'opacity-100' : 'opacity-50'}`}
+          >
+            <span className="text-xs font-semibold">
+              Add Hatchet to an Existing Project
+            </span>
+          </Button>
+          <Button
+            onClick={() => {
+              setExistingProject(false);
+              progressToStep('setup');
+            }}
+            className={`flex flex-col items-center justify-center space-y-2 bg-white text-gray-800  rounded-lg shadow-md hover:bg-gray-100 ${existingProject === undefined || !existingProject ? 'opacity-100' : 'opacity-50'}`}
+          >
+            <span className="text-xs font-semibold">
+              Start a New Tutorial Project from Scratch
+            </span>
+          </Button>
+        </div>
+      )}
     </>
   );
 
