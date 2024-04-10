@@ -119,7 +119,6 @@ func (w *WorkerImpl) Start() (func() error, error) {
 		&worker.WorkflowJob{
 			Name:        PullRequestWorkflow,
 			Description: "Workflow that creates a new pull request.",
-			Timeout:     "60s",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(w.handleStartPullRequest).SetName("start-pull-request"),
 			},
