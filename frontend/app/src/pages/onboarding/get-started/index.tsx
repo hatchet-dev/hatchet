@@ -134,7 +134,7 @@ export default function GetStarted() {
     <div className="flex flex-col items-center w-full h-full overflow-auto">
       <div className="container mx-auto px-4 py-8 lg:px-8 lg:py-12 max-w-4xl">
         <div className="flex flex-col justify-center space-y-4">
-          <div className="flex flex-row justify-between">
+          <div className="flex flex-row justify-between mt-10">
             <h1 className="text-3xl font-bold">Learn Hatchet in 5 steps</h1>
 
             <a href="/">
