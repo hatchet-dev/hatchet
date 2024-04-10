@@ -2,9 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { OnboardingInterface } from '../_onboarding.interface';
 
-const GoSetup: typeof goOnboarding.setup = ({
-  existingProject,
-}) => (
+const GoSetup: typeof goOnboarding.setup = ({ existingProject }) => (
   <div className="space-y-8">
     {existingProject ? (
       <div>
@@ -27,7 +25,9 @@ const GoSetup: typeof goOnboarding.setup = ({
           />
         </div>
         <div>
-          <h3 className="text-xl font-semibold mb-2">Initialize a new Go module</h3>
+          <h3 className="text-xl font-semibold mb-2">
+            Initialize a new Go module
+          </h3>
           <CodeHighlighter
             language="plaintext"
             className="text-sm"
@@ -56,7 +56,9 @@ const GoSetup: typeof goOnboarding.setup = ({
       </p>
     </div>
     <div>
-      <h3 className="text-xl font-semibold mb-2">Define your first Go workflow</h3>
+      <h3 className="text-xl font-semibold mb-2">
+        Define your first Go workflow
+      </h3>
       <p className="mb-2">
         Copy the following code into a new file called{' '}
         <Badge variant="secondary">first_workflow.go</Badge> in your project
@@ -153,8 +155,8 @@ func run() (func() error, error) {
 const GoWorker: typeof goOnboarding.worker = () => (
   <div>
     <p className="mb-2">
-      Your Go application is now set up. To start your worker, run the
-      following command in your terminal:
+      Your Go application is now set up. To start your worker, run the following
+      command in your terminal:
     </p>
     <CodeHighlighter
       language="plaintext"

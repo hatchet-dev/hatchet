@@ -39,7 +39,7 @@ const PLATFORMS: {
   {
     name: 'Python',
     icon: BiLogoPython,
-    onboarding: pythonOnboarding
+    onboarding: pythonOnboarding,
   },
   {
     name: 'Typescript',
@@ -49,7 +49,7 @@ const PLATFORMS: {
   {
     name: 'Go',
     icon: BiLogoGoLang,
-    onboarding: goOnboarding
+    onboarding: goOnboarding,
   },
 ];
 

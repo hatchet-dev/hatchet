@@ -2,9 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { OnboardingInterface } from '../_onboarding.interface';
 
-const PythonSetup: typeof pythonOnboarding.setup = ({
-  existingProject,
-}) => (
+const PythonSetup: typeof pythonOnboarding.setup = ({ existingProject }) => (
   <div className="space-y-8">
     {existingProject ? (
       <div>
@@ -58,7 +56,9 @@ const PythonSetup: typeof pythonOnboarding.setup = ({
       </p>
     </div>
     <div>
-      <h3 className="text-xl font-semibold mb-2">Define your first Python workflow</h3>
+      <h3 className="text-xl font-semibold mb-2">
+        Define your first Python workflow
+      </h3>
       <p className="mb-2">
         Copy the following code into a new file called{' '}
         <Badge variant="secondary">first_workflow.py</Badge> in your project
@@ -98,12 +98,10 @@ if __name__ == "__main__":
 
 const PythonWorker: typeof pythonOnboarding.worker = () => (
   <div>
-    <h1 className="text-2xl font-bold mb-2">
-      Start your Python worker
-    </h1>
+    <h1 className="text-2xl font-bold mb-2">Start your Python worker</h1>
     <p className="mb-2">
-      Your Python worker is now set up. To start your worker, run the
-      following command in your terminal:
+      Your Python worker is now set up. To start your worker, run the following
+      command in your terminal:
     </p>
     <CodeHighlighter
       language="plaintext"
