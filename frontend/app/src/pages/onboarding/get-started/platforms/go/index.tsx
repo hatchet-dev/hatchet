@@ -146,7 +146,7 @@ func run() (func() error, error) {
     <div>
       <p className="mt-4">
         Your project is now ready to rock! Continue to the next step to generate
-        your Hatchet Auth token and then start the worker.
+        your Hatchet auth token and then start the worker.
       </p>
     </div>
   </div>

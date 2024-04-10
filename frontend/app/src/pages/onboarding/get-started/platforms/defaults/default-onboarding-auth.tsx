@@ -41,9 +41,9 @@ export const DefaultOnboardingAuth: React.FC<{
           this file.
         </p>
         <p className="mb-4">
-          This is the only time we will show you this token. Make sure to copy
-          it somewhere safe and do not share it with others. You can manage your
-          tokens from the settings page.
+          This is the only time we will show you this auth token. Make sure to
+          copy it somewhere safe and do not share it with others. You can manage
+          your auth tokens from the settings page.
         </p>
         <div className="rounded-lg p-4 mb-6" onClick={onAuthComplete}>
           <CodeHighlighter
@@ -66,7 +66,7 @@ export const DefaultOnboardingAuth: React.FC<{
   return (
     <div>
       <p className="mb-4">
-        Before you can start your worker, you need to generate an Auth token.
+        Before you can start your worker, you need to generate an auth token.
       </p>
       <Button
         onClick={() => createTokenMutation.mutate({ name: 'default' })}
@@ -74,7 +74,7 @@ export const DefaultOnboardingAuth: React.FC<{
         variant="default"
         size={'lg'}
       >
-        Generate Auth token
+        Generate Auth Token
       </Button>
       {(tokenQuery.data?.rows ?? []).length > 0 && (
         <Button onClick={() => skip()} size={'lg'} variant="outline">

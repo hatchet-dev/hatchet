@@ -80,7 +80,7 @@ export default function GetStarted() {
     i,
   }: PropsWithChildren & { stepComplete: boolean; i: number }) => (
     <AccordionTrigger
-      className={`flex items-center justify-start py-4 text-xl font-semibold ${
+      className={`flex items-center justify-start py-4 text-xl font-semibold hover:no-underline	 ${
         stepComplete ? '' : 'opacity-50'
       }`}
       hideChevron={true}
@@ -159,7 +159,9 @@ export default function GetStarted() {
       <div className="container mx-auto px-4 py-8 lg:px-8 lg:py-12 max-w-4xl">
         <div className="flex flex-col justify-center space-y-4">
           <div className="flex flex-row justify-between mt-10">
-            <h1 className="text-3xl font-bold">Learn Hatchet in 5 steps</h1>
+            <h1 className="text-3xl font-bold">
+              Run your First Workflow in Hatchet
+            </h1>
 
             <a href="/">
               <Button variant="outline">Skip Tutorial</Button>
@@ -171,14 +173,14 @@ export default function GetStarted() {
             </Badge>
           </p>
 
-          <p className="text-lg">
+          <p className="text-gray-300">
             Get started with Hatchet Cloud by creating a new project, connecting
             your worker, and triggering your first workflow run! At the end of
             this tutorial, you'll have the skills needed to deploy distributed
             workflows with hatchet.{' '}
             <a
               href="https://docs.hatchet.run"
-              className="text-purple-500 hover:underline"
+              className="text-purple-300 hover:underline"
             >
               Read the docs.
             </a>
@@ -207,7 +209,7 @@ export default function GetStarted() {
             </AccordionItem>
             <AccordionItem value="auth">
               <Trigger stepComplete={steps.includes('auth')} i={3}>
-                Generate your Hatchet Auth token
+                Generate your Hatchet auth token
               </Trigger>
               <AccordionContent className="py-4 px-6">
                 <DefaultOnboardingAuth

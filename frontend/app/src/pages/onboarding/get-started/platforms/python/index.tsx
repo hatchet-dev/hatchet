@@ -93,6 +93,12 @@ if __name__ == "__main__":
         copy
       />
     </div>
+    <div>
+      <p className="mt-4">
+        Your project is now ready to rock! Continue to the next step to generate
+        your Hatchet auth token and then start the worker.
+      </p>
+    </div>
   </div>
 );
 
