@@ -1,6 +1,7 @@
 package grpc
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -27,6 +28,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
 type Server struct {
@@ -35,6 +37,7 @@ type Server struct {
 	admincontracts.UnimplementedWorkflowServiceServer
 
 	l           *zerolog.Logger
+	a           errors.Alerter
 	port        int
 	bindAddress string
 
@@ -51,6 +54,7 @@ type ServerOpt func(*ServerOpts)
 type ServerOpts struct {
 	config      *server.ServerConfig
 	l           *zerolog.Logger
+	a           errors.Alerter
 	port        int
 	bindAddress string
 	ingestor    ingestor.Ingestor
@@ -62,9 +66,11 @@ type ServerOpts struct {
 
 func defaultServerOpts() *ServerOpts {
 	logger := logger.NewDefaultLogger("grpc")
+	a := errors.NoOpAlerter{}
 
 	return &ServerOpts{
 		l:           &logger,
+		a:           a,
 		port:        7070,
 		bindAddress: "127.0.0.1",
 		insecure:    false,
@@ -74,6 +80,12 @@ func defaultServerOpts() *ServerOpts {
 func WithLogger(l *zerolog.Logger) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.l = l
+	}
+}
+
+func WithAlerter(a errors.Alerter) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.a = a
 	}
 }
 
@@ -145,6 +157,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 
 	return &Server{
 		l:           opts.l,
+		a:           opts.a,
 		config:      opts.config,
 		port:        opts.port,
 		bindAddress: opts.bindAddress,
@@ -194,9 +207,14 @@ func (s *Server) startGRPC() (func() error, error) {
 			panicStr = panicErr.Error()
 		}
 
-		s.l.Error().Msgf("recovered from panic: %s. Stack: %s", panicStr, string(debug.Stack()))
+		err = fmt.Errorf("recovered from panic: %s. Stack: %s", panicStr, string(debug.Stack()))
+
+		s.l.Err(err).Msg("")
+		s.a.SendAlert(context.Background(), err, nil)
 		return status.Errorf(codes.Internal, "An internal error occurred")
 	}
+
+	errorInterceptor := middleware.NewErrorInterceptor(s.a, s.l)
 
 	opts := []logging.Option{
 		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall),
@@ -205,12 +223,14 @@ func (s *Server) startGRPC() (func() error, error) {
 	serverOpts = append(serverOpts, grpc.ChainStreamInterceptor(
 		logging.StreamServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
 		auth.StreamServerInterceptor(authMiddleware.Middleware),
+		errorInterceptor.ErrorStreamServerInterceptor(),
 		recovery.StreamServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
 
 	serverOpts = append(serverOpts, grpc.ChainUnaryInterceptor(
 		logging.UnaryServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
 		auth.UnaryServerInterceptor(authMiddleware.Middleware),
+		errorInterceptor.ErrorUnaryServerInterceptor(),
 		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
 
