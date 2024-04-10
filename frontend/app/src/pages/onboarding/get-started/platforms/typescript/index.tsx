@@ -34,7 +34,8 @@ const TypescriptSetup = () => (
         language="plaintext"
         className="text-sm"
         wrapLines={false}
-        code={`npm i @hatchet-dev/typescript-sdk npm i typescript @types/node ts-node dotenv --save-dev`}
+        code={`npm i @hatchet-dev/typescript-sdk
+npm i typescript @types/node ts-node dotenv --save-dev`}
         copy
       />
       <p className="mt-2">
