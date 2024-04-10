@@ -681,10 +681,6 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 			description = *jobOpts.Description
 		}
 
-		if jobOpts.Timeout != nil {
-			timeout = *jobOpts.Timeout
-		}
-
 		sqlcJob, err := r.queries.CreateJob(
 			context.Background(),
 			tx,

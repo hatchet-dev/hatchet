@@ -42,15 +42,15 @@ message WorkflowConcurrencyOpts {
     int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
     ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
 }
-  
+
 // CreateWorkflowJobOpts represents options to create a workflow job.
 message CreateWorkflowJobOpts {
     string name = 1; // (required) the job name
     string description = 2; // (optional) the job description
-    string timeout = 3; // (optional) the job timeout
+    reserved 3; // (deprecated) timeout
     repeated CreateWorkflowStepOpts steps = 4; // (required) the job steps
 }
-  
+
 // CreateWorkflowStepOpts represents options to create a workflow step.
 message CreateWorkflowStepOpts {
     string readable_id = 1; // (required) the step name
@@ -80,20 +80,20 @@ message ScheduleWorkflowRequest {
     string input = 3;
 
     // (optional) the parent workflow run id
-    optional string parent_id = 4; 
+    optional string parent_id = 4;
 
     // (optional) the parent step run id
     optional string parent_step_run_id = 5;
 
     // (optional) the index of the child workflow. if this is set, matches on the index or the
-    // child key will be a no-op, even if the schedule has changed. 
+    // child key will be a no-op, even if the schedule has changed.
     optional int32 child_index = 6;
 
     // (optional) the key for the child. if this is set, matches on the index or the
-    // child key will be a no-op, even if the schedule has changed. 
+    // child key will be a no-op, even if the schedule has changed.
     optional string child_key = 7;
 }
-    
+
 // WorkflowVersion represents the WorkflowVersion model.
 message WorkflowVersion {
     string id = 1;
@@ -103,19 +103,19 @@ message WorkflowVersion {
     int32 order = 6;
     string workflow_id = 7;
 }
-  
+
 // WorkflowTriggerEventRef represents the WorkflowTriggerEventRef model.
 message WorkflowTriggerEventRef {
     string parent_id = 1;
     string event_key = 2;
 }
-  
+
 // WorkflowTriggerCronRef represents the WorkflowTriggerCronRef model.
 message WorkflowTriggerCronRef {
     string parent_id = 1;
     string cron = 2;
 }
-  
+
 message TriggerWorkflowRequest {
     string name = 1;
 
@@ -123,19 +123,19 @@ message TriggerWorkflowRequest {
     string input = 2;
 
     // (optional) the parent workflow run id
-    optional string parent_id = 3; 
+    optional string parent_id = 3;
 
     // (optional) the parent step run id
     optional string parent_step_run_id = 4;
 
     // (optional) the index of the child workflow. if this is set, matches on the index or the
     // child key will return an existing workflow run if the parent id, parent step run id, and
-    // child index/key match an existing workflow run. 
+    // child index/key match an existing workflow run.
     optional int32 child_index = 5;
 
     // (optional) the key for the child. if this is set, matches on the index or the
     // child key will return an existing workflow run if the parent id, parent step run id, and
-    // child index/key match an existing workflow run. 
+    // child index/key match an existing workflow run.
     optional string child_key = 6;
 }
 

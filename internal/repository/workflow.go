@@ -94,9 +94,6 @@ type CreateWorkflowJobOpts struct {
 	// (optional) the job description
 	Description *string
 
-	// (optional) the job timeout
-	Timeout *string
-
 	// (required) the job steps
 	Steps []CreateWorkflowStepOpts `validate:"required,min=1,dive"`
 }

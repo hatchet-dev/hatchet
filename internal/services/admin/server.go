@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
@@ -365,7 +364,6 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		jobs[i] = repository.CreateWorkflowJobOpts{
 			Name:        jobCp.Name,
 			Description: &jobCp.Description,
-			Timeout:     &jobCp.Timeout,
 			Steps:       steps,
 		}
 	}
