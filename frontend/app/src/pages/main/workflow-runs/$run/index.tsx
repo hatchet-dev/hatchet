@@ -146,52 +146,42 @@ export default function ExpandedWorkflowRun() {
   );
 }
 
-export const StepStatusDetails = ({ stepRun }: { stepRun: StepRun }) => {
-  let statusText = 'Unknown';
-
+const getStatusText = (stepRun: StepRun): string => {
   switch (stepRun.status) {
     case StepRunStatus.RUNNING:
-      statusText = 'This step is currently running';
-      break;
+      return 'This step is currently running';
     case StepRunStatus.FAILED:
-      statusText = 'This step failed';
-
-      if (stepRun.error) {
-        statusText = `This step failed with error ${stepRun.error}`;
-      }
-
-      break;
+      return stepRun.error
+        ? `This step failed with error ${stepRun.error}`
+        : 'This step failed';
     case StepRunStatus.CANCELLED:
-      statusText = 'This step was cancelled';
-
-      switch (stepRun.cancelledReason) {
-        case 'TIMED_OUT':
-          statusText = `This step was cancelled because it exceeded its timeout of ${
-            stepRun.step?.timeout || '60s'
-          }`;
-          break;
-        case 'SCHEDULING_TIMED_OUT':
-          statusText = `This step was cancelled because no workers were available to run ${stepRun.step?.action}`;
-          break;
-        case 'PREVIOUS_STEP_TIMED_OUT':
-          statusText = `This step was cancelled because the previous step timed out`;
-          break;
-        default:
-          break;
-      }
-
-      break;
+      return getCancelledStatusText(stepRun);
     case StepRunStatus.SUCCEEDED:
-      statusText = 'This step succeeded';
-      break;
+      return 'This step succeeded';
     case StepRunStatus.PENDING:
-      statusText = 'This step is pending';
-      break;
+      return 'This step is pending';
     default:
-      break;
+      return 'Unknown';
   }
+};
 
-  return statusText;
+const getCancelledStatusText = (stepRun: StepRun): string => {
+  switch (stepRun.cancelledReason) {
+    case 'CANCELLED_BY_USER':
+      return 'This step was cancelled by a user';
+    case 'TIMED_OUT':
+      return `This step was cancelled because it exceeded its timeout of ${stepRun.step?.timeout || '60s'}`;
+    case 'SCHEDULING_TIMED_OUT':
+      return `This step was cancelled because no workers were available to run ${stepRun.step?.action}`;
+    case 'PREVIOUS_STEP_TIMED_OUT':
+      return 'This step was cancelled because the previous step timed out';
+    default:
+      return `This step was cancelled (${stepRun.cancelledReason})`;
+  }
+};
+
+export const StepStatusDetails = ({ stepRun }: { stepRun: StepRun }) => {
+  return getStatusText(stepRun);
 };
 
 export function StepStatusSection({ stepRun }: { stepRun: StepRun }) {

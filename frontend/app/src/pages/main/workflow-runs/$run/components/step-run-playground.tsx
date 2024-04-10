@@ -435,7 +435,7 @@ export function StepRunPlayground({
                     errors={
                       [
                         ...errors,
-                        stepRun.error
+                        stepRun.error || stepRun.cancelledReason
                           ? StepStatusDetails({ stepRun })
                           : undefined,
                       ].filter((e) => !!e) as string[]
@@ -462,12 +462,12 @@ export function StepRunPlayground({
                       className="p-0 w-fit"
                       asChild
                     >
-                      <>
+                      <span className="flex flex-row items-center">
                         <QuestionMarkCircleIcon
                           className={cn('h-4 w-4 mr-2')}
                         />
                         Help: How to handle cancelation signaling
-                      </>
+                      </span>
                     </Button>
                   </a>
                 </>
