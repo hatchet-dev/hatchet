@@ -1,0 +1,534 @@
+# An unfair advantage: multi-tenant queues in Postgres
+
+<div className="w-full pb-4 mx-auto border-b shadow-md flex flex-row justify-between items-center mt-10">
+  <h5 className="text-xl font-bold tracking-tight text-foreground">Alexander Belanger</h5>
+  <p className="font-light text-foreground">Published on April 10, 2024</p>
+</div>
+
+_**TL;DR -** We've been implementing fair queueing strategies for Postgres-backed task queues, so processing Bob's 10,000 files doesn't crowd out Alice's 1-page PDF. We've solved this in Hatchet and Hatchet Cloud so you don't have to — here's a look at how we did it._
+
+## Introduction
+
+We set the scene with a simple user request: they'd like to upload and parse a PDF. Or an image, CSV, audio file — it doesn't really matter. What matters is that the processing of this file can take ages, and scales ≥ linearly with the size of the file. 
+
+Perhaps you're an astute developer and realized that processing this file might impact the performance of your API — or more likely, the new file upload feature you pushed on Friday has you explaining to your family that nephew Jimmy's baseball game on Saturday will have to wait. 
+
+In the postmortem, you decide to offload processing this file to somewhere outside of the core web server, asynchronously on a new *worker process*. The user can now upload a file, the web server quickly sends it off to the worker, and life goes on. 
+
+That is, until Bob decides to upload his entire hard drive — probably also on a Saturday — and your document processing worker now goes down. 
+
+At this point (or ideally before this point), you introduce…the task queue. 
+
+{/* <animation> */}
+
+You, the astute developer, probably realize that while this solves the problem of the worker crashing, it introduces a new problem, because you've intentionally bottlenecked the system. Which means that when Bob uploads his second hard drive, a new issue emerges - Alice's 1-page file upload gets stuck at the back of the queue:
+
+{/* <image> */}
+
+You're now worried about fairness — specifically, how can you guarantee *fair execution time* to both Bob and Alice? We'd like to introduce a strategy that's easy to implement in a Postgres-backed queue — and more difficult in other queueing systems — deterministic round-robin queueing.
+
+## The setup
+
+Let's start with some code! We're implementing a basic Postgres-backed task queue, where workers poll for events off the queue at some interval. You can find all the code used in these examples — along with some nice helper `seed` and `worker` commands — in this repo: [link]. Note that I chose `sqlc` to write these examples, so you might see some `sqlc.arg` and `sqlc.narg` in the example queries. 
+
+Our tasks are very simple — they have a `created_at` time, some input data, and an auto-incremented id: 
+
+```sql
+-- CreateEnum
+CREATE TYPE "TaskStatus" AS ENUM (
+    'QUEUED',
+    'RUNNING',
+    'SUCCEEDED',
+    'FAILED',
+    'CANCELLED'
+);
+
+-- CreateTable
+CREATE TABLE
+    tasks (
+        id BIGSERIAL NOT NULL,
+        created_at timestamp,
+        status "TaskStatus" NOT NULL,
+        args jsonb,
+        PRIMARY KEY (id)
+    );
+```
+
+The worker polling query looks like the following:
+
+```sql
+-- name: PopTasks :many
+WITH
+    eligible_tasks AS (
+        SELECT
+            *
+        FROM
+            tasks
+        WHERE
+            "status" = 'QUEUED' 
+        ORDER BY id ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT
+            COALESCE(sqlc.narg('limit'), 10)
+    )
+UPDATE tasks
+SET
+    "status" = 'RUNNING'
+FROM
+    eligible_tasks
+WHERE
+    tasks.id = eligible_tasks.id 
+RETURNING tasks.*;
+```
+
+I won't go into too much detail on  `FOR UPDATE SKIP LOCKED`, as it's been covered quite well by others. The polling logic looks something like this:
+
+```go
+type HandleTask func(ctx context.Context, task *dbsqlc.Task)
+
+func poll(ctx context.Context, handleTask HandleTask) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Second):
+			tasks, err := queries.PopTasks(ctx, pool, 10)
+
+			if err != nil {
+				log.Printf("could not pop tasks: %v", err)
+				continue
+			}
+
+			for _, task := range tasks {
+				handleTask(ctx, task)
+			}
+		}
+	}
+}
+```
+
+The `ORDER BY id` statement gives us a default ordering by the auto-incremented index. We've now implemented the basic task queue shared above, with long-polling for tasks. We could also add some nice features, like listen/notify to get new tasks immediately, but that's not the core focus here.
+
+## Fair queueing 
+
+We'd now like to guarantee fair execution time to Bob and Alice. A simple way to support this is a round-robin strategy: pop 1 task from Alice, 1 task from Bob, and…Bob's your uncle? To achieve this, we can imagine the groups as a set of buckets, and we'd like to pass over each bucket, dropping one task in each bucket at a time:
+
+{/* <ANIMATION> */}
+
+Yes, you may have noticed that we're essentially creating a set of smaller queues within our larger queue - but we don't want workers to manage their subscriptions across all possible queues. The ugliness of adding a new queue per group should be abstracted from the worker, which can use a single query to pop the next tasks out of the queue. 
+
+Let's modify our implementation above slightly: we're going to introduce a `group_key` to each table:
+
+```sql
+CREATE TABLE
+    tasks (
+        id BIGSERIAL NOT NULL,
+        created_at timestamp,
+        status "TaskStatus" NOT NULL,
+        args jsonb,
+        group_key text,
+        PRIMARY KEY (id)
+    );
+```
+
+The group key simply identifies which group the task belongs to — for example, is this one of Bob's or Alice's tasks? This can refer to individual users, tenants, or even a custom group key based on some combination of other fields. 
+
+Let's try our hand at writing a query to do this. It turns out using `PARTITION BY` is the simplest way to achieve this in Postgres. Here's what we'd *like* the query to look like:
+
+```sql
+WITH
+    eligible_tasks AS (
+        SELECT
+            t.id,
+            t."status",
+            t."group_key",
+            row_number() OVER (PARTITION BY t."group_key" ORDER BY t."id" ASC) AS rn
+        FROM
+            tasks t
+        WHERE
+            "status" = 'QUEUED'
+        ORDER BY rn, t.id ASC
+        LIMIT
+            COALESCE(sqlc.narg('limit'), 10)
+        FOR UPDATE SKIP LOCKED
+    )
+UPDATE tasks
+SET
+    "status" = 'RUNNING'
+FROM
+    eligible_tasks
+WHERE
+    tasks.id = eligible_tasks.id AND
+    tasks."status" = 'QUEUED'
+RETURNING tasks.*;
+```
+
+However, if we run this, we'll get the error: `ERROR: FOR UPDATE is not allowed with window functions (SQLSTATE 0A000)` . Easy, let's tweak our query to solve for this - we'll load up the rows with `PARTITION BY` and pass them to a new expression which uses `SKIP LOCKED`:
+
+```sql
+WITH
+    ordered_tasks AS (
+        SELECT
+            t.id,
+            t."status",
+            t."group_key",
+            row_number() OVER (PARTITION BY t."group_key" ORDER BY t."id" ASC) AS rn
+        FROM
+            tasks t
+        WHERE
+            "status" = 'QUEUED'
+        ORDER BY rn, t.id ASC
+        LIMIT
+            COALESCE(sqlc.narg('limit'), 10)
+    ),
+    eligible_tasks AS (
+        SELECT
+            t1.id
+        FROM
+            ordered_tasks t1
+        WHERE
+            t1.rn = 1
+        FOR UPDATE SKIP LOCKED
+    )
+UPDATE tasks
+SET
+    "status" = 'RUNNING'
+FROM
+    eligible_tasks
+WHERE
+    tasks.id = eligible_tasks.id AND
+    tasks."status" = 'QUEUED'
+RETURNING tasks.*;
+```
+
+…but not so fast. We've introduced an issue by adding the first CTE (Common Table Expression - the queries using the `WITH` clause). If we run 3 workers and log the number of rows that each worker receives, with a limit of 100 rows per worker, we'll find only 1 worker is picking up tasks, even if there are more rows to return!
+
+```bash
+2024/04/05 12:52:50 (worker 1) popped 0 tasks
+2024/04/05 12:52:50 (worker 0) popped 0 tasks
+2024/04/05 12:52:50 (worker 2) popped 100 tasks
+2024/04/05 12:52:51 (worker 1) popped 0 tasks
+2024/04/05 12:52:51 (worker 2) popped 0 tasks
+2024/04/05 12:52:51 (worker 0) popped 100 tasks
+2024/04/05 12:52:52 (worker 0) popped 0 tasks
+2024/04/05 12:52:52 (worker 2) popped 0 tasks
+2024/04/05 12:52:52 (worker 1) popped 100 tasks
+2024/04/05 12:52:53 (worker 0) popped 0 tasks
+2024/04/05 12:52:53 (worker 1) popped 0 tasks
+2024/04/05 12:52:53 (worker 2) popped 100 tasks
+```
+
+What's happening here? By introducing the first CTE, we are now selecting locked rows which are excluded by `FOR UPDATE SKIP LOCKED` in the second CTE - in other words, we might not enqueue any runs on some workers if we're polling concurrently for new tasks. While we are still guaranteed to enqueue in the manner which we'd like, we may reduce throughput if there's high contention among workers for the same rows. 
+
+Unfortunately, using `PARTITION BY` isn't the right approach here. We could update this query to use `JOIN LATERAL` (which we'll get to towards the end), but before we dive into a better approach, this query does show some interesting properties of queueing systems more generally.
+
+To start, a hotfix for a slow polling query would be adding 3 lines of code to our worker setup: 
+
+```go
+// sleep for random duration between 0 and polling interval to avoid thundering herd
+sleepDuration := time.Duration(id) * interval / time.Duration(numWorkers)
+log.Printf("(worker %d) sleeping for %v\n", id, sleepDuration)
+time.Sleep(sleepDuration)
+```
+
+Which gives us much more promising output:
+
+```go
+2024/04/05 12:54:19 (worker 2) sleeping for 666.666666ms
+2024/04/05 12:54:19 (worker 0) sleeping for 0s
+2024/04/05 12:54:19 (worker 1) sleeping for 333.333333ms
+2024/04/05 12:54:21 (worker 0) popped 100 tasks
+2024/04/05 12:54:21 (worker 1) popped 100 tasks
+2024/04/05 12:54:21 (worker 2) popped 100 tasks
+2024/04/05 12:54:22 (worker 0) popped 100 tasks
+2024/04/05 12:54:22 (worker 1) popped 100 tasks
+2024/04/05 12:54:22 (worker 2) popped 100 tasks
+2024/04/05 12:54:23 (worker 0) popped 100 tasks
+2024/04/05 12:54:23 (worker 1) popped 100 tasks
+2024/04/05 12:54:23 (worker 2) popped 100 tasks
+2024/04/05 12:54:24 (worker 0) popped 100 tasks
+```
+
+This works — and you can modify this logic to be more distributed by maintaining a lease when a worker starts for a set amount of time — as long as the polling interval is below the query duration time (or more specifically, `pollingTime / numWorkers` is below the query duration time). But what happens when our queue starts to fill up? Let's add 10,000 enqueued tasks and run an `EXPLAIN ANALYZE` for this query to take a look at performance:
+
+```sql
+                                                                 QUERY PLAN                                                                  
+---------------------------------------------------------------------------------------------------------------------------------------------
+ Update on tasks  (cost=3060.81..3602.70 rows=77 width=42) (actual time=142.749..160.682 rows=100 loops=1)
+   CTE tasks_1
+     ->  Limit  (cost=2479.94..2480.19 rows=100 width=36) (actual time=116.248..116.405 rows=100 loops=1)
+           ->  Sort  (cost=2479.94..2517.65 rows=15087 width=36) (actual time=116.128..116.203 rows=100 loops=1)
+                 Sort Key: (row_number() OVER (?)), (random())
+                 Sort Method: top-N heapsort  Memory: 32kB
+                 ->  WindowAgg  (cost=1563.86..1903.32 rows=15087 width=36) (actual time=70.788..105.097 rows=10000 loops=1)
+                       ->  Sort  (cost=1563.86..1601.58 rows=15087 width=20) (actual time=69.491..72.651 rows=10000 loops=1)
+                             Sort Key: t.group_key, t.id
+                             Sort Method: quicksort  Memory: 1010kB
+                             ->  Seq Scan on tasks t  (cost=0.00..516.75 rows=15087 width=20) (actual time=0.587..12.837 rows=10000 loops=1)
+                                   Filter: (status = 'QUEUED'::"TaskStatus")
+   CTE eligible_tasks
+     ->  LockRows  (cost=3.25..578.12 rows=77 width=46) (actual time=119.137..133.640 rows=100 loops=1)
+           ->  Hash Join  (cost=3.25..577.35 rows=77 width=46) (actual time=118.408..132.472 rows=100 loops=1)
+                 Hash Cond: (t_1.id = tasks_1.id)
+                 ->  Seq Scan on tasks t_1  (cost=0.00..516.75 rows=15087 width=14) (actual time=0.660..9.547 rows=10000 loops=1)
+                       Filter: (status = 'QUEUED'::"TaskStatus")
+                 ->  Hash  (cost=2.00..2.00 rows=100 width=40) (actual time=117.536..117.569 rows=100 loops=1)
+                       Buckets: 1024  Batches: 1  Memory Usage: 18kB
+                       ->  CTE Scan on tasks_1  (cost=0.00..2.00 rows=100 width=40) (actual time=116.848..117.191 rows=100 loops=1)
+   ->  Hash Join  (cost=2.50..544.40 rows=77 width=42) (actual time=140.519..152.972 rows=100 loops=1)
+         Hash Cond: (tasks.id = eligible_tasks.id)
+         ->  Seq Scan on tasks  (cost=0.00..468.00 rows=19500 width=14) (actual time=5.947..13.352 rows=10000 loops=1)
+         ->  Hash  (cost=1.54..1.54 rows=77 width=40) (actual time=134.125..134.126 rows=100 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 16kB
+               ->  CTE Scan on eligible_tasks  (cost=0.00..1.54 rows=77 width=40) (actual time=119.320..134.017 rows=100 loops=1)
+ Planning Time: 38.426 ms
+ Execution Time: 165.835 ms  
+```
+
+The important part here is the `WindowAgg` cost - computing a partition across all rows on the `groupKey` naturally involves querying every `QUEUED` row (in this case, `10000` tasks). We expect this to scale sublinearly with the number of rows in the input - let's take a guess and look at how our workers do on  25,000 enqueued rows:
+
+```sql
+2024/04/05 13:06:24 (worker 2) sleeping for 666.666666ms
+2024/04/05 13:06:24 (worker 0) sleeping for 0s
+2024/04/05 13:06:24 (worker 1) sleeping for 333.333333ms
+2024/04/05 13:06:26 (worker 0) popped 100 tasks
+2024/04/05 13:06:26 (worker 1) popped 0 tasks
+2024/04/05 13:06:26 (worker 2) popped 100 tasks
+2024/04/05 13:06:27 (worker 0) popped 100 tasks
+2024/04/05 13:06:27 (worker 1) popped 0 tasks
+2024/04/05 13:06:28 (worker 2) popped 100 tasks
+2024/04/05 13:06:29 (worker 0) popped 100 tasks
+2024/04/05 13:06:29 (worker 1) popped 0 tasks
+2024/04/05 13:06:29 (worker 2) popped 100 tasks
+```
+
+Sure enough, because we're seeing execution times greater than `333ms`, we start losing tasks on `worker 1`. This is very problematic, because not only is our queue backlog increasing, but the throughput of our workers is decreasing, and this isn't a problem we can solve by throwing more workers at the queue. This is a general problem in systems that are stable for a long time until some external trigger (for example, workers going down for an hour) causes the system to fail in an unexpected way, leading to the system being *unrecoverable*. 
+
+A second practical solution to this issue is to create an `OVERFLOW` status on the task queue, and set an upper bound on the number of enqueued tasks, to ensure worker performance doesn't drop below a certain threshold. We then can periodically check the overflow queue and place the overflow into the queued status. This is a good idea regardless of the query we write to get new tasks.
+
+But practical advice aside, let's take a look at how to write this query to avoid performance degradation at such a small number of enqueued tasks. 
+
+## Improving Performance
+
+The main issue, as we've identified, is the window function which is searching across every row that is `QUEUED`. What we were hoping to accomplish with the partition method was filling up each group (our buckets), ordering each group by the task id, and stop filling the buckets once we've hit the total limit that a worker can process. 
+
+What if instead of computing the sequence number via the `PARTITION BY` method at *read time*, we wrote a sequence number at *write time* which guarantees round-robin enqueueing? At first glance, this seems difficult - we don't know that Alice will need to enqueue 1 task in the future if Bob enqueued 10,000 tasks now. 
+
+We can solve for this by reserving *contiguous blocks of IDs* for future enqueued runs which belong to groups which don't exist yet or don't have enough tasks — very similar to creating a set of contiguous memory addresses. Let's assign task IDs according to the following formula:
+
+```sql
+groupPtr * blockLength + groupId % blockLength
+```
+
+These correspond to the following values:
+
+{/* <IMAGE> */}
+
+Note the usage of `groupId % blockLength` - this allows us to wrap around the groups so we can enqueue more fairly, which avoids the scenario of certain groups getting preferred execution time because they're always first in each address block.  
+
+***Warning:** we are making a critical assumption that the number of unique group keys will always be below the `blockLength` , and increasing the blockLength in the future would be a bit involved. A blockLength of ~1 million gives us ~1 billion task executions. To increase the block length, it's recommended that you add an offset equal to the the maximum task id, and start assigning task ids from there.* 
+
+Let's add a new set of tables to our queue implementation:
+
+```sql
+CREATE TABLE
+    task_groups (
+        id BIGSERIAL NOT NULL,
+        group_key text,
+        count BIGINT,
+        PRIMARY KEY (id)
+    );
+
+CREATE TABLE
+    task_addr_ptr (count BIGINT NOT NULL);
+
+INSERT INTO
+    task_addr_ptr (count)
+VALUES
+    (0);
+
+ALTER TABLE task_groups ADD CONSTRAINT unique_group_key UNIQUE (group_key);
+```
+
+And rewrite our `CreateTask` query with this formula (in this case, using a `blockLength` of `1024*1024`):
+
+```sql
+WITH group_key_task AS (
+    INSERT INTO task_groups (
+        group_key,
+        count
+    ) VALUES (
+        sqlc.arg('group_key')::text,
+        (SELECT count FROM task_addr_ptr)
+    ) ON CONFLICT (group_key)
+    DO UPDATE SET 
+        group_key = EXCLUDED.group_key,
+        count = task_groups.count + 1
+    RETURNING id, group_key, count
+)
+INSERT INTO tasks (
+    id,
+    created_at,
+    status,
+    args,
+    group_key
+) VALUES (
+    (SELECT count FROM group_key_task) * (1024 * 1024) + (SELECT id FROM group_key_task) % (1024 * 1024),
+    COALESCE(sqlc.arg('created_at')::timestamp, now()),
+    'QUEUED',
+    COALESCE(sqlc.arg('args')::jsonb, '{}'::jsonb),
+    sqlc.arg('group_key')::text
+)
+RETURNING *;
+```
+
+Note that we need to keep track of the `task_addr_ptr` to figure out where in the sequence to start new enqueued tasks from, otherwise we'll end up in a scenario where the bottom blocks are getting filled by tasks in groups added at some point in the future. 
+
+The great thing about this is that our `PopTasks` query doesn't change, we've just changed how we assign IDs. We just need to make sure that we update the global `addrPtr` correctly within the same transaction in which we call `PopTasks`: 
+
+```sql
+-- name: UpdateTaskAddressPointer :one
+WITH new_addr_ptr AS (
+    SELECT
+        FLOOR(MIN(id)::decimal / 1024 / 1024) - 1 as new_addr_ptr
+    FROM
+        tasks
+    WHERE
+        "status" = 'QUEUED'
+)
+UPDATE task_addr_ptr
+SET
+    count = new_addr_ptr.new_addr_ptr
+FROM
+    new_addr_ptr
+RETURNING *;
+```
+
+Against 1 million enqueued tasks with 1000 partitions, we still only need to search across 100 rows:
+
+```sql
+                                                                        QUERY PLAN                                                                         
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=12.89..853.72 rows=100 width=77) (actual time=17.521..20.227 rows=100 loops=1)
+   CTE eligible_tasks
+     ->  Limit  (cost=0.42..10.21 rows=100 width=14) (actual time=1.669..16.365 rows=100 loops=1)
+           ->  LockRows  (cost=0.42..97842.23 rows=999484 width=14) (actual time=1.662..16.231 rows=100 loops=1)
+                 ->  Index Scan using tasks_pkey on tasks tasks_1  (cost=0.42..87847.39 rows=999484 width=14) (actual time=0.711..13.331 rows=100 loops=1)
+                       Filter: (status = 'QUEUED'::"TaskStatus")
+   ->  HashAggregate  (cost=2.25..3.25 rows=100 width=8) (actual time=17.299..17.497 rows=100 loops=1)
+         Group Key: eligible_tasks.id
+         Batches: 1  Memory Usage: 24kB
+         ->  CTE Scan on eligible_tasks  (cost=0.00..2.00 rows=100 width=8) (actual time=1.720..16.959 rows=100 loops=1)
+   ->  Index Scan using tasks_pkey on tasks  (cost=0.42..8.40 rows=1 width=77) (actual time=0.022..0.022 rows=1 loops=100)
+         Index Cond: (id = eligible_tasks.id)
+ Planning Time: 13.979 ms
+ Execution Time: 21.433 ms
+```
+
+You may also have noticed that because we stopped using the window function, we've removed the issue of selecting for previously locked rows. So even if we start 10 workers at the same time, we're guaranteed to select unique rows again:
+
+```sql
+2024/04/08 16:28:08 (worker 9) sleeping for 0s
+2024/04/08 16:28:08 (worker 8) sleeping for 0s
+2024/04/08 16:28:08 (worker 4) sleeping for 0s
+2024/04/08 16:28:08 (worker 0) sleeping for 0s
+2024/04/08 16:28:08 (worker 1) sleeping for 0s
+2024/04/08 16:28:08 (worker 2) sleeping for 0s
+2024/04/08 16:28:08 (worker 6) sleeping for 0s
+2024/04/08 16:28:08 (worker 3) sleeping for 0s
+2024/04/08 16:28:08 (worker 5) sleeping for 0s
+2024/04/08 16:28:08 (worker 7) sleeping for 0s
+2024/04/08 16:28:09 (worker 1) popped 100 tasks
+2024/04/08 16:28:09 (worker 2) popped 100 tasks
+2024/04/08 16:28:09 (worker 7) popped 100 tasks
+2024/04/08 16:28:09 (worker 0) popped 100 tasks
+2024/04/08 16:28:09 (worker 8) popped 100 tasks
+2024/04/08 16:28:09 (worker 9) popped 100 tasks
+2024/04/08 16:28:09 (worker 3) popped 100 tasks
+2024/04/08 16:28:09 (worker 6) popped 100 tasks
+2024/04/08 16:28:09 (worker 5) popped 100 tasks
+2024/04/08 16:28:09 (worker 4) popped 100 tasks
+```
+
+This doesn't come without a tradeoff: our writes are significantly slower due to continuously updating the `count` parameter on the `task_group`. 
+
+## Introducing concurrency limits
+
+In the above implementation, we had a simple `LIMIT` statement to set an upper bound of the number of tasks a worker should execute. But what if we want to set a concurrency limit for each group of tasks? For example, not only do we want to limit a worker to 100 tasks globally, but we limit each group to 5 concurrent tasks. This ensures that even if there are slots available on the worker, they are not automatically filled by the same user, which could again crowd out other users in the near future.
+
+Here's an attempt at writing this query with a `JOIN LATERAL` across each group:
+
+```sql
+-- name: PopTasksWithConcurrency :many
+WITH
+    running_tasks AS (
+        SELECT
+            t1.id,
+            t1."group_key"
+        FROM
+            tasks t1
+        WHERE
+            "status" = 'RUNNING'
+        ORDER BY t1.id ASC
+        FOR SHARE
+    ),
+    count_running_tasks AS (
+        SELECT
+            COUNT(*) as count,
+            "group_key"
+        FROM
+            running_tasks
+        GROUP BY running_tasks."group_key"
+    ),
+    eligible_tasks AS (
+        SELECT
+            t2.id
+        FROM
+            task_groups
+        LEFT JOIN count_running_tasks AS c2 ON task_groups."group_key" = c2."group_key"
+        JOIN LATERAL (
+            SELECT
+                t3.id
+            FROM
+                tasks t3
+            WHERE
+                "status" = 'QUEUED' AND
+                t3."group_key" = task_groups."group_key"
+            ORDER BY t3.id ASC
+            FOR UPDATE SKIP LOCKED
+            LIMIT 
+                GREATEST(
+                    0,
+                    -- sqlc throws an error if we write this as @maxRuns::int - COALESCE(c2.count, 0)
+                    -1 * COALESCE(c2.count, 0) + @maxRuns::int
+                )
+        ) AS t2 ON true
+        ORDER BY id ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT
+            COALESCE(sqlc.narg('limit')::int, 10)
+    )
+UPDATE tasks
+SET
+    "status" = 'RUNNING'
+FROM
+    eligible_tasks
+WHERE
+    tasks.id = eligible_tasks.id
+RETURNING tasks.*;
+```
+
+For an explanation, we count the number of runs in a `RUNNING` state, and only return the queued tasks if `maxRuns - numRunning` is greater than 0 for each group. 
+
+There are a few issues with this approach: 
+
+- With many groups, we're going to return far more rows than necessary within `JOIN LATERAL`
+- `JOIN LATERAL` with a `LIMIT` statement doesn't always have optimized behavior: [https://commitfest.postgresql.org/42/2851/](https://commitfest.postgresql.org/42/2851/). I haven't done too much digging into optimizing this query, but did notice improvement when filtering within a set range instead of using `LIMIT`.
+
+We're still working on a more performant solution which balances both read and write time.
+
+**Final thoughts**
+
+If you have suggestions on making these queries more performant - or perhaps you spotted  a bug - I'd love to hear from you in our Discord.
+
+[1] This isn't quite how Hatchet works, but it's close enough. We use a mixture of push-based and pull-based queueing, so we only default to polling when we absolutely have to. 

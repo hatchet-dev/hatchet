@@ -19,5 +19,10 @@
         "title": "Launches",
         "display": "hidden",
         "type": "page"
+    },
+    "blog": {
+        "title": "Blog",
+        "display": "hidden",
+        "type": "page"
     }
 }
