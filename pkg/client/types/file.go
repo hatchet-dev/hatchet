@@ -63,8 +63,6 @@ type WorkflowEvent struct {
 type WorkflowJob struct {
 	Description string `yaml:"description,omitempty"`
 
-	Timeout string `yaml:"timeout,omitempty"`
-
 	Steps []WorkflowStep `yaml:"steps"`
 }
 

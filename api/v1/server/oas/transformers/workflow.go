@@ -262,10 +262,6 @@ func ToWorkflowYAMLBytes(workflow *db.WorkflowModel, version *db.WorkflowVersion
 				jobRes.Description = description
 			}
 
-			if timeout, ok := jobCp.Timeout(); ok {
-				jobRes.Timeout = timeout
-			}
-
 			if steps := jobCp.Steps(); steps != nil {
 				jobRes.Steps = make([]types.WorkflowStep, 0)
 
