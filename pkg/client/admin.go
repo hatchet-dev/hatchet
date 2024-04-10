@@ -252,7 +252,6 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		jobOpt := &admincontracts.CreateWorkflowJobOpts{
 			Name:        jobName,
 			Description: job.Description,
-			Timeout:     job.Timeout,
 		}
 
 		stepOpts := make([]*admincontracts.CreateWorkflowStepOpts, len(job.Steps))
