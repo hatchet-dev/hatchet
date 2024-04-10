@@ -6,9 +6,10 @@ const GoSetup: typeof goOnboarding.setup = ({ existingProject }) => (
   <div className="space-y-8">
     {existingProject ? (
       <div>
-        <h3 className="text-xl font-semibold mb-2">
+        <h3 className="text-xl font-semibold mb-2">Navigate to your project</h3>
+        <p className="mt-2">
           Open a new terminal and cd into your project directory
-        </h3>
+        </p>
       </div>
     ) : (
       <>
