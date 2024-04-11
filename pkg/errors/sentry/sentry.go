@@ -37,6 +37,10 @@ func NewSentryAlerter(opts *SentryAlerterOpts) (*SentryAlerter, error) {
 }
 
 func (s *SentryAlerter) SendAlert(ctx context.Context, err error, data map[string]interface{}) {
+	if data == nil {
+		data = make(map[string]interface{})
+	}
+
 	scope := sentry.NewScope()
 
 	for key, val := range data {
