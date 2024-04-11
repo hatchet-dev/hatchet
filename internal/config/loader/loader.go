@@ -239,6 +239,23 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		auth.GoogleOAuthConfig = gClient
 	}
 
+	if cf.Auth.Github.Enabled {
+		if cf.Auth.Github.ClientID == "" {
+			return nil, nil, fmt.Errorf("github client id is required")
+		}
+
+		if cf.Auth.Github.ClientSecret == "" {
+			return nil, nil, fmt.Errorf("github client secret is required")
+		}
+
+		auth.GithubOAuthConfig = oauth.NewGithubClient(&oauth.Config{
+			ClientID:     cf.Auth.Github.ClientID,
+			ClientSecret: cf.Auth.Github.ClientSecret,
+			BaseURL:      cf.Runtime.ServerURL,
+			Scopes:       cf.Auth.Github.Scopes,
+		})
+	}
+
 	encryptionSvc, err := loadEncryptionSvc(cf)
 
 	if err != nil {
