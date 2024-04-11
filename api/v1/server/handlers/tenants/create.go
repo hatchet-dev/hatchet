@@ -58,6 +58,18 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		return nil, err
 	}
 
+	t.config.Analytics.Tenant(tenant.ID, map[string]interface{}{
+		"name": tenant.Name,
+		"slug": tenant.Slug,
+	})
+
+	t.config.Analytics.Enqueue(
+		"tenant:create",
+		user.ID,
+		&tenant.ID,
+		nil,
+	)
+
 	return gen.TenantCreate200JSONResponse(
 		*transformers.ToTenant(tenant),
 	), nil
