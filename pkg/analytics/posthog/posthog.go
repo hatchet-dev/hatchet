@@ -44,7 +44,7 @@ func (p *PosthogAnalytics) Enqueue(event string, userId string, tenantId *string
 		group = posthog.NewGroups().Set("tenant", *tenantId)
 	}
 
-	(*p.client).Enqueue(posthog.Capture{
+	var _ = (*p.client).Enqueue(posthog.Capture{
 		DistinctId: userId,
 		Event:      event,
 		Properties: map[string]interface{}{
@@ -55,7 +55,7 @@ func (p *PosthogAnalytics) Enqueue(event string, userId string, tenantId *string
 }
 
 func (p *PosthogAnalytics) Tenant(tenantId string, data map[string]interface{}) {
-	(*p.client).Enqueue(posthog.GroupIdentify{
+	var _ = (*p.client).Enqueue(posthog.GroupIdentify{
 		Type: "tenant",
 		Key:  tenantId,
 		Properties: map[string]interface{}{

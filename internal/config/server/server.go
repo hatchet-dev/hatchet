@@ -104,7 +104,6 @@ type PosthogConfigFile struct {
 	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty"`
 }
 
-
 // Encryption options
 type EncryptionConfigFile struct {
 	// MasterKeyset is the raw master keyset for the instance. This should be a base64-encoded JSON string. You must set
@@ -288,12 +287,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("alerting.sentry.dsn", "SERVER_ALERTING_SENTRY_DSN")
 	_ = v.BindEnv("alerting.sentry.environment", "SERVER_ALERTING_SENTRY_ENVIRONMENT")
 
-
 	// analytics options
 	_ = v.BindEnv("analytics.posthog.enabled", "SERVER_ANALYTICS_POSTHOG_ENABLED")
 	_ = v.BindEnv("analytics.posthog.apiKey", "SERVER_ANALYTICS_POSTHOG_API_KEY")
 	_ = v.BindEnv("analytics.posthog.endpoint", "SERVER_ANALYTICS_POSTHOG_ENDPOINT")
-
 
 	// encryption options
 	_ = v.BindEnv("encryption.masterKeyset", "SERVER_ENCRYPTION_MASTER_KEYSET")
