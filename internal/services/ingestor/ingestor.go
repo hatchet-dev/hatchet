@@ -23,14 +23,21 @@ type Ingestor interface {
 type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
-	eventRepository repository.EventEngineRepository
-	logRepository   repository.LogsEngineRepository
-	mq              msgqueue.MessageQueue
+	eventRepository       repository.EventEngineRepository
+	streamEventRepository repository.StreamEventsEngineRepository
+	logRepository         repository.LogsEngineRepository
+	mq                    msgqueue.MessageQueue
 }
 
 func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.eventRepository = r
+	}
+}
+
+func WithStreamEventsRepository(r repository.StreamEventsEngineRepository) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.streamEventRepository = r
 	}
 }
 
@@ -53,9 +60,10 @@ func defaultIngestorOpts() *IngestorOpts {
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
-	eventRepository repository.EventEngineRepository
-	logRepository   repository.LogsEngineRepository
-	mq              msgqueue.MessageQueue
+	eventRepository       repository.EventEngineRepository
+	logRepository         repository.LogsEngineRepository
+	streamEventRepository repository.StreamEventsEngineRepository
+	mq                    msgqueue.MessageQueue
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -69,6 +77,10 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("event repository is required. use WithEventRepository")
 	}
 
+	if opts.streamEventRepository == nil {
+		return nil, fmt.Errorf("stream event repository is required. use WithStreamEventRepository")
+	}
+
 	if opts.logRepository == nil {
 		return nil, fmt.Errorf("log repository is required. use WithLogRepository")
 	}
@@ -78,9 +90,10 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}
 
 	return &IngestorImpl{
-		eventRepository: opts.eventRepository,
-		logRepository:   opts.logRepository,
-		mq:              opts.mq,
+		eventRepository:       opts.eventRepository,
+		streamEventRepository: opts.streamEventRepository,
+		logRepository:         opts.logRepository,
+		mq:                    opts.mq,
 	}, nil
 }
 

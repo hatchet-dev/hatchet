@@ -6,14 +6,18 @@ INSERT INTO "LogLine" (
     "message",
     "level",
     "metadata"
-) VALUES (
+)
+SELECT
     coalesce(sqlc.narg('createdAt')::timestamp, now()),
     @tenantId::uuid,
     @stepRunId::uuid,
     @message::text,
     coalesce(sqlc.narg('level')::"LogLineLevel", 'INFO'::"LogLineLevel"),
     coalesce(sqlc.narg('metadata')::jsonb, '{}'::jsonb)
-) RETURNING *;
+FROM "StepRun"
+WHERE "StepRun"."id" = @stepRunId::uuid
+AND "StepRun"."tenantId" = @tenantId::uuid
+RETURNING *;
 
 -- name: ListLogLines :many
 SELECT * FROM "LogLine"

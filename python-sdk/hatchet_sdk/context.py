@@ -32,7 +32,7 @@ class ChildWorkflowRef:
 
     def getResult(self) -> StepRunEvent:
         try:
-            res = self.client.rest_client.workflow_run_get(self.workflow_run_id)
+            res = self.client.rest.workflow_run_get(self.workflow_run_id)
             step_runs = res.job_runs[0].step_runs if res.job_runs else []
 
             step_run_output = {}
@@ -127,6 +127,7 @@ class Context:
         # FIXME: this limits the number of concurrent log requests to 1, which means we can do about
         # 100 log lines per second but this depends on network. 
         self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)
+        self.stream_event_thread_pool = ThreadPoolExecutor(max_workers=1)
 
         # store each key in the overrides field in a lookup table
         # overrides_data is a dictionary of key-value pairs
@@ -216,3 +217,15 @@ class Context:
             return
         
         self.logger_thread_pool.submit(self._log, line)
+
+    def _put_stream(self, data: str | bytes):
+        try:
+            self.client.event.stream(data=data, step_run_id=self.stepRunId)
+        except Exception as e:
+            logger.error(f"Error putting stream event: {e}")
+    
+    def put_stream(self, data: str | bytes):
+        if self.stepRunId == "":
+            return
+        
+        self.stream_event_thread_pool.submit(self._put_stream, data)

@@ -49,6 +49,74 @@ func (q *Queries) AddWorkflowTag(ctx context.Context, db DBTX, arg AddWorkflowTa
 	return err
 }
 
+const countRoundRobinGroupKeys = `-- name: CountRoundRobinGroupKeys :one
+SELECT
+    COUNT(DISTINCT "concurrencyGroupId") AS total
+FROM
+    "WorkflowRun" r1
+JOIN
+    "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
+WHERE
+    r1."tenantId" = $1::uuid AND
+    (
+        $2::"WorkflowRunStatus" IS NULL OR
+        r1."status" = $2::"WorkflowRunStatus"
+    ) AND
+    workflowVersion."workflowId" = $3::uuid
+`
+
+type CountRoundRobinGroupKeysParams struct {
+	Tenantid   pgtype.UUID           `json:"tenantid"`
+	Status     NullWorkflowRunStatus `json:"status"`
+	Workflowid pgtype.UUID           `json:"workflowid"`
+}
+
+func (q *Queries) CountRoundRobinGroupKeys(ctx context.Context, db DBTX, arg CountRoundRobinGroupKeysParams) (int64, error) {
+	row := db.QueryRow(ctx, countRoundRobinGroupKeys, arg.Tenantid, arg.Status, arg.Workflowid)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
+const countWorkflowRunsRoundRobin = `-- name: CountWorkflowRunsRoundRobin :one
+SELECT COUNT(*) AS total
+FROM
+    "WorkflowRun" r1
+JOIN
+    "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
+WHERE
+    r1."tenantId" = $1::uuid AND
+    (
+        $2::"WorkflowRunStatus" IS NULL OR
+        r1."status" = $2::"WorkflowRunStatus"
+    ) AND
+    workflowVersion."workflowId" = $3::uuid AND
+    r1."concurrencyGroupId" IS NOT NULL AND
+    (
+        $4::text IS NULL OR
+        r1."concurrencyGroupId" = $4::text
+    )
+`
+
+type CountWorkflowRunsRoundRobinParams struct {
+	Tenantid   pgtype.UUID           `json:"tenantid"`
+	Status     NullWorkflowRunStatus `json:"status"`
+	Workflowid pgtype.UUID           `json:"workflowid"`
+	GroupKey   pgtype.Text           `json:"groupKey"`
+}
+
+func (q *Queries) CountWorkflowRunsRoundRobin(ctx context.Context, db DBTX, arg CountWorkflowRunsRoundRobinParams) (int64, error) {
+	row := db.QueryRow(ctx, countWorkflowRunsRoundRobin,
+		arg.Tenantid,
+		arg.Status,
+		arg.Workflowid,
+		arg.GroupKey,
+	)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const countWorkflows = `-- name: CountWorkflows :one
 SELECT
     count(workflows) OVER() AS total
@@ -287,6 +355,44 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 	return &i, err
 }
 
+const createStepRateLimit = `-- name: CreateStepRateLimit :one
+INSERT INTO "StepRateLimit" (
+    "units",
+    "stepId",
+    "rateLimitKey",
+    "tenantId"
+) VALUES (
+    $1::integer,
+    $2::uuid,
+    $3::text,
+    $4::uuid
+) RETURNING units, "stepId", "rateLimitKey", "tenantId"
+`
+
+type CreateStepRateLimitParams struct {
+	Units        int32       `json:"units"`
+	Stepid       pgtype.UUID `json:"stepid"`
+	Ratelimitkey string      `json:"ratelimitkey"`
+	Tenantid     pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) CreateStepRateLimit(ctx context.Context, db DBTX, arg CreateStepRateLimitParams) (*StepRateLimit, error) {
+	row := db.QueryRow(ctx, createStepRateLimit,
+		arg.Units,
+		arg.Stepid,
+		arg.Ratelimitkey,
+		arg.Tenantid,
+	)
+	var i StepRateLimit
+	err := row.Scan(
+		&i.Units,
+		&i.StepId,
+		&i.RateLimitKey,
+		&i.TenantId,
+	)
+	return &i, err
+}
+
 const createWorkflow = `-- name: CreateWorkflow :one
 INSERT INTO "Workflow" (
     "id",
@@ -396,20 +502,23 @@ func (q *Queries) CreateWorkflowConcurrency(ctx context.Context, db DBTX, arg Cr
 const createWorkflowTriggerCronRef = `-- name: CreateWorkflowTriggerCronRef :one
 INSERT INTO "WorkflowTriggerCronRef" (
     "parentId",
-    "cron"
+    "cron",
+    "input"
 ) VALUES (
     $1::uuid,
-    $2::text
+    $2::text,
+    $3::jsonb
 ) RETURNING "parentId", cron, "tickerId", input
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
 	Workflowtriggersid pgtype.UUID `json:"workflowtriggersid"`
 	Crontrigger        string      `json:"crontrigger"`
+	Input              []byte      `json:"input"`
 }
 
 func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefParams) (*WorkflowTriggerCronRef, error) {
-	row := db.QueryRow(ctx, createWorkflowTriggerCronRef, arg.Workflowtriggersid, arg.Crontrigger)
+	row := db.QueryRow(ctx, createWorkflowTriggerCronRef, arg.Workflowtriggersid, arg.Crontrigger, arg.Input)
 	var i WorkflowTriggerCronRef
 	err := row.Scan(
 		&i.ParentId,

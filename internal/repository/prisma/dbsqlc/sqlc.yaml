@@ -15,8 +15,10 @@ sql:
       - tickers.sql
       - dispatchers.sql
       - workers.sql
+      - stream_event.sql
       - logs.sql
       - tenants.sql
+      - rate_limits.sql
     schema:
       - schema.sql
     strict_order_by: false

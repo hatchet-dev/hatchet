@@ -99,6 +99,7 @@ const (
 	CANCELLED WorkflowRunStatus = "CANCELLED"
 	FAILED    WorkflowRunStatus = "FAILED"
 	PENDING   WorkflowRunStatus = "PENDING"
+	QUEUED    WorkflowRunStatus = "QUEUED"
 	RUNNING   WorkflowRunStatus = "RUNNING"
 	SUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 )
@@ -258,6 +259,9 @@ type EventWorkflowRunSummary struct {
 
 	// Pending The number of pending runs.
 	Pending *int64 `json:"pending,omitempty"`
+
+	// Queued The number of queued runs.
+	Queued *int64 `json:"queued,omitempty"`
 
 	// Running The number of running runs.
 	Running *int64 `json:"running,omitempty"`
@@ -586,11 +590,23 @@ type User struct {
 	Email openapi_types.Email `json:"email"`
 
 	// EmailVerified Whether the user has verified their email address.
-	EmailVerified bool            `json:"emailVerified"`
-	Metadata      APIResourceMeta `json:"metadata"`
+	EmailVerified bool `json:"emailVerified"`
+
+	// HasPassword Whether the user has a password set.
+	HasPassword *bool           `json:"hasPassword,omitempty"`
+	Metadata    APIResourceMeta `json:"metadata"`
 
 	// Name The display name of the user.
 	Name *string `json:"name,omitempty"`
+}
+
+// UserChangePasswordRequest defines model for UserChangePasswordRequest.
+type UserChangePasswordRequest struct {
+	// NewPassword The new password for the user.
+	NewPassword string `json:"newPassword" validate:"required,password"`
+
+	// Password The password of the user.
+	Password string `json:"password" validate:"required,password"`
 }
 
 // UserLoginRequest defines model for UserLoginRequest.
@@ -711,6 +727,15 @@ type WorkflowList struct {
 	Metadata   *APIResourceMeta    `json:"metadata,omitempty"`
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]Workflow         `json:"rows,omitempty"`
+}
+
+// WorkflowMetrics defines model for WorkflowMetrics.
+type WorkflowMetrics struct {
+	// GroupKeyCount The total number of concurrency group keys.
+	GroupKeyCount *int `json:"groupKeyCount,omitempty"`
+
+	// GroupKeyRunsCount The number of runs for a specific group key (passed via filter)
+	GroupKeyRunsCount *int `json:"groupKeyRunsCount,omitempty"`
 }
 
 // WorkflowRun defines model for WorkflowRun.
@@ -889,6 +914,15 @@ type WorkflowRunListParams struct {
 	ParentStepRunId *openapi_types.UUID `form:"parentStepRunId,omitempty" json:"parentStepRunId,omitempty"`
 }
 
+// WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
+type WorkflowGetMetricsParams struct {
+	// Status A status of workflow runs to filter by
+	Status *WorkflowRunStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// GroupKey A group key to filter metrics by
+	GroupKey *string `form:"groupKey,omitempty" json:"groupKey,omitempty"`
+}
+
 // WorkflowRunCreateParams defines parameters for WorkflowRunCreate.
 type WorkflowRunCreateParams struct {
 	// Version The workflow version. If not supplied, the latest version is fetched.
@@ -939,6 +973,9 @@ type TenantInviteRejectJSONRequestBody = RejectInviteRequest
 
 // UserUpdateLoginJSONRequestBody defines body for UserUpdateLogin for application/json ContentType.
 type UserUpdateLoginJSONRequestBody = UserLoginRequest
+
+// UserUpdatePasswordJSONRequestBody defines body for UserUpdatePassword for application/json ContentType.
+type UserUpdatePasswordJSONRequestBody = UserChangePasswordRequest
 
 // UserCreateJSONRequestBody defines body for UserCreate for application/json ContentType.
 type UserCreateJSONRequestBody = UserRegisterRequest
@@ -1126,6 +1163,9 @@ type ClientInterface interface {
 	// StepRunGet request
 	StepRunGet(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// StepRunUpdateCancel request
+	StepRunUpdateCancel(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// StepRunUpdateRerunWithBody request with any body
 	StepRunUpdateRerunWithBody(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1188,6 +1228,11 @@ type ClientInterface interface {
 	// TenantMembershipsList request
 	TenantMembershipsList(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UserUpdatePasswordWithBody request with any body
+	UserUpdatePasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UserUpdatePassword(ctx context.Context, body UserUpdatePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// UserCreateWithBody request with any body
 	UserCreateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1206,6 +1251,9 @@ type ClientInterface interface {
 	WorkflowUpdateLinkGithubWithBody(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	WorkflowUpdateLinkGithub(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateLinkGithubJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowGetMetrics request
+	WorkflowGetMetrics(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunCreateWithBody request with any body
 	WorkflowRunCreateWithBody(ctx context.Context, workflow openapi_types.UUID, params *WorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1663,6 +1711,18 @@ func (c *Client) StepRunGet(ctx context.Context, tenant openapi_types.UUID, step
 	return c.Client.Do(req)
 }
 
+func (c *Client) StepRunUpdateCancel(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStepRunUpdateCancelRequest(c.Server, tenant, stepRun)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) StepRunUpdateRerunWithBody(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunUpdateRerunRequestWithBody(c.Server, tenant, stepRun, contentType, body)
 	if err != nil {
@@ -1927,6 +1987,30 @@ func (c *Client) TenantMembershipsList(ctx context.Context, reqEditors ...Reques
 	return c.Client.Do(req)
 }
 
+func (c *Client) UserUpdatePasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUserUpdatePasswordRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UserUpdatePassword(ctx context.Context, body UserUpdatePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUserUpdatePasswordRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) UserCreateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUserCreateRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -2001,6 +2085,18 @@ func (c *Client) WorkflowUpdateLinkGithubWithBody(ctx context.Context, workflow 
 
 func (c *Client) WorkflowUpdateLinkGithub(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateLinkGithubJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowUpdateLinkGithubRequest(c.Server, workflow, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowGetMetrics(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowGetMetricsRequest(c.Server, workflow, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3399,6 +3495,47 @@ func NewStepRunGetRequest(server string, tenant openapi_types.UUID, stepRun open
 	return req, nil
 }
 
+// NewStepRunUpdateCancelRequest generates requests for StepRunUpdateCancel
+func NewStepRunUpdateCancelRequest(server string, tenant openapi_types.UUID, stepRun openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "step-run", runtime.ParamLocationPath, stepRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/step-runs/%s/cancel", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewStepRunUpdateRerunRequest calls the generic StepRunUpdateRerun builder with application/json body
 func NewStepRunUpdateRerunRequest(server string, tenant openapi_types.UUID, stepRun openapi_types.UUID, body StepRunUpdateRerunJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -4138,6 +4275,46 @@ func NewTenantMembershipsListRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewUserUpdatePasswordRequest calls the generic UserUpdatePassword builder with application/json body
+func NewUserUpdatePasswordRequest(server string, body UserUpdatePasswordJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUserUpdatePasswordRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUserUpdatePasswordRequestWithBody generates requests for UserUpdatePassword with any type of body
+func NewUserUpdatePasswordRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/users/password")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewUserCreateRequest calls the generic UserCreate builder with application/json body
 func NewUserCreateRequest(server string, body UserCreateJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -4323,6 +4500,78 @@ func NewWorkflowUpdateLinkGithubRequestWithBody(server string, workflow openapi_
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewWorkflowGetMetricsRequest generates requests for WorkflowGetMetrics
+func NewWorkflowGetMetricsRequest(server string, workflow openapi_types.UUID, params *WorkflowGetMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workflow", runtime.ParamLocationPath, workflow)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/workflows/%s/metrics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.GroupKey != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "groupKey", runtime.ParamLocationQuery, *params.GroupKey); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -4655,6 +4904,9 @@ type ClientWithResponsesInterface interface {
 	// StepRunGetWithResponse request
 	StepRunGetWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetResponse, error)
 
+	// StepRunUpdateCancelWithResponse request
+	StepRunUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunUpdateCancelResponse, error)
+
 	// StepRunUpdateRerunWithBodyWithResponse request with any body
 	StepRunUpdateRerunWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StepRunUpdateRerunResponse, error)
 
@@ -4717,6 +4969,11 @@ type ClientWithResponsesInterface interface {
 	// TenantMembershipsListWithResponse request
 	TenantMembershipsListWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*TenantMembershipsListResponse, error)
 
+	// UserUpdatePasswordWithBodyWithResponse request with any body
+	UserUpdatePasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UserUpdatePasswordResponse, error)
+
+	UserUpdatePasswordWithResponse(ctx context.Context, body UserUpdatePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*UserUpdatePasswordResponse, error)
+
 	// UserCreateWithBodyWithResponse request with any body
 	UserCreateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UserCreateResponse, error)
 
@@ -4735,6 +4992,9 @@ type ClientWithResponsesInterface interface {
 	WorkflowUpdateLinkGithubWithBodyWithResponse(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowUpdateLinkGithubResponse, error)
 
 	WorkflowUpdateLinkGithubWithResponse(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateLinkGithubJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowUpdateLinkGithubResponse, error)
+
+	// WorkflowGetMetricsWithResponse request
+	WorkflowGetMetricsWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowGetMetricsResponse, error)
 
 	// WorkflowRunCreateWithBodyWithResponse request with any body
 	WorkflowRunCreateWithBodyWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunCreateResponse, error)
@@ -5465,6 +5725,30 @@ func (r StepRunGetResponse) StatusCode() int {
 	return 0
 }
 
+type StepRunUpdateCancelResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *StepRun
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r StepRunUpdateCancelResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StepRunUpdateCancelResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type StepRunUpdateRerunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5887,6 +6171,31 @@ func (r TenantMembershipsListResponse) StatusCode() int {
 	return 0
 }
 
+type UserUpdatePasswordResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *User
+	JSON400      *APIErrors
+	JSON401      *APIErrors
+	JSON405      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r UserUpdatePasswordResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UserUpdatePasswordResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type UserCreateResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -6003,6 +6312,31 @@ func (r WorkflowUpdateLinkGithubResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r WorkflowUpdateLinkGithubResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WorkflowGetMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkflowMetrics
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowGetMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowGetMetricsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6410,6 +6744,15 @@ func (c *ClientWithResponses) StepRunGetWithResponse(ctx context.Context, tenant
 	return ParseStepRunGetResponse(rsp)
 }
 
+// StepRunUpdateCancelWithResponse request returning *StepRunUpdateCancelResponse
+func (c *ClientWithResponses) StepRunUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunUpdateCancelResponse, error) {
+	rsp, err := c.StepRunUpdateCancel(ctx, tenant, stepRun, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStepRunUpdateCancelResponse(rsp)
+}
+
 // StepRunUpdateRerunWithBodyWithResponse request with arbitrary body returning *StepRunUpdateRerunResponse
 func (c *ClientWithResponses) StepRunUpdateRerunWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StepRunUpdateRerunResponse, error) {
 	rsp, err := c.StepRunUpdateRerunWithBody(ctx, tenant, stepRun, contentType, body, reqEditors...)
@@ -6604,6 +6947,23 @@ func (c *ClientWithResponses) TenantMembershipsListWithResponse(ctx context.Cont
 	return ParseTenantMembershipsListResponse(rsp)
 }
 
+// UserUpdatePasswordWithBodyWithResponse request with arbitrary body returning *UserUpdatePasswordResponse
+func (c *ClientWithResponses) UserUpdatePasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UserUpdatePasswordResponse, error) {
+	rsp, err := c.UserUpdatePasswordWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUserUpdatePasswordResponse(rsp)
+}
+
+func (c *ClientWithResponses) UserUpdatePasswordWithResponse(ctx context.Context, body UserUpdatePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*UserUpdatePasswordResponse, error) {
+	rsp, err := c.UserUpdatePassword(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUserUpdatePasswordResponse(rsp)
+}
+
 // UserCreateWithBodyWithResponse request with arbitrary body returning *UserCreateResponse
 func (c *ClientWithResponses) UserCreateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UserCreateResponse, error) {
 	rsp, err := c.UserCreateWithBody(ctx, contentType, body, reqEditors...)
@@ -6663,6 +7023,15 @@ func (c *ClientWithResponses) WorkflowUpdateLinkGithubWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseWorkflowUpdateLinkGithubResponse(rsp)
+}
+
+// WorkflowGetMetricsWithResponse request returning *WorkflowGetMetricsResponse
+func (c *ClientWithResponses) WorkflowGetMetricsWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowGetMetricsResponse, error) {
+	rsp, err := c.WorkflowGetMetrics(ctx, workflow, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowGetMetricsResponse(rsp)
 }
 
 // WorkflowRunCreateWithBodyWithResponse request with arbitrary body returning *WorkflowRunCreateResponse
@@ -7873,6 +8242,46 @@ func ParseStepRunGetResponse(rsp *http.Response) (*StepRunGetResponse, error) {
 	return response, nil
 }
 
+// ParseStepRunUpdateCancelResponse parses an HTTP response from a StepRunUpdateCancelWithResponse call
+func ParseStepRunUpdateCancelResponse(rsp *http.Response) (*StepRunUpdateCancelResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StepRunUpdateCancelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest StepRun
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseStepRunUpdateRerunResponse parses an HTTP response from a StepRunUpdateRerunWithResponse call
 func ParseStepRunUpdateRerunResponse(rsp *http.Response) (*StepRunUpdateRerunResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -8511,6 +8920,53 @@ func ParseTenantMembershipsListResponse(rsp *http.Response) (*TenantMembershipsL
 	return response, nil
 }
 
+// ParseUserUpdatePasswordResponse parses an HTTP response from a UserUpdatePasswordWithResponse call
+func ParseUserUpdatePasswordResponse(rsp *http.Response) (*UserUpdatePasswordResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UserUpdatePasswordResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest User
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseUserCreateResponse parses an HTTP response from a UserCreateWithResponse call
 func ParseUserCreateResponse(rsp *http.Response) (*UserCreateResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -8694,6 +9150,53 @@ func ParseWorkflowUpdateLinkGithubResponse(rsp *http.Response) (*WorkflowUpdateL
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Workflow
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowGetMetricsResponse parses an HTTP response from a WorkflowGetMetricsWithResponse call
+func ParseWorkflowGetMetricsResponse(rsp *http.Response) (*WorkflowGetMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowGetMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkflowMetrics
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

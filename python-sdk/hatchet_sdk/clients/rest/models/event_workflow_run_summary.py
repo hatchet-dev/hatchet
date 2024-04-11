@@ -28,9 +28,10 @@ class EventWorkflowRunSummary(BaseModel):
     """ # noqa: E501
     pending: Optional[StrictInt] = Field(default=None, description="The number of pending runs.")
     running: Optional[StrictInt] = Field(default=None, description="The number of running runs.")
+    queued: Optional[StrictInt] = Field(default=None, description="The number of queued runs.")
     succeeded: Optional[StrictInt] = Field(default=None, description="The number of succeeded runs.")
     failed: Optional[StrictInt] = Field(default=None, description="The number of failed runs.")
-    __properties: ClassVar[List[str]] = ["pending", "running", "succeeded", "failed"]
+    __properties: ClassVar[List[str]] = ["pending", "running", "queued", "succeeded", "failed"]
 
     model_config = {
         "populate_by_name": True,
@@ -85,6 +86,7 @@ class EventWorkflowRunSummary(BaseModel):
         _obj = cls.model_validate({
             "pending": obj.get("pending"),
             "running": obj.get("running"),
+            "queued": obj.get("queued"),
             "succeeded": obj.get("succeeded"),
             "failed": obj.get("failed")
         })

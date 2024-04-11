@@ -32,6 +32,8 @@ type HatchetContext interface {
 
 	Log(message string)
 
+	StreamEvent(message []byte)
+
 	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error)
 
 	client() client.Client
@@ -149,6 +151,14 @@ func (h *hatchetContext) Log(message string) {
 
 	if err != nil {
 		h.l.Err(err).Msg("could not put log")
+	}
+}
+
+func (h *hatchetContext) StreamEvent(message []byte) {
+	err := h.c.Event().PutStreamEvent(h, h.action.StepRunId, message)
+
+	if err != nil {
+		h.l.Err(err).Msg("could not put stream event")
 	}
 }
 

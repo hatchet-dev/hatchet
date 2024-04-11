@@ -119,14 +119,14 @@ function WorkflowRunSummary({ event }: { event: Event }) {
   invariant(tenant);
 
   const [hoverCardOpen, setPopoverOpen] = useState<
-    'failed' | 'succeeded' | 'running'
+    'failed' | 'succeeded' | 'running' | 'queued' | 'pending'
   >();
 
   const numFailed = event.workflowRunSummary?.failed || 0;
   const numSucceeded = event.workflowRunSummary?.succeeded || 0;
-  const numRunning =
-    (event.workflowRunSummary?.pending || 0) +
-    (event.workflowRunSummary?.running || 0);
+  const numRunning = event.workflowRunSummary?.running || 0;
+  const numPending = event.workflowRunSummary?.pending || 0;
+  const numQueued = event.workflowRunSummary?.queued || 0;
 
   const listWorkflowRunsQuery = useQuery({
     ...queries.workflowRuns.list(tenant.metadata.id, {
@@ -148,7 +148,13 @@ function WorkflowRunSummary({ event }: { event: Event }) {
             return run.status == 'SUCCEEDED';
           }
           if (hoverCardOpen == 'running') {
-            return run.status == 'RUNNING' || run.status == 'PENDING';
+            return run.status == 'RUNNING';
+          }
+          if (hoverCardOpen == 'pending') {
+            return run.status == 'PENDING';
+          }
+          if (hoverCardOpen == 'queued') {
+            return run.status == 'QUEUED';
           }
         }
 
@@ -245,6 +251,58 @@ function WorkflowRunSummary({ event }: { event: Event }) {
               onClick={() => setPopoverOpen('running')}
             >
               {numRunning} Running
+            </Badge>
+          </PopoverTrigger>
+          <PopoverContent
+            className="min-w-fit p-0 bg-background border-none z-40"
+            align="end"
+          >
+            {hoverCardContent}
+          </PopoverContent>
+        </Popover>
+      )}
+      {numPending > 0 && (
+        <Popover
+          open={hoverCardOpen == 'pending'}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPopoverOpen(undefined);
+            }
+          }}
+        >
+          <PopoverTrigger>
+            <Badge
+              variant="inProgress"
+              className="cursor-pointer"
+              onClick={() => setPopoverOpen('pending')}
+            >
+              {numPending} Pending
+            </Badge>
+          </PopoverTrigger>
+          <PopoverContent
+            className="min-w-fit p-0 bg-background border-none z-40"
+            align="end"
+          >
+            {hoverCardContent}
+          </PopoverContent>
+        </Popover>
+      )}
+      {numQueued > 0 && (
+        <Popover
+          open={hoverCardOpen == 'queued'}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPopoverOpen(undefined);
+            }
+          }}
+        >
+          <PopoverTrigger>
+            <Badge
+              variant="inProgress"
+              className="cursor-pointer"
+              onClick={() => setPopoverOpen('queued')}
+            >
+              {numQueued} Queued
             </Badge>
           </PopoverTrigger>
           <PopoverContent

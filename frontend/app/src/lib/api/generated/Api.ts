@@ -54,6 +54,7 @@ import {
   TriggerWorkflowRunRequest,
   UpdateTenantInviteRequest,
   User,
+  UserChangePasswordRequest,
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
@@ -62,8 +63,10 @@ import {
   Workflow,
   WorkflowID,
   WorkflowList,
+  WorkflowMetrics,
   WorkflowRun,
   WorkflowRunList,
+  WorkflowRunStatus,
   WorkflowRunStatusList,
   WorkflowVersion,
   WorkflowVersionDefinition,
@@ -316,6 +319,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/users/current`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a user password.
+   *
+   * @tags User
+   * @name UserUpdatePassword
+   * @summary Change user password
+   * @request POST:/api/v1/users/password
+   * @secure
+   */
+  userUpdatePassword = (data: UserChangePasswordRequest, params: RequestParams = {}) =>
+    this.request<User, APIErrors>({
+      path: `/api/v1/users/password`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });
@@ -847,6 +869,33 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Get the metrics for a workflow version
+   *
+   * @tags Workflow
+   * @name WorkflowGetMetrics
+   * @summary Get workflow metrics
+   * @request GET:/api/v1/workflows/{workflow}/metrics
+   * @secure
+   */
+  workflowGetMetrics = (
+    workflow: string,
+    query?: {
+      /** A status of workflow runs to filter by */
+      status?: WorkflowRunStatus;
+      /** A group key to filter metrics by */
+      groupKey?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<WorkflowMetrics, APIErrors>({
+      path: `/api/v1/workflows/${workflow}/metrics`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Create a pull request for a workflow
    *
    * @tags Workflow
@@ -1060,6 +1109,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Attempts to cancel a step run
+   *
+   * @tags Step Run
+   * @name StepRunUpdateCancel
+   * @summary Attempts to cancel a step run
+   * @request POST:/api/v1/tenants/{tenant}/step-runs/{step-run}/cancel
+   * @secure
+   */
+  stepRunUpdateCancel = (tenant: string, stepRun: string, params: RequestParams = {}) =>
+    this.request<StepRun, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}/cancel`,
+      method: "POST",
+      secure: true,
       format: "json",
       ...params,
     });

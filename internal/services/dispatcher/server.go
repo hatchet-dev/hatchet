@@ -3,8 +3,11 @@ package dispatcher
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -373,6 +376,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 	f := func(task *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
+
 		e, err := s.tenantTaskToWorkflowEvent(task, tenantId, request.WorkflowRunId)
 
 		if err != nil {
@@ -386,6 +390,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		err = stream.Send(e)
 
 		if err != nil {
+			cancel() // FIXME is this necessary?
 			s.l.Error().Err(err).Msgf("could not send workflow event to client")
 			return nil
 		}
@@ -404,16 +409,30 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 		return err
 	}
 
-	for range ctx.Done() {
-		if err := cleanupQueue(); err != nil {
-			return fmt.Errorf("could not cleanup queue: %w", err)
-		}
-
-		// drain the existing connections
-		wg.Wait()
+	<-ctx.Done()
+	if err := cleanupQueue(); err != nil {
+		return fmt.Errorf("could not cleanup queue: %w", err)
 	}
 
+	waitFor(&wg, 60*time.Second, s.l)
+
 	return nil
+}
+
+func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
+
+	done := make(chan struct{})
+
+	go func() {
+		wg.Wait()
+		defer close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		l.Error().Msg("timed out waiting for wait group")
+	}
 }
 
 func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
@@ -465,18 +484,6 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 	if err != nil {
 		return nil, err
 	}
-
-	// jsonSchemaBytes, err := schema.SchemaBytesFromBytes(input)
-
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// _, err = s.repo.StepRun().UpdateStepRunInputSchema(tenantId, request.StepRunId, jsonSchemaBytes)
-
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	return &contracts.OverridesDataResponse{}, nil
 }
@@ -747,6 +754,11 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_TIMED_OUT
+	case "step-run-stream-event":
+		stepRunId = task.Payload["step_run_id"].(string)
+		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
+		workflowEvent.ResourceId = stepRunId
+		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM
 	case "workflow-run-finished":
 		workflowRunId := task.Payload["workflow_run_id"].(string)
 		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN
@@ -768,11 +780,24 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 			return nil, nil
 		}
 
-		unquoted := workflowEvent.EventPayload
-
-		workflowEvent.EventPayload = unquoted
 		workflowEvent.StepRetries = &stepRun.StepRetries
 		workflowEvent.RetryCount = &stepRun.StepRun.RetryCount
+
+		if workflowEvent.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
+			streamEventId, err := strconv.ParseInt(task.Metadata["stream_event_id"].(string), 10, 64)
+			if err != nil {
+				return nil, err
+			}
+
+			streamEvent, err := s.repo.StreamEvent().GetStreamEvent(tenantId, streamEventId)
+
+			if err != nil {
+				return nil, err
+			}
+
+			workflowEvent.EventPayload = string(streamEvent.Message)
+		}
+
 	} else if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN {
 		if workflowEvent.ResourceId != workflowRunId {
 			return nil, nil

@@ -80,6 +80,17 @@ type StepRunFinishedTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
+type StepRunStreamEventTaskPayload struct {
+	StepRunId     string `json:"step_run_id" validate:"required,uuid"`
+	CreatedAt     string `json:"created_at" validate:"required"`
+	StreamEventId string `json:"stream_event_id"`
+}
+
+type StepRunStreamEventTaskMetadata struct {
+	TenantId      string `json:"tenant_id" validate:"required,uuid"`
+	StreamEventId string `json:"stream_event_id" validate:"required,integer"`
+}
+
 type StepRunFailedTaskPayload struct {
 	StepRunId string `json:"step_run_id" validate:"required,uuid"`
 	FailedAt  string `json:"failed_at" validate:"required"`
@@ -144,6 +155,27 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 
 	return &msgqueue.Message{
 		ID:       "step-run-retry",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	}
+}
+
+func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string) *msgqueue.Message {
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
+
+	payload, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskPayload{
+		StepRunId:       stepRunId,
+		CancelledReason: reason,
+	})
+
+	metadata, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskMetadata{
+		TenantId: tenantId,
+	})
+
+	return &msgqueue.Message{
+		ID:       "step-run-cancelled",
 		Payload:  payload,
 		Metadata: metadata,
 		Retries:  3,

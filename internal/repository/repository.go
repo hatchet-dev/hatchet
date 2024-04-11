@@ -32,7 +32,9 @@ type EngineRepository interface {
 	Worker() WorkerEngineRepository
 	Workflow() WorkflowEngineRepository
 	WorkflowRun() WorkflowRunEngineRepository
+	StreamEvent() StreamEventsEngineRepository
 	Log() LogsEngineRepository
+	RateLimit() RateLimitEngineRepository
 }
 
 func BoolPtr(b bool) *bool {

@@ -601,6 +601,15 @@ type LogLine struct {
 	Metadata  []byte           `json:"metadata"`
 }
 
+type RateLimit struct {
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	Key        string           `json:"key"`
+	LimitValue int32            `json:"limitValue"`
+	Value      int32            `json:"value"`
+	Window     string           `json:"window"`
+	LastRefill pgtype.Timestamp `json:"lastRefill"`
+}
+
 type SNSIntegration struct {
 	ID        pgtype.UUID      `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
@@ -642,6 +651,13 @@ type Step struct {
 type StepOrder struct {
 	A pgtype.UUID `json:"A"`
 	B pgtype.UUID `json:"B"`
+}
+
+type StepRateLimit struct {
+	Units        int32       `json:"units"`
+	StepId       pgtype.UUID `json:"stepId"`
+	RateLimitKey string      `json:"rateLimitKey"`
+	TenantId     pgtype.UUID `json:"tenantId"`
 }
 
 type StepRun struct {
@@ -694,6 +710,15 @@ type StepRunResultArchive struct {
 	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
 	CancelledReason pgtype.Text      `json:"cancelledReason"`
 	CancelledError  pgtype.Text      `json:"cancelledError"`
+}
+
+type StreamEvent struct {
+	ID        int64            `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+	StepRunId pgtype.UUID      `json:"stepRunId"`
+	Message   []byte           `json:"message"`
+	Metadata  []byte           `json:"metadata"`
 }
 
 type Tenant struct {
@@ -791,6 +816,11 @@ type Worker struct {
 	Status          WorkerStatus     `json:"status"`
 	DispatcherId    pgtype.UUID      `json:"dispatcherId"`
 	MaxRuns         pgtype.Int4      `json:"maxRuns"`
+}
+
+type WorkerSemaphore struct {
+	WorkerId pgtype.UUID `json:"workerId"`
+	Slots    int32       `json:"slots"`
 }
 
 type Workflow struct {

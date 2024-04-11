@@ -3,11 +3,12 @@ from typing import List, Union
 import grpc
 from google.protobuf import timestamp_pb2
 from ..workflows_pb2_grpc import WorkflowServiceStub
-from ..workflows_pb2 import CreateWorkflowVersionOpts, ScheduleWorkflowRequest, TriggerWorkflowRequest, PutWorkflowRequest, TriggerWorkflowResponse
+from ..workflows_pb2 import CreateWorkflowVersionOpts, PutRateLimitRequest, RateLimitDuration, ScheduleWorkflowRequest, TriggerWorkflowRequest, PutWorkflowRequest, TriggerWorkflowResponse, WorkflowVersion
 from ..loader import ClientConfig
 from ..metadata import get_metadata
 import json
 from typing import TypedDict, Optional
+from ..workflow import WorkflowMeta
 
 def new_admin(conn, config: ClientConfig):
     return AdminClientImpl(
@@ -26,16 +27,41 @@ class AdminClientImpl:
         self.client = client
         self.token = token
 
-    def put_workflow(self, workflow: CreateWorkflowVersionOpts):
+    def put_workflow(self, name: str, workflow: CreateWorkflowVersionOpts | WorkflowMeta, overrides: CreateWorkflowVersionOpts | None = None) -> WorkflowVersion:
         try:
-            self.client.PutWorkflow(
+            opts : CreateWorkflowVersionOpts
+
+            if isinstance(workflow, CreateWorkflowVersionOpts):
+                opts = workflow
+            else:
+                opts = workflow.get_create_opts()
+
+            if overrides is not None:
+                opts.MergeFrom(overrides)
+
+            opts.name = name
+
+            return self.client.PutWorkflow(
                 PutWorkflowRequest(
-                    opts=workflow,
+                    opts=opts,
                 ),
                 metadata=get_metadata(self.token),
             )
         except grpc.RpcError as e:
             raise ValueError(f"Could not put workflow: {e}")
+        
+    def put_rate_limit(self, key: str, limit: int, duration: RateLimitDuration = RateLimitDuration.SECOND):
+        try:
+            self.client.PutRateLimit(
+                PutRateLimitRequest(
+                    key=key,
+                    limit=limit,
+                    duration=duration,
+                ),
+                metadata=get_metadata(self.token),
+            )
+        except grpc.RpcError as e:
+            raise ValueError(f"Could not put rate limit: {e}")
 
     def schedule_workflow(self, name: str, schedules: List[Union[datetime, timestamp_pb2.Timestamp]], input={}, options: TriggerWorkflowParentOptions = None):
         timestamp_schedules = []

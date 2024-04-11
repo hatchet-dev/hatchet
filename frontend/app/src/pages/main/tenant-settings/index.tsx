@@ -14,6 +14,7 @@ import api, {
   SNSIntegration,
   TenantInvite,
   UpdateTenantInviteRequest,
+  UserChangePasswordRequest,
   queries,
 } from '@/lib/api';
 import { Dialog } from '@/components/ui/dialog';
@@ -29,6 +30,8 @@ import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
 import { CreateSNSDialog } from './components/create-sns-dialog';
 import { DeleteSNSForm } from './components/delete-sns-form';
+import { ChangePasswordDialog } from './components/change-password-dialog';
+import { AxiosError } from 'axios';
 
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -60,6 +63,8 @@ export default function TenantSettings() {
 
 function MembersList() {
   const { tenant } = useOutletContext<TenantContextType>();
+  const [showChangePasswordDialog, setShowChangePasswordDialog] =
+    useState(false);
 
   const listMembersQuery = useQuery({
     ...queries.members.list(tenant.metadata.id),
@@ -72,12 +77,24 @@ function MembersList() {
       </h3>
       <Separator className="my-4" />
       <DataTable
-        columns={membersColumns()}
+        columns={membersColumns({
+          onChangePasswordClick: () => {
+            setShowChangePasswordDialog(true);
+          },
+        })}
         data={listMembersQuery.data?.rows || []}
         filters={[]}
         getRowId={(row) => row.metadata.id}
         isLoading={listMembersQuery.isLoading}
       />
+      {showChangePasswordDialog && (
+        <ChangePassword
+          tenant={tenant.metadata.id}
+          showChangePasswordDialog={showChangePasswordDialog}
+          setShowChangePasswordDialog={setShowChangePasswordDialog}
+          onSuccess={() => {}}
+        />
+      )}
     </div>
   );
 }
@@ -302,6 +319,7 @@ function TokensList() {
         filters={[]}
         getRowId={(row) => row.metadata.id}
       />
+
       {showTokenDialog && (
         <CreateToken
           tenant={tenant.metadata.id}
@@ -324,6 +342,60 @@ function TokensList() {
         />
       )}
     </div>
+  );
+}
+
+function ChangePassword({
+  tenant,
+  showChangePasswordDialog,
+  setShowChangePasswordDialog,
+  onSuccess,
+}: {
+  tenant: string;
+  onSuccess: () => void;
+  showChangePasswordDialog: boolean;
+  setShowChangePasswordDialog: (show: boolean) => void;
+}) {
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { handleApiError } = useApiError({
+    setFieldErrors: setFieldErrors,
+  });
+
+  const updatePasswordMutation = useMutation({
+    mutationKey: ['user:update', tenant],
+    mutationFn: async (data: UserChangePasswordRequest) => {
+      const res = await api.userUpdatePassword(data);
+      return res.data;
+    },
+    onMutate: () => {
+      setFieldErrors({});
+    },
+    onSuccess: () => {
+      onSuccess();
+      setShowChangePasswordDialog(false);
+    },
+    onError: (e: AxiosError<unknown, any>) => {
+      console.log('error', e);
+      return handleApiError(e);
+    },
+  });
+
+  return (
+    <Dialog
+      open={showChangePasswordDialog}
+      onOpenChange={setShowChangePasswordDialog}
+    >
+      <ChangePasswordDialog
+        isLoading={updatePasswordMutation.isPending}
+        onSubmit={(data) =>
+          updatePasswordMutation.mutate({
+            password: data.password,
+            newPassword: data.newPassword,
+          })
+        }
+        fieldErrors={fieldErrors}
+      />
+    </Dialog>
   );
 }
 

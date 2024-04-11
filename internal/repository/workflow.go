@@ -29,6 +29,9 @@ type CreateWorkflowVersionOpts struct {
 	// (optional) cron triggers for the workflow
 	CronTriggers []string `validate:"dive,cron"`
 
+	// (optional) the input bytes for the cron triggers
+	CronInput []byte
+
 	// (optional) scheduled triggers for the workflow
 	ScheduledTriggers []time.Time
 
@@ -91,9 +94,6 @@ type CreateWorkflowJobOpts struct {
 	// (optional) the job description
 	Description *string
 
-	// (optional) the job timeout
-	Timeout *string
-
 	// (required) the job steps
 	Steps []CreateWorkflowStepOpts `validate:"required,min=1,dive"`
 }
@@ -116,6 +116,17 @@ type CreateWorkflowStepOpts struct {
 
 	// (optional) the step retry max
 	Retries *int `validate:"omitempty,min=0"`
+
+	// (optional) rate limits for this step
+	RateLimits []CreateWorkflowStepRateLimitOpts `validate:"dive"`
+}
+
+type CreateWorkflowStepRateLimitOpts struct {
+	// (required) the rate limit key
+	Key string `validate:"required"`
+
+	// (required) the rate limit units to consume
+	Units int
 }
 
 type ListWorkflowsOpts struct {
@@ -162,6 +173,22 @@ type UpsertWorkflowDeploymentConfigOpts struct {
 	GitRepoBranch string `validate:"required"`
 }
 
+type WorkflowMetrics struct {
+	// the number of runs for a specific group key
+	GroupKeyRunsCount int `json:"groupKeyRunsCount,omitempty"`
+
+	// the total number of concurrency group keys
+	GroupKeyCount int `json:"groupKeyCount,omitempty"`
+}
+
+type GetWorkflowMetricsOpts struct {
+	// (optional) the group key to filter by
+	GroupKey *string
+
+	// (optional) the workflow run status to filter by
+	Status *string `validate:"omitnil,oneof=PENDING QUEUED RUNNING SUCCEEDED FAILED"`
+}
+
 type WorkflowAPIRepository interface {
 	// ListWorkflows returns all workflows for a given tenant.
 	ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
@@ -178,6 +205,9 @@ type WorkflowAPIRepository interface {
 
 	// DeleteWorkflow deletes a workflow for a given tenant.
 	DeleteWorkflow(tenantId, workflowId string) (*db.WorkflowModel, error)
+
+	// GetWorkflowVersionMetrics returns the metrics for a given workflow version.
+	GetWorkflowMetrics(tenantId, workflowId string, opts *GetWorkflowMetricsOpts) (*WorkflowMetrics, error)
 
 	UpsertWorkflowDeploymentConfig(workflowId string, opts *UpsertWorkflowDeploymentConfigOpts) (*db.WorkflowDeploymentConfigModel, error)
 }

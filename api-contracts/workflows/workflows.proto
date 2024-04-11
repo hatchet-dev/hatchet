@@ -9,6 +9,7 @@ service WorkflowService {
     rpc PutWorkflow(PutWorkflowRequest) returns (WorkflowVersion);
     rpc ScheduleWorkflow(ScheduleWorkflowRequest) returns (WorkflowVersion);
     rpc TriggerWorkflow(TriggerWorkflowRequest) returns (TriggerWorkflowResponse);
+    rpc PutRateLimit(PutRateLimitRequest) returns (PutRateLimitResponse);
 }
 
 message PutWorkflowRequest {
@@ -26,6 +27,7 @@ message CreateWorkflowVersionOpts {
     repeated CreateWorkflowJobOpts jobs = 7; // (required) the workflow jobs
     WorkflowConcurrencyOpts concurrency = 8; // (optional) the workflow concurrency options
     optional string schedule_timeout = 9; // (optional) the timeout for the schedule
+    optional string cron_input = 10; // (optional) the input for the cron trigger
 }
 
 enum ConcurrencyLimitStrategy {
@@ -40,15 +42,15 @@ message WorkflowConcurrencyOpts {
     int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
     ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
 }
-  
+
 // CreateWorkflowJobOpts represents options to create a workflow job.
 message CreateWorkflowJobOpts {
     string name = 1; // (required) the job name
     string description = 2; // (optional) the job description
-    string timeout = 3; // (optional) the job timeout
+    reserved 3; // (deprecated) timeout
     repeated CreateWorkflowStepOpts steps = 4; // (required) the job steps
 }
-  
+
 // CreateWorkflowStepOpts represents options to create a workflow step.
 message CreateWorkflowStepOpts {
     string readable_id = 1; // (required) the step name
@@ -58,6 +60,12 @@ message CreateWorkflowStepOpts {
     repeated string parents = 5; // (optional) the step parents. if none are passed in, this is a root step
     string user_data = 6; // (optional) the custom step user data, assuming string representation of JSON
     int32 retries = 7; // (optional) the number of retries for the step, default 0
+    repeated CreateStepRateLimit rate_limits = 8; // (optional) the rate limits for the step
+}
+
+message CreateStepRateLimit {
+    string key = 1; // (required) the key for the rate limit
+    int32 units = 2; // (required) the number of units this step consumes
 }
 
 // ListWorkflowsRequest is the request for ListWorkflows.
@@ -72,20 +80,20 @@ message ScheduleWorkflowRequest {
     string input = 3;
 
     // (optional) the parent workflow run id
-    optional string parent_id = 4; 
+    optional string parent_id = 4;
 
     // (optional) the parent step run id
     optional string parent_step_run_id = 5;
 
     // (optional) the index of the child workflow. if this is set, matches on the index or the
-    // child key will be a no-op, even if the schedule has changed. 
+    // child key will be a no-op, even if the schedule has changed.
     optional int32 child_index = 6;
 
     // (optional) the key for the child. if this is set, matches on the index or the
-    // child key will be a no-op, even if the schedule has changed. 
+    // child key will be a no-op, even if the schedule has changed.
     optional string child_key = 7;
 }
-    
+
 // WorkflowVersion represents the WorkflowVersion model.
 message WorkflowVersion {
     string id = 1;
@@ -95,19 +103,19 @@ message WorkflowVersion {
     int32 order = 6;
     string workflow_id = 7;
 }
-  
+
 // WorkflowTriggerEventRef represents the WorkflowTriggerEventRef model.
 message WorkflowTriggerEventRef {
     string parent_id = 1;
     string event_key = 2;
 }
-  
+
 // WorkflowTriggerCronRef represents the WorkflowTriggerCronRef model.
 message WorkflowTriggerCronRef {
     string parent_id = 1;
     string cron = 2;
 }
-  
+
 message TriggerWorkflowRequest {
     string name = 1;
 
@@ -115,22 +123,41 @@ message TriggerWorkflowRequest {
     string input = 2;
 
     // (optional) the parent workflow run id
-    optional string parent_id = 3; 
+    optional string parent_id = 3;
 
     // (optional) the parent step run id
     optional string parent_step_run_id = 4;
 
     // (optional) the index of the child workflow. if this is set, matches on the index or the
     // child key will return an existing workflow run if the parent id, parent step run id, and
-    // child index/key match an existing workflow run. 
+    // child index/key match an existing workflow run.
     optional int32 child_index = 5;
 
     // (optional) the key for the child. if this is set, matches on the index or the
     // child key will return an existing workflow run if the parent id, parent step run id, and
-    // child index/key match an existing workflow run. 
+    // child index/key match an existing workflow run.
     optional string child_key = 6;
 }
 
 message TriggerWorkflowResponse {
     string workflow_run_id = 1;
 }
+
+enum RateLimitDuration {
+    SECOND = 0;
+    MINUTE = 1;
+    HOUR = 2;
+}
+
+message PutRateLimitRequest {
+    // (required) the global key for the rate limit
+    string key = 1;
+
+    // (required) the max limit for the rate limit (per unit of time)
+    int32 limit = 2;
+
+    // (required) the duration of time for the rate limit (second|minute|hour)
+    RateLimitDuration duration = 3;
+}
+
+message PutRateLimitResponse {}

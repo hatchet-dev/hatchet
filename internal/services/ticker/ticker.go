@@ -183,6 +183,18 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
 	}
 
+	_, err = t.s.NewJob(
+		gocron.DurationJob(time.Minute*5),
+		gocron.NewTask(
+			t.runStreamEventCleanup(),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule stream event cleanup: %w", err)
+	}
+
 	t.s.Start()
 
 	cleanup := func() error {
@@ -221,6 +233,18 @@ func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 
 		if err != nil {
 			t.l.Err(err).Msg("could not update heartbeat")
+		}
+	}
+}
+
+func (t *TickerImpl) runStreamEventCleanup() func() {
+	return func() {
+		t.l.Debug().Msgf("ticker: cleaning up stream event")
+
+		err := t.repo.StreamEvent().CleanupStreamEvents()
+
+		if err != nil {
+			t.l.Err(err).Msg("could not cleanup stream events")
 		}
 	}
 }

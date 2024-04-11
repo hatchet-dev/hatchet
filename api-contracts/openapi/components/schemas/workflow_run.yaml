@@ -87,6 +87,7 @@ WorkflowRunStatus:
     - SUCCEEDED
     - FAILED
     - CANCELLED
+    - QUEUED
 
 WorkflowRunStatusList:
   type: array

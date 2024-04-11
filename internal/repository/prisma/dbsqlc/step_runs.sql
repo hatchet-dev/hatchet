@@ -17,6 +17,7 @@ SELECT
     wr."id" AS "workflowRunId",
     s."id" AS "stepId",
     s."retries" AS "stepRetries",
+    s."timeout" AS "stepTimeout",
     s."scheduleTimeout" AS "stepScheduleTimeout",
     s."readableId" AS "stepReadableId",
     s."customUserData" AS "stepCustomUserData",
@@ -274,106 +275,199 @@ FROM step_run_data
 RETURNING *;
 
 -- name: ListStepRunsToReassign :many
-SELECT
-    sr.*
-FROM
-    "StepRun" sr
-LEFT JOIN
-    "Worker" w ON sr."workerId" = w."id"
-JOIN
-    "Step" s ON sr."stepId" = s."id"
-WHERE
-    sr."tenantId" = @tenantId::uuid
-    AND ((
-        sr."status" = 'RUNNING'
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
-        AND s."retries" > sr."retryCount"
-    ) OR (
-        sr."status" = 'ASSIGNED'
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '5 seconds'
-    ))
-    -- Step run cannot have a failed parent
-    AND NOT EXISTS (
-        SELECT 1
-        FROM "_StepRunOrder" AS order_table
-        JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-        WHERE 
-            order_table."B" = sr."id"
-            AND prev_sr."status" != 'SUCCEEDED'
-    )
-ORDER BY
-    sr."createdAt" ASC;
-
--- name: ListStepRunsToRequeue :many
-SELECT
-    sr.*
-FROM
-    "StepRun" sr
-LEFT JOIN
-    "Worker" w ON sr."workerId" = w."id"
-JOIN
-    "JobRun" jr ON sr."jobRunId" = jr."id"
-WHERE
-    sr."tenantId" = @tenantId::uuid
-    AND sr."requeueAfter" < NOW()
-    AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
-    AND jr."status" = 'RUNNING'
-    AND NOT EXISTS (
-        SELECT 1
-        FROM "_StepRunOrder" AS order_table
-        JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-        WHERE 
-            order_table."B" = sr."id"
-            AND prev_sr."status" != 'SUCCEEDED'
-    )
-ORDER BY
-    sr."createdAt" ASC;
-
--- name: AssignStepRunToWorker :one
-WITH step_run AS (
+WITH valid_workers AS (
     SELECT
-        sr."id",
-        sr."status",
-        a."id" AS "actionId",
-        s."timeout" AS "stepTimeout"
+        DISTINCT ON (w."id")
+        w."id",
+        COALESCE(SUM(ws."slots"), 100) AS "slots"
     FROM
-        "StepRun" sr
-    JOIN
-        "Step" s ON sr."stepId" = s."id"
-    JOIN
-        "Action" a ON s."actionId" = a."actionId" AND a."tenantId" = @tenantId::uuid
-    WHERE
-        sr."id" = @stepRunId::uuid AND
-        sr."tenantId" = @tenantId::uuid
-),
-valid_workers AS (
-    SELECT
-        w."id", w."dispatcherId"
-    FROM
-        "Worker" w, step_run
+        "Worker" w
+    LEFT JOIN
+        "WorkerSemaphore" ws ON ws."workerId" = w."id"
     WHERE
         w."tenantId" = @tenantId::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    GROUP BY
+        w."id"
+),
+-- Count the total number of slots across all workers
+total_max_runs AS (
+    SELECT
+        SUM("slots") AS "totalMaxRuns"
+    FROM
+        valid_workers
+),
+limit_max_runs AS (
+    SELECT
+        GREATEST("totalMaxRuns", 100) AS "limitMaxRuns"
+    FROM
+        total_max_runs
+),
+step_runs AS (
+    SELECT
+        sr.*
+    FROM
+        "StepRun" sr
+    LEFT JOIN
+        "Worker" w ON sr."workerId" = w."id"
+    JOIN
+        "JobRun" jr ON sr."jobRunId" = jr."id"
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    WHERE
+        sr."tenantId" = @tenantId::uuid
+        AND ((
+            sr."status" = 'RUNNING'
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
+            AND s."retries" > sr."retryCount"
+        ) OR (
+            sr."status" = 'ASSIGNED'
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
+        ))
+        AND jr."status" = 'RUNNING'
+        AND sr."input" IS NOT NULL
+        -- Step run cannot have a failed parent
+        AND NOT EXISTS (
+            SELECT 1
+            FROM "_StepRunOrder" AS order_table
+            JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
+            WHERE 
+                order_table."B" = sr."id"
+                AND prev_sr."status" != 'SUCCEEDED'
+        )
+    ORDER BY
+        sr."createdAt" ASC
+    LIMIT
+        (SELECT "limitMaxRuns" FROM limit_max_runs)
+),
+locked_step_runs AS (
+    SELECT
+        sr."id", sr."status", sr."workerId"
+    FROM
+        step_runs sr
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "StepRun"
+SET
+    "status" = 'PENDING_ASSIGNMENT',
+    -- requeue after now plus 4 seconds
+    "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
+    "updatedAt" = CURRENT_TIMESTAMP
+FROM 
+    locked_step_runs
+WHERE
+    "StepRun"."id" = locked_step_runs."id"
+RETURNING "StepRun"."id";
+
+-- name: ListStepRunsToRequeue :many
+WITH valid_workers AS (
+    SELECT
+        DISTINCT ON (w."id")
+        w."id",
+        COALESCE(SUM(ws."slots"), 100) AS "slots"
+    FROM
+        "Worker" w
+    LEFT JOIN
+        "WorkerSemaphore" ws ON w."id" = ws."workerId"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    GROUP BY
+        w."id"
+),
+-- Count the total number of maxRuns - runningStepRuns across all workers
+total_max_runs AS (
+    SELECT
+        -- if maxRuns is null, then we assume the worker can run 100 step runs
+        SUM("slots") AS "totalMaxRuns"
+    FROM
+        valid_workers
+),
+step_runs AS (
+    SELECT
+        sr.*
+    FROM
+        "StepRun" sr
+    LEFT JOIN
+        "Worker" w ON sr."workerId" = w."id"
+    JOIN
+        "JobRun" jr ON sr."jobRunId" = jr."id"
+    WHERE
+        sr."tenantId" = @tenantId::uuid
+        AND sr."requeueAfter" < NOW()
+        AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
+        AND jr."status" = 'RUNNING'
+        AND sr."input" IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1
+            FROM "_StepRunOrder" AS order_table
+            JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
+            WHERE 
+                order_table."B" = sr."id"
+                AND prev_sr."status" != 'SUCCEEDED'
+        )
+    ORDER BY
+        sr."createdAt" ASC
+    LIMIT
+        COALESCE((SELECT "totalMaxRuns" FROM total_max_runs), 100)
+),
+locked_step_runs AS (
+    SELECT
+        sr."id", sr."status", sr."workerId"
+    FROM
+        step_runs sr
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "StepRun"
+SET
+    "status" = 'PENDING_ASSIGNMENT',
+    -- requeue after now plus 4 seconds
+    "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
+    "updatedAt" = CURRENT_TIMESTAMP
+FROM 
+    locked_step_runs
+WHERE
+    "StepRun"."id" = locked_step_runs."id"
+RETURNING "StepRun"."id";
+
+-- name: AssignStepRunToWorker :one
+WITH selected_worker AS (
+    SELECT
+        w."id", w."dispatcherId", ws."slots"
+    FROM
+        "Worker" w
+    LEFT JOIN 
+        "WorkerSemaphore" ws ON w."id" = ws."workerId"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
             INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = @tenantId AND "Action"."id" = step_run."actionId"
+            WHERE "Action"."tenantId" = @tenantId AND "Action"."actionId" = @actionId::text
         )
         AND (
-            w."maxRuns" IS NULL OR
-            w."maxRuns" > (
-                SELECT COUNT(*)
-                FROM "StepRun" srs
-                WHERE srs."workerId" = w."id" AND (srs."status" = 'RUNNING' OR srs."status" = 'ASSIGNED')
-            )
+            ws."workerId" IS NULL OR
+            ws."slots" > 0
         )
-    ORDER BY random()
-),
-selected_worker AS (
-    SELECT "id", "dispatcherId"
-    FROM valid_workers
+    ORDER BY ws."slots" DESC NULLS FIRST
     LIMIT 1
+),
+step_run AS (
+    SELECT
+        "id", "workerId"
+    FROM
+        "StepRun"
+    WHERE
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid AND
+        "status" = 'PENDING_ASSIGNMENT' AND
+        EXISTS (SELECT 1 FROM selected_worker)
+    FOR UPDATE
 )
 UPDATE
     "StepRun"
@@ -384,14 +478,81 @@ SET
         FROM selected_worker
         LIMIT 1
     ),
+    "tickerId" = NULL,
     "updatedAt" = CURRENT_TIMESTAMP,
     "timeoutAt" = CASE
-        WHEN (SELECT "stepTimeout" FROM step_run) IS NOT NULL THEN
-            CURRENT_TIMESTAMP + convert_duration_to_interval((SELECT "stepTimeout" FROM step_run))
+        WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
+            CURRENT_TIMESTAMP + convert_duration_to_interval(sqlc.narg('stepTimeout')::text)
         ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
     END
 WHERE
     "id" = @stepRunId::uuid AND
     "tenantId" = @tenantId::uuid AND
+    "status" = 'PENDING_ASSIGNMENT' AND
     EXISTS (SELECT 1 FROM selected_worker)
 RETURNING "StepRun"."id", "StepRun"."workerId", (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId";
+
+-- name: UpdateWorkerSemaphore :one
+WITH worker_id AS (
+    SELECT
+        "workerId"
+    FROM
+        "StepRun"
+    WHERE
+        "id" = @stepRunId::uuid AND "tenantId" = @tenantId::uuid
+),
+semaphore AS (
+    SELECT
+        "slots"
+    FROM
+        "WorkerSemaphore" ws, worker_id
+    WHERE
+        ws."workerId" = worker_id."workerId"
+    FOR UPDATE
+)
+UPDATE
+    "WorkerSemaphore" ws
+SET
+    "slots" = (ws."slots" + @inc::int)
+FROM
+    worker_id
+WHERE
+    ws."workerId" = worker_id."workerId"
+RETURNING ws.*;
+
+-- name: UpdateStepRateLimits :many
+WITH step_rate_limits AS (
+    SELECT
+        rl."units" AS "units",
+        rl."rateLimitKey" AS "rateLimitKey"
+    FROM
+        "StepRateLimit" rl
+    WHERE
+        rl."stepId" = @stepId::uuid AND
+        rl."tenantId" = @tenantId::uuid
+), locked_rate_limits AS (
+    SELECT
+        srl.*,
+        step_rate_limits."units"
+    FROM
+        step_rate_limits
+    JOIN
+        "RateLimit" srl ON srl."key" = step_rate_limits."rateLimitKey" AND srl."tenantId" = @tenantId::uuid
+    FOR UPDATE
+)
+UPDATE
+    "RateLimit" srl
+SET
+    "value" = get_refill_value(srl) - lrl."units",
+    "lastRefill" = CASE
+        WHEN NOW() - srl."lastRefill" >= srl."window"::INTERVAL THEN
+            CURRENT_TIMESTAMP
+        ELSE
+            srl."lastRefill"
+    END
+FROM
+    locked_rate_limits lrl
+WHERE
+    srl."tenantId" = lrl."tenantId" AND
+    srl."key" = lrl."key"
+RETURNING srl.*;

@@ -1,0 +1,98 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+
+# Rate Limiting Step Runs in Hatchet
+
+Hatchet allows you to enforce rate limits on step runs in your workflows, enabling you to control the rate at which workflow runs consume resources, such as external API calls, database queries, or other services. By defining rate limits, you can prevent step runs from exceeding a certain number of requests per time window (e.g., per second, minute, or hour), ensuring efficient resource utilization and avoiding overloading external services.
+
+## How It Works
+
+1. Declare global rate limits that can be consumed by any step run across all workflow runs using the `put_rate_limit` method in the `Admin` client.
+2. Specify the units of consumption for a specific rate limit key in each step definition using the `rate_limits` configuration.
+
+Hatchet enforces the defined rate limits by tracking the number of units consumed by each step run. If a step run exceeds the rate limit, Hatchet re-queues the step run until the rate limit is no longer exceeded.
+
+## Declaring Global Limits
+
+To get started, define the global rate limits that can be consumed by any step run across all workflow runs. These limits are set using the `put_rate_limit` method in the `Admin` client within your code.
+
+For example, a rate limit key could represent an external service API endpoint, and the limit could be the number of requests allowed per unit duration. The duration specifies the time window for the rate limit, such as per second, minute, or hour.
+
+It is recommended to specify multiple keys for different rate limits in your application to ensure that each key represents a unique resource or service that requires rate limiting. For example, you may specify `openai-inference` to set a global rate limit for OpenAI API inference requests.
+
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+hatchet.admin.put_rate_limit('example-limit', 10, RateLimitDuration.MINUTE)
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```typescript
+await hatchet.admin.put_rate_limit('test-limit', 1, RateLimitDuration.MINUTE);
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+err = c.Admin().PutRateLimit("example-limit", &types.RateLimitOpts{
+    Max:      3,
+    Duration: "minute",
+})
+```
+  </Tabs.Tab>
+</Tabs>
+
+## Consuming Rate Limits
+
+With your rate limit key defined, you can specify the units of consumption for a specific key in each step definition. This is done by adding the `rate_limits` configuration to your step definition in your workflow.
+
+The units is the number of units of the rate limit that the step consumes. For example a step may make two separate API calls, each consuming two units of the rate limit.
+
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+@hatchet.step(rate_limits=[RateLimit(key='example-limit', units=1)])
+def step1(self, context: Context):
+    print("executed step1")
+    pass
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```typescript
+const workflow: Workflow = {
+  // ... the rest of the workflow definition
+  steps: [
+    {
+      name: 'step1',
+      rate_limits: [{ key: 'example-limit', units: 1 }],
+      run: async (ctx) => {
+        console.log('starting step1 with the following input', ctx.workflowInput());
+        return { step1: 'step1 results!' };
+      },
+    },
+  ],
+};
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+err = w.On(
+    worker.NoTrigger(),
+    &worker.WorkflowJob{
+        Name:        "rate-limit-workflow",
+        Description: "This illustrates rate limiting.",
+        Steps: []*worker.WorkflowStep{
+            worker.Fn(StepOne).SetName("step-one").SetRateLimit(
+                worker.RateLimit{
+                    Units: 1,
+                    Key:   "example-limit",
+                },
+            ),
+        },
+    },
+)
+```
+  </Tabs.Tab>
+</Tabs>
+
+### Limiting Workflow Runs
+
+To rate limit an entire workflow run, it's recommended to specify the rate limit configuration on the entry step (i.e., the first step in the workflow). This will gate the execution of all downstream steps in the workflow.

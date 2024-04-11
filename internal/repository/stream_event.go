@@ -1,0 +1,32 @@
+package repository
+
+import (
+	"time"
+
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+)
+
+type CreateStreamEventOpts struct {
+	// The step run id
+	StepRunId string `validate:"required,uuid"`
+
+	// (optional) The time when the StreamEvent was created.
+	CreatedAt *time.Time
+
+	// (required) The message of the Stream Event.
+	Message []byte `validate:"required,min=1"`
+
+	// (optional) The metadata of the Stream Event.
+	Metadata []byte
+}
+
+type StreamEventsEngineRepository interface {
+	// PutStreamEvent creates a new StreamEvent line.
+	PutStreamEvent(tenantId string, opts *CreateStreamEventOpts) (*dbsqlc.StreamEvent, error)
+
+	// GetStreamEvent returns a StreamEvent line by id.
+	GetStreamEvent(tenantId string, streamEventId int64) (*dbsqlc.StreamEvent, error)
+
+	// CleanupStreamEvents deletes all stale StreamEvents.
+	CleanupStreamEvents() error
+}

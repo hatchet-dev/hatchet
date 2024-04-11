@@ -20,6 +20,7 @@ class StepRunEventType:
     STEP_RUN_EVENT_TYPE_FAILED = 'STEP_RUN_EVENT_TYPE_FAILED'
     STEP_RUN_EVENT_TYPE_CANCELLED = 'STEP_RUN_EVENT_TYPE_CANCELLED'
     STEP_RUN_EVENT_TYPE_TIMED_OUT = 'STEP_RUN_EVENT_TYPE_TIMED_OUT'
+    STEP_RUN_EVENT_TYPE_STREAM = 'STEP_RUN_EVENT_TYPE_STREAM'
 
 class WorkflowRunEventType:
     WORKFLOW_RUN_EVENT_TYPE_STARTED = 'WORKFLOW_RUN_EVENT_TYPE_STARTED'
@@ -34,6 +35,7 @@ step_run_event_type_mapping = {
     ResourceEventType.RESOURCE_EVENT_TYPE_FAILED: StepRunEventType.STEP_RUN_EVENT_TYPE_FAILED,
     ResourceEventType.RESOURCE_EVENT_TYPE_CANCELLED: StepRunEventType.STEP_RUN_EVENT_TYPE_CANCELLED,
     ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT: StepRunEventType.STEP_RUN_EVENT_TYPE_TIMED_OUT,
+    ResourceEventType.RESOURCE_EVENT_TYPE_STREAM: StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM,
 }
 
 workflow_run_event_type_mapping = {
@@ -95,6 +97,7 @@ class HatchetListener:
                             if workflow_event.eventPayload:
                                 payload = json.loads(workflow_event.eventPayload)
                         except Exception as e:
+                            payload = workflow_event.eventPayload
                             pass
 
                         yield StepRunEvent(type=eventType, payload=payload)
@@ -166,8 +169,8 @@ class ListenerClientImpl:
     def stream(self, workflow_run_id: str):
         return HatchetListener(workflow_run_id, self.token, self.config)
 
-    def on(self, workflow_run_id: str, handler: callable = None):
-        for event in self.stream(workflow_run_id):
+    async def on(self, workflow_run_id: str, handler: callable = None):
+        async for event in self.stream(workflow_run_id):
             # call the handler if provided
             if handler:
                 handler(event)

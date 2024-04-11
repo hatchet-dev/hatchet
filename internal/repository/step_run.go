@@ -65,6 +65,7 @@ func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
 
 var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
 var ErrNoWorkerAvailable = fmt.Errorf("no worker available")
+var ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded")
 
 type StepRunUpdateInfo struct {
 	JobRunFinalState      bool
@@ -87,10 +88,10 @@ type StepRunEngineRepository interface {
 	ListRunningStepRunsForWorkflowRun(tenantId, workflowRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStepRunsToRequeue returns a list of step runs which are in a requeueable state.
-	ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.StepRun, error)
+	ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
-	ListStepRunsToReassign(tenantId string) ([]*dbsqlc.StepRun, error)
+	ListStepRunsToReassign(tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *StepRunUpdateInfo, error)
 
@@ -100,7 +101,7 @@ type StepRunEngineRepository interface {
 
 	UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error)
 
-	AssignStepRunToWorker(tenantId, stepRunId string) (workerId string, dispatcherId string, err error)
+	AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (workerId string, dispatcherId string, err error)
 
 	GetStepRunForEngine(tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 

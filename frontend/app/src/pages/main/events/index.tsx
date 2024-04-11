@@ -231,6 +231,10 @@ function EventsTable() {
         label: 'Running',
       },
       {
+        value: WorkflowRunStatus.QUEUED,
+        label: 'Queued',
+      },
+      {
         value: WorkflowRunStatus.PENDING,
         label: 'Pending',
       },

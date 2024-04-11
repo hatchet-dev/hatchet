@@ -108,6 +108,19 @@ func defaultWorkerOpts() *WorkerOpts {
 	}
 }
 
+func WithLogLevel(lvl string) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		logger := logger.NewDefaultLogger("worker")
+		lvl, err := zerolog.ParseLevel(lvl)
+
+		if err == nil {
+			logger = logger.Level(lvl)
+		}
+
+		opts.l = &logger
+	}
+}
+
 func WithName(name string) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.name = name

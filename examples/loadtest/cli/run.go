@@ -19,7 +19,9 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 }
 
 func run(ctx context.Context, delay time.Duration, executions chan<- time.Duration, concurrency int) (int64, int64) {
-	c, err := client.New()
+	c, err := client.New(
+		client.WithLogLevel("warn"),
+	)
 
 	if err != nil {
 		panic(err)
@@ -29,6 +31,8 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 		worker.WithClient(
 			c,
 		),
+		worker.WithLogLevel("warn"),
+		worker.WithMaxRuns(200),
 	)
 
 	if err != nil {
@@ -60,7 +64,7 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 					}
 
 					took := time.Since(input.CreatedAt)
-					fmt.Println("executing", input.ID, "took", took)
+					l.Info().Msgf("executing %d took %s", input.ID, took)
 
 					mx.Lock()
 					executions <- took
@@ -69,13 +73,16 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 					for i := 0; i < len(executed)-1; i++ {
 						if executed[i] == input.ID {
 							duplicate = true
-							fmt.Println("DUPLICATE:", input.ID)
+							break
 						}
 					}
-					if !duplicate {
-						uniques += 1
+					if duplicate {
+						l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
 					}
-					count += 1
+					if !duplicate {
+						uniques++
+					}
+					count++
 					executed = append(executed, input.ID)
 					mx.Unlock()
 

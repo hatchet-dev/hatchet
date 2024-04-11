@@ -104,7 +104,7 @@ func (c *ChildWorkflow) Result() (*ChildWorkflowResult, error) {
 
 	go func() {
 		// listen for workflow finished events
-		err := c.client.Run().On(
+		err := c.client.Subscribe().On(
 			ctx,
 			c.workflowRunId,
 			func(event client.RunEvent) error {

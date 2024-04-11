@@ -7,7 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
-func ToUser(user *db.UserModel) *gen.User {
+func ToUser(user *db.UserModel, hasPassword bool) *gen.User {
 	var name *string
 
 	if dbName, ok := user.Name(); ok {
@@ -19,6 +19,7 @@ func ToUser(user *db.UserModel) *gen.User {
 		Email:         types.Email(user.Email),
 		EmailVerified: user.EmailVerified,
 		Name:          name,
+		HasPassword:   &hasPassword,
 	}
 }
 

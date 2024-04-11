@@ -144,6 +144,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 	config.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	config.MaxConns = int32(cf.MaxConns)
+	config.MinConns = int32(cf.MaxConns)
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
@@ -191,6 +192,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	ingestor, err := ingestor.NewIngestor(
 		ingestor.WithEventRepository(dc.EngineRepository.Event()),
+		ingestor.WithStreamEventsRepository(dc.EngineRepository.StreamEvent()),
 		ingestor.WithLogRepository(dc.EngineRepository.Log()),
 		ingestor.WithMessageQueue(mq),
 	)

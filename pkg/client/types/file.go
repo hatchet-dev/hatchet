@@ -63,19 +63,23 @@ type WorkflowEvent struct {
 type WorkflowJob struct {
 	Description string `yaml:"description,omitempty"`
 
-	Timeout string `yaml:"timeout,omitempty"`
-
 	Steps []WorkflowStep `yaml:"steps"`
 }
 
 type WorkflowStep struct {
-	Name     string                 `yaml:"name,omitempty"`
-	ID       string                 `yaml:"id,omitempty"`
-	ActionID string                 `yaml:"action"`
-	Timeout  string                 `yaml:"timeout,omitempty"`
-	With     map[string]interface{} `yaml:"with,omitempty"`
-	Parents  []string               `yaml:"parents,omitempty"`
-	Retries  int                    `yaml:"retries"`
+	Name       string                 `yaml:"name,omitempty"`
+	ID         string                 `yaml:"id,omitempty"`
+	ActionID   string                 `yaml:"action"`
+	Timeout    string                 `yaml:"timeout,omitempty"`
+	With       map[string]interface{} `yaml:"with,omitempty"`
+	Parents    []string               `yaml:"parents,omitempty"`
+	Retries    int                    `yaml:"retries"`
+	RateLimits []RateLimit            `yaml:"rateLimits,omitempty"`
+}
+
+type RateLimit struct {
+	Units int    `yaml:"units,omitempty"`
+	Key   string `yaml:"key,omitempty"`
 }
 
 func ParseYAML(ctx context.Context, yamlBytes []byte) (Workflow, error) {

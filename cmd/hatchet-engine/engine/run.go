@@ -201,6 +201,9 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			ingestor.WithEventRepository(
 				sc.EngineRepository.Event(),
 			),
+			ingestor.WithStreamEventsRepository(
+				sc.EngineRepository.StreamEvent(),
+			),
 			ingestor.WithLogRepository(
 				sc.EngineRepository.Log(),
 			),
@@ -224,6 +227,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			grpc.WithDispatcher(d),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithLogger(sc.Logger),
+			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
 			grpc.WithPort(sc.Runtime.GRPCPort),
 			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),

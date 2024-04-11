@@ -50,6 +50,10 @@ EventWorkflowRunSummary:
       type: integer
       format: int64
       description: The number of running runs.
+    queued:
+      type: integer
+      format: int64
+      description: The number of queued runs.
     succeeded:
       type: integer
       format: int64

@@ -230,6 +230,56 @@ func (r *workflowAPIRepository) UpsertWorkflowDeploymentConfig(workflowId string
 	return deploymentConfig, nil
 }
 
+func (r *workflowAPIRepository) GetWorkflowMetrics(tenantId, workflowId string, opts *repository.GetWorkflowMetricsOpts) (*repository.WorkflowMetrics, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgWorkflowId := sqlchelpers.UUIDFromStr(workflowId)
+
+	countRunsParams := dbsqlc.CountWorkflowRunsRoundRobinParams{
+		Tenantid:   pgTenantId,
+		Workflowid: pgWorkflowId,
+	}
+
+	countGroupKeysParams := dbsqlc.CountRoundRobinGroupKeysParams{
+		Tenantid:   pgTenantId,
+		Workflowid: pgWorkflowId,
+	}
+
+	if opts.Status != nil {
+		status := dbsqlc.NullWorkflowRunStatus{
+			Valid:             true,
+			WorkflowRunStatus: dbsqlc.WorkflowRunStatus(*opts.Status),
+		}
+
+		countRunsParams.Status = status
+		countGroupKeysParams.Status = status
+	}
+
+	if opts.GroupKey != nil {
+		countRunsParams.GroupKey = sqlchelpers.TextFromStr(*opts.GroupKey)
+	}
+
+	runsCount, err := r.queries.CountWorkflowRunsRoundRobin(context.Background(), r.pool, countRunsParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflow run counts: %w", err)
+	}
+
+	groupKeysCount, err := r.queries.CountRoundRobinGroupKeys(context.Background(), r.pool, countGroupKeysParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch group key counts: %w", err)
+	}
+
+	return &repository.WorkflowMetrics{
+		GroupKeyRunsCount: int(runsCount),
+		GroupKeyCount:     int(groupKeysCount),
+	}, nil
+}
+
 type workflowEngineRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
@@ -631,10 +681,6 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 			description = *jobOpts.Description
 		}
 
-		if jobOpts.Timeout != nil {
-			timeout = *jobOpts.Timeout
-		}
-
 		sqlcJob, err := r.queries.CreateJob(
 			context.Background(),
 			tx,
@@ -730,6 +776,25 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 					return "", err
 				}
 			}
+
+			if len(stepOpts.RateLimits) > 0 {
+				for _, rateLimit := range stepOpts.RateLimits {
+					_, err := r.queries.CreateStepRateLimit(
+						context.Background(),
+						tx,
+						dbsqlc.CreateStepRateLimitParams{
+							Stepid:       sqlchelpers.UUIDFromStr(stepId),
+							Ratelimitkey: rateLimit.Key,
+							Units:        int32(rateLimit.Units),
+							Tenantid:     tenantId,
+						},
+					)
+
+					if err != nil {
+						return "", err
+					}
+				}
+			}
 		}
 	}
 
@@ -772,6 +837,7 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 			dbsqlc.CreateWorkflowTriggerCronRefParams{
 				Workflowtriggersid: sqlcWorkflowTriggers.ID,
 				Crontrigger:        cronTrigger,
+				Input:              opts.CronInput,
 			},
 		)
 

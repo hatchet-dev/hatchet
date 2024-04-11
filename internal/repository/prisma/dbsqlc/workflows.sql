@@ -248,6 +248,19 @@ FROM
 JOIN 
     "Step" AS step ON step."readableId" = parent_readable_id AND step."jobId" = @jobId::uuid;
 
+-- name: CreateStepRateLimit :one
+INSERT INTO "StepRateLimit" (
+    "units",
+    "stepId",
+    "rateLimitKey",
+    "tenantId"
+) VALUES (
+    @units::integer,
+    @stepId::uuid,
+    @rateLimitKey::text,
+    @tenantId::uuid
+) RETURNING *;
+
 -- name: UpsertAction :one
 INSERT INTO "Action" (
     "id",
@@ -319,10 +332,12 @@ INSERT INTO "WorkflowTriggerEventRef" (
 -- name: CreateWorkflowTriggerCronRef :one
 INSERT INTO "WorkflowTriggerCronRef" (
     "parentId",
-    "cron"
+    "cron",
+    "input"
 ) VALUES (
     @workflowTriggersId::uuid,
-    @cronTrigger::text
+    @cronTrigger::text,
+    sqlc.narg('input')::jsonb
 ) RETURNING *;
 
 -- name: CreateWorkflowTriggerScheduledRef :one
@@ -403,3 +418,37 @@ WHERE
 ORDER BY
     workflowVersions."order" DESC
 LIMIT 1;
+
+-- name: CountWorkflowRunsRoundRobin :one
+SELECT COUNT(*) AS total
+FROM
+    "WorkflowRun" r1
+JOIN
+    "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
+WHERE
+    r1."tenantId" = @tenantId::uuid AND
+    (
+        sqlc.narg('status')::"WorkflowRunStatus" IS NULL OR
+        r1."status" = sqlc.narg('status')::"WorkflowRunStatus"
+    ) AND
+    workflowVersion."workflowId" = @workflowId::uuid AND
+    r1."concurrencyGroupId" IS NOT NULL AND
+    (
+        sqlc.narg('groupKey')::text IS NULL OR
+        r1."concurrencyGroupId" = sqlc.narg('groupKey')::text
+    );
+
+-- name: CountRoundRobinGroupKeys :one
+SELECT
+    COUNT(DISTINCT "concurrencyGroupId") AS total
+FROM
+    "WorkflowRun" r1
+JOIN
+    "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
+WHERE
+    r1."tenantId" = @tenantId::uuid AND
+    (
+        sqlc.narg('status')::"WorkflowRunStatus" IS NULL OR
+        r1."status" = sqlc.narg('status')::"WorkflowRunStatus"
+    ) AND
+    workflowVersion."workflowId" = @workflowId::uuid;

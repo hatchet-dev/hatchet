@@ -117,6 +117,8 @@ export interface User {
   email: string;
   /** Whether the user has verified their email address. */
   emailVerified: boolean;
+  /** Whether the user has a password set. */
+  hasPassword?: boolean;
 }
 
 export interface UserTenantPublic {
@@ -137,6 +139,13 @@ export interface UserLoginRequest {
   email: string;
   /** The password of the user. */
   password: string;
+}
+
+export interface UserChangePasswordRequest {
+  /** The password of the user. */
+  password: string;
+  /** The new password for the user. */
+  newPassword: string;
 }
 
 export interface UserRegisterRequest {
@@ -277,6 +286,11 @@ export interface EventWorkflowRunSummary {
    * @format int64
    */
   running?: number;
+  /**
+   * The number of queued runs.
+   * @format int64
+   */
+  queued?: number;
   /**
    * The number of succeeded runs.
    * @format int64
@@ -490,6 +504,7 @@ export enum WorkflowRunStatus {
   SUCCEEDED = "SUCCEEDED",
   FAILED = "FAILED",
   CANCELLED = "CANCELLED",
+  QUEUED = "QUEUED",
 }
 
 export type WorkflowRunStatusList = WorkflowRunStatus[];
@@ -772,4 +787,11 @@ export interface ListSNSIntegrations {
 export interface CreateSNSIntegrationRequest {
   /** The Amazon Resource Name (ARN) of the SNS topic. */
   topicArn: string;
+}
+
+export interface WorkflowMetrics {
+  /** The number of runs for a specific group key (passed via filter) */
+  groupKeyRunsCount?: number;
+  /** The total number of concurrency group keys. */
+  groupKeyCount?: number;
 }
