@@ -10,6 +10,7 @@ import useApiMeta from '../hooks/use-api-meta';
 import { Loading } from '@/components/ui/loading';
 import { Icons } from '@/components/ui/icons';
 import useErrorParam from '../hooks/use-error-param';
+import React from 'react';
 
 export default function Login() {
   useErrorParam();
@@ -22,18 +23,26 @@ export default function Login() {
   const schemes = meta.data?.data?.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
+  const githubEnabled = schemes.includes('github');
 
   let prompt = 'Enter your email and password below.';
 
-  if (basicEnabled && googleEnabled) {
-    prompt = 'Enter your email and password below, or continue with Google.';
-  } else if (googleEnabled) {
-    prompt = 'Continue with Google.';
+  if (basicEnabled && (googleEnabled || githubEnabled)) {
+    prompt =
+      'Enter your email and password below, or continue with a supported provider.';
+  } else if (googleEnabled || githubEnabled) {
+    prompt = 'Continue with a supported provider.';
   } else if (basicEnabled) {
     prompt = 'Enter your email and password below.';
   } else {
     prompt = 'No login methods are enabled.';
   }
+
+  const forms = [
+    basicEnabled && <BasicLogin />,
+    googleEnabled && <GoogleLogin />,
+    githubEnabled && <GithubLogin />,
+  ].filter(Boolean);
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
@@ -55,20 +64,12 @@ export default function Login() {
               </h1>
               <p className="text-sm text-muted-foreground">{prompt}</p>
             </div>
-            {basicEnabled && <BasicLogin />}
-            {basicEnabled && schemes.length > 1 && (
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Or continue with
-                  </span>
-                </div>
-              </div>
-            )}
-            {googleEnabled && <GoogleLogin />}
+            {forms.map((form, index) => (
+              <React.Fragment key={index}>
+                {form}
+                {index < schemes.length - 1 && <OrContinueWith />}
+              </React.Fragment>
+            ))}
             <p className="text-left text-sm text-muted-foreground w-full">
               By clicking continue, you agree to our{' '}
               <Link
@@ -88,6 +89,21 @@ export default function Login() {
             </p>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+export function OrContinueWith() {
+  return (
+    <div className="relative">
+      <div className="absolute inset-0 flex items-center">
+        <span className="w-full border-t" />
+      </div>
+      <div className="relative flex justify-center text-xs uppercase">
+        <span className="bg-background px-2 text-muted-foreground">
+          Or continue with
+        </span>
       </div>
     </div>
   );
@@ -126,6 +142,17 @@ export function GoogleLogin() {
       <Button variant="outline" type="button" className="w-full py-2">
         <Icons.google className="mr-2 h-4 w-4" />
         Google
+      </Button>
+    </a>
+  );
+}
+
+export function GithubLogin() {
+  return (
+    <a href="/api/v1/users/github/start">
+      <Button variant="outline" type="button" className="w-full py-2">
+        <Icons.gitHub className="mr-2 h-4 w-4" />
+        Github
       </Button>
     </a>
   );

@@ -186,13 +186,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @name UserUpdateGithubOauthStart
    * @summary Start OAuth flow
    * @request GET:/api/v1/users/github/start
-   * @secure
    */
   userUpdateGithubOauthStart = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/github/start`,
       method: "GET",
-      secure: true,
       ...params,
     });
   /**
@@ -202,11 +200,41 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @name UserUpdateGithubOauthCallback
    * @summary Complete OAuth flow
    * @request GET:/api/v1/users/github/callback
-   * @secure
    */
   userUpdateGithubOauthCallback = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/github/callback`,
+      method: "GET",
+      ...params,
+    });
+  /**
+   * @description Starts the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateGithubAppOauthStart
+   * @summary Start OAuth flow
+   * @request GET:/api/v1/users/github-app/start
+   * @secure
+   */
+  userUpdateGithubAppOauthStart = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/github-app/start`,
+      method: "GET",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description Completes the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateGithubAppOauthCallback
+   * @summary Complete OAuth flow
+   * @request GET:/api/v1/users/github-app/callback
+   * @secure
+   */
+  userUpdateGithubAppOauthCallback = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/github-app/callback`,
       method: "GET",
       secure: true,
       ...params,

@@ -14,7 +14,7 @@ import (
 )
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
-func (g *GithubAppService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.UserUpdateGithubOauthCallbackRequestObject) (gen.UserUpdateGithubOauthCallbackResponseObject, error) {
+func (g *GithubAppService) UserUpdateGithubAppOauthCallback(ctx echo.Context, _ gen.UserUpdateGithubAppOauthCallbackRequestObject) (gen.UserUpdateGithubAppOauthCallbackResponseObject, error) {
 	user := ctx.Get("user").(*db.UserModel)
 
 	ghApp, err := GetGithubAppConfig(g.config)
@@ -86,8 +86,8 @@ func (g *GithubAppService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen
 		url = "/"
 	}
 
-	return gen.UserUpdateGithubOauthCallback302Response{
-		Headers: gen.UserUpdateGithubOauthCallback302ResponseHeaders{
+	return gen.UserUpdateGithubAppOauthCallback302Response{
+		Headers: gen.UserUpdateGithubAppOauthCallback302ResponseHeaders{
 			Location: url,
 		},
 	}, nil

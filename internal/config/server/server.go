@@ -144,6 +144,8 @@ type ConfigFileAuth struct {
 	Cookie ConfigFileAuthCookie `mapstructure:"cookie" json:"cookie,omitempty"`
 
 	Google ConfigFileAuthGoogle `mapstructure:"google" json:"google,omitempty"`
+
+	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
 }
 
 type ConfigFileVCS struct {
@@ -169,6 +171,14 @@ type ConfigFileAuthGoogle struct {
 	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"openid\", \"profile\", \"email\"]"`
 }
 
+type ConfigFileAuthGithub struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	ClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
+	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
+	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"read:user\", \"user:email\"]"`
+}
+
 type ConfigFileAuthCookie struct {
 	Name     string `mapstructure:"name" json:"name,omitempty" default:"hatchet"`
 	Domain   string `mapstructure:"domain" json:"domain,omitempty"`
@@ -190,6 +200,8 @@ type AuthConfig struct {
 	ConfigFile ConfigFileAuth
 
 	GoogleOAuthConfig *oauth2.Config
+
+	GithubOAuthConfig *oauth2.Config
 
 	JWTManager token.JWTManager
 }
@@ -278,6 +290,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.google.clientID", "SERVER_AUTH_GOOGLE_CLIENT_ID")
 	_ = v.BindEnv("auth.google.clientSecret", "SERVER_AUTH_GOOGLE_CLIENT_SECRET")
 	_ = v.BindEnv("auth.google.scopes", "SERVER_AUTH_GOOGLE_SCOPES")
+	_ = v.BindEnv("auth.github.enabled", "SERVER_AUTH_GITHUB_ENABLED")
+	_ = v.BindEnv("auth.github.clientID", "SERVER_AUTH_GITHUB_CLIENT_ID")
+	_ = v.BindEnv("auth.github.clientSecret", "SERVER_AUTH_GITHUB_CLIENT_SECRET")
+	_ = v.BindEnv("auth.github.scopes", "SERVER_AUTH_GITHUB_SCOPES")
 
 	// task queue options
 	// legacy options
