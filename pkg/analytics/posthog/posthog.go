@@ -37,20 +37,27 @@ func NewPosthogAnalytics(opts *PosthogAnaltyicsOpts) (*PosthogAnalytics, error) 
 }
 
 func (p *PosthogAnalytics) Enqueue(event string, userId string, tenantId *string, data map[string]interface{}) {
+
+	var group posthog.Groups
+
+	if tenantId != nil {
+		group = posthog.NewGroups().Set("tenant", *tenantId)
+	}
+
 	(*p.client).Enqueue(posthog.Capture{
 		DistinctId: userId,
 		Event:      event,
 		Properties: map[string]interface{}{
 			"$set": data,
 		},
-		Groups: posthog.NewGroups().Set("tenant", *tenantId),
+		Groups: group,
 	})
 }
 
-func (p *PosthogAnalytics) Tenant(tenantId *string, data map[string]interface{}) {
+func (p *PosthogAnalytics) Tenant(tenantId string, data map[string]interface{}) {
 	(*p.client).Enqueue(posthog.GroupIdentify{
 		Type: "tenant",
-		Key:  *tenantId,
+		Key:  tenantId,
 		Properties: map[string]interface{}{
 			"$set": data,
 		},
