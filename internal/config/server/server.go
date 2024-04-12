@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 )
@@ -25,6 +26,8 @@ type ServerConfigFile struct {
 	Auth ConfigFileAuth `mapstructure:"auth" json:"auth,omitempty"`
 
 	Alerting AlertingConfigFile `mapstructure:"alerting" json:"alerting,omitempty"`
+
+	Analytics AnalyticsConfigFile `mapstructure:"analytics" json:"analytics,omitempty"`
 
 	Encryption EncryptionConfigFile `mapstructure:"encryption" json:"encryption,omitempty"`
 
@@ -86,6 +89,21 @@ type SentryConfigFile struct {
 	Environment string `mapstructure:"environment" json:"environment,omitempty" default:"development"`
 }
 
+type AnalyticsConfigFile struct {
+	Posthog PosthogConfigFile `mapstructure:"posthog" json:"posthog,omitempty"`
+}
+
+type PosthogConfigFile struct {
+	// Enabled controls whether the Posthog service is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+
+	// APIKey is the API key for the Posthog instance
+	ApiKey string `mapstructure:"apiKey" json:"apiKey,omitempty"`
+
+	// Endpoint is the endpoint for the Posthog instance
+	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty"`
+}
+
 // Encryption options
 type EncryptionConfigFile struct {
 	// MasterKeyset is the raw master keyset for the instance. This should be a base64-encoded JSON string. You must set
@@ -144,6 +162,8 @@ type ConfigFileAuth struct {
 	Cookie ConfigFileAuthCookie `mapstructure:"cookie" json:"cookie,omitempty"`
 
 	Google ConfigFileAuthGoogle `mapstructure:"google" json:"google,omitempty"`
+
+	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
 }
 
 type ConfigFileVCS struct {
@@ -169,6 +189,14 @@ type ConfigFileAuthGoogle struct {
 	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"openid\", \"profile\", \"email\"]"`
 }
 
+type ConfigFileAuthGithub struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	ClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
+	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
+	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"read:user\", \"user:email\"]"`
+}
+
 type ConfigFileAuthCookie struct {
 	Name     string `mapstructure:"name" json:"name,omitempty" default:"hatchet"`
 	Domain   string `mapstructure:"domain" json:"domain,omitempty"`
@@ -191,6 +219,8 @@ type AuthConfig struct {
 
 	GoogleOAuthConfig *oauth2.Config
 
+	GithubOAuthConfig *oauth2.Config
+
 	JWTManager token.JWTManager
 }
 
@@ -200,6 +230,8 @@ type ServerConfig struct {
 	Auth AuthConfig
 
 	Alerter errors.Alerter
+
+	Analytics analytics.Analytics
 
 	Encryption encryption.EncryptionService
 
@@ -255,6 +287,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("alerting.sentry.dsn", "SERVER_ALERTING_SENTRY_DSN")
 	_ = v.BindEnv("alerting.sentry.environment", "SERVER_ALERTING_SENTRY_ENVIRONMENT")
 
+	// analytics options
+	_ = v.BindEnv("analytics.posthog.enabled", "SERVER_ANALYTICS_POSTHOG_ENABLED")
+	_ = v.BindEnv("analytics.posthog.apiKey", "SERVER_ANALYTICS_POSTHOG_API_KEY")
+	_ = v.BindEnv("analytics.posthog.endpoint", "SERVER_ANALYTICS_POSTHOG_ENDPOINT")
+
 	// encryption options
 	_ = v.BindEnv("encryption.masterKeyset", "SERVER_ENCRYPTION_MASTER_KEYSET")
 	_ = v.BindEnv("encryption.masterKeysetFile", "SERVER_ENCRYPTION_MASTER_KEYSET_FILE")
@@ -278,6 +315,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.google.clientID", "SERVER_AUTH_GOOGLE_CLIENT_ID")
 	_ = v.BindEnv("auth.google.clientSecret", "SERVER_AUTH_GOOGLE_CLIENT_SECRET")
 	_ = v.BindEnv("auth.google.scopes", "SERVER_AUTH_GOOGLE_SCOPES")
+	_ = v.BindEnv("auth.github.enabled", "SERVER_AUTH_GITHUB_ENABLED")
+	_ = v.BindEnv("auth.github.clientID", "SERVER_AUTH_GITHUB_CLIENT_ID")
+	_ = v.BindEnv("auth.github.clientSecret", "SERVER_AUTH_GITHUB_CLIENT_SECRET")
+	_ = v.BindEnv("auth.github.scopes", "SERVER_AUTH_GITHUB_SCOPES")
 
 	// task queue options
 	// legacy options

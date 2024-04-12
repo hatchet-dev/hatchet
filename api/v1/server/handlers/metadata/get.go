@@ -17,6 +17,10 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		authTypes = append(authTypes, "google")
 	}
 
+	if u.config.Auth.ConfigFile.Github.Enabled {
+		authTypes = append(authTypes, "github")
+	}
+
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{
 			Schemes: &authTypes,

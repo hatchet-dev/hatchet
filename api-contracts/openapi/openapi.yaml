@@ -38,6 +38,10 @@ paths:
     $ref: "./paths/user/user.yaml#/oauth-start-github"
   /api/v1/users/github/callback:
     $ref: "./paths/user/user.yaml#/oauth-callback-github"
+  /api/v1/users/github-app/start:
+    $ref: "./paths/user/user.yaml#/oauth-start-github-app"
+  /api/v1/users/github-app/callback:
+    $ref: "./paths/user/user.yaml#/oauth-callback-github-app"
   /api/v1/github/webhook:
     $ref: "./paths/github-app/github-app.yaml#/globalWebhook"
   /api/v1/github/webhook/{webhook}:

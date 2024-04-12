@@ -8,8 +8,9 @@ import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';
 import useApiMeta from '../hooks/use-api-meta';
 import { Loading } from '@/components/ui/loading';
-import { GoogleLogin } from '../login';
+import { GithubLogin, GoogleLogin, OrContinueWith } from '../login';
 import useErrorParam from '../hooks/use-error-param';
+import React from 'react';
 
 export default function Register() {
   useErrorParam();
@@ -22,19 +23,26 @@ export default function Register() {
   const schemes = meta.data?.data?.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
+  const githubEnabled = schemes.includes('github');
 
   let prompt = 'Create an account to get started.';
 
-  if (basicEnabled && googleEnabled) {
+  if (basicEnabled && (googleEnabled || githubEnabled)) {
     prompt =
-      'Enter your email and password to create an account, or continue with Google.';
-  } else if (googleEnabled) {
-    prompt = 'Continue with Google.';
+      'Enter your email and password to create an account, or continue with a supported provider.';
+  } else if (googleEnabled || githubEnabled) {
+    prompt = 'Continue with a supported provider.';
   } else if (basicEnabled) {
     prompt = 'Create an account to get started.';
   } else {
     prompt = 'No login methods are enabled.';
   }
+
+  const forms = [
+    basicEnabled && <BasicRegister />,
+    googleEnabled && <GoogleLogin />,
+    githubEnabled && <GithubLogin />,
+  ].filter(Boolean);
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
@@ -56,20 +64,12 @@ export default function Register() {
               </h1>
               <p className="text-sm text-muted-foreground">{prompt}</p>
             </div>
-            {basicEnabled && <BasicRegister />}
-            {basicEnabled && schemes.length > 1 && (
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Or continue with
-                  </span>
-                </div>
-              </div>
-            )}
-            {googleEnabled && <GoogleLogin />}
+            {forms.map((form, index) => (
+              <React.Fragment key={index}>
+                {form}
+                {index < schemes.length - 1 && <OrContinueWith />}
+              </React.Fragment>
+            ))}
             <p className="text-left text-sm text-muted-foreground w-full">
               By clicking continue, you agree to our{' '}
               <Link

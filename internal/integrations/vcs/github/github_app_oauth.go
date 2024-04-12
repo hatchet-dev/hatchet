@@ -57,7 +57,7 @@ func NewGithubAppConf(
 				AuthURL:  GithubAuthURL,
 				TokenURL: GithubTokenURL,
 			},
-			RedirectURL: cfg.BaseURL + "/api/v1/users/github/callback",
+			RedirectURL: cfg.BaseURL + "/api/v1/users/github-app/callback",
 			Scopes:      cfg.Scopes,
 		},
 	}, nil

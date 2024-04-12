@@ -81,5 +81,12 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		return nil, err
 	}
 
+	u.config.Analytics.Enqueue(
+		"user-invite:reject",
+		user.ID,
+		&invite.TenantID,
+		nil,
+	)
+
 	return nil, nil
 }

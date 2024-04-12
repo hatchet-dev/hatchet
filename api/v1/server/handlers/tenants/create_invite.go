@@ -53,6 +53,12 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		return nil, err
 	}
 
+	t.config.Analytics.Enqueue("user-invite:create",
+		user.ID,
+		&invite.TenantID,
+		nil,
+	)
+
 	return gen.TenantInviteCreate201JSONResponse(
 		*transformers.ToTenantInviteLink(invite),
 	), nil

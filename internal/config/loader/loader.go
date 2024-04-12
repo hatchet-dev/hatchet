@@ -32,6 +32,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/analytics/posthog"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
@@ -216,6 +218,21 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		alerter = errors.NoOpAlerter{}
 	}
 
+	var analyticsEmitter analytics.Analytics
+
+	if cf.Analytics.Posthog.Enabled {
+		analyticsEmitter, err = posthog.NewPosthogAnalytics(&posthog.PosthogAnalyticsOpts{
+			ApiKey:   cf.Analytics.Posthog.ApiKey,
+			Endpoint: cf.Analytics.Posthog.Endpoint,
+		})
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create posthog analytics: %w", err)
+		}
+	} else {
+		analyticsEmitter = analytics.NoOpAnalytics{} // TODO
+	}
+
 	auth := server.AuthConfig{
 		ConfigFile: cf.Auth,
 	}
@@ -237,6 +254,23 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		})
 
 		auth.GoogleOAuthConfig = gClient
+	}
+
+	if cf.Auth.Github.Enabled {
+		if cf.Auth.Github.ClientID == "" {
+			return nil, nil, fmt.Errorf("github client id is required")
+		}
+
+		if cf.Auth.Github.ClientSecret == "" {
+			return nil, nil, fmt.Errorf("github client secret is required")
+		}
+
+		auth.GithubOAuthConfig = oauth.NewGithubClient(&oauth.Config{
+			ClientID:     cf.Auth.Github.ClientID,
+			ClientSecret: cf.Auth.Github.ClientSecret,
+			BaseURL:      cf.Runtime.ServerURL,
+			Scopes:       cf.Auth.Github.Scopes,
+		})
 	}
 
 	encryptionSvc, err := loadEncryptionSvc(cf)
@@ -330,6 +364,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	return cleanup, &server.ServerConfig{
 		Alerter:        alerter,
+		Analytics:      analyticsEmitter,
 		Runtime:        cf.Runtime,
 		Auth:           auth,
 		Encryption:     encryptionSvc,

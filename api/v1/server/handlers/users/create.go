@@ -2,7 +2,6 @@ package users
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/labstack/echo/v4"
 
@@ -24,15 +23,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	}
 
 	// check restricted email group
-	// parse domain from email
-	// make sure there's only one @ in the email
-	if strings.Count(string(request.Body.Email), "@") != 1 {
-		return nil, errors.New("invalid email")
-	}
-
-	domain := strings.Split(string(request.Body.Email), "@")[1]
-
-	if err := u.checkUserRestrictions(u.config, domain); err != nil {
+	if err := u.checkUserRestrictionsForEmail(u.config, string(request.Body.Email)); err != nil {
 		return nil, err
 	}
 
@@ -78,6 +69,16 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	if err != nil {
 		return nil, err
 	}
+
+	u.config.Analytics.Enqueue(
+		"user:create",
+		user.ID,
+		nil,
+		map[string]interface{}{
+			"email": request.Body.Email,
+			"name":  request.Body.Name,
+		},
+	)
 
 	return gen.UserCreate200JSONResponse(
 		*transformers.ToUser(user, false),

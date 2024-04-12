@@ -9,7 +9,7 @@ import (
 )
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
-func (g *GithubAppService) UserUpdateGithubOauthStart(ctx echo.Context, _ gen.UserUpdateGithubOauthStartRequestObject) (gen.UserUpdateGithubOauthStartResponseObject, error) {
+func (g *GithubAppService) UserUpdateGithubAppOauthStart(ctx echo.Context, _ gen.UserUpdateGithubAppOauthStartRequestObject) (gen.UserUpdateGithubAppOauthStartResponseObject, error) {
 	ghApp, err := GetGithubAppConfig(g.config)
 
 	if err != nil {
@@ -24,8 +24,8 @@ func (g *GithubAppService) UserUpdateGithubOauthStart(ctx echo.Context, _ gen.Us
 
 	url := ghApp.AuthCodeURL(state, oauth2.AccessTypeOffline)
 
-	return gen.UserUpdateGithubOauthStart302Response{
-		Headers: gen.UserUpdateGithubOauthStart302ResponseHeaders{
+	return gen.UserUpdateGithubAppOauthStart302Response{
+		Headers: gen.UserUpdateGithubAppOauthStart302ResponseHeaders{
 			Location: url,
 		},
 	}, nil
