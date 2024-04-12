@@ -15,7 +15,7 @@ type PosthogAnalyticsOpts struct {
 	Endpoint string
 }
 
-func NewPosthogAnalytics(opts *PosthogAnaltyicsOpts) (*PosthogAnalytics, error) {
+func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) {
 	if opts.ApiKey == "" || opts.Endpoint == "" {
 		return nil, fmt.Errorf("api key and endpoint are required if posthog is enabled")
 	}

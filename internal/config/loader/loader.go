@@ -221,7 +221,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	var analyticsEmitter analytics.Analytics
 
 	if cf.Analytics.Posthog.Enabled {
-		analyticsEmitter, err = posthog.NewPosthogAnalytics(&posthog.PosthogAnaltyicsOpts{
+		analyticsEmitter, err = posthog.NewPosthogAnalytics(&posthog.PosthogAnalyticsOpts{
 			ApiKey:   cf.Analytics.Posthog.ApiKey,
 			Endpoint: cf.Analytics.Posthog.Endpoint,
 		})
