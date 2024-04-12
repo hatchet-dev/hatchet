@@ -135,6 +135,12 @@ func WithToken(token string) ClientOpt {
 	}
 }
 
+func WithNamespace(namespace string) ClientOpt {
+	return func(opts *ClientOpts) {
+		opts.namespace = namespace + "_"
+	}
+}
+
 func InitWorkflows() ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.initWorkflows = true
