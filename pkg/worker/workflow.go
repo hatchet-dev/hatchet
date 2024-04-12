@@ -97,6 +97,11 @@ func (e event) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) 
 	}
 
 	wt.Events = append(wt.Events, string(e))
+
+	// Prepend the namespace to each event
+	for i, event := range wt.Events {
+		wt.Events[i] = namespace + event
+	}
 }
 
 type eventsArr []string
@@ -111,6 +116,11 @@ func (e eventsArr) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace stri
 	}
 
 	wt.Events = append(wt.Events, e...)
+
+	// Prepend the namespace to each event
+	for i, event := range wt.Events {
+		wt.Events[i] = namespace + event
+	}
 }
 
 type workflowConverter interface {
