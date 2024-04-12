@@ -61,7 +61,7 @@ func TestToWorkflowJob(t *testing.T) {
 		},
 	}
 
-	workflow := testJob.ToWorkflow("default")
+	workflow := testJob.ToWorkflow("default", "")
 
 	assert.Equal(t, "test", workflow.Name)
 }
@@ -69,7 +69,7 @@ func TestToWorkflowJob(t *testing.T) {
 func TestFnToWorkflow(t *testing.T) {
 	workflow := Fn(func(ctx context.Context, input *actionInput) (result *stepOneOutput, err error) {
 		return nil, nil
-	}).ToWorkflow("default")
+	}).ToWorkflow("default", "")
 
 	assert.Equal(t, "TestFnToWorkflow-func1", workflow.Name)
 }
