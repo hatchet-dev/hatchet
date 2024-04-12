@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 )
@@ -25,6 +26,8 @@ type ServerConfigFile struct {
 	Auth ConfigFileAuth `mapstructure:"auth" json:"auth,omitempty"`
 
 	Alerting AlertingConfigFile `mapstructure:"alerting" json:"alerting,omitempty"`
+
+	Analytics AnalyticsConfigFile `mapstructure:"analytics" json:"analytics,omitempty"`
 
 	Encryption EncryptionConfigFile `mapstructure:"encryption" json:"encryption,omitempty"`
 
@@ -84,6 +87,21 @@ type SentryConfigFile struct {
 
 	// Environment is the environment that the instance is running in
 	Environment string `mapstructure:"environment" json:"environment,omitempty" default:"development"`
+}
+
+type AnalyticsConfigFile struct {
+	Posthog PosthogConfigFile `mapstructure:"posthog" json:"posthog,omitempty"`
+}
+
+type PosthogConfigFile struct {
+	// Enabled controls whether the Posthog service is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+
+	// APIKey is the API key for the Posthog instance
+	ApiKey string `mapstructure:"apiKey" json:"apiKey,omitempty"`
+
+	// Endpoint is the endpoint for the Posthog instance
+	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty"`
 }
 
 // Encryption options
@@ -213,6 +231,8 @@ type ServerConfig struct {
 
 	Alerter errors.Alerter
 
+	Analytics analytics.Analytics
+
 	Encryption encryption.EncryptionService
 
 	Runtime ConfigFileRuntime
@@ -266,6 +286,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")
 	_ = v.BindEnv("alerting.sentry.dsn", "SERVER_ALERTING_SENTRY_DSN")
 	_ = v.BindEnv("alerting.sentry.environment", "SERVER_ALERTING_SENTRY_ENVIRONMENT")
+
+	// analytics options
+	_ = v.BindEnv("analytics.posthog.enabled", "SERVER_ANALYTICS_POSTHOG_ENABLED")
+	_ = v.BindEnv("analytics.posthog.apiKey", "SERVER_ANALYTICS_POSTHOG_API_KEY")
+	_ = v.BindEnv("analytics.posthog.endpoint", "SERVER_ANALYTICS_POSTHOG_ENDPOINT")
 
 	// encryption options
 	_ = v.BindEnv("encryption.masterKeyset", "SERVER_ENCRYPTION_MASTER_KEYSET")

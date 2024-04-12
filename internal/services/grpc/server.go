@@ -28,6 +28,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
@@ -38,6 +39,7 @@ type Server struct {
 
 	l           *zerolog.Logger
 	a           errors.Alerter
+	analytics   analytics.Analytics
 	port        int
 	bindAddress string
 
@@ -55,6 +57,7 @@ type ServerOpts struct {
 	config      *server.ServerConfig
 	l           *zerolog.Logger
 	a           errors.Alerter
+	analytics   analytics.Analytics
 	port        int
 	bindAddress string
 	ingestor    ingestor.Ingestor
@@ -67,10 +70,11 @@ type ServerOpts struct {
 func defaultServerOpts() *ServerOpts {
 	logger := logger.NewDefaultLogger("grpc")
 	a := errors.NoOpAlerter{}
-
+	analytics := analytics.NoOpAnalytics{}
 	return &ServerOpts{
 		l:           &logger,
 		a:           a,
+		analytics:   analytics,
 		port:        7070,
 		bindAddress: "127.0.0.1",
 		insecure:    false,
@@ -86,6 +90,12 @@ func WithLogger(l *zerolog.Logger) ServerOpt {
 func WithAlerter(a errors.Alerter) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.a = a
+	}
+}
+
+func WithAnalytics(a analytics.Analytics) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.analytics = a
 	}
 }
 
@@ -158,6 +168,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 	return &Server{
 		l:           opts.l,
 		a:           opts.a,
+		analytics:   opts.analytics,
 		config:      opts.config,
 		port:        opts.port,
 		bindAddress: opts.bindAddress,
