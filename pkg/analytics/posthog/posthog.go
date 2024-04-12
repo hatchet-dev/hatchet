@@ -10,7 +10,7 @@ type PosthogAnalytics struct {
 	client *posthog.Client
 }
 
-type PosthogAnaltyicsOpts struct {
+type PosthogAnalyticsOpts struct {
 	ApiKey   string
 	Endpoint string
 }
