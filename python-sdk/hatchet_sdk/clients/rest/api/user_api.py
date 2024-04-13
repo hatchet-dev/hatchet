@@ -14,6 +14,9 @@
 import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
+from typing_extensions import Annotated
+
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.models.user import User
@@ -21,15 +24,11 @@ from hatchet_sdk.clients.rest.models.user_change_password_request import (
     UserChangePasswordRequest,
 )
 from hatchet_sdk.clients.rest.models.user_login_request import UserLoginRequest
-from hatchet_sdk.clients.rest.models.user_register_request import (
-    UserRegisterRequest,
-)
+from hatchet_sdk.clients.rest.models.user_register_request import UserRegisterRequest
 from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
     UserTenantMembershipsList,
 )
 from hatchet_sdk.clients.rest.rest import RESTResponseType
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
-from typing_extensions import Annotated
 
 
 class UserApi:
@@ -51,8 +50,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -114,8 +112,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -177,8 +174,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -285,8 +281,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -353,8 +348,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -421,8 +415,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -545,8 +538,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -609,8 +601,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -673,8 +664,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -781,8 +771,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -842,8 +831,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -903,8 +891,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1003,8 +990,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1064,8 +1050,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1125,8 +1110,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1225,8 +1209,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1286,8 +1269,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1347,8 +1329,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1423,7 +1404,7 @@ class UserApi:
         # process the body parameter
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth"]
+        _auth_settings: List[str] = []
 
         return self.api_client.param_serialize(
             method="GET",
@@ -1447,8 +1428,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1508,8 +1488,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1569,8 +1548,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1645,7 +1623,7 @@ class UserApi:
         # process the body parameter
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth"]
+        _auth_settings: List[str] = []
 
         return self.api_client.param_serialize(
             method="GET",
@@ -1669,8 +1647,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1730,8 +1707,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1791,8 +1767,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1891,8 +1866,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -1952,8 +1926,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -2013,8 +1986,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -2114,8 +2086,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -2182,8 +2153,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -2250,8 +2220,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -2374,8 +2343,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -2438,8 +2406,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -2502,8 +2469,7 @@ class UserApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -2606,15 +2572,12 @@ class UserApi:
     @validate_call
     def user_update_password(
         self,
-        user_change_password_request: Optional[
-            UserChangePasswordRequest
-        ] = None,
+        user_change_password_request: Optional[UserChangePasswordRequest] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -2676,15 +2639,12 @@ class UserApi:
     @validate_call
     def user_update_password_with_http_info(
         self,
-        user_change_password_request: Optional[
-            UserChangePasswordRequest
-        ] = None,
+        user_change_password_request: Optional[UserChangePasswordRequest] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
@@ -2746,15 +2706,12 @@ class UserApi:
     @validate_call
     def user_update_password_without_preload_content(
         self,
-        user_change_password_request: Optional[
-            UserChangePasswordRequest
-        ] = None,
+        user_change_password_request: Optional[UserChangePasswordRequest] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
             ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
