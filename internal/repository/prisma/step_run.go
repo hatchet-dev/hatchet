@@ -274,6 +274,20 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 
 	defer deferRollback(context.Background(), s.l, tx.Rollback)
 
+	// Update the old worker semaphore. This will only increment if the step run was already assigned to a worker,
+	// which means the step run is being retried or rerun.
+	_, err = s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
+		Inc:       1,
+		Steprunid: stepRun.StepRun.ID,
+		Tenantid:  stepRun.StepRun.TenantId,
+	})
+
+	isNoRowsErr := err != nil && errors.Is(err, pgx.ErrNoRows)
+
+	if err != nil && !isNoRowsErr {
+		return "", "", fmt.Errorf("could not upsert old worker semaphore: %w", err)
+	}
+
 	assigned, err := s.queries.AssignStepRunToWorker(ctx, tx, dbsqlc.AssignStepRunToWorkerParams{
 		Steprunid:   stepRun.StepRun.ID,
 		Tenantid:    stepRun.StepRun.TenantId,
@@ -295,10 +309,10 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		Tenantid:  stepRun.StepRun.TenantId,
 	})
 
-	isNoRowsErr := err != nil && errors.Is(err, pgx.ErrNoRows)
+	isNoRowsErr = err != nil && errors.Is(err, pgx.ErrNoRows)
 
 	if err != nil && !isNoRowsErr {
-		return "", "", fmt.Errorf("could not upsert worker semaphore: %w", err)
+		return "", "", fmt.Errorf("could not upsert new worker semaphore: %w", err)
 	}
 
 	if !isNoRowsErr && semaphore.Slots < 0 {
