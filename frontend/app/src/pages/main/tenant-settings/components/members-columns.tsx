@@ -74,7 +74,6 @@ function MemberActions({
       onClick: () => onChangePasswordClick(row.original),
     });
   }
-  console.log('user', user);
 
   if (user.metadata.id === row.original.metadata.id) {
     return <></>;
