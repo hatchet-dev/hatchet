@@ -100,12 +100,19 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 		return nil, fmt.Errorf("could not load TLS config: %w", err)
 	}
 
+	namespace := cf.Namespace
+
+	if namespace != "" {
+		namespace = strings.ToLower(namespace + "_")
+	}
+
 	return &client.ClientConfig{
 		TenantId:             cf.TenantId,
 		TLSConfig:            tlsConf,
 		Token:                cf.Token,
 		ServerURL:            serverURL,
 		GRPCBroadcastAddress: grpcBroadcastAddress,
+		Namespace:            namespace,
 	}, nil
 }
 

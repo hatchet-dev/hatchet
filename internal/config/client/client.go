@@ -16,6 +16,8 @@ type ClientConfigFile struct {
 	HostPort string `mapstructure:"hostPort" json:"hostPort,omitempty"`
 
 	TLS ClientTLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
+
+	Namespace string `mapstructure:"namespace" json:"namespace,omitempty"`
 }
 
 type ClientTLSConfigFile struct {
@@ -33,12 +35,15 @@ type ClientConfig struct {
 
 	// TLSConfig will be nil if the strategy is "none"
 	TLSConfig *tls.Config
+
+	Namespace string
 }
 
 func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("tenantId", "HATCHET_CLIENT_TENANT_ID")
 	_ = v.BindEnv("token", "HATCHET_CLIENT_TOKEN")
 	_ = v.BindEnv("hostPort", "HATCHET_CLIENT_HOST_PORT")
+	_ = v.BindEnv("namespace", "HATCHET_CLIENT_NAMESPACE")
 
 	// tls options
 	_ = v.BindEnv("tls.base.tlsStrategy", "HATCHET_CLIENT_TLS_STRATEGY")

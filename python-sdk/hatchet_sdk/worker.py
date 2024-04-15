@@ -20,14 +20,14 @@ from .logger import logger
 
 class Worker:
     def __init__(self, name: str, max_runs: int | None = None, debug=False, handle_kill=True):
-        self.name = name
+        self.client = new_client()
+        self.name = self.client.config.namespace+name
         self.threads: Dict[str, Thread] = {}  # Store step run ids and threads
         self.max_runs = max_runs
         self.thread_pool = ThreadPoolExecutor(max_workers=max_runs)
         self.futures: Dict[str, Future] = {}  # Store step run ids and futures
         self.contexts: Dict[str, Context] = {}  # Store step run ids and contexts
         self.action_registry : dict[str, Callable[..., Any]] = {} 
-        self.client = new_client()
 
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)

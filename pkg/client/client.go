@@ -26,6 +26,7 @@ type Client interface {
 	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
 	TenantId() string
+	Namespace() string
 }
 
 type clientImpl struct {
@@ -39,6 +40,8 @@ type clientImpl struct {
 
 	// the tenant id
 	tenantId string
+
+	namespace string
 
 	l *zerolog.Logger
 
@@ -57,6 +60,7 @@ type ClientOpts struct {
 	hostPort  string
 	serverURL string
 	token     string
+	namespace string
 
 	filesLoader   filesLoaderFunc
 	initWorkflows bool
@@ -96,6 +100,7 @@ func defaultClientOpts(cf *client.ClientConfigFile) *ClientOpts {
 		hostPort:    clientConfig.GRPCBroadcastAddress,
 		serverURL:   clientConfig.ServerURL,
 		filesLoader: types.DefaultLoader,
+		namespace:   clientConfig.Namespace,
 	}
 }
 
@@ -130,6 +135,12 @@ func WithToken(token string) ClientOpt {
 	}
 }
 
+func WithNamespace(namespace string) ClientOpt {
+	return func(opts *ClientOpts) {
+		opts.namespace = namespace + "_"
+	}
+}
+
 func InitWorkflows() ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.initWorkflows = true
@@ -148,6 +159,7 @@ func WithWorkflows(files []*types.Workflow) ClientOpt {
 
 type sharedClientOpts struct {
 	tenantId  string
+	namespace string
 	l         *zerolog.Logger
 	v         validator.Validator
 	ctxLoader *contextLoader
@@ -202,6 +214,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 
 	shared := &sharedClientOpts{
 		tenantId:  opts.tenantId,
+		namespace: opts.namespace,
 		l:         opts.l,
 		v:         opts.v,
 		ctxLoader: newContextLoader(opts.token),
@@ -237,6 +250,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		event:      event,
 		v:          opts.v,
 		rest:       rest,
+		namespace:  opts.namespace,
 	}, nil
 }
 
@@ -262,6 +276,10 @@ func (c *clientImpl) API() *rest.ClientWithResponses {
 
 func (c *clientImpl) TenantId() string {
 	return c.tenantId
+}
+
+func (c *clientImpl) Namespace() string {
+	return c.namespace
 }
 
 func initWorkflows(fl filesLoaderFunc, adminClient AdminClient) error {
