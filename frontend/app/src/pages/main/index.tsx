@@ -58,10 +58,6 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
 
-  if (sidebarOpen === 'closed') {
-    return null;
-  }
-
   const onNavLinkClick = useCallback(() => {
     if (window.innerWidth > 768) {
       return;
@@ -69,6 +65,10 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
 
     setSidebarOpen('closed');
   }, [window]);
+
+  if (sidebarOpen === 'closed') {
+    return null;
+  }
 
   return (
     <div
