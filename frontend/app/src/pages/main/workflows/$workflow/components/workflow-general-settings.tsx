@@ -20,7 +20,7 @@ export default function WorkflowGeneralSettings({
 function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
   if (!workflow.triggers) {
     return (
-      <div className="text-[0.8rem] text-muted-foreground">
+      <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
         There are no trigger settings for this workflow.
       </div>
     );
@@ -48,7 +48,7 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
 function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
   if (!workflow.concurrency) {
     return (
-      <div className="text-[0.8rem] text-muted-foreground">
+      <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
         There are no concurrency settings for this workflow.
       </div>
     );
@@ -62,7 +62,7 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
         placeholder="shadcn"
         value={workflow.concurrency?.maxRuns}
       />
-      <div className="text-[0.8rem] text-muted-foreground">
+      <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
         The maximum number of concurrency runs.
       </div>
       <Label className="mt-4">Concurrency strategy</Label>
@@ -71,7 +71,7 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
         placeholder="shadcn"
         value={workflow.concurrency?.limitStrategy}
       />
-      <div className="text-[0.8rem] text-muted-foreground">
+      <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
         The strategy to use when the maximum number of concurrency runs is
         reached.
       </div>

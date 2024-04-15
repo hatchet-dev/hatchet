@@ -120,7 +120,7 @@ export default function MainNav({ user }: MainNavProps) {
                   <p className="text-sm font-medium leading-none">
                     {user.name || user.email}
                   </p>
-                  <p className="text-xs leading-none text-muted-foreground">
+                  <p className="text-xs leading-none text-gray-700 dark:text-gray-300">
                     {user.email}
                   </p>
                 </div>

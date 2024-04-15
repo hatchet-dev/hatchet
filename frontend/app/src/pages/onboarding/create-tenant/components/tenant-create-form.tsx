@@ -78,7 +78,7 @@ export function TenantCreateForm({
         <div className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="name">Name</Label>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
               A display name for your tenant.
             </div>
             <Input
@@ -108,7 +108,7 @@ export function TenantCreateForm({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="name">Slug</Label>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
               A URI-friendly identifier for your tenant.
             </div>
             <Input

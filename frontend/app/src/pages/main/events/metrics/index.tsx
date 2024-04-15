@@ -9,7 +9,7 @@ export default function EventMetrics() {
         <h2 className="text-2xl font-bold leading-tight text-foreground">
           Event Metrics
         </h2>
-        <div className="text-sm text-muted-foreground my-4">
+        <div className="text-sm text-gray-700 dark:text-gray-300 my-4">
           Whoa! You shouldn't have ended up here, but if you're curious, this is
           an event metrics view we've been working on using the fantastic visx
           library. Here's a mockup, now please leave.

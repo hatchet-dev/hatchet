@@ -29,13 +29,13 @@ export function DataTablePagination<TData>({
 
   return (
     <div className="flex items-center justify-between px-2">
-      <div className="flex-1 text-sm text-muted-foreground">
+      <div className="flex-1 text-sm text-gray-600 dark:text-gray-400">
         {table.getFilteredSelectedRowModel().rows.length} of{' '}
         {table.getFilteredRowModel().rows.length} row(s) selected.
       </div>
       <div className="flex items-center space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">
-        <Label className="text-sm font-medium" htmlFor="rows-per-page" id="rows-per-page-label">
+        <Label className="text-sm font-medium text-gray-600 dark:text-gray-400" htmlFor="rows-per-page" id="rows-per-page-label">
 
             Rows per page</Label>
           <Select
