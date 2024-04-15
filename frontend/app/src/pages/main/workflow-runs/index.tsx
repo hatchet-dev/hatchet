@@ -52,8 +52,6 @@ function WorkflowRunsTable() {
   const workflows = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'Workflow');
 
-    console.log(columnFilters);
-
     if (!filter) {
       return;
     }
