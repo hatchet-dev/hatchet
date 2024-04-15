@@ -7,7 +7,7 @@ import {
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
-import { Link, Outlet, useOutletContext } from 'react-router-dom';
+import { Link, Outlet, useNavigation, useOutletContext } from 'react-router-dom';
 import { Tenant, TenantMember } from '@/lib/api';
 import { GearIcon } from '@radix-ui/react-icons';
 import React from 'react';
@@ -56,7 +56,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
-  const { sidebarOpen } = useSidebar();
+  const { sidebarOpen, setSidebarOpen } = useSidebar();
 
   if (sidebarOpen === 'closed') {
     return null;
@@ -76,7 +76,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               Events
             </h2>
             <div className="space-y-1">
-              <Link to="/events">
+              <Link to="/events" onClick={() => setSidebarOpen('closed')}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <QueueListIcon className="mr-2 h-4 w-4" />
                   All events
@@ -93,19 +93,19 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               Workflows
             </h2>
             <div className="space-y-1">
-              <Link to="/workflows">
+              <Link to="/workflows" onClick={() => setSidebarOpen('closed')}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <Squares2X2Icon className="mr-2 h-4 w-4" />
                   All workflows
                 </Button>
               </Link>
-              <Link to="/workflow-runs">
+              <Link to="/workflow-runs" onClick={() => setSidebarOpen('closed')}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />
                   Runs
                 </Button>
               </Link>
-              <Link to="/workers">
+              <Link to="/workers"  onClick={() => setSidebarOpen('closed')}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <ServerStackIcon className="mr-2 h-4 w-4" />
                   Workers
@@ -118,7 +118,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               Settings
             </h2>
             <div className="space-y-1">
-              <Link to="/tenant-settings">
+              <Link to="/tenant-settings" onClick={() => setSidebarOpen('closed')}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <GearIcon className="mr-2 h-4 w-4" />
                   General
