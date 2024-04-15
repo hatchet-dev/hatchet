@@ -192,7 +192,9 @@ export function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
       <h3 className="font-semibold leading-tight text-foreground mb-4">
         Status
       </h3>
-      <div className="text-sm text-gray-700 dark:text-gray-300">{statusText}</div>
+      <div className="text-sm text-gray-700 dark:text-gray-300">
+        {statusText}
+      </div>
     </div>
   );
 }

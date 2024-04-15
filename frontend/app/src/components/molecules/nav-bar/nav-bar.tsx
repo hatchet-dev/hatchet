@@ -35,7 +35,7 @@ export default function MainNav({ user }: MainNavProps) {
   const { handleApiError } = useApiError({});
   const { toggleSidebarOpen } = useSidebar();
 
-  const { toggleTheme, theme } = useTheme()
+  const { toggleTheme, theme } = useTheme();
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -55,7 +55,11 @@ export default function MainNav({ user }: MainNavProps) {
           onClick={() => toggleSidebarOpen()}
           className="flex flex-row gap-4 items-center"
         >
-          <img src={ theme == 'dark' ? hatchet : hatchetDark} alt="Hatchet" className="h-9 rounded" />
+          <img
+            src={theme == 'dark' ? hatchet : hatchetDark}
+            alt="Hatchet"
+            className="h-9 rounded"
+          />
         </button>
         <div className="ml-auto flex items-center">
           <DropdownMenu>

@@ -35,9 +35,13 @@ export function DataTablePagination<TData>({
       </div>
       <div className="flex items-center space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">
-        <Label className="text-sm font-medium text-gray-600 dark:text-gray-400" htmlFor="rows-per-page" id="rows-per-page-label">
-
-            Rows per page</Label>
+          <Label
+            className="text-sm font-medium text-gray-600 dark:text-gray-400"
+            htmlFor="rows-per-page"
+            id="rows-per-page-label"
+          >
+            Rows per page
+          </Label>
           <Select
             value={`${pagination.pageSize}`}
             onValueChange={(value) => {
@@ -47,7 +51,11 @@ export function DataTablePagination<TData>({
               }
             }}
           >
-            <SelectTrigger className="h-8 w-[70px]" id="rows-per-page" aria-labelledby="rows-per-page-label">
+            <SelectTrigger
+              className="h-8 w-[70px]"
+              id="rows-per-page"
+              aria-labelledby="rows-per-page-label"
+            >
               <SelectValue placeholder={pagination.pageSize} />
             </SelectTrigger>
             <SelectContent side="top">

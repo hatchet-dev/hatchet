@@ -33,7 +33,7 @@ const WorkflowRunVisualizer = ({
   selectedStepRun?: StepRun;
   setSelectedStepRun: (stepRun: StepRun) => void;
 }) => {
-  const { theme } = useTheme()
+  const { theme } = useTheme();
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -167,9 +167,10 @@ const WorkflowRunVisualizer = ({
   }, [theme]);
 
   const connectionLineStyle = useMemo(() => {
-    return theme === 'dark' ? connectionLineStyleDark : connectionLineStyleLight;
+    return theme === 'dark'
+      ? connectionLineStyleDark
+      : connectionLineStyleLight;
   }, [theme]);
-
 
   return (
     <>
@@ -180,7 +181,7 @@ const WorkflowRunVisualizer = ({
         onEdgesChange={onEdgesChange}
         style={{ background: bg }}
         nodeTypes={nodeTypes}
-        connectionLineStyle={ connectionLineStyle }
+        connectionLineStyle={connectionLineStyle}
         snapToGrid={true}
         fitView
         proOptions={{

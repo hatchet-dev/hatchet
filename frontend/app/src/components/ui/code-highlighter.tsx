@@ -4,7 +4,10 @@ import typescript from 'react-syntax-highlighter/dist/esm/languages/hljs/typescr
 import yaml from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
 
-import { anOldHope, atomOneLight } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import {
+  anOldHope,
+  atomOneLight,
+} from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import CopyToClipboard from './copy-to-clipboard';
 import { useRef } from 'react';
 import { cn } from '@/lib/utils';
@@ -35,7 +38,7 @@ export function CodeHighlighter({
   copy?: boolean;
   wrapLines?: boolean;
 }) {
-  const { theme } = useTheme()
+  const { theme } = useTheme();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 

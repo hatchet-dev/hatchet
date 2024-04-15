@@ -62,7 +62,9 @@ export default function Register() {
               <h1 className="text-2xl font-semibold tracking-tight">
                 Create an account
               </h1>
-              <p className="text-sm text-gray-700 dark:text-gray-300">{prompt}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                {prompt}
+              </p>
             </div>
             {forms.map((form, index) => (
               <React.Fragment key={index}>

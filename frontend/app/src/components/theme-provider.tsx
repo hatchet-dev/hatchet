@@ -50,19 +50,19 @@ export function ThemeProvider({
     root.classList.add(theme);
   }, [theme]);
 
-  const _setTheme =  (theme: Theme) => {
+  const setThemeAndLocal = (theme: Theme) => {
     localStorage.setItem(storageKey, theme);
     setTheme(theme);
-  }
+  };
 
   const toggleTheme = () => {
-    _setTheme(theme === 'dark' ? 'light' : 'dark');
-  }
+    setThemeAndLocal(theme === 'dark' ? 'light' : 'dark');
+  };
 
   const value = {
     theme,
-    setTheme:_setTheme,
-    toggleTheme
+    setTheme: setThemeAndLocal,
+    toggleTheme,
   };
 
   return (

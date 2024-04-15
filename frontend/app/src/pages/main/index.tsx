@@ -7,7 +7,7 @@ import {
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
-import { Link, Outlet, useNavigation, useOutletContext } from 'react-router-dom';
+import { Link, Outlet, useOutletContext } from 'react-router-dom';
 import { Tenant, TenantMember } from '@/lib/api';
 import { GearIcon } from '@radix-ui/react-icons';
 import React from 'react';
@@ -99,13 +99,16 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                   All workflows
                 </Button>
               </Link>
-              <Link to="/workflow-runs" onClick={() => setSidebarOpen('closed')}>
+              <Link
+                to="/workflow-runs"
+                onClick={() => setSidebarOpen('closed')}
+              >
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />
                   Runs
                 </Button>
               </Link>
-              <Link to="/workers"  onClick={() => setSidebarOpen('closed')}>
+              <Link to="/workers" onClick={() => setSidebarOpen('closed')}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <ServerStackIcon className="mr-2 h-4 w-4" />
                   Workers
@@ -118,7 +121,10 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               Settings
             </h2>
             <div className="space-y-1">
-              <Link to="/tenant-settings" onClick={() => setSidebarOpen('closed')}>
+              <Link
+                to="/tenant-settings"
+                onClick={() => setSidebarOpen('closed')}
+              >
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <GearIcon className="mr-2 h-4 w-4" />
                   General

@@ -27,14 +27,14 @@ export function CodeEditor({
   wrapLines = true,
   lineNumbers = false,
 }: CodeEditorProps) {
-  const { theme } = useTheme()
+  const { theme } = useTheme();
 
   const setEditorTheme = (monaco: Monaco) => {
-      monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
-      monaco.editor.setTheme('pastels-on-dark');
+    monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
+    monaco.editor.setTheme('pastels-on-dark');
   };
 
-  const editorTheme = theme === 'dark' ? 'pastels-on-dark' : ''
+  const editorTheme = theme === 'dark' ? 'pastels-on-dark' : '';
 
   return (
     <div
@@ -50,7 +50,7 @@ export function CodeEditor({
         onChange={setCode}
         width={width || '100%'}
         height={height || '400px'}
-        theme={ editorTheme }
+        theme={editorTheme}
         options={{
           minimap: { enabled: false },
           wordWrap: wrapLines ? 'on' : 'off',

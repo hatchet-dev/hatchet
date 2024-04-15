@@ -324,8 +324,8 @@ export function StepRunPlayground({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                      {mode === 'json' && 'Switch to Form Mode'}
-                      {mode === 'form' && 'Switch to JSON Mode'}
+                    {mode === 'json' && 'Switch to Form Mode'}
+                    {mode === 'form' && 'Switch to JSON Mode'}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

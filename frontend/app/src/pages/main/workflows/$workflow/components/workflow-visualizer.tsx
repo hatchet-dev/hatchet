@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import ReactFlow, {
   useNodesState,
   useEdgesState,
@@ -134,14 +134,16 @@ const WorkflowVisualizer = ({ workflow }: { workflow: WorkflowVersion }) => {
   const dagrNodes = dagrLayout.nodes;
   const dagrEdges = dagrLayout.edges;
 
-  const { theme } = useTheme()
-  
+  const { theme } = useTheme();
+
   const bgColor = useMemo(() => {
     return theme === 'dark' ? initBgColorDark : initBgColorLight;
   }, [theme]);
 
   const connectionLineStyle = useMemo(() => {
-    return theme === 'dark' ? connectionLineStyleDark : connectionLineStyleLight;
+    return theme === 'dark'
+      ? connectionLineStyleDark
+      : connectionLineStyleLight;
   }, [theme]);
 
   return (
