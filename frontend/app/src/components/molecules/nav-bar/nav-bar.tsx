@@ -59,6 +59,7 @@ export default function MainNav({ user }: MainNavProps) {
               <Button
                 variant="ghost"
                 className="relative h-10 w-10 rounded-full p-1"
+                aria-label="Help Menu"
               >
                 <BiHelpCircle className="h-6 w-6 text-foreground cursor-pointer" />
               </Button>
@@ -104,6 +105,7 @@ export default function MainNav({ user }: MainNavProps) {
               <Button
                 variant="ghost"
                 className="relative h-10 w-10 rounded-full p-1"
+                aria-label="User Menu"
               >
                 <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
               </Button>
