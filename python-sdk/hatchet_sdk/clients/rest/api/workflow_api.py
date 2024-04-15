@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from typing_extensions import Annotated
 
 from pydantic import Field, StrictInt, StrictStr
-from typing import Optional
+from typing import List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.create_pull_request_from_step_run import CreatePullRequestFromStepRun
 from hatchet_sdk.clients.rest.models.get_step_run_diff_response import GetStepRunDiffResponse
@@ -2005,6 +2005,7 @@ class WorkflowApi:
         workflow_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The workflow id to get runs for.")] = None,
         parent_workflow_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent workflow run id")] = None,
         parent_step_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent step run id")] = None,
+        statuses: Annotated[Optional[List[WorkflowRunStatus]], Field(description="A list of workflow run statuses to filter by")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2036,6 +2037,8 @@ class WorkflowApi:
         :type parent_workflow_run_id: str
         :param parent_step_run_id: The parent step run id
         :type parent_step_run_id: str
+        :param statuses: A list of workflow run statuses to filter by
+        :type statuses: List[WorkflowRunStatus]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2066,6 +2069,7 @@ class WorkflowApi:
             workflow_id=workflow_id,
             parent_workflow_run_id=parent_workflow_run_id,
             parent_step_run_id=parent_step_run_id,
+            statuses=statuses,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2098,6 +2102,7 @@ class WorkflowApi:
         workflow_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The workflow id to get runs for.")] = None,
         parent_workflow_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent workflow run id")] = None,
         parent_step_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent step run id")] = None,
+        statuses: Annotated[Optional[List[WorkflowRunStatus]], Field(description="A list of workflow run statuses to filter by")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2129,6 +2134,8 @@ class WorkflowApi:
         :type parent_workflow_run_id: str
         :param parent_step_run_id: The parent step run id
         :type parent_step_run_id: str
+        :param statuses: A list of workflow run statuses to filter by
+        :type statuses: List[WorkflowRunStatus]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2159,6 +2166,7 @@ class WorkflowApi:
             workflow_id=workflow_id,
             parent_workflow_run_id=parent_workflow_run_id,
             parent_step_run_id=parent_step_run_id,
+            statuses=statuses,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2191,6 +2199,7 @@ class WorkflowApi:
         workflow_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The workflow id to get runs for.")] = None,
         parent_workflow_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent workflow run id")] = None,
         parent_step_run_id: Annotated[Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]], Field(description="The parent step run id")] = None,
+        statuses: Annotated[Optional[List[WorkflowRunStatus]], Field(description="A list of workflow run statuses to filter by")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2222,6 +2231,8 @@ class WorkflowApi:
         :type parent_workflow_run_id: str
         :param parent_step_run_id: The parent step run id
         :type parent_step_run_id: str
+        :param statuses: A list of workflow run statuses to filter by
+        :type statuses: List[WorkflowRunStatus]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2252,6 +2263,7 @@ class WorkflowApi:
             workflow_id=workflow_id,
             parent_workflow_run_id=parent_workflow_run_id,
             parent_step_run_id=parent_step_run_id,
+            statuses=statuses,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2279,6 +2291,7 @@ class WorkflowApi:
         workflow_id,
         parent_workflow_run_id,
         parent_step_run_id,
+        statuses,
         _request_auth,
         _content_type,
         _headers,
@@ -2288,6 +2301,7 @@ class WorkflowApi:
         _host = None
 
         _collection_formats: Dict[str, str] = {
+            'statuses': 'multi',
         }
 
         _path_params: Dict[str, str] = {}
@@ -2324,6 +2338,10 @@ class WorkflowApi:
         if parent_step_run_id is not None:
             
             _query_params.append(('parentStepRunId', parent_step_run_id))
+            
+        if statuses is not None:
+            
+            _query_params.append(('statuses', statuses))
             
         # process the header parameters
         # process the form parameters

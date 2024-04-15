@@ -280,15 +280,15 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		countParams.GroupKey = sqlchelpers.TextFromStr(*opts.GroupKey)
 	}
 
-	if opts.Status != nil {
-		var status dbsqlc.NullWorkflowRunStatus
+	if opts.Statuses != nil {
+		statuses := make([]string, 0)
 
-		if err := status.Scan(string(*opts.Status)); err != nil {
-			return nil, err
+		for _, status := range *opts.Statuses {
+			statuses = append(statuses, string(status))
 		}
 
-		queryParams.Status = status
-		countParams.Status = status
+		queryParams.Statuses = statuses
+		countParams.Statuses = statuses
 	}
 
 	orderByField := "createdAt"

@@ -9,10 +9,11 @@ import {
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import { queries } from '@/lib/api';
+import { WorkflowRunStatus, queries } from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
+import { FilterOption } from '@/components/molecules/data-table/data-table-toolbar';
 
 export default function WorkflowRuns() {
   return (
@@ -48,12 +49,67 @@ function WorkflowRunsTable() {
     return pagination.pageIndex * pagination.pageSize;
   }, [pagination]);
 
+  const statuses = useMemo(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'status');
+
+    if (!filter) {
+      return;
+    }
+
+    return filter?.value as Array<WorkflowRunStatus>;
+  }, [columnFilters]);
+
   const listWorkflowRunsQuery = useQuery({
     ...queries.workflowRuns.list(tenant.metadata.id, {
       offset,
       limit: pageSize,
+      statuses,
     }),
   });
+
+  const {
+    data: workflowKeys,
+    isLoading: workflowKeysIsLoading,
+    error: workflowKeysError,
+  } = useQuery({
+    ...queries.workflows.list(tenant.metadata.id),
+  });
+
+  const workflowKeyFilters = useMemo((): FilterOption[] => {
+    return (
+      workflowKeys?.rows?.map((key) => ({
+        value: key.metadata.id,
+        label: key.name,
+      })) || []
+    );
+  }, [workflowKeys]);
+
+  const workflowRunStatusFilters = useMemo((): FilterOption[] => {
+    return [
+      {
+        value: WorkflowRunStatus.SUCCEEDED,
+        label: 'Succeeded',
+      },
+      {
+        value: WorkflowRunStatus.FAILED,
+        label: 'Failed',
+      },
+      {
+        value: WorkflowRunStatus.RUNNING,
+        label: 'Running',
+      },
+      {
+        value: WorkflowRunStatus.QUEUED,
+        label: 'Queued',
+      },
+      {
+        value: WorkflowRunStatus.PENDING,
+        label: 'Pending',
+      },
+    ];
+  }, []);
+
+
 
   if (listWorkflowRunsQuery.isLoading) {
     return <Loading />;
@@ -61,10 +117,25 @@ function WorkflowRunsTable() {
 
   return (
     <DataTable
+      error={workflowKeysError}
+      isLoading={workflowKeysIsLoading}
+
       columns={columns}
       data={listWorkflowRunsQuery.data?.rows || []}
-      filters={[]}
+      filters={[
+        // {
+        //   columnId: 'workflows',
+        //   title: 'Workflow',
+        //   options: workflowKeyFilters,
+        // },
+        {
+          columnId: 'status',
+          title: 'Status',
+          options: workflowRunStatusFilters,
+        },
+      ]}
       sorting={sorting}
+      
       setSorting={setSorting}
       columnFilters={columnFilters}
       setColumnFilters={setColumnFilters}

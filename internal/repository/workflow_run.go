@@ -215,7 +215,7 @@ type ListWorkflowRunsOpts struct {
 	GroupKey *string
 
 	// (optional) the status of the workflow run
-	Status *db.WorkflowRunStatus
+	Statuses *[]db.WorkflowRunStatus
 
 	// (optional) number of events to skip
 	Offset *int
