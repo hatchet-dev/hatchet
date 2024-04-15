@@ -65,7 +65,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   return (
     <div
       className={cn(
-        'h-full border-r w-full md:w-80 top-16 absolute z-50 md:relative md:top-0 md:bg-[unset] bg-slate-900',
+        'h-full border-r w-full md:w-80 top-16 absolute z-[100] md:relative md:top-0 md:bg-[unset] md:dark:bg-[unset] bg-slate-100 dark:bg-slate-900',
         className,
       )}
     >
