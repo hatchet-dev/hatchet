@@ -49,6 +49,18 @@ function WorkflowRunsTable() {
     return pagination.pageIndex * pagination.pageSize;
   }, [pagination]);
 
+  const workflows = useMemo(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
+
+    console.log(columnFilters);
+
+    if (!filter) {
+      return;
+    }
+
+    return filter?.value as Array<string>;
+  }, [columnFilters]);
+
   const statuses = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'status');
 
@@ -64,6 +76,7 @@ function WorkflowRunsTable() {
       offset,
       limit: pageSize,
       statuses,
+      workflowId: workflows ? workflows[0] : undefined,
     }),
   });
 
@@ -109,8 +122,6 @@ function WorkflowRunsTable() {
     ];
   }, []);
 
-
-
   if (listWorkflowRunsQuery.isLoading) {
     return <Loading />;
   }
@@ -119,15 +130,15 @@ function WorkflowRunsTable() {
     <DataTable
       error={workflowKeysError}
       isLoading={workflowKeysIsLoading}
-
       columns={columns}
       data={listWorkflowRunsQuery.data?.rows || []}
       filters={[
-        // {
-        //   columnId: 'workflows',
-        //   title: 'Workflow',
-        //   options: workflowKeyFilters,
-        // },
+        {
+          columnId: 'Workflow',
+          title: 'Workflow',
+          options: workflowKeyFilters,
+          type: 'radio',
+        },
         {
           columnId: 'status',
           title: 'Status',
@@ -135,7 +146,6 @@ function WorkflowRunsTable() {
         },
       ]}
       sorting={sorting}
-      
       setSorting={setSorting}
       columnFilters={columnFilters}
       setColumnFilters={setColumnFilters}
