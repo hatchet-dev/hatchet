@@ -16,6 +16,7 @@ export interface FilterOption {
 export type ToolbarFilters = {
   columnId: string;
   title: string;
+  type?: 'checkbox' | 'radio';
   options: FilterOption[];
 }[];
 
@@ -52,6 +53,7 @@ export function DataTableToolbar<TData>({
             key={filter.columnId}
             column={table.getColumn(filter.columnId)}
             title={filter.title}
+            type={filter.type}
             options={filter.options}
           />
         ))}
