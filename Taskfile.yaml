@@ -165,4 +165,4 @@ tasks:
     deps:
       - pre-commit-install
     cmds:
-      - pre-commit run --all-files
+      - pre-commit run --all-files || pre-commit run --all-files
