@@ -51,7 +51,7 @@ func (r *retryWorkflow) StepOne(ctx worker.HatchetContext) (result *stepOneOutpu
 		return nil, err
 	}
 
-	if r.retries < 5 {
+	if r.retries < 2 {
 		r.retries++
 		return nil, fmt.Errorf("error")
 	}
@@ -73,6 +73,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		worker.WithClient(
 			c,
 		),
+		worker.WithMaxRuns(1),
 	)
 	if err != nil {
 		return fmt.Errorf("error creating worker: %w", err)
@@ -89,7 +90,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 			Description: "This runs after an update to the user model.",
 			Concurrency: worker.Concurrency(getConcurrencyKey),
 			Steps: []*worker.WorkflowStep{
-				worker.Fn(wk.StepOne).SetName("step-one").SetRetries(3),
+				worker.Fn(wk.StepOne).SetName("step-one").SetRetries(4),
 			},
 		},
 	)

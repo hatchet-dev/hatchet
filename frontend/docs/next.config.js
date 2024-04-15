@@ -10,7 +10,7 @@ const nextConfig = {
   async redirects() {
     return [
       {
-        source: '/:path((?!home|sdk|contributing|self-hosting|launches|favicon\\.ico|hatchet_logo\\.png).*)',
+        source: '/:path((?!home|sdk|contributing|self-hosting|launches|blog|favicon\\.ico|hatchet_logo\\.png).*)',
         destination: '/home/:path*',
         permanent: true,
       },
