@@ -69,7 +69,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
         className,
       )}
     >
-      <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full">
+      <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full pb-16 md:pb-0">
         <div className="grow">
           <div className="py-2">
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
