@@ -238,10 +238,6 @@ function EventsTable() {
         value: WorkflowRunStatus.PENDING,
         label: 'Pending',
       },
-      {
-        value: WorkflowRunStatus.CANCELLED,
-        label: 'Cancelled',
-      },
     ];
   }, []);
 
