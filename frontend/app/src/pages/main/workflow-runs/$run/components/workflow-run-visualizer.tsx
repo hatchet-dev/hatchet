@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import ReactFlow, {
   useNodesState,
   useEdgesState,
@@ -12,10 +12,14 @@ import StepRunNode, { StepRunNodeProps } from './step-run-node';
 import { StepRun, StepRunStatus, WorkflowRun } from '@/lib/api';
 import dagre from 'dagre';
 import invariant from 'tiny-invariant';
+import { useTheme } from '@/components/theme-provider';
 
-const initBgColor = '#050c1c';
+const initBgColorDark = '#050c1c';
+const initBgColorLight = '#ffffff';
 
-const connectionLineStyle = { stroke: '#fff' };
+const connectionLineStyleDark = { stroke: '#fff' };
+const connectionLineStyleLight = { stroke: '#000' };
+
 const nodeTypes = {
   stepNode: StepRunNode,
 };
@@ -29,9 +33,10 @@ const WorkflowRunVisualizer = ({
   selectedStepRun?: StepRun;
   setSelectedStepRun: (stepRun: StepRun) => void;
 }) => {
+  const { theme } = useTheme();
+
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [bgColor] = useState(initBgColor);
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
 
@@ -54,7 +59,6 @@ const WorkflowRunVisualizer = ({
                       source: parent,
                       target: stepRun.step.metadata.id,
                       animated: stepRun.status === StepRunStatus.RUNNING,
-                      style: { stroke: '#fff' },
                       markerEnd: {
                         type: MarkerType.ArrowClosed,
                       },
@@ -158,6 +162,16 @@ const WorkflowRunVisualizer = ({
   const dagrNodes = dagrLayout.nodes;
   const dagrEdges = dagrLayout.edges;
 
+  const bg = useMemo(() => {
+    return theme === 'dark' ? initBgColorDark : initBgColorLight;
+  }, [theme]);
+
+  const connectionLineStyle = useMemo(() => {
+    return theme === 'dark'
+      ? connectionLineStyleDark
+      : connectionLineStyleLight;
+  }, [theme]);
+
   return (
     <>
       <ReactFlow
@@ -165,7 +179,7 @@ const WorkflowRunVisualizer = ({
         edges={dagrEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        style={{ background: bgColor }}
+        style={{ background: bg }}
         nodeTypes={nodeTypes}
         connectionLineStyle={connectionLineStyle}
         snapToGrid={true}

@@ -276,6 +276,7 @@ function EventsTable() {
         setRotate(!rotate);
       }}
       variant={'outline'}
+      aria-label="Refresh events list"
     >
       <ArrowPathIcon
         className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}

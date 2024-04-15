@@ -4,10 +4,14 @@ import typescript from 'react-syntax-highlighter/dist/esm/languages/hljs/typescr
 import yaml from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
 
-import { anOldHope } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import {
+  anOldHope,
+  atomOneLight,
+} from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import CopyToClipboard from './copy-to-clipboard';
 import { useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { useTheme } from '../theme-provider';
 
 SyntaxHighlighter.registerLanguage('typescript', typescript);
 SyntaxHighlighter.registerLanguage('yaml', yaml);
@@ -34,6 +38,8 @@ export function CodeHighlighter({
   copy?: boolean;
   wrapLines?: boolean;
 }) {
+  const { theme } = useTheme();
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   return (
@@ -56,7 +62,7 @@ export function CodeHighlighter({
         )}
         <SyntaxHighlighter
           language={language}
-          style={anOldHope}
+          style={theme == 'dark' ? anOldHope : atomOneLight}
           wrapLines={wrapLines}
           lineProps={{
             style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' },

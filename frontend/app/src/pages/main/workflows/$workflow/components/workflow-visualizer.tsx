@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import ReactFlow, {
   useNodesState,
   useEdgesState,
@@ -11,12 +11,16 @@ import 'reactflow/dist/style.css';
 import StepNode from './step-node';
 import { WorkflowVersion } from '@/lib/api';
 import dagre from 'dagre';
+import { useTheme } from '@/components/theme-provider';
 
 // import ColorSelectorNode from './ColorSelectorNode';
 
-const initBgColor = '#050c1c';
+const initBgColorDark = '#050c1c';
+const initBgColorLight = '#ffffff';
 
-const connectionLineStyle = { stroke: '#fff' };
+const connectionLineStyleDark = { stroke: '#fff' };
+const connectionLineStyleLight = { stroke: '#000' };
+
 const nodeTypes = {
   stepNode: StepNode,
 };
@@ -24,7 +28,7 @@ const nodeTypes = {
 const WorkflowVisualizer = ({ workflow }: { workflow: WorkflowVersion }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [bgColor] = useState(initBgColor);
+
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
 
@@ -42,7 +46,6 @@ const WorkflowVisualizer = ({ workflow }: { workflow: WorkflowVersion }) => {
                       source: parent,
                       target: step.metadata.id,
                       //   animated: true,
-                      style: { stroke: '#fff' },
                       markerEnd: {
                         type: MarkerType.ArrowClosed,
                       },
@@ -130,6 +133,18 @@ const WorkflowVisualizer = ({ workflow }: { workflow: WorkflowVersion }) => {
 
   const dagrNodes = dagrLayout.nodes;
   const dagrEdges = dagrLayout.edges;
+
+  const { theme } = useTheme();
+
+  const bgColor = useMemo(() => {
+    return theme === 'dark' ? initBgColorDark : initBgColorLight;
+  }, [theme]);
+
+  const connectionLineStyle = useMemo(() => {
+    return theme === 'dark'
+      ? connectionLineStyleDark
+      : connectionLineStyleLight;
+  }, [theme]);
 
   return (
     <ReactFlow

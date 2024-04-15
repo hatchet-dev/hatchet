@@ -56,7 +56,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
-  const { sidebarOpen } = useSidebar();
+  const { sidebarOpen, setSidebarOpen } = useSidebar();
 
   if (sidebarOpen === 'closed') {
     return null;
@@ -65,18 +65,18 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   return (
     <div
       className={cn(
-        'h-full border-r w-full md:w-80 top-16 absolute z-50 md:relative md:top-0 md:bg-[unset] bg-slate-900',
+        'h-full border-r w-full md:w-80 top-16 absolute z-[100] md:relative md:top-0 md:bg-[unset] md:dark:bg-[unset] bg-slate-100 dark:bg-slate-900',
         className,
       )}
     >
-      <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full">
+      <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full pb-16 md:pb-0">
         <div className="grow">
           <div className="py-2">
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
               Events
             </h2>
             <div className="space-y-1">
-              <Link to="/events">
+              <Link to="/events" onClick={() => setSidebarOpen('closed')}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <QueueListIcon className="mr-2 h-4 w-4" />
                   All events
@@ -93,19 +93,22 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               Workflows
             </h2>
             <div className="space-y-1">
-              <Link to="/workflows">
+              <Link to="/workflows" onClick={() => setSidebarOpen('closed')}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <Squares2X2Icon className="mr-2 h-4 w-4" />
                   All workflows
                 </Button>
               </Link>
-              <Link to="/workflow-runs">
+              <Link
+                to="/workflow-runs"
+                onClick={() => setSidebarOpen('closed')}
+              >
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />
                   Runs
                 </Button>
               </Link>
-              <Link to="/workers">
+              <Link to="/workers" onClick={() => setSidebarOpen('closed')}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <ServerStackIcon className="mr-2 h-4 w-4" />
                   Workers
@@ -118,7 +121,10 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               Settings
             </h2>
             <div className="space-y-1">
-              <Link to="/tenant-settings">
+              <Link
+                to="/tenant-settings"
+                onClick={() => setSidebarOpen('closed')}
+              >
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <GearIcon className="mr-2 h-4 w-4" />
                   General

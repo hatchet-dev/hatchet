@@ -39,7 +39,7 @@ export default function WorkflowList({ workflows }: WorkflowListProps) {
                 </Link>
               </h2>
             </div>
-            <div className="mt-3 flex items-center gap-x-2.5 text-xs leading-5 text-muted-foreground">
+            <div className="mt-3 flex items-center gap-x-2.5 text-xs leading-5 text-gray-700 dark:text-gray-300">
               {workflow.lastRun?.metadata.createdAt && (
                 <p className="whitespace-nowrap">
                   Last run: {relativeDate(workflow.lastRun?.metadata.createdAt)}
@@ -49,7 +49,7 @@ export default function WorkflowList({ workflows }: WorkflowListProps) {
           </div>
           <WorkflowTags tags={workflow.tags || []} />
           <ChevronRightIcon
-            className="h-5 w-5 flex-none text-muted-foreground"
+            className="h-5 w-5 flex-none text-gray-700 dark:text-gray-300"
             aria-hidden="true"
           />
         </li>

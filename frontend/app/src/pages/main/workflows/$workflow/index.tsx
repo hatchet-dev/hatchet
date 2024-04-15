@@ -134,7 +134,7 @@ export default function ExpandedWorkflow() {
           />
         </div>
         <div className="flex flex-row justify-start items-center mt-4">
-          <div className="text-sm text-muted-foreground">
+          <div className="text-sm text-gray-700 dark:text-gray-300">
             Updated{' '}
             {relativeDate(
               workflow.versions && workflow.versions[0].metadata.updatedAt,
@@ -142,7 +142,7 @@ export default function ExpandedWorkflow() {
           </div>
         </div>
         {workflow.description && (
-          <div className="text-sm text-muted-foreground mt-4">
+          <div className="text-sm text-gray-700 dark:text-gray-300 mt-4">
             {workflow.description}
           </div>
         )}

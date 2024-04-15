@@ -93,16 +93,16 @@ export default function ExpandedWorkflowRun() {
           </Badge>
         </div>
         <div className="flex flex-row justify-start items-center gap-2">
-          <div className="text-sm text-muted-foreground">
+          <div className="text-sm text-gray-700 dark:text-gray-300">
             Created {relativeDate(run?.metadata.createdAt)}
           </div>
           {run?.startedAt && (
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
               Started {relativeDate(run.startedAt)}
             </div>
           )}
           {run?.startedAt && run?.finishedAt && (
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
               Duration {timeBetween(run.startedAt, run.finishedAt)}
             </div>
           )}
@@ -192,7 +192,9 @@ export function StepStatusSection({ stepRun }: { stepRun: StepRun }) {
       <h3 className="font-semibold leading-tight text-foreground mb-4">
         Status
       </h3>
-      <div className="text-sm text-muted-foreground">{statusText}</div>
+      <div className="text-sm text-gray-700 dark:text-gray-300">
+        {statusText}
+      </div>
     </div>
   );
 }
@@ -203,7 +205,7 @@ export function StepDurationSection({ stepRun }: { stepRun: StepRun }) {
       <h3 className="font-semibold leading-tight text-foreground mb-4">
         Duration
       </h3>
-      <div className="text-sm text-muted-foreground">
+      <div className="text-sm text-gray-700 dark:text-gray-300">
         {stepRun.startedAt &&
           stepRun.finishedAt &&
           timeBetween(stepRun.startedAt, stepRun.finishedAt)}
@@ -218,7 +220,7 @@ export function StepConfigurationSection({ stepRun }: { stepRun: StepRun }) {
       <h3 className="font-semibold leading-tight text-foreground mb-4">
         Configuration
       </h3>
-      <div className="text-sm text-muted-foreground">
+      <div className="text-sm text-gray-700 dark:text-gray-300">
         Timeout: {stepRun.step?.timeout || '60s'}
       </div>
     </div>
@@ -231,7 +233,7 @@ function TriggeringCronSection({ cron }: { cron: string }) {
   ).toLowerCase()} UTC`;
 
   return (
-    <div className="text-sm text-muted-foreground">
+    <div className="text-sm text-gray-700 dark:text-gray-300">
       Triggered by cron {cron} which {prettyInterval}
     </div>
   );

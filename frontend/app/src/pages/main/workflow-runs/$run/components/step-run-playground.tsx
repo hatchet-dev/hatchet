@@ -317,6 +317,7 @@ export function StepRunPlayground({
                       variant="outline"
                       size="icon"
                       onClick={handleModeSwitch}
+                      aria-label='Switch between "Form" and "JSON" modes'
                     >
                       {mode === 'json' && <VscNote className="h-4 w-4" />}
                       {mode === 'form' && <VscJson className="h-4 w-4" />}

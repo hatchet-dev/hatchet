@@ -62,7 +62,9 @@ export default function Login() {
               <h1 className="text-2xl font-semibold tracking-tight">
                 Log in to Hatchet
               </h1>
-              <p className="text-sm text-muted-foreground">{prompt}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                {prompt}
+              </p>
             </div>
             {forms.map((form, index) => (
               <React.Fragment key={index}>
@@ -70,7 +72,7 @@ export default function Login() {
                 {index < schemes.length - 1 && <OrContinueWith />}
               </React.Fragment>
             ))}
-            <p className="text-left text-sm text-muted-foreground w-full">
+            <p className="text-left text-sm text-gray-700 dark:text-gray-300 w-full">
               By clicking continue, you agree to our{' '}
               <Link
                 to="/terms"
@@ -101,7 +103,7 @@ export function OrContinueWith() {
         <span className="w-full border-t" />
       </div>
       <div className="relative flex justify-center text-xs uppercase">
-        <span className="bg-background px-2 text-muted-foreground">
+        <span className="bg-background px-2 text-gray-700 dark:text-gray-300">
           Or continue with
         </span>
       </div>

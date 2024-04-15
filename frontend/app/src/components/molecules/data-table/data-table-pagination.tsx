@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Label } from '@radix-ui/react-label';
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
@@ -28,13 +29,19 @@ export function DataTablePagination<TData>({
 
   return (
     <div className="flex items-center justify-between px-2">
-      <div className="flex-1 text-sm text-muted-foreground">
+      <div className="flex-1 text-sm text-gray-600 dark:text-gray-400">
         {table.getFilteredSelectedRowModel().rows.length} of{' '}
         {table.getFilteredRowModel().rows.length} row(s) selected.
       </div>
       <div className="flex items-center space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">
-          <p className="text-sm font-medium">Rows per page</p>
+          <Label
+            className="text-sm font-medium text-gray-600 dark:text-gray-400"
+            htmlFor="rows-per-page"
+            id="rows-per-page-label"
+          >
+            Rows per page
+          </Label>
           <Select
             value={`${pagination.pageSize}`}
             onValueChange={(value) => {
@@ -44,7 +51,11 @@ export function DataTablePagination<TData>({
               }
             }}
           >
-            <SelectTrigger className="h-8 w-[70px]">
+            <SelectTrigger
+              className="h-8 w-[70px]"
+              id="rows-per-page"
+              aria-labelledby="rows-per-page-label"
+            >
               <SelectValue placeholder={pagination.pageSize} />
             </SelectTrigger>
             <SelectContent side="top">
