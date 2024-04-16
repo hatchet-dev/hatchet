@@ -36,7 +36,7 @@ export function WorkflowRunsTable({
   filterVisibility = {},
   parentWorkflowRunId,
   parentStepRunId,
-  refetchInterval = 5000
+  refetchInterval = 5000,
 }: WorkflowRunsTableProps) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
@@ -103,7 +103,7 @@ export function WorkflowRunsTable({
     refetch,
   } = useQuery({
     ...queries.workflows.list(tenant.metadata.id),
-    refetchInterval
+    refetchInterval,
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
