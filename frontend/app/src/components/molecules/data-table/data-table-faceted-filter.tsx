@@ -20,11 +20,12 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
+import { ToolbarType } from './data-table-toolbar';
 
 interface DataTableFacetedFilterProps<TData, TValue> {
   column?: Column<TData, TValue>;
   title?: string;
-  type?: 'checkbox' | 'radio';
+  type?: ToolbarType;
   options: {
     label: string;
     value: string;
@@ -35,7 +36,7 @@ interface DataTableFacetedFilterProps<TData, TValue> {
 export function DataTableFacetedFilter<TData, TValue>({
   column,
   title,
-  type = 'checkbox',
+  type = ToolbarType.Checkbox,
   options,
 }: DataTableFacetedFilterProps<TData, TValue>) {
   const facets = column?.getFacetedUniqueValues();

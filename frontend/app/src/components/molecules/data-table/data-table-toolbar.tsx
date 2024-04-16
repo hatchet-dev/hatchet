@@ -13,10 +13,15 @@ export interface FilterOption {
   icon?: React.ComponentType<{ className?: string }>;
 }
 
+export enum ToolbarType {
+  Checkbox = 'checkbox',
+  Radio = 'radio',
+}
+
 export type ToolbarFilters = {
   columnId: string;
   title: string;
-  type?: 'checkbox' | 'radio';
+  type?: ToolbarType;
   options: FilterOption[];
 }[];
 

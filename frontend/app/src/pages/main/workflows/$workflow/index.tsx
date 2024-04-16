@@ -30,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DeleteWorkflowForm } from './components/delete-workflow-form';
 import { Dialog } from '@/components/ui/dialog';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
+import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -240,25 +241,9 @@ function RecentRunsList() {
   const params = useParams();
   invariant(params.workflow);
 
-  const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
-      offset: 0,
-      limit: 10,
-      workflowId: params.workflow,
-    }),
-  });
-
-  return (
-    <DataTable
-      columns={columns}
-      data={listWorkflowRunsQuery.data?.rows || []}
-      filters={[]}
-      pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
-      columnVisibility={{
-        Workflow: false,
-      }}
-      isLoading={listWorkflowRunsQuery.isLoading}
-    />
+  return (<>
+    <WorkflowRunsTable workflowId={params.workflow} initColumnVisibility={{Workflow: false}} filterVisibility={{Workflow: false}}/>
+      </>
   );
 }
 

@@ -13,21 +13,23 @@ import { WorkflowRunStatus, queries } from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
-import { FilterOption } from '@/components/molecules/data-table/data-table-toolbar';
+import { FilterOption, ToolbarFilters, ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 
 export interface WorkflowRunsTableProps {
   workflowId?: string;
+  initColumnVisibility?: VisibilityState;
+  filterVisibility?: {[key: string]: boolean};
 }
 
-export function WorkflowRunsTable({ workflowId }: WorkflowRunsTableProps) {
+export function WorkflowRunsTable({ workflowId, initColumnVisibility = {}, filterVisibility = {} }: WorkflowRunsTableProps) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initColumnVisibility);
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -120,6 +122,20 @@ export function WorkflowRunsTable({ workflowId }: WorkflowRunsTableProps) {
     ];
   }, []);
 
+const filters: ToolbarFilters = [
+  {
+    columnId: 'Workflow',
+    title: 'Workflow',
+    options: workflowKeyFilters,
+    type: ToolbarType.Radio,
+  },
+  {
+    columnId: 'status',
+    title: 'Status',
+    options: workflowRunStatusFilters,
+  },
+].filter((filter) => filterVisibility[filter.columnId] != false);
+
   const [rotate, setRotate] = useState(false);
 
   const actions = [
@@ -152,19 +168,7 @@ export function WorkflowRunsTable({ workflowId }: WorkflowRunsTableProps) {
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
       data={listWorkflowRunsQuery.data?.rows || []}
-      filters={[
-        {
-          columnId: 'Workflow',
-          title: 'Workflow',
-          options: workflowKeyFilters,
-          type: 'radio',
-        },
-        {
-          columnId: 'status',
-          title: 'Status',
-          options: workflowRunStatusFilters,
-        },
-      ]}
+      filters={filters}
       actions={actions}
       sorting={sorting}
       setSorting={setSorting}
