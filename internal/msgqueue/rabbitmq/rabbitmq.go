@@ -10,6 +10,7 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/jackc/puddle/v2"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 
@@ -98,7 +99,36 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		l:        opts.l,
 	}
 
-	t.sessions = t.redial(ctx, opts.l, opts.url)
+	constructor := func(context.Context) (*amqp.Connection, error) {
+		conn, err := amqp.Dial(opts.url)
+
+		if err != nil {
+			opts.l.Error().Msgf("cannot (re)dial: %v: %q", err, opts.url)
+			return nil, err
+		}
+
+		return conn, nil
+	}
+
+	destructor := func(conn *amqp.Connection) {
+		err := conn.Close()
+
+		if err != nil {
+			opts.l.Error().Msgf("error closing connection: %v", err)
+		}
+	}
+
+	maxPoolSize := int32(10)
+
+	pool, err := puddle.NewPool(&puddle.Config[*amqp.Connection]{Constructor: constructor, Destructor: destructor, MaxSize: maxPoolSize})
+
+	if err != nil {
+		t.l.Error().Err(err).Msg("cannot create connection pool")
+		cancel()
+		return nil, nil
+	}
+
+	t.sessions = t.redial(ctx, opts.l, pool)
 	t.msgs = make(chan *msgWithQueue)
 
 	// create a new lru cache for tenant ids
@@ -138,6 +168,9 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq publisher: %w", err)
 		}
+
+		pool.Close()
+
 		return nil
 	}
 
@@ -257,14 +290,21 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 		for session := range t.sessions {
 			pub := <-session
 
+			conn := pub.Connection
+
+			t.l.Debug().Msgf("starting publisher: %s", conn.LocalAddr().String())
+
 			for {
-				if pub.Channel.IsClosed() || pub.Connection.IsClosed() {
+				if pub.Channel.IsClosed() {
+					break
+				} else if conn.IsClosed() {
+					t.l.Error().Msgf("connection is closed, reconnecting")
 					break
 				}
 
 				select {
 				case <-ctx.Done():
-					return
+					break
 				case msg := <-t.msgs:
 					go func(msg *msgWithQueue) {
 						body, err := json.Marshal(msg)
@@ -318,6 +358,12 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 					}(msg)
 				}
 			}
+
+			err := pub.Channel.Close()
+
+			if err != nil {
+				t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
+			}
 		}
 	}()
 
@@ -342,6 +388,12 @@ func (t *MessageQueueImpl) subscribe(
 			sessionCount++
 			sub := <-session
 
+			sessionWg := sync.WaitGroup{}
+
+			conn := sub.Connection
+
+			t.l.Debug().Msgf("starting subscriber %s on: %s", subId, conn.LocalAddr().String())
+
 			// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
 			// if the exclusive queue will be available to the next session.
 			queueName, err := t.initQueue(sub, q)
@@ -365,10 +417,21 @@ func (t *MessageQueueImpl) subscribe(
 				return
 			}
 
+			closeChannel := func() {
+				sessionWg.Wait()
+
+				err = sub.Channel.Close()
+
+				if err != nil {
+					t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
+				}
+			}
+
 		inner:
 			for {
 				select {
 				case <-ctx.Done():
+					closeChannel()
 					return
 				case rabbitMsg, ok := <-deliveries:
 					if !ok {
@@ -377,9 +440,12 @@ func (t *MessageQueueImpl) subscribe(
 					}
 
 					wg.Add(1)
+					sessionWg.Add(1)
 
 					go func(rabbitMsg amqp.Delivery) {
 						defer wg.Done()
+						defer sessionWg.Done()
+
 						msg := &msgWithQueue{}
 
 						if len(rabbitMsg.Body) == 0 {
@@ -451,11 +517,7 @@ func (t *MessageQueueImpl) subscribe(
 				}
 			}
 
-			err = sub.CloseDeadline(time.Now())
-
-			if err != nil {
-				t.l.Error().Msgf("cannot close session: %s, %v", sub.LocalAddr().String(), err)
-			}
+			go closeChannel()
 		}
 	}()
 
@@ -472,7 +534,7 @@ func (t *MessageQueueImpl) subscribe(
 }
 
 // redial continually connects to the URL, exiting the program when no longer possible
-func (t *MessageQueueImpl) redial(ctx context.Context, l *zerolog.Logger, url string) chan chan session {
+func (t *MessageQueueImpl) redial(ctx context.Context, l *zerolog.Logger, pool *puddle.Pool[*amqp.Connection]) chan chan session {
 	sessions := make(chan chan session)
 
 	go func() {
@@ -491,7 +553,7 @@ func (t *MessageQueueImpl) redial(ctx context.Context, l *zerolog.Logger, url st
 			var err error
 
 			for i := 0; i < MAX_RETRY_COUNT; i++ {
-				newSession, err = getSession(ctx, l, url)
+				newSession, err = getSession(ctx, l, pool)
 				if err == nil {
 					if i > 0 {
 						l.Info().Msgf("re-established session after %d attempts", i)
@@ -506,6 +568,7 @@ func (t *MessageQueueImpl) redial(ctx context.Context, l *zerolog.Logger, url st
 
 			if err != nil {
 				l.Error().Msgf("failed to get session after %d attempts", MAX_RETRY_COUNT)
+				t.ready = false
 				return
 			}
 
@@ -545,18 +608,28 @@ func identity() string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func getSession(ctx context.Context, l *zerolog.Logger, url string) (session, error) {
-	conn, err := amqp.Dial(url)
+func getSession(ctx context.Context, l *zerolog.Logger, pool *puddle.Pool[*amqp.Connection]) (session, error) {
+	connFromPool, err := pool.Acquire(ctx)
+
 	if err != nil {
-		l.Error().Msgf("cannot (re)dial: %v: %q", err, url)
+		l.Error().Msgf("cannot acquire connection: %v", err)
 		return session{}, err
 	}
 
+	conn := connFromPool.Value()
+
 	ch, err := conn.Channel()
+
 	if err != nil {
+		connFromPool.Destroy()
 		l.Error().Msgf("cannot create channel: %v", err)
 		return session{}, err
 	}
 
-	return session{conn, ch}, nil
+	connFromPool.Release()
+
+	return session{
+		Channel:    ch,
+		Connection: conn,
+	}, nil
 }

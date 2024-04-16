@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -229,17 +230,25 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
+func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("recovered from panic: %v", r)
+		}
+	}()
+
 	switch task.ID {
 	case "group-key-action-assigned":
-		return d.a.WrapErr(d.handleGroupKeyActionAssignedTask(ctx, task), map[string]interface{}{})
+		err = d.a.WrapErr(d.handleGroupKeyActionAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-assigned":
-		return d.a.WrapErr(d.handleStepRunAssignedTask(ctx, task), map[string]interface{}{})
+		err = d.a.WrapErr(d.handleStepRunAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-cancelled":
-		return d.a.WrapErr(d.handleStepRunCancelled(ctx, task), map[string]interface{}{})
+		err = d.a.WrapErr(d.handleStepRunCancelled(ctx, task), map[string]interface{}{})
+	default:
+		err = fmt.Errorf("unknown task: %s", task.ID)
 	}
 
-	return fmt.Errorf("unknown task: %s", task.ID)
+	return err
 }
 
 func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, task *msgqueue.Message) error {
@@ -364,7 +373,7 @@ func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqu
 	// get the worker for this task
 	w, err := d.GetWorker(payload.WorkerId)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrWorkerNotFound) {
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
