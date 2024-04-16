@@ -13,23 +13,32 @@ import { WorkflowRunStatus, queries } from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
-import { FilterOption, ToolbarFilters, ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
+import {
+  FilterOption,
+  ToolbarFilters,
+  ToolbarType,
+} from '@/components/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 
 export interface WorkflowRunsTableProps {
   workflowId?: string;
   initColumnVisibility?: VisibilityState;
-  filterVisibility?: {[key: string]: boolean};
+  filterVisibility?: { [key: string]: boolean };
 }
 
-export function WorkflowRunsTable({ workflowId, initColumnVisibility = {}, filterVisibility = {} }: WorkflowRunsTableProps) {
+export function WorkflowRunsTable({
+  workflowId,
+  initColumnVisibility = {},
+  filterVisibility = {},
+}: WorkflowRunsTableProps) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initColumnVisibility);
+  const [columnVisibility, setColumnVisibility] =
+    useState<VisibilityState>(initColumnVisibility);
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -122,19 +131,19 @@ export function WorkflowRunsTable({ workflowId, initColumnVisibility = {}, filte
     ];
   }, []);
 
-const filters: ToolbarFilters = [
-  {
-    columnId: 'Workflow',
-    title: 'Workflow',
-    options: workflowKeyFilters,
-    type: ToolbarType.Radio,
-  },
-  {
-    columnId: 'status',
-    title: 'Status',
-    options: workflowRunStatusFilters,
-  },
-].filter((filter) => filterVisibility[filter.columnId] != false);
+  const filters: ToolbarFilters = [
+    {
+      columnId: 'Workflow',
+      title: 'Workflow',
+      options: workflowKeyFilters,
+      type: ToolbarType.Radio,
+    },
+    {
+      columnId: 'status',
+      title: 'Status',
+      options: workflowRunStatusFilters,
+    },
+  ].filter((filter) => filterVisibility[filter.columnId] != false);
 
   const [rotate, setRotate] = useState(false);
 

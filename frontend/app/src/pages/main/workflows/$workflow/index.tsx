@@ -1,7 +1,6 @@
-import { DataTable } from '@/components/molecules/data-table/data-table';
 import { Separator } from '@/components/ui/separator';
-import api, { Workflow, WorkflowVersion, queries } from '@/lib/api';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import api, { Workflow, WorkflowVersion } from '@/lib/api';
+import { useMutation } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import {
   LoaderFunctionArgs,
@@ -13,7 +12,6 @@ import {
   useRevalidator,
 } from 'react-router-dom';
 import invariant from 'tiny-invariant';
-import { columns } from '../../workflow-runs/components/workflow-runs-columns';
 import { WorkflowTags } from '../components/workflow-tags';
 import { Badge } from '@/components/ui/badge';
 import { relativeDate } from '@/lib/utils';
@@ -241,9 +239,14 @@ function RecentRunsList() {
   const params = useParams();
   invariant(params.workflow);
 
-  return (<>
-    <WorkflowRunsTable workflowId={params.workflow} initColumnVisibility={{Workflow: false}} filterVisibility={{Workflow: false}}/>
-      </>
+  return (
+    <>
+      <WorkflowRunsTable
+        workflowId={params.workflow}
+        initColumnVisibility={{ Workflow: false }}
+        filterVisibility={{ Workflow: false }}
+      />
+    </>
   );
 }
 
