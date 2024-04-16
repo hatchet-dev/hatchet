@@ -21,15 +21,13 @@ export interface WorkflowRunsTableProps {
   workflowId?: string;
 }
 
-export function WorkflowRunsTable({
-  workflowId
-}: WorkflowRunsTableProps) {
+export function WorkflowRunsTable({ workflowId }: WorkflowRunsTableProps) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -46,7 +44,9 @@ export function WorkflowRunsTable({
   }, [pagination]);
 
   const workflow = useMemo<string | undefined>(() => {
-    if(workflowId) return workflowId
+    if (workflowId) {
+      return workflowId;
+    }
 
     const filter = columnFilters.find((filter) => filter.id === 'Workflow');
 
@@ -73,7 +73,7 @@ export function WorkflowRunsTable({
       offset,
       limit: pageSize,
       statuses,
-      workflowId: workflow
+      workflowId: workflow,
     }),
   });
 
@@ -81,7 +81,7 @@ export function WorkflowRunsTable({
     data: workflowKeys,
     isLoading: workflowKeysIsLoading,
     error: workflowKeysError,
-    refetch
+    refetch,
   } = useQuery({
     ...queries.workflows.list(tenant.metadata.id),
   });
@@ -122,7 +122,6 @@ export function WorkflowRunsTable({
 
   const [rotate, setRotate] = useState(false);
 
-
   const actions = [
     <Button
       key="refresh"
@@ -141,7 +140,6 @@ export function WorkflowRunsTable({
     </Button>,
   ];
 
-
   if (listWorkflowRunsQuery.isLoading) {
     return <Loading />;
   }
@@ -153,8 +151,6 @@ export function WorkflowRunsTable({
       columns={columns}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
-
-
       data={listWorkflowRunsQuery.data?.rows || []}
       filters={[
         {

@@ -86,7 +86,7 @@ function EventsTable() {
   const [search, setSearch] = useState<string | undefined>(undefined);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
