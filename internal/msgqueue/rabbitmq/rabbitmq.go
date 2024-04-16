@@ -417,11 +417,22 @@ func (t *MessageQueueImpl) subscribe(
 				return
 			}
 
+			closeChannel := func() {
+				sessionWg.Wait()
+
+				err = sub.Channel.Close()
+
+				if err != nil {
+					t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
+				}
+			}
+
 		inner:
 			for {
 				select {
 				case <-ctx.Done():
-					break inner
+					closeChannel()
+					return
 				case rabbitMsg, ok := <-deliveries:
 					if !ok {
 						t.l.Info().Msg("deliveries channel closed")
@@ -506,15 +517,7 @@ func (t *MessageQueueImpl) subscribe(
 				}
 			}
 
-			go func() {
-				sessionWg.Wait()
-
-				err = sub.Channel.Close()
-
-				if err != nil {
-					t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
-				}
-			}()
+			go closeChannel()
 		}
 	}()
 
