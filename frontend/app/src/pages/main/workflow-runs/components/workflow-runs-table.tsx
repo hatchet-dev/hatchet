@@ -23,14 +23,20 @@ import { ArrowPathIcon } from '@heroicons/react/24/outline';
 
 export interface WorkflowRunsTableProps {
   workflowId?: string;
+  parentWorkflowRunId?: string;
+  parentStepRunId?: string;
   initColumnVisibility?: VisibilityState;
   filterVisibility?: { [key: string]: boolean };
+  refetchInterval?: number;
 }
 
 export function WorkflowRunsTable({
   workflowId,
   initColumnVisibility = {},
   filterVisibility = {},
+  parentWorkflowRunId,
+  parentStepRunId,
+  refetchInterval = 5000
 }: WorkflowRunsTableProps) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
@@ -85,6 +91,8 @@ export function WorkflowRunsTable({
       limit: pageSize,
       statuses,
       workflowId: workflow,
+      parentWorkflowRunId,
+      parentStepRunId,
     }),
   });
 
@@ -95,6 +103,7 @@ export function WorkflowRunsTable({
     refetch,
   } = useQuery({
     ...queries.workflows.list(tenant.metadata.id),
+    refetchInterval
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
