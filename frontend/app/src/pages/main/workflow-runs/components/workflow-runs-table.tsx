@@ -5,6 +5,7 @@ import {
   ColumnFiltersState,
   PaginationState,
   SortingState,
+  VisibilityState,
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
@@ -13,6 +14,8 @@ import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { FilterOption } from '@/components/molecules/data-table/data-table-toolbar';
+import { Button } from '@/components/ui/button';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
 
 export interface WorkflowRunsTableProps {
   workflowId?: string;
@@ -26,6 +29,8 @@ export function WorkflowRunsTable({
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 50,
@@ -76,6 +81,7 @@ export function WorkflowRunsTable({
     data: workflowKeys,
     isLoading: workflowKeysIsLoading,
     error: workflowKeysError,
+    refetch
   } = useQuery({
     ...queries.workflows.list(tenant.metadata.id),
   });
@@ -114,6 +120,28 @@ export function WorkflowRunsTable({
     ];
   }, []);
 
+  const [rotate, setRotate] = useState(false);
+
+
+  const actions = [
+    <Button
+      key="refresh"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        refetch();
+        setRotate(!rotate);
+      }}
+      variant={'outline'}
+      aria-label="Refresh events list"
+    >
+      <ArrowPathIcon
+        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+      />
+    </Button>,
+  ];
+
+
   if (listWorkflowRunsQuery.isLoading) {
     return <Loading />;
   }
@@ -123,6 +151,10 @@ export function WorkflowRunsTable({
       error={workflowKeysError}
       isLoading={workflowKeysIsLoading}
       columns={columns}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+
+
       data={listWorkflowRunsQuery.data?.rows || []}
       filters={[
         {
@@ -137,6 +169,7 @@ export function WorkflowRunsTable({
           options: workflowRunStatusFilters,
         },
       ]}
+      actions={actions}
       sorting={sorting}
       setSorting={setSorting}
       columnFilters={columnFilters}

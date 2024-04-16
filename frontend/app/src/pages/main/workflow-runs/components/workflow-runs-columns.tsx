@@ -42,7 +42,7 @@ export const columns: ColumnDef<WorkflowRun>[] = [
       return <div className="min-w-fit whitespace-nowrap">{workflowName}</div>;
     },
     enableSorting: false,
-    enableHiding: false,
+    enableHiding: true,
   },
   {
     accessorKey: 'Triggered by',
@@ -55,7 +55,7 @@ export const columns: ColumnDef<WorkflowRun>[] = [
       return <div>{eventKey}</div>;
     },
     enableSorting: false,
-    enableHiding: false,
+    enableHiding: true,
   },
   {
     accessorKey: 'Started at',
@@ -74,7 +74,7 @@ export const columns: ColumnDef<WorkflowRun>[] = [
       );
     },
     enableSorting: false,
-    enableHiding: false,
+    enableHiding: true,
   },
   {
     accessorKey: 'Finished at',
@@ -93,7 +93,7 @@ export const columns: ColumnDef<WorkflowRun>[] = [
       return <div className="whitespace-nowrap">{finishedAt}</div>;
     },
     enableSorting: false,
-    enableHiding: false,
+    enableHiding: true,
   },
   // {
   //   id: "actions",
