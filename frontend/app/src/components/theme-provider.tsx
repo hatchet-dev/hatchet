@@ -11,11 +11,13 @@ type ThemeProviderProps = {
 type ThemeProviderState = {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  toggleTheme: () => void;
 };
 
 const initialState: ThemeProviderState = {
   theme: 'system',
   setTheme: () => null,
+  toggleTheme: () => null,
 };
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
@@ -48,12 +50,19 @@ export function ThemeProvider({
     root.classList.add(theme);
   }, [theme]);
 
+  const setThemeAndLocal = (theme: Theme) => {
+    localStorage.setItem(storageKey, theme);
+    setTheme(theme);
+  };
+
+  const toggleTheme = () => {
+    setThemeAndLocal(theme === 'dark' ? 'light' : 'dark');
+  };
+
   const value = {
     theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
-      setTheme(theme);
-    },
+    setTheme: setThemeAndLocal,
+    toggleTheme,
   };
 
   return (

@@ -30,12 +30,14 @@ class ClientConfig:
         token: str,
         host_port: str = "localhost:7070",
         server_url: str = "https://app.dev.hatchet-tools.com",
+        namespace: str = None,
     ):
         self.tenant_id = tenant_id
         self.tls_config = tls_config
         self.host_port = host_port
         self.token = token
         self.server_url = server_url
+        self.namespace = (f"{namespace}_" if namespace else "").lower()
 
 
 class ConfigLoader:
@@ -54,6 +56,11 @@ class ConfigLoader:
             with open(config_file_path, "r") as file:
                 config_data = yaml.safe_load(file)
 
+        namespace = (
+            config_data["namespace"]
+            if "namespace" in config_data
+            else self._get_env_var("HATCHET_CLIENT_NAMESPACE")
+        )
         tenant_id = (
             config_data["tenantId"]
             if "tenantId" in config_data
@@ -88,7 +95,9 @@ class ConfigLoader:
 
         tls_config = self._load_tls_config(config_data["tls"], host_port)
 
-        return ClientConfig(tenant_id, tls_config, token, host_port, server_url)
+        return ClientConfig(
+            tenant_id, tls_config, token, host_port, server_url, namespace
+        )
 
     def _load_tls_config(self, tls_data: Dict, host_port) -> ClientTLSConfig:
         tls_strategy = (

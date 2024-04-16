@@ -74,7 +74,7 @@ export default function Workers() {
                 <h3 className="text-lg leading-6 font-medium text-foreground">
                   {worker.name}
                 </h3>
-                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
                   Last seen {relativeDate(worker.lastHeartbeatAt)}
                 </p>
               </div>

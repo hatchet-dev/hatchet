@@ -13,7 +13,7 @@ from ..metadata import get_metadata
 def new_event(conn, config: ClientConfig):
     return EventClientImpl(
         client=EventsServiceStub(conn),
-        token=config.token,
+        config=config,
     )
 
 
@@ -26,18 +26,22 @@ def proto_timestamp_now():
 
 
 class EventClientImpl:
-    def __init__(self, client: EventsServiceStub, token):
+    def __init__(self, client: EventsServiceStub, config: ClientConfig):
         self.client = client
-        self.token = token
+        self.token = config.token
+        self.namespace = config.namespace
 
     def push(self, event_key, payload):
+
+        namespaced_event_key = self.namespace + event_key
+
         try:
             payload_bytes = json.dumps(payload).encode("utf-8")
         except json.UnicodeEncodeError as e:
             raise ValueError(f"Error encoding payload: {e}")
 
         request = PushEventRequest(
-            key=event_key,
+            key=namespaced_event_key,
             payload=payload_bytes,
             eventTimestamp=proto_timestamp_now(),
         )

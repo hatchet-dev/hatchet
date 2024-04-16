@@ -77,7 +77,7 @@ npm i ts-node dotenv --save-dev`
           className="text-sm"
           wrapLines={false}
           code={`{
-    "include": ["src/**/*.ts"],
+    "include": ["**/*.ts"],
     "exclude": ["./dist"],
     "compilerOptions": {
       "target": "es2016",

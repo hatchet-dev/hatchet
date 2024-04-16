@@ -2,6 +2,7 @@ import CopyToClipboard from './copy-to-clipboard';
 import { cn } from '@/lib/utils';
 import Editor, { DiffEditor, Monaco } from '@monaco-editor/react';
 import 'monaco-themes/themes/Pastels on Dark.json';
+import { useTheme } from '../theme-provider';
 
 interface CodeEditorProps {
   code: string;
@@ -26,11 +27,14 @@ export function CodeEditor({
   wrapLines = true,
   lineNumbers = false,
 }: CodeEditorProps) {
+  const { theme } = useTheme();
+
   const setEditorTheme = (monaco: Monaco) => {
     monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
-
     monaco.editor.setTheme('pastels-on-dark');
   };
+
+  const editorTheme = theme === 'dark' ? 'pastels-on-dark' : '';
 
   return (
     <div
@@ -46,7 +50,7 @@ export function CodeEditor({
         onChange={setCode}
         width={width || '100%'}
         height={height || '400px'}
-        theme="pastels-on-dark"
+        theme={editorTheme}
         options={{
           minimap: { enabled: false },
           wordWrap: wrapLines ? 'on' : 'off',
@@ -55,7 +59,7 @@ export function CodeEditor({
                 return `<span style="padding-right:8px">${lineNumber}</span>`;
               }
             : 'off',
-          theme: 'pastels-on-dark',
+          theme: editorTheme,
           autoDetectHighContrast: true,
           readOnly: !setCode,
           scrollbar: { vertical: 'hidden', horizontal: 'hidden' },

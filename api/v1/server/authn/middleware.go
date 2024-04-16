@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -107,6 +108,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 
 		if err != nil {
 			a.l.Error().Err(err).Msg("error saving unauthenticated session")
+			return fmt.Errorf("error saving unauthenticated session")
 		}
 
 		return forbidden
@@ -117,7 +119,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		if session.IsNew {
 			if err := saveNewSession(c, session); err != nil {
 				a.l.Error().Err(err).Msg("error saving unauthenticated session")
-				return forbidden
+				return fmt.Errorf("error saving unauthenticated session")
 			}
 
 			c.Set("session", session)
@@ -139,7 +141,11 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error getting user by id")
 
-		return forbidden
+		if errors.Is(err, db.ErrNotFound) {
+			return forbidden
+		}
+
+		return fmt.Errorf("error getting user by id: %w", err)
 	}
 
 	// set the user and session in context
@@ -159,7 +165,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	if !ok {
 		a.l.Debug().Msgf("tenant not found in context")
 
-		return forbidden
+		return fmt.Errorf("tenant not found in context")
 	}
 
 	token, err := getBearerTokenFromRequest(c.Request())

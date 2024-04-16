@@ -173,7 +173,7 @@ export default function GetStarted() {
             </Badge>
           </p>
 
-          <p className="text-gray-300">
+          <p className="text-gray-600 dark:text-gray-300">
             Get started with Hatchet Cloud by creating a new project, connecting
             your worker, and triggering your first workflow run! At the end of
             this tutorial, you'll have the skills needed to deploy distributed

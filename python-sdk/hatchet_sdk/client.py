@@ -34,12 +34,14 @@ class ClientImpl(Client):
         dispatcher_client: DispatcherClientImpl,
         listener_client: ListenerClientImpl,
         rest_client: RestApi,
+        config: ClientConfig,
     ):
         self.admin = admin_client
         self.dispatcher = dispatcher_client
         self.event = event_client
         self.listener = listener_client
         self.rest = rest_client
+        self.config = config
 
 
 def with_host_port(host: str, port: int):
@@ -72,5 +74,10 @@ def new_client(*opts_functions):
     rest_client = RestApi(config.server_url, config.token, config.tenant_id)
 
     return ClientImpl(
-        event_client, admin_client, dispatcher_client, listener_client, rest_client
+        event_client,
+        admin_client,
+        dispatcher_client,
+        listener_client,
+        rest_client,
+        config,
     )

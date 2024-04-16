@@ -183,7 +183,9 @@ function InnerForm({
         <Label>Changed values</Label>
         {diffs.map((diff) => (
           <>
-            <div className="text-muted-foreground text-sm">{diff.key}</div>
+            <div className="text-gray-700 dark:text-gray-300 text-sm">
+              {diff.key}
+            </div>
             <DiffCodeEditor
               code={diff.modified}
               originalValue={diff.original}

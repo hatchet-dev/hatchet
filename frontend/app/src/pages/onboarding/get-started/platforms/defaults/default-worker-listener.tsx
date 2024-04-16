@@ -28,7 +28,7 @@ export const WorkerListener: React.FC<{
 
     prevConnectedRef.current = connected ?? false;
     setWorkerConnected(!!connected);
-  }, [listWorkersQuery.data?.rows]);
+  }, [listWorkersQuery.data?.rows, setWorkerConnected]);
 
   if (
     listWorkersQuery.isLoading ||

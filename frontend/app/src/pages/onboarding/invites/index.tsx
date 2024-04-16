@@ -72,7 +72,7 @@ export default function TenantInvites() {
                   key={invite.metadata.id}
                   className="flex flex-col space-y-2 text-center"
                 >
-                  <p className="text-sm text-muted-foreground mb-4">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
                     You got an invitation to join {invite.tenantName} on
                     Hatchet.
                   </p>

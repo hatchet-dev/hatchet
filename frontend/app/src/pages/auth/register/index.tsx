@@ -62,7 +62,9 @@ export default function Register() {
               <h1 className="text-2xl font-semibold tracking-tight">
                 Create an account
               </h1>
-              <p className="text-sm text-muted-foreground">{prompt}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                {prompt}
+              </p>
             </div>
             {forms.map((form, index) => (
               <React.Fragment key={index}>
@@ -70,7 +72,7 @@ export default function Register() {
                 {index < schemes.length - 1 && <OrContinueWith />}
               </React.Fragment>
             ))}
-            <p className="text-left text-sm text-muted-foreground w-full">
+            <p className="text-left text-sm text-gray-700 dark:text-gray-300 w-full">
               By clicking continue, you agree to our{' '}
               <Link
                 to="/terms"

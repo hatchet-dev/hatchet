@@ -14,6 +14,7 @@ import api, { User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
+import hatchetDark from '@/assets/hatchet_logo_dark.png';
 import { useSidebar } from '@/components/sidebar-provider';
 import {
   BiBook,
@@ -23,6 +24,7 @@ import {
   BiSolidGraduation,
   BiUserCircle,
 } from 'react-icons/bi';
+import { useTheme } from '@/components/theme-provider';
 
 interface MainNavProps {
   user: User;
@@ -32,6 +34,8 @@ export default function MainNav({ user }: MainNavProps) {
   const navigate = useNavigate();
   const { handleApiError } = useApiError({});
   const { toggleSidebarOpen } = useSidebar();
+
+  const { toggleTheme, theme } = useTheme();
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -51,7 +55,11 @@ export default function MainNav({ user }: MainNavProps) {
           onClick={() => toggleSidebarOpen()}
           className="flex flex-row gap-4 items-center"
         >
-          <img src={hatchet} alt="Hatchet" className="h-9 rounded" />
+          <img
+            src={theme == 'dark' ? hatchet : hatchetDark}
+            alt="Hatchet"
+            className="h-9 rounded"
+          />
         </button>
         <div className="ml-auto flex items-center">
           <DropdownMenu>
@@ -59,6 +67,7 @@ export default function MainNav({ user }: MainNavProps) {
               <Button
                 variant="ghost"
                 className="relative h-10 w-10 rounded-full p-1"
+                aria-label="Help Menu"
               >
                 <BiHelpCircle className="h-6 w-6 text-foreground cursor-pointer" />
               </Button>
@@ -104,6 +113,7 @@ export default function MainNav({ user }: MainNavProps) {
               <Button
                 variant="ghost"
                 className="relative h-10 w-10 rounded-full p-1"
+                aria-label="User Menu"
               >
                 <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
               </Button>
@@ -114,12 +124,15 @@ export default function MainNav({ user }: MainNavProps) {
                   <p className="text-sm font-medium leading-none">
                     {user.name || user.email}
                   </p>
-                  <p className="text-xs leading-none text-muted-foreground">
+                  <p className="text-xs leading-none text-gray-700 dark:text-gray-300">
                     {user.email}
                   </p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => toggleTheme()}>
+                Toggle Theme
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => logoutMutation.mutate()}>
                 Log out
                 <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>

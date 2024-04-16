@@ -19,11 +19,13 @@ func (s *Service) Use(mws ...MiddlewareFunc) {
 }
 
 func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
-	apiWorkflow := workflow.ToWorkflow(s.Name)
+	namespace := s.worker.client.Namespace()
+
+	apiWorkflow := workflow.ToWorkflow(s.Name, namespace)
 
 	wt := &types.WorkflowTriggers{}
 
-	t.ToWorkflowTriggers(wt)
+	t.ToWorkflowTriggers(wt, namespace)
 
 	apiWorkflow.Triggers = *wt
 

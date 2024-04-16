@@ -25,6 +25,8 @@ type eventClientImpl struct {
 
 	tenantId string
 
+	namespace string
+
 	l *zerolog.Logger
 
 	v validator.Validator
@@ -34,11 +36,12 @@ type eventClientImpl struct {
 
 func newEvent(conn *grpc.ClientConn, opts *sharedClientOpts) EventClient {
 	return &eventClientImpl{
-		client:   eventcontracts.NewEventsServiceClient(conn),
-		tenantId: opts.tenantId,
-		l:        opts.l,
-		v:        opts.v,
-		ctx:      opts.ctxLoader,
+		client:    eventcontracts.NewEventsServiceClient(conn),
+		tenantId:  opts.tenantId,
+		namespace: opts.namespace,
+		l:         opts.l,
+		v:         opts.v,
+		ctx:       opts.ctxLoader,
 	}
 }
 
@@ -50,7 +53,7 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	}
 
 	_, err = a.client.Push(a.ctx.newContext(ctx), &eventcontracts.PushEventRequest{
-		Key:            eventKey,
+		Key:            a.namespace + eventKey,
 		Payload:        string(payloadBytes),
 		EventTimestamp: timestamppb.Now(),
 	})

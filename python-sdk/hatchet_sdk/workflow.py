@@ -12,7 +12,10 @@ stepsType = List[Tuple[str, Callable[..., Any]]]
 
 class WorkflowMeta(type):
     def __new__(cls, name, bases, attrs):
-        serviceName = name.lower()
+
+        namespace = attrs["client"].config.namespace
+
+        serviceName = namespace + name.lower()
 
         concurrencyActions: stepsType = [
             (func_name, attrs.pop(func_name))
@@ -50,8 +53,8 @@ class WorkflowMeta(type):
         for step_name, step_func in steps:
             attrs[step_name] = step_func
 
-        name = attrs["name"]
-        event_triggers = attrs["on_events"]
+        name = namespace + attrs["name"]
+        event_triggers = [namespace + event for event in attrs["on_events"]]
         cron_triggers = attrs["on_crons"]
         version = attrs["version"]
         workflowTimeout = attrs["timeout"]
