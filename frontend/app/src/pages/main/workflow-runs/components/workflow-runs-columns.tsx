@@ -36,10 +36,18 @@ export const columns: ColumnDef<WorkflowRun>[] = [
       <DataTableColumnHeader column={column} title="Workflow" />
     ),
     cell: ({ row }) => {
-      const workflowName =
-        row.original.workflowVersion?.workflow?.name || 'N/A';
+      const workflow = row.original.workflowVersion?.workflow;
+      const workflowName = workflow?.name;
+      const workflowId = workflow?.metadata.id;
 
-      return <div className="min-w-fit whitespace-nowrap">{workflowName}</div>;
+      return (
+        <div className="min-w-fit whitespace-nowrap">
+          {(workflow && (
+            <a href={`/workflows/${workflowId}`}>{workflowName}</a>
+          )) ||
+            'N/A'}
+        </div>
+      );
     },
     enableSorting: false,
     enableHiding: true,
