@@ -957,7 +957,10 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	if !stepRun.StepRun.WorkerId.Valid {
-		return fmt.Errorf("step run has no worker id")
+		// this is not a fatal error
+		ec.l.Debug().Msgf("step run %s has no worker id, skipping cancellation", stepRunId)
+
+		return nil
 	}
 
 	workerId := sqlchelpers.UUIDToStr(stepRun.StepRun.WorkerId)
