@@ -24,9 +24,8 @@ const RETRY_INTERVAL = 2 * time.Second
 
 // session composes an amqp.Connection with an amqp.Channel
 type session struct {
+	*amqp.Connection
 	*amqp.Channel
-
-	puddleResource *puddle.Resource[*amqp.Connection]
 }
 
 type msgWithQueue struct {
@@ -291,16 +290,15 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 		for session := range t.sessions {
 			pub := <-session
 
-			conn := pub.puddleResource.Value()
+			conn := pub.Connection
 
-			t.l.Error().Msgf("starting publisher: %s", conn.LocalAddr().String())
+			t.l.Debug().Msgf("starting publisher: %s", conn.LocalAddr().String())
 
 			for {
 				if pub.Channel.IsClosed() {
 					break
 				} else if conn.IsClosed() {
 					t.l.Error().Msgf("connection is closed, reconnecting")
-					pub.puddleResource.Release()
 					break
 				}
 
@@ -390,9 +388,9 @@ func (t *MessageQueueImpl) subscribe(
 			sessionCount++
 			sub := <-session
 
-			conn := sub.puddleResource.Value()
+			conn := sub.Connection
 
-			t.l.Error().Msgf("starting subscriber %s on: %s", subId, conn.LocalAddr().String())
+			t.l.Debug().Msgf("starting subscriber %s on: %s", subId, conn.LocalAddr().String())
 
 			// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
 			// if the exclusive queue will be available to the next session.
@@ -566,12 +564,13 @@ func (t *MessageQueueImpl) redial(ctx context.Context, l *zerolog.Logger, pool *
 
 			if err != nil {
 				l.Error().Msgf("failed to get session after %d attempts", MAX_RETRY_COUNT)
+				t.ready = false
 				return
 			}
 
 			t.ready = true
 
-			ch := newSession.puddleResource.Value().NotifyClose(make(chan *amqp.Error, 1))
+			ch := newSession.Connection.NotifyClose(make(chan *amqp.Error, 1))
 
 			go func() {
 				select {
@@ -618,12 +617,15 @@ func getSession(ctx context.Context, l *zerolog.Logger, pool *puddle.Pool[*amqp.
 	ch, err := conn.Channel()
 
 	if err != nil {
+		connFromPool.Destroy()
 		l.Error().Msgf("cannot create channel: %v", err)
 		return session{}, err
 	}
 
+	connFromPool.Release()
+
 	return session{
-		Channel:        ch,
-		puddleResource: connFromPool,
+		Channel:    ch,
+		Connection: conn,
 	}, nil
 }
