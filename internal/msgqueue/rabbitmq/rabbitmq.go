@@ -304,7 +304,7 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 				select {
 				case <-ctx.Done():
-					return
+					break
 				case msg := <-t.msgs:
 					go func(msg *msgWithQueue) {
 						body, err := json.Marshal(msg)
@@ -388,6 +388,8 @@ func (t *MessageQueueImpl) subscribe(
 			sessionCount++
 			sub := <-session
 
+			sessionWg := sync.WaitGroup{}
+
 			conn := sub.Connection
 
 			t.l.Debug().Msgf("starting subscriber %s on: %s", subId, conn.LocalAddr().String())
@@ -415,19 +417,11 @@ func (t *MessageQueueImpl) subscribe(
 				return
 			}
 
-			defer func() {
-				err = sub.Channel.Close()
-
-				if err != nil {
-					t.l.Error().Msgf("cannot close session: %s, %v", conn.LocalAddr().String(), err)
-				}
-			}()
-
 		inner:
 			for {
 				select {
 				case <-ctx.Done():
-					return
+					break inner
 				case rabbitMsg, ok := <-deliveries:
 					if !ok {
 						t.l.Info().Msg("deliveries channel closed")
@@ -435,9 +429,12 @@ func (t *MessageQueueImpl) subscribe(
 					}
 
 					wg.Add(1)
+					sessionWg.Add(1)
 
 					go func(rabbitMsg amqp.Delivery) {
 						defer wg.Done()
+						defer sessionWg.Done()
+
 						msg := &msgWithQueue{}
 
 						if len(rabbitMsg.Body) == 0 {
@@ -509,11 +506,15 @@ func (t *MessageQueueImpl) subscribe(
 				}
 			}
 
-			err = sub.Channel.Close()
+			go func() {
+				sessionWg.Wait()
 
-			if err != nil {
-				t.l.Error().Msgf("cannot close session: %s, %v", conn.LocalAddr().String(), err)
-			}
+				err = sub.Channel.Close()
+
+				if err != nil {
+					t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
+				}
+			}()
 		}
 	}()
 
