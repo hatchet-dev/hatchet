@@ -5,6 +5,9 @@ CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWE
 CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
 
 -- CreateEnum
+CREATE TYPE "JobKind" AS ENUM ('DEFAULT', 'ON_FAILURE');
+
+-- CreateEnum
 CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
 
 -- CreateEnum
@@ -191,6 +194,7 @@ CREATE TABLE "Job" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "timeout" TEXT,
+    "kind" "JobKind" NOT NULL DEFAULT 'DEFAULT',
 
     CONSTRAINT "Job_pkey" PRIMARY KEY ("id")
 );
@@ -644,6 +648,7 @@ CREATE TABLE "WorkflowVersion" (
     "workflowId" UUID NOT NULL,
     "checksum" TEXT NOT NULL,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
+    "onFailureJobId" UUID,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
@@ -902,6 +907,9 @@ CREATE UNIQUE INDEX "WorkflowTriggers_workflowVersionId_key" ON "WorkflowTrigger
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowVersion_id_key" ON "WorkflowVersion"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowVersion_onFailureJobId_key" ON "WorkflowVersion"("onFailureJobId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "_ActionToWorker_AB_unique" ON "_ActionToWorker"("A" ASC, "B" ASC);
@@ -1178,6 +1186,9 @@ ALTER TABLE "WorkflowTriggers" ADD CONSTRAINT "WorkflowTriggers_tenantId_fkey" F
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggers" ADD CONSTRAINT "WorkflowTriggers_workflowVersionId_fkey" FOREIGN KEY ("workflowVersionId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowVersion" ADD CONSTRAINT "WorkflowVersion_onFailureJobId_fkey" FOREIGN KEY ("onFailureJobId") REFERENCES "Job"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowVersion" ADD CONSTRAINT "WorkflowVersion_workflowId_fkey" FOREIGN KEY ("workflowId") REFERENCES "Workflow"("id") ON DELETE CASCADE ON UPDATE CASCADE;
