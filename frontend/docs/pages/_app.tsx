@@ -23,7 +23,7 @@ import { useRouter } from "next/router";
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <PostHogProvider client={posthog}>
-      <main className="bg-[#020817]">
+      <main className="dark:bg-[#020817]">
         <Component {...pageProps} />
       </main>
     </PostHogProvider>
