@@ -13,23 +13,26 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field, StrictInt, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Self
+
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.job import Job
 from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurrency
 from hatchet_sdk.clients.rest.models.workflow_triggers import WorkflowTriggers
-from typing import Optional, Set
-from typing_extensions import Self
+
 
 class WorkflowVersion(BaseModel):
     """
     WorkflowVersion
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
     version: StrictStr = Field(description="The version of the workflow.")
     order: StrictInt
@@ -38,14 +41,22 @@ class WorkflowVersion(BaseModel):
     concurrency: Optional[WorkflowConcurrency] = None
     triggers: Optional[WorkflowTriggers] = None
     jobs: Optional[List[Job]] = None
-    __properties: ClassVar[List[str]] = ["metadata", "version", "order", "workflowId", "workflow", "concurrency", "triggers", "jobs"]
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "version",
+        "order",
+        "workflowId",
+        "workflow",
+        "concurrency",
+        "triggers",
+        "jobs",
+    ]
 
     model_config = {
         "populate_by_name": True,
         "validate_assignment": True,
         "protected_namespaces": (),
     }
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -71,8 +82,7 @@ class WorkflowVersion(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -81,23 +91,23 @@ class WorkflowVersion(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of workflow
         if self.workflow:
-            _dict['workflow'] = self.workflow.to_dict()
+            _dict["workflow"] = self.workflow.to_dict()
         # override the default output from pydantic by calling `to_dict()` of concurrency
         if self.concurrency:
-            _dict['concurrency'] = self.concurrency.to_dict()
+            _dict["concurrency"] = self.concurrency.to_dict()
         # override the default output from pydantic by calling `to_dict()` of triggers
         if self.triggers:
-            _dict['triggers'] = self.triggers.to_dict()
+            _dict["triggers"] = self.triggers.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each item in jobs (list)
         _items = []
         if self.jobs:
             for _item in self.jobs:
                 if _item:
                     _items.append(_item.to_dict())
-            _dict['jobs'] = _items
+            _dict["jobs"] = _items
         return _dict
 
     @classmethod
@@ -109,19 +119,42 @@ class WorkflowVersion(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "version": obj.get("version"),
-            "order": obj.get("order"),
-            "workflowId": obj.get("workflowId"),
-            "workflow": Workflow.from_dict(obj["workflow"]) if obj.get("workflow") is not None else None,
-            "concurrency": WorkflowConcurrency.from_dict(obj["concurrency"]) if obj.get("concurrency") is not None else None,
-            "triggers": WorkflowTriggers.from_dict(obj["triggers"]) if obj.get("triggers") is not None else None,
-            "jobs": [Job.from_dict(_item) for _item in obj["jobs"]] if obj.get("jobs") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "version": obj.get("version"),
+                "order": obj.get("order"),
+                "workflowId": obj.get("workflowId"),
+                "workflow": (
+                    Workflow.from_dict(obj["workflow"])
+                    if obj.get("workflow") is not None
+                    else None
+                ),
+                "concurrency": (
+                    WorkflowConcurrency.from_dict(obj["concurrency"])
+                    if obj.get("concurrency") is not None
+                    else None
+                ),
+                "triggers": (
+                    WorkflowTriggers.from_dict(obj["triggers"])
+                    if obj.get("triggers") is not None
+                    else None
+                ),
+                "jobs": (
+                    [Job.from_dict(_item) for _item in obj["jobs"]]
+                    if obj.get("jobs") is not None
+                    else None
+                ),
+            }
+        )
         return _obj
 
+
 from hatchet_sdk.clients.rest.models.workflow import Workflow
+
 # TODO: Rewrite to not use raise_errors
 WorkflowVersion.model_rebuild(raise_errors=False)
-

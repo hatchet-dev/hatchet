@@ -14,7 +14,7 @@ jobs:
         with:
           go-version: "1.21"
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/go/pkg/mod
@@ -29,9 +29,9 @@ jobs:
         run: go run github.com/steebchen/prisma-client-go generate
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3.2.0
+        uses: golangci/golangci-lint-action@v4
         with:
-          version: v1.55.0
+          version: v1.57.1
           args: --config .golangci.yml --timeout 5m --max-issues-per-linter 0 --max-same-issues 0
           only-new-issues: true
           skip-cache: true

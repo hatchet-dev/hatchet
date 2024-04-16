@@ -3,16 +3,15 @@ version: "3"
 tasks:
   setup:
     cmds:
-      - |
-        task install-dependencies && 
-        task generate-certs &&
-        task set-env-db && 
-        task prisma-migrate && 
-        task generate-all && 
-        task generate-local-encryption-keys &&
-        task set-env-all && 
-        task seed-dev && 
-        task copy-ca-to-sdks
+      - task: install-dependencies
+      - task: generate-certs
+      - task: set-env-db
+      - task: prisma-migrate
+      - task: generate-all
+      - task: generate-local-encryption-key
+      - task: set-env-all
+      - task: seed-dev
+      - task: copy-ca-to-sdks
   set-env-db:
     cmds:
       - |
@@ -88,6 +87,7 @@ tasks:
       - task: generate-go
       - task: generate-proto
       - task: generate-sqlc
+      - task: pre-commit-run
   install-dependencies:
     cmds:
       - go mod download
@@ -157,3 +157,12 @@ tasks:
   copy-ca-to-sdks:
     cmds:
       - mkdir -p ./python-sdk/certs/ && cp ./hack/dev/certs/ca.cert ./python-sdk/certs/
+  pre-commit-install:
+    cmds:
+      - pip install pre-commit
+      - pre-commit install
+  pre-commit-run:
+    deps:
+      - pre-commit-install
+    cmds:
+      - pre-commit run --all-files || pre-commit run --all-files

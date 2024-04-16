@@ -27,5 +27,3 @@ pagination_response_dict = pagination_response_instance.to_dict()
 pagination_response_form_dict = pagination_response.from_dict(pagination_response_dict)
 ```
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
-
-

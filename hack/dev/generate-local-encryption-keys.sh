@@ -14,4 +14,3 @@ mkdir -p $ENCRYPTION_KEYS_DIR
 
 # Generate a master encryption key
 go run ./cmd/hatchet-admin keyset create-local-keys --key-dir $ENCRYPTION_KEYS_DIR
-

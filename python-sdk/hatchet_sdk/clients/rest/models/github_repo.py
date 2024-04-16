@@ -13,19 +13,21 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, StrictStr
-from typing import Any, ClassVar, Dict, List
-from typing import Optional, Set
 from typing_extensions import Self
+
 
 class GithubRepo(BaseModel):
     """
     GithubRepo
-    """ # noqa: E501
+    """  # noqa: E501
+
     repo_owner: StrictStr
     repo_name: StrictStr
     __properties: ClassVar[List[str]] = ["repo_owner", "repo_name"]
@@ -35,7 +37,6 @@ class GithubRepo(BaseModel):
         "validate_assignment": True,
         "protected_namespaces": (),
     }
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +62,7 @@ class GithubRepo(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -80,10 +80,7 @@ class GithubRepo(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "repo_owner": obj.get("repo_owner"),
-            "repo_name": obj.get("repo_name")
-        })
+        _obj = cls.model_validate(
+            {"repo_owner": obj.get("repo_owner"), "repo_name": obj.get("repo_name")}
+        )
         return _obj
-
-

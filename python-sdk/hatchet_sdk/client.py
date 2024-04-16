@@ -2,20 +2,21 @@
 import os
 from typing import Any
 
-from hatchet_sdk.connection import new_conn
-from .clients.admin import AdminClientImpl, new_admin
-from .clients.events import EventClientImpl, new_event
-from .clients.dispatcher import DispatcherClientImpl, new_dispatcher
-from .clients.listener import ListenerClientImpl, new_listener
-
-from .loader import ConfigLoader, ClientConfig
 import grpc
 
-from .clients.rest.api_client import ApiClient
+from hatchet_sdk.connection import new_conn
+
+from .clients.admin import AdminClientImpl, new_admin
+from .clients.dispatcher import DispatcherClientImpl, new_dispatcher
+from .clients.events import EventClientImpl, new_event
+from .clients.listener import ListenerClientImpl, new_listener
 from .clients.rest.api.workflow_api import WorkflowApi
 from .clients.rest.api.workflow_run_api import WorkflowRunApi
+from .clients.rest.api_client import ApiClient
 from .clients.rest.configuration import Configuration
 from .clients.rest_client import RestApi
+from .loader import ClientConfig, ConfigLoader
+
 
 class Client:
     admin: AdminClientImpl
@@ -27,20 +28,21 @@ class Client:
 
 class ClientImpl(Client):
     def __init__(
-            self,
-            event_client: EventClientImpl,
-            admin_client: AdminClientImpl,
-            dispatcher_client: DispatcherClientImpl,
-            listener_client: ListenerClientImpl,
-            rest_client: RestApi,
-            config: ClientConfig
-        ):
+        self,
+        event_client: EventClientImpl,
+        admin_client: AdminClientImpl,
+        dispatcher_client: DispatcherClientImpl,
+        listener_client: ListenerClientImpl,
+        rest_client: RestApi,
+        config: ClientConfig,
+    ):
         self.admin = admin_client
         self.dispatcher = dispatcher_client
         self.event = event_client
         self.listener = listener_client
         self.rest = rest_client
         self.config = config
+
 
 def with_host_port(host: str, port: int):
     def with_host_port_impl(config: ClientConfig):
@@ -62,7 +64,7 @@ def new_client(*opts_functions):
     if config.host_port is None:
         raise ValueError("Host and port are required")
 
-    conn : grpc.Channel = new_conn(config)
+    conn: grpc.Channel = new_conn(config)
 
     # Instantiate client implementations
     event_client = new_event(conn, config)
@@ -71,4 +73,11 @@ def new_client(*opts_functions):
     listener_client = new_listener(conn, config)
     rest_client = RestApi(config.server_url, config.token, config.tenant_id)
 
-    return ClientImpl(event_client, admin_client, dispatcher_client, listener_client, rest_client, config)
+    return ClientImpl(
+        event_client,
+        admin_client,
+        dispatcher_client,
+        listener_client,
+        rest_client,
+        config,
+    )

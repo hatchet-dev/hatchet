@@ -12,18 +12,18 @@
 """  # noqa: E501
 
 import warnings
-from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-from typing_extensions import Annotated
 
-from pydantic import Field, StrictStr
+from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
-from hatchet_sdk.clients.rest.models.github_branch import GithubBranch
-from hatchet_sdk.clients.rest.models.github_repo import GithubRepo
-from hatchet_sdk.clients.rest.models.list_github_app_installations_response import ListGithubAppInstallationsResponse
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
+from hatchet_sdk.clients.rest.models.github_branch import GithubBranch
+from hatchet_sdk.clients.rest.models.github_repo import GithubRepo
+from hatchet_sdk.clients.rest.models.list_github_app_installations_response import (
+    ListGithubAppInstallationsResponse,
+)
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -39,20 +39,26 @@ class GithubApi:
             api_client = ApiClient.get_default()
         self.api_client = api_client
 
-
     @validate_call
     def github_app_list_branches(
         self,
-        gh_installation: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The installation id")],
+        gh_installation: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The installation id",
+            ),
+        ],
         gh_repo_owner: Annotated[StrictStr, Field(description="The repository owner")],
         gh_repo_name: Annotated[StrictStr, Field(description="The repository name")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -89,7 +95,7 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_app_list_branches_serialize(
             gh_installation=gh_installation,
@@ -98,18 +104,17 @@ class GithubApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[GithubBranch]",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "List[GithubBranch]",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -117,20 +122,26 @@ class GithubApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def github_app_list_branches_with_http_info(
         self,
-        gh_installation: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The installation id")],
+        gh_installation: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The installation id",
+            ),
+        ],
         gh_repo_owner: Annotated[StrictStr, Field(description="The repository owner")],
         gh_repo_name: Annotated[StrictStr, Field(description="The repository name")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -167,7 +178,7 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_app_list_branches_serialize(
             gh_installation=gh_installation,
@@ -176,18 +187,17 @@ class GithubApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[GithubBranch]",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "List[GithubBranch]",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -195,20 +205,26 @@ class GithubApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def github_app_list_branches_without_preload_content(
         self,
-        gh_installation: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The installation id")],
+        gh_installation: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The installation id",
+            ),
+        ],
         gh_repo_owner: Annotated[StrictStr, Field(description="The repository owner")],
         gh_repo_name: Annotated[StrictStr, Field(description="The repository name")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -245,7 +261,7 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_app_list_branches_serialize(
             gh_installation=gh_installation,
@@ -254,21 +270,19 @@ class GithubApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[GithubBranch]",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "List[GithubBranch]",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _github_app_list_branches_serialize(
         self,
@@ -283,8 +297,7 @@ class GithubApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -295,33 +308,27 @@ class GithubApi:
 
         # process the path parameters
         if gh_installation is not None:
-            _path_params['gh-installation'] = gh_installation
+            _path_params["gh-installation"] = gh_installation
         if gh_repo_owner is not None:
-            _path_params['gh-repo-owner'] = gh_repo_owner
+            _path_params["gh-repo-owner"] = gh_repo_owner
         if gh_repo_name is not None:
-            _path_params['gh-repo-name'] = gh_repo_name
+            _path_params["gh-repo-name"] = gh_repo_name
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        _header_params['Accept'] = self.api_client.select_header_accept(
-            [
-                'application/json'
-            ]
+        _header_params["Accept"] = self.api_client.select_header_accept(
+            ["application/json"]
         )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/github-app/installations/{gh-installation}/repos/{gh-repo-owner}/{gh-repo-name}/branches',
+            method="GET",
+            resource_path="/api/v1/github-app/installations/{gh-installation}/repos/{gh-repo-owner}/{gh-repo-name}/branches",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -331,11 +338,8 @@ class GithubApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def github_app_list_installations(
@@ -344,9 +348,8 @@ class GithubApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -377,31 +380,29 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_app_list_installations_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "ListGithubAppInstallationsResponse",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "ListGithubAppInstallationsResponse",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
-
 
     @validate_call
     def github_app_list_installations_with_http_info(
@@ -410,9 +411,8 @@ class GithubApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -443,31 +443,29 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_app_list_installations_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "ListGithubAppInstallationsResponse",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "ListGithubAppInstallationsResponse",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
-
 
     @validate_call
     def github_app_list_installations_without_preload_content(
@@ -476,9 +474,8 @@ class GithubApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -509,27 +506,25 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_app_list_installations_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "ListGithubAppInstallationsResponse",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "ListGithubAppInstallationsResponse",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _github_app_list_installations_serialize(
         self,
@@ -541,8 +536,7 @@ class GithubApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -557,23 +551,17 @@ class GithubApi:
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        _header_params['Accept'] = self.api_client.select_header_accept(
-            [
-                'application/json'
-            ]
+        _header_params["Accept"] = self.api_client.select_header_accept(
+            ["application/json"]
         )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/github-app/installations',
+            method="GET",
+            resource_path="/api/v1/github-app/installations",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -583,23 +571,27 @@ class GithubApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def github_app_list_repos(
         self,
-        gh_installation: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The installation id")],
+        gh_installation: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The installation id",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -632,25 +624,24 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_app_list_repos_serialize(
             gh_installation=gh_installation,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[GithubRepo]",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "List[GithubRepo]",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -658,18 +649,24 @@ class GithubApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def github_app_list_repos_with_http_info(
         self,
-        gh_installation: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The installation id")],
+        gh_installation: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The installation id",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -702,25 +699,24 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_app_list_repos_serialize(
             gh_installation=gh_installation,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[GithubRepo]",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "List[GithubRepo]",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -728,18 +724,24 @@ class GithubApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def github_app_list_repos_without_preload_content(
         self,
-        gh_installation: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The installation id")],
+        gh_installation: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The installation id",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -772,28 +774,26 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_app_list_repos_serialize(
             gh_installation=gh_installation,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "List[GithubRepo]",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "List[GithubRepo]",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _github_app_list_repos_serialize(
         self,
@@ -806,8 +806,7 @@ class GithubApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -818,29 +817,23 @@ class GithubApi:
 
         # process the path parameters
         if gh_installation is not None:
-            _path_params['gh-installation'] = gh_installation
+            _path_params["gh-installation"] = gh_installation
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        _header_params['Accept'] = self.api_client.select_header_accept(
-            [
-                'application/json'
-            ]
+        _header_params["Accept"] = self.api_client.select_header_accept(
+            ["application/json"]
         )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/github-app/installations/{gh-installation}/repos',
+            method="GET",
+            resource_path="/api/v1/github-app/installations/{gh-installation}/repos",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -850,11 +843,8 @@ class GithubApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def github_update_global_webhook(
@@ -863,9 +853,8 @@ class GithubApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -896,31 +885,29 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_update_global_webhook_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
-
 
     @validate_call
     def github_update_global_webhook_with_http_info(
@@ -929,9 +916,8 @@ class GithubApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -962,31 +948,29 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_update_global_webhook_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
-
 
     @validate_call
     def github_update_global_webhook_without_preload_content(
@@ -995,9 +979,8 @@ class GithubApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1028,27 +1011,25 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_update_global_webhook_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _github_update_global_webhook_serialize(
         self,
@@ -1060,8 +1041,7 @@ class GithubApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1076,22 +1056,17 @@ class GithubApi:
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        _header_params['Accept'] = self.api_client.select_header_accept(
-            [
-                'application/json'
-            ]
+        _header_params["Accept"] = self.api_client.select_header_accept(
+            ["application/json"]
         )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-        ]
+        _auth_settings: List[str] = []
 
         return self.api_client.param_serialize(
-            method='POST',
-            resource_path='/api/v1/github/webhook',
+            method="POST",
+            resource_path="/api/v1/github/webhook",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1101,23 +1076,24 @@ class GithubApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def github_update_tenant_webhook(
         self,
-        webhook: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The webhook id")],
+        webhook: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The webhook id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1150,25 +1126,24 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_update_tenant_webhook_serialize(
             webhook=webhook,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1176,18 +1151,21 @@ class GithubApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def github_update_tenant_webhook_with_http_info(
         self,
-        webhook: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The webhook id")],
+        webhook: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The webhook id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1220,25 +1198,24 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_update_tenant_webhook_serialize(
             webhook=webhook,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1246,18 +1223,21 @@ class GithubApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def github_update_tenant_webhook_without_preload_content(
         self,
-        webhook: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The webhook id")],
+        webhook: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The webhook id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1290,28 +1270,26 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._github_update_tenant_webhook_serialize(
             webhook=webhook,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _github_update_tenant_webhook_serialize(
         self,
@@ -1324,8 +1302,7 @@ class GithubApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1336,28 +1313,23 @@ class GithubApi:
 
         # process the path parameters
         if webhook is not None:
-            _path_params['webhook'] = webhook
+            _path_params["webhook"] = webhook
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        _header_params['Accept'] = self.api_client.select_header_accept(
-            [
-                'application/json'
-            ]
+        _header_params["Accept"] = self.api_client.select_header_accept(
+            ["application/json"]
         )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-        ]
+        _auth_settings: List[str] = []
 
         return self.api_client.param_serialize(
-            method='POST',
-            resource_path='/api/v1/github/webhook/{webhook}',
+            method="POST",
+            resource_path="/api/v1/github/webhook/{webhook}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1367,24 +1339,30 @@ class GithubApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     def sns_update(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        event: Annotated[str, Field(min_length=1, strict=True, max_length=255, description="The event key")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        event: Annotated[
+            str,
+            Field(
+                min_length=1, strict=True, max_length=255, description="The event key"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1419,7 +1397,7 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._sns_update_serialize(
             tenant=tenant,
@@ -1427,18 +1405,17 @@ class GithubApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1446,19 +1423,27 @@ class GithubApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     def sns_update_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        event: Annotated[str, Field(min_length=1, strict=True, max_length=255, description="The event key")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        event: Annotated[
+            str,
+            Field(
+                min_length=1, strict=True, max_length=255, description="The event key"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1493,7 +1478,7 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._sns_update_serialize(
             tenant=tenant,
@@ -1501,18 +1486,17 @@ class GithubApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         response_data.read()
         return self.api_client.response_deserialize(
@@ -1520,19 +1504,27 @@ class GithubApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     def sns_update_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        event: Annotated[str, Field(min_length=1, strict=True, max_length=255, description="The event key")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        event: Annotated[
+            str,
+            Field(
+                min_length=1, strict=True, max_length=255, description="The event key"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1567,7 +1559,7 @@ class GithubApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._sns_update_serialize(
             tenant=tenant,
@@ -1575,21 +1567,19 @@ class GithubApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _sns_update_serialize(
         self,
@@ -1603,8 +1593,7 @@ class GithubApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1615,30 +1604,25 @@ class GithubApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         if event is not None:
-            _path_params['event'] = event
+            _path_params["event"] = event
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        _header_params['Accept'] = self.api_client.select_header_accept(
-            [
-                'application/json'
-            ]
+        _header_params["Accept"] = self.api_client.select_header_accept(
+            ["application/json"]
         )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-        ]
+        _auth_settings: List[str] = []
 
         return self.api_client.param_serialize(
-            method='POST',
-            resource_path='/api/v1/sns/{tenant}/{event}',
+            method="POST",
+            resource_path="/api/v1/sns/{tenant}/{event}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1648,7 +1632,5 @@ class GithubApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
