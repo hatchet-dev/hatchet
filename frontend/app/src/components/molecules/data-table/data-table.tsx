@@ -240,15 +240,16 @@ export function DataTable<TData extends IDGetter, TValue>({
 
   return (
     <div className="space-y-4">
-      {filters && filters.length > 0 && (
-        <DataTableToolbar
-          table={table}
-          filters={filters}
-          actions={actions}
-          search={search}
-          setSearch={setSearch}
-        />
-      )}
+      {actions ||
+        (filters && filters.length > 0 && (
+          <DataTableToolbar
+            table={table}
+            filters={filters}
+            actions={actions}
+            search={search}
+            setSearch={setSearch}
+          />
+        ))}
       <div className={`rounded-md ${!card && 'border'}`}>
         {!card ? getTable() : getCards()}
       </div>

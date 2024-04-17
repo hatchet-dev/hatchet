@@ -16,8 +16,12 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { cn, relativeDate } from '@/lib/utils';
-import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowPathIcon,
+  QuestionMarkCircleIcon,
+} from '@heroicons/react/24/outline';
 import { SortingState, VisibilityState } from '@tanstack/react-table';
+import { BiCard, BiTable } from 'react-icons/bi';
 
 export function WorkflowTable() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -30,6 +34,10 @@ export function WorkflowTable() {
     },
   ]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [rotate, setRotate] = useState(false);
+  const [search, setSearch] = useState<string | undefined>(undefined);
+
+  const [cardToggle, setCardToggle] = useState(true);
 
   const listWorkflowQuery = useQuery({
     ...queries.workflows.list(tenant.metadata.id),
@@ -37,8 +45,6 @@ export function WorkflowTable() {
   });
 
   const data = useMemo(() => {
-    console.log(sorting);
-
     const data = listWorkflowQuery.data?.rows || [];
 
     return data;
@@ -100,6 +106,40 @@ export function WorkflowTable() {
     </div>
   );
 
+  const actions = [
+    <Button
+      key="card-toggle"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        setCardToggle((t) => !t);
+      }}
+      variant={'outline'}
+      aria-label="Toggle card/table view"
+    >
+      {!cardToggle ? (
+        <BiCard className={`h-4 w-4 `} />
+      ) : (
+        <BiTable className={`h-4 w-4 `} />
+      )}
+    </Button>,
+    <Button
+      key="refresh"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        listWorkflowQuery.refetch();
+        setRotate(!rotate);
+      }}
+      variant={'outline'}
+      aria-label="Refresh events list"
+    >
+      <ArrowPathIcon
+        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+      />
+    </Button>,
+  ];
+
   return (
     <DataTable
       columns={columns}
@@ -112,9 +152,16 @@ export function WorkflowTable() {
       sorting={sorting}
       setSorting={setSorting}
       manualSorting={false}
-      // card={{
-      //   component: card,
-      // }}
+      actions={actions}
+      search={search}
+      setSearch={setSearch}
+      card={
+        cardToggle
+          ? {
+              component: card,
+            }
+          : undefined
+      }
     />
   );
 }
