@@ -13,8 +13,10 @@
 
 
 from __future__ import annotations
+
 import json
 from enum import Enum
+
 from typing_extensions import Self
 
 
@@ -26,16 +28,14 @@ class WorkflowRunStatus(str, Enum):
     """
     allowed enum values
     """
-    PENDING = 'PENDING'
-    RUNNING = 'RUNNING'
-    SUCCEEDED = 'SUCCEEDED'
-    FAILED = 'FAILED'
-    CANCELLED = 'CANCELLED'
-    QUEUED = 'QUEUED'
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    QUEUED = "QUEUED"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
         """Create an instance of WorkflowRunStatus from a JSON string"""
         return cls(json.loads(json_str))
-
-

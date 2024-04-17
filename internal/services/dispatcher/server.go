@@ -20,10 +20,12 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 )
 
+var ErrWorkerNotFound = fmt.Errorf("worker not found")
+
 func (d *DispatcherImpl) GetWorker(workerId string) (*subscribedWorker, error) {
 	workerInt, ok := d.workers.Load(workerId)
 	if !ok {
-		return nil, fmt.Errorf("worker with id %s not found", workerId)
+		return nil, ErrWorkerNotFound
 	}
 
 	worker, ok := workerInt.(subscribedWorker)
@@ -199,16 +201,6 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		}
 
 		s.workers.Delete(request.WorkerId)
-
-		inactive := db.WorkerStatusInactive
-
-		_, err := s.repo.Worker().UpdateWorker(tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
-			Status: &inactive,
-		})
-
-		if err != nil {
-			s.l.Error().Err(err).Msgf("could not update worker %s status to inactive", request.WorkerId)
-		}
 	}()
 
 	ctx := stream.Context()
@@ -420,7 +412,6 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 }
 
 func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
-
 	done := make(chan struct{})
 
 	go func() {
@@ -495,10 +486,14 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 	// no matter what, remove the worker from the connection pool
 	defer s.workers.Delete(request.WorkerId)
 
-	err := s.repo.Worker().DeleteWorker(tenantId, request.WorkerId)
+	inactive := db.WorkerStatusInactive
+
+	_, err := s.repo.Worker().UpdateWorker(tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+		Status: &inactive,
+	})
 
 	if err != nil {
-		return nil, err
+		s.l.Error().Err(err).Msgf("could not update worker %s status to inactive", request.WorkerId)
 	}
 
 	return &contracts.WorkerUnsubscribeResponse{

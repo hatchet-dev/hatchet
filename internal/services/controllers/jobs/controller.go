@@ -607,18 +607,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 	// set scheduling timeout
 	if scheduleTimeoutAt := stepRun.StepRun.ScheduleTimeoutAt.Time; scheduleTimeoutAt.IsZero() {
-		var timeoutDuration time.Duration
-
-		// get the schedule timeout from the step
-		stepScheduleTimeout := stepRun.StepScheduleTimeout
-
-		if stepScheduleTimeout != "" {
-			timeoutDuration, _ = time.ParseDuration(stepScheduleTimeout)
-		} else {
-			timeoutDuration = defaults.DefaultScheduleTimeout
-		}
-
-		scheduleTimeoutAt := time.Now().UTC().Add(timeoutDuration)
+		scheduleTimeoutAt = getScheduleTimeout(stepRun)
 
 		updateStepOpts.ScheduleTimeoutAt = &scheduleTimeoutAt
 	}
@@ -869,10 +858,13 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 		status = db.StepRunStatusPending
 	}
 
+	scheduleTimeoutAt := getScheduleTimeout(stepRun)
+
 	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
-		FinishedAt: &failedAt,
-		Error:      &payload.Error,
-		Status:     repository.StepRunStatusPtr(status),
+		FinishedAt:        &failedAt,
+		Error:             &payload.Error,
+		Status:            repository.StepRunStatusPtr(status),
+		ScheduleTimeoutAt: &scheduleTimeoutAt,
 	})
 
 	if err != nil {
@@ -957,7 +949,10 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	if !stepRun.StepRun.WorkerId.Valid {
-		return fmt.Errorf("step run has no worker id")
+		// this is not a fatal error
+		ec.l.Debug().Msgf("step run %s has no worker id, skipping cancellation", stepRunId)
+
+		return nil
 	}
 
 	workerId := sqlchelpers.UUIDToStr(stepRun.StepRun.WorkerId)
@@ -1054,4 +1049,19 @@ func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelled
 		Metadata: metadata,
 		Retries:  3,
 	}
+}
+
+func getScheduleTimeout(stepRun *dbsqlc.GetStepRunForEngineRow) time.Time {
+	var timeoutDuration time.Duration
+
+	// get the schedule timeout from the step
+	stepScheduleTimeout := stepRun.StepScheduleTimeout
+
+	if stepScheduleTimeout != "" {
+		timeoutDuration, _ = time.ParseDuration(stepScheduleTimeout)
+	} else {
+		timeoutDuration = defaults.DefaultScheduleTimeout
+	}
+
+	return time.Now().UTC().Add(timeoutDuration)
 }
