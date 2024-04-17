@@ -2042,6 +2042,10 @@ class WorkflowApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent step run id"),
         ] = None,
+        statuses: Annotated[
+            Optional[List[WorkflowRunStatus]],
+            Field(description="A list of workflow run statuses to filter by"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2155,6 +2159,10 @@ class WorkflowApi:
         parent_step_run_id: Annotated[
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent step run id"),
+        ] = None,
+        statuses: Annotated[
+            Optional[List[WorkflowRunStatus]],
+            Field(description="A list of workflow run statuses to filter by"),
         ] = None,
         _request_timeout: Union[
             None,
@@ -2270,6 +2278,10 @@ class WorkflowApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent step run id"),
         ] = None,
+        statuses: Annotated[
+            Optional[List[WorkflowRunStatus]],
+            Field(description="A list of workflow run statuses to filter by"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2367,7 +2379,9 @@ class WorkflowApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+            "statuses": "multi",
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -2403,6 +2417,10 @@ class WorkflowApi:
         if parent_step_run_id is not None:
 
             _query_params.append(("parentStepRunId", parent_step_run_id))
+
+        if statuses is not None:
+
+            _query_params.append(("statuses", statuses))
 
         # process the header parameters
         # process the form parameters
