@@ -11,11 +11,6 @@ export const columns: ColumnDef<Workflow>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Name" />
     ),
-    filterFn: (row, filterValue) => {
-      return row.original.name
-        .toLowerCase()
-        .includes(filterValue.toLowerCase());
-    },
     cell: ({ row }) => (
       <Link to={`/workflows/${row.original.metadata.id}`}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
