@@ -91,8 +91,6 @@ export function WorkflowTable() {
         <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
           Last run {relativeDate(data.lastRun?.metadata?.createdAt)} <br />
           Created at {relativeDate(data.metadata?.createdAt)}
-          <br />
-          Updated at {relativeDate(data.metadata?.updatedAt)}
         </p>
       </div>
       <div className="px-4 py-4 sm:px-6">

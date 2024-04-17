@@ -50,31 +50,6 @@ export const columns: ColumnDef<Workflow>[] = [
     enableHiding: true,
   },
   {
-    accessorKey: 'updatedAt',
-    header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title="Updated at"
-        className="whitespace-nowrap"
-      />
-    ),
-    sortingFn: (a, b) => {
-      return (
-        new Date(a.original.metadata.updatedAt).getTime() -
-        new Date(b.original.metadata.updatedAt).getTime()
-      );
-    },
-    cell: ({ row }) => {
-      return (
-        <div className="whitespace-nowrap">
-          {relativeDate(row.original.metadata.updatedAt)}
-        </div>
-      );
-    },
-    enableSorting: true,
-    enableHiding: true,
-  },
-  {
     accessorKey: 'createdAt',
     header: ({ column }) => (
       <DataTableColumnHeader
