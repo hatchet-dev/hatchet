@@ -2,12 +2,15 @@ package dispatcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -411,6 +414,174 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 	return nil
 }
 
+// map of workflow run ids to whether the workflow runs are finished and have sent a message
+// that the workflow run is finished
+type workflowRunAcks struct {
+	acks map[string]bool
+	mu   sync.Mutex
+}
+
+func (w *workflowRunAcks) addWorkflowRun(id string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.acks[id] = false
+}
+
+func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	ids := make([]string, 0, len(w.acks))
+
+	for id := range w.acks {
+		if !w.acks[id] {
+			ids = append(ids, id)
+		}
+	}
+
+	return ids
+}
+
+func (w *workflowRunAcks) ackWorkflowRun(id string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.acks[id] = true
+}
+
+// SubscribeToWorkflowEvents registers workflow events with the dispatcher
+func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
+	tenant := server.Context().Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
+
+	acks := &workflowRunAcks{
+		acks: make(map[string]bool),
+	}
+
+	ctx, cancel := context.WithCancel(server.Context())
+	defer cancel()
+
+	// start a new goroutine to handle client-side streaming
+	go func() {
+		for {
+			req, err := server.Recv()
+
+			if err != nil {
+				cancel()
+				if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+					return
+				}
+
+				s.l.Error().Err(err).Msg("could not receive message from client")
+				return
+			}
+
+			acks.addWorkflowRun(req.WorkflowRunId)
+		}
+	}()
+
+	// subscribe to the task queue for the tenant
+	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
+
+	if err != nil {
+		return err
+	}
+
+	wg := sync.WaitGroup{}
+
+	sendEvent := func(e *contracts.WorkflowRunEvent) {
+		// send the task to the client
+		err = server.Send(e)
+
+		if err != nil {
+			cancel() // FIXME is this necessary?
+			s.l.Error().Err(err).Msgf("could not send workflow event to client")
+			return
+		}
+
+		acks.ackWorkflowRun(e.WorkflowRunId)
+	}
+
+	f := func(task *msgqueue.Message) error {
+		wg.Add(1)
+		defer wg.Done()
+
+		e, err := s.tenantTaskToWorkflowRunEvent(task, tenantId, acks.getNonAckdWorkflowRuns()...)
+
+		if err != nil {
+			s.l.Error().Err(err).Msgf("could not convert task to workflow event")
+			return nil
+		} else if e == nil {
+			return nil
+		}
+
+		sendEvent(e)
+
+		return nil
+	}
+
+	// subscribe to the task queue for the tenant
+	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
+
+	if err != nil {
+		return err
+	}
+
+	// new goroutine to poll every 5 seconds for finished workflow runs which are not ackd
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				workflowRunIds := acks.getNonAckdWorkflowRuns()
+
+				if len(workflowRunIds) == 0 {
+					continue
+				}
+
+				workflowRuns, err := s.repo.WorkflowRun().ListWorkflowRuns(tenantId, &repository.ListWorkflowRunsOpts{
+					Ids: workflowRunIds,
+				})
+
+				if err != nil {
+					s.l.Error().Err(err).Msg("could not get workflow runs")
+					continue
+				}
+
+				for _, workflowRun := range workflowRuns.Rows {
+					workflowRunCp := workflowRun
+					resWorkflowRun, err := s.toWorkflowRunEvent(tenantId, workflowRunCp)
+
+					if err != nil {
+						s.l.Error().Err(err).Msg("could not convert workflow run to event")
+						continue
+					} else if resWorkflowRun == nil {
+						continue
+					}
+
+					sendEvent(resWorkflowRun)
+				}
+			}
+		}
+	}()
+
+	<-ctx.Done()
+
+	if err := cleanupQueue(); err != nil {
+		return fmt.Errorf("could not cleanup queue: %w", err)
+	}
+
+	waitFor(&wg, 60*time.Second, s.l)
+
+	return nil
+}
+
 func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 	done := make(chan struct{})
 
@@ -716,7 +887,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request
 	}, nil
 }
 
-func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenantId, workflowRunId string) (*contracts.WorkflowEvent, error) {
+func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenantId string, workflowRunIds ...string) (*contracts.WorkflowEvent, error) {
 	workflowEvent := &contracts.WorkflowEvent{}
 
 	var stepRunId string
@@ -770,7 +941,7 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 			return nil, err
 		}
 
-		if sqlchelpers.UUIDToStr(stepRun.WorkflowRunId) != workflowRunId {
+		if !contains(workflowRunIds, sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)) {
 			// this is an expected error, so we don't return it
 			return nil, nil
 		}
@@ -794,7 +965,7 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 		}
 
 	} else if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN {
-		if workflowEvent.ResourceId != workflowRunId {
+		if !contains(workflowRunIds, workflowEvent.ResourceId) {
 			return nil, nil
 		}
 
@@ -802,4 +973,95 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 	}
 
 	return workflowEvent, nil
+}
+
+func (s *DispatcherImpl) tenantTaskToWorkflowRunEvent(task *msgqueue.Message, tenantId string, workflowRunIds ...string) (*contracts.WorkflowRunEvent, error) {
+	workflowEvent := &contracts.WorkflowRunEvent{}
+
+	if task.ID != "workflow-run-finished" {
+		return nil, nil
+	}
+
+	workflowRunId := task.Payload["workflow_run_id"].(string)
+	workflowEvent.WorkflowRunId = workflowRunId
+	workflowEvent.EventType = contracts.WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED
+	workflowEvent.EventTimestamp = timestamppb.Now()
+
+	if !contains(workflowRunIds, workflowRunId) {
+		return nil, nil
+	}
+
+	stepRunResults, err := s.getStepResultsForWorkflowRun(tenantId, workflowRunId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	workflowEvent.Results = stepRunResults
+
+	return workflowEvent, nil
+}
+
+func (s *DispatcherImpl) toWorkflowRunEvent(tenantId string, workflowRun *dbsqlc.ListWorkflowRunsRow) (*contracts.WorkflowRunEvent, error) {
+	if workflowRun.WorkflowRun.Status != dbsqlc.WorkflowRunStatusFAILED && workflowRun.WorkflowRun.Status != dbsqlc.WorkflowRunStatusSUCCEEDED {
+		return nil, nil
+	}
+
+	workflowEvent := &contracts.WorkflowRunEvent{}
+
+	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+
+	workflowEvent.WorkflowRunId = workflowRunId
+	workflowEvent.EventType = contracts.WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED
+	workflowEvent.EventTimestamp = timestamppb.Now()
+
+	stepRunResults, err := s.getStepResultsForWorkflowRun(tenantId, workflowRunId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	workflowEvent.Results = stepRunResults
+
+	return workflowEvent, nil
+}
+
+func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId, workflowRunId string) ([]*contracts.StepRunResult, error) {
+	stepRuns, err := s.repo.StepRun().ListStepRunsForWorkflowRun(tenantId, workflowRunId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	resStepRuns := make([]*contracts.StepRunResult, 0)
+
+	for _, stepRun := range stepRuns {
+		resStepRun := &contracts.StepRunResult{
+			StepRunId:      sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
+			StepReadableId: stepRun.StepReadableId.String,
+			JobRunId:       sqlchelpers.UUIDToStr(stepRun.JobRunId),
+		}
+
+		if stepRun.StepRun.Error.Valid {
+			resStepRun.Error = &stepRun.StepRun.Error.String
+		}
+
+		if stepRun.StepRun.Output != nil {
+			resStepRun.Output = repository.StringPtr(string(stepRun.StepRun.Output))
+		}
+
+		resStepRuns = append(resStepRuns, resStepRun)
+	}
+
+	return resStepRuns, nil
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+
+	return false
 }

@@ -4,31 +4,92 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
-type RunEvent *dispatchercontracts.WorkflowEvent
+type WorkflowEvent *dispatchercontracts.WorkflowEvent
+type WorkflowRunEvent *dispatchercontracts.WorkflowRunEvent
 
 type StreamEvent struct {
 	Message []byte
 }
 
-type RunHandler func(event RunEvent) error
+type RunHandler func(event WorkflowEvent) error
 type StreamHandler func(event StreamEvent) error
+type WorkflowRunEventHandler func(event WorkflowRunEvent) error
+
+type WorkflowRunsListener struct {
+	client dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
+
+	// map of workflow run ids to a list of handlers
+	handlers sync.Map
+}
+
+func newWorkflowRunsListener(
+	client dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient,
+) *WorkflowRunsListener {
+	return &WorkflowRunsListener{
+		client: client,
+	}
+}
+
+func (l *WorkflowRunsListener) AddWorkflowRun(
+	workflowRunId string,
+	handler WorkflowRunEventHandler,
+) error {
+	err := l.client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{
+		WorkflowRunId: workflowRunId,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	handlers, _ := l.handlers.LoadOrStore(workflowRunId, []WorkflowRunEventHandler{})
+
+	l.handlers.Store(workflowRunId, append(handlers.([]WorkflowRunEventHandler), handler))
+
+	return nil
+}
+
+func (l *WorkflowRunsListener) handleWorkflowRun(event *dispatchercontracts.WorkflowRunEvent) error {
+	// find all handlers for this workflow run
+	handlers, ok := l.handlers.Load(event.WorkflowRunId)
+
+	if !ok {
+		return nil
+	}
+
+	eg := errgroup.Group{}
+
+	for _, handler := range handlers.([]WorkflowRunEventHandler) {
+		handlerCp := handler
+
+		eg.Go(func() error {
+			return handlerCp(event)
+		})
+	}
+
+	return eg.Wait()
+}
 
 type SubscribeClient interface {
 	On(ctx context.Context, workflowRunId string, handler RunHandler) error
 
 	Stream(ctx context.Context, workflowRunId string, handler StreamHandler) error
+
+	SubscribeToWorkflowRunEvents(ctx context.Context) (*WorkflowRunsListener, error)
 }
 
 type ClientEventListener interface {
-	OnRunEvent(ctx context.Context, event *RunEvent) error
+	OnWorkflowEvent(ctx context.Context, event *WorkflowEvent) error
 }
 
 type subscribeClientImpl struct {
@@ -110,4 +171,36 @@ func (r *subscribeClientImpl) Stream(ctx context.Context, workflowRunId string, 
 			return err
 		}
 	}
+}
+
+func (r *subscribeClientImpl) SubscribeToWorkflowRunEvents(ctx context.Context) (*WorkflowRunsListener, error) {
+	client, err := r.client.SubscribeToWorkflowRuns(r.ctx.newContext(ctx))
+
+	if err != nil {
+		return nil, err
+	}
+
+	l := newWorkflowRunsListener(client)
+
+	go func() {
+		for {
+			event, err := client.Recv()
+
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return
+				}
+
+				r.l.Error().Err(err).Msg("failed to receive workflow run event")
+				return
+			}
+
+			if err := l.handleWorkflowRun(event); err != nil {
+				r.l.Error().Err(err).Msg("failed to receive workflow run event")
+				return
+			}
+		}
+	}()
+
+	return l, nil
 }

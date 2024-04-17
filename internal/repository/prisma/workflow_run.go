@@ -254,6 +254,17 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		countParams.WorkflowVersionId = pgWorkflowVersionId
 	}
 
+	if opts.Ids != nil && len(opts.Ids) > 0 {
+		pgIds := make([]pgtype.UUID, len(opts.Ids))
+
+		for i, id := range opts.Ids {
+			pgIds[i] = sqlchelpers.UUIDFromStr(id)
+		}
+
+		queryParams.Ids = pgIds
+		countParams.Ids = pgIds
+	}
+
 	if opts.ParentId != nil {
 		pgParentId := sqlchelpers.UUIDFromStr(*opts.ParentId)
 

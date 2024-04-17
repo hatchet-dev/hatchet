@@ -22,6 +22,10 @@ WHERE
         workflow."id" = sqlc.narg('workflowId')::uuid
     ) AND
     (
+        sqlc.narg('ids')::uuid[] IS NULL OR
+        runs."id" = ANY(sqlc.narg('ids')::uuid[])
+    ) AND
+    (
         sqlc.narg('parentId')::uuid IS NULL OR
         runs."parentId" = sqlc.narg('parentId')::uuid
     ) AND
@@ -69,6 +73,10 @@ WHERE
     (
         sqlc.narg('workflowId')::uuid IS NULL OR
         workflow."id" = sqlc.narg('workflowId')::uuid
+    ) AND
+    (
+        sqlc.narg('ids')::uuid[] IS NULL OR
+        runs."id" = ANY(sqlc.narg('ids')::uuid[])
     ) AND
     (
         sqlc.narg('parentId')::uuid IS NULL OR

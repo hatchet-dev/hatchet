@@ -202,6 +202,9 @@ type ListWorkflowRunsOpts struct {
 	// (optional) the workflow version id
 	WorkflowVersionId *string `validate:"omitempty,uuid"`
 
+	// (optional) a list of workflow run ids to filter by
+	Ids []string `validate:"omitempty,dive,uuid"`
+
 	// (optional) the parent workflow run id
 	ParentId *string `validate:"omitempty,uuid"`
 

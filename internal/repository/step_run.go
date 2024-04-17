@@ -87,6 +87,9 @@ type StepRunEngineRepository interface {
 	// ListRunningStepRunsForWorkflowRun returns a list of step runs which are currently running for a workflow run.
 	ListRunningStepRunsForWorkflowRun(tenantId, workflowRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
+	// ListStepRunsForWorkflowRun returns a list of step runs for a workflow run.
+	ListStepRunsForWorkflowRun(tenantId, workflowRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+
 	// ListStepRunsToRequeue returns a list of step runs which are in a requeueable state.
 	ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 

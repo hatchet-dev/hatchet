@@ -30,6 +30,7 @@ type DispatcherClient interface {
 	// Heartbeat is a method for workers to send heartbeats to the dispatcher
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 	SubscribeToWorkflowEvents(ctx context.Context, in *SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsClient, error)
+	SubscribeToWorkflowRuns(ctx context.Context, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowRunsClient, error)
 	SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	PutOverridesData(ctx context.Context, in *OverridesData, opts ...grpc.CallOption) (*OverridesDataResponse, error)
@@ -158,6 +159,37 @@ func (x *dispatcherSubscribeToWorkflowEventsClient) Recv() (*WorkflowEvent, erro
 	return m, nil
 }
 
+func (c *dispatcherClient) SubscribeToWorkflowRuns(ctx context.Context, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowRunsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[3], "/Dispatcher/SubscribeToWorkflowRuns", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dispatcherSubscribeToWorkflowRunsClient{stream}
+	return x, nil
+}
+
+type Dispatcher_SubscribeToWorkflowRunsClient interface {
+	Send(*SubscribeToWorkflowRunsRequest) error
+	Recv() (*WorkflowRunEvent, error)
+	grpc.ClientStream
+}
+
+type dispatcherSubscribeToWorkflowRunsClient struct {
+	grpc.ClientStream
+}
+
+func (x *dispatcherSubscribeToWorkflowRunsClient) Send(m *SubscribeToWorkflowRunsRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *dispatcherSubscribeToWorkflowRunsClient) Recv() (*WorkflowRunEvent, error) {
+	m := new(WorkflowRunEvent)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *dispatcherClient) SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error) {
 	out := new(ActionEventResponse)
 	err := c.cc.Invoke(ctx, "/Dispatcher/SendStepActionEvent", in, out, opts...)
@@ -206,6 +238,7 @@ type DispatcherServer interface {
 	// Heartbeat is a method for workers to send heartbeats to the dispatcher
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error
+	SubscribeToWorkflowRuns(Dispatcher_SubscribeToWorkflowRunsServer) error
 	SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error)
 	PutOverridesData(context.Context, *OverridesData) (*OverridesDataResponse, error)
@@ -231,6 +264,9 @@ func (UnimplementedDispatcherServer) Heartbeat(context.Context, *HeartbeatReques
 }
 func (UnimplementedDispatcherServer) SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribeToWorkflowEvents not implemented")
+}
+func (UnimplementedDispatcherServer) SubscribeToWorkflowRuns(Dispatcher_SubscribeToWorkflowRunsServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToWorkflowRuns not implemented")
 }
 func (UnimplementedDispatcherServer) SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendStepActionEvent not implemented")
@@ -356,6 +392,32 @@ func (x *dispatcherSubscribeToWorkflowEventsServer) Send(m *WorkflowEvent) error
 	return x.ServerStream.SendMsg(m)
 }
 
+func _Dispatcher_SubscribeToWorkflowRuns_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DispatcherServer).SubscribeToWorkflowRuns(&dispatcherSubscribeToWorkflowRunsServer{stream})
+}
+
+type Dispatcher_SubscribeToWorkflowRunsServer interface {
+	Send(*WorkflowRunEvent) error
+	Recv() (*SubscribeToWorkflowRunsRequest, error)
+	grpc.ServerStream
+}
+
+type dispatcherSubscribeToWorkflowRunsServer struct {
+	grpc.ServerStream
+}
+
+func (x *dispatcherSubscribeToWorkflowRunsServer) Send(m *WorkflowRunEvent) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *dispatcherSubscribeToWorkflowRunsServer) Recv() (*SubscribeToWorkflowRunsRequest, error) {
+	m := new(SubscribeToWorkflowRunsRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func _Dispatcher_SendStepActionEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StepActionEvent)
 	if err := dec(in); err != nil {
@@ -475,6 +537,12 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "SubscribeToWorkflowEvents",
 			Handler:       _Dispatcher_SubscribeToWorkflowEvents_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "SubscribeToWorkflowRuns",
+			Handler:       _Dispatcher_SubscribeToWorkflowRuns_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "dispatcher.proto",

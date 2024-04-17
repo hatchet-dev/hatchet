@@ -134,9 +134,41 @@ func (s *stepRunEngineRepository) ListRunningStepRunsForWorkflowRun(tenantId, wo
 	defer deferRollback(context.Background(), s.l, tx.Rollback)
 
 	srs, err := s.queries.ListStepRuns(context.Background(), s.pool, dbsqlc.ListStepRunsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Status: dbsqlc.NullStepRunStatus{
 			StepRunStatus: dbsqlc.StepRunStatusRUNNING,
 		},
+		WorkflowRunId: sqlchelpers.UUIDFromStr(workflowRunId),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := s.queries.GetStepRunForEngine(context.Background(), tx, dbsqlc.GetStepRunForEngineParams{
+		Ids: srs,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(context.Background())
+
+	return res, err
+}
+
+func (s *stepRunEngineRepository) ListStepRunsForWorkflowRun(tenantId, workflowRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+	tx, err := s.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), s.l, tx.Rollback)
+
+	srs, err := s.queries.ListStepRuns(context.Background(), s.pool, dbsqlc.ListStepRunsParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		WorkflowRunId: sqlchelpers.UUIDFromStr(workflowRunId),
 	})
 
