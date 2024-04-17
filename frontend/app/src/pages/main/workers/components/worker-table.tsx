@@ -16,7 +16,10 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { cn, relativeDate } from '@/lib/utils';
-import { ArrowPathIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowPathIcon,
+  QuestionMarkCircleIcon,
+} from '@heroicons/react/24/outline';
 import { BiCard, BiTable } from 'react-icons/bi';
 
 export function WorkersTable() {
@@ -91,7 +94,6 @@ export function WorkersTable() {
     </div>
   );
 
-
   const actions = [
     <Button
       key="card-toggle"
@@ -125,7 +127,6 @@ export function WorkersTable() {
       />
     </Button>,
   ];
-
 
   return (
     <DataTable

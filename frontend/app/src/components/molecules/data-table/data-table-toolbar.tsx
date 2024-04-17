@@ -40,7 +40,7 @@ export function DataTableToolbar<TData>({
   setSearch,
   search,
 }: DataTableToolbarProps<TData>) {
-  const isFiltered = table.getState().columnFilters.length > 0;
+  const isFiltered = table.getState().columnFilters?.length > 0;
 
   return (
     <div className="flex items-center justify-between">
