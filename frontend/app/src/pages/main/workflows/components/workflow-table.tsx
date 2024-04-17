@@ -35,7 +35,6 @@ export function WorkflowTable() {
   ]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rotate, setRotate] = useState(false);
-  const [search, setSearch] = useState<string | undefined>(undefined);
 
   const [cardToggle, setCardToggle] = useState(true);
 
@@ -153,8 +152,7 @@ export function WorkflowTable() {
       setSorting={setSorting}
       manualSorting={false}
       actions={actions}
-      search={search}
-      setSearch={setSearch}
+      manualFiltering={false}
       card={
         cardToggle
           ? {
