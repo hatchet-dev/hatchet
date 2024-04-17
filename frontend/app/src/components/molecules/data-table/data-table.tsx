@@ -70,6 +70,8 @@ interface DataTableProps<TData extends IDGetter, TValue> {
         parent?: Row<TData> | undefined,
       ) => string)
     | undefined;
+  manualSorting?: boolean;
+  manualFiltering?: boolean;
 }
 
 interface ExtraDataTableProps {
@@ -104,6 +106,8 @@ export function DataTable<TData extends IDGetter, TValue>({
   getRowId,
   emptyState,
   card,
+  manualSorting = true,
+  manualFiltering = true,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const tableData = React.useMemo(
     () => (isLoading ? Array(10).fill({ metadata: {} }) : data),
@@ -144,8 +148,8 @@ export function DataTable<TData extends IDGetter, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
-    manualSorting: true,
-    manualFiltering: true,
+    manualSorting,
+    manualFiltering,
     manualPagination: true,
     getRowId,
   });
