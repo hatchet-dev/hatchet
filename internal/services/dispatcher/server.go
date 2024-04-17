@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -464,25 +466,6 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	ctx, cancel := context.WithCancel(server.Context())
 	defer cancel()
 
-	// start a new goroutine to handle client-side streaming
-	go func() {
-		for {
-			req, err := server.Recv()
-
-			if err != nil {
-				cancel()
-				if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
-					return
-				}
-
-				s.l.Error().Err(err).Msg("could not receive message from client")
-				return
-			}
-
-			acks.addWorkflowRun(req.WorkflowRunId)
-		}
-	}()
-
 	// subscribe to the task queue for the tenant
 	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
 
@@ -504,6 +487,59 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 
 		acks.ackWorkflowRun(e.WorkflowRunId)
 	}
+
+	iter := func(workflowRunIds []string) error {
+		limit := 200
+
+		workflowRuns, err := s.repo.WorkflowRun().ListWorkflowRuns(tenantId, &repository.ListWorkflowRunsOpts{
+			Ids:   workflowRunIds,
+			Limit: &limit,
+		})
+
+		if err != nil {
+			s.l.Error().Err(err).Msg("could not get workflow runs")
+			return nil
+		}
+
+		for _, workflowRun := range workflowRuns.Rows {
+			workflowRunCp := workflowRun
+			resWorkflowRun, err := s.toWorkflowRunEvent(tenantId, workflowRunCp)
+
+			if err != nil {
+				s.l.Error().Err(err).Msg("could not convert workflow run to event")
+				continue
+			} else if resWorkflowRun == nil {
+				continue
+			}
+
+			sendEvent(resWorkflowRun)
+		}
+
+		return nil
+	}
+
+	// start a new goroutine to handle client-side streaming
+	go func() {
+		for {
+			req, err := server.Recv()
+
+			if err != nil {
+				cancel()
+				if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+					return
+				}
+
+				s.l.Error().Err(err).Msg("could not receive message from client")
+				return
+			}
+
+			acks.addWorkflowRun(req.WorkflowRunId)
+
+			if err := iter([]string{req.WorkflowRunId}); err != nil {
+				s.l.Error().Err(err).Msg("could not iterate over workflow runs")
+			}
+		}
+	}()
 
 	f := func(task *msgqueue.Message) error {
 		wg.Add(1)
@@ -545,27 +581,8 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 					continue
 				}
 
-				workflowRuns, err := s.repo.WorkflowRun().ListWorkflowRuns(tenantId, &repository.ListWorkflowRunsOpts{
-					Ids: workflowRunIds,
-				})
-
-				if err != nil {
-					s.l.Error().Err(err).Msg("could not get workflow runs")
-					continue
-				}
-
-				for _, workflowRun := range workflowRuns.Rows {
-					workflowRunCp := workflowRun
-					resWorkflowRun, err := s.toWorkflowRunEvent(tenantId, workflowRunCp)
-
-					if err != nil {
-						s.l.Error().Err(err).Msg("could not convert workflow run to event")
-						continue
-					} else if resWorkflowRun == nil {
-						continue
-					}
-
-					sendEvent(resWorkflowRun)
+				if err := iter(workflowRunIds); err != nil {
+					s.l.Error().Err(err).Msg("could not iterate over workflow runs")
 				}
 			}
 		}

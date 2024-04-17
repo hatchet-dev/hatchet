@@ -40,10 +40,26 @@ func newWorkflowRunsListener(
 	}
 }
 
+type threadSafeHandlers struct {
+	handlers []WorkflowRunEventHandler
+	mu       sync.RWMutex
+}
+
 func (l *WorkflowRunsListener) AddWorkflowRun(
 	workflowRunId string,
 	handler WorkflowRunEventHandler,
 ) error {
+	handlers, _ := l.handlers.LoadOrStore(workflowRunId, &threadSafeHandlers{
+		handlers: []WorkflowRunEventHandler{},
+	})
+
+	h := handlers.(*threadSafeHandlers)
+
+	h.mu.Lock()
+	h.handlers = append(h.handlers, handler)
+	l.handlers.Store(workflowRunId, h)
+	h.mu.Unlock()
+
 	err := l.client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{
 		WorkflowRunId: workflowRunId,
 	})
@@ -51,10 +67,6 @@ func (l *WorkflowRunsListener) AddWorkflowRun(
 	if err != nil {
 		return err
 	}
-
-	handlers, _ := l.handlers.LoadOrStore(workflowRunId, []WorkflowRunEventHandler{})
-
-	l.handlers.Store(workflowRunId, append(handlers.([]WorkflowRunEventHandler), handler))
 
 	return nil
 }
@@ -69,7 +81,11 @@ func (l *WorkflowRunsListener) handleWorkflowRun(event *dispatchercontracts.Work
 
 	eg := errgroup.Group{}
 
-	for _, handler := range handlers.([]WorkflowRunEventHandler) {
+	h := handlers.(*threadSafeHandlers)
+
+	h.mu.RLock()
+
+	for _, handler := range h.handlers {
 		handlerCp := handler
 
 		eg.Go(func() error {
@@ -77,7 +93,11 @@ func (l *WorkflowRunsListener) handleWorkflowRun(event *dispatchercontracts.Work
 		})
 	}
 
-	return eg.Wait()
+	h.mu.RUnlock()
+
+	err := eg.Wait()
+
+	return err
 }
 
 type SubscribeClient interface {
@@ -195,10 +215,13 @@ func (r *subscribeClientImpl) SubscribeToWorkflowRunEvents(ctx context.Context) 
 				return
 			}
 
-			if err := l.handleWorkflowRun(event); err != nil {
-				r.l.Error().Err(err).Msg("failed to receive workflow run event")
-				return
-			}
+			go func() {
+				err := l.handleWorkflowRun(event)
+
+				if err != nil {
+					r.l.Error().Err(err).Msg("failed to handle workflow run event")
+				}
+			}()
 		}
 	}()
 

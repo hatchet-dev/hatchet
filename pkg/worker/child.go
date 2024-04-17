@@ -53,8 +53,12 @@ func (c *ChildWorkflow) Result() (*ChildWorkflowResult, error) {
 	err := c.listener.AddWorkflowRun(
 		c.workflowRunId,
 		func(event client.WorkflowRunEvent) error {
-			resChan <- &ChildWorkflowResult{
+			// non-blocking send
+			select {
+			case resChan <- &ChildWorkflowResult{
 				workflowRun: event,
+			}: // continue
+			default:
 			}
 
 			return nil
