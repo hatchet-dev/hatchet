@@ -31,6 +31,3 @@ function MyApp({ Component, pageProps }: AppProps) {
 }
 
 export default MyApp;
-function useEffect(arg0: () => () => void, arg1: undefined[]) {
-  throw new Error("Function not implemented.");
-}
