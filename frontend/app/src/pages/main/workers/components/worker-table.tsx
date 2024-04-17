@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Worker, queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
@@ -16,11 +16,15 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { cn, relativeDate } from '@/lib/utils';
-import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import { BiCard, BiTable } from 'react-icons/bi';
 
 export function WorkersTable() {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
+
+  const [rotate, setRotate] = useState(false);
+  const [cardToggle, setCardToggle] = useState(true);
 
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenant.metadata.id),
@@ -87,6 +91,42 @@ export function WorkersTable() {
     </div>
   );
 
+
+  const actions = [
+    <Button
+      key="card-toggle"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        setCardToggle((t) => !t);
+      }}
+      variant={'outline'}
+      aria-label="Toggle card/table view"
+    >
+      {!cardToggle ? (
+        <BiCard className={`h-4 w-4 `} />
+      ) : (
+        <BiTable className={`h-4 w-4 `} />
+      )}
+    </Button>,
+    <Button
+      key="refresh"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        listWorkersQuery.refetch();
+        setRotate(!rotate);
+      }}
+      variant={'outline'}
+      aria-label="Refresh events list"
+    >
+      <ArrowPathIcon
+        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+      />
+    </Button>,
+  ];
+
+
   return (
     <DataTable
       columns={columns}
@@ -94,9 +134,14 @@ export function WorkersTable() {
       pageCount={1}
       filters={[]}
       emptyState={emptyState}
-      card={{
-        component: card,
-      }}
+      card={
+        cardToggle
+          ? {
+              component: card,
+            }
+          : undefined
+      }
+      actions={actions}
     />
   );
 }
