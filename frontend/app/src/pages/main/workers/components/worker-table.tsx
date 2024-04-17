@@ -76,7 +76,7 @@ export function WorkersTable() {
     >
       <div className="px-4 py-5 sm:p-6">
         <h3 className="text-lg leading-6 font-medium text-foreground">
-          {data.name}
+          <Link to={`/workers/${data.metadata?.id}`}>{data.name}</Link>
         </h3>
         <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
           Started {relativeDate(data.metadata?.createdAt)}
