@@ -21,7 +21,6 @@ require (
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/posthog/posthog-go v0.0.0-20240327112532-87b23fe11103
-	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
 	github.com/steebchen/prisma-client-go v0.36.0
@@ -33,7 +32,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.25.0
 	go.opentelemetry.io/otel/trace v1.25.0
 	go.uber.org/goleak v1.3.0
-	google.golang.org/api v0.172.0
+	google.golang.org/api v0.173.0
 	sigs.k8s.io/yaml v1.4.0
 )
 
@@ -76,6 +75,7 @@ require (
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
