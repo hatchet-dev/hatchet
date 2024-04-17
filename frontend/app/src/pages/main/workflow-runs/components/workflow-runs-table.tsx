@@ -73,7 +73,7 @@ export function WorkflowRunsTable({
 
     const vals = filter?.value as Array<string>;
     return vals[0];
-  }, [columnFilters]);
+  }, [columnFilters, workflowId]);
 
   const statuses = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'status');

@@ -12,7 +12,6 @@ import WorkflowRunVisualizer from './components/workflow-run-visualizer';
 import { useEffect, useState } from 'react';
 import { StepRunPlayground } from './components/step-run-playground';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BiGitBranch } from 'react-icons/bi';
 
 export default function ExpandedWorkflowRun() {
   const [selectedStepRun, setSelectedStepRun] = useState<StepRun | undefined>();
@@ -73,19 +72,19 @@ export default function ExpandedWorkflowRun() {
 
   const run = runQuery.data;
 
-  const ParentLink: React.FC<{ parentId: string }> = ({ parentId }) => {
-    return (
-      <a
-        href={`/workflow-runs/${parentId}`}
-        className="flex flex-row gap-2 items-center"
-      >
-        <BiGitBranch />
-        <span className="text-sm text-gray-700 dark:text-gray-300">
-          Parent workflow
-        </span>
-      </a>
-    );
-  };
+  // const ParentLink: React.FC<{ parentId: string }> = ({ parentId }) => {
+  //   return (
+  //     <a
+  //       href={`/workflow-runs/${parentId}`}
+  //       className="flex flex-row gap-2 items-center"
+  //     >
+  //       <BiGitBranch />
+  //       <span className="text-sm text-gray-700 dark:text-gray-300">
+  //         Parent workflow
+  //       </span>
+  //     </a>
+  //   );
+  // };
 
   return (
     <div className="flex-grow h-full w-full">

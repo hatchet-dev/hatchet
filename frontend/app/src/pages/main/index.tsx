@@ -64,7 +64,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
     }
 
     setSidebarOpen('closed');
-  }, [window]);
+  }, [setSidebarOpen]);
 
   if (sidebarOpen === 'closed') {
     return null;

@@ -47,7 +47,7 @@ export function WorkflowTable() {
     const data = listWorkflowQuery.data?.rows || [];
 
     return data;
-  }, [listWorkflowQuery.data?.rows, sorting]);
+  }, [listWorkflowQuery.data?.rows]);
 
   if (listWorkflowQuery.isLoading) {
     return <Loading />;
