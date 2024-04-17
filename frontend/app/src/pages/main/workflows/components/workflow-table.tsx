@@ -1,11 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Worker, queries } from '@/lib/api';
+import { Workflow, queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
 import { TenantContextType } from '@/lib/outlet';
 import { Link, useOutletContext } from 'react-router-dom';
 import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
-import { columns } from './worker-columns';
+import { columns } from './workflow-columns';
 import { Loading } from '@/components/ui/loading.tsx';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,52 +17,64 @@ import {
 } from '@/components/ui/card';
 import { cn, relativeDate } from '@/lib/utils';
 import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import { SortingState, VisibilityState } from '@tanstack/react-table';
 
-export function WorkersTable() {
+export function WorkflowTable() {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
-  const listWorkersQuery = useQuery({
-    ...queries.workers.list(tenant.metadata.id),
+  const [sorting, setSorting] = useState<SortingState>([
+    {
+      id: 'lastRun',
+      desc: true,
+    },
+  ]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
+  const listWorkflowQuery = useQuery({
+    ...queries.workflows.list(tenant.metadata.id),
     refetchInterval: 5000,
   });
 
   const data = useMemo(() => {
-    return listWorkersQuery.data?.rows || [];
-  }, [listWorkersQuery.data?.rows]);
+    console.log(sorting);
 
-  if (listWorkersQuery.isLoading) {
+    const data = listWorkflowQuery.data?.rows || [];
+
+    return data;
+  }, [listWorkflowQuery.data?.rows, sorting]);
+
+  if (listWorkflowQuery.isLoading) {
     return <Loading />;
   }
 
   const emptyState = (
     <Card className="w-full text-justify">
       <CardHeader>
-        <CardTitle>No Active Workers</CardTitle>
+        <CardTitle>No Registered Workflows</CardTitle>
         <CardDescription>
-          <p className="text-gray-300 mb-4">
-            There are no worker processes currently running and connected to the
-            Hatchet engine for this tenant. To enable workflow execution, please
-            attempt to start a worker process or{' '}
+          <p className="text-gray-700 dark:text-gray-300 mb-4">
+            There are no workflows registered in this tenant. To enable workflow
+            execution, please register a workflow with a worker or{' '}
             <a href="support@hatchet.run">contact support</a>.
           </p>
         </CardDescription>
       </CardHeader>
       <CardFooter>
         <a
-          href="https://docs.hatchet.run/home/basics/workers"
+          href="https://docs.hatchet.run/home/basics/workflows"
           className="flex flex-row item-center"
         >
           <Button onClick={() => {}} variant="link" className="p-0 w-fit">
             <QuestionMarkCircleIcon className={cn('h-4 w-4 mr-2')} />
-            Docs: Understanding Workers in Hatchet
+            Docs: Understanding Workflows in Hatchet
           </Button>
         </a>
       </CardFooter>
     </Card>
   );
 
-  const card: React.FC<{ data: Worker }> = ({ data }) => (
+  const card: React.FC<{ data: Workflow }> = ({ data }) => (
     <div
       key={data.metadata?.id}
       className="border overflow-hidden shadow rounded-lg"
@@ -72,15 +84,16 @@ export function WorkersTable() {
           {data.name}
         </h3>
         <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
-          Started {relativeDate(data.metadata?.createdAt)}
+          Last run {relativeDate(data.lastRun?.metadata?.createdAt)} <br />
+          Created at {relativeDate(data.metadata?.createdAt)}
           <br />
-          Last seen {relativeDate(data?.lastHeartbeatAt)}
+          Updated at {relativeDate(data.metadata?.updatedAt)}
         </p>
       </div>
       <div className="px-4 py-4 sm:px-6">
         <div className="text-sm text-background-secondary">
-          <Link to={`/workers/${data.metadata?.id}`}>
-            <Button>View worker</Button>
+          <Link to={`/workflows/${data.metadata?.id}`}>
+            <Button>View Workflow</Button>
           </Link>
         </div>
       </div>
@@ -94,9 +107,14 @@ export function WorkersTable() {
       pageCount={1}
       filters={[]}
       emptyState={emptyState}
-      card={{
-        component: card,
-      }}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      sorting={sorting}
+      setSorting={setSorting}
+      manualSorting={false}
+      // card={{
+      //   component: card,
+      // }}
     />
   );
 }
