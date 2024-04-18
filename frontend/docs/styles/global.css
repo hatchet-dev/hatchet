@@ -119,6 +119,10 @@ html.dark .nextra-code-block pre {
 }
 
 /* Base dark mode styles */
+html.dark main {
+  background-color: #020817;
+}
+
 html.dark body {
   background-color: var(--background) !important;
 }
