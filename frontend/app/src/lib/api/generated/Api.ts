@@ -1050,6 +1050,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       parentStepRunId?: string;
+      /** A list of workflow run statuses to filter by */
+      statuses?: WorkflowRunStatusList;
     },
     params: RequestParams = {},
   ) =>

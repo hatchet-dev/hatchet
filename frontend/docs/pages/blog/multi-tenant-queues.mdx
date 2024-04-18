@@ -9,7 +9,7 @@ import * as multi from "./_multi.json";
   <h5 className="text-xl font-bold tracking-tight text-foreground">
     Alexander Belanger
   </h5>
-  <p className="font-light text-foreground">Published on April 15, 2024</p>
+  <p className="font-light text-foreground">Published on April 18, 2024</p>
 </div>
 
 _**TL;DR -** we've been implementing fair queueing strategies for Postgres-backed task queues, so processing Bob's 10,000 files doesn't crowd out Alice's 1-page PDF. We've solved this in [Hatchet](https://github.com/hatchet-dev/hatchet) and [Hatchet Cloud](https://cloud.onhatchet.run) so you don't have to — here's a look at how we did it._
@@ -48,7 +48,7 @@ You're now worried about fairness — specifically, how can you guarantee _fair 
 
 ## The setup
 
-Let's start with some code! We're implementing a basic Postgres-backed task queue, where workers poll for events off the queue at some interval. You can find all the code used in these examples — along with some nice helper `seed` and `worker` commands — in this repo: [github.com/abelanger5/postgres-partitioned-queue](https://github.com/abelanger5/postgres-partitioned-queue). Note that I chose `sqlc` to write these examples, so you might see some `sqlc.arg` and `sqlc.narg` in the example queries.
+Let's start with some code! We're implementing a basic Postgres-backed task queue, where workers poll for events off the queue at some interval. You can find all the code used in these examples — along with some nice helper `seed` and `worker` commands — in this repo: [github.com/abelanger5/postgres-fair-queue](https://github.com/abelanger5/postgres-fair-queue). Note that I chose `sqlc` to write these examples, so you might see some `sqlc.arg` and `sqlc.narg` in the example queries.
 
 Our tasks are very simple — they have a `created_at` time, some input data, and an auto-incremented id:
 
@@ -549,6 +549,8 @@ This guarantees an additional level of fairness which makes it even harder for B
 
 ## Final thoughts
 
-We've covered deterministic round-robin queueing, but it turns out that many systems just need approximate fairness guarantees ("deterministic" in this case refers to the fact that tasks are processed in a deterministic order on subsequent reads - as opposed to using something like `ORDER BY RANDOM()`). But there are other approaches which provide approximate fairness, such as [shuffle sharding](), which we'll show how to implement in Postgres in a future post.
+We've covered deterministic round-robin queueing, but it turns out that many systems just need approximate fairness guarantees ("deterministic" in this case refers to the fact that tasks are processed in a deterministic order on subsequent reads - as opposed to using something like `ORDER BY RANDOM()`). But there are other approaches which provide approximate fairness, such as [shuffle sharding](https://aws.amazon.com/builders-library/workload-isolation-using-shuffle-sharding/), which we'll show how to implement in Postgres in a future post.
 
 If you have suggestions on making these queries more performant - or perhaps you spotted a bug - I'd love to hear from you in our [Discord](https://discord.gg/ZMeUafwH89).
+
+_[Hatchet Cloud](https://cloud.onhatchet.run) is our managed Hatchet offering. Give it a spin and let us know what you think!_

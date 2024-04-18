@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { CheckIcon, PlusCircledIcon } from '@radix-ui/react-icons';
+import { CheckIcon, CircleIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import { Column } from '@tanstack/react-table';
 
 import { cn } from '@/lib/utils';
@@ -20,10 +20,12 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
+import { ToolbarType } from './data-table-toolbar';
 
 interface DataTableFacetedFilterProps<TData, TValue> {
   column?: Column<TData, TValue>;
   title?: string;
+  type?: ToolbarType;
   options: {
     label: string;
     value: string;
@@ -34,6 +36,7 @@ interface DataTableFacetedFilterProps<TData, TValue> {
 export function DataTableFacetedFilter<TData, TValue>({
   column,
   title,
+  type = ToolbarType.Checkbox,
   options,
 }: DataTableFacetedFilterProps<TData, TValue>) {
   const facets = column?.getFacetedUniqueValues();
@@ -95,6 +98,9 @@ export function DataTableFacetedFilter<TData, TValue>({
                       if (isSelected) {
                         selectedValues.delete(option.value);
                       } else {
+                        if (type == 'radio') {
+                          selectedValues.clear();
+                        }
                         selectedValues.add(option.value);
                       }
                       const filterValues = Array.from(selectedValues);
@@ -111,7 +117,11 @@ export function DataTableFacetedFilter<TData, TValue>({
                           : 'opacity-50 [&_svg]:invisible',
                       )}
                     >
-                      <CheckIcon className={cn('h-4 w-4')} />
+                      {type === 'checkbox' ? (
+                        <CheckIcon className={cn('h-4 w-4')} />
+                      ) : (
+                        <CircleIcon className={cn('h-4 w-4')} />
+                      )}
                     </div>
                     {option.icon && (
                       <option.icon className="mr-2 h-4 w-4 text-gray-700 dark:text-gray-300" />
@@ -134,7 +144,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                     onSelect={() => column?.setFilterValue(undefined)}
                     className="justify-center text-center"
                   >
-                    Clear filters
+                    Reset
                   </CommandItem>
                 </CommandGroup>
               </>

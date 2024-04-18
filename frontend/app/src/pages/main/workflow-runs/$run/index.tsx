@@ -72,9 +72,25 @@ export default function ExpandedWorkflowRun() {
 
   const run = runQuery.data;
 
+  // const ParentLink: React.FC<{ parentId: string }> = ({ parentId }) => {
+  //   return (
+  //     <a
+  //       href={`/workflow-runs/${parentId}`}
+  //       className="flex flex-row gap-2 items-center"
+  //     >
+  //       <BiGitBranch />
+  //       <span className="text-sm text-gray-700 dark:text-gray-300">
+  //         Parent workflow
+  //       </span>
+  //     </a>
+  //   );
+  // };
+
   return (
     <div className="flex-grow h-full w-full">
       <div className="flex flex-col mx-auto gap-2 max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* TODO the triggeredBy parent id is itself */}
+        {/* {run?.triggeredBy?.parentId && <ParentLink parentId={run.triggeredBy.parentId} />} */}
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
             <h2 className="text-2xl font-bold leading-tight text-foreground flex flex-row  items-center">
