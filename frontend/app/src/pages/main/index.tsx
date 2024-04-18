@@ -64,7 +64,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
     }
 
     setSidebarOpen('closed');
-  }, [window]);
+  }, [setSidebarOpen]);
 
   if (sidebarOpen === 'closed') {
     return null;
@@ -81,13 +81,19 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
         <div className="grow">
           <div className="py-2">
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
-              Events
+              Activity
             </h2>
             <div className="space-y-1">
               <Link to="/events" onClick={onNavLinkClick}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <QueueListIcon className="mr-2 h-4 w-4" />
-                  All events
+                  Events
+                </Button>
+              </Link>
+              <Link to="/workflow-runs" onClick={onNavLinkClick}>
+                <Button variant="ghost" className="w-full justify-start pl-0">
+                  <AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />
+                  Workflow Runs
                 </Button>
               </Link>
               {/* <Button variant="ghost" className="w-full justify-start pl-0">
@@ -98,21 +104,16 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
           </div>
           <div className="py-2">
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
-              Workflows
+              Resources
             </h2>
             <div className="space-y-1">
               <Link to="/workflows" onClick={onNavLinkClick}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <Squares2X2Icon className="mr-2 h-4 w-4" />
-                  All workflows
+                  Workflows
                 </Button>
               </Link>
-              <Link to="/workflow-runs" onClick={onNavLinkClick}>
-                <Button variant="ghost" className="w-full justify-start pl-0">
-                  <AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />
-                  Runs
-                </Button>
-              </Link>
+
               <Link to="/workers" onClick={onNavLinkClick}>
                 <Button variant="ghost" className="w-full justify-start pl-0">
                   <ServerStackIcon className="mr-2 h-4 w-4" />

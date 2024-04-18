@@ -52,6 +52,16 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 		listOpts.ParentStepRunId = &parentStepRunIdStr
 	}
 
+	if request.Params.Statuses != nil {
+		statuses := make([]db.WorkflowRunStatus, len(*request.Params.Statuses))
+
+		for i, status := range *request.Params.Statuses {
+			statuses[i] = db.WorkflowRunStatus(status)
+		}
+
+		listOpts.Statuses = &statuses
+	}
+
 	workflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(tenant.ID, listOpts)
 
 	if err != nil {

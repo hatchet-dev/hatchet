@@ -13,9 +13,15 @@ export interface FilterOption {
   icon?: React.ComponentType<{ className?: string }>;
 }
 
+export enum ToolbarType {
+  Checkbox = 'checkbox',
+  Radio = 'radio',
+}
+
 export type ToolbarFilters = {
   columnId: string;
   title: string;
+  type?: ToolbarType;
   options: FilterOption[];
 }[];
 
@@ -34,7 +40,7 @@ export function DataTableToolbar<TData>({
   setSearch,
   search,
 }: DataTableToolbarProps<TData>) {
-  const isFiltered = table.getState().columnFilters.length > 0;
+  const isFiltered = table.getState().columnFilters?.length > 0;
 
   return (
     <div className="flex items-center justify-between">
@@ -52,6 +58,7 @@ export function DataTableToolbar<TData>({
             key={filter.columnId}
             column={table.getColumn(filter.columnId)}
             title={filter.title}
+            type={filter.type}
             options={filter.options}
           />
         ))}

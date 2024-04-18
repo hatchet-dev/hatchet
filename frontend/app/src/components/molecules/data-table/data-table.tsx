@@ -70,6 +70,16 @@ interface DataTableProps<TData extends IDGetter, TValue> {
         parent?: Row<TData> | undefined,
       ) => string)
     | undefined;
+  manualSorting?: boolean;
+  manualFiltering?: boolean;
+}
+
+interface ExtraDataTableProps {
+  emptyState?: JSX.Element;
+  card?: {
+    containerStyle?: string;
+    component: React.FC<any> | ((data: any) => JSX.Element);
+  };
 }
 
 export function DataTable<TData extends IDGetter, TValue>({
@@ -94,7 +104,11 @@ export function DataTable<TData extends IDGetter, TValue>({
   setRowSelection,
   isLoading,
   getRowId,
-}: DataTableProps<TData, TValue>) {
+  emptyState,
+  card,
+  manualSorting = true,
+  manualFiltering = true,
+}: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const tableData = React.useMemo(
     () => (isLoading ? Array(10).fill({ metadata: {} }) : data),
     [isLoading, data],
@@ -134,8 +148,8 @@ export function DataTable<TData extends IDGetter, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
-    manualSorting: true,
-    manualFiltering: true,
+    manualSorting,
+    manualFiltering,
     manualPagination: true,
     getRowId,
   });
@@ -163,9 +177,70 @@ export function DataTable<TData extends IDGetter, TValue>({
     );
   };
 
+  const getTable = () => (
+    <Table>
+      <TableHeader>
+        {table.getHeaderGroups().map((headerGroup) => (
+          <TableRow key={headerGroup.id}>
+            {headerGroup.headers.map((header) => {
+              return (
+                <TableHead key={header.id} colSpan={header.colSpan}>
+                  {header.isPlaceholder
+                    ? null
+                    : flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
+                </TableHead>
+              );
+            })}
+          </TableRow>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {error ? (
+          <TableRow className="p-4 text-center text-red-500">
+            <TableCell colSpan={columns.length}>
+              {error.message || 'An error occurred.'}
+            </TableCell>
+          </TableRow>
+        ) : table.getRowModel().rows?.length ? (
+          table.getRowModel().rows.map((row) => getTableRow(row))
+        ) : (
+          <TableRow>
+            <TableCell colSpan={columns.length} className="h-24 text-center">
+              {emptyState || 'No results.'}
+            </TableCell>
+          </TableRow>
+        )}
+      </TableBody>
+    </Table>
+  );
+
+  const getCards = () => (
+    <div
+      className={
+        card?.containerStyle ||
+        'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'
+      }
+    >
+      {error
+        ? error.message || 'An error occurred.'
+        : table.getRowModel().rows?.length
+          ? table
+              .getRowModel()
+              .rows.map((row) =>
+                card?.component
+                  ? card?.component({ data: row.original })
+                  : null,
+              )
+          : emptyState || 'No results.'}
+    </div>
+  );
+
   return (
     <div className="space-y-4">
-      {filters && filters.length > 0 && (
+      {(setSearch || actions || (filters && filters.length > 0)) && (
         <DataTableToolbar
           table={table}
           filters={filters}
@@ -174,47 +249,8 @@ export function DataTable<TData extends IDGetter, TValue>({
           setSearch={setSearch}
         />
       )}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {error ? (
-              <TableRow className="p-4 text-center text-red-500">
-                <TableCell colSpan={columns.length}>
-                  {error.message || 'An error occurred.'}
-                </TableCell>
-              </TableRow>
-            ) : table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => getTableRow(row))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+      <div className={`rounded-md ${!card && 'border'}`}>
+        {!card ? getTable() : getCards()}
       </div>
       {pagination && (
         <DataTablePagination table={table} onSetPageSize={onSetPageSize} />

@@ -8,6 +8,7 @@ import {
   PaginationState,
   RowSelectionState,
   SortingState,
+  VisibilityState,
 } from '@tanstack/react-table';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api, {
@@ -85,6 +86,8 @@ function EventsTable() {
   const [search, setSearch] = useState<string | undefined>(undefined);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 50,
@@ -238,10 +241,6 @@ function EventsTable() {
         value: WorkflowRunStatus.PENDING,
         label: 'Pending',
       },
-      {
-        value: WorkflowRunStatus.CANCELLED,
-        label: 'Cancelled',
-      },
     ];
   }, []);
 
@@ -320,6 +319,8 @@ function EventsTable() {
             options: workflowRunStatusFilters,
           },
         ]}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
         actions={actions}
         sorting={sorting}
         setSorting={setSorting}

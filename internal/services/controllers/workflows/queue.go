@@ -420,7 +420,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 	runningWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
 		WorkflowVersionId: &workflowVersionId,
 		GroupKey:          &groupKey,
-		Status:            &running,
+		Statuses:          &[]db.WorkflowRunStatus{running},
 		// order from oldest to newest
 		OrderBy:        repository.StringPtr("createdAt"),
 		OrderDirection: repository.StringPtr("ASC"),
@@ -438,7 +438,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 	queuedWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
 		WorkflowVersionId: &workflowVersionId,
 		GroupKey:          &groupKey,
-		Status:            &queued,
+		Statuses:          &[]db.WorkflowRunStatus{queued},
 		// order from oldest to newest
 		OrderBy:        repository.StringPtr("createdAt"),
 		OrderDirection: repository.StringPtr("ASC"),
