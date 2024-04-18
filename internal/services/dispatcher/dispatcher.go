@@ -213,16 +213,19 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 			return true
 		})
 
-		err = d.repo.Dispatcher().Delete(ctx, dispatcherId)
+		if err := d.s.Shutdown(); err != nil {
+			return fmt.Errorf("could not shutdown scheduler: %w", err)
+		}
+
+		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer deleteCancel()
+
+		err = d.repo.Dispatcher().Delete(deleteCtx, dispatcherId)
 		if err != nil {
 			return fmt.Errorf("could not delete dispatcher: %w", err)
 		}
 
 		d.l.Debug().Msgf("deleted dispatcher %s", dispatcherId)
-
-		if err := d.s.Shutdown(); err != nil {
-			return fmt.Errorf("could not shutdown scheduler: %w", err)
-		}
 
 		d.l.Debug().Msgf("dispatcher has shutdown")
 		return nil

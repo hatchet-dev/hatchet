@@ -202,16 +202,19 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 		cancel()
 
+		if err := t.s.Shutdown(); err != nil {
+			return fmt.Errorf("could not shutdown scheduler: %w", err)
+		}
+
+		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer deleteCancel()
+
 		// delete the ticker
-		err = t.repo.Ticker().Delete(ctx, t.tickerId)
+		err = t.repo.Ticker().Delete(deleteCtx, t.tickerId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not delete ticker")
 			return err
-		}
-
-		if err := t.s.Shutdown(); err != nil {
-			return fmt.Errorf("could not shutdown scheduler: %w", err)
 		}
 
 		return nil
