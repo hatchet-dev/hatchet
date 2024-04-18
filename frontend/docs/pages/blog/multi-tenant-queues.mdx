@@ -283,37 +283,29 @@ Which gives us much more promising output:
 This works — and you can modify this logic to be more distributed by maintaining a lease when a worker starts for a set amount of time — as long as the polling interval is below the query duration time (or more specifically, `pollingTime / numWorkers` is below the query duration time). But what happens when our queue starts to fill up? Let's add 10,000 enqueued tasks and run an `EXPLAIN ANALYZE` for this query to take a look at performance:
 
 ```sql
-                                                                 QUERY PLAN
----------------------------------------------------------------------------------------------------------------------------------------------
- Update on tasks  (cost=3060.81..3602.70 rows=77 width=42) (actual time=142.749..160.682 rows=100 loops=1)
-   CTE tasks_1
-     ->  Limit  (cost=2479.94..2480.19 rows=100 width=36) (actual time=116.248..116.405 rows=100 loops=1)
-           ->  Sort  (cost=2479.94..2517.65 rows=15087 width=36) (actual time=116.128..116.203 rows=100 loops=1)
-                 Sort Key: (row_number() OVER (?)), (random())
-                 Sort Method: top-N heapsort  Memory: 32kB
-                 ->  WindowAgg  (cost=1563.86..1903.32 rows=15087 width=36) (actual time=70.788..105.097 rows=10000 loops=1)
-                       ->  Sort  (cost=1563.86..1601.58 rows=15087 width=20) (actual time=69.491..72.651 rows=10000 loops=1)
-                             Sort Key: t.group_key, t.id
-                             Sort Method: quicksort  Memory: 1010kB
-                             ->  Seq Scan on tasks t  (cost=0.00..516.75 rows=15087 width=20) (actual time=0.587..12.837 rows=10000 loops=1)
-                                   Filter: (status = 'QUEUED'::"TaskStatus")
-   CTE eligible_tasks
-     ->  LockRows  (cost=3.25..578.12 rows=77 width=46) (actual time=119.137..133.640 rows=100 loops=1)
-           ->  Hash Join  (cost=3.25..577.35 rows=77 width=46) (actual time=118.408..132.472 rows=100 loops=1)
-                 Hash Cond: (t_1.id = tasks_1.id)
-                 ->  Seq Scan on tasks t_1  (cost=0.00..516.75 rows=15087 width=14) (actual time=0.660..9.547 rows=10000 loops=1)
-                       Filter: (status = 'QUEUED'::"TaskStatus")
-                 ->  Hash  (cost=2.00..2.00 rows=100 width=40) (actual time=117.536..117.569 rows=100 loops=1)
-                       Buckets: 1024  Batches: 1  Memory Usage: 18kB
-                       ->  CTE Scan on tasks_1  (cost=0.00..2.00 rows=100 width=40) (actual time=116.848..117.191 rows=100 loops=1)
-   ->  Hash Join  (cost=2.50..544.40 rows=77 width=42) (actual time=140.519..152.972 rows=100 loops=1)
-         Hash Cond: (tasks.id = eligible_tasks.id)
-         ->  Seq Scan on tasks  (cost=0.00..468.00 rows=19500 width=14) (actual time=5.947..13.352 rows=10000 loops=1)
-         ->  Hash  (cost=1.54..1.54 rows=77 width=40) (actual time=134.125..134.126 rows=100 loops=1)
-               Buckets: 1024  Batches: 1  Memory Usage: 16kB
-               ->  CTE Scan on eligible_tasks  (cost=0.00..1.54 rows=77 width=40) (actual time=119.320..134.017 rows=100 loops=1)
- Planning Time: 38.426 ms
- Execution Time: 165.835 ms
+                                                                        QUERY PLAN                                                                        
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+ Update on tasks  (cost=259.44..514.23 rows=1 width=78) (actual time=132.717..154.337 rows=100 loops=1)
+   ->  Hash Join  (cost=259.44..514.23 rows=1 width=78) (actual time=125.423..141.271 rows=100 loops=1)
+         Hash Cond: (tasks.id = t1.id)
+         ->  Seq Scan on tasks  (cost=0.00..254.60 rows=48 width=14) (actual time=0.566..10.550 rows=10000 loops=1)
+               Filter: (status = 'QUEUED'::"TaskStatus")
+         ->  Hash  (cost=258.84..258.84 rows=48 width=76) (actual time=124.155..124.213 rows=100 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 18kB
+               ->  Subquery Scan on t1  (cost=258.24..258.84 rows=48 width=76) (actual time=123.500..123.791 rows=100 loops=1)
+                     ->  Limit  (cost=258.24..258.36 rows=48 width=52) (actual time=122.951..123.066 rows=100 loops=1)
+                           ->  Sort  (cost=258.24..258.36 rows=48 width=52) (actual time=122.830..122.866 rows=100 loops=1)
+                                 Sort Key: (row_number() OVER (?)), t.id
+                                 Sort Method: top-N heapsort  Memory: 36kB
+                                 ->  WindowAgg  (cost=255.94..256.90 rows=48 width=52) (actual time=77.962..111.874 rows=10000 loops=1)
+                                       ->  Sort  (cost=255.94..256.06 rows=48 width=44) (actual time=76.751..79.917 rows=10000 loops=1)
+                                             Sort Key: t.group_key, t.id
+                                             Sort Method: quicksort  Memory: 1010kB
+                                             ->  Seq Scan on tasks t  (cost=0.00..254.60 rows=48 width=44) (actual time=0.093..15.310 rows=10000 loops=1)
+                                                   Filter: (status = 'QUEUED'::"TaskStatus")
+ Planning Time: 37.690 ms
+ Execution Time: 159.286 ms
+(20 rows)
 ```
 
 The important part here is the `WindowAgg` cost - computing a partition across all rows on the `groupKey` naturally involves querying every `QUEUED` row (in this case, `10000` tasks). We expect this to scale sublinearly with the number of rows in the input - let's take a guess and look at how our workers do on 25,000 enqueued rows:
