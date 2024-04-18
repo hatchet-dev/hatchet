@@ -1092,6 +1092,11 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 			resStepRun.Error = &stepRun.StepRun.Error.String
 		}
 
+		if stepRun.StepRun.CancelledReason.Valid {
+			errString := fmt.Sprintf("this step run was cancelled due to %s", stepRun.StepRun.CancelledReason.String)
+			resStepRun.Error = &errString
+		}
+
 		if stepRun.StepRun.Output != nil {
 			resStepRun.Output = repository.StringPtr(string(stepRun.StepRun.Output))
 		}
