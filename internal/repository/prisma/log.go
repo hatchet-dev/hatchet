@@ -150,7 +150,7 @@ func NewLogEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolo
 	}
 }
 
-func (r *logEngineRepository) PutLog(tenantId string, opts *repository.CreateLogLineOpts) (*dbsqlc.LogLine, error) {
+func (r *logEngineRepository) PutLog(ctx context.Context, tenantId string, opts *repository.CreateLogLineOpts) (*dbsqlc.LogLine, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -177,16 +177,16 @@ func (r *logEngineRepository) PutLog(tenantId string, opts *repository.CreateLog
 		createParams.Metadata = opts.Metadata
 	}
 
-	tx, err := r.pool.Begin(context.Background())
+	tx, err := r.pool.Begin(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
+	defer deferRollback(ctx, r.l, tx.Rollback)
 
 	logLine, err := r.queries.CreateLogLine(
-		context.Background(),
+		ctx,
 		tx,
 		createParams,
 	)
@@ -195,7 +195,7 @@ func (r *logEngineRepository) PutLog(tenantId string, opts *repository.CreateLog
 		return nil, fmt.Errorf("could not create log line: %w", err)
 	}
 
-	err = tx.Commit(context.Background())
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)

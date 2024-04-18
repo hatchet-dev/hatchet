@@ -2,6 +2,7 @@ package ticker
 
 import (
 	"context"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -11,9 +12,12 @@ import (
 
 func (t *TickerImpl) runPollGetGroupKeyRuns(ctx context.Context) func() {
 	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
 		t.l.Debug().Msgf("ticker: polling get group key runs")
 
-		getGroupKeyRuns, err := t.repo.Ticker().PollGetGroupKeyRuns(t.tickerId)
+		getGroupKeyRuns, err := t.repo.Ticker().PollGetGroupKeyRuns(ctx, t.tickerId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not poll get group key runs")

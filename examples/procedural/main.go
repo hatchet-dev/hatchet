@@ -172,7 +172,7 @@ func run(events chan<- string) (func() error, error) {
 							ChildSum: sum,
 						}, nil
 					},
-				),
+				).SetTimeout("10m"),
 			},
 		},
 	)

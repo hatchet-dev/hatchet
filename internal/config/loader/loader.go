@@ -336,7 +336,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		}
 
 		// generate a token for the internal client
-		token, err := auth.JWTManager.GenerateTenantToken(internalTenant.ID, fmt.Sprintf("internal-%s", tokenSuffix))
+		token, err := auth.JWTManager.GenerateTenantToken(context.Background(), internalTenant.ID, fmt.Sprintf("internal-%s", tokenSuffix))
 
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not generate internal token: %w", err)

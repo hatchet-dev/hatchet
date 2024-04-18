@@ -1,6 +1,7 @@
 package token
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -12,8 +13,8 @@ import (
 )
 
 type JWTManager interface {
-	GenerateTenantToken(tenantId, name string) (string, error)
-	ValidateTenantToken(token string) (string, error)
+	GenerateTenantToken(ctx context.Context, tenantId, name string) (string, error)
+	ValidateTenantToken(ctx context.Context, token string) (string, error)
 }
 
 type TokenOpts struct {
@@ -45,7 +46,7 @@ func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo reposit
 	}, nil
 }
 
-func (j *jwtManagerImpl) GenerateTenantToken(tenantId, name string) (string, error) {
+func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name string) (string, error) {
 	// Retrieve the JWT Signer primitive from privateKeysetHandle.
 	signer, err := jwt.NewSigner(j.encryption.GetPrivateJWTHandle())
 
@@ -68,7 +69,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(tenantId, name string) (string, err
 	}
 
 	// write the token to the database
-	_, err = j.tokenRepo.CreateAPIToken(&repository.CreateAPITokenOpts{
+	_, err = j.tokenRepo.CreateAPIToken(ctx, &repository.CreateAPITokenOpts{
 		ID:        tokenId,
 		ExpiresAt: expiresAt,
 		TenantId:  &tenantId,
@@ -82,7 +83,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(tenantId, name string) (string, err
 	return token, nil
 }
 
-func (j *jwtManagerImpl) ValidateTenantToken(token string) (tenantId string, err error) {
+func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId string, err error) {
 	// Verify the signed token.
 	audience := j.opts.Audience
 
@@ -140,7 +141,7 @@ func (j *jwtManagerImpl) ValidateTenantToken(token string) (tenantId string, err
 	}
 
 	// read the token from the database
-	dbToken, err := j.tokenRepo.GetAPITokenById(tokenId)
+	dbToken, err := j.tokenRepo.GetAPITokenById(ctx, tokenId)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to read token from database: %v", err)

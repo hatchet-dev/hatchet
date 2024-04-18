@@ -100,7 +100,7 @@ func NewEngineTokenRepository(pool *pgxpool.Pool, v validator.Validator, l *zero
 	}
 }
 
-func (a *engineTokenRepository) CreateAPIToken(opts *repository.CreateAPITokenOpts) (*dbsqlc.APIToken, error) {
+func (a *engineTokenRepository) CreateAPIToken(ctx context.Context, opts *repository.CreateAPITokenOpts) (*dbsqlc.APIToken, error) {
 	if err := a.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -118,11 +118,11 @@ func (a *engineTokenRepository) CreateAPIToken(opts *repository.CreateAPITokenOp
 		createParams.Name = sqlchelpers.TextFromStr(*opts.Name)
 	}
 
-	return a.queries.CreateAPIToken(context.Background(), a.pool, createParams)
+	return a.queries.CreateAPIToken(ctx, a.pool, createParams)
 }
 
-func (a *engineTokenRepository) GetAPITokenById(id string) (*dbsqlc.APIToken, error) {
+func (a *engineTokenRepository) GetAPITokenById(ctx context.Context, id string) (*dbsqlc.APIToken, error) {
 	return cache.MakeCacheable[dbsqlc.APIToken](a.cache, id, func() (*dbsqlc.APIToken, error) {
-		return a.queries.GetAPITokenById(context.Background(), a.pool, sqlchelpers.UUIDFromStr(id))
+		return a.queries.GetAPITokenById(ctx, a.pool, sqlchelpers.UUIDFromStr(id))
 	})
 }

@@ -16,9 +16,12 @@ import (
 
 func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
 		t.l.Debug().Msgf("ticker: polling cron schedules")
 
-		crons, err := t.repo.Ticker().PollCronSchedules(t.tickerId)
+		crons, err := t.repo.Ticker().PollCronSchedules(ctx, t.tickerId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not poll cron schedules")
@@ -98,9 +101,12 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 
 func (t *TickerImpl) runCronWorkflow(ctx context.Context, tenantId, workflowVersionId, cron, cronParentId string, input []byte) func() {
 	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
 
-		workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(tenantId, workflowVersionId)
+		workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not get workflow version")
@@ -122,7 +128,7 @@ func (t *TickerImpl) runCronWorkflow(ctx context.Context, tenantId, workflowVers
 			return
 		}
 
-		jobRuns, err := t.repo.JobRun().ListJobRunsForWorkflowRun(tenantId, workflowRunId)
+		jobRuns, err := t.repo.JobRun().ListJobRunsForWorkflowRun(ctx, tenantId, workflowRunId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not list job runs for workflow run")

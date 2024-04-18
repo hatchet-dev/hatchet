@@ -33,7 +33,7 @@ func NewStreamEventsEngineRepository(pool *pgxpool.Pool, v validator.Validator, 
 	}
 }
 
-func (r *streamEventEngineRepository) PutStreamEvent(tenantId string, opts *repository.CreateStreamEventOpts) (*dbsqlc.StreamEvent, error) {
+func (r *streamEventEngineRepository) PutStreamEvent(ctx context.Context, tenantId string, opts *repository.CreateStreamEventOpts) (*dbsqlc.StreamEvent, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -53,16 +53,16 @@ func (r *streamEventEngineRepository) PutStreamEvent(tenantId string, opts *repo
 		createParams.Metadata = opts.Metadata
 	}
 
-	tx, err := r.pool.Begin(context.Background())
+	tx, err := r.pool.Begin(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
+	defer deferRollback(ctx, r.l, tx.Rollback)
 
 	streamEvent, err := r.queries.CreateStreamEvent(
-		context.Background(),
+		ctx,
 		tx,
 		createParams,
 	)
@@ -71,7 +71,7 @@ func (r *streamEventEngineRepository) PutStreamEvent(tenantId string, opts *repo
 		return nil, fmt.Errorf("could not create stream event: %w", err)
 	}
 
-	err = tx.Commit(context.Background())
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
@@ -80,16 +80,16 @@ func (r *streamEventEngineRepository) PutStreamEvent(tenantId string, opts *repo
 	return streamEvent, nil
 }
 
-func (r *streamEventEngineRepository) GetStreamEvent(tenantId string, streamEventId int64) (*dbsqlc.StreamEvent, error) {
+func (r *streamEventEngineRepository) GetStreamEvent(ctx context.Context, tenantId string, streamEventId int64) (*dbsqlc.StreamEvent, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	tx, err := r.pool.Begin(context.Background())
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
+	defer deferRollback(ctx, r.l, tx.Rollback)
 
-	streamEvent, err := r.queries.GetStreamEvent(context.Background(), tx, dbsqlc.GetStreamEventParams{
+	streamEvent, err := r.queries.GetStreamEvent(ctx, tx, dbsqlc.GetStreamEventParams{
 		ID:       streamEventId,
 		Tenantid: pgTenantId,
 	})
@@ -101,7 +101,7 @@ func (r *streamEventEngineRepository) GetStreamEvent(tenantId string, streamEven
 		return nil, fmt.Errorf("could not get stream event: %w", err)
 	}
 
-	err = tx.Commit(context.Background())
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
@@ -110,15 +110,15 @@ func (r *streamEventEngineRepository) GetStreamEvent(tenantId string, streamEven
 	return streamEvent, nil
 }
 
-func (r *streamEventEngineRepository) CleanupStreamEvents() error {
-	tx, err := r.pool.Begin(context.Background())
+func (r *streamEventEngineRepository) CleanupStreamEvents(ctx context.Context) error {
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
+	defer deferRollback(ctx, r.l, tx.Rollback)
 
-	err = r.queries.CleanupStreamEvents(context.Background(), r.pool)
+	err = r.queries.CleanupStreamEvents(ctx, r.pool)
 
 	if err != nil {
 		return fmt.Errorf("could not cleanup stream events: %w", err)

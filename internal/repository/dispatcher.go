@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
@@ -16,12 +17,12 @@ type UpdateDispatcherOpts struct {
 
 type DispatcherEngineRepository interface {
 	// CreateNewDispatcher creates a new dispatcher for a given tenant.
-	CreateNewDispatcher(opts *CreateDispatcherOpts) (*dbsqlc.Dispatcher, error)
+	CreateNewDispatcher(ctx context.Context, opts *CreateDispatcherOpts) (*dbsqlc.Dispatcher, error)
 
 	// UpdateDispatcher updates a dispatcher for a given tenant.
-	UpdateDispatcher(dispatcherId string, opts *UpdateDispatcherOpts) (*dbsqlc.Dispatcher, error)
+	UpdateDispatcher(ctx context.Context, dispatcherId string, opts *UpdateDispatcherOpts) (*dbsqlc.Dispatcher, error)
 
-	Delete(dispatcherId string) error
+	Delete(ctx context.Context, dispatcherId string) error
 
-	UpdateStaleDispatchers(onStale func(dispatcherId string, getValidDispatcherId func() string) error) error
+	UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId string, getValidDispatcherId func() string) error) error
 }

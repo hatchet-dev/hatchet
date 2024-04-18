@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -28,6 +29,6 @@ type APITokenRepository interface {
 }
 
 type EngineTokenRepository interface {
-	CreateAPIToken(opts *CreateAPITokenOpts) (*dbsqlc.APIToken, error)
-	GetAPITokenById(id string) (*dbsqlc.APIToken, error)
+	CreateAPIToken(ctx context.Context, opts *CreateAPITokenOpts) (*dbsqlc.APIToken, error)
+	GetAPITokenById(ctx context.Context, id string) (*dbsqlc.APIToken, error)
 }

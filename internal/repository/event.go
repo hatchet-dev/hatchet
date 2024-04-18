@@ -74,7 +74,7 @@ type EventEngineRepository interface {
 	CreateEvent(ctx context.Context, opts *CreateEventOpts) (*dbsqlc.Event, error)
 
 	// GetEventForEngine returns an event for the engine by id.
-	GetEventForEngine(tenantId, id string) (*dbsqlc.Event, error)
+	GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error)
 
-	ListEventsByIds(tenantId string, ids []string) ([]*dbsqlc.Event, error)
+	ListEventsByIds(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.Event, error)
 }

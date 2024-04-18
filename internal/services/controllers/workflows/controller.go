@@ -224,7 +224,7 @@ func (ec *WorkflowsControllerImpl) handleGroupKeyRunStarted(ctx context.Context,
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	_, err = ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(metadata.TenantId, payload.GetGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+	_, err = ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, metadata.TenantId, payload.GetGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		StartedAt: &startedAt,
 		Status:    repository.StepRunStatusPtr(db.StepRunStatusRunning),
 	})
@@ -258,7 +258,7 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	groupKeyRun, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(metadata.TenantId, payload.GetGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+	groupKeyRun, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, metadata.TenantId, payload.GetGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		FinishedAt: &finishedAt,
 		Status:     repository.StepRunStatusPtr(db.StepRunStatusSucceeded),
 		Output:     &payload.GroupKey,
@@ -272,7 +272,7 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context
 
 	errGroup.Go(func() error {
 		workflowVersionId := sqlchelpers.UUIDToStr(groupKeyRun.WorkflowVersionId)
-		workflowVersion, err := wc.repo.Workflow().GetWorkflowVersionById(metadata.TenantId, workflowVersionId)
+		workflowVersion, err := wc.repo.Workflow().GetWorkflowVersionById(ctx, metadata.TenantId, workflowVersionId)
 
 		if err != nil {
 			return fmt.Errorf("could not get workflow version: %w", err)
@@ -320,7 +320,7 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFailed(ctx context.Context, 
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	_, err = wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(metadata.TenantId, payload.GetGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+	_, err = wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, metadata.TenantId, payload.GetGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		FinishedAt: &failedAt,
 		Error:      &payload.Error,
 		Status:     repository.StepRunStatusPtr(db.StepRunStatusFailed),
@@ -362,7 +362,7 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 	// cancel current step run
 	now := time.Now().UTC()
 
-	_, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+	_, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		CancelledAt:     &now,
 		CancelledReason: repository.StringPtr(reason),
 		Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),

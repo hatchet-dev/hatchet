@@ -138,25 +138,25 @@ func NewWorkerEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zer
 	}
 }
 
-func (w *workerEngineRepository) GetWorkerForEngine(tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error) {
-	return w.queries.GetWorkerForEngine(context.Background(), w.pool, dbsqlc.GetWorkerForEngineParams{
+func (w *workerEngineRepository) GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error) {
+	return w.queries.GetWorkerForEngine(ctx, w.pool, dbsqlc.GetWorkerForEngineParams{
 		ID:       sqlchelpers.UUIDFromStr(workerId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
 }
 
-func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *repository.CreateWorkerOpts) (*dbsqlc.Worker, error) {
+func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId string, opts *repository.CreateWorkerOpts) (*dbsqlc.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	tx, err := w.pool.Begin(context.Background())
+	tx, err := w.pool.Begin(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), w.l, tx.Rollback)
+	defer deferRollback(ctx, w.l, tx.Rollback)
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
@@ -180,7 +180,7 @@ func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *reposito
 		}
 	}
 
-	worker, err := w.queries.CreateWorker(context.Background(), tx, createParams)
+	worker, err := w.queries.CreateWorker(ctx, tx, createParams)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create worker: %w", err)
@@ -188,7 +188,7 @@ func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *reposito
 
 	createSemParams.Workerid = worker.ID
 
-	_, err = w.queries.CreateWorkerSemaphore(context.Background(), tx, createSemParams)
+	_, err = w.queries.CreateWorkerSemaphore(ctx, tx, createSemParams)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create worker semaphore: %w", err)
@@ -197,7 +197,7 @@ func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *reposito
 	svcUUIDs := make([]pgtype.UUID, len(opts.Services))
 
 	for i, svc := range opts.Services {
-		dbSvc, err := w.queries.UpsertService(context.Background(), tx, dbsqlc.UpsertServiceParams{
+		dbSvc, err := w.queries.UpsertService(ctx, tx, dbsqlc.UpsertServiceParams{
 			Name:     svc,
 			Tenantid: pgTenantId,
 		})
@@ -209,7 +209,7 @@ func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *reposito
 		svcUUIDs[i] = dbSvc.ID
 	}
 
-	err = w.queries.LinkServicesToWorker(context.Background(), tx, dbsqlc.LinkServicesToWorkerParams{
+	err = w.queries.LinkServicesToWorker(ctx, tx, dbsqlc.LinkServicesToWorkerParams{
 		Services: svcUUIDs,
 		Workerid: worker.ID,
 	})
@@ -221,7 +221,7 @@ func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *reposito
 	actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
 
 	for i, action := range opts.Actions {
-		dbAction, err := w.queries.UpsertAction(context.Background(), tx, dbsqlc.UpsertActionParams{
+		dbAction, err := w.queries.UpsertAction(ctx, tx, dbsqlc.UpsertActionParams{
 			Action:   action,
 			Tenantid: pgTenantId,
 		})
@@ -233,7 +233,7 @@ func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *reposito
 		actionUUIDs[i] = dbAction.ID
 	}
 
-	err = w.queries.LinkActionsToWorker(context.Background(), tx, dbsqlc.LinkActionsToWorkerParams{
+	err = w.queries.LinkActionsToWorker(ctx, tx, dbsqlc.LinkActionsToWorkerParams{
 		Actionids: actionUUIDs,
 		Workerid:  worker.ID,
 	})
@@ -242,7 +242,7 @@ func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *reposito
 		return nil, fmt.Errorf("could not link actions to worker: %w", err)
 	}
 
-	err = tx.Commit(context.Background())
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
@@ -251,18 +251,18 @@ func (w *workerEngineRepository) CreateNewWorker(tenantId string, opts *reposito
 	return worker, nil
 }
 
-func (w *workerEngineRepository) UpdateWorker(tenantId, workerId string, opts *repository.UpdateWorkerOpts) (*dbsqlc.Worker, error) {
+func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, workerId string, opts *repository.UpdateWorkerOpts) (*dbsqlc.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	tx, err := w.pool.Begin(context.Background())
+	tx, err := w.pool.Begin(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), w.l, tx.Rollback)
+	defer deferRollback(ctx, w.l, tx.Rollback)
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
@@ -285,7 +285,7 @@ func (w *workerEngineRepository) UpdateWorker(tenantId, workerId string, opts *r
 		updateParams.DispatcherId = sqlchelpers.UUIDFromStr(*opts.DispatcherId)
 	}
 
-	worker, err := w.queries.UpdateWorker(context.Background(), tx, updateParams)
+	worker, err := w.queries.UpdateWorker(ctx, tx, updateParams)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not update worker: %w", err)
@@ -295,7 +295,7 @@ func (w *workerEngineRepository) UpdateWorker(tenantId, workerId string, opts *r
 		actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
 
 		for i, action := range opts.Actions {
-			dbAction, err := w.queries.UpsertAction(context.Background(), tx, dbsqlc.UpsertActionParams{
+			dbAction, err := w.queries.UpsertAction(ctx, tx, dbsqlc.UpsertActionParams{
 				Action:   action,
 				Tenantid: pgTenantId,
 			})
@@ -307,7 +307,7 @@ func (w *workerEngineRepository) UpdateWorker(tenantId, workerId string, opts *r
 			actionUUIDs[i] = dbAction.ID
 		}
 
-		err = w.queries.LinkActionsToWorker(context.Background(), tx, dbsqlc.LinkActionsToWorkerParams{
+		err = w.queries.LinkActionsToWorker(ctx, tx, dbsqlc.LinkActionsToWorkerParams{
 			Actionids: actionUUIDs,
 			Workerid:  sqlchelpers.UUIDFromStr(workerId),
 		})
@@ -317,7 +317,7 @@ func (w *workerEngineRepository) UpdateWorker(tenantId, workerId string, opts *r
 		}
 	}
 
-	err = tx.Commit(context.Background())
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
@@ -326,8 +326,8 @@ func (w *workerEngineRepository) UpdateWorker(tenantId, workerId string, opts *r
 	return worker, nil
 }
 
-func (w *workerEngineRepository) DeleteWorker(tenantId, workerId string) error {
-	_, err := w.queries.DeleteWorker(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, workerId string) error {
+	_, err := w.queries.DeleteWorker(ctx, w.pool, sqlchelpers.UUIDFromStr(workerId))
 
 	return err
 }

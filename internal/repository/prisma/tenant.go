@@ -151,12 +151,12 @@ func NewTenantEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zer
 	}
 }
 
-func (r *tenantEngineRepository) ListTenants() ([]*dbsqlc.Tenant, error) {
-	return r.queries.ListTenants(context.Background(), r.pool)
+func (r *tenantEngineRepository) ListTenants(ctx context.Context) ([]*dbsqlc.Tenant, error) {
+	return r.queries.ListTenants(ctx, r.pool)
 }
 
-func (r *tenantEngineRepository) GetTenantByID(tenantId string) (*dbsqlc.Tenant, error) {
+func (r *tenantEngineRepository) GetTenantByID(ctx context.Context, tenantId string) (*dbsqlc.Tenant, error) {
 	return cache.MakeCacheable[dbsqlc.Tenant](r.cache, tenantId, func() (*dbsqlc.Tenant, error) {
-		return r.queries.GetTenantByID(context.Background(), r.pool, sqlchelpers.UUIDFromStr(tenantId))
+		return r.queries.GetTenantByID(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 	})
 }

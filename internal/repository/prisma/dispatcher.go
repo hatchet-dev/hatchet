@@ -31,33 +31,33 @@ func NewDispatcherRepository(pool *pgxpool.Pool, v validator.Validator, l *zerol
 	}
 }
 
-func (d *dispatcherRepository) CreateNewDispatcher(opts *repository.CreateDispatcherOpts) (*dbsqlc.Dispatcher, error) {
+func (d *dispatcherRepository) CreateNewDispatcher(ctx context.Context, opts *repository.CreateDispatcherOpts) (*dbsqlc.Dispatcher, error) {
 	if err := d.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return d.queries.CreateDispatcher(context.Background(), d.pool, sqlchelpers.UUIDFromStr(opts.ID))
+	return d.queries.CreateDispatcher(ctx, d.pool, sqlchelpers.UUIDFromStr(opts.ID))
 }
 
-func (d *dispatcherRepository) UpdateDispatcher(dispatcherId string, opts *repository.UpdateDispatcherOpts) (*dbsqlc.Dispatcher, error) {
+func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherId string, opts *repository.UpdateDispatcherOpts) (*dbsqlc.Dispatcher, error) {
 	if err := d.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return d.queries.UpdateDispatcher(context.Background(), d.pool, dbsqlc.UpdateDispatcherParams{
+	return d.queries.UpdateDispatcher(ctx, d.pool, dbsqlc.UpdateDispatcherParams{
 		ID:              sqlchelpers.UUIDFromStr(dispatcherId),
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
 	})
 }
 
-func (d *dispatcherRepository) Delete(dispatcherId string) error {
-	_, err := d.queries.DeleteDispatcher(context.Background(), d.pool, sqlchelpers.UUIDFromStr(dispatcherId))
+func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId string) error {
+	_, err := d.queries.DeleteDispatcher(ctx, d.pool, sqlchelpers.UUIDFromStr(dispatcherId))
 
 	return err
 }
 
-func (d *dispatcherRepository) UpdateStaleDispatchers(onStale func(dispatcherId string, getValidDispatcherId func() string) error) error {
-	tx, err := d.pool.Begin(context.Background())
+func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId string, getValidDispatcherId func() string) error) error {
+	tx, err := d.pool.Begin(ctx)
 
 	if err != nil {
 		return err

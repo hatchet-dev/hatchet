@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -64,13 +65,13 @@ type WorkerAPIRepository interface {
 
 type WorkerEngineRepository interface {
 	// CreateNewWorker creates a new worker for a given tenant.
-	CreateNewWorker(tenantId string, opts *CreateWorkerOpts) (*dbsqlc.Worker, error)
+	CreateNewWorker(ctx context.Context, tenantId string, opts *CreateWorkerOpts) (*dbsqlc.Worker, error)
 
 	// UpdateWorker updates a worker for a given tenant.
-	UpdateWorker(tenantId, workerId string, opts *UpdateWorkerOpts) (*dbsqlc.Worker, error)
+	UpdateWorker(ctx context.Context, tenantId, workerId string, opts *UpdateWorkerOpts) (*dbsqlc.Worker, error)
 
 	// DeleteWorker removes the worker from the database
-	DeleteWorker(tenantId, workerId string) error
+	DeleteWorker(ctx context.Context, tenantId, workerId string) error
 
-	GetWorkerForEngine(tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
+	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
 }
