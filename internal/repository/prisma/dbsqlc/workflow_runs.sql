@@ -38,8 +38,8 @@ WHERE
     runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
     ) AND
     (
-    sqlc.narg('status')::"WorkflowRunStatus" IS NULL OR
-    runs."status" = sqlc.narg('status')::"WorkflowRunStatus"
+        sqlc.narg('statuses')::text[] IS NULL OR
+        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
     );
 
 -- name: ListWorkflowRuns :many
@@ -87,8 +87,8 @@ WHERE
     runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
     ) AND
     (
-    sqlc.narg('status')::"WorkflowRunStatus" IS NULL OR
-    runs."status" = sqlc.narg('status')::"WorkflowRunStatus"
+        sqlc.narg('statuses')::text[] IS NULL OR
+        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
