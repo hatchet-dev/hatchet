@@ -138,8 +138,8 @@ func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l
 	}
 }
 
-func (w *workflowRunEngineRepository) GetWorkflowRunById(tenantId, id string) (*dbsqlc.GetWorkflowRunRow, error) {
-	runs, err := w.queries.GetWorkflowRun(context.Background(), w.pool, dbsqlc.GetWorkflowRunParams{
+func (w *workflowRunEngineRepository) GetWorkflowRunById(ctx context.Context, tenantId, id string) (*dbsqlc.GetWorkflowRunRow, error) {
+	runs, err := w.queries.GetWorkflowRun(ctx, w.pool, dbsqlc.GetWorkflowRunParams{
 		Ids: []pgtype.UUID{
 			sqlchelpers.UUIDFromStr(id),
 		},
@@ -157,15 +157,15 @@ func (w *workflowRunEngineRepository) GetWorkflowRunById(tenantId, id string) (*
 	return runs[0], nil
 }
 
-func (w *workflowRunEngineRepository) ListWorkflowRuns(tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
+func (w *workflowRunEngineRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return listWorkflowRuns(context.Background(), w.pool, w.queries, w.l, tenantId, opts)
+	return listWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, opts)
 }
 
-func (w *workflowRunEngineRepository) GetChildWorkflowRun(parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error) {
+func (w *workflowRunEngineRepository) GetChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error) {
 	params := dbsqlc.GetChildWorkflowRunParams{
 		Parentid:        sqlchelpers.UUIDFromStr(parentId),
 		Parentsteprunid: sqlchelpers.UUIDFromStr(parentStepRunId),
@@ -179,10 +179,10 @@ func (w *workflowRunEngineRepository) GetChildWorkflowRun(parentId, parentStepRu
 		params.ChildKey = sqlchelpers.TextFromStr(*childkey)
 	}
 
-	return w.queries.GetChildWorkflowRun(context.Background(), w.pool, params)
+	return w.queries.GetChildWorkflowRun(ctx, w.pool, params)
 }
 
-func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error) {
+func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error) {
 	params := dbsqlc.GetScheduledChildWorkflowRunParams{
 		Parentid:        sqlchelpers.UUIDFromStr(parentId),
 		Parentsteprunid: sqlchelpers.UUIDFromStr(parentStepRunId),
@@ -196,11 +196,11 @@ func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(parentId, par
 		params.ChildKey = sqlchelpers.TextFromStr(*childkey)
 	}
 
-	return w.queries.GetScheduledChildWorkflowRun(context.Background(), w.pool, params)
+	return w.queries.GetScheduledChildWorkflowRun(ctx, w.pool, params)
 }
 
-func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error) {
-	return w.queries.PopWorkflowRunsRoundRobin(context.Background(), w.pool, dbsqlc.PopWorkflowRunsRoundRobinParams{
+func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error) {
+	return w.queries.PopWorkflowRunsRoundRobin(ctx, w.pool, dbsqlc.PopWorkflowRunsRoundRobinParams{
 		Maxruns:    int32(maxRuns),
 		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
 		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
@@ -254,6 +254,17 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		countParams.WorkflowVersionId = pgWorkflowVersionId
 	}
 
+	if opts.Ids != nil && len(opts.Ids) > 0 {
+		pgIds := make([]pgtype.UUID, len(opts.Ids))
+
+		for i, id := range opts.Ids {
+			pgIds[i] = sqlchelpers.UUIDFromStr(id)
+		}
+
+		queryParams.Ids = pgIds
+		countParams.Ids = pgIds
+	}
+
 	if opts.ParentId != nil {
 		pgParentId := sqlchelpers.UUIDFromStr(*opts.ParentId)
 
@@ -305,27 +316,27 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 
 	queryParams.Orderby = orderByField + " " + orderByDirection
 
-	tx, err := pool.Begin(context.Background())
+	tx, err := pool.Begin(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), l, tx.Rollback)
+	defer deferRollback(ctx, l, tx.Rollback)
 
-	workflowRuns, err := queries.ListWorkflowRuns(context.Background(), tx, queryParams)
+	workflowRuns, err := queries.ListWorkflowRuns(ctx, tx, queryParams)
 
 	if err != nil {
 		return nil, err
 	}
 
-	count, err := queries.CountWorkflowRuns(context.Background(), tx, countParams)
+	count, err := queries.CountWorkflowRuns(ctx, tx, countParams)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
-	err = tx.Commit(context.Background())
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return nil, err
@@ -354,7 +365,7 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 			return nil, err
 		}
 
-		defer deferRollback(context.Background(), l, tx.Rollback)
+		defer deferRollback(ctx, l, tx.Rollback)
 
 		pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 

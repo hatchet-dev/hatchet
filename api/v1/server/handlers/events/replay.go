@@ -19,7 +19,7 @@ func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpda
 		eventIds[i] = request.Body.EventIds[i].String()
 	}
 
-	events, err := t.config.EngineRepository.Event().ListEventsByIds(tenant.ID, eventIds)
+	events, err := t.config.EngineRepository.Event().ListEventsByIds(ctx.Request().Context(), tenant.ID, eventIds)
 
 	if err != nil {
 		return nil, err

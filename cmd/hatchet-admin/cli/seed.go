@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -123,14 +124,14 @@ func runSeed(cf *loader.ConfigLoader) error {
 }
 
 func seedDev(repo repository.EngineRepository, tenantId string) error {
-	_, err := repo.Workflow().GetWorkflowByName(tenantId, "test-workflow")
+	_, err := repo.Workflow().GetWorkflowByName(context.Background(), tenantId, "test-workflow")
 
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
 
-		wf, err := repo.Workflow().CreateNewWorkflow(tenantId, &repository.CreateWorkflowVersionOpts{
+		wf, err := repo.Workflow().CreateNewWorkflow(context.Background(), tenantId, &repository.CreateWorkflowVersionOpts{
 			Name:        "test-workflow",
 			Description: repository.StringPtr("This is a test workflow."),
 			Version:     repository.StringPtr("v0.1.0"),

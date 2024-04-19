@@ -27,7 +27,7 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 		), nil
 	}
 
-	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(tenant.ID, stepRun.ID)
+	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(ctx.Request().Context(), tenant.ID, stepRun.ID)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get step run for engine: %w", err)

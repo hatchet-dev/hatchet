@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"context"
+
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
@@ -59,8 +61,8 @@ type TenantAPIRepository interface {
 
 type TenantEngineRepository interface {
 	// ListTenants lists all tenants in the instance
-	ListTenants() ([]*dbsqlc.Tenant, error)
+	ListTenants(ctx context.Context) ([]*dbsqlc.Tenant, error)
 
 	// GetTenantByID returns the tenant with the given id
-	GetTenantByID(tenantId string) (*dbsqlc.Tenant, error)
+	GetTenantByID(ctx context.Context, tenantId string) (*dbsqlc.Tenant, error)
 }

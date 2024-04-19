@@ -9,20 +9,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
 
-type ListAllStepRunsOpts struct {
-	TickerId *string
-
-	NoTickerId *bool
-
-	Status *db.StepRunStatus
-}
-
 type ListStepRunsOpts struct {
-	JobRunId *string
+	WorkflowRunIds []string `validate:"dive,uuid"`
 
-	WorkflowRunId *string
-
-	Status *db.StepRunStatus
+	Status *dbsqlc.StepRunStatus
 }
 
 type UpdateStepRunOpts struct {
@@ -81,35 +71,32 @@ type StepRunAPIRepository interface {
 }
 
 type StepRunEngineRepository interface {
-	// ListRunningStepRunsForTicker returns a list of step runs which are currently running for a ticker.
-	ListRunningStepRunsForTicker(tickerId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
-
-	// ListRunningStepRunsForWorkflowRun returns a list of step runs which are currently running for a workflow run.
-	ListRunningStepRunsForWorkflowRun(tenantId, workflowRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+	// ListStepRunsForWorkflowRun returns a list of step runs for a workflow run.
+	ListStepRuns(ctx context.Context, tenantId string, opts *ListStepRunsOpts) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStepRunsToRequeue returns a list of step runs which are in a requeueable state.
-	ListStepRunsToRequeue(tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+	ListStepRunsToRequeue(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
-	ListStepRunsToReassign(tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *StepRunUpdateInfo, error)
 
 	// UpdateStepRunOverridesData updates the overrides data field in the input for a step run. This returns the input
 	// bytes.
-	UpdateStepRunOverridesData(tenantId, stepRunId string, opts *UpdateStepRunOverridesDataOpts) ([]byte, error)
+	UpdateStepRunOverridesData(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOverridesDataOpts) ([]byte, error)
 
-	UpdateStepRunInputSchema(tenantId, stepRunId string, schema []byte) ([]byte, error)
+	UpdateStepRunInputSchema(ctx context.Context, tenantId, stepRunId string, schema []byte) ([]byte, error)
 
 	AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (workerId string, dispatcherId string, err error)
 
-	GetStepRunForEngine(tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
+	GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 
 	// QueueStepRun is like UpdateStepRun, except that it will only update the step run if it is in
 	// a pending state.
 	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
 
-	ListStartableStepRuns(tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
-	ArchiveStepRunResult(tenantId, stepRunId string) error
+	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error
 }

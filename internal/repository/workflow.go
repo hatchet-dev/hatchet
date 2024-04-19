@@ -215,22 +215,22 @@ type WorkflowAPIRepository interface {
 type WorkflowEngineRepository interface {
 	// CreateNewWorkflow creates a new workflow for a given tenant. It will create the parent
 	// workflow based on the version's name.
-	CreateNewWorkflow(tenantId string, opts *CreateWorkflowVersionOpts) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
+	CreateNewWorkflow(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
 
 	// CreateWorkflowVersion creates a new workflow version for a given tenant. This will fail if there is
 	// not a parent workflow with the same name already in the database.
-	CreateWorkflowVersion(tenantId string, opts *CreateWorkflowVersionOpts) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
+	CreateWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
 
 	// CreateSchedules creates schedules for a given workflow version.
-	CreateSchedules(tenantId, workflowVersionId string, opts *CreateWorkflowSchedulesOpts) ([]*dbsqlc.WorkflowTriggerScheduledRef, error)
+	CreateSchedules(ctx context.Context, tenantId, workflowVersionId string, opts *CreateWorkflowSchedulesOpts) ([]*dbsqlc.WorkflowTriggerScheduledRef, error)
 
 	// GetScheduledById returns a scheduled workflow by its id.
 	// GetScheduledById(tenantId, scheduleTriggerId string) (*db.WorkflowTriggerScheduledRefModel, error)
 
-	GetLatestWorkflowVersion(tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
+	GetLatestWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
 
 	// GetWorkflowByName returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
-	GetWorkflowByName(tenantId, workflowName string) (*dbsqlc.Workflow, error)
+	GetWorkflowByName(ctx context.Context, tenantId, workflowName string) (*dbsqlc.Workflow, error)
 
 	// ListWorkflowsForEvent returns the latest workflow versions for a given tenant that are triggered by the
 	// given event.
@@ -238,5 +238,5 @@ type WorkflowEngineRepository interface {
 
 	// GetWorkflowVersionById returns a workflow version by its id. It will return db.ErrNotFound if the workflow
 	// version does not exist.
-	GetWorkflowVersionById(tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
+	GetWorkflowVersionById(ctx context.Context, tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
 }

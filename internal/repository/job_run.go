@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"context"
+
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -32,7 +34,7 @@ type JobRunAPIRepository interface {
 type JobRunEngineRepository interface {
 	// SetJobRunStatusRunning resets the status of a job run to a RUNNING status. This is useful if a step
 	// run is being manually replayed, but shouldn't be used by most callers.
-	SetJobRunStatusRunning(tenantId, jobRunId string) error
+	SetJobRunStatusRunning(ctx context.Context, tenantId, jobRunId string) error
 
-	ListJobRunsForWorkflowRun(tenantId, workflowRunId string) ([]pgtype.UUID, error)
+	ListJobRunsForWorkflowRun(ctx context.Context, tenantId, workflowRunId string) ([]pgtype.UUID, error)
 }

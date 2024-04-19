@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -95,7 +96,8 @@ func run(events chan<- string) (func() error, error) {
 
 						eg.SetLimit(NUM_CHILDREN)
 
-						childOutputs := make([]int, NUM_CHILDREN)
+						childOutputs := make([]int, 0)
+						childOutputsMu := sync.Mutex{}
 
 						for i, childWorkflow := range childWorkflows {
 							eg.Go(func(i int, childWorkflow *worker.ChildWorkflow) func() error {
@@ -114,7 +116,9 @@ func run(events chan<- string) (func() error, error) {
 										return err
 									}
 
-									childOutputs[i] = childOutput.Index
+									childOutputsMu.Lock()
+									childOutputs = append(childOutputs, childOutput.Index)
+									childOutputsMu.Unlock()
 
 									events <- fmt.Sprintf("child-%d-completed", childOutput.Index)
 
@@ -124,10 +128,38 @@ func run(events chan<- string) (func() error, error) {
 							}(i, childWorkflow))
 						}
 
-						err = eg.Wait()
+						finishedCh := make(chan struct{})
 
-						if err != nil {
-							return nil, err
+						go func() {
+							defer close(finishedCh)
+							err = eg.Wait()
+						}()
+
+						timer := time.NewTimer(60 * time.Second)
+
+						select {
+						case <-finishedCh:
+							if err != nil {
+								return nil, err
+							}
+						case <-timer.C:
+							incomplete := make([]int, 0)
+							// print non-complete children
+							for i := range childWorkflows {
+								completed := false
+								for _, childOutput := range childOutputs {
+									if childOutput == i {
+										completed = true
+										break
+									}
+								}
+
+								if !completed {
+									incomplete = append(incomplete, i)
+								}
+							}
+
+							return nil, fmt.Errorf("timed out waiting for the following child workflows to complete: %v", incomplete)
 						}
 
 						sum := 0
@@ -140,7 +172,7 @@ func run(events chan<- string) (func() error, error) {
 							ChildSum: sum,
 						}, nil
 					},
-				),
+				).SetTimeout("10m"),
 			},
 		},
 	)

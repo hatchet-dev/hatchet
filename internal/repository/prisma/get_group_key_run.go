@@ -34,20 +34,20 @@ func NewGetGroupKeyRunRepository(pool *pgxpool.Pool, v validator.Validator, l *z
 	}
 }
 
-func (s *getGroupKeyRunRepository) ListGetGroupKeyRunsToRequeue(tenantId string) ([]*dbsqlc.GetGroupKeyRun, error) {
-	return s.queries.ListGetGroupKeyRunsToRequeue(context.Background(), s.pool, sqlchelpers.UUIDFromStr(tenantId))
+func (s *getGroupKeyRunRepository) ListGetGroupKeyRunsToRequeue(ctx context.Context, tenantId string) ([]*dbsqlc.GetGroupKeyRun, error) {
+	return s.queries.ListGetGroupKeyRunsToRequeue(ctx, s.pool, sqlchelpers.UUIDFromStr(tenantId))
 }
 
-func (s *getGroupKeyRunRepository) ListGetGroupKeyRunsToReassign(tenantId string) ([]*dbsqlc.GetGroupKeyRun, error) {
-	return s.queries.ListGetGroupKeyRunsToReassign(context.Background(), s.pool, sqlchelpers.UUIDFromStr(tenantId))
+func (s *getGroupKeyRunRepository) ListGetGroupKeyRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetGroupKeyRun, error) {
+	return s.queries.ListGetGroupKeyRunsToReassign(ctx, s.pool, sqlchelpers.UUIDFromStr(tenantId))
 }
 
-func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToWorker(tenantId, getGroupKeyRunId string) (workerId string, dispatcherId string, err error) {
+func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToWorker(ctx context.Context, tenantId, getGroupKeyRunId string) (workerId string, dispatcherId string, err error) {
 	// var assigned
 	var assigned *dbsqlc.AssignGetGroupKeyRunToWorkerRow
 
 	err = retrier(s.l, func() (err error) {
-		assigned, err = s.queries.AssignGetGroupKeyRunToWorker(context.Background(), s.pool, dbsqlc.AssignGetGroupKeyRunToWorkerParams{
+		assigned, err = s.queries.AssignGetGroupKeyRunToWorker(ctx, s.pool, dbsqlc.AssignGetGroupKeyRunToWorkerParams{
 			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
 			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
 		})
@@ -70,12 +70,12 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToWorker(tenantId, getGro
 	return sqlchelpers.UUIDToStr(assigned.WorkerId), sqlchelpers.UUIDToStr(assigned.DispatcherId), nil
 }
 
-func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToTicker(tenantId, getGroupKeyRunId string) (tickerId string, err error) {
+func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToTicker(ctx context.Context, tenantId, getGroupKeyRunId string) (tickerId string, err error) {
 	// var assigned
 	var assigned *dbsqlc.AssignGetGroupKeyRunToTickerRow
 
 	err = retrier(s.l, func() (err error) {
-		assigned, err = s.queries.AssignGetGroupKeyRunToTicker(context.Background(), s.pool, dbsqlc.AssignGetGroupKeyRunToTickerParams{
+		assigned, err = s.queries.AssignGetGroupKeyRunToTicker(ctx, s.pool, dbsqlc.AssignGetGroupKeyRunToTickerParams{
 			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
 			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
 		})
@@ -98,7 +98,7 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToTicker(tenantId, getGro
 	return sqlchelpers.UUIDToStr(assigned.TickerId), nil
 }
 
-func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId string, opts *repository.UpdateGetGroupKeyRunOpts) (*dbsqlc.GetGroupKeyRunForEngineRow, error) {
+func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, tenantId, getGroupKeyRunId string, opts *repository.UpdateGetGroupKeyRunOpts) (*dbsqlc.GetGroupKeyRunForEngineRow, error) {
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -158,15 +158,15 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRun
 		updateParams.ScheduleTimeoutAt = sqlchelpers.TimestampFromTime(*opts.ScheduleTimeoutAt)
 	}
 
-	tx, err := s.pool.Begin(context.Background())
+	tx, err := s.pool.Begin(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), s.l, tx.Rollback)
+	defer deferRollback(ctx, s.l, tx.Rollback)
 
-	res1, err := s.queries.UpdateGetGroupKeyRun(context.Background(), tx, updateParams)
+	res1, err := s.queries.UpdateGetGroupKeyRun(ctx, tx, updateParams)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not update get group key run: %w", err)
@@ -174,14 +174,14 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRun
 
 	// only update workflow run if status or output has changed
 	if opts.Status != nil || opts.Output != nil {
-		_, err = s.queries.UpdateWorkflowRunGroupKey(context.Background(), tx, updateWorkflowRunParams)
+		_, err = s.queries.UpdateWorkflowRunGroupKey(ctx, tx, updateWorkflowRunParams)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not resolve workflow run status from get group key run: %w", err)
 		}
 	}
 
-	getGroupKeyRuns, err := s.queries.GetGroupKeyRunForEngine(context.Background(), tx, dbsqlc.GetGroupKeyRunForEngineParams{
+	getGroupKeyRuns, err := s.queries.GetGroupKeyRunForEngine(ctx, tx, dbsqlc.GetGroupKeyRunForEngineParams{
 		Ids:      []pgtype.UUID{res1.ID},
 		Tenantid: pgTenantId,
 	})
@@ -194,7 +194,7 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRun
 		return nil, fmt.Errorf("could not find get group key run for engine")
 	}
 
-	err = tx.Commit(context.Background())
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return nil, err
@@ -203,8 +203,8 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(tenantId, getGroupKeyRun
 	return getGroupKeyRuns[0], nil
 }
 
-func (s *getGroupKeyRunRepository) GetGroupKeyRunForEngine(tenantId, getGroupKeyRunId string) (*dbsqlc.GetGroupKeyRunForEngineRow, error) {
-	res, err := s.queries.GetGroupKeyRunForEngine(context.Background(), s.pool, dbsqlc.GetGroupKeyRunForEngineParams{
+func (s *getGroupKeyRunRepository) GetGroupKeyRunForEngine(ctx context.Context, tenantId, getGroupKeyRunId string) (*dbsqlc.GetGroupKeyRunForEngineRow, error) {
+	res, err := s.queries.GetGroupKeyRunForEngine(ctx, s.pool, dbsqlc.GetGroupKeyRunForEngineParams{
 		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(getGroupKeyRunId)},
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})

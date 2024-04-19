@@ -40,7 +40,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 	}
 
 	// get the workflow run in the database
-	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(metadata.TenantId, payload.WorkflowRunId)
+	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, metadata.TenantId, payload.WorkflowRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get job run: %w", err)
@@ -63,7 +63,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 			return fmt.Errorf("could not get group key run")
 		}
 
-		sqlcGroupKeyRun, err := wc.repo.GetGroupKeyRun().GetGroupKeyRunForEngine(metadata.TenantId, groupKeyRunId)
+		sqlcGroupKeyRun, err := wc.repo.GetGroupKeyRun().GetGroupKeyRunForEngine(ctx, metadata.TenantId, groupKeyRunId)
 
 		if err != nil {
 			return fmt.Errorf("could not get group key run for engine: %w", err)
@@ -107,7 +107,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 	}
 
 	// get the workflow run in the database
-	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(metadata.TenantId, payload.WorkflowRunId)
+	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, metadata.TenantId, payload.WorkflowRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get job run: %w", err)
@@ -159,7 +159,7 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.GetGroupKeyRun.ID)
 	workflowRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.WorkflowRunId)
 
-	getGroupKeyRun, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+	getGroupKeyRun, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		Status: repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment),
 	})
 
@@ -168,6 +168,7 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	}
 
 	selectedWorkerId, dispatcherId, err := wc.repo.GetGroupKeyRun().AssignGetGroupKeyRunToWorker(
+		ctx,
 		tenantId,
 		getGroupKeyRunId,
 	)
@@ -207,7 +208,7 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 	tenantId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId)
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 
-	jobRuns, err := wc.repo.JobRun().ListJobRunsForWorkflowRun(tenantId, workflowRunId)
+	jobRuns, err := wc.repo.JobRun().ListJobRunsForWorkflowRun(ctx, tenantId, workflowRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not list job runs: %w", err)
@@ -237,7 +238,7 @@ func (wc *WorkflowsControllerImpl) runGetGroupKeyRunRequeue(ctx context.Context)
 		wc.l.Debug().Msgf("workflows controller: checking get group key run requeue")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenants()
+		tenants, err := wc.repo.Tenant().ListTenants(ctx)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")
@@ -268,7 +269,7 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunRequeueTenant(ctx context.Co
 	ctx, span := telemetry.NewSpan(ctx, "handle-get-group-key-run-requeue")
 	defer span.End()
 
-	getGroupKeyRuns, err := ec.repo.GetGroupKeyRun().ListGetGroupKeyRunsToRequeue(tenantId)
+	getGroupKeyRuns, err := ec.repo.GetGroupKeyRun().ListGetGroupKeyRunsToRequeue(ctx, tenantId)
 
 	if err != nil {
 		return fmt.Errorf("could not list group key runs: %w", err)
@@ -300,7 +301,7 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunRequeueTenant(ctx context.Co
 			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
 			if isTimedOut {
-				_, err := ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+				_, err := ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 					CancelledAt:     &now,
 					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
 					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
@@ -315,7 +316,7 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunRequeueTenant(ctx context.Co
 
 			requeueAfter := time.Now().UTC().Add(time.Second * 4)
 
-			innerGetGroupKeyRun, err = ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+			innerGetGroupKeyRun, err = ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 				RequeueAfter: &requeueAfter,
 			})
 
@@ -335,7 +336,7 @@ func (wc *WorkflowsControllerImpl) runGetGroupKeyRunReassign(ctx context.Context
 		wc.l.Debug().Msgf("workflows controller: checking get group key run reassign")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenants()
+		tenants, err := wc.repo.Tenant().ListTenants(ctx)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")
@@ -365,7 +366,7 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunReassignTenant(ctx context.C
 	ctx, span := telemetry.NewSpan(ctx, "handle-get-group-key-run-reassign")
 	defer span.End()
 
-	getGroupKeyRuns, err := ec.repo.GetGroupKeyRun().ListGetGroupKeyRunsToReassign(tenantId)
+	getGroupKeyRuns, err := ec.repo.GetGroupKeyRun().ListGetGroupKeyRunsToReassign(ctx, tenantId)
 
 	if err != nil {
 		return fmt.Errorf("could not list get group key runs: %w", err)
@@ -389,7 +390,7 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunReassignTenant(ctx context.C
 
 			requeueAfter := time.Now().UTC().Add(time.Second * 4)
 
-			innerGetGroupKeyRun, err = ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+			innerGetGroupKeyRun, err = ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 				RequeueAfter: &requeueAfter,
 				Status:       repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment),
 			})
@@ -416,7 +417,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 
 	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
 
-	runningWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(tenantId, &repository.ListWorkflowRunsOpts{
+	runningWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
 		WorkflowVersionId: &workflowVersionId,
 		GroupKey:          &groupKey,
 		Statuses:          &[]db.WorkflowRunStatus{running},
@@ -434,7 +435,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
-	queuedWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(tenantId, &repository.ListWorkflowRunsOpts{
+	queuedWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
 		WorkflowVersionId: &workflowVersionId,
 		GroupKey:          &groupKey,
 		Statuses:          &[]db.WorkflowRunStatus{queued},
@@ -462,7 +463,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 
 		errGroup.Go(func() error {
 			workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
-			return wc.cancelWorkflowRun(tenantId, workflowRunId)
+			return wc.cancelWorkflowRun(ctx, tenantId, workflowRunId)
 		})
 	}
 
@@ -481,7 +482,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 
 		errGroup.Go(func() error {
 			workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
-			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(tenantId, workflowRunId)
+			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
 
 			if err != nil {
 				return fmt.Errorf("could not get workflow run: %w", err)
@@ -509,7 +510,7 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 	wc.l.Info().Msgf("handling queue with strategy GROUP_ROUND_ROBIN for workflow version %s", workflowVersionId)
 
 	// get workflow runs which are queued for this group key
-	poppedWorkflowRuns, err := wc.repo.WorkflowRun().PopWorkflowRunsRoundRobin(tenantId, workflowId, maxRuns)
+	poppedWorkflowRuns, err := wc.repo.WorkflowRun().PopWorkflowRunsRoundRobin(ctx, tenantId, workflowId, maxRuns)
 
 	if err != nil {
 		return fmt.Errorf("could not list queued workflow runs: %w", err)
@@ -524,7 +525,7 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 			workflowRunId := sqlchelpers.UUIDToStr(row.ID)
 
 			wc.l.Info().Msgf("popped workflow run %s", workflowRunId)
-			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(tenantId, workflowRunId)
+			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
 
 			if err != nil {
 				return fmt.Errorf("could not get workflow run: %w", err)
@@ -541,9 +542,15 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 	return nil
 }
 
-func (wc *WorkflowsControllerImpl) cancelWorkflowRun(tenantId, workflowRunId string) error {
+func (wc *WorkflowsControllerImpl) cancelWorkflowRun(ctx context.Context, tenantId, workflowRunId string) error {
 	// cancel all running step runs
-	stepRuns, err := wc.repo.StepRun().ListRunningStepRunsForWorkflowRun(tenantId, workflowRunId)
+	runningStatus := dbsqlc.StepRunStatusRUNNING
+	stepRuns, err := wc.repo.StepRun().ListStepRuns(ctx, tenantId, &repository.ListStepRunsOpts{
+		Status: &runningStatus,
+		WorkflowRunIds: []string{
+			workflowRunId,
+		},
+	})
 
 	if err != nil {
 		return fmt.Errorf("could not list step runs: %w", err)

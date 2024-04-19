@@ -2,12 +2,17 @@ package dispatcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -144,7 +149,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	}
 
 	// create a worker in the database
-	worker, err := s.repo.Worker().CreateNewWorker(tenantId, opts)
+	worker, err := s.repo.Worker().CreateNewWorker(ctx, tenantId, opts)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not create worker for tenant %s", tenantId)
@@ -170,7 +175,9 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
-	worker, err := s.repo.Worker().GetWorkerForEngine(tenantId, request.WorkerId)
+	ctx := stream.Context()
+
+	worker, err := s.repo.Worker().GetWorkerForEngine(ctx, tenantId, request.WorkerId)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
@@ -179,7 +186,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if worker.DispatcherId.Valid && sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId {
-		_, err = s.repo.Worker().UpdateWorker(tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+		_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})
 
@@ -203,8 +210,6 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		s.workers.Delete(request.WorkerId)
 	}()
 
-	ctx := stream.Context()
-
 	// update the worker with a last heartbeat time every 5 seconds as long as the worker is connected
 	go func() {
 		timer := time.NewTicker(100 * time.Millisecond)
@@ -225,7 +230,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
 					s.l.Debug().Msgf("updating worker %s heartbeat", request.WorkerId)
 
-					_, err := s.repo.Worker().UpdateWorker(tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+					_, err := s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
 						LastHeartbeatAt: &now,
 					})
 
@@ -259,9 +264,11 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	ctx := stream.Context()
+
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
-	worker, err := s.repo.Worker().GetWorkerForEngine(tenantId, request.WorkerId)
+	worker, err := s.repo.Worker().GetWorkerForEngine(ctx, tenantId, request.WorkerId)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not get worker %s", request.WorkerId)
@@ -270,7 +277,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
 	if worker.DispatcherId.Valid && sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId {
-		_, err = s.repo.Worker().UpdateWorker(tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+		_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})
 
@@ -295,7 +302,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 		inactive := db.WorkerStatusInactive
 
-		_, err := s.repo.Worker().UpdateWorker(tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+		_, err := s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
 			Status: &inactive,
 		})
 
@@ -303,8 +310,6 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 			s.l.Error().Err(err).Msgf("could not update worker %s status to inactive", request.WorkerId)
 		}
 	}()
-
-	ctx := stream.Context()
 
 	// Keep the connection alive for sending messages
 	for {
@@ -335,7 +340,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		s.l.Warn().Msgf("heartbeat time is greater than expected heartbeat interval")
 	}
 
-	_, err := s.repo.Worker().UpdateWorker(tenantId, req.WorkerId, &repository.UpdateWorkerOpts{
+	_, err := s.repo.Worker().UpdateWorker(ctx, tenantId, req.WorkerId, &repository.UpdateWorkerOpts{
 		// use the system time for heartbeat
 		LastHeartbeatAt: &heartbeatAt,
 	})
@@ -411,6 +416,219 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 	return nil
 }
 
+// map of workflow run ids to whether the workflow runs are finished and have sent a message
+// that the workflow run is finished
+type workflowRunAcks struct {
+	acks map[string]bool
+	mu   sync.RWMutex
+}
+
+func (w *workflowRunAcks) addWorkflowRun(id string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.acks[id] = false
+}
+
+func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	ids := make([]string, 0, len(w.acks))
+
+	for id := range w.acks {
+		if !w.acks[id] {
+			ids = append(ids, id)
+		}
+	}
+
+	return ids
+}
+
+func (w *workflowRunAcks) ackWorkflowRun(id string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.acks[id] = true
+}
+
+type sendTimeFilter struct {
+	mu sync.Mutex
+}
+
+func (s *sendTimeFilter) canSend() bool {
+	if !s.mu.TryLock() {
+		return false
+	}
+
+	go func() {
+		time.Sleep(time.Second - 10*time.Millisecond)
+		s.mu.Unlock()
+	}()
+
+	return true
+}
+
+// SubscribeToWorkflowEvents registers workflow events with the dispatcher
+func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
+	tenant := server.Context().Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
+
+	acks := &workflowRunAcks{
+		acks: make(map[string]bool),
+	}
+
+	ctx, cancel := context.WithCancel(server.Context())
+	defer cancel()
+
+	// subscribe to the task queue for the tenant
+	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
+
+	if err != nil {
+		return err
+	}
+
+	wg := sync.WaitGroup{}
+
+	sendEvent := func(e *contracts.WorkflowRunEvent) error {
+		// send the task to the client
+		err := server.Send(e)
+
+		if err != nil {
+			cancel() // FIXME is this necessary?
+			s.l.Error().Err(err).Msgf("could not send workflow event to client")
+			return err
+		}
+
+		acks.ackWorkflowRun(e.WorkflowRunId)
+
+		return nil
+	}
+
+	immediateSendFilter := &sendTimeFilter{}
+	iterSendFilter := &sendTimeFilter{}
+
+	iter := func(workflowRunIds []string) error {
+		limit := 1000
+
+		workflowRuns, err := s.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
+			Ids:   workflowRunIds,
+			Limit: &limit,
+		})
+
+		if err != nil {
+			s.l.Error().Err(err).Msg("could not get workflow runs")
+			return nil
+		}
+
+		events, err := s.toWorkflowRunEvent(tenantId, workflowRuns.Rows)
+
+		if err != nil {
+			s.l.Error().Err(err).Msg("could not convert workflow run to event")
+			return nil
+		} else if events == nil {
+			return nil
+		}
+
+		for _, event := range events {
+			err := sendEvent(event)
+
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	// start a new goroutine to handle client-side streaming
+	go func() {
+		for {
+			req, err := server.Recv()
+
+			if err != nil {
+				cancel()
+				if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+					return
+				}
+
+				s.l.Error().Err(err).Msg("could not receive message from client")
+				return
+			}
+
+			acks.addWorkflowRun(req.WorkflowRunId)
+
+			if immediateSendFilter.canSend() {
+				if err := iter([]string{req.WorkflowRunId}); err != nil {
+					s.l.Error().Err(err).Msg("could not iterate over workflow runs")
+				}
+			}
+		}
+	}()
+
+	f := func(task *msgqueue.Message) error {
+		wg.Add(1)
+		defer wg.Done()
+
+		workflowRunIds := acks.getNonAckdWorkflowRuns()
+
+		if matchedWorkflowRunId, ok := s.isMatchingWorkflowRun(task, workflowRunIds...); ok {
+			if immediateSendFilter.canSend() {
+				if err := iter([]string{matchedWorkflowRunId}); err != nil {
+					s.l.Error().Err(err).Msg("could not iterate over workflow runs")
+				}
+			}
+		}
+
+		return nil
+	}
+
+	// subscribe to the task queue for the tenant
+	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
+
+	if err != nil {
+		return err
+	}
+
+	// new goroutine to poll every second for finished workflow runs which are not ackd
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if !iterSendFilter.canSend() {
+					continue
+				}
+
+				workflowRunIds := acks.getNonAckdWorkflowRuns()
+
+				if len(workflowRunIds) == 0 {
+					continue
+				}
+
+				if err := iter(workflowRunIds); err != nil {
+					s.l.Error().Err(err).Msg("could not iterate over workflow runs")
+				}
+			}
+		}
+	}()
+
+	<-ctx.Done()
+
+	if err := cleanupQueue(); err != nil {
+		return fmt.Errorf("could not cleanup queue: %w", err)
+	}
+
+	waitFor(&wg, 60*time.Second, s.l)
+
+	return nil
+}
+
 func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 	done := make(chan struct{})
 
@@ -470,7 +688,7 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 		opts.CallerFile = &request.CallerFilename
 	}
 
-	_, err := s.repo.StepRun().UpdateStepRunOverridesData(tenantId, request.StepRunId, opts)
+	_, err := s.repo.StepRun().UpdateStepRunOverridesData(ctx, tenantId, request.StepRunId, opts)
 
 	if err != nil {
 		return nil, err
@@ -488,7 +706,7 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 
 	inactive := db.WorkerStatusInactive
 
-	_, err := s.repo.Worker().UpdateWorker(tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+	_, err := s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
 		Status: &inactive,
 	})
 
@@ -716,7 +934,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request
 	}, nil
 }
 
-func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenantId, workflowRunId string) (*contracts.WorkflowEvent, error) {
+func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenantId string, workflowRunIds ...string) (*contracts.WorkflowEvent, error) {
 	workflowEvent := &contracts.WorkflowEvent{}
 
 	var stepRunId string
@@ -764,13 +982,13 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 
 	if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_STEP_RUN {
 		// determine if this step run matches the workflow run id
-		stepRun, err := s.repo.StepRun().GetStepRunForEngine(tenantId, stepRunId)
+		stepRun, err := s.repo.StepRun().GetStepRunForEngine(context.Background(), tenantId, stepRunId)
 
 		if err != nil {
 			return nil, err
 		}
 
-		if sqlchelpers.UUIDToStr(stepRun.WorkflowRunId) != workflowRunId {
+		if !contains(workflowRunIds, sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)) {
 			// this is an expected error, so we don't return it
 			return nil, nil
 		}
@@ -784,7 +1002,7 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 				return nil, err
 			}
 
-			streamEvent, err := s.repo.StreamEvent().GetStreamEvent(tenantId, streamEventId)
+			streamEvent, err := s.repo.StreamEvent().GetStreamEvent(context.Background(), tenantId, streamEventId)
 
 			if err != nil {
 				return nil, err
@@ -794,7 +1012,7 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 		}
 
 	} else if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN {
-		if workflowEvent.ResourceId != workflowRunId {
+		if !contains(workflowRunIds, workflowEvent.ResourceId) {
 			return nil, nil
 		}
 
@@ -802,4 +1020,105 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 	}
 
 	return workflowEvent, nil
+}
+
+func (s *DispatcherImpl) isMatchingWorkflowRun(task *msgqueue.Message, workflowRunIds ...string) (string, bool) {
+	if task.ID != "workflow-run-finished" {
+		return "", false
+	}
+
+	workflowRunId := task.Payload["workflow_run_id"].(string)
+
+	if contains(workflowRunIds, workflowRunId) {
+		return workflowRunId, true
+	}
+
+	return "", false
+}
+
+func (s *DispatcherImpl) toWorkflowRunEvent(tenantId string, workflowRuns []*dbsqlc.ListWorkflowRunsRow) ([]*contracts.WorkflowRunEvent, error) {
+	workflowRunIds := make([]string, 0)
+
+	for _, workflowRun := range workflowRuns {
+		if workflowRun.WorkflowRun.Status != dbsqlc.WorkflowRunStatusFAILED && workflowRun.WorkflowRun.Status != dbsqlc.WorkflowRunStatusSUCCEEDED {
+			continue
+		}
+
+		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+
+		workflowRunIds = append(workflowRunIds, workflowRunId)
+	}
+
+	res := make([]*contracts.WorkflowRunEvent, 0)
+
+	// get step run results for each workflow run
+	mappedStepRunResults, err := s.getStepResultsForWorkflowRun(tenantId, workflowRunIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for workflowRunId, stepRunResults := range mappedStepRunResults {
+		res = append(res, &contracts.WorkflowRunEvent{
+			WorkflowRunId:  workflowRunId,
+			EventType:      contracts.WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED,
+			EventTimestamp: timestamppb.Now(),
+			Results:        stepRunResults,
+		})
+	}
+
+	return res, nil
+}
+
+func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowRunIds []string) (map[string][]*contracts.StepRunResult, error) {
+	stepRuns, err := s.repo.StepRun().ListStepRuns(context.Background(), tenantId, &repository.ListStepRunsOpts{
+		WorkflowRunIds: workflowRunIds,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string][]*contracts.StepRunResult)
+
+	for _, stepRun := range stepRuns {
+		resStepRun := &contracts.StepRunResult{
+			StepRunId:      sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
+			StepReadableId: stepRun.StepReadableId.String,
+			JobRunId:       sqlchelpers.UUIDToStr(stepRun.JobRunId),
+		}
+
+		if stepRun.StepRun.Error.Valid {
+			resStepRun.Error = &stepRun.StepRun.Error.String
+		}
+
+		if stepRun.StepRun.CancelledReason.Valid {
+			errString := fmt.Sprintf("this step run was cancelled due to %s", stepRun.StepRun.CancelledReason.String)
+			resStepRun.Error = &errString
+		}
+
+		if stepRun.StepRun.Output != nil {
+			resStepRun.Output = repository.StringPtr(string(stepRun.StepRun.Output))
+		}
+
+		workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
+
+		if currResults, ok := res[workflowRunId]; ok {
+			res[workflowRunId] = append(currResults, resStepRun)
+		} else {
+			res[workflowRunId] = []*contracts.StepRunResult{resStepRun}
+		}
+	}
+
+	return res, nil
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+
+	return false
 }

@@ -432,14 +432,17 @@ FROM
 JOIN
     "JobRun" ON "StepRun"."jobRunId" = "JobRun"."id"
 WHERE
-    "StepRun"."tenantId" = $1::uuid
+    (
+        $1::uuid IS NULL OR
+        "StepRun"."tenantId" = $1::uuid
+    )
     AND (
         $2::"StepRunStatus" IS NULL OR
         "StepRun"."status" = $2::"StepRunStatus"
     )
     AND (
-        $3::uuid IS NULL OR
-        "JobRun"."workflowRunId" = $3::uuid
+        $3::uuid[] IS NULL OR
+        "JobRun"."workflowRunId" = ANY($3::uuid[])
     )
     AND (
         $4::uuid IS NULL OR
@@ -452,18 +455,18 @@ WHERE
 `
 
 type ListStepRunsParams struct {
-	Tenantid      pgtype.UUID       `json:"tenantid"`
-	Status        NullStepRunStatus `json:"status"`
-	WorkflowRunId pgtype.UUID       `json:"workflowRunId"`
-	JobRunId      pgtype.UUID       `json:"jobRunId"`
-	TickerId      pgtype.UUID       `json:"tickerId"`
+	TenantId       pgtype.UUID       `json:"tenantId"`
+	Status         NullStepRunStatus `json:"status"`
+	WorkflowRunIds []pgtype.UUID     `json:"workflowRunIds"`
+	JobRunId       pgtype.UUID       `json:"jobRunId"`
+	TickerId       pgtype.UUID       `json:"tickerId"`
 }
 
 func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsParams) ([]pgtype.UUID, error) {
 	rows, err := db.Query(ctx, listStepRuns,
-		arg.Tenantid,
+		arg.TenantId,
 		arg.Status,
-		arg.WorkflowRunId,
+		arg.WorkflowRunIds,
 		arg.JobRunId,
 		arg.TickerId,
 	)

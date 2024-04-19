@@ -36,7 +36,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		workflowVersionId = versions[0].ID
 	}
 
-	workflowVersion, err := t.config.EngineRepository.Workflow().GetWorkflowVersionById(tenant.ID, workflowVersionId)
+	workflowVersion, err := t.config.EngineRepository.Workflow().GetWorkflowVersionById(ctx.Request().Context(), tenant.ID, workflowVersionId)
 
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {

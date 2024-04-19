@@ -35,36 +35,41 @@ WHERE
         workflow."id" = $3::uuid
     ) AND
     (
-        $4::uuid IS NULL OR
-        runs."parentId" = $4::uuid
+        $4::uuid[] IS NULL OR
+        runs."id" = ANY($4::uuid[])
     ) AND
     (
         $5::uuid IS NULL OR
-        runs."parentStepRunId" = $5::uuid
+        runs."parentId" = $5::uuid
     ) AND
     (
         $6::uuid IS NULL OR
-        events."id" = $6::uuid
+        runs."parentStepRunId" = $6::uuid
     ) AND
     (
-    $7::text IS NULL OR
-    runs."concurrencyGroupId" = $7::text
+        $7::uuid IS NULL OR
+        events."id" = $7::uuid
     ) AND
     (
-        $8::text[] IS NULL OR
-        "status" = ANY(cast($8::text[] as "WorkflowRunStatus"[]))
+    $8::text IS NULL OR
+    runs."concurrencyGroupId" = $8::text
+    ) AND
+    (
+        $9::text[] IS NULL OR
+        "status" = ANY(cast($9::text[] as "WorkflowRunStatus"[]))
     )
 `
 
 type CountWorkflowRunsParams struct {
-	TenantId          pgtype.UUID `json:"tenantId"`
-	WorkflowVersionId pgtype.UUID `json:"workflowVersionId"`
-	WorkflowId        pgtype.UUID `json:"workflowId"`
-	ParentId          pgtype.UUID `json:"parentId"`
-	ParentStepRunId   pgtype.UUID `json:"parentStepRunId"`
-	EventId           pgtype.UUID `json:"eventId"`
-	GroupKey          pgtype.Text `json:"groupKey"`
-	Statuses          []string    `json:"statuses"`
+	TenantId          pgtype.UUID   `json:"tenantId"`
+	WorkflowVersionId pgtype.UUID   `json:"workflowVersionId"`
+	WorkflowId        pgtype.UUID   `json:"workflowId"`
+	Ids               []pgtype.UUID `json:"ids"`
+	ParentId          pgtype.UUID   `json:"parentId"`
+	ParentStepRunId   pgtype.UUID   `json:"parentStepRunId"`
+	EventId           pgtype.UUID   `json:"eventId"`
+	GroupKey          pgtype.Text   `json:"groupKey"`
+	Statuses          []string      `json:"statuses"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -72,6 +77,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.TenantId,
 		arg.WorkflowVersionId,
 		arg.WorkflowId,
+		arg.Ids,
 		arg.ParentId,
 		arg.ParentStepRunId,
 		arg.EventId,
@@ -709,46 +715,51 @@ WHERE
         workflow."id" = $3::uuid
     ) AND
     (
-        $4::uuid IS NULL OR
-        runs."parentId" = $4::uuid
+        $4::uuid[] IS NULL OR
+        runs."id" = ANY($4::uuid[])
     ) AND
     (
         $5::uuid IS NULL OR
-        runs."parentStepRunId" = $5::uuid
+        runs."parentId" = $5::uuid
     ) AND
     (
         $6::uuid IS NULL OR
-        events."id" = $6::uuid
+        runs."parentStepRunId" = $6::uuid
     ) AND
     (
-    $7::text IS NULL OR
-    runs."concurrencyGroupId" = $7::text
+        $7::uuid IS NULL OR
+        events."id" = $7::uuid
     ) AND
     (
-        $8::text[] IS NULL OR
-        "status" = ANY(cast($8::text[] as "WorkflowRunStatus"[]))
+    $8::text IS NULL OR
+    runs."concurrencyGroupId" = $8::text
+    ) AND
+    (
+        $9::text[] IS NULL OR
+        "status" = ANY(cast($9::text[] as "WorkflowRunStatus"[]))
     )
 ORDER BY
-    case when $9 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when $9 = 'createdAt DESC' then runs."createdAt" END DESC
+    case when $10 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+    case when $10 = 'createdAt DESC' then runs."createdAt" END DESC
 OFFSET
-    COALESCE($10, 0)
+    COALESCE($11, 0)
 LIMIT
-    COALESCE($11, 50)
+    COALESCE($12, 50)
 `
 
 type ListWorkflowRunsParams struct {
-	TenantId          pgtype.UUID `json:"tenantId"`
-	WorkflowVersionId pgtype.UUID `json:"workflowVersionId"`
-	WorkflowId        pgtype.UUID `json:"workflowId"`
-	ParentId          pgtype.UUID `json:"parentId"`
-	ParentStepRunId   pgtype.UUID `json:"parentStepRunId"`
-	EventId           pgtype.UUID `json:"eventId"`
-	GroupKey          pgtype.Text `json:"groupKey"`
-	Statuses          []string    `json:"statuses"`
-	Orderby           interface{} `json:"orderby"`
-	Offset            interface{} `json:"offset"`
-	Limit             interface{} `json:"limit"`
+	TenantId          pgtype.UUID   `json:"tenantId"`
+	WorkflowVersionId pgtype.UUID   `json:"workflowVersionId"`
+	WorkflowId        pgtype.UUID   `json:"workflowId"`
+	Ids               []pgtype.UUID `json:"ids"`
+	ParentId          pgtype.UUID   `json:"parentId"`
+	ParentStepRunId   pgtype.UUID   `json:"parentStepRunId"`
+	EventId           pgtype.UUID   `json:"eventId"`
+	GroupKey          pgtype.Text   `json:"groupKey"`
+	Statuses          []string      `json:"statuses"`
+	Orderby           interface{}   `json:"orderby"`
+	Offset            interface{}   `json:"offset"`
+	Limit             interface{}   `json:"limit"`
 }
 
 type ListWorkflowRunsRow struct {
@@ -767,6 +778,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 		arg.TenantId,
 		arg.WorkflowVersionId,
 		arg.WorkflowId,
+		arg.Ids,
 		arg.ParentId,
 		arg.ParentStepRunId,
 		arg.EventId,

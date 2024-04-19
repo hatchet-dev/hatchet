@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
@@ -23,27 +24,27 @@ type ListTickerOpts struct {
 
 type TickerEngineRepository interface {
 	// CreateNewTicker creates a new ticker.
-	CreateNewTicker(opts *CreateTickerOpts) (*dbsqlc.Ticker, error)
+	CreateNewTicker(ctx context.Context, opts *CreateTickerOpts) (*dbsqlc.Ticker, error)
 
 	// UpdateTicker updates a ticker.
-	UpdateTicker(tickerId string, opts *UpdateTickerOpts) (*dbsqlc.Ticker, error)
+	UpdateTicker(ctx context.Context, tickerId string, opts *UpdateTickerOpts) (*dbsqlc.Ticker, error)
 
 	// ListTickers lists tickers.
-	ListTickers(opts *ListTickerOpts) ([]*dbsqlc.Ticker, error)
+	ListTickers(ctx context.Context, opts *ListTickerOpts) ([]*dbsqlc.Ticker, error)
 
 	// Delete deletes a ticker.
-	Delete(tickerId string) error
+	Delete(ctx context.Context, tickerId string) error
 
 	// PollStepRuns looks for step runs who are close to past their timeoutAt value and are in a running state
-	PollStepRuns(tickerId string) ([]*dbsqlc.StepRun, error)
+	PollStepRuns(ctx context.Context, tickerId string) ([]*dbsqlc.StepRun, error)
 
 	// PollJobRuns looks for get group key runs who are close to past their timeoutAt value and are in a running state
-	PollGetGroupKeyRuns(tickerId string) ([]*dbsqlc.GetGroupKeyRun, error)
+	PollGetGroupKeyRuns(ctx context.Context, tickerId string) ([]*dbsqlc.GetGroupKeyRun, error)
 
 	// PollCronSchedules returns all cron schedules which should be managed by the ticker
-	PollCronSchedules(tickerId string) ([]*dbsqlc.PollCronSchedulesRow, error)
+	PollCronSchedules(ctx context.Context, tickerId string) ([]*dbsqlc.PollCronSchedulesRow, error)
 
-	PollScheduledWorkflows(tickerId string) ([]*dbsqlc.PollScheduledWorkflowsRow, error)
+	PollScheduledWorkflows(ctx context.Context, tickerId string) ([]*dbsqlc.PollScheduledWorkflowsRow, error)
 
 	// // AddJobRun assigns a job run to a ticker.
 	// AddJobRun(tickerId string, jobRun *db.JobRunModel) (*db.TickerModel, error)

@@ -43,6 +43,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		}
 
 		workflowRun, err := a.repo.WorkflowRun().GetChildWorkflowRun(
+			ctx,
 			*req.ParentId,
 			*req.ParentStepRunId,
 			int(*req.ChildIndex),
@@ -63,6 +64,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	workflow, err := a.repo.Workflow().GetWorkflowByName(
+		ctx,
 		tenantId,
 		req.Name,
 	)
@@ -79,6 +81,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	workflowVersion, err := a.repo.Workflow().GetLatestWorkflowVersion(
+		ctx,
 		tenantId,
 		sqlchelpers.UUIDToStr(workflow.ID),
 	)
@@ -144,6 +147,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 	var oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow
 
 	currWorkflow, err := a.repo.Workflow().GetWorkflowByName(
+		ctx,
 		tenantId,
 		req.Opts.Name,
 	)
@@ -155,6 +159,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 
 		// workflow does not exist, create it
 		workflowVersion, err = a.repo.Workflow().CreateNewWorkflow(
+			ctx,
 			tenantId,
 			createOpts,
 		)
@@ -164,6 +169,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		}
 	} else {
 		oldWorkflowVersion, err = a.repo.Workflow().GetLatestWorkflowVersion(
+			ctx,
 			tenantId,
 			sqlchelpers.UUIDToStr(currWorkflow.ID),
 		)
@@ -181,6 +187,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 
 		if oldWorkflowVersion.WorkflowVersion.Checksum != newCS {
 			workflowVersion, err = a.repo.Workflow().CreateWorkflowVersion(
+				ctx,
 				tenantId,
 				createOpts,
 			)
@@ -203,6 +210,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	workflow, err := a.repo.Workflow().GetWorkflowByName(
+		ctx,
 		tenantId,
 		req.Name,
 	)
@@ -221,6 +229,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	workflowId := sqlchelpers.UUIDToStr(workflow.ID)
 
 	currWorkflow, err := a.repo.Workflow().GetLatestWorkflowVersion(
+		ctx,
 		tenantId,
 		workflowId,
 	)
@@ -251,6 +260,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		}
 
 		existing, err := a.repo.WorkflowRun().GetScheduledChildWorkflowRun(
+			ctx,
 			*req.ParentId,
 			*req.ParentStepRunId,
 			int(*req.ChildIndex),
@@ -277,6 +287,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	workflowVersionId := sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID)
 
 	_, err = a.repo.Workflow().CreateSchedules(
+		ctx,
 		tenantId,
 		workflowVersionId,
 		&repository.CreateWorkflowSchedulesOpts{
@@ -313,7 +324,7 @@ func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutR
 		Duration: &duration,
 	}
 
-	_, err := a.repo.RateLimit().UpsertRateLimit(tenantId, req.Key, createOpts)
+	_, err := a.repo.RateLimit().UpsertRateLimit(ctx, tenantId, req.Key, createOpts)
 
 	if err != nil {
 		return nil, err

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -68,7 +69,7 @@ func runCreateAPIToken() error {
 
 	defer serverConf.Disconnect() // nolint:errcheck
 
-	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(tokenTenantId, tokenName)
+	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(context.Background(), tokenTenantId, tokenName)
 
 	if err != nil {
 		return err

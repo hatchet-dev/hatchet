@@ -112,7 +112,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 	t.l.Debug().Msgf("starting ticker %s", t.tickerId)
 
 	// register the ticker
-	_, err := t.repo.Ticker().CreateNewTicker(&repository.CreateTickerOpts{
+	_, err := t.repo.Ticker().CreateNewTicker(ctx, &repository.CreateTickerOpts{
 		ID: t.tickerId,
 	})
 
@@ -186,7 +186,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 	_, err = t.s.NewJob(
 		gocron.DurationJob(time.Minute*5),
 		gocron.NewTask(
-			t.runStreamEventCleanup(),
+			t.runStreamEventCleanup(ctx),
 		),
 	)
 
@@ -202,16 +202,19 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 		cancel()
 
+		if err := t.s.Shutdown(); err != nil {
+			return fmt.Errorf("could not shutdown scheduler: %w", err)
+		}
+
+		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer deleteCancel()
+
 		// delete the ticker
-		err = t.repo.Ticker().Delete(t.tickerId)
+		err = t.repo.Ticker().Delete(deleteCtx, t.tickerId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not delete ticker")
 			return err
-		}
-
-		if err := t.s.Shutdown(); err != nil {
-			return fmt.Errorf("could not shutdown scheduler: %w", err)
 		}
 
 		return nil
@@ -227,7 +230,7 @@ func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		now := time.Now().UTC()
 
 		// update the heartbeat
-		_, err := t.repo.Ticker().UpdateTicker(t.tickerId, &repository.UpdateTickerOpts{
+		_, err := t.repo.Ticker().UpdateTicker(ctx, t.tickerId, &repository.UpdateTickerOpts{
 			LastHeartbeatAt: &now,
 		})
 
@@ -237,11 +240,14 @@ func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 	}
 }
 
-func (t *TickerImpl) runStreamEventCleanup() func() {
+func (t *TickerImpl) runStreamEventCleanup(ctx context.Context) func() {
 	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
 		t.l.Debug().Msgf("ticker: cleaning up stream event")
 
-		err := t.repo.StreamEvent().CleanupStreamEvents()
+		err := t.repo.StreamEvent().CleanupStreamEvents(ctx)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not cleanup stream events")

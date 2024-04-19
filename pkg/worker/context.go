@@ -72,8 +72,10 @@ type hatchetContext struct {
 	c        client.Client
 	l        *zerolog.Logger
 
-	i       int
-	indexMu sync.Mutex
+	i          int
+	indexMu    sync.Mutex
+	listener   *client.WorkflowRunsListener
+	listenerMu sync.Mutex
 }
 
 func newHatchetContext(
@@ -176,7 +178,32 @@ type SpawnWorkflowOpts struct {
 	Key *string
 }
 
+func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, error) {
+	h.listenerMu.Lock()
+	defer h.listenerMu.Unlock()
+
+	if h.listener != nil {
+		return h.listener, nil
+	}
+
+	listener, err := h.client().Subscribe().SubscribeToWorkflowRunEvents(h)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
+	}
+
+	h.listener = listener
+
+	return listener, nil
+}
+
 func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error) {
+	listener, err := h.saveOrLoadListener()
+
+	if err != nil {
+		return nil, err
+	}
+
 	workflowRunId, err := h.client().Admin().RunChildWorkflow(
 		workflowName,
 		input,
@@ -197,8 +224,8 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 
 	return &ChildWorkflow{
 		workflowRunId: workflowRunId,
-		client:        h.client(),
 		l:             h.l,
+		listener:      listener,
 	}, nil
 }
 

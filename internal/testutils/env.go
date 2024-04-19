@@ -1,6 +1,7 @@
 package testutils
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path"
@@ -72,7 +73,7 @@ func Prepare(t *testing.T) {
 		}
 	}
 
-	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(tenantId, "default")
+	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "default")
 	if err != nil {
 		t.Fatalf("could not generate default token: %v", err)
 	}
