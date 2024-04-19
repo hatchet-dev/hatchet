@@ -46,7 +46,7 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToWorker(ctx context.Cont
 	// var assigned
 	var assigned *dbsqlc.AssignGetGroupKeyRunToWorkerRow
 
-	err = retrier(s.l, func() (err error) {
+	err = deadlockRetry(s.l, func() (err error) {
 		assigned, err = s.queries.AssignGetGroupKeyRunToWorker(ctx, s.pool, dbsqlc.AssignGetGroupKeyRunToWorkerParams{
 			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
 			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
@@ -74,7 +74,7 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToTicker(ctx context.Cont
 	// var assigned
 	var assigned *dbsqlc.AssignGetGroupKeyRunToTickerRow
 
-	err = retrier(s.l, func() (err error) {
+	err = deadlockRetry(s.l, func() (err error) {
 		assigned, err = s.queries.AssignGetGroupKeyRunToTicker(ctx, s.pool, dbsqlc.AssignGetGroupKeyRunToTickerParams{
 			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
 			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),

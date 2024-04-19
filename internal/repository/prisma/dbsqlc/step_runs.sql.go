@@ -117,7 +117,7 @@ WITH selected_worker AS (
             ws."workerId" IS NULL OR
             ws."slots" > 0
         )
-    ORDER BY ws."slots" DESC NULLS FIRST
+    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM() 
     LIMIT 1
 ),
 step_run AS (
