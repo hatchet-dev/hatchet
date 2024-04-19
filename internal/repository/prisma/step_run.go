@@ -289,7 +289,7 @@ var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg st
 				l.Err(err).Msgf("retry (%s) condition met, retry %d", msg, retries)
 
 				// sleep with jitter
-				sleepWithJitter(100*time.Millisecond, 300*time.Millisecond)
+				sleepWithJitter(50*time.Millisecond, 200*time.Millisecond)
 			} else {
 				if overrideErr != nil {
 					return overrideErr
