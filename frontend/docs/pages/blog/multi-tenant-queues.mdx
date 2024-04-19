@@ -283,7 +283,7 @@ Which gives us much more promising output:
 This works — and you can modify this logic to be more distributed by maintaining a lease when a worker starts for a set amount of time — as long as the polling interval is below the query duration time (or more specifically, `pollingTime / numWorkers` is below the query duration time). But what happens when our queue starts to fill up? Let's add 10,000 enqueued tasks and run an `EXPLAIN ANALYZE` for this query to take a look at performance:
 
 ```sql
-                                                                        QUERY PLAN                                                                        
+                                                                        QUERY PLAN
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
  Update on tasks  (cost=259.44..514.23 rows=1 width=78) (actual time=132.717..154.337 rows=100 loops=1)
    ->  Hash Join  (cost=259.44..514.23 rows=1 width=78) (actual time=125.423..141.271 rows=100 loops=1)
