@@ -407,6 +407,8 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	// the service-specific middleware
 	return w.middlewares.runAll(hCtx, func(ctx HatchetContext) error {
 		return svc.mws.runAll(ctx, func(ctx HatchetContext) error {
+			defer cancel()
+
 			args := []any{ctx}
 
 			if arg != nil {

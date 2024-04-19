@@ -41,7 +41,7 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	oldEvent, err := i.eventRepository.GetEventForEngine(tenantId, req.EventId)
+	oldEvent, err := i.eventRepository.GetEventForEngine(ctx, tenantId, req.EventId)
 
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 		metadata = []byte(req.Metadata)
 	}
 
-	streamEvent, err := i.streamEventRepository.PutStreamEvent(tenantId, &repository.CreateStreamEventOpts{
+	streamEvent, err := i.streamEventRepository.PutStreamEvent(ctx, tenantId, &repository.CreateStreamEventOpts{
 		StepRunId: req.StepRunId,
 		CreatedAt: createdAt,
 		Message:   req.Message,
@@ -122,7 +122,7 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 		metadata = []byte(req.Metadata)
 	}
 
-	_, err := i.logRepository.PutLog(tenantId, &repository.CreateLogLineOpts{
+	_, err := i.logRepository.PutLog(ctx, tenantId, &repository.CreateLogLineOpts{
 		StepRunId: req.StepRunId,
 		CreatedAt: createdAt,
 		Message:   req.Message,

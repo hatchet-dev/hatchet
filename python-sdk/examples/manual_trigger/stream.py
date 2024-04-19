@@ -1,15 +1,20 @@
-import os
-from hatchet_sdk import new_client
-from dotenv import load_dotenv
-import json
 import asyncio
-from hatchet_sdk.clients.listener import StepRunEventType
 import base64
+import json
+import os
+
+from dotenv import load_dotenv
+
+from hatchet_sdk import new_client
+from hatchet_sdk.clients.listener import StepRunEventType
+
 
 async def main():
     load_dotenv()
     hatchet = new_client()
-    workflowRunId = hatchet.admin.run_workflow("ManualTriggerWorkflow", {"test": "test"})
+    workflowRunId = hatchet.admin.run_workflow(
+        "ManualTriggerWorkflow", {"test": "test"}
+    )
     listener = hatchet.listener.stream(workflowRunId)
 
     # Get the directory of the current script
@@ -30,11 +35,9 @@ async def main():
             with open(payload_path, "wb") as f:
                 f.write(decoded_payload)
 
-            data = json.dumps({
-                "type": event.type,
-                "messageId": workflowRunId
-            })
+            data = json.dumps({"type": event.type, "messageId": workflowRunId})
             print("data: " + data + "\n\n")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

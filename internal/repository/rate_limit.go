@@ -1,6 +1,10 @@
 package repository
 
-import "github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+import (
+	"context"
+
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+)
 
 type UpsertRateLimitOpts struct {
 	// The rate limit max value
@@ -12,5 +16,5 @@ type UpsertRateLimitOpts struct {
 
 type RateLimitEngineRepository interface {
 	// CreateRateLimit creates a new rate limit record
-	UpsertRateLimit(tenantId string, key string, opts *UpsertRateLimitOpts) (*dbsqlc.RateLimit, error)
+	UpsertRateLimit(ctx context.Context, tenantId string, key string, opts *UpsertRateLimitOpts) (*dbsqlc.RateLimit, error)
 }

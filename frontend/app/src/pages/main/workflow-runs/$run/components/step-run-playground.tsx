@@ -29,9 +29,8 @@ import { CreatePRDialog } from './create-pr-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepRunLogs } from './step-run-logs';
 import { RunStatus } from '../../components/run-statuses';
-import { DataTable } from '@/components/molecules/data-table/data-table';
-import { columns } from '../../components/workflow-runs-columns';
 import { QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { WorkflowRunsTable } from '../../components/workflow-runs-table';
 
 export function StepRunPlayground({
   stepRun,
@@ -511,24 +510,10 @@ export function ChildWorkflowRuns({
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
-  const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
-      parentWorkflowRunId: workflowRun.metadata.id,
-      parentStepRunId: stepRun?.metadata.id,
-    }),
-    enabled: !!workflowRun && !!stepRun,
-    refetchInterval: 5000,
-  });
-
-  if (listWorkflowRunsQuery.isLoading) {
-    return <Loading />;
-  }
-
   return (
-    <DataTable
-      columns={columns}
-      data={listWorkflowRunsQuery.data?.rows || []}
-      filters={[]}
+    <WorkflowRunsTable
+      parentWorkflowRunId={workflowRun.metadata.id}
+      parentStepRunId={stepRun?.metadata.id}
     />
   );
 }

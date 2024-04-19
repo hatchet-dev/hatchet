@@ -912,6 +912,9 @@ type WorkflowRunListParams struct {
 
 	// ParentStepRunId The parent step run id
 	ParentStepRunId *openapi_types.UUID `form:"parentStepRunId,omitempty" json:"parentStepRunId,omitempty"`
+
+	// Statuses A list of workflow run statuses to filter by
+	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
 }
 
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
@@ -3945,6 +3948,22 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 		if params.ParentStepRunId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentStepRunId", runtime.ParamLocationQuery, *params.ParentStepRunId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Statuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

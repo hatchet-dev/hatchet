@@ -1,23 +1,12 @@
 import { Separator } from '@/components/ui/separator';
-import WorkflowList from './components/workflow-list';
-import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
-import { Loading } from '@/components/ui/loading.tsx';
 import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
+import { WorkflowTable } from './components/workflow-table';
 
 export default function Workflows() {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
-
-  const listWorkflowsQuery = useQuery({
-    ...queries.workflows.list(tenant.metadata.id),
-  });
-
-  if (listWorkflowsQuery.isLoading) {
-    return <Loading />;
-  }
 
   return (
     <div className="flex-grow h-full w-full">
@@ -26,7 +15,7 @@ export default function Workflows() {
           Workflows
         </h2>
         <Separator className="my-4" />
-        <WorkflowList workflows={listWorkflowsQuery.data?.rows || []} />
+        <WorkflowTable />
       </div>
     </div>
   );

@@ -17,7 +17,7 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 		return gen.ApiTokenCreate400JSONResponse(*apiErrors), nil
 	}
 
-	token, err := a.config.Auth.JWTManager.GenerateTenantToken(tenant.ID, request.Body.Name)
+	token, err := a.config.Auth.JWTManager.GenerateTenantToken(ctx.Request().Context(), tenant.ID, request.Body.Name)
 
 	if err != nil {
 		return nil, err

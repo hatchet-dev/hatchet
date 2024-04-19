@@ -32,5 +32,3 @@ workflow_dict = workflow_instance.to_dict()
 workflow_form_dict = workflow.from_dict(workflow_dict)
 ```
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
-
-

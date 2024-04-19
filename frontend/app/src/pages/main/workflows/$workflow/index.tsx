@@ -1,7 +1,6 @@
-import { DataTable } from '@/components/molecules/data-table/data-table';
 import { Separator } from '@/components/ui/separator';
-import api, { Workflow, WorkflowVersion, queries } from '@/lib/api';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import api, { Workflow, WorkflowVersion } from '@/lib/api';
+import { useMutation } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import {
   LoaderFunctionArgs,
@@ -13,7 +12,6 @@ import {
   useRevalidator,
 } from 'react-router-dom';
 import invariant from 'tiny-invariant';
-import { columns } from '../../workflow-runs/components/workflow-runs-columns';
 import { WorkflowTags } from '../components/workflow-tags';
 import { Badge } from '@/components/ui/badge';
 import { relativeDate } from '@/lib/utils';
@@ -30,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DeleteWorkflowForm } from './components/delete-workflow-form';
 import { Dialog } from '@/components/ui/dialog';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
+import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -240,25 +239,14 @@ function RecentRunsList() {
   const params = useParams();
   invariant(params.workflow);
 
-  const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
-      offset: 0,
-      limit: 10,
-      workflowId: params.workflow,
-    }),
-  });
-
   return (
-    <DataTable
-      columns={columns}
-      data={listWorkflowRunsQuery.data?.rows || []}
-      filters={[]}
-      pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
-      columnVisibility={{
-        Workflow: false,
-      }}
-      isLoading={listWorkflowRunsQuery.isLoading}
-    />
+    <>
+      <WorkflowRunsTable
+        workflowId={params.workflow}
+        initColumnVisibility={{ Workflow: false }}
+        filterVisibility={{ Workflow: false }}
+      />
+    </>
   );
 }
 

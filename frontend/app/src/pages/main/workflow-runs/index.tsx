@@ -1,18 +1,5 @@
-import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
-import { columns } from './components/workflow-runs-columns';
 import { Separator } from '@/components/ui/separator';
-import { useMemo, useState } from 'react';
-import {
-  ColumnFiltersState,
-  PaginationState,
-  SortingState,
-} from '@tanstack/react-table';
-import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
-import { queries } from '@/lib/api';
-import { Loading } from '@/components/ui/loading.tsx';
-import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
+import { WorkflowRunsTable } from './components/workflow-runs-table';
 
 export default function WorkflowRuns() {
   return (
@@ -25,53 +12,5 @@ export default function WorkflowRuns() {
         <WorkflowRunsTable />
       </div>
     </div>
-  );
-}
-
-function WorkflowRunsTable() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 50,
-  });
-  const [pageSize, setPageSize] = useState<number>(50);
-
-  const offset = useMemo(() => {
-    if (!pagination) {
-      return;
-    }
-
-    return pagination.pageIndex * pagination.pageSize;
-  }, [pagination]);
-
-  const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
-      offset,
-      limit: pageSize,
-    }),
-  });
-
-  if (listWorkflowRunsQuery.isLoading) {
-    return <Loading />;
-  }
-
-  return (
-    <DataTable
-      columns={columns}
-      data={listWorkflowRunsQuery.data?.rows || []}
-      filters={[]}
-      sorting={sorting}
-      setSorting={setSorting}
-      columnFilters={columnFilters}
-      setColumnFilters={setColumnFilters}
-      pagination={pagination}
-      setPagination={setPagination}
-      onSetPageSize={setPageSize}
-      pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
-    />
   );
 }

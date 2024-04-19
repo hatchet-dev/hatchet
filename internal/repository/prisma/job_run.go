@@ -56,16 +56,16 @@ func NewJobRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zer
 	}
 }
 
-func (j *jobRunEngineRepository) SetJobRunStatusRunning(tenantId, jobRunId string) error {
-	return setJobRunStatusRunning(context.Background(), j.pool, j.queries, j.l, tenantId, jobRunId)
+func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, tenantId, jobRunId string) error {
+	return setJobRunStatusRunning(ctx, j.pool, j.queries, j.l, tenantId, jobRunId)
 }
 
-func (j *jobRunEngineRepository) ListJobRunsForWorkflowRun(tenantId, workflowRunId string) ([]pgtype.UUID, error) {
-	return j.queries.ListJobRunsForWorkflowRun(context.Background(), j.pool, sqlchelpers.UUIDFromStr(workflowRunId))
+func (j *jobRunEngineRepository) ListJobRunsForWorkflowRun(ctx context.Context, tenantId, workflowRunId string) ([]pgtype.UUID, error) {
+	return j.queries.ListJobRunsForWorkflowRun(ctx, j.pool, sqlchelpers.UUIDFromStr(workflowRunId))
 }
 
 func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId, jobRunId string) error {
-	tx, err := pool.Begin(context.Background())
+	tx, err := pool.Begin(ctx)
 
 	if err != nil {
 		return err

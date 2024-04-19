@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -141,16 +142,17 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 }
 
 func (d *DispatcherImpl) Start() (func() error, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// register the dispatcher by creating a new dispatcher in the database
-	dispatcher, err := d.repo.Dispatcher().CreateNewDispatcher(&repository.CreateDispatcherOpts{
+	dispatcher, err := d.repo.Dispatcher().CreateNewDispatcher(ctx, &repository.CreateDispatcherOpts{
 		ID: d.dispatcherId,
 	})
 
 	if err != nil {
+		cancel()
 		return nil, err
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
 
 	_, err = d.s.NewJob(
 		gocron.DurationJob(time.Second*5),
@@ -211,16 +213,19 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 			return true
 		})
 
-		err = d.repo.Dispatcher().Delete(dispatcherId)
+		if err := d.s.Shutdown(); err != nil {
+			return fmt.Errorf("could not shutdown scheduler: %w", err)
+		}
+
+		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer deleteCancel()
+
+		err = d.repo.Dispatcher().Delete(deleteCtx, dispatcherId)
 		if err != nil {
 			return fmt.Errorf("could not delete dispatcher: %w", err)
 		}
 
 		d.l.Debug().Msgf("deleted dispatcher %s", dispatcherId)
-
-		if err := d.s.Shutdown(); err != nil {
-			return fmt.Errorf("could not shutdown scheduler: %w", err)
-		}
 
 		d.l.Debug().Msgf("dispatcher has shutdown")
 		return nil
@@ -229,17 +234,25 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
+func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("recovered from panic: %v", r)
+		}
+	}()
+
 	switch task.ID {
 	case "group-key-action-assigned":
-		return d.a.WrapErr(d.handleGroupKeyActionAssignedTask(ctx, task), map[string]interface{}{})
+		err = d.a.WrapErr(d.handleGroupKeyActionAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-assigned":
-		return d.a.WrapErr(d.handleStepRunAssignedTask(ctx, task), map[string]interface{}{})
+		err = d.a.WrapErr(d.handleStepRunAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-cancelled":
-		return d.a.WrapErr(d.handleStepRunCancelled(ctx, task), map[string]interface{}{})
+		err = d.a.WrapErr(d.handleStepRunCancelled(ctx, task), map[string]interface{}{})
+	default:
+		err = fmt.Errorf("unknown task: %s", task.ID)
 	}
 
-	return fmt.Errorf("unknown task: %s", task.ID)
+	return err
 }
 
 func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, task *msgqueue.Message) error {
@@ -269,7 +282,7 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 	}
 
 	// load the workflow run from the database
-	workflowRun, err := d.repo.WorkflowRun().GetWorkflowRunById(metadata.TenantId, payload.WorkflowRunId)
+	workflowRun, err := d.repo.WorkflowRun().GetWorkflowRunById(ctx, metadata.TenantId, payload.WorkflowRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get workflow run: %w", err)
@@ -283,7 +296,7 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 		return fmt.Errorf("could not get group key run")
 	}
 
-	sqlcGroupKeyRun, err := d.repo.GetGroupKeyRun().GetGroupKeyRunForEngine(metadata.TenantId, groupKeyRunId)
+	sqlcGroupKeyRun, err := d.repo.GetGroupKeyRun().GetGroupKeyRunForEngine(ctx, metadata.TenantId, groupKeyRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get group key run for engine: %w", err)
@@ -325,7 +338,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	}
 
 	// load the step run from the database
-	stepRun, err := d.repo.StepRun().GetStepRunForEngine(metadata.TenantId, payload.StepRunId)
+	stepRun, err := d.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
@@ -364,12 +377,12 @@ func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqu
 	// get the worker for this task
 	w, err := d.GetWorker(payload.WorkerId)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrWorkerNotFound) {
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
 	// load the step run from the database
-	stepRun, err := d.repo.StepRun().GetStepRunForEngine(metadata.TenantId, payload.StepRunId)
+	stepRun, err := d.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
@@ -393,7 +406,7 @@ func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		now := time.Now().UTC()
 
 		// update the heartbeat
-		_, err := d.repo.Dispatcher().UpdateDispatcher(d.dispatcherId, &repository.UpdateDispatcherOpts{
+		_, err := d.repo.Dispatcher().UpdateDispatcher(ctx, d.dispatcherId, &repository.UpdateDispatcherOpts{
 			LastHeartbeatAt: &now,
 		})
 

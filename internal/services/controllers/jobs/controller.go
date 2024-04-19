@@ -239,14 +239,14 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgq
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	err = ec.repo.JobRun().SetJobRunStatusRunning(metadata.TenantId, payload.JobRunId)
+	err = ec.repo.JobRun().SetJobRunStatusRunning(ctx, metadata.TenantId, payload.JobRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not set job run status to running: %w", err)
 	}
 
 	// list the step runs which are startable
-	startableStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(metadata.TenantId, payload.JobRunId, nil)
+	startableStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, payload.JobRunId, nil)
 	if err != nil {
 		return fmt.Errorf("could not list startable step runs: %w", err)
 	}
@@ -294,7 +294,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	err = ec.repo.StepRun().ArchiveStepRunResult(metadata.TenantId, payload.StepRunId)
+	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not archive step run result: %w", err)
@@ -302,7 +302,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 
 	ec.l.Error().Err(fmt.Errorf("starting step run retry"))
 
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(metadata.TenantId, payload.StepRunId)
+	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
@@ -405,10 +405,13 @@ func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msg
 
 func (jc *JobsControllerImpl) runStepRunRequeue(ctx context.Context) func() {
 	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
 		jc.l.Debug().Msgf("jobs controller: checking step run requeue")
 
 		// list all tenants
-		tenants, err := jc.repo.Tenant().ListTenants()
+		tenants, err := jc.repo.Tenant().ListTenants(ctx)
 
 		if err != nil {
 			jc.l.Err(err).Msg("could not list tenants")
@@ -438,7 +441,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue")
 	defer span.End()
 
-	stepRuns, err := ec.repo.StepRun().ListStepRunsToRequeue(tenantId)
+	stepRuns, err := ec.repo.StepRun().ListStepRunsToRequeue(ctx, tenantId)
 
 	if err != nil {
 		return fmt.Errorf("could not list step runs to requeue: %w", err)
@@ -495,10 +498,13 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 
 func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context) func() {
 	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
 		jc.l.Debug().Msgf("jobs controller: checking step run reassignment")
 
 		// list all tenants
-		tenants, err := jc.repo.Tenant().ListTenants()
+		tenants, err := jc.repo.Tenant().ListTenants(ctx)
 
 		if err != nil {
 			jc.l.Err(err).Msg("could not list tenants")
@@ -529,7 +535,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign")
 	defer span.End()
 
-	stepRuns, err := ec.repo.StepRun().ListStepRunsToReassign(tenantId)
+	stepRuns, err := ec.repo.StepRun().ListStepRunsToReassign(ctx, tenantId)
 
 	if err != nil {
 		return fmt.Errorf("could not list step runs to reassign: %w", err)
@@ -589,7 +595,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	defer span.End()
 
 	// add the rendered data to the step run
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(tenantId, stepRunId)
+	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
 
 	errData := map[string]interface{}{
 		"tenant_id":   tenantId,
@@ -607,18 +613,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 	// set scheduling timeout
 	if scheduleTimeoutAt := stepRun.StepRun.ScheduleTimeoutAt.Time; scheduleTimeoutAt.IsZero() {
-		var timeoutDuration time.Duration
-
-		// get the schedule timeout from the step
-		stepScheduleTimeout := stepRun.StepScheduleTimeout
-
-		if stepScheduleTimeout != "" {
-			timeoutDuration, _ = time.ParseDuration(stepScheduleTimeout)
-		} else {
-			timeoutDuration = defaults.DefaultScheduleTimeout
-		}
-
-		scheduleTimeoutAt := time.Now().UTC().Add(timeoutDuration)
+		scheduleTimeoutAt = getScheduleTimeout(stepRun)
 
 		updateStepOpts.ScheduleTimeoutAt = &scheduleTimeoutAt
 	}
@@ -809,7 +804,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
 	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
 
-	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(metadata.TenantId, jobRunId, &stepRunId)
+	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, jobRunId, &stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not list startable step runs: %w", err)
@@ -854,7 +849,7 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 		return fmt.Errorf("could not parse failed at: %w", err)
 	}
 
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(metadata.TenantId, payload.StepRunId)
+	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
@@ -869,10 +864,13 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 		status = db.StepRunStatusPending
 	}
 
+	scheduleTimeoutAt := getScheduleTimeout(stepRun)
+
 	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
-		FinishedAt: &failedAt,
-		Error:      &payload.Error,
-		Status:     repository.StepRunStatusPtr(status),
+		FinishedAt:        &failedAt,
+		Error:             &payload.Error,
+		Status:            repository.StepRunStatusPtr(status),
+		ScheduleTimeoutAt: &scheduleTimeoutAt,
 	})
 
 	if err != nil {
@@ -957,12 +955,15 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	if !stepRun.StepRun.WorkerId.Valid {
-		return fmt.Errorf("step run has no worker id")
+		// this is not a fatal error
+		ec.l.Debug().Msgf("step run %s has no worker id, skipping cancellation", stepRunId)
+
+		return nil
 	}
 
 	workerId := sqlchelpers.UUIDToStr(stepRun.StepRun.WorkerId)
 
-	worker, err := ec.repo.Worker().GetWorkerForEngine(tenantId, workerId)
+	worker, err := ec.repo.Worker().GetWorkerForEngine(ctx, tenantId, workerId)
 
 	if err != nil {
 		return fmt.Errorf("could not get worker: %w", err)
@@ -1054,4 +1055,19 @@ func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelled
 		Metadata: metadata,
 		Retries:  3,
 	}
+}
+
+func getScheduleTimeout(stepRun *dbsqlc.GetStepRunForEngineRow) time.Time {
+	var timeoutDuration time.Duration
+
+	// get the schedule timeout from the step
+	stepScheduleTimeout := stepRun.StepScheduleTimeout
+
+	if stepScheduleTimeout != "" {
+		timeoutDuration, _ = time.ParseDuration(stepScheduleTimeout)
+	} else {
+		timeoutDuration = defaults.DefaultScheduleTimeout
+	}
+
+	return time.Now().UTC().Add(timeoutDuration)
 }

@@ -96,14 +96,17 @@ FROM
 JOIN
     "JobRun" ON "StepRun"."jobRunId" = "JobRun"."id"
 WHERE
-    "StepRun"."tenantId" = @tenantId::uuid
+    (
+        sqlc.narg('tenantId')::uuid IS NULL OR
+        "StepRun"."tenantId" = sqlc.narg('tenantId')::uuid
+    )
     AND (
         sqlc.narg('status')::"StepRunStatus" IS NULL OR
         "StepRun"."status" = sqlc.narg('status')::"StepRunStatus"
     )
     AND (
-        sqlc.narg('workflowRunId')::uuid IS NULL OR
-        "JobRun"."workflowRunId" = sqlc.narg('workflowRunId')::uuid
+        sqlc.narg('workflowRunIds')::uuid[] IS NULL OR
+        "JobRun"."workflowRunId" = ANY(sqlc.narg('workflowRunIds')::uuid[])
     )
     AND (
         sqlc.narg('jobRunId')::uuid IS NULL OR
@@ -454,7 +457,7 @@ WITH selected_worker AS (
             ws."workerId" IS NULL OR
             ws."slots" > 0
         )
-    ORDER BY ws."slots" DESC NULLS FIRST
+    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM() 
     LIMIT 1
 ),
 step_run AS (

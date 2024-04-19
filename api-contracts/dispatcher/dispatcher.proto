@@ -18,6 +18,8 @@ service Dispatcher {
 
     rpc SubscribeToWorkflowEvents(SubscribeToWorkflowEventsRequest) returns (stream WorkflowEvent) {}
 
+    rpc SubscribeToWorkflowRuns(stream SubscribeToWorkflowRunsRequest) returns (stream WorkflowRunEvent) {}
+
     rpc SendStepActionEvent(StepActionEvent) returns (ActionEventResponse) {}
 
     rpc SendGroupKeyActionEvent(GroupKeyActionEvent) returns (ActionEventResponse) {}
@@ -190,6 +192,11 @@ message SubscribeToWorkflowEventsRequest {
     string workflowRunId = 1;
 }
 
+message SubscribeToWorkflowRunsRequest {
+    // the id of the workflow run
+    string workflowRunId = 1;
+}
+
 enum ResourceType {
     RESOURCE_TYPE_UNKNOWN = 0;
     RESOURCE_TYPE_STEP_RUN = 1;
@@ -230,6 +237,33 @@ message WorkflowEvent {
 
     // (optional) the retry count of this step
     optional int32 retryCount = 9;
+}
+
+enum WorkflowRunEventType {
+    WORKFLOW_RUN_EVENT_TYPE_FINISHED = 0;
+}
+
+message WorkflowRunEvent {
+    // the id of the workflow run
+    string workflowRunId = 1;
+
+    WorkflowRunEventType eventType = 2;
+
+    google.protobuf.Timestamp eventTimestamp = 3;
+
+    repeated StepRunResult results = 4;
+}
+
+message StepRunResult {
+    string stepRunId = 1;
+
+    string stepReadableId = 2; 
+
+    string jobRunId = 3;
+
+    optional string error = 4;
+
+    optional string output = 5; 
 }
 
 message OverridesData {

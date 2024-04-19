@@ -6,9 +6,9 @@ const config: DocsThemeConfig = {
   logo: (
     <Image src="/hatchet_logo.png" alt="Hatchet logo" width={120} height={35} />
   ),
-  logoLink: "https://github.com/hatchet-dev/hatchet",
   primaryHue: 210,
-  primarySaturation: 10,
+  primarySaturation: 60,
+  logoLink: "https://github.com/hatchet-dev/hatchet",
   project: {
     link: "https://github.com/hatchet-dev/hatchet",
   },
@@ -17,8 +17,9 @@ const config: DocsThemeConfig = {
   },
   docsRepositoryBase: "https://github.com/hatchet-dev/hatchet/frontend/docs",
   feedback: {
-    labels: 'Feedback',
-    useLink: (...args: unknown[]) => `https://github.com/hatchet-dev/hatchet/issues/new`
+    labels: "Feedback",
+    useLink: (...args: unknown[]) =>
+      `https://github.com/hatchet-dev/hatchet/issues/new`,
   },
   footer: {
     text: "Hatchet",
@@ -31,12 +32,6 @@ const config: DocsThemeConfig = {
   ),
   sidebar: {
     defaultMenuCollapseLevel: 2,
-  },
-  nextThemes: {
-    forcedTheme: "dark",
-  },
-  themeSwitch: {
-    component: () => null,
   },
 };
 

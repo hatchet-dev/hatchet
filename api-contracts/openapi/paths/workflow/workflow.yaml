@@ -338,6 +338,12 @@ workflowRuns:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: A list of workflow run statuses to filter by
+        in: query
+        name: statuses
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/WorkflowRunStatusList"
     responses:
       "200":
         content:

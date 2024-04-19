@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
@@ -58,5 +59,5 @@ type LogsAPIRepository interface {
 
 type LogsEngineRepository interface {
 	// PutLog creates a new log line.
-	PutLog(tenantId string, opts *CreateLogLineOpts) (*dbsqlc.LogLine, error)
+	PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) (*dbsqlc.LogLine, error)
 }

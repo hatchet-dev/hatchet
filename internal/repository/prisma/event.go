@@ -206,8 +206,8 @@ func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zero
 	}
 }
 
-func (r *eventEngineRepository) GetEventForEngine(tenantId, id string) (*dbsqlc.Event, error) {
-	return r.queries.GetEventForEngine(context.Background(), r.pool, sqlchelpers.UUIDFromStr(id))
+func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error) {
+	return r.queries.GetEventForEngine(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
 }
 
 func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*dbsqlc.Event, error) {
@@ -242,7 +242,7 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 	return e, nil
 }
 
-func (r *eventEngineRepository) ListEventsByIds(tenantId string, ids []string) ([]*dbsqlc.Event, error) {
+func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.Event, error) {
 	pgIds := make([]pgtype.UUID, len(ids))
 
 	for i, id := range ids {
@@ -253,7 +253,7 @@ func (r *eventEngineRepository) ListEventsByIds(tenantId string, ids []string) (
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	return r.queries.ListEventsByIDs(context.Background(), r.pool, dbsqlc.ListEventsByIDsParams{
+	return r.queries.ListEventsByIDs(ctx, r.pool, dbsqlc.ListEventsByIDsParams{
 		Tenantid: pgTenantId,
 		Ids:      pgIds,
 	})
