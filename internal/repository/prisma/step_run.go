@@ -249,18 +249,29 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 }
 
 var deadlockRetry = func(l *zerolog.Logger, f func() error) error {
-	return genericRetry(l, 3, f, "deadlock", func(err error) bool {
-		return strings.Contains(err.Error(), "deadlock detected")
+	return genericRetry(l.Warn(), 3, f, "deadlock", func(err error) (bool, error) {
+		return strings.Contains(err.Error(), "deadlock detected"), err
 	})
 }
 
 var unassignedRetry = func(l *zerolog.Logger, f func() error) error {
-	return genericRetry(l, 5, f, "unassigned", func(err error) bool {
-		return errors.Is(err, repository.ErrNoWorkerAvailable)
+	return genericRetry(l.Debug(), 5, f, "unassigned", func(err error) (bool, error) {
+		var target *errNoWorkerWithSlots
+
+		if errors.As(err, &target) {
+			// if there are no slots available at all, don't retry
+			if target.totalSlots != 0 {
+				return true, err
+			}
+
+			return false, repository.ErrNoWorkerAvailable
+		}
+
+		return errors.Is(err, repository.ErrNoWorkerAvailable), err
 	})
 }
 
-var genericRetry = func(l *zerolog.Logger, maxRetries int, f func() error, msg string, condition func(err error) bool) error {
+var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg string, condition func(err error) (bool, error)) error {
 	retries := 0
 
 	for {
@@ -268,7 +279,7 @@ var genericRetry = func(l *zerolog.Logger, maxRetries int, f func() error, msg s
 
 		if err != nil {
 			// condition detected, retry
-			if condition(err) {
+			if ok, overrideErr := condition(err); ok {
 				retries++
 
 				if retries > maxRetries {
@@ -278,15 +289,19 @@ var genericRetry = func(l *zerolog.Logger, maxRetries int, f func() error, msg s
 				l.Err(err).Msgf("retry (%s) condition met, retry %d", msg, retries)
 
 				// sleep with jitter
-				sleepWithJitter(100*time.Millisecond, 300*time.Millisecond)
+				sleepWithJitter(50*time.Millisecond, 200*time.Millisecond)
 			} else {
+				if overrideErr != nil {
+					return overrideErr
+				}
+
 				return err
 			}
 		}
 
 		if err == nil {
 			if retries > 0 {
-				l.Info().Msgf("retry (%s) condition resolved after %d retries", msg, retries)
+				l.Msgf("retry (%s) condition resolved after %d retries", msg, retries)
 			}
 
 			break
@@ -319,7 +334,15 @@ func (s *stepRunEngineRepository) incrementWorkerSemaphore(ctx context.Context, 
 		return fmt.Errorf("could not upsert old worker semaphore: %w", err)
 	}
 
-	return nil
+	return tx.Commit(ctx)
+}
+
+type errNoWorkerWithSlots struct {
+	totalSlots int
+}
+
+func (e *errNoWorkerWithSlots) Error() string {
+	return fmt.Sprintf("no worker available, slots left: %d", e.totalSlots)
 }
 
 func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (*dbsqlc.AssignStepRunToWorkerRow, error) {
@@ -348,6 +371,11 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 		}
 
 		return nil, fmt.Errorf("query to assign worker failed: %w", err)
+	}
+
+	// if a row was returned, but does not have a valid UUID, we return no worker with the slots
+	if assigned != nil && !assigned.ID.Valid {
+		return nil, &errNoWorkerWithSlots{totalSlots: int(assigned.TsTotalSlots)}
 	}
 
 	semaphore, err := s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
@@ -406,6 +434,12 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		assigned, err = s.assignStepRunToWorkerAttempt(ctx, stepRun)
 
 		if err != nil {
+			var target *errNoWorkerWithSlots
+
+			if errors.As(err, &target) {
+				return err
+			}
+
 			if errors.Is(err, repository.ErrNoWorkerAvailable) {
 				return err
 			}
@@ -450,7 +484,16 @@ func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, s
 
 		defer deferRollback(ctx, s.l, tx.Rollback)
 
-		stepRun, err = s.updateStepRunCore(ctx, tx, tenantId, updateParams, updateJobRunLookupDataParams)
+		innerStepRun, err := s.queries.GetStepRun(ctx, tx, dbsqlc.GetStepRunParams{
+			ID:       sqlchelpers.UUIDFromStr(stepRunId),
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			return err
+		}
+
+		stepRun, err = s.updateStepRunCore(ctx, tx, tenantId, updateParams, updateJobRunLookupDataParams, innerStepRun)
 
 		if err != nil {
 			return err
@@ -627,7 +670,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 			isNotPending = true
 		}
 
-		sr, err := s.updateStepRunCore(ctx, tx, tenantId, updateParams, updateJobRunLookupDataParams)
+		sr, err := s.updateStepRunCore(ctx, tx, tenantId, updateParams, updateJobRunLookupDataParams, innerStepRun)
 		if err != nil {
 			return err
 		}
@@ -783,6 +826,7 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 	tenantId string,
 	updateParams dbsqlc.UpdateStepRunParams,
 	updateJobRunLookupDataParams *dbsqlc.UpdateJobRunLookupDataWithStepRunParams,
+	innerStepRun *dbsqlc.StepRun,
 ) (*dbsqlc.GetStepRunForEngineRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "update-step-run-core") // nolint:ineffassign
 	defer span.End()
@@ -811,7 +855,10 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 		}
 	}
 
-	if updateParams.Status.Valid && isFinalStepRunStatus(updateParams.Status.StepRunStatus) {
+	if updateParams.Status.Valid &&
+		isFinalStepRunStatus(updateParams.Status.StepRunStatus) &&
+		// we must have actually updated the status to a different state
+		string(innerStepRun.Status) != string(updateStepRun.Status) {
 		_, err := s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
 			Inc:       1,
 			Steprunid: updateStepRun.ID,

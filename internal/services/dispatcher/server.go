@@ -302,7 +302,10 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 		inactive := db.WorkerStatusInactive
 
-		_, err := s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+		updateCtx, updateCtxCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer updateCtxCancel()
+
+		_, err := s.repo.Worker().UpdateWorker(updateCtx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
 			Status: &inactive,
 		})
 
@@ -706,7 +709,10 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 
 	inactive := db.WorkerStatusInactive
 
-	_, err := s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+	updateCtx, updateCtxCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer updateCtxCancel()
+
+	_, err := s.repo.Worker().UpdateWorker(updateCtx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
 		Status: &inactive,
 	})
 
