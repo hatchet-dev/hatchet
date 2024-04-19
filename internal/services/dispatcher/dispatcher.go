@@ -379,6 +379,10 @@ func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqu
 
 	if err != nil && !errors.Is(err, ErrWorkerNotFound) {
 		return fmt.Errorf("could not get worker: %w", err)
+	} else if errors.Is(err, ErrWorkerNotFound) {
+		// if the worker is not found, we can ignore this task
+		d.l.Debug().Msgf("worker %s not found, ignoring task", payload.WorkerId)
+		return nil
 	}
 
 	// load the step run from the database
