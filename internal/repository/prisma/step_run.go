@@ -451,6 +451,12 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 	})
 
 	if err != nil {
+		var target *errNoWorkerWithSlots
+
+		if errors.As(err, &target) {
+			return "", "", repository.ErrNoWorkerAvailable
+		}
+
 		return "", "", err
 	}
 
