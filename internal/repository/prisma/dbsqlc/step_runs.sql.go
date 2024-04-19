@@ -96,28 +96,38 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 }
 
 const assignStepRunToWorker = `-- name: AssignStepRunToWorker :one
-WITH selected_worker AS (
+WITH valid_workers AS (
     SELECT
-        w."id", w."dispatcherId", ws."slots"
+        w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
     FROM
         "Worker" w
     LEFT JOIN 
         "WorkerSemaphore" ws ON w."id" = ws."workerId"
     WHERE
-        w."tenantId" = $3::uuid
+        w."tenantId" = $1::uuid
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
             INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = $3 AND "Action"."actionId" = $4::text
+            WHERE "Action"."tenantId" = $1 AND "Action"."actionId" = $2::text
         )
         AND (
             ws."workerId" IS NULL OR
             ws."slots" > 0
         )
-    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM() 
+    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM()
+), total_slots AS (
+    SELECT
+        COALESCE(SUM(vw."slots"), 0) AS "totalSlots"
+    FROM
+        valid_workers vw
+), selected_worker AS (
+    SELECT
+        id, "dispatcherId", slots
+    FROM
+        valid_workers vw
     LIMIT 1
 ),
 step_run AS (
@@ -126,44 +136,52 @@ step_run AS (
     FROM
         "StepRun"
     WHERE
-        "id" = $2::uuid AND
-        "tenantId" = $3::uuid AND
+        "id" = $3::uuid AND
+        "tenantId" = $1::uuid AND
         "status" = 'PENDING_ASSIGNMENT' AND
         EXISTS (SELECT 1 FROM selected_worker)
     FOR UPDATE
+),
+update_step_run AS (
+    UPDATE
+        "StepRun"
+    SET
+        "status" = 'ASSIGNED',
+        "workerId" = (
+            SELECT "id"
+            FROM selected_worker
+            LIMIT 1
+        ),
+        "tickerId" = NULL,
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "timeoutAt" = CASE
+            WHEN $4::text IS NOT NULL THEN
+                CURRENT_TIMESTAMP + convert_duration_to_interval($4::text)
+            ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+        END
+    WHERE
+        "id" = $3::uuid AND
+        "tenantId" = $1::uuid AND
+        "status" = 'PENDING_ASSIGNMENT' AND
+        EXISTS (SELECT 1 FROM selected_worker)
+    RETURNING 
+        "StepRun"."id", "StepRun"."workerId", 
+        (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId"
 )
-UPDATE
-    "StepRun"
-SET
-    "status" = 'ASSIGNED',
-    "workerId" = (
-        SELECT "id"
-        FROM selected_worker
-        LIMIT 1
-    ),
-    "tickerId" = NULL,
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "timeoutAt" = CASE
-        WHEN $1::text IS NOT NULL THEN
-            CURRENT_TIMESTAMP + convert_duration_to_interval($1::text)
-        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
-    END
-WHERE
-    "id" = $2::uuid AND
-    "tenantId" = $3::uuid AND
-    "status" = 'PENDING_ASSIGNMENT' AND
-    EXISTS (SELECT 1 FROM selected_worker)
-RETURNING "StepRun"."id", "StepRun"."workerId", (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId"
+SELECT ts."totalSlots"::int, usr."id", usr."workerId", usr."dispatcherId"
+FROM total_slots ts
+LEFT JOIN update_step_run usr ON true
 `
 
 type AssignStepRunToWorkerParams struct {
-	StepTimeout pgtype.Text `json:"stepTimeout"`
-	Steprunid   pgtype.UUID `json:"steprunid"`
 	Tenantid    pgtype.UUID `json:"tenantid"`
 	Actionid    string      `json:"actionid"`
+	Steprunid   pgtype.UUID `json:"steprunid"`
+	StepTimeout pgtype.Text `json:"stepTimeout"`
 }
 
 type AssignStepRunToWorkerRow struct {
+	TsTotalSlots int32       `json:"ts_totalSlots"`
 	ID           pgtype.UUID `json:"id"`
 	WorkerId     pgtype.UUID `json:"workerId"`
 	DispatcherId pgtype.UUID `json:"dispatcherId"`
@@ -171,13 +189,18 @@ type AssignStepRunToWorkerRow struct {
 
 func (q *Queries) AssignStepRunToWorker(ctx context.Context, db DBTX, arg AssignStepRunToWorkerParams) (*AssignStepRunToWorkerRow, error) {
 	row := db.QueryRow(ctx, assignStepRunToWorker,
-		arg.StepTimeout,
-		arg.Steprunid,
 		arg.Tenantid,
 		arg.Actionid,
+		arg.Steprunid,
+		arg.StepTimeout,
 	)
 	var i AssignStepRunToWorkerRow
-	err := row.Scan(&i.ID, &i.WorkerId, &i.DispatcherId)
+	err := row.Scan(
+		&i.TsTotalSlots,
+		&i.ID,
+		&i.WorkerId,
+		&i.DispatcherId,
+	)
 	return &i, err
 }
 
@@ -352,6 +375,72 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.WorkflowId,
 			&i.ActionId,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTotalSlots = `-- name: GetTotalSlots :many
+WITH valid_workers AS (
+    SELECT
+        w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
+    FROM
+        "Worker" w
+    LEFT JOIN 
+        "WorkerSemaphore" ws ON w."id" = ws."workerId"
+    WHERE
+        w."tenantId" = $1::uuid
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."id" IN (
+            SELECT "_ActionToWorker"."B"
+            FROM "_ActionToWorker"
+            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
+            WHERE "Action"."tenantId" = $1 AND "Action"."actionId" = $2::text
+        )
+        AND (
+            ws."workerId" IS NULL OR
+            ws."slots" > 0
+        )
+    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM()
+),
+total_slots AS (
+    SELECT
+        COALESCE(SUM(vw."slots"), 0) AS "totalSlots"
+    FROM
+        valid_workers vw
+)
+SELECT ts."totalSlots"::int, vw."id", vw."slots"
+FROM valid_workers vw
+LEFT JOIN total_slots ts ON true
+`
+
+type GetTotalSlotsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Actionid string      `json:"actionid"`
+}
+
+type GetTotalSlotsRow struct {
+	TsTotalSlots int32       `json:"ts_totalSlots"`
+	ID           pgtype.UUID `json:"id"`
+	Slots        int32       `json:"slots"`
+}
+
+func (q *Queries) GetTotalSlots(ctx context.Context, db DBTX, arg GetTotalSlotsParams) ([]*GetTotalSlotsRow, error) {
+	rows, err := db.Query(ctx, getTotalSlots, arg.Tenantid, arg.Actionid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetTotalSlotsRow
+	for rows.Next() {
+		var i GetTotalSlotsRow
+		if err := rows.Scan(&i.TsTotalSlots, &i.ID, &i.Slots); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

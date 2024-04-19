@@ -435,10 +435,10 @@ WHERE
     "StepRun"."id" = locked_step_runs."id"
 RETURNING "StepRun"."id";
 
--- name: AssignStepRunToWorker :one
-WITH selected_worker AS (
+-- name: GetTotalSlots :many
+WITH valid_workers AS (
     SELECT
-        w."id", w."dispatcherId", ws."slots"
+        w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
     FROM
         "Worker" w
     LEFT JOIN 
@@ -457,7 +457,51 @@ WITH selected_worker AS (
             ws."workerId" IS NULL OR
             ws."slots" > 0
         )
-    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM() 
+    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM()
+),
+total_slots AS (
+    SELECT
+        COALESCE(SUM(vw."slots"), 0) AS "totalSlots"
+    FROM
+        valid_workers vw
+)
+SELECT ts."totalSlots"::int, vw."id", vw."slots"
+FROM valid_workers vw
+LEFT JOIN total_slots ts ON true;
+
+-- name: AssignStepRunToWorker :one
+WITH valid_workers AS (
+    SELECT
+        w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
+    FROM
+        "Worker" w
+    LEFT JOIN 
+        "WorkerSemaphore" ws ON w."id" = ws."workerId"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."id" IN (
+            SELECT "_ActionToWorker"."B"
+            FROM "_ActionToWorker"
+            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
+            WHERE "Action"."tenantId" = @tenantId AND "Action"."actionId" = @actionId::text
+        )
+        AND (
+            ws."workerId" IS NULL OR
+            ws."slots" > 0
+        )
+    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM()
+), total_slots AS (
+    SELECT
+        COALESCE(SUM(vw."slots"), 0) AS "totalSlots"
+    FROM
+        valid_workers vw
+), selected_worker AS (
+    SELECT
+        *
+    FROM
+        valid_workers vw
     LIMIT 1
 ),
 step_run AS (
@@ -471,29 +515,36 @@ step_run AS (
         "status" = 'PENDING_ASSIGNMENT' AND
         EXISTS (SELECT 1 FROM selected_worker)
     FOR UPDATE
+),
+update_step_run AS (
+    UPDATE
+        "StepRun"
+    SET
+        "status" = 'ASSIGNED',
+        "workerId" = (
+            SELECT "id"
+            FROM selected_worker
+            LIMIT 1
+        ),
+        "tickerId" = NULL,
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "timeoutAt" = CASE
+            WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
+                CURRENT_TIMESTAMP + convert_duration_to_interval(sqlc.narg('stepTimeout')::text)
+            ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+        END
+    WHERE
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid AND
+        "status" = 'PENDING_ASSIGNMENT' AND
+        EXISTS (SELECT 1 FROM selected_worker)
+    RETURNING 
+        "StepRun"."id", "StepRun"."workerId", 
+        (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId"
 )
-UPDATE
-    "StepRun"
-SET
-    "status" = 'ASSIGNED',
-    "workerId" = (
-        SELECT "id"
-        FROM selected_worker
-        LIMIT 1
-    ),
-    "tickerId" = NULL,
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "timeoutAt" = CASE
-        WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
-            CURRENT_TIMESTAMP + convert_duration_to_interval(sqlc.narg('stepTimeout')::text)
-        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
-    END
-WHERE
-    "id" = @stepRunId::uuid AND
-    "tenantId" = @tenantId::uuid AND
-    "status" = 'PENDING_ASSIGNMENT' AND
-    EXISTS (SELECT 1 FROM selected_worker)
-RETURNING "StepRun"."id", "StepRun"."workerId", (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId";
+SELECT ts."totalSlots"::int, usr."id", usr."workerId", usr."dispatcherId"
+FROM total_slots ts
+LEFT JOIN update_step_run usr ON true;    
 
 -- name: UpdateWorkerSemaphore :one
 WITH worker_id AS (
