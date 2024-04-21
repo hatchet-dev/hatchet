@@ -111,10 +111,12 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	}
 
 	destructor := func(conn *amqp.Connection) {
-		err := conn.Close()
+		if !conn.IsClosed() {
+			err := conn.Close()
 
-		if err != nil {
-			opts.l.Error().Msgf("error closing connection: %v", err)
+			if err != nil {
+				opts.l.Error().Msgf("error closing connection: %v", err)
+			}
 		}
 	}
 
@@ -359,10 +361,12 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 				}
 			}
 
-			err := pub.Channel.Close()
+			if !pub.Channel.IsClosed() {
+				err := pub.Channel.Close()
 
-			if err != nil {
-				t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
+				if err != nil {
+					t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
+				}
 			}
 		}
 	}()
@@ -420,10 +424,12 @@ func (t *MessageQueueImpl) subscribe(
 			closeChannel := func() {
 				sessionWg.Wait()
 
-				err = sub.Channel.Close()
+				if !sub.Channel.IsClosed() {
+					err = sub.Channel.Close()
 
-				if err != nil {
-					t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
+					if err != nil {
+						t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
+					}
 				}
 			}
 
