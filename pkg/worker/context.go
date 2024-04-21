@@ -38,6 +38,8 @@ type HatchetContext interface {
 
 	client() client.Client
 
+	action() *client.Action
+
 	index() int
 	inc()
 }
@@ -67,7 +69,7 @@ type StepData map[string]interface{}
 
 type hatchetContext struct {
 	context.Context
-	action   *client.Action
+	a        *client.Action
 	stepData *StepRunData
 	c        client.Client
 	l        *zerolog.Logger
@@ -86,7 +88,7 @@ func newHatchetContext(
 ) (HatchetContext, error) {
 	c := &hatchetContext{
 		Context: ctx,
-		action:  action,
+		a:       action,
 		c:       client,
 		l:       l,
 	}
@@ -110,6 +112,10 @@ func newHatchetContext(
 
 func (h *hatchetContext) client() client.Client {
 	return h.c
+}
+
+func (h *hatchetContext) action() *client.Action {
+	return h.a
 }
 
 func (h *hatchetContext) SetContext(ctx context.Context) {
@@ -137,19 +143,19 @@ func (h *hatchetContext) WorkflowInput(target interface{}) error {
 }
 
 func (h *hatchetContext) StepName() string {
-	return h.action.StepName
+	return h.a.StepName
 }
 
 func (h *hatchetContext) StepRunId() string {
-	return h.action.StepRunId
+	return h.a.StepRunId
 }
 
 func (h *hatchetContext) WorkflowRunId() string {
-	return h.action.WorkflowRunId
+	return h.a.WorkflowRunId
 }
 
 func (h *hatchetContext) Log(message string) {
-	err := h.c.Event().PutLog(h, h.action.StepRunId, message)
+	err := h.c.Event().PutLog(h, h.a.StepRunId, message)
 
 	if err != nil {
 		h.l.Err(err).Msg("could not put log")
@@ -157,7 +163,7 @@ func (h *hatchetContext) Log(message string) {
 }
 
 func (h *hatchetContext) StreamEvent(message []byte) {
-	err := h.c.Event().PutStreamEvent(h, h.action.StepRunId, message)
+	err := h.c.Event().PutStreamEvent(h, h.a.StepRunId, message)
 
 	if err != nil {
 		h.l.Err(err).Msg("could not put stream event")
@@ -236,7 +242,7 @@ func (h *hatchetContext) populateStepDataForGroupKeyRun() error {
 
 	inputData := map[string]interface{}{}
 
-	err := json.Unmarshal(h.action.ActionPayload, &inputData)
+	err := json.Unmarshal(h.a.ActionPayload, &inputData)
 
 	if err != nil {
 		return err
@@ -256,7 +262,7 @@ func (h *hatchetContext) populateStepData() error {
 
 	h.stepData = &StepRunData{}
 
-	jsonBytes := h.action.ActionPayload
+	jsonBytes := h.a.ActionPayload
 
 	if len(jsonBytes) == 0 {
 		jsonBytes = []byte("{}")
