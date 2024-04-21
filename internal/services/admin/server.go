@@ -365,9 +365,12 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 			steps[j] = repository.CreateWorkflowStepOpts{
 				ReadableId: stepCp.ReadableId,
 				Action:     parsedAction.String(),
-				Timeout:    &stepCp.Timeout,
 				Parents:    stepCp.Parents,
 				Retries:    &retries,
+			}
+
+			if stepCp.Timeout != "" {
+				steps[j].Timeout = &stepCp.Timeout
 			}
 
 			for _, rateLimit := range stepCp.RateLimits {
