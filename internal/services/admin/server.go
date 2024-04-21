@@ -142,6 +142,16 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		return nil, err
 	}
 
+	// validate createOpts
+	if apiErrors, err := a.v.ValidateAPI(createOpts); err != nil {
+		return nil, err
+	} else if apiErrors != nil {
+		return nil, status.Error(
+			codes.InvalidArgument,
+			apiErrors.String(),
+		)
+	}
+
 	// determine if workflow already exists
 	var workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow
 	var oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow
