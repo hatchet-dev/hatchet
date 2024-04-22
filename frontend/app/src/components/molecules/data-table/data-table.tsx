@@ -247,6 +247,7 @@ export function DataTable<TData extends IDGetter, TValue>({
           actions={actions}
           search={search}
           setSearch={setSearch}
+          canVisibility={!!columnVisibility}
         />
       )}
       <div className={`rounded-md ${!card && 'border'}`}>
