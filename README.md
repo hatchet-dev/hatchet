@@ -71,6 +71,7 @@ Hatchet supports your technology stack with open-source SDKs for Python, Typescr
 Hatchet comes with a native Go SDK. The following SDKs are also available:
 
 - [Typescript SDK](https://github.com/hatchet-dev/hatchet-typescript)
+- [Python SDK](https://github.com/hatchet-dev/hatchet-python)
 
 If you encounter any issues with the SDKs, please submit an issue in the respective repository.
 

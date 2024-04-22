@@ -28,11 +28,6 @@ jobs:
           version: 8
           run_install: false
 
-      - name: Install openapi generator
-        run: |
-          npm install @openapitools/openapi-generator-cli -g
-          openapi-generator-cli version-manager set 7.3.0
-
       - name: Compose
         run: docker compose up -d
 
@@ -99,11 +94,6 @@ jobs:
           version: 8
           run_install: false
 
-      - name: Install openapi generator
-        run: |
-          npm install @openapitools/openapi-generator-cli -g
-          openapi-generator-cli version-manager set 7.3.0
-
       - name: Compose
         run: docker compose up -d
 
@@ -151,11 +141,6 @@ jobs:
         with:
           version: 8
           run_install: false
-
-      - name: Install openapi generator
-        run: |
-          npm install @openapitools/openapi-generator-cli -g
-          openapi-generator-cli version-manager set 7.3.0
 
       - name: Compose
         run: docker compose up -d

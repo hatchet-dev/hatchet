@@ -8,22 +8,6 @@ repos:
       - id: end-of-file-fixer
         exclude: \.sql
       - id: check-yaml
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        additional_dependencies: ["isort[pyproject]"]
-        exclude: _pb2(_grpc)?\.py
-        types:
-          - python
-  - repo: https://github.com/psf/black
-    rev: 24.3.0
-    hooks:
-      - id: black
-        args: ["--config=python-sdk/pyproject.toml"]
-        exclude: _pb2(_grpc)?\.py
-        types:
-          - python
   - repo: https://github.com/golangci/golangci-lint
     rev: v1.57.1
     hooks:
