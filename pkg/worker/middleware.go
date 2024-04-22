@@ -2,6 +2,7 @@ package worker
 
 import (
 	"fmt"
+	"runtime/debug"
 	"sync"
 )
 
@@ -40,14 +41,11 @@ func run(ctx HatchetContext, fs []MiddlewareFunc, next func(HatchetContext) erro
 	})
 }
 
-func panicMiddleware(ctx HatchetContext, next func(HatchetContext) error) error {
+func (w *Worker) panicMiddleware(ctx HatchetContext, next func(HatchetContext) error) error {
 	var err error
-	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
+	func() {
 		defer func() {
-			defer wg.Done()
 			if r := recover(); r != nil {
 				var ok bool
 				err, ok = r.(error)
@@ -56,14 +54,18 @@ func panicMiddleware(ctx HatchetContext, next func(HatchetContext) error) error 
 					err = fmt.Errorf("%v", r)
 				}
 
+				innerErr := w.sendFailureEvent(ctx, fmt.Errorf("recovered from panic: %w. Stack trace:\n%s", err, string(debug.Stack())))
+
+				if innerErr != nil {
+					w.l.Error().Err(innerErr).Msg("could not send failure event")
+				}
+
 				return
 			}
 		}()
 
 		err = next(ctx)
 	}()
-
-	wg.Wait()
 
 	return err
 }

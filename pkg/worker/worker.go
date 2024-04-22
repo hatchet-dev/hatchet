@@ -161,8 +161,6 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 
 	mws := newMiddlewares()
 
-	mws.add(panicMiddleware)
-
 	w := &Worker{
 		client:      opts.client,
 		name:        opts.name,
@@ -172,6 +170,8 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		middlewares: mws,
 		maxRuns:     opts.maxRuns,
 	}
+
+	mws.add(w.panicMiddleware)
 
 	// register all integrations
 	for _, integration := range opts.integrations {
@@ -436,28 +436,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 			}
 
 			if err != nil {
-				failureEvent := w.getActionEvent(assignedAction, client.ActionEventTypeFailed)
-
-				w.alerter.SendAlert(context.Background(), err, map[string]interface{}{
-					"actionId":   assignedAction.ActionId,
-					"workerId":   assignedAction.WorkerId,
-					"stepRunId":  assignedAction.StepRunId,
-					"jobName":    assignedAction.JobName,
-					"actionType": assignedAction.ActionType,
-				})
-
-				failureEvent.EventPayload = err.Error()
-
-				_, err := w.client.Dispatcher().SendStepActionEvent(
-					ctx,
-					failureEvent,
-				)
-
-				if err != nil {
-					return fmt.Errorf("could not send action event: %w", err)
-				}
-
-				return err
+				return w.sendFailureEvent(ctx, err)
 			}
 
 			// send a message that the step run completed
@@ -599,6 +578,36 @@ func (w *Worker) getGroupKeyActionFinishedEvent(action *client.Action, output st
 	event.EventPayload = output
 
 	return event, nil
+}
+
+func (w *Worker) sendFailureEvent(ctx HatchetContext, err error) error {
+	assignedAction := ctx.action()
+
+	failureEvent := w.getActionEvent(assignedAction, client.ActionEventTypeFailed)
+
+	w.alerter.SendAlert(context.Background(), err, map[string]interface{}{
+		"actionId":   assignedAction.ActionId,
+		"workerId":   assignedAction.WorkerId,
+		"stepRunId":  assignedAction.StepRunId,
+		"jobName":    assignedAction.JobName,
+		"actionType": assignedAction.ActionType,
+	})
+
+	failureEvent.EventPayload = err.Error()
+
+	innerCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, err = w.client.Dispatcher().SendStepActionEvent(
+		innerCtx,
+		failureEvent,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not send action event: %w", err)
+	}
+
+	return err
 }
 
 func getHostName() string {
