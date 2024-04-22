@@ -78,7 +78,7 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 	_, err = a.client.PutWorkflow(a.ctx.newContext(context.Background()), req)
 
 	if err != nil {
-		return fmt.Errorf("could not create workflow: %w", err)
+		return fmt.Errorf("could not create workflow %s: %w", workflow.Name, err)
 	}
 
 	return nil

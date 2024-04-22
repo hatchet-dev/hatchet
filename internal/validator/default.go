@@ -18,7 +18,22 @@ const (
 	HatchetNameErr = "Hatchet names must match the regex ^[a-zA-Z0-9\\.\\-_]+$"
 	ActionIDErr    = "Invalid action ID. Action IDs must be in the format <integrationId>:<verb>"
 	CronErr        = "Invalid cron expression"
+	DurationErr    = "Invalid duration. Durations must be in the format <number><unit>, where unit is one of: 's', 'm', 'h', 'd', 'w', 'M', 'y'"
 )
+
+type APIErrors gen.APIErrors
+
+func (a *APIErrors) String() string {
+	var sb strings.Builder
+
+	sb.WriteString("Validation failed with the following errors:\n")
+
+	for i, err := range a.Errors {
+		sb.WriteString(fmt.Sprintf("%d: %s\n", i, err.Description))
+	}
+
+	return sb.String()
+}
 
 // Validator will validate the fields for a request object to ensure that
 // the request is well-formed. For example, it searches for required fields
@@ -28,7 +43,7 @@ type Validator interface {
 	// error that is meant to be shown to the end user as a readable string.
 	Validate(s interface{}) error
 
-	ValidateAPI(s interface{}) (*gen.APIErrors, error)
+	ValidateAPI(s interface{}) (*APIErrors, error)
 }
 
 // DefaultValidator uses the go-playground v10 validator for verifying that
@@ -43,7 +58,7 @@ func NewDefaultValidator() Validator {
 	return &DefaultValidator{newValidator()}
 }
 
-func (v *DefaultValidator) ValidateAPI(s interface{}) (*gen.APIErrors, error) {
+func (v *DefaultValidator) ValidateAPI(s interface{}) (*APIErrors, error) {
 	err := v.v10.Struct(s)
 
 	if err == nil {
@@ -68,7 +83,7 @@ func (v *DefaultValidator) ValidateAPI(s interface{}) (*gen.APIErrors, error) {
 		apiErrors[i].Field = &fieldStr
 	}
 
-	return &gen.APIErrors{
+	return &APIErrors{
 		Errors: apiErrors,
 	}, nil
 }
@@ -115,6 +130,8 @@ func getErrorStr(errObj *ValidationErrObject) string {
 		return errObj.SafeExternalError(ActionIDErr)
 	case "cron":
 		return errObj.SafeExternalError(CronErr)
+	case "duration":
+		return errObj.SafeExternalError(DurationErr)
 	default:
 		return errObj.SafeExternalError("")
 	}
