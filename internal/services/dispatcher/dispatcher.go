@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -38,8 +39,69 @@ type DispatcherImpl struct {
 	dv           datautils.DataDecoderValidator
 	repo         repository.EngineRepository
 	dispatcherId string
-	workers      sync.Map
+	workers      *workers
 	a            *hatcheterrors.Wrapped
+}
+
+var ErrWorkerNotFound = fmt.Errorf("worker not found")
+
+type workers struct {
+	innerMap sync.Map
+}
+
+func (w *workers) Range(f func(key, value interface{}) bool) {
+	w.innerMap.Range(f)
+}
+
+func (w *workers) Add(workerId, sessionId string, worker *subscribedWorker) {
+	actual, _ := w.innerMap.LoadOrStore(workerId, &sync.Map{})
+
+	actual.(*sync.Map).Store(sessionId, worker)
+}
+
+func (w *workers) GetForSession(workerId, sessionId string) (*subscribedWorker, error) {
+	actual, ok := w.innerMap.Load(workerId)
+	if !ok {
+		return nil, ErrWorkerNotFound
+	}
+
+	worker, ok := actual.(*sync.Map).Load(sessionId)
+	if !ok {
+		return nil, ErrWorkerNotFound
+	}
+
+	return worker.(*subscribedWorker), nil
+}
+
+func (w *workers) Get(workerId string) ([]*subscribedWorker, error) {
+	actual, ok := w.innerMap.Load(workerId)
+
+	if !ok {
+		return nil, ErrWorkerNotFound
+	}
+
+	workers := []*subscribedWorker{}
+
+	actual.(*sync.Map).Range(func(key, value interface{}) bool {
+		workers = append(workers, value.(*subscribedWorker))
+		return true
+	})
+
+	return workers, nil
+}
+
+func (w *workers) DeleteForSession(workerId, sessionId string) {
+	actual, ok := w.innerMap.Load(workerId)
+
+	if !ok {
+		return
+	}
+
+	actual.(*sync.Map).Delete(sessionId)
+}
+
+func (w *workers) Delete(workerId string) {
+	w.innerMap.Delete(workerId)
 }
 
 type DispatcherOpt func(*DispatcherOpts)
@@ -135,7 +197,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		dv:           opts.dv,
 		repo:         opts.repo,
 		dispatcherId: opts.dispatcherId,
-		workers:      sync.Map{},
+		workers:      &workers{},
 		s:            s,
 		a:            a,
 	}, nil
@@ -206,9 +268,13 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		d.l.Debug().Msg("draining existing connections")
 
 		d.workers.Range(func(key, value interface{}) bool {
-			w := value.(subscribedWorker)
+			value.(*sync.Map).Range(func(key, value interface{}) bool {
+				w := value.(*subscribedWorker)
 
-			w.finished <- true
+				w.finished <- true
+
+				return true
+			})
 
 			return true
 		})
@@ -275,7 +341,7 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 	}
 
 	// get the worker for this task
-	w, err := d.GetWorker(payload.WorkerId)
+	workers, err := d.workers.Get(payload.WorkerId)
 
 	if err != nil {
 		return fmt.Errorf("could not get worker: %w", err)
@@ -302,13 +368,24 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 		return fmt.Errorf("could not get group key run for engine: %w", err)
 	}
 
-	err = w.StartGroupKeyAction(ctx, metadata.TenantId, sqlcGroupKeyRun)
+	var multiErr error
+	var success bool
 
-	if err != nil {
-		return fmt.Errorf("could not send group key action to worker: %w", err)
+	for _, w := range workers {
+		err = w.StartGroupKeyAction(ctx, metadata.TenantId, sqlcGroupKeyRun)
+
+		if err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("could not send group key action to worker: %w", err))
+		} else {
+			success = true
+		}
 	}
 
-	return nil
+	if success {
+		return nil
+	}
+
+	return multiErr
 }
 
 func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *msgqueue.Message) error {
@@ -331,7 +408,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	}
 
 	// get the worker for this task
-	w, err := d.GetWorker(payload.WorkerId)
+	workers, err := d.workers.Get(payload.WorkerId)
 
 	if err != nil {
 		return fmt.Errorf("could not get worker: %w", err)
@@ -346,13 +423,24 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 
 	servertel.WithStepRunModel(span, stepRun)
 
-	err = w.StartStepRun(ctx, metadata.TenantId, stepRun)
+	var multiErr error
+	var success bool
 
-	if err != nil {
-		return fmt.Errorf("could not send step action to worker: %w", err)
+	for _, w := range workers {
+		err = w.StartStepRun(ctx, metadata.TenantId, stepRun)
+
+		if err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker: %w", err))
+		} else {
+			success = true
+		}
 	}
 
-	return nil
+	if success {
+		return nil
+	}
+
+	return multiErr
 }
 
 func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqueue.Message) error {
@@ -375,7 +463,7 @@ func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqu
 	}
 
 	// get the worker for this task
-	w, err := d.GetWorker(payload.WorkerId)
+	workers, err := d.workers.Get(payload.WorkerId)
 
 	if err != nil && !errors.Is(err, ErrWorkerNotFound) {
 		return fmt.Errorf("could not get worker: %w", err)
@@ -394,13 +482,24 @@ func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqu
 
 	servertel.WithStepRunModel(span, stepRun)
 
-	err = w.CancelStepRun(ctx, metadata.TenantId, stepRun)
+	var multiErr error
+	var success bool
 
-	if err != nil {
-		return fmt.Errorf("could not send job to worker: %w", err)
+	for _, w := range workers {
+		err = w.CancelStepRun(ctx, metadata.TenantId, stepRun)
+
+		if err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("could not send job to worker: %w", err))
+		} else {
+			success = true
+		}
 	}
 
-	return nil
+	if success {
+		return nil
+	}
+
+	return multiErr
 }
 
 func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
