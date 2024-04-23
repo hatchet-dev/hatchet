@@ -30,7 +30,7 @@ func (t *TickerImpl) runPollGetGroupKeyRuns(ctx context.Context) func() {
 
 			err := t.mq.AddMessage(
 				ctx,
-				msgqueue.JOB_PROCESSING_QUEUE,
+				msgqueue.WORKFLOW_PROCESSING_QUEUE,
 				taskGetGroupKeyRunTimedOut(tenantId, getGroupKeyRunId),
 			)
 
