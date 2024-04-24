@@ -597,7 +597,8 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     "parentId" UUID NOT NULL,
     "cron" TEXT NOT NULL,
     "tickerId" UUID,
-    "input" JSONB
+    "input" JSONB,
+    "enabled" BOOLEAN NOT NULL DEFAULT true
 );
 
 -- CreateTable

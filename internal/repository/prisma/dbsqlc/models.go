@@ -908,6 +908,7 @@ type WorkflowTriggerCronRef struct {
 	Cron     string      `json:"cron"`
 	TickerId pgtype.UUID `json:"tickerId"`
 	Input    []byte      `json:"input"`
+	Enabled  bool        `json:"enabled"`
 }
 
 type WorkflowTriggerEventRef struct {

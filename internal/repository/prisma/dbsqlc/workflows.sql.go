@@ -508,7 +508,7 @@ INSERT INTO "WorkflowTriggerCronRef" (
     $1::uuid,
     $2::text,
     $3::jsonb
-) RETURNING "parentId", cron, "tickerId", input
+) RETURNING "parentId", cron, "tickerId", input, enabled
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
@@ -525,6 +525,7 @@ func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg
 		&i.Cron,
 		&i.TickerId,
 		&i.Input,
+		&i.Enabled,
 	)
 	return &i, err
 }
