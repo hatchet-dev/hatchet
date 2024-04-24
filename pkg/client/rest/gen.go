@@ -86,6 +86,12 @@ const (
 	OWNER  TenantMemberRole = "OWNER"
 )
 
+// Defines values for WorkerStatus.
+const (
+	ACTIVE   WorkerStatus = "ACTIVE"
+	INACTIVE WorkerStatus = "INACTIVE"
+)
+
 // Defines values for WorkflowConcurrencyLimitStrategy.
 const (
 	CANCELINPROGRESS WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
@@ -650,16 +656,31 @@ type Worker struct {
 	// Actions The actions this worker can perform.
 	Actions *[]string `json:"actions,omitempty"`
 
+	// AvailableRuns The number of runs this worker can execute concurrently.
+	AvailableRuns *int `json:"availableRuns,omitempty"`
+
+	// DispatcherId the id of the assigned dispatcher, in UUID format
+	DispatcherId *openapi_types.UUID `json:"dispatcherId,omitempty"`
+
 	// LastHeartbeatAt The time this worker last sent a heartbeat.
-	LastHeartbeatAt *time.Time      `json:"lastHeartbeatAt,omitempty"`
-	Metadata        APIResourceMeta `json:"metadata"`
+	LastHeartbeatAt *time.Time `json:"lastHeartbeatAt,omitempty"`
+
+	// MaxRuns The maximum number of runs this worker can execute concurrently.
+	MaxRuns  *int            `json:"maxRuns,omitempty"`
+	Metadata APIResourceMeta `json:"metadata"`
 
 	// Name The name of the worker.
 	Name string `json:"name"`
 
 	// RecentStepRuns The recent step runs for this worker.
 	RecentStepRuns *[]StepRun `json:"recentStepRuns,omitempty"`
+
+	// Status The status of the worker.
+	Status *WorkerStatus `json:"status,omitempty"`
 }
+
+// WorkerStatus The status of the worker.
+type WorkerStatus string
 
 // WorkerList defines model for WorkerList.
 type WorkerList struct {

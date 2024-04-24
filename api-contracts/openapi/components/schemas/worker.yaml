@@ -20,6 +20,26 @@ Worker:
       description: The recent step runs for this worker.
       items:
         $ref: "./_index.yaml#/StepRun"
+    status:
+      type: string
+      description: The status of the worker.
+      enum:
+        - ACTIVE
+        - INACTIVE
+    maxRuns:
+      type: integer
+      description: The maximum number of runs this worker can execute concurrently.
+    availableRuns:
+      type: integer
+      description: The number of runs this worker can execute concurrently.
+    dispatcherId:
+      type: string
+      description: "the id of the assigned dispatcher, in UUID format"
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+      required:
   required:
     - metadata
     - name

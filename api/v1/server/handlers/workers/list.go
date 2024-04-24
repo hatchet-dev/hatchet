@@ -28,7 +28,8 @@ func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListReque
 
 	for i, worker := range workers {
 		workerCp := worker
-		rows[i] = *transformers.ToWorkerSqlc(&workerCp.Worker)
+
+		rows[i] = *transformers.ToWorkerSqlc(&workerCp.Worker, &worker.RunningStepRuns)
 	}
 
 	return gen.WorkerList200JSONResponse(
