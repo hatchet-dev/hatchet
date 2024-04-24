@@ -101,7 +101,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 
 func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronParentId string, input []byte) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
