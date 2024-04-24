@@ -415,6 +415,9 @@ model WorkflowTriggerCronRef {
   // the cron expression
   cron String
 
+  // whether this cron is enabled or not
+  enabled Boolean @default(true)
+
   // the assigned ticker
   ticker   Ticker? @relation(fields: [tickerId], references: [id])
   tickerId String? @db.Uuid

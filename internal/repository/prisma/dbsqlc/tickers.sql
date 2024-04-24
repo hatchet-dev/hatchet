@@ -144,11 +144,12 @@ active_cron_schedules AS (
     JOIN 
         latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
     WHERE
-        "tickerId" IS NULL 
+        "enabled" = TRUE AND
+        ("tickerId" IS NULL 
         OR NOT EXISTS (
             SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
         )
-        OR "tickerId" = @tickerId::uuid
+        OR "tickerId" = @tickerId::uuid)
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
