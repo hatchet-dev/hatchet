@@ -7,7 +7,7 @@ require (
 	github.com/creasty/defaults v1.7.0
 	github.com/fatih/color v1.16.0
 	github.com/getkin/kin-openapi v0.124.0
-	github.com/go-co-op/gocron/v2 v2.2.9
+	github.com/go-co-op/gocron/v2 v2.2.10
 	github.com/google/go-github/v57 v57.0.0
 	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.2.2
@@ -21,7 +21,6 @@ require (
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/posthog/posthog-go v0.0.0-20240327112532-87b23fe11103
-	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
 	github.com/steebchen/prisma-client-go v0.36.0
@@ -77,6 +76,7 @@ require (
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
