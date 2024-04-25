@@ -31,6 +31,7 @@ interface DataTableToolbarProps<TData> {
   actions: JSX.Element[];
   setSearch?: (search: string) => void;
   search?: string;
+  canVisibility?: boolean;
 }
 
 export function DataTableToolbar<TData>({
@@ -39,6 +40,7 @@ export function DataTableToolbar<TData>({
   actions,
   setSearch,
   search,
+  canVisibility,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters?.length > 0;
 
@@ -75,7 +77,7 @@ export function DataTableToolbar<TData>({
       </div>
       <div className="flex flex-row gap-4">
         {actions && actions.length > 0 && actions}
-        <DataTableViewOptions table={table} />
+        {canVisibility && <DataTableViewOptions table={table} />}
       </div>
     </div>
   );
