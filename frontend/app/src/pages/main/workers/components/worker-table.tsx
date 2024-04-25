@@ -21,6 +21,8 @@ import {
   QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
 import { BiCard, BiTable } from 'react-icons/bi';
+import { WorkerStatus, isHealthy } from '../$worker';
+import { ColumnFiltersState } from '@tanstack/react-table';
 
 export function WorkersTable() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -28,6 +30,12 @@ export function WorkersTable() {
 
   const [rotate, setRotate] = useState(false);
   const [cardToggle, setCardToggle] = useState(true);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
+    {
+      id: 'status',
+      value: ['ACTIVE'],
+    },
+  ]);
 
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenant.metadata.id),
@@ -35,8 +43,22 @@ export function WorkersTable() {
   });
 
   const data = useMemo(() => {
-    return listWorkersQuery.data?.rows || [];
-  }, [listWorkersQuery.data?.rows]);
+    let rows = listWorkersQuery.data?.rows || [];
+
+    columnFilters.map((filter) => {
+      if (filter.id === 'status') {
+        rows = rows.filter((row) =>
+          (filter.value as any[]).includes(row.status),
+        );
+      }
+    });
+
+    return rows.sort(
+      (a, b) =>
+        new Date(b.metadata?.createdAt).getTime() -
+        new Date(a.metadata?.createdAt).getTime(),
+    );
+  }, [listWorkersQuery.data?.rows, columnFilters]);
 
   if (listWorkersQuery.isLoading) {
     return <Loading />;
@@ -47,7 +69,7 @@ export function WorkersTable() {
       <CardHeader>
         <CardTitle>No Active Workers</CardTitle>
         <CardDescription>
-          <p className="text-gray-300 mb-4">
+          <p className="text-gray-700 dark:text-gray-300 mb-4">
             There are no worker processes currently running and connected to the
             Hatchet engine for this tenant. To enable workflow execution, please
             attempt to start a worker process or{' '}
@@ -75,13 +97,18 @@ export function WorkersTable() {
       className="border overflow-hidden shadow rounded-lg"
     >
       <div className="px-4 py-5 sm:p-6">
-        <h3 className="text-lg leading-6 font-medium text-foreground">
+        <h3 className="text-lg leading-6 font-medium text-foreground flex flex-row items-center justify-between">
           <Link to={`/workers/${data.metadata?.id}`}>{data.name}</Link>
+          <WorkerStatus status={data.status} health={isHealthy(data)} />
         </h3>
         <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
           Started {relativeDate(data.metadata?.createdAt)}
           <br />
-          Last seen {relativeDate(data?.lastHeartbeatAt)}
+          Last seen {relativeDate(data?.lastHeartbeatAt)} <br />
+          {(data.maxRuns ?? 0) > 0
+            ? `${data.availableRuns} / ${data.maxRuns ?? 0}`
+            : '∞'}{' '}
+          available run slots
         </p>
       </div>
       <div className="px-4 py-4 sm:px-6">
@@ -133,8 +160,19 @@ export function WorkersTable() {
       columns={columns}
       data={data}
       pageCount={1}
-      filters={[]}
+      filters={[
+        {
+          columnId: 'status',
+          title: 'Status',
+          options: [
+            { value: 'ACTIVE', label: 'Active' },
+            { value: 'INACTIVE', label: 'Inactive' },
+          ],
+        },
+      ]}
       emptyState={emptyState}
+      columnFilters={columnFilters}
+      setColumnFilters={setColumnFilters}
       card={
         cardToggle
           ? {
