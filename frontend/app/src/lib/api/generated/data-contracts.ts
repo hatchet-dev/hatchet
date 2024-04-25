@@ -498,6 +498,18 @@ export interface WorkflowRunList {
   pagination?: PaginationResponse;
 }
 
+export interface WorkflowRunsMetrics {
+  counts?: WorkflowRunsMetricsCounts;
+}
+
+export interface WorkflowRunsMetricsCounts {
+  PENDING?: number;
+  RUNNING?: number;
+  SUCCEEDED?: number;
+  FAILED?: number;
+  CANCELLED?: number;
+}
+
 export enum WorkflowRunStatus {
   PENDING = "PENDING",
   RUNNING = "RUNNING",

@@ -102,6 +102,10 @@ WorkflowRun:
   $ref: "./workflow_run.yaml#/WorkflowRun"
 WorkflowRunList:
   $ref: "./workflow_run.yaml#/WorkflowRunList"
+WorkflowRunsMetrics:
+  $ref: "./workflow_run.yaml#/WorkflowRunsMetrics"
+WorkflowRunsMetricsCounts:
+  $ref: "./workflow_run.yaml#/WorkflowRunsMetricsCounts"
 WorkflowRunStatus:
   $ref: "./workflow_run.yaml#/WorkflowRunStatus"
 WorkflowRunStatusList:
