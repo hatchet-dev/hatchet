@@ -94,16 +94,15 @@ export function WorkflowRunsTable({
       parentWorkflowRunId,
       parentStepRunId,
     }),
+    refetchInterval,
   });
 
   const {
     data: workflowKeys,
     isLoading: workflowKeysIsLoading,
     error: workflowKeysError,
-    refetch,
   } = useQuery({
     ...queries.workflows.list(tenant.metadata.id),
-    refetchInterval,
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
@@ -162,7 +161,7 @@ export function WorkflowRunsTable({
       className="h-8 px-2 lg:px-3"
       size="sm"
       onClick={() => {
-        refetch();
+        listWorkflowRunsQuery.refetch();
         setRotate(!rotate);
       }}
       variant={'outline'}
