@@ -806,7 +806,6 @@ type WorkflowRunsMetrics struct {
 
 // WorkflowRunsMetricsCounts defines model for WorkflowRunsMetricsCounts.
 type WorkflowRunsMetricsCounts struct {
-	CANCELLED *int `json:"CANCELLED,omitempty"`
 	FAILED    *int `json:"FAILED,omitempty"`
 	PENDING   *int `json:"PENDING,omitempty"`
 	RUNNING   *int `json:"RUNNING,omitempty"`
