@@ -17,6 +17,12 @@ import invariant from 'tiny-invariant';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 export const columns = ({
   onRowClick,
@@ -127,15 +133,68 @@ export const columns = ({
   ];
 };
 
+const MAX_METADATA_LENGTH = 2;
+
 function AdditionalMetadata({ event }: { event: Event }) {
+  const [showAll, setShowAll] = useState(false);
+
+  const metadataEntries = Object.entries(event.additionalMetadata || {});
+  const visibleEntries = showAll
+    ? metadataEntries
+    : metadataEntries.slice(0, MAX_METADATA_LENGTH);
+  const hiddenEntries = showAll
+    ? []
+    : metadataEntries.slice(MAX_METADATA_LENGTH);
+
+  const handleShowAll = () => {
+    setShowAll(true);
+  };
+
   return (
-    <div>
-      {event.additionalMetadata &&
-        Object.entries(event.additionalMetadata).map(([key, value]) => (
-          <Badge key={key} className="mr-2">
-            {`${key}:${value}`}
-          </Badge>
-        ))}
+    <div className="flex flex-row gap-2 items-center justify-start">
+      {visibleEntries.map(([key, value]) => (
+        <TooltipProvider key={key}>
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge className="mr-2 truncate" title={`${key}:${value}`}>
+                {`${key}:${value.substring(0, 10)}${value.length > 10 ? '...' : ''}`}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>{value}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ))}
+      {hiddenEntries.length > 0 && (
+        <Popover>
+          <PopoverTrigger>
+            <Badge className="cursor-pointer" onClick={handleShowAll}>
+              + {hiddenEntries.length} more
+            </Badge>
+          </PopoverTrigger>
+          <PopoverContent
+            className="min-w-fit p-0 bg-background border-none z-40"
+            align="end"
+          >
+            <div className="flex flex-col gap-2">
+              {hiddenEntries.map(([key, value]) => (
+                <TooltipProvider key={key}>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Badge
+                        className="mr-2 truncate"
+                        title={`${key}:${value}`}
+                      >
+                        {`${key}:${value.substring(0, 10)}${value.length > 10 ? '...' : ''}`}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>{value}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   );
 }
