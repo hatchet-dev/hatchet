@@ -84,7 +84,7 @@ INSERT INTO "Event" (
     $6::uuid,
     $7::uuid,
     $8::jsonb
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, metadata
 `
 
 type CreateEventParams struct {
@@ -119,13 +119,14 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 		&i.TenantId,
 		&i.ReplayedFromId,
 		&i.Data,
+		&i.Metadata,
 	)
 	return &i, err
 }
 
 const getEventForEngine = `-- name: GetEventForEngine :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, metadata
 FROM
     "Event"
 WHERE
@@ -144,6 +145,7 @@ func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id pgtype.UUID
 		&i.TenantId,
 		&i.ReplayedFromId,
 		&i.Data,
+		&i.Metadata,
 	)
 	return &i, err
 }
@@ -189,7 +191,7 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 
 const listEvents = `-- name: ListEvents :many
 SELECT
-    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data,
+    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, events.metadata,
     sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
     sum(case when runs."status" = 'QUEUED' then 1 else 0 end) AS queuedRuns,
     sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
@@ -282,6 +284,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Event.TenantId,
 			&i.Event.ReplayedFromId,
 			&i.Event.Data,
+			&i.Event.Metadata,
 			&i.Pendingruns,
 			&i.Queuedruns,
 			&i.Runningruns,
@@ -300,7 +303,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 
 const listEventsByIDs = `-- name: ListEventsByIDs :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data 
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, metadata 
 FROM
     "Event" as events
 WHERE
@@ -331,6 +334,7 @@ func (q *Queries) ListEventsByIDs(ctx context.Context, db DBTX, arg ListEventsBy
 			&i.TenantId,
 			&i.ReplayedFromId,
 			&i.Data,
+			&i.Metadata,
 		); err != nil {
 			return nil, err
 		}

@@ -226,6 +226,9 @@ model Event {
   // data stored in the event
   data Json?
 
+  // metadata stored in the event
+  metadata Json?
+
   // the workflow runs that were triggered by this event
   workflowRuns WorkflowRunTriggeredBy[]
 }

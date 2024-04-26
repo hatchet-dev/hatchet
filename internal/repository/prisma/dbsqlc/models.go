@@ -445,6 +445,7 @@ type Event struct {
 	TenantId       pgtype.UUID      `json:"tenantId"`
 	ReplayedFromId pgtype.UUID      `json:"replayedFromId"`
 	Data           []byte           `json:"data"`
+	Metadata       []byte           `json:"metadata"`
 }
 
 type GetGroupKeyRun struct {

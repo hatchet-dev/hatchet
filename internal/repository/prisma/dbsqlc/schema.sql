@@ -70,6 +70,7 @@ CREATE TABLE "Event" (
     "tenantId" UUID NOT NULL,
     "replayedFromId" UUID,
     "data" JSONB,
+    "metadata" JSONB,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
