@@ -483,7 +483,11 @@ export function StepRunPlayground({
             <div className="text-lg font-semibold tracking-tight mb-4">
               Child Workflow Runs
             </div>
-            <ChildWorkflowRuns stepRun={stepRun} workflowRun={workflowRun} />
+            <ChildWorkflowRuns
+              stepRun={stepRun}
+              workflowRun={workflowRun}
+              refetchInterval={workflowRun.status === 'RUNNING' ? 1000 : 5000}
+            />
           </div>
         )}
       {stepRun && workflowRun?.workflowVersion?.workflowId && (
@@ -503,9 +507,11 @@ export function StepRunPlayground({
 export function ChildWorkflowRuns({
   stepRun,
   workflowRun,
+  refetchInterval,
 }: {
   stepRun: StepRun | undefined;
   workflowRun: WorkflowRun;
+  refetchInterval?: number;
 }) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
@@ -514,6 +520,10 @@ export function ChildWorkflowRuns({
     <WorkflowRunsTable
       parentWorkflowRunId={workflowRun.metadata.id}
       parentStepRunId={stepRun?.metadata.id}
+      refetchInterval={refetchInterval}
+      initColumnVisibility={{
+        'Triggered by': false,
+      }}
     />
   );
 }

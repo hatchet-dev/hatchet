@@ -16,6 +16,7 @@ export const StepRunOutput: React.FC<StepRunOutputProps> = ({
     return <Loading />;
   }
 
+  console.log('err', errors);
   return (
     <>
       <CodeEditor
@@ -23,7 +24,9 @@ export const StepRunOutput: React.FC<StepRunOutputProps> = ({
         className="mb-4"
         height="400px"
         code={JSON.stringify(
-          errors.length > 0 ? errors : JSON.parse(output),
+          errors.length > 0
+            ? errors.map((error) => error.split('\\n')).flat()
+            : JSON.parse(output),
           null,
           2,
         )}

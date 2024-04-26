@@ -46,6 +46,42 @@ WHERE
         "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
     );
 
+-- name: WorkflowRunsMetricsCount :one
+SELECT
+    COUNT(CASE WHEN runs."status" = 'PENDING' THEN 1 END) AS "PENDING",
+    COUNT(CASE WHEN runs."status" = 'RUNNING' THEN 1 END) AS "RUNNING",
+    COUNT(CASE WHEN runs."status" = 'SUCCEEDED' THEN 1 END) AS "SUCCEEDED",
+    COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS "FAILED",
+    COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED"
+FROM
+    "WorkflowRun" as runs
+LEFT JOIN
+    "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
+LEFT JOIN
+    "Event" as events ON runTriggers."eventId" = events."id"
+LEFT JOIN
+    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+WHERE
+    runs."tenantId" = @tenantId::uuid AND
+    (
+        sqlc.narg('workflowId')::uuid IS NULL OR
+        workflow."id" = sqlc.narg('workflowId')::uuid
+    ) AND
+    (
+        sqlc.narg('parentId')::uuid IS NULL OR
+        runs."parentId" = sqlc.narg('parentId')::uuid
+    ) AND
+    (
+        sqlc.narg('parentStepRunId')::uuid IS NULL OR
+        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+    ) AND
+    (
+        sqlc.narg('eventId')::uuid IS NULL OR
+        events."id" = sqlc.narg('eventId')::uuid
+    );
+
 -- name: ListWorkflowRuns :many
 SELECT
     sqlc.embed(runs), 

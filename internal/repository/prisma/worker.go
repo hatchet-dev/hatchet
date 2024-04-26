@@ -43,6 +43,7 @@ func (w *workerAPIRepository) GetWorkerById(workerId string) (*db.WorkerModel, e
 	).With(
 		db.Worker.Dispatcher.Fetch(),
 		db.Worker.Actions.Fetch(),
+		db.Worker.Semaphore.Fetch(),
 	).Exec(context.Background())
 }
 

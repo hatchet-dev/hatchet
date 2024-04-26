@@ -20,6 +20,7 @@ import {
 } from '@/components/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { WorkflowRunsMetricsView } from './workflow-runs-metrics';
 
 export interface WorkflowRunsTableProps {
   workflowId?: string;
@@ -94,16 +95,26 @@ export function WorkflowRunsTable({
       parentWorkflowRunId,
       parentStepRunId,
     }),
+    refetchInterval,
   });
+
+  const metricsQuery = useQuery({
+    ...queries.workflowRuns.metrics(tenant.metadata.id, {
+      workflowId: workflow,
+      parentWorkflowRunId,
+      parentStepRunId,
+    }),
+    refetchInterval,
+  });
+
+  console.log(metricsQuery.data);
 
   const {
     data: workflowKeys,
     isLoading: workflowKeysIsLoading,
     error: workflowKeysError,
-    refetch,
   } = useQuery({
     ...queries.workflows.list(tenant.metadata.id),
-    refetchInterval,
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
@@ -156,6 +167,11 @@ export function WorkflowRunsTable({
 
   const [rotate, setRotate] = useState(false);
 
+  const refetch = () => {
+    listWorkflowRunsQuery.refetch();
+    metricsQuery.refetch();
+  };
+
   const actions = [
     <Button
       key="refresh"
@@ -179,23 +195,30 @@ export function WorkflowRunsTable({
   }
 
   return (
-    <DataTable
-      error={workflowKeysError}
-      isLoading={workflowKeysIsLoading}
-      columns={columns}
-      columnVisibility={columnVisibility}
-      setColumnVisibility={setColumnVisibility}
-      data={listWorkflowRunsQuery.data?.rows || []}
-      filters={filters}
-      actions={actions}
-      sorting={sorting}
-      setSorting={setSorting}
-      columnFilters={columnFilters}
-      setColumnFilters={setColumnFilters}
-      pagination={pagination}
-      setPagination={setPagination}
-      onSetPageSize={setPageSize}
-      pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
-    />
+    <>
+      {metricsQuery.data && (
+        <div className="mb-4">
+          <WorkflowRunsMetricsView metrics={metricsQuery.data} />
+        </div>
+      )}
+      <DataTable
+        error={workflowKeysError}
+        isLoading={workflowKeysIsLoading}
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        data={listWorkflowRunsQuery.data?.rows || []}
+        filters={filters}
+        actions={actions}
+        sorting={sorting}
+        setSorting={setSorting}
+        columnFilters={columnFilters}
+        setColumnFilters={setColumnFilters}
+        pagination={pagination}
+        setPagination={setPagination}
+        onSetPageSize={setPageSize}
+        pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
+      />
+    </>
   );
 }

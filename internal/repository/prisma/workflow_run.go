@@ -48,6 +48,14 @@ func (w *workflowRunAPIRepository) ListWorkflowRuns(tenantId string, opts *repos
 	return listWorkflowRuns(context.Background(), w.pool, w.queries, w.l, tenantId, opts)
 }
 
+func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(tenantId string, opts *repository.WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	return workflowRunMetricsCount(context.Background(), w.pool, w.queries, w.l, tenantId, opts)
+}
+
 func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*db.WorkflowRunModel, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
@@ -346,6 +354,51 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 	res.Count = int(count)
 
 	return res, nil
+}
+
+func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error) {
+
+	pgTenantId := &pgtype.UUID{}
+
+	if err := pgTenantId.Scan(tenantId); err != nil {
+		return nil, err
+	}
+
+	queryParams := dbsqlc.WorkflowRunsMetricsCountParams{
+		Tenantid: *pgTenantId,
+	}
+
+	if opts.WorkflowId != nil {
+		pgWorkflowId := sqlchelpers.UUIDFromStr(*opts.WorkflowId)
+
+		queryParams.WorkflowId = pgWorkflowId
+	}
+
+	if opts.ParentId != nil {
+		pgParentId := sqlchelpers.UUIDFromStr(*opts.ParentId)
+
+		queryParams.ParentId = pgParentId
+	}
+
+	if opts.ParentStepRunId != nil {
+		pgParentStepRunId := sqlchelpers.UUIDFromStr(*opts.ParentStepRunId)
+
+		queryParams.ParentStepRunId = pgParentStepRunId
+	}
+
+	if opts.EventId != nil {
+		pgEventId := sqlchelpers.UUIDFromStr(*opts.EventId)
+
+		queryParams.EventId = pgEventId
+	}
+
+	workflowRunsCount, err := queries.WorkflowRunsMetricsCount(ctx, pool, queryParams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return workflowRunsCount, nil
 }
 
 func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {

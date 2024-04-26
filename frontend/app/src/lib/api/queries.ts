@@ -7,6 +7,7 @@ import { PullRequestState } from '.';
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
+type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
 
 export const queries = createQueryKeyStore({
   user: {
@@ -87,6 +88,11 @@ export const queries = createQueryKeyStore({
     get: (tenant: string, workflowRun: string) => ({
       queryKey: ['workflow-run:get', tenant, workflowRun],
       queryFn: async () => (await api.workflowRunGet(tenant, workflowRun)).data,
+    }),
+    metrics: (tenant: string, query: WorkflowRunMetrics) => ({
+      queryKey: ['workflow-run:metrics', tenant, query],
+      queryFn: async () =>
+        (await api.workflowRunGetMetrics(tenant, query)).data,
     }),
     listPullRequests: (
       tenant: string,
