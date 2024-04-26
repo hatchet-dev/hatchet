@@ -240,9 +240,6 @@ type WorkflowRunsMetricsOpts struct {
 	// (optional) the workflow version id
 	WorkflowVersionId *string `validate:"omitempty,uuid"`
 
-	// (optional) a list of workflow run ids to filter by
-	Ids []string `validate:"omitempty,dive,uuid"`
-
 	// (optional) the parent workflow run id
 	ParentId *string `validate:"omitempty,uuid"`
 
@@ -251,9 +248,6 @@ type WorkflowRunsMetricsOpts struct {
 
 	// (optional) the event id that triggered the workflow run
 	EventId *string `validate:"omitempty,uuid"`
-
-	// (optional) the group key for the workflow run
-	GroupKey *string
 }
 
 type ListWorkflowRunsResult struct {

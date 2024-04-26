@@ -26,6 +26,7 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
   const runningPercentage = calculatePercentage(counts?.RUNNING ?? 0, total);
   const failedPercentage = calculatePercentage(counts?.FAILED ?? 0, total);
   const pendingPercentage = calculatePercentage(counts?.PENDING ?? 0, total);
+  const queuedPercentage = calculatePercentage(counts?.QUEUED ?? 0, total);
 
   return (
     <div className="flex flex-row space-x-4 dark:text-white">
@@ -60,6 +61,14 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
           </span>
         </div>
         <p className="ml-2">Pending: {counts?.PENDING}</p>
+      </div>
+      <div className="flex items-center">
+        <div className="w-12 h-12 bg-gray-400 rounded-full flex items-center justify-center">
+          <span className="text-white text-sm font-bold">
+            {queuedPercentage}%
+          </span>
+        </div>
+        <p className="ml-2">Queued: {counts?.QUEUED}</p>
       </div>
     </div>
   );

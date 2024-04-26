@@ -8,7 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
-func (t *WorkflowService) WorkflowRunMetrics(ctx echo.Context, request gen.WorkflowRunMetricsRequestObject) (gen.WorkflowRunMetricsResponseObject, error) {
+func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.WorkflowRunGetMetricsRequestObject) (gen.WorkflowRunGetMetricsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
 	listOpts := &repository.WorkflowRunsMetricsOpts{}
@@ -41,14 +41,16 @@ func (t *WorkflowService) WorkflowRunMetrics(ctx echo.Context, request gen.Workf
 
 	failed := int(workflowRunsMetricsCount.FAILED)
 	pending := int(workflowRunsMetricsCount.PENDING)
+	queued := int(workflowRunsMetricsCount.QUEUED)
 	running := int(workflowRunsMetricsCount.RUNNING)
 	succeeded := int(workflowRunsMetricsCount.SUCCEEDED)
 
-	return gen.WorkflowRunMetrics200JSONResponse(
+	return gen.WorkflowRunGetMetrics200JSONResponse(
 		gen.WorkflowRunsMetrics{
 			Counts: &gen.WorkflowRunsMetricsCounts{
 				FAILED:    &failed,
 				PENDING:   &pending,
+				QUEUED:    &queued,
 				RUNNING:   &running,
 				SUCCEEDED: &succeeded,
 			},

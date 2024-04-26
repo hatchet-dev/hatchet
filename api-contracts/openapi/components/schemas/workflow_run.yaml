@@ -70,6 +70,8 @@ WorkflowRunsMetricsCounts:
       type: integer
     FAILED:
       type: integer
+    QUEUED:
+      type: integer
 
 WorkflowRunsMetrics:
   type: object

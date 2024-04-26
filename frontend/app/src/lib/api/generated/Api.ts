@@ -1065,15 +1065,15 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Get all workflow runs for a tenant
+   * @description Get a summary of  workflow run metrics for a tenant
    *
    * @tags Workflow
-   * @name WorkflowRunMetrics
+   * @name WorkflowRunGetMetrics
    * @summary Get workflow runs
    * @request GET:/api/v1/tenants/{tenant}/workflows/runs/metrics
    * @secure
    */
-  workflowRunMetrics = (
+  workflowRunGetMetrics = (
     tenant: string,
     query?: {
       /**

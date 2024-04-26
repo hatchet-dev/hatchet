@@ -51,7 +51,8 @@ SELECT
     COUNT(CASE WHEN runs."status" = 'PENDING' THEN 1 END) AS "PENDING",
     COUNT(CASE WHEN runs."status" = 'RUNNING' THEN 1 END) AS "RUNNING",
     COUNT(CASE WHEN runs."status" = 'SUCCEEDED' THEN 1 END) AS "SUCCEEDED",
-    COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS "FAILED"
+    COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS "FAILED",
+    COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN

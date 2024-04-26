@@ -507,6 +507,7 @@ export interface WorkflowRunsMetricsCounts {
   RUNNING?: number;
   SUCCEEDED?: number;
   FAILED?: number;
+  QUEUED?: number;
 }
 
 export enum WorkflowRunStatus {

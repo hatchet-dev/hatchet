@@ -392,21 +392,7 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 		queryParams.EventId = pgEventId
 	}
 
-	tx, err := pool.Begin(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer deferRollback(ctx, l, tx.Rollback)
-
-	workflowRunsCount, err := queries.WorkflowRunsMetricsCount(ctx, tx, queryParams)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = tx.Commit(ctx)
+	workflowRunsCount, err := queries.WorkflowRunsMetricsCount(ctx, pool, queryParams)
 
 	if err != nil {
 		return nil, err
