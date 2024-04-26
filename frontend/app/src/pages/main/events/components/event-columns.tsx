@@ -106,12 +106,39 @@ export const columns = ({
         return <WorkflowRunSummary event={row.original} />;
       },
     },
+    {
+      accessorKey: 'Metadata',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Metadata" />
+      ),
+      cell: ({ row }) => {
+        if (!row.original.additionalMetadata) {
+          return <div></div>;
+        }
+
+        return <AdditionalMetadata event={row.original} />;
+      },
+      enableSorting: false,
+    },
     // {
     //   id: "actions",
     //   cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
     // },
   ];
 };
+
+function AdditionalMetadata({ event }: { event: Event }) {
+  return (
+    <div>
+      {event.additionalMetadata &&
+        Object.entries(event.additionalMetadata).map(([key, value]) => (
+          <Badge key={key} className="mr-2">
+            {`${key}:${value}`}
+          </Badge>
+        ))}
+    </div>
+  );
+}
 
 // eslint-disable-next-line react-refresh/only-export-components
 function WorkflowRunSummary({ event }: { event: Event }) {

@@ -72,7 +72,11 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 	rows := make([]gen.Event, len(listRes.Rows))
 
 	for i, event := range listRes.Rows {
-		rows[i] = *transformers.ToEventFromSQLC(event)
+		eventData, err := transformers.ToEventFromSQLC(event)
+		if err != nil {
+			return nil, err
+		}
+		rows[i] = *eventData
 	}
 
 	// use the total rows and limit to calculate the total pages

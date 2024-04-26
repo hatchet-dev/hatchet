@@ -74,7 +74,8 @@ INSERT INTO "Event" (
     "key",
     "tenantId",
     "replayedFromId",
-    "data"
+    "data",
+    "metadata"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -83,7 +84,8 @@ INSERT INTO "Event" (
     $5::text,
     $6::uuid,
     $7::uuid,
-    $8::jsonb
+    $8::jsonb,
+    $9::jsonb
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, metadata
 `
 
@@ -96,6 +98,7 @@ type CreateEventParams struct {
 	Tenantid       pgtype.UUID      `json:"tenantid"`
 	ReplayedFromId pgtype.UUID      `json:"replayedFromId"`
 	Data           []byte           `json:"data"`
+	Metadata       []byte           `json:"metadata"`
 }
 
 func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParams) (*Event, error) {
@@ -108,6 +111,7 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 		arg.Tenantid,
 		arg.ReplayedFromId,
 		arg.Data,
+		arg.Metadata,
 	)
 	var i Event
 	err := row.Scan(

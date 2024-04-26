@@ -212,6 +212,9 @@ type CreateTenantRequest struct {
 
 // Event defines model for Event.
 type Event struct {
+	// AdditionalMetadata Additional metadata for the event.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
 	// Key The key for the event.
 	Key      string          `json:"key"`
 	Metadata APIResourceMeta `json:"metadata"`

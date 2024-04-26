@@ -268,6 +268,8 @@ export interface Event {
   tenantId: string;
   /** The workflow run summary for this event. */
   workflowRunSummary?: EventWorkflowRunSummary;
+  /** Additional metadata for the event. */
+  additionalMetadata?: object;
 }
 
 export interface EventData {

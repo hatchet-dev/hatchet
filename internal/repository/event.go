@@ -19,6 +19,9 @@ type CreateEventOpts struct {
 
 	// (optional) the event that this event is replaying
 	ReplayedEvent *string `validate:"omitempty,uuid"`
+
+	// (optional) the event metadata
+	Metadata []byte
 }
 
 type ListEventOpts struct {

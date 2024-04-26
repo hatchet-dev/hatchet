@@ -223,6 +223,7 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 		Key:      opts.Key,
 		Tenantid: sqlchelpers.UUIDFromStr(opts.TenantId),
 		Data:     opts.Data,
+		Metadata: opts.Metadata,
 	}
 
 	if opts.ReplayedEvent != nil {
