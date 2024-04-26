@@ -148,13 +148,6 @@ jobs:
       - name: Go deps
         run: go mod download
 
-      - name: Generate
-        run: |
-          go run github.com/steebchen/prisma-client-go migrate deploy
-          task generate-all
-          task generate-certs
-          task generate-local-encryption-keys
-
       - name: Prepare
         run: |
           cat > .env <<EOF
@@ -178,6 +171,13 @@ jobs:
           SERVER_AUTH_COOKIE_INSECURE=false
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
           EOF
+
+      - name: Generate
+        run: |
+          go run github.com/steebchen/prisma-client-go migrate deploy
+          task generate-all
+          task generate-certs
+          task generate-local-encryption-keys
 
       - name: Run engine
         run: |
@@ -232,13 +232,6 @@ jobs:
       - name: Go deps
         run: go mod download
 
-      - name: Generate
-        run: |
-          go run github.com/steebchen/prisma-client-go migrate deploy
-          task generate-all
-          task generate-certs
-          task generate-local-encryption-keys
-
       - name: Prepare
         run: |
           cat > .env <<EOF
@@ -253,6 +246,13 @@ jobs:
           SERVER_AUTH_COOKIE_INSECURE=false
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
           EOF
+
+      - name: Generate
+        run: |
+          go run github.com/steebchen/prisma-client-go migrate deploy
+          task generate-all
+          task generate-certs
+          task generate-local-encryption-keys
 
       - name: Setup
         run: |
