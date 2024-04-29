@@ -50,10 +50,10 @@ func TestWebhook(t *testing.T) {
 			for {
 				select {
 				case item, ok := <-events:
-					items = append(items, item)
 					if !ok {
 						break outer
 					}
+					items = append(items, item)
 				case <-interruptCh:
 					log.Printf("interrupt")
 					break outer

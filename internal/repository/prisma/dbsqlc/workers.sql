@@ -52,7 +52,8 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "maxRuns"
+    "maxRuns",
+    "webhook"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -60,7 +61,8 @@ INSERT INTO "Worker" (
     @tenantId::uuid,
     @name::text,
     @dispatcherId::uuid,
-    sqlc.narg('maxRuns')::int
+    sqlc.narg('maxRuns')::int,
+    sqlc.narg('webhook')::boolean
 ) RETURNING *;
 
 -- name: CreateWorkerSemaphore :one
@@ -86,10 +88,10 @@ RETURNING *;
 
 -- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (
-    "A", 
+    "A",
     "B"
-) SELECT 
-    unnest(@actionIds::uuid[]), 
+) SELECT
+    unnest(@actionIds::uuid[]),
     @workerId::uuid
 ON CONFLICT DO NOTHING;
 
@@ -108,7 +110,7 @@ VALUES (
     @name::text,
     @tenantId::uuid
 )
-ON CONFLICT ("tenantId", "name") DO UPDATE 
+ON CONFLICT ("tenantId", "name") DO UPDATE
 SET
     "updatedAt" = CURRENT_TIMESTAMP
 WHERE
@@ -118,10 +120,10 @@ RETURNING *;
 -- name: LinkServicesToWorker :exec
 INSERT INTO "_ServiceToWorker" (
     "A",
-    "B" 
+    "B"
 )
 VALUES (
-    unnest(@services::uuid[]), 
+    unnest(@services::uuid[]),
     @workerId::uuid
 )
 ON CONFLICT DO NOTHING;

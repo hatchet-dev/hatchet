@@ -58,7 +58,10 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 			_, _ = w.Write([]byte("ok"))
 
 			done <- event.StepName
-			close(done)
+
+			//if event.StepName == "step-two" {
+			//	close(done)
+			//}
 		})
 
 		log.Printf("starting webhook server on port %s", port)

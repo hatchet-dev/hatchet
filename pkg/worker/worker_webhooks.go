@@ -29,6 +29,7 @@ func (w *Worker) RegisterWebhook(t triggerConverter, url string, workflow workfl
 		WorkerName: w.name,
 		Actions:    actionNames,
 		MaxRuns:    w.maxRuns,
+		Webhook:    true,
 	}); err != nil {
 		return fmt.Errorf("could not register worker: %w", err)
 	}

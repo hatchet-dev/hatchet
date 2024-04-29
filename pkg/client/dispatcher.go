@@ -37,6 +37,7 @@ type GetActionListenerRequest struct {
 	Services   []string
 	Actions    []string
 	MaxRuns    *int
+	Webhook    bool
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -184,6 +185,7 @@ func (d *dispatcherClientImpl) registerWorker(ctx context.Context, req *GetActio
 		WorkerName: req.WorkerName,
 		Actions:    req.Actions,
 		Services:   req.Services,
+		Webhook:    &req.Webhook,
 	}
 
 	if req.MaxRuns != nil {

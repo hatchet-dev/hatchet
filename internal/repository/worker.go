@@ -23,6 +23,9 @@ type CreateWorkerOpts struct {
 
 	// A list of actions this worker can run
 	Actions []string `validate:"dive,actionId"`
+
+	// Whether this worker should be a webhook worker
+	Webhook *bool
 }
 
 type UpdateWorkerOpts struct {

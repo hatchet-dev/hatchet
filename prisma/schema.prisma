@@ -1053,6 +1053,8 @@ model Worker {
   // the last heartbeat time
   lastHeartbeatAt DateTime?
 
+  webhook Boolean @default(false)
+
   // the worker name
   name String
 

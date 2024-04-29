@@ -144,10 +144,13 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		svcs = []string{"default"}
 	}
 
+	log.Printf("create worker opts webhook %v", request.Webhook)
+
 	opts := &repository.CreateWorkerOpts{
 		DispatcherId: s.dispatcherId,
 		Name:         request.WorkerName,
 		Actions:      request.Actions,
+		Webhook:      request.Webhook,
 		Services:     svcs,
 	}
 

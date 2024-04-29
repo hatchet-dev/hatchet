@@ -101,12 +101,12 @@ WITH valid_workers AS (
         w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
     FROM
         "Worker" w
-    LEFT JOIN 
+    LEFT JOIN
         "WorkerSemaphore" ws ON w."id" = ws."workerId"
     WHERE
         w."tenantId" = $1::uuid
         AND w."dispatcherId" IS NOT NULL
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND (w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' OR w."webhook" = true)
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
@@ -164,8 +164,8 @@ update_step_run AS (
         "tenantId" = $1::uuid AND
         "status" = 'PENDING_ASSIGNMENT' AND
         EXISTS (SELECT 1 FROM selected_worker)
-    RETURNING 
-        "StepRun"."id", "StepRun"."workerId", 
+    RETURNING
+        "StepRun"."id", "StepRun"."workerId",
         (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId"
 )
 SELECT ts."totalSlots"::int, usr."id", usr."workerId", usr."dispatcherId"
@@ -285,7 +285,7 @@ JOIN
     "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
 JOIN
     "Job" j ON jr."jobId" = j."id"
-JOIN 
+JOIN
     "WorkflowRun" wr ON jr."workflowRunId" = wr."id"
 JOIN
     "WorkflowVersion" wv ON wr."workflowVersionId" = wv."id"
@@ -391,12 +391,12 @@ WITH valid_workers AS (
         w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
     FROM
         "Worker" w
-    LEFT JOIN 
+    LEFT JOIN
         "WorkerSemaphore" ws ON w."id" = ws."workerId"
     WHERE
         w."tenantId" = $1::uuid
         AND w."dispatcherId" IS NOT NULL
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND (w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' OR w."webhook" = true)
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
@@ -457,29 +457,29 @@ WITH job_run AS (
     FROM "JobRun"
     WHERE "id" = $1::uuid
 )
-SELECT 
+SELECT
     DISTINCT ON (child_run."id")
     child_run."id" AS "id"
-FROM 
+FROM
     "StepRun" AS child_run
-LEFT JOIN 
+LEFT JOIN
     "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
 JOIN
     job_run ON true
-WHERE 
+WHERE
     child_run."jobRunId" = $1::uuid
     AND child_run."status" = 'PENDING'
     AND job_run."status" = 'RUNNING'
     -- case on whether parentStepRunId is null
     AND (
-        ($2::uuid IS NULL AND step_run_order."A" IS NULL) OR 
+        ($2::uuid IS NULL AND step_run_order."A" IS NULL) OR
         (
             step_run_order."A" = $2::uuid
             AND NOT EXISTS (
                 SELECT 1
                 FROM "_StepRunOrder" AS parent_order
                 JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
-                WHERE 
+                WHERE
                     parent_order."B" = child_run."id"
                     AND parent_run."status" != 'SUCCEEDED'
             )
@@ -589,7 +589,10 @@ WITH valid_workers AS (
         "WorkerSemaphore" ws ON ws."workerId" = w."id"
     WHERE
         w."tenantId" = $1::uuid
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND (
+            w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+            OR w."webhook" = true
+        )
     GROUP BY
         w."id"
 ),
@@ -620,11 +623,11 @@ step_runs AS (
         sr."tenantId" = $1::uuid
         AND ((
             sr."status" = 'RUNNING'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
+            AND (w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds' OR w."webhook" = true)
             AND s."retries" > sr."retryCount"
         ) OR (
             sr."status" = 'ASSIGNED'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
+            AND (w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds' OR w."webhook" = true)
         ))
         AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
@@ -633,7 +636,7 @@ step_runs AS (
             SELECT 1
             FROM "_StepRunOrder" AS order_table
             JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-            WHERE 
+            WHERE
                 order_table."B" = sr."id"
                 AND prev_sr."status" != 'SUCCEEDED'
         )
@@ -656,7 +659,7 @@ SET
     -- requeue after now plus 4 seconds
     "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
     "updatedAt" = CURRENT_TIMESTAMP
-FROM 
+FROM
     locked_step_runs
 WHERE
     "StepRun"."id" = locked_step_runs."id"
@@ -696,7 +699,7 @@ WITH valid_workers AS (
         "WorkerSemaphore" ws ON w."id" = ws."workerId"
     WHERE
         w."tenantId" = $1::uuid
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND (w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' OR w."webhook" = true)
     GROUP BY
         w."id"
 ),
@@ -726,7 +729,7 @@ step_runs AS (
             SELECT 1
             FROM "_StepRunOrder" AS order_table
             JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-            WHERE 
+            WHERE
                 order_table."B" = sr."id"
                 AND prev_sr."status" != 'SUCCEEDED'
         )
@@ -749,7 +752,7 @@ SET
     -- requeue after now plus 4 seconds
     "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
     "updatedAt" = CURRENT_TIMESTAMP
-FROM 
+FROM
     locked_step_runs
 WHERE
     "StepRun"."id" = locked_step_runs."id"
@@ -949,7 +952,7 @@ SET
         WHEN $4::boolean THEN NULL
         ELSE  COALESCE($5::timestamp, "finishedAt")
     END,
-    "status" = CASE 
+    "status" = CASE
         -- if this is a rerun, we permit status updates
         WHEN $4::boolean THEN COALESCE($6, "status")
         -- Final states are final, cannot be updated
@@ -978,7 +981,7 @@ SET
         ELSE COALESCE($11::text, "cancelledReason")
     END,
     "retryCount" = COALESCE($12::int, "retryCount")
-WHERE 
+WHERE
   "id" = $13::uuid AND
   "tenantId" = $14::uuid
 RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount"
@@ -1078,7 +1081,7 @@ func (q *Queries) UpdateStepRunInputSchema(ctx context.Context, db DBTX, arg Upd
 const updateStepRunOverridesData = `-- name: UpdateStepRunOverridesData :one
 UPDATE
     "StepRun" AS sr
-SET 
+SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "input" = jsonb_set("input", $1::text[], $2::jsonb, true),
     "callerFiles" = jsonb_set("callerFiles", $3::text[], to_jsonb($4::text), true)
