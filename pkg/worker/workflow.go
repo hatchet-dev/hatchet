@@ -264,6 +264,14 @@ type RateLimit struct {
 	Key string
 }
 
+// WebhookStep creates a wehook step, where the workflow is not defined in the code but rather in your web server
+func WebhookStep() *WorkflowStep {
+	return &WorkflowStep{
+		Parents:   []string{},
+		RateLimit: []RateLimit{},
+	}
+}
+
 func Fn(f any) *WorkflowStep {
 	return &WorkflowStep{
 		Function:  f,
@@ -334,8 +342,6 @@ type Step struct {
 }
 
 func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace string) (*Step, error) {
-	fnType := reflect.TypeOf(w.Function)
-
 	res := &Step{}
 
 	res.Id = w.GetStepId(index)
@@ -356,41 +362,45 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 		})
 	}
 
-	inputs, err := decodeFnArgTypes(fnType)
+	// if functions are defined, figure out the input and output types
+	if w.Function != nil {
+		fnType := reflect.TypeOf(w.Function)
+		inputs, err := decodeFnArgTypes(fnType)
 
-	if err != nil {
-		return nil, err
-	}
-
-	if len(inputs) > 1 {
-		res.NonCtxInput = inputs[1]
-	}
-
-	outputs, err := decodeFnReturnTypes(fnType)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if len(outputs) > 1 {
-		res.NonErrOutput = &outputs[0]
-	}
-
-	for _, parent := range w.Parents {
-		if res.APIStep.With == nil {
-			res.APIStep.With = map[string]interface{}{
-				parent: "{{ index .steps \"" + parent + "\" \"json\" }}",
-			}
-		} else {
-			res.APIStep.With[parent] = "{{ index .steps \"" + parent + "\" \"json\" }}"
+		if err != nil {
+			return nil, err
 		}
 
-		res.APIStep.Parents = append(res.APIStep.Parents, parent)
-	}
+		if len(inputs) > 1 {
+			res.NonCtxInput = inputs[1]
+		}
 
-	if res.APIStep.With == nil {
-		res.APIStep.With = map[string]interface{}{
-			"object": "{{ .input.json }}",
+		outputs, err := decodeFnReturnTypes(fnType)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if len(outputs) > 1 {
+			res.NonErrOutput = &outputs[0]
+		}
+
+		for _, parent := range w.Parents {
+			if res.APIStep.With == nil {
+				res.APIStep.With = map[string]interface{}{
+					parent: "{{ index .steps \"" + parent + "\" \"json\" }}",
+				}
+			} else {
+				res.APIStep.With[parent] = "{{ index .steps \"" + parent + "\" \"json\" }}"
+			}
+
+			res.APIStep.Parents = append(res.APIStep.Parents, parent)
+		}
+
+		if res.APIStep.With == nil {
+			res.APIStep.With = map[string]interface{}{
+				"object": "{{ .input.json }}",
+			}
 		}
 	}
 

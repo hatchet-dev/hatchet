@@ -43,6 +43,9 @@ type CreateWorkflowVersionOpts struct {
 
 	// (optional) the amount of time for step runs to wait to be scheduled before timing out
 	ScheduleTimeout *string `validate:"omitempty,duration"`
+
+	// (optional) the webhook for the workflow; if defined this makes it a webhook workflow
+	Webhook *string `json:"webhook,omitempty"`
 }
 
 type CreateWorkflowConcurrencyOpts struct {

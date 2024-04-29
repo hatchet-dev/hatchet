@@ -434,6 +434,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		ScheduledTriggers: scheduledTriggers,
 		Jobs:              jobs,
 		ScheduleTimeout:   req.Opts.ScheduleTimeout,
+		Webhook:           req.Opts.Webhook,
 	}, nil
 }
 

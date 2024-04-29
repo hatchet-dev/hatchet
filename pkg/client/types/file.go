@@ -20,6 +20,8 @@ type Workflow struct {
 
 	Triggers WorkflowTriggers `yaml:"triggers"`
 
+	Webhook *string `yaml:"webhook"`
+
 	Jobs map[string]WorkflowJob `yaml:"jobs"`
 }
 

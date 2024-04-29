@@ -904,4 +904,5 @@ type WorkflowVersion struct {
 	WorkflowId      pgtype.UUID      `json:"workflowId"`
 	Checksum        string           `json:"checksum"`
 	ScheduleTimeout string           `json:"scheduleTimeout"`
+	Webhook         pgtype.Text      `json:"webhook"`
 }

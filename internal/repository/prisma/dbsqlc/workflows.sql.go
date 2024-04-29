@@ -13,12 +13,12 @@ import (
 
 const addStepParents = `-- name: AddStepParents :exec
 INSERT INTO "_StepOrder" ("A", "B")
-SELECT 
+SELECT
     step."id",
     $1::uuid
-FROM 
+FROM
     unnest($2::text[]) AS parent_readable_id
-JOIN 
+JOIN
     "Step" AS step ON step."readableId" = parent_readable_id AND step."jobId" = $3::uuid
 `
 
@@ -121,32 +121,32 @@ const countWorkflows = `-- name: CountWorkflows :one
 SELECT
     count(workflows) OVER() AS total
 FROM
-    "Workflow" as workflows 
+    "Workflow" as workflows
 WHERE
     workflows."tenantId" = $1 AND
     (
         $2::text IS NULL OR
         workflows."id" IN (
-            SELECT 
+            SELECT
                 DISTINCT ON(t1."workflowId") t1."workflowId"
-            FROM 
+            FROM
                 "WorkflowVersion" AS t1
-                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id" 
-            WHERE 
+                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+            WHERE
                 (
                     j2."id" IN (
-                        SELECT 
-                            t3."parentId" 
-                        FROM 
+                        SELECT
+                            t3."parentId"
+                        FROM
                             "public"."WorkflowTriggerEventRef" AS t3
-                        WHERE 
+                        WHERE
                             t3."eventKey" = $2::text
                             AND t3."parentId" IS NOT NULL
-                    ) 
-                    AND j2."id" IS NOT NULL 
+                    )
+                    AND j2."id" IS NOT NULL
                     AND t1."workflowId" IS NOT NULL
                 )
-            ORDER BY 
+            ORDER BY
                 t1."workflowId" DESC, t1."order" DESC
         )
     )
@@ -637,7 +637,8 @@ INSERT INTO "WorkflowVersion" (
     "checksum",
     "version",
     "workflowId",
-    "scheduleTimeout"
+    "scheduleTimeout",
+    "webhook"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -646,8 +647,9 @@ INSERT INTO "WorkflowVersion" (
     $5::text,
     $6::text,
     $7::uuid,
-    coalesce($8::text, '5m')
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout"
+    coalesce($8::text, '5m'),
+    $9::text
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", webhook
 `
 
 type CreateWorkflowVersionParams struct {
@@ -659,6 +661,7 @@ type CreateWorkflowVersionParams struct {
 	Version         pgtype.Text      `json:"version"`
 	Workflowid      pgtype.UUID      `json:"workflowid"`
 	ScheduleTimeout pgtype.Text      `json:"scheduleTimeout"`
+	Webhook         pgtype.Text      `json:"webhook"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -671,6 +674,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.Version,
 		arg.Workflowid,
 		arg.ScheduleTimeout,
+		arg.Webhook,
 	)
 	var i WorkflowVersion
 	err := row.Scan(
@@ -683,6 +687,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.WorkflowId,
 		&i.Checksum,
 		&i.ScheduleTimeout,
+		&i.Webhook,
 	)
 	return &i, err
 }
@@ -738,7 +743,7 @@ func (q *Queries) GetWorkflowLatestVersion(ctx context.Context, db DBTX, workflo
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout",
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions.webhook,
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns"
@@ -784,6 +789,7 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.WorkflowId,
 			&i.WorkflowVersion.Checksum,
 			&i.WorkflowVersion.ScheduleTimeout,
+			&i.WorkflowVersion.Webhook,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -799,47 +805,47 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 }
 
 const listWorkflows = `-- name: ListWorkflows :many
-SELECT 
+SELECT
     workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description
 FROM (
     SELECT
         DISTINCT ON(workflows."id") workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description
     FROM
-        "Workflow" as workflows 
+        "Workflow" as workflows
     LEFT JOIN
         (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
+            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", webhook FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
         ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
     LEFT JOIN
         "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
     LEFT JOIN
         "WorkflowTriggerEventRef" as workflowTriggerEventRef ON workflowTrigger."id" = workflowTriggerEventRef."parentId"
     WHERE
-        workflows."tenantId" = $1 
+        workflows."tenantId" = $1
         AND
         (
             $2::text IS NULL OR
             workflows."id" IN (
-                SELECT 
+                SELECT
                     DISTINCT ON(t1."workflowId") t1."workflowId"
-                FROM 
+                FROM
                     "WorkflowVersion" AS t1
-                    LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id" 
-                WHERE 
+                    LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+                WHERE
                     (
                         j2."id" IN (
-                            SELECT 
-                                t3."parentId" 
-                            FROM 
+                            SELECT
+                                t3."parentId"
+                            FROM
                                 "public"."WorkflowTriggerEventRef" AS t3
-                            WHERE 
+                            WHERE
                                 t3."eventKey" = $2::text
                                 AND t3."parentId" IS NOT NULL
-                        ) 
-                        AND j2."id" IS NOT NULL 
+                        )
+                        AND j2."id" IS NOT NULL
                         AND t1."workflowId" IS NOT NULL
                     )
-                ORDER BY 
+                ORDER BY
                     t1."workflowId" DESC
             )
         )
@@ -907,7 +913,7 @@ LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
 LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
 WHERE
     (j1."tenantId"::uuid = $1 AND j1.id IS NOT NULL)
-    AND 
+    AND
     (j2.id IN (
         SELECT t3."parentId"
         FROM "WorkflowTriggerEventRef" AS t3
@@ -955,30 +961,30 @@ WHERE
     (
         $2::text IS NULL OR
         workflow."id" IN (
-            SELECT 
+            SELECT
                 DISTINCT ON(t1."workflowId") t1."workflowId"
-            FROM 
+            FROM
                 "WorkflowVersion" AS t1
-                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id" 
-            WHERE 
+                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+            WHERE
                 (
                     j2."id" IN (
-                        SELECT 
-                            t3."parentId" 
-                        FROM 
+                        SELECT
+                            t3."parentId"
+                        FROM
                             "public"."WorkflowTriggerEventRef" AS t3
-                        WHERE 
+                        WHERE
                             t3."eventKey" = $2::text
                             AND t3."parentId" IS NOT NULL
-                    ) 
-                    AND j2."id" IS NOT NULL 
+                    )
+                    AND j2."id" IS NOT NULL
                     AND t1."workflowId" IS NOT NULL
                 )
-            ORDER BY 
+            ORDER BY
                 t1."workflowId" DESC, t1."order" DESC
         )
     )
-ORDER BY 
+ORDER BY
     workflow."id" DESC, runs."createdAt" DESC
 `
 
@@ -1042,7 +1048,7 @@ VALUES (
     LOWER($1::text),
     $2::uuid
 )
-ON CONFLICT ("tenantId", "actionId") DO UPDATE 
+ON CONFLICT ("tenantId", "actionId") DO UPDATE
 SET
     "tenantId" = EXCLUDED."tenantId"
 WHERE

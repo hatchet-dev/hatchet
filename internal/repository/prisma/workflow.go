@@ -414,6 +414,10 @@ func (r *workflowEngineRepository) CreateWorkflowVersion(ctx context.Context, te
 		return nil, err
 	}
 
+	if len(opts.Jobs) == 0 && (opts.Webhook == nil || *opts.Webhook == "") {
+		return nil, fmt.Errorf("either jobs or webhook is required")
+	}
+
 	// ensure no cycles
 	for _, job := range opts.Jobs {
 		if dagutils.HasCycle(job.Steps) {
@@ -604,6 +608,10 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 		Checksum:   cs,
 		Version:    version,
 		Workflowid: workflowId,
+	}
+
+	if opts.Webhook != nil {
+		createParams.Webhook = sqlchelpers.TextFromStr(*opts.Webhook)
 	}
 
 	if opts.ScheduleTimeout != nil {

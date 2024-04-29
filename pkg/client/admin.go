@@ -224,6 +224,7 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		Description:   workflow.Description,
 		EventTriggers: workflow.Triggers.Events,
 		CronTriggers:  workflow.Triggers.Cron,
+		Webhook:       workflow.Webhook,
 	}
 
 	if workflow.Concurrency != nil {

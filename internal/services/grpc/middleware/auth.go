@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/rs/zerolog"
@@ -32,6 +33,8 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 		a.l.Debug().Err(err).Msgf("error getting bearer token from request: %s", err)
 		return nil, forbidden
 	}
+
+	log.Printf("token: %s", token)
 
 	tenantId, err := a.config.Auth.JWTManager.ValidateTenantToken(ctx, token)
 

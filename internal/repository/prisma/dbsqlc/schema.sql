@@ -641,6 +641,7 @@ CREATE TABLE "WorkflowVersion" (
     "workflowId" UUID NOT NULL,
     "checksum" TEXT NOT NULL,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
+    "webhook" TEXT,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
