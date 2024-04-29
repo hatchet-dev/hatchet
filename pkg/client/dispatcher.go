@@ -22,6 +22,8 @@ type DispatcherClient interface {
 	SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
 	SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
+
+	RegisterWorker(ctx context.Context, req *GetActionListenerRequest) error
 }
 
 const (
@@ -172,10 +174,10 @@ type actionListenerImpl struct {
 	listenerStrategy ListenerStrategy
 }
 
-func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetActionListenerRequest) (*actionListenerImpl, error) {
+func (d *dispatcherClientImpl) registerWorker(ctx context.Context, req *GetActionListenerRequest) (string, error) {
 	// validate the request
 	if err := d.v.Validate(req); err != nil {
-		return nil, err
+		return "", err
 	}
 
 	registerReq := &dispatchercontracts.WorkerRegisterRequest{
@@ -193,14 +195,28 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	resp, err := d.client.Register(d.ctx.newContext(ctx), registerReq)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not register the worker: %w", err)
+		return "", fmt.Errorf("could not register the worker: %w", err)
 	}
 
 	d.l.Debug().Msgf("Registered worker with id: %s", resp.WorkerId)
 
+	return resp.WorkerId, nil
+}
+
+func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetActionListenerRequest) (*actionListenerImpl, error) {
+	// validate the request
+	if err := d.v.Validate(req); err != nil {
+		return nil, err
+	}
+
+	workerId, err := d.registerWorker(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("could not register worker: %w", err)
+	}
+
 	// subscribe to the worker
 	listener, err := d.client.ListenV2(d.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
-		WorkerId: resp.WorkerId,
+		WorkerId: workerId,
 	})
 
 	if err != nil {
@@ -210,7 +226,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	return &actionListenerImpl{
 		client:           d.client,
 		listenClient:     listener,
-		workerId:         resp.WorkerId,
+		workerId:         workerId,
 		l:                d.l,
 		v:                d.v,
 		tenantId:         d.tenantId,
@@ -385,6 +401,14 @@ func (a *actionListenerImpl) Unregister() error {
 
 func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, error) {
 	return d.newActionListener(ctx, req)
+}
+
+func (d *dispatcherClientImpl) RegisterWorker(ctx context.Context, req *GetActionListenerRequest) error {
+	if _, err := d.registerWorker(ctx, req); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error) {

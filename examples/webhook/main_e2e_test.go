@@ -3,7 +3,9 @@
 package main
 
 import (
+	"log"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -17,19 +19,17 @@ func TestWebhook(t *testing.T) {
 
 	tests := []struct {
 		name string
-		job  func(done func()) worker.WorkflowJob
+		job  worker.WorkflowJob
 	}{
 		{
 			name: "simple action",
-			job: func(done func()) worker.WorkflowJob {
-				return worker.WorkflowJob{
-					Name:        "simple-webhook",
-					Description: "simple webhook",
-					Steps: []*worker.WorkflowStep{
-						worker.WebhookStep().SetName("step-one").SetTimeout("10s"),
-						worker.WebhookStep().SetName("step-two").SetTimeout("10s"),
-					},
-				}
+			job: worker.WorkflowJob{
+				Name:        "simple-webhook",
+				Description: "simple webhook",
+				Steps: []*worker.WorkflowStep{
+					worker.WebhookStep().SetName("step-one").SetTimeout("60s"),
+					worker.WebhookStep().SetName("step-two").SetTimeout("60s"),
+				},
 			},
 		},
 	}
@@ -37,9 +37,7 @@ func TestWebhook(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			events := make(chan string, 50)
 
-			cleanup, err := run(events, tt.job(func() {
-				events <- "done"
-			}))
+			cleanup, err := run(events, tt.job)
 			if err != nil {
 				t.Fatalf("run() error = %s", err)
 			}
@@ -51,15 +49,23 @@ func TestWebhook(t *testing.T) {
 		outer:
 			for {
 				select {
-				case item := <-events:
+				case item, ok := <-events:
 					items = append(items, item)
+					if !ok {
+						break outer
+					}
 				case <-interruptCh:
+					log.Printf("interrupt")
+					break outer
+				case <-time.After(time.Second * 60):
+					log.Printf("timed out waiting for webhook")
 					break outer
 				}
 			}
 
 			assert.Equal(t, []string{
-				"done",
+				"step-one",
+				"step-two",
 			}, items)
 
 			if err := cleanup(); err != nil {

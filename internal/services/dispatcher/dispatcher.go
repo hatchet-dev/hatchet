@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
-
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
@@ -301,11 +301,12 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 }
 
 func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("recovered from panic: %v", r)
-		}
-	}()
+	// TODO!!!!!
+	// defer func() {
+	//	if r := recover(); r != nil {
+	//		err = fmt.Errorf("recovered from panic: %v", r)
+	//	}
+	// }()
 
 	switch task.ID {
 	case "group-key-action-assigned":
@@ -407,12 +408,33 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		return fmt.Errorf("could not decode dispatcher task metadata: %w", err)
 	}
 
-	// get the worker for this task
+	// get the worker for this task from subscribed workers
 	workers, err := d.workers.Get(payload.WorkerId)
 
+	log.Printf("got payload: %+v", payload)
+
 	if err != nil {
-		return fmt.Errorf("could not get worker: %w", err)
+		if !errors.Is(err, ErrWorkerNotFound) {
+			return fmt.Errorf("could not get worker with id %s: %w", payload.WorkerId, err)
+		}
+
+		// check if the worker exists in the DB and is a webhook worker
+		// TODO check for webhook worker
+		// TODO check for whether workflow is webhook
+		_, err := d.repo.Worker().GetWorkerForEngine(ctx, metadata.TenantId, payload.WorkerId)
+		if err != nil {
+			return fmt.Errorf("could not get worker with id %s from either subscribed workers or engine: %w", payload.WorkerId, err)
+		}
+
+		d.workers.Add(payload.WorkerId, "123", &subscribedWorker{webhook: &webhookController{repo: d.repo, dispatcher: d}})
+
+		workers, err = d.workers.Get(payload.WorkerId)
+		if err != nil {
+			return fmt.Errorf("could not get worker with id %s: %w", payload.WorkerId, err)
+		}
 	}
+
+	log.Println("ayoooo")
 
 	// load the step run from the database
 	stepRun, err := d.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)

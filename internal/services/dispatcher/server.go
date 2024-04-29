@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"sync"
 	"time"
@@ -31,6 +32,9 @@ type subscribedWorker struct {
 
 	// finished is used to signal closure of a client subscribing goroutine
 	finished chan<- bool
+
+	// webhook is the controller for webhooks if enabled
+	webhook *webhookController
 }
 
 func (worker *subscribedWorker) StartStepRun(
@@ -48,6 +52,27 @@ func (worker *subscribedWorker) StartStepRun(
 	}
 
 	stepName := stepRun.StepReadableId.String
+
+	log.Printf("starting step run %s", stepName)
+
+	if worker.webhook != nil {
+		log.Printf("starting step run %s as webhook", stepName)
+		return worker.webhook.Send(ctx, tenantId, &contracts.AssignedAction{
+			TenantId:      tenantId,
+			JobId:         sqlchelpers.UUIDToStr(stepRun.JobId),
+			JobName:       stepRun.JobName,
+			JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
+			StepId:        sqlchelpers.UUIDToStr(stepRun.StepId),
+			StepRunId:     sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
+			ActionType:    contracts.ActionType_START_STEP_RUN,
+			ActionId:      stepRun.ActionId,
+			ActionPayload: string(inputBytes),
+			StepName:      stepName,
+			WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
+		})
+	}
+
+	log.Printf("starting step run %s as normal", stepName)
 
 	return worker.stream.Send(&contracts.AssignedAction{
 		TenantId:      tenantId,
@@ -724,18 +749,11 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 	}, nil
 }
 
-func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
-
-	finishedAt := request.EventTimestamp.AsTime()
-
+func (s *DispatcherImpl) handleStepRunCompletedImpl(ctx context.Context, tenantId string, finishedAt time.Time, stepRunId string, eventPayload string) error {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunFinishedTaskPayload{
-		StepRunId:      request.StepRunId,
+		StepRunId:      stepRunId,
 		FinishedAt:     finishedAt.Format(time.RFC3339),
-		StepOutputData: request.EventPayload,
+		StepOutputData: eventPayload,
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunFinishedTaskMetadata{
@@ -751,6 +769,19 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 	})
 
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
+
+	if err := s.handleStepRunCompletedImpl(ctx, tenantId, request.EventTimestamp.AsTime(), request.StepRunId, request.EventPayload); err != nil {
 		return nil, err
 	}
 

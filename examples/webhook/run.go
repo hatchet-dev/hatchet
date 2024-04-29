@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
-	"time"
+	"net/http"
 
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -25,10 +28,44 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 
-	err = w.RegisterWebhook(worker.Events("user:create:webhook"), "https://webhook.site/ee5ae0a0-ef9c-4a9a-a8e0-c3e2a3a4e8a5", &job)
+	port := "8741"
+
+	err = w.RegisterWebhook(worker.Events("user:create:webhook"), fmt.Sprintf("http://localhost:%s/webhook", port), &job)
 	if err != nil {
 		return nil, fmt.Errorf("error registering webhook workflow: %w", err)
 	}
+
+	go func() {
+		// create webserver to handle webhook requests
+		http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
+			data, err := io.ReadAll(r.Body)
+			if err != nil {
+				panic(err)
+			}
+
+			log.Printf("got webhook request!!!!!")
+			log.Printf("request data: %+v", string(data))
+
+			var event dispatcher.WebhookEvent
+			if err := json.Unmarshal(data, &event); err != nil {
+				panic(err)
+			}
+
+			indent, _ := json.MarshalIndent(event, "", "  ")
+			log.Printf("data: %s", string(indent))
+
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+
+			done <- event.StepName
+			close(done)
+		})
+
+		log.Printf("starting webhook server on port %s", port)
+		if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
 
 	go func() {
 		log.Printf("pushing event")
@@ -50,10 +87,6 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 		if err != nil {
 			panic(fmt.Errorf("error pushing event: %w", err))
 		}
-
-		time.Sleep(20 * time.Second)
-
-		done <- "done"
 	}()
 
 	cleanup := func() error {
