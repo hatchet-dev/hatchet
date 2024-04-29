@@ -43,8 +43,7 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 				panic(err)
 			}
 
-			log.Printf("got webhook request!!!!!")
-			log.Printf("request data: %+v", string(data))
+			log.Printf("got webhook request!")
 
 			var event dispatcher.WebhookEvent
 			if err := json.Unmarshal(data, &event); err != nil {
@@ -59,9 +58,9 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 
 			done <- event.StepName
 
-			if event.StepName == "step-two" {
-				close(done)
-			}
+			//if event.StepName == "step-two" {
+			//	close(done)
+			//}
 		})
 
 		log.Printf("starting webhook server on port %s", port)
