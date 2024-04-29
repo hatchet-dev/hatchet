@@ -259,13 +259,14 @@ func (w *Worker) registerAction(service, verb string, method any) error {
 		return nil
 	}
 
-	// TODO!!!!!
-	// actionFunc, err := getFnFromMethod(method)
-
-	// TODO!!!!!
-	// if err != nil {
-	//	return fmt.Errorf("could not get function from method: %w", err)
-	//}
+	var actionFunc actionFunc
+	if method != nil {
+		var err error
+		actionFunc, err = getFnFromMethod(method)
+		if err != nil {
+			return fmt.Errorf("could not get function from method: %w", err)
+		}
+	}
 
 	// if action has already been registered, ensure that the method is the same
 	if currMethod, ok := w.actions[actionId]; ok {
@@ -275,9 +276,8 @@ func (w *Worker) registerAction(service, verb string, method any) error {
 	}
 
 	w.actions[actionId] = &actionImpl{
-		name: actionId,
-		// TODO!!!!!
-		//run:     actionFunc,
+		name:    actionId,
+		run:     actionFunc,
 		method:  method,
 		service: service,
 	}

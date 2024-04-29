@@ -57,7 +57,7 @@ func TestWebhook(t *testing.T) {
 				case <-interruptCh:
 					log.Printf("interrupt")
 					break outer
-				case <-time.After(time.Second * 60):
+				case <-time.After(time.Second * 20):
 					log.Printf("timed out waiting for webhook")
 					break outer
 				}

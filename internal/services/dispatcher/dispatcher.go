@@ -301,12 +301,11 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 }
 
 func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
-	// TODO!!!!!
-	// defer func() {
-	//	if r := recover(); r != nil {
-	//		err = fmt.Errorf("recovered from panic: %v", r)
-	//	}
-	// }()
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("recovered from panic: %v", r)
+		}
+	}()
 
 	switch task.ID {
 	case "group-key-action-assigned":
