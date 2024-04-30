@@ -42,6 +42,7 @@ metadata:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: A malformed or bad request
     security: []
+    x-security-optional: true
     summary: Get metadata
     tags:
       - Metadata

@@ -11,6 +11,11 @@
 
 export interface APIMeta {
   auth?: APIMetaAuth;
+  /**
+   * the Pylon app ID for usepylon.com chat support
+   * @example "12345678-1234-1234-1234-123456789012"
+   */
+  pylonAppId?: string;
 }
 
 export interface APIMetaAuth {
@@ -119,6 +124,8 @@ export interface User {
   emailVerified: boolean;
   /** Whether the user has a password set. */
   hasPassword?: boolean;
+  /** A hash of the user's email address for use with Pylon Support Chat */
+  emailHash?: string;
 }
 
 export interface UserTenantPublic {

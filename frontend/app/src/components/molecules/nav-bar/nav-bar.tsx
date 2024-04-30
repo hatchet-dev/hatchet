@@ -19,18 +19,31 @@ import { useSidebar } from '@/components/sidebar-provider';
 import {
   BiBook,
   BiCalendar,
+  BiChat,
   BiHelpCircle,
   BiLogoDiscordAlt,
   BiSolidGraduation,
   BiUserCircle,
 } from 'react-icons/bi';
 import { useTheme } from '@/components/theme-provider';
+import { useMemo } from 'react';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 
 interface MainNavProps {
   user: User;
 }
 
 export default function MainNav({ user }: MainNavProps) {
+  const meta = useApiMeta();
+
+  const hasPylon = useMemo(() => {
+    if (!meta.data?.data?.pylonAppId) {
+      return null;
+    }
+
+    return !!meta.data.data.pylonAppId;
+  }, [meta]);
+
   const navigate = useNavigate();
   const { handleApiError } = useApiError({});
   const { toggleSidebarOpen } = useSidebar();
@@ -73,6 +86,12 @@ export default function MainNav({ user }: MainNavProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="end" forceMount>
+              {hasPylon && (
+                <DropdownMenuItem onClick={() => (window as any).Pylon('show')}>
+                  <BiChat className="mr-2" />
+                  Chat with Support
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={() =>
                   window.open(

@@ -235,6 +235,17 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		analyticsEmitter = analytics.NoOpAnalytics{} // TODO
 	}
 
+	var pylon server.PylonConfig
+
+	if cf.Pylon.Enabled {
+		if cf.Pylon.AppID == "" {
+			return nil, nil, fmt.Errorf("pylon app id is required")
+		}
+
+		pylon.AppID = cf.Pylon.AppID
+		pylon.Secret = cf.Pylon.Secret
+	}
+
 	auth := server.AuthConfig{
 		ConfigFile: cf.Auth,
 	}
@@ -378,6 +389,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	return cleanup, &server.ServerConfig{
 		Alerter:        alerter,
 		Analytics:      analyticsEmitter,
+		Pylon:          &pylon,
 		Runtime:        cf.Runtime,
 		Auth:           auth,
 		Encryption:     encryptionSvc,

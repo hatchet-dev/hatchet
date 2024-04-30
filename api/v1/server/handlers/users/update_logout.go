@@ -17,6 +17,6 @@ func (u *UserService) UserUpdateLogout(ctx echo.Context, request gen.UserUpdateL
 	}
 
 	return gen.UserUpdateLogout200JSONResponse(
-		*transformers.ToUser(user, false),
+		*transformers.ToUser(user, false, nil),
 	), nil
 }

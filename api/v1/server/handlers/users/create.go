@@ -81,6 +81,6 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	)
 
 	return gen.UserCreate200JSONResponse(
-		*transformers.ToUser(user, false),
+		*transformers.ToUser(user, false, nil),
 	), nil
 }

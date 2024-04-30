@@ -133,6 +133,9 @@ type APIErrors struct {
 // APIMeta defines model for APIMeta.
 type APIMeta struct {
 	Auth *APIMetaAuth `json:"auth,omitempty"`
+
+	// PylonAppId the Pylon app ID for usepylon.com chat support
+	PylonAppId *string `json:"pylonAppId,omitempty"`
 }
 
 // APIMetaAuth defines model for APIMetaAuth.
@@ -594,6 +597,9 @@ type UpdateTenantInviteRequest struct {
 type User struct {
 	// Email The email address of the user.
 	Email openapi_types.Email `json:"email"`
+
+	// EmailHash A hash of the user's email address for use with Pylon Support Chat
+	EmailHash *string `json:"emailHash,omitempty"`
 
 	// EmailVerified Whether the user has verified their email address.
 	EmailVerified bool `json:"emailVerified"`
