@@ -50,7 +50,7 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
     (window as any).Pylon('setNewIssueCustomFields', {
       user_id: user.metadata.id,
       tenant_name: tenant?.name,
-      tenant_slug: tenant?.metadata,
+      tenant_slug: tenant?.slug,
       tenant_id: tenant?.metadata?.id,
     });
   }, [user, APP_ID, tenant]);
