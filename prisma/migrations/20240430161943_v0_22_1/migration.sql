@@ -6,3 +6,6 @@
 */
 -- AlterTable
 ALTER TABLE "Worker" DROP COLUMN "status";
+
+-- DropEnum
+DROP TYPE "WorkerStatus";

@@ -18,7 +18,6 @@ INSERT INTO "Worker" (
     "updatedAt",
     "tenantId",
     "name",
-    "status",
     "dispatcherId",
     "maxRuns"
 ) VALUES (
@@ -27,7 +26,6 @@ INSERT INTO "Worker" (
     CURRENT_TIMESTAMP,
     $1::uuid,
     $2::text,
-    'ACTIVE',
     $3::uuid,
     $4::int
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns"
@@ -270,17 +268,15 @@ UPDATE
     "Worker"
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
-    "status" = coalesce($1::"WorkerStatus", "status"),
-    "dispatcherId" = coalesce($2::uuid, "dispatcherId"),
-    "maxRuns" = coalesce($3::int, "maxRuns"),
-    "lastHeartbeatAt" = coalesce($4::timestamp, "lastHeartbeatAt")
+    "dispatcherId" = coalesce($1::uuid, "dispatcherId"),
+    "maxRuns" = coalesce($2::int, "maxRuns"),
+    "lastHeartbeatAt" = coalesce($3::timestamp, "lastHeartbeatAt")
 WHERE
-    "id" = $5::uuid
+    "id" = $4::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns"
 `
 
 type UpdateWorkerParams struct {
-	Status          NullWorkerStatus `json:"status"`
 	DispatcherId    pgtype.UUID      `json:"dispatcherId"`
 	MaxRuns         pgtype.Int4      `json:"maxRuns"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
@@ -289,7 +285,6 @@ type UpdateWorkerParams struct {
 
 func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerParams) (*Worker, error) {
 	row := db.QueryRow(ctx, updateWorker,
-		arg.Status,
 		arg.DispatcherId,
 		arg.MaxRuns,
 		arg.LastHeartbeatAt,

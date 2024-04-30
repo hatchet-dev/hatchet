@@ -1036,11 +1036,6 @@ model Ticker {
   groupKeyRuns GetGroupKeyRun[]
 }
 
-enum WorkerStatus {
-  ACTIVE
-  INACTIVE
-}
-
 model Worker {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
