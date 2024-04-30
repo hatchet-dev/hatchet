@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 
 	"github.com/labstack/echo/v4"
 
@@ -32,7 +31,6 @@ func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurren
 	var hashedEmail *string
 
 	if u.config.Pylon.Secret != "" {
-		fmt.Println("pylon enabled")
 		hashedEmail, err = signMessageWithHMAC(user.Email, u.config.Pylon.Secret)
 
 		if err != nil {
