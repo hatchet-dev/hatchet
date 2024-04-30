@@ -23,6 +23,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
+	"github.com/hatchet-dev/hatchet/internal/integrations/email"
+	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/github"
 	"github.com/hatchet-dev/hatchet/internal/logger"
@@ -319,6 +321,17 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		vcsProviders[vcs.VCSRepositoryKindGithub] = githubProvider
 	}
 
+	var emailSvc email.EmailService = &email.NoOpService{}
+
+	if cf.Email.Postmark.Enabled {
+		emailSvc = postmark.NewPostmarkClient(
+			cf.Email.Postmark.ServerKey,
+			cf.Email.Postmark.FromEmail,
+			cf.Email.Postmark.FromName,
+			cf.Email.Postmark.SupportEmail,
+		)
+	}
+
 	var internalClient client.Client
 
 	if cf.Runtime.WorkerEnabled {
@@ -379,6 +392,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		OpenTelemetry:  cf.OpenTelemetry,
 		VCSProviders:   vcsProviders,
 		InternalClient: internalClient,
+		Email:          emailSvc,
 	}, nil
 }
 
