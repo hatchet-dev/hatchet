@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/shared"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
+	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
@@ -44,6 +45,8 @@ type ServerConfigFile struct {
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
 
 	VCS ConfigFileVCS `mapstructure:"vcs" json:"vcs,omitempty"`
+
+	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
 }
 
 // General server runtime options
@@ -214,6 +217,19 @@ type RabbitMQConfigFile struct {
 	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
 }
 
+type ConfigFileEmail struct {
+	Postmark PostmarkConfigFile `mapstructure:"postmark" json:"postmark,omitempty"`
+}
+
+type PostmarkConfigFile struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+
+	ServerKey    string `mapstructure:"serverKey" json:"serverKey,omitempty"`
+	FromEmail    string `mapstructure:"fromEmail" json:"fromEmail,omitempty"`
+	FromName     string `mapstructure:"fromName" json:"fromName,omitempty" default:"Hatchet Support"`
+	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
+}
+
 type AuthConfig struct {
 	ConfigFile ConfigFileAuth
 
@@ -258,6 +274,8 @@ type ServerConfig struct {
 	VCSProviders map[vcs.VCSRepositoryKind]vcs.VCSProvider
 
 	InternalClient client.Client
+
+	Email email.EmailService
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -356,4 +374,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("vcs.github.appWebhookURL", "SERVER_VCS_GITHUB_APP_WEBHOOK_URL")
 	_ = v.BindEnv("vcs.github.appID", "SERVER_VCS_GITHUB_APP_ID")
 	_ = v.BindEnv("vcs.github.appSecretPath", "SERVER_VCS_GITHUB_APP_SECRET_PATH")
+
+	// email options
+	_ = v.BindEnv("email.postmark.enabled", "SERVER_EMAIL_POSTMARK_ENABLED")
+	_ = v.BindEnv("email.postmark.serverKey", "SERVER_EMAIL_POSTMARK_SERVER_KEY")
+	_ = v.BindEnv("email.postmark.fromEmail", "SERVER_EMAIL_POSTMARK_FROM_EMAIL")
+	_ = v.BindEnv("email.postmark.fromName", "SERVER_EMAIL_POSTMARK_FROM_NAME")
+	_ = v.BindEnv("email.postmark.supportEmail", "SERVER_EMAIL_POSTMARK_SUPPORT_EMAIL")
 }

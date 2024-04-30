@@ -1,6 +1,7 @@
 package tenants
 
 import (
+	"context"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -8,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
@@ -52,6 +54,26 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	if err != nil {
 		return nil, err
 	}
+
+	// send an email
+	go func() {
+		emailCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		name := user.Email
+
+		if userName, ok := user.Name(); ok && userName != "" {
+			name = userName
+		}
+
+		if err := t.config.Email.SendTenantInviteEmail(emailCtx, invite.InviteeEmail, email.TenantInviteEmailData{
+			InviteSenderName: name,
+			TenantName:       tenant.Name,
+			ActionURL:        t.config.Runtime.ServerURL,
+		}); err != nil {
+			t.config.Logger.Err(err).Msg("could not send tenant invite email")
+		}
+	}()
 
 	t.config.Analytics.Enqueue("user-invite:create",
 		user.ID,
