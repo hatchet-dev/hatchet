@@ -29,6 +29,8 @@ type ServerConfigFile struct {
 
 	Analytics AnalyticsConfigFile `mapstructure:"analytics" json:"analytics,omitempty"`
 
+	Pylon PylonConfig `mapstructure:"pylon" json:"pylon,omitempty"`
+
 	Encryption EncryptionConfigFile `mapstructure:"encryption" json:"encryption,omitempty"`
 
 	Runtime ConfigFileRuntime `mapstructure:"runtime" json:"runtime,omitempty"`
@@ -224,6 +226,12 @@ type AuthConfig struct {
 	JWTManager token.JWTManager
 }
 
+type PylonConfig struct {
+	Enabled bool   `mapstructure:"enabled" json:"enabled,omitempty"`
+	AppID   string `mapstructure:"appID" json:"appID,omitempty"`
+	Secret  string `mapstructure:"secret" json:"secret,omitempty"`
+}
+
 type ServerConfig struct {
 	*database.Config
 
@@ -232,6 +240,8 @@ type ServerConfig struct {
 	Alerter errors.Alerter
 
 	Analytics analytics.Analytics
+
+	Pylon *PylonConfig
 
 	Encryption encryption.EncryptionService
 
@@ -291,6 +301,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("analytics.posthog.enabled", "SERVER_ANALYTICS_POSTHOG_ENABLED")
 	_ = v.BindEnv("analytics.posthog.apiKey", "SERVER_ANALYTICS_POSTHOG_API_KEY")
 	_ = v.BindEnv("analytics.posthog.endpoint", "SERVER_ANALYTICS_POSTHOG_ENDPOINT")
+
+	// pylon options
+	_ = v.BindEnv("pylon.enabled", "SERVER_PYLON_ENABLED")
+	_ = v.BindEnv("pylon.appID", "SERVER_PYLON_APP_ID")
+	_ = v.BindEnv("pylon.secret", "SERVER_PYLON_SECRET")
 
 	// encryption options
 	_ = v.BindEnv("encryption.masterKeyset", "SERVER_ENCRYPTION_MASTER_KEYSET")
