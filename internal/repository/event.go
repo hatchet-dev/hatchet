@@ -21,7 +21,7 @@ type CreateEventOpts struct {
 	ReplayedEvent *string `validate:"omitempty,uuid"`
 
 	// (optional) the event metadata
-	Metadata []byte
+	AdditionalMetadata []byte
 }
 
 type ListEventOpts struct {

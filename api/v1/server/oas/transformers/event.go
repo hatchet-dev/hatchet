@@ -26,8 +26,8 @@ func ToEventFromSQLC(eventRow *dbsqlc.ListEventsRow) (*gen.Event, error) {
 
 	var metadata map[string]interface{}
 
-	if event.Metadata != nil {
-		err := json.Unmarshal(event.Metadata, &metadata)
+	if event.AdditionalMetadata != nil {
+		err := json.Unmarshal(event.AdditionalMetadata, &metadata)
 		if err != nil {
 			return nil, err
 		}

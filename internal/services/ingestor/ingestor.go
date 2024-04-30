@@ -102,10 +102,10 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 	defer span.End()
 
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
-		TenantId: tenantId,
-		Key:      key,
-		Data:     data,
-		Metadata: metadata,
+		TenantId:           tenantId,
+		Key:                key,
+		Data:               data,
+		AdditionalMetadata: metadata,
 	})
 
 	if err != nil {
@@ -133,11 +133,11 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string,
 	replayedId := sqlchelpers.UUIDToStr(replayedEvent.ID)
 
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
-		TenantId:      tenantId,
-		Key:           replayedEvent.Key,
-		Data:          replayedEvent.Data,
-		Metadata:      replayedEvent.Metadata,
-		ReplayedEvent: &replayedId,
+		TenantId:           tenantId,
+		Key:                replayedEvent.Key,
+		Data:               replayedEvent.Data,
+		AdditionalMetadata: replayedEvent.AdditionalMetadata,
+		ReplayedEvent:      &replayedId,
 	})
 
 	if err != nil {
@@ -161,7 +161,7 @@ func eventToTask(e *dbsqlc.Event) *msgqueue.Message {
 		EventId:                 eventId,
 		EventKey:                e.Key,
 		EventData:               string(e.Data),
-		EventAdditionalMetadata: string(e.Metadata),
+		EventAdditionalMetadata: string(e.AdditionalMetadata),
 	}
 
 	payload, _ := datautils.ToJSONMap(payloadTyped)

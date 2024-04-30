@@ -219,11 +219,11 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 	}
 
 	createParams := dbsqlc.CreateEventParams{
-		ID:       sqlchelpers.UUIDFromStr(uuid.New().String()),
-		Key:      opts.Key,
-		Tenantid: sqlchelpers.UUIDFromStr(opts.TenantId),
-		Data:     opts.Data,
-		Metadata: opts.Metadata,
+		ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
+		Key:                opts.Key,
+		Tenantid:           sqlchelpers.UUIDFromStr(opts.TenantId),
+		Data:               opts.Data,
+		Additionalmetadata: opts.AdditionalMetadata,
 	}
 
 	if opts.ReplayedEvent != nil {

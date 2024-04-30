@@ -48,7 +48,7 @@ INSERT INTO "Event" (
     "tenantId",
     "replayedFromId",
     "data",
-    "metadata"
+    "additionalMetadata"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -58,7 +58,7 @@ INSERT INTO "Event" (
     @tenantId::uuid,
     sqlc.narg('replayedFromId')::uuid,
     @data::jsonb,
-    @metadata::jsonb
+    @additionalMetadata::jsonb
 ) RETURNING *;
 
 -- name: ListEvents :many

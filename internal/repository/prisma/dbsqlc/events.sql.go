@@ -75,7 +75,7 @@ INSERT INTO "Event" (
     "tenantId",
     "replayedFromId",
     "data",
-    "metadata"
+    "additionalMetadata"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -86,19 +86,19 @@ INSERT INTO "Event" (
     $7::uuid,
     $8::jsonb,
     $9::jsonb
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, metadata
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
 `
 
 type CreateEventParams struct {
-	ID             pgtype.UUID      `json:"id"`
-	CreatedAt      pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
-	Deletedat      pgtype.Timestamp `json:"deletedat"`
-	Key            string           `json:"key"`
-	Tenantid       pgtype.UUID      `json:"tenantid"`
-	ReplayedFromId pgtype.UUID      `json:"replayedFromId"`
-	Data           []byte           `json:"data"`
-	Metadata       []byte           `json:"metadata"`
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	Deletedat          pgtype.Timestamp `json:"deletedat"`
+	Key                string           `json:"key"`
+	Tenantid           pgtype.UUID      `json:"tenantid"`
+	ReplayedFromId     pgtype.UUID      `json:"replayedFromId"`
+	Data               []byte           `json:"data"`
+	Additionalmetadata []byte           `json:"additionalmetadata"`
 }
 
 func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParams) (*Event, error) {
@@ -111,7 +111,7 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 		arg.Tenantid,
 		arg.ReplayedFromId,
 		arg.Data,
-		arg.Metadata,
+		arg.Additionalmetadata,
 	)
 	var i Event
 	err := row.Scan(
@@ -123,14 +123,14 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 		&i.TenantId,
 		&i.ReplayedFromId,
 		&i.Data,
-		&i.Metadata,
+		&i.AdditionalMetadata,
 	)
 	return &i, err
 }
 
 const getEventForEngine = `-- name: GetEventForEngine :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, metadata
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
 FROM
     "Event"
 WHERE
@@ -149,7 +149,7 @@ func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id pgtype.UUID
 		&i.TenantId,
 		&i.ReplayedFromId,
 		&i.Data,
-		&i.Metadata,
+		&i.AdditionalMetadata,
 	)
 	return &i, err
 }
@@ -195,7 +195,7 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 
 const listEvents = `-- name: ListEvents :many
 SELECT
-    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, events.metadata,
+    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, events."additionalMetadata",
     sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
     sum(case when runs."status" = 'QUEUED' then 1 else 0 end) AS queuedRuns,
     sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
@@ -288,7 +288,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Event.TenantId,
 			&i.Event.ReplayedFromId,
 			&i.Event.Data,
-			&i.Event.Metadata,
+			&i.Event.AdditionalMetadata,
 			&i.Pendingruns,
 			&i.Queuedruns,
 			&i.Runningruns,
@@ -307,7 +307,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 
 const listEventsByIDs = `-- name: ListEventsByIDs :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, metadata 
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata" 
 FROM
     "Event" as events
 WHERE
@@ -338,7 +338,7 @@ func (q *Queries) ListEventsByIDs(ctx context.Context, db DBTX, arg ListEventsBy
 			&i.TenantId,
 			&i.ReplayedFromId,
 			&i.Data,
-			&i.Metadata,
+			&i.AdditionalMetadata,
 		); err != nil {
 			return nil, err
 		}

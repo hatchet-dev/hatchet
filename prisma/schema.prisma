@@ -227,7 +227,7 @@ model Event {
   data Json?
 
   // metadata stored in the event
-  metadata Json?
+  additionalMetadata Json?
 
   // the workflow runs that were triggered by this event
   workflowRuns WorkflowRunTriggeredBy[]
@@ -681,6 +681,9 @@ model WorkflowRun {
   gitRepoBranch String?
 
   pullRequests GithubPullRequest[]
+
+  // (optional) additonal metadata for the workflow run
+  additionalMetadata Json?
 
   @@unique([parentId, parentStepRunId, childKey])
 }

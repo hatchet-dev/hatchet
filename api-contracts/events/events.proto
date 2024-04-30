@@ -31,7 +31,7 @@ message Event {
     google.protobuf.Timestamp eventTimestamp = 5;
 
     // the payload for the event
-    string metadata = 6;
+    string additionalMetadata = 6;
 
 }
 
