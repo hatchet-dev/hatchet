@@ -28,7 +28,7 @@ func TestWebhook(t *testing.T) {
 				Description: "simple webhook",
 				Steps: []*worker.WorkflowStep{
 					worker.WebhookStep().SetName("step-one").SetTimeout("60s"),
-					worker.WebhookStep().SetName("step-two").SetTimeout("60s"),
+					worker.WebhookStep().SetName("step-two").SetTimeout("60s").AddParents("step-one"),
 				},
 			},
 		},
