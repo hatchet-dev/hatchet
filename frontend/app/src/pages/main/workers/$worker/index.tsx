@@ -27,7 +27,7 @@ export const isHealthy = (worker?: Worker) => {
   }
 
   if (worker.status !== 'ACTIVE') {
-    reasons.push('Worker is not active');
+    reasons.push('Worker has stopped heartbeating');
   }
 
   if (!worker.dispatcherId) {
@@ -36,13 +36,6 @@ export const isHealthy = (worker?: Worker) => {
 
   if (!worker.lastHeartbeatAt) {
     reasons.push('Worker has no heartbeat');
-  } else {
-    const beat = new Date(worker.lastHeartbeatAt).getTime();
-    const now = new Date().getTime();
-
-    if (now - beat > 6 * 1000) {
-      reasons.push('Worker has missed a heartbeat');
-    }
   }
 
   return reasons;
@@ -59,8 +52,8 @@ export const WorkerStatus = ({
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger>
-          <Badge variant={health.length === 0 ? 'successful' : 'failed'}>
-            {health.length === 0 ? 'Healthy' : 'Unhealthy'}
+          <Badge variant={status === 'ACTIVE' ? 'successful' : 'failed'}>
+            {status === 'ACTIVE' ? 'Active' : 'Inactive'}
           </Badge>
         </TooltipTrigger>
         <TooltipContent>
@@ -70,11 +63,6 @@ export const WorkerStatus = ({
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-    <span className="py-0.5">
-      <Badge variant={status === 'ACTIVE' ? 'successful' : 'failed'}>
-        {status === 'ACTIVE' ? 'Active' : 'Inactive'}
-      </Badge>
-    </span>
   </div>
 );
 
@@ -118,7 +106,7 @@ export default function ExpandedWorkflowRun() {
           Last seen {relativeDate(worker?.lastHeartbeatAt)} <br />
           {(worker.maxRuns ?? 0) > 0
             ? `${worker.availableRuns} / ${worker.maxRuns ?? 0}`
-            : '∞'}{' '}
+            : '100'}{' '}
           available run slots
         </p>
         <Separator className="my-4" />

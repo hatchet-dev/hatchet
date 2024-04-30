@@ -1036,11 +1036,6 @@ model Ticker {
   groupKeyRuns GetGroupKeyRun[]
 }
 
-enum WorkerStatus {
-  ACTIVE
-  INACTIVE
-}
-
 model Worker {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -1057,9 +1052,6 @@ model Worker {
 
   // the worker name
   name String
-
-  // the worker's status
-  status WorkerStatus @default(ACTIVE)
 
   // the dispatcher the worker is connected to
   dispatcher   Dispatcher? @relation(fields: [dispatcherId], references: [id], onDelete: SetNull, onUpdate: Cascade)

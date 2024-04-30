@@ -271,13 +271,6 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 		ID: sqlchelpers.UUIDFromStr(workerId),
 	}
 
-	if opts.Status != nil {
-		updateParams.Status = dbsqlc.NullWorkerStatus{
-			WorkerStatus: dbsqlc.WorkerStatus(*opts.Status),
-			Valid:        true,
-		}
-	}
-
 	if opts.LastHeartbeatAt != nil {
 		updateParams.LastHeartbeatAt = sqlchelpers.TimestampFromTime(*opts.LastHeartbeatAt)
 	}

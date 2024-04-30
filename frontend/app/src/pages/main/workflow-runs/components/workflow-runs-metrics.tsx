@@ -1,6 +1,7 @@
 import React from 'react';
 
 import { WorkflowRunsMetrics } from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
 
 interface WorkflowRunsMetricsProps {
   metrics: WorkflowRunsMetrics;
@@ -29,47 +30,37 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
   const queuedPercentage = calculatePercentage(counts?.QUEUED ?? 0, total);
 
   return (
-    <div className="flex flex-row space-x-4 dark:text-white">
-      <div className="flex items-center">
-        <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
-          <span className="text-white text-sm font-bold">
-            {succeededPercentage}%
-          </span>
-        </div>
-        <p className="ml-2">Succeeded: {counts?.SUCCEEDED}</p>
-      </div>
-      <div className="flex items-center">
-        <div className="w-12 h-12 bg-green-300 rounded-full flex items-center justify-center">
-          <span className="text-white text-sm font-bold">
-            {runningPercentage}%
-          </span>
-        </div>
-        <p className="ml-2">Running: {counts?.RUNNING}</p>
-      </div>
-      <div className="flex items-center">
-        <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center">
-          <span className="text-white text-sm font-bold">
-            {failedPercentage}%
-          </span>
-        </div>
-        <p className="ml-2">Failed: {counts?.FAILED}</p>
-      </div>
-      <div className="flex items-center">
-        <div className="w-12 h-12 bg-gray-400 rounded-full flex items-center justify-center">
-          <span className="text-white text-sm font-bold">
-            {pendingPercentage}%
-          </span>
-        </div>
-        <p className="ml-2">Pending: {counts?.PENDING}</p>
-      </div>
-      <div className="flex items-center">
-        <div className="w-12 h-12 bg-gray-400 rounded-full flex items-center justify-center">
-          <span className="text-white text-sm font-bold">
-            {queuedPercentage}%
-          </span>
-        </div>
-        <p className="ml-2">Queued: {counts?.QUEUED}</p>
-      </div>
-    </div>
+    <dl className="flex flex-row justify-start gap-6">
+      <Badge
+        variant="successful"
+        className="cursor-default text-sm px-2 py-1 w-fit"
+      >
+        {counts?.SUCCEEDED} Succeeded ({succeededPercentage}%)
+      </Badge>
+      <Badge
+        variant="inProgress"
+        className="cursor-default text-sm px-2 py-1 w-fit"
+      >
+        {counts?.RUNNING} Running ({runningPercentage}%)
+      </Badge>
+      <Badge
+        variant="failed"
+        className="cursor-default text-sm px-2 py-1 w-fit"
+      >
+        {counts?.FAILED} Failed ({failedPercentage}%)
+      </Badge>
+      <Badge
+        variant="outline"
+        className="cursor-default rounded-sm font-normal text-sm px-2 py-1 w-fit"
+      >
+        {counts?.PENDING} Pending ({pendingPercentage}%)
+      </Badge>
+      <Badge
+        variant="outline"
+        className="cursor-default rounded-sm font-normal text-sm px-2 py-1 w-fit"
+      >
+        {counts?.QUEUED} Queued ({queuedPercentage}%)
+      </Badge>
+    </dl>
   );
 };

@@ -319,6 +319,7 @@ function EventsTable() {
             options: workflowRunStatusFilters,
           },
         ]}
+        showColumnToggle={true}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         actions={actions}

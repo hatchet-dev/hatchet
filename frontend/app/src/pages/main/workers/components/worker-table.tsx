@@ -107,7 +107,7 @@ export function WorkersTable() {
           Last seen {relativeDate(data?.lastHeartbeatAt)} <br />
           {(data.maxRuns ?? 0) > 0
             ? `${data.availableRuns} / ${data.maxRuns ?? 0}`
-            : '∞'}{' '}
+            : '100'}{' '}
           available run slots
         </p>
       </div>

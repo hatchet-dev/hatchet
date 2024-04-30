@@ -18,7 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -681,21 +680,8 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	// no matter what, remove the worker from the connection pool
-	defer s.workers.Delete(request.WorkerId)
-
-	inactive := db.WorkerStatusInactive
-
-	updateCtx, updateCtxCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer updateCtxCancel()
-
-	_, err := s.repo.Worker().UpdateWorker(updateCtx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
-		Status: &inactive,
-	})
-
-	if err != nil {
-		s.l.Error().Err(err).Msgf("could not update worker %s status to inactive", request.WorkerId)
-	}
+	// remove the worker from the connection pool
+	s.workers.Delete(request.WorkerId)
 
 	return &contracts.WorkerUnsubscribeResponse{
 		TenantId: tenantId,

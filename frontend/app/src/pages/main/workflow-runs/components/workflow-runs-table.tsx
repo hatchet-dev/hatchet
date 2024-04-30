@@ -107,8 +107,6 @@ export function WorkflowRunsTable({
     refetchInterval,
   });
 
-  console.log(metricsQuery.data);
-
   const {
     data: workflowKeys,
     isLoading: workflowKeysIsLoading,

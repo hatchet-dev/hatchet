@@ -20,9 +20,6 @@ CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
 CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
 
 -- CreateEnum
-CREATE TYPE "WorkerStatus" AS ENUM ('ACTIVE', 'INACTIVE');
-
--- CreateEnum
 CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED');
 
 -- CreateTable
@@ -486,7 +483,6 @@ CREATE TABLE "Worker" (
     "tenantId" UUID NOT NULL,
     "lastHeartbeatAt" TIMESTAMP(3),
     "name" TEXT NOT NULL,
-    "status" "WorkerStatus" NOT NULL DEFAULT 'ACTIVE',
     "dispatcherId" UUID,
     "maxRuns" INTEGER,
 

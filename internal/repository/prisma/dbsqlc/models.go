@@ -318,48 +318,6 @@ func (ns NullVcsProvider) Value() (driver.Value, error) {
 	return string(ns.VcsProvider), nil
 }
 
-type WorkerStatus string
-
-const (
-	WorkerStatusACTIVE   WorkerStatus = "ACTIVE"
-	WorkerStatusINACTIVE WorkerStatus = "INACTIVE"
-)
-
-func (e *WorkerStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = WorkerStatus(s)
-	case string:
-		*e = WorkerStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for WorkerStatus: %T", src)
-	}
-	return nil
-}
-
-type NullWorkerStatus struct {
-	WorkerStatus WorkerStatus `json:"WorkerStatus"`
-	Valid        bool         `json:"valid"` // Valid is true if WorkerStatus is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullWorkerStatus) Scan(value interface{}) error {
-	if value == nil {
-		ns.WorkerStatus, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.WorkerStatus.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullWorkerStatus) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.WorkerStatus), nil
-}
-
 type WorkflowRunStatus string
 
 const (
@@ -813,7 +771,6 @@ type Worker struct {
 	TenantId        pgtype.UUID      `json:"tenantId"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
 	Name            string           `json:"name"`
-	Status          WorkerStatus     `json:"status"`
 	DispatcherId    pgtype.UUID      `json:"dispatcherId"`
 	MaxRuns         pgtype.Int4      `json:"maxRuns"`
 }

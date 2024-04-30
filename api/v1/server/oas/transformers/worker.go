@@ -1,6 +1,8 @@
 package transformers
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -22,11 +24,17 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 		maxRuns = runs
 	}
 
+	status := gen.ACTIVE
+
+	if lastHeartbeat, ok := worker.LastHeartbeatAt(); ok && lastHeartbeat.Add(4*time.Second).Before(time.Now()) {
+		status = gen.INACTIVE
+	}
+
 	res := &gen.Worker{
 		Metadata:     *toAPIMetadata(worker.ID, worker.CreatedAt, worker.UpdatedAt),
 		Name:         worker.Name,
 		DispatcherId: &dispatcherUuid,
-		Status:       (*gen.WorkerStatus)(&worker.Status),
+		Status:       &status,
 		MaxRuns:      &maxRuns,
 	}
 
@@ -60,10 +68,16 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64) *gen.Worker {
 	maxRuns := int(worker.MaxRuns.Int32)
 	availableRuns := maxRuns - int(*stepCount)
 
+	status := gen.ACTIVE
+
+	if worker.LastHeartbeatAt.Time.Add(4 * time.Second).Before(time.Now()) {
+		status = gen.INACTIVE
+	}
+
 	res := &gen.Worker{
 		Metadata:      *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
 		Name:          worker.Name,
-		Status:        (*gen.WorkerStatus)(&worker.Status),
+		Status:        &status,
 		DispatcherId:  &dispatcherId,
 		MaxRuns:       &maxRuns,
 		AvailableRuns: &availableRuns,

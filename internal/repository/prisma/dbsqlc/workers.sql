@@ -51,7 +51,6 @@ INSERT INTO "Worker" (
     "updatedAt",
     "tenantId",
     "name",
-    "status",
     "dispatcherId",
     "maxRuns"
 ) VALUES (
@@ -60,7 +59,6 @@ INSERT INTO "Worker" (
     CURRENT_TIMESTAMP,
     @tenantId::uuid,
     @name::text,
-    'ACTIVE',
     @dispatcherId::uuid,
     sqlc.narg('maxRuns')::int
 ) RETURNING *;
@@ -79,7 +77,6 @@ UPDATE
     "Worker"
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
-    "status" = coalesce(sqlc.narg('status')::"WorkerStatus", "status"),
     "dispatcherId" = coalesce(sqlc.narg('dispatcherId')::uuid, "dispatcherId"),
     "maxRuns" = coalesce(sqlc.narg('maxRuns')::int, "maxRuns"),
     "lastHeartbeatAt" = coalesce(sqlc.narg('lastHeartbeatAt')::timestamp, "lastHeartbeatAt")
