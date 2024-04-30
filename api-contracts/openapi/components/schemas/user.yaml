@@ -15,6 +15,9 @@ User:
     hasPassword:
       type: boolean
       description: Whether the user has a password set.
+    emailHash:
+      type: string
+      description: A hash of the user's email address for use with Pylon Support Chat
   required:
     - metadata
     - email
