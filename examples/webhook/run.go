@@ -54,7 +54,13 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 			log.Printf("data: %s", string(indent))
 
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("ok"))
+			resp := struct {
+				MyData string `json:"myData"`
+			}{
+				MyData: "hi from " + event.StepName,
+			}
+			respBytes, err := json.Marshal(resp)
+			_, _ = w.Write(respBytes)
 
 			done <- event.StepName
 

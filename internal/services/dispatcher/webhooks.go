@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -93,9 +94,21 @@ func (w *webhookController) Send(ctx context.Context, tenantId string, action *c
 		return fmt.Errorf("webhook failed with status code %d", resp.StatusCode)
 	}
 
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("webhook response: %s", string(data))
+
 	log.Printf("setting step run status to completed")
 
-	if err := w.dispatcher.handleStepRunCompletedImpl(ctx, tenantId, time.Now(), action.StepRunId, "{}"); err != nil {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	if err := w.dispatcher.handleStepRunCompletedImpl(ctx, tenantId, time.Now(), action.StepRunId, string(payload)); err != nil {
 		return fmt.Errorf("could not handle step run completed: %w", err)
 	}
 
