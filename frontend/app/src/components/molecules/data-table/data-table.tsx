@@ -57,6 +57,7 @@ interface DataTableProps<TData extends IDGetter, TValue> {
   setPagination?: OnChangeFn<PaginationState>;
   pageCount?: number;
   onSetPageSize?: (pageSize: number) => void;
+  showColumnToggle?: boolean;
   columnVisibility?: VisibilityState;
   setColumnVisibility?: OnChangeFn<VisibilityState>;
   rowSelection?: RowSelectionState;
@@ -98,6 +99,7 @@ export function DataTable<TData extends IDGetter, TValue>({
   setPagination,
   pageCount,
   onSetPageSize,
+  showColumnToggle,
   columnVisibility,
   setColumnVisibility,
   rowSelection,
@@ -247,7 +249,7 @@ export function DataTable<TData extends IDGetter, TValue>({
           actions={actions}
           search={search}
           setSearch={setSearch}
-          canVisibility={!!columnVisibility}
+          showColumnToggle={showColumnToggle}
         />
       )}
       <div className={`rounded-md ${!card && 'border'}`}>

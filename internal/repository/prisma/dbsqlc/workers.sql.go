@@ -30,7 +30,7 @@ INSERT INTO "Worker" (
     'ACTIVE',
     $3::uuid,
     $4::int
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, status, "dispatcherId", "maxRuns"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns"
 `
 
 type CreateWorkerParams struct {
@@ -56,7 +56,6 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		&i.TenantId,
 		&i.LastHeartbeatAt,
 		&i.Name,
-		&i.Status,
 		&i.DispatcherId,
 		&i.MaxRuns,
 	)
@@ -90,7 +89,7 @@ DELETE FROM
     "Worker"
 WHERE
     "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, status, "dispatcherId", "maxRuns"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns"
 `
 
 func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*Worker, error) {
@@ -104,7 +103,6 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*W
 		&i.TenantId,
 		&i.LastHeartbeatAt,
 		&i.Name,
-		&i.Status,
 		&i.DispatcherId,
 		&i.MaxRuns,
 	)
@@ -185,7 +183,7 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 
 const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
-    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers.status, workers."dispatcherId", workers."maxRuns",
+    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns",
     COUNT(runs."id") FILTER (WHERE runs."status" = 'RUNNING') AS "runningStepRuns"
 FROM
     "Worker" workers
@@ -253,7 +251,6 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 			&i.Worker.TenantId,
 			&i.Worker.LastHeartbeatAt,
 			&i.Worker.Name,
-			&i.Worker.Status,
 			&i.Worker.DispatcherId,
 			&i.Worker.MaxRuns,
 			&i.RunningStepRuns,
@@ -279,7 +276,7 @@ SET
     "lastHeartbeatAt" = coalesce($4::timestamp, "lastHeartbeatAt")
 WHERE
     "id" = $5::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, status, "dispatcherId", "maxRuns"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns"
 `
 
 type UpdateWorkerParams struct {
@@ -307,7 +304,6 @@ func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerPar
 		&i.TenantId,
 		&i.LastHeartbeatAt,
 		&i.Name,
-		&i.Status,
 		&i.DispatcherId,
 		&i.MaxRuns,
 	)

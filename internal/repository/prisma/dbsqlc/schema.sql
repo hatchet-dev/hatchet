@@ -486,7 +486,6 @@ CREATE TABLE "Worker" (
     "tenantId" UUID NOT NULL,
     "lastHeartbeatAt" TIMESTAMP(3),
     "name" TEXT NOT NULL,
-    "status" "WorkerStatus" NOT NULL DEFAULT 'ACTIVE',
     "dispatcherId" UUID,
     "maxRuns" INTEGER,
 
