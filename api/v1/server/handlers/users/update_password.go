@@ -57,6 +57,6 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	}
 
 	return gen.UserUpdatePassword200JSONResponse(
-		*transformers.ToUser(user, true),
+		*transformers.ToUser(user, true, nil),
 	), nil
 }

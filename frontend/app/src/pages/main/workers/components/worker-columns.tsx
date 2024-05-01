@@ -6,6 +6,21 @@ import { Link } from 'react-router-dom';
 
 export const columns: ColumnDef<Worker>[] = [
   {
+    accessorKey: 'status',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
+    cell: ({ row }) => (
+      <Link to={`/workers/${row.original.metadata.id}`}>
+        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+          {row.original.status}
+        </div>
+      </Link>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
     accessorKey: 'name',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Name" />

@@ -43,6 +43,7 @@ func (w *workerAPIRepository) GetWorkerById(workerId string) (*db.WorkerModel, e
 	).With(
 		db.Worker.Dispatcher.Fetch(),
 		db.Worker.Actions.Fetch(),
+		db.Worker.Semaphore.Fetch(),
 	).Exec(context.Background())
 }
 
@@ -268,13 +269,6 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 
 	updateParams := dbsqlc.UpdateWorkerParams{
 		ID: sqlchelpers.UUIDFromStr(workerId),
-	}
-
-	if opts.Status != nil {
-		updateParams.Status = dbsqlc.NullWorkerStatus{
-			WorkerStatus: dbsqlc.WorkerStatus(*opts.Status),
-			Valid:        true,
-		}
 	}
 
 	if opts.LastHeartbeatAt != nil {

@@ -59,6 +59,27 @@ WorkflowRunList:
     pagination:
       $ref: "./metadata.yaml#/PaginationResponse"
 
+WorkflowRunsMetricsCounts:
+  type: object
+  properties:
+    PENDING:
+      type: integer
+    RUNNING:
+      type: integer
+    SUCCEEDED:
+      type: integer
+    FAILED:
+      type: integer
+    QUEUED:
+      type: integer
+
+WorkflowRunsMetrics:
+  type: object
+  properties:
+    counts:
+      type: object
+      $ref: "#/WorkflowRunsMetricsCounts"
+
 StepRunStatus:
   type: string
   enum:

@@ -68,6 +68,7 @@ import {
   WorkflowRunList,
   WorkflowRunStatus,
   WorkflowRunStatusList,
+  WorkflowRunsMetrics,
   WorkflowVersion,
   WorkflowVersionDefinition,
 } from "./data-contracts";
@@ -1057,6 +1058,57 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<WorkflowRunList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/runs`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a summary of  workflow run metrics for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowRunGetMetrics
+   * @summary Get workflow runs
+   * @request GET:/api/v1/tenants/{tenant}/workflows/runs/metrics
+   * @secure
+   */
+  workflowRunGetMetrics = (
+    tenant: string,
+    query?: {
+      /**
+       * The event id to get runs for.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      eventId?: string;
+      /**
+       * The workflow id to get runs for.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      workflowId?: string;
+      /**
+       * The parent workflow run id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parentWorkflowRunId?: string;
+      /**
+       * The parent step run id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parentStepRunId?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<WorkflowRunsMetrics, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/runs/metrics`,
       method: "GET",
       query: query,
       secure: true,

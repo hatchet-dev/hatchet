@@ -23,7 +23,7 @@ require (
 	github.com/posthog/posthog-go v0.0.0-20240327112532-87b23fe11103
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
-	github.com/steebchen/prisma-client-go v0.36.0
+	github.com/steebchen/prisma-client-go v0.37.0
 	github.com/tink-crypto/tink-go v0.0.0-20230613075026-d6de17e3f164
 	github.com/tink-crypto/tink-go-gcpkms v0.0.0-20230602082706-31d0d09ccc8d
 	go.opentelemetry.io/otel v1.26.0
@@ -98,7 +98,7 @@ require (
 	github.com/exaring/otelpgx v0.5.4
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/getsentry/sentry-go v0.27.0
-	github.com/go-playground/validator/v10 v10.19.0
+	github.com/go-playground/validator/v10 v10.20.0
 	github.com/go-test/deep v1.1.0 // indirect
 	github.com/goccy/go-json v0.10.2
 	github.com/golang/protobuf v1.5.4 // indirect

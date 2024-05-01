@@ -11,6 +11,11 @@
 
 export interface APIMeta {
   auth?: APIMetaAuth;
+  /**
+   * the Pylon app ID for usepylon.com chat support
+   * @example "12345678-1234-1234-1234-123456789012"
+   */
+  pylonAppId?: string;
 }
 
 export interface APIMetaAuth {
@@ -119,6 +124,8 @@ export interface User {
   emailVerified: boolean;
   /** Whether the user has a password set. */
   hasPassword?: boolean;
+  /** A hash of the user's email address for use with Pylon Support Chat */
+  emailHash?: string;
 }
 
 export interface UserTenantPublic {
@@ -500,6 +507,18 @@ export interface WorkflowRunList {
   pagination?: PaginationResponse;
 }
 
+export interface WorkflowRunsMetrics {
+  counts?: WorkflowRunsMetricsCounts;
+}
+
+export interface WorkflowRunsMetricsCounts {
+  PENDING?: number;
+  RUNNING?: number;
+  SUCCEEDED?: number;
+  FAILED?: number;
+  QUEUED?: number;
+}
+
 export enum WorkflowRunStatus {
   PENDING = "PENDING",
   RUNNING = "RUNNING",
@@ -614,6 +633,20 @@ export interface Worker {
   actions?: string[];
   /** The recent step runs for this worker. */
   recentStepRuns?: StepRun[];
+  /** The status of the worker. */
+  status?: "ACTIVE" | "INACTIVE";
+  /** The maximum number of runs this worker can execute concurrently. */
+  maxRuns?: number;
+  /** The number of runs this worker can execute concurrently. */
+  availableRuns?: number;
+  /**
+   * the id of the assigned dispatcher, in UUID format
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  dispatcherId?: string;
 }
 
 export interface APIToken {

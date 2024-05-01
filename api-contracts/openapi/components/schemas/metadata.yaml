@@ -3,6 +3,10 @@ APIMeta:
   properties:
     auth:
       $ref: "#/APIMetaAuth"
+    pylonAppId:
+      type: string
+      description: the Pylon app ID for usepylon.com chat support
+      example: 12345678-1234-1234-1234-123456789012
 APIMetaAuth:
   type: object
   properties:
