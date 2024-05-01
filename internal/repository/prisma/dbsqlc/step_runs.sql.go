@@ -788,12 +788,16 @@ WITH currStepRun AS (
 UPDATE
     "StepRun" as sr
 SET "status" = CASE
+    -- When the step is in a final state, it cannot be updated
+    WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."status"
     -- When the given step run has failed or been cancelled, then all later step runs are cancelled
     WHEN (cs."status" = 'FAILED' OR cs."status" = 'CANCELLED') THEN 'CANCELLED'
     ELSE sr."status"
     END,
     -- When the previous step run timed out, the cancelled reason is set
     "cancelledReason" = CASE
+    -- When the step is in a final state, it cannot be updated
+    WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."cancelledReason"
     WHEN (cs."status" = 'CANCELLED' AND cs."cancelledReason" = 'TIMED_OUT'::text) THEN 'PREVIOUS_STEP_TIMED_OUT'
     WHEN (cs."status" = 'CANCELLED') THEN 'PREVIOUS_STEP_CANCELLED'
     ELSE NULL
