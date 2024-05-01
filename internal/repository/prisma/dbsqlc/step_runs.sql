@@ -163,6 +163,16 @@ WHERE
   "tenantId" = @tenantId::uuid
 RETURNING "StepRun".*;
 
+-- name: UnlinkStepRunFromWorker :one
+UPDATE
+    "StepRun"
+SET
+    "workerId" = NULL
+WHERE
+    "id" = @stepRunId::uuid AND
+    "tenantId" = @tenantId::uuid
+RETURNING *;
+
 -- name: ResolveLaterStepRuns :many
 WITH currStepRun AS (
   SELECT *
@@ -610,3 +620,34 @@ WHERE
     srl."tenantId" = lrl."tenantId" AND
     srl."key" = lrl."key"
 RETURNING srl.*;
+
+
+
+SELECT t.id as tenant_id, t.name, COUNT(w.id) AS run_count
+FROM "Tenant" t
+JOIN "WorkflowRun" w ON t.id = w."tenantId"
+JOIN "TenantMember" tm ON t.id = tm."tenantId"
+JOIN "User" u ON tm."userId" = u.id
+GROUP BY t.id, t.name;
+
+SELECT t.id as tenant_id, t.name, COUNT(DISTINCT w.id) AS run_count, COUNT(DISTINCT u.id) AS user_count
+FROM "Tenant" t
+JOIN "WorkflowRun" w ON t.id = w."tenantId"
+JOIN "TenantMember" tm ON t.id = tm."tenantId"
+JOIN "User" u ON tm."userId" = u.id
+GROUP BY t.id, t.name;
+
+
+SELECT t.id as tenant_id, t.name, COUNT(DISTINCT w.id) AS run_count, STRING_AGG(DISTINCT u.email, ', ') AS user_emails
+FROM "Tenant" t
+JOIN "WorkflowRun" w ON t.id = w."tenantId"
+JOIN "TenantMember" tm ON t.id = tm."tenantId"
+JOIN "User" u ON tm."userId" = u.id
+GROUP BY t.id, t.name;
+
+SELECT COUNT(DISTINCT sr.id) AS step_run_count
+FROM "StepRun" sr
+WHERE
+-- LAST 30 DAYS
+sr."createdAt" > NOW() - INTERVAL '30 days'
+AND "status" = 'SUCCEEDED';

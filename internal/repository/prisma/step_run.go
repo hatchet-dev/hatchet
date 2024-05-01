@@ -541,6 +541,19 @@ func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, s
 	return stepRun, updateInfo, nil
 }
 
+func (s *stepRunEngineRepository) UnlinkStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error {
+	_, err := s.queries.UnlinkStepRunFromWorker(ctx, s.pool, dbsqlc.UnlinkStepRunFromWorkerParams{
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not unlink step run from worker: %w", err)
+	}
+
+	return nil
+}
+
 func (s *stepRunEngineRepository) UpdateStepRunOverridesData(ctx context.Context, tenantId, stepRunId string, opts *repository.UpdateStepRunOverridesDataOpts) ([]byte, error) {
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err

@@ -867,6 +867,56 @@ func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg Resolve
 	return items, nil
 }
 
+const unlinkStepRunFromWorker = `-- name: UnlinkStepRunFromWorker :one
+UPDATE
+    "StepRun"
+SET
+    "workerId" = NULL
+WHERE
+    "id" = $1::uuid AND
+    "tenantId" = $2::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount"
+`
+
+type UnlinkStepRunFromWorkerParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) UnlinkStepRunFromWorker(ctx context.Context, db DBTX, arg UnlinkStepRunFromWorkerParams) (*StepRun, error) {
+	row := db.QueryRow(ctx, unlinkStepRunFromWorker, arg.Steprunid, arg.Tenantid)
+	var i StepRun
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.JobRunId,
+		&i.StepId,
+		&i.Order,
+		&i.WorkerId,
+		&i.TickerId,
+		&i.Status,
+		&i.Input,
+		&i.Output,
+		&i.RequeueAfter,
+		&i.ScheduleTimeoutAt,
+		&i.Error,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.TimeoutAt,
+		&i.CancelledAt,
+		&i.CancelledReason,
+		&i.CancelledError,
+		&i.InputSchema,
+		&i.CallerFiles,
+		&i.GitRepoBranch,
+		&i.RetryCount,
+	)
+	return &i, err
+}
+
 const updateStepRateLimits = `-- name: UpdateStepRateLimits :many
 WITH step_rate_limits AS (
     SELECT

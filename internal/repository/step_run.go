@@ -82,6 +82,8 @@ type StepRunEngineRepository interface {
 
 	UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *StepRunUpdateInfo, error)
 
+	UnlinkStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error
+
 	// UpdateStepRunOverridesData updates the overrides data field in the input for a step run. This returns the input
 	// bytes.
 	UpdateStepRunOverridesData(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOverridesDataOpts) ([]byte, error)
