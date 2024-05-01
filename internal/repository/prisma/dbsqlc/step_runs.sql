@@ -163,6 +163,16 @@ WHERE
   "tenantId" = @tenantId::uuid
 RETURNING "StepRun".*;
 
+-- name: UnlinkStepRunFromWorker :one
+UPDATE
+    "StepRun"
+SET
+    "workerId" = NULL
+WHERE
+    "id" = @stepRunId::uuid AND
+    "tenantId" = @tenantId::uuid
+RETURNING *;
+
 -- name: ResolveLaterStepRuns :many
 WITH currStepRun AS (
   SELECT *
