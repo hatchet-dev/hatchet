@@ -91,7 +91,7 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	}
 
 	// schedule the workflow
-	_, err = t.s.NewJob(
+	_, err = s.NewJob(
 		gocron.OneTimeJob(
 			gocron.OneTimeJobStartDateTime(triggerAt),
 		),
@@ -219,7 +219,11 @@ func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error
 
 	defer t.scheduledWorkflows.Delete(key)
 
-	scheduler := schedulerVal.(gocron.Scheduler)
+	scheduler, ok := schedulerVal.(gocron.Scheduler)
+
+	if !ok {
+		return fmt.Errorf("could not cast scheduler")
+	}
 
 	// cancel the schedule
 	return scheduler.Shutdown()
