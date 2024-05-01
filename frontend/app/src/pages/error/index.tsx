@@ -1,26 +1,74 @@
 import { Button } from '@/components/ui/button';
+import { PropsWithChildren } from 'react';
 import { ErrorResponse, useNavigate, useRouteError } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 export default function ErrorBoundary() {
   const navigate = useNavigate();
-  const error = useRouteError() as ErrorResponse;
+  const location = useLocation();
+
+  const error = useRouteError();
 
   console.error(error);
 
-  return (
-    <div className="flex flex-row flex-1 w-full h-full">
-      <div className="container relative hidden flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
-        <div className="lg:p-8 mx-auto w-screen">
-          <div className="mx-auto flex w-40 flex-col justify-center space-y-6 sm:w-[350px]">
-            <div className="flex flex-col space-y-2 text-center">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                {error.statusText || error.status || 'Something went wrong'}
-              </h1>
-              <Button onClick={() => navigate('/')}>Return to Dashboard</Button>
-            </div>
-          </div>
-        </div>
-      </div>
+  const Layout: React.FC<PropsWithChildren> = ({ children }) => (
+    <div className="flex flex-row justify-center items-center flex-1 w-full h-full">
+      <div className="flex flex-col space-y-2 text-center">{children}</div>
     </div>
+  );
+
+  if (
+    error instanceof TypeError &&
+    error.message.includes('Failed to fetch dynamically imported module:')
+  ) {
+    const queryParams = new URLSearchParams(location.search);
+
+    if (!queryParams.has('updated')) {
+      queryParams.set('updated', 'true');
+      const updatedUrl = `${location.pathname}?${queryParams.toString()}`;
+      window.location.href = updatedUrl;
+    }
+
+    return (
+      <Layout>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          A New App Version is Available!
+        </h1>
+        <Button onClick={() => window.location.reload()}>
+          Reload to Update
+        </Button>
+        <Button onClick={() => navigate('/')} variant="outline">
+          Return to Dashboard
+        </Button>
+      </Layout>
+    );
+  }
+
+  if ((error as ErrorResponse).status === 404) {
+    return (
+      <Layout>
+        <h1 className="text-2xl font-semibold tracking-tight">404</h1>
+        <h2 className="text-xl font-semibold tracking-tight">Page Not Found</h2>
+        <Button onClick={() => navigate('/')}>Return to Dashboard</Button>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      {(error as ErrorResponse).status && (
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {(error as ErrorResponse).status}
+        </h1>
+      )}
+      <h2 className="text-xl font-semibold tracking-tight">
+        {(error as ErrorResponse).statusText || 'Something went wrong'}
+      </h2>
+
+      <Button onClick={() => window.location.reload()}>Try Again</Button>
+      <Button onClick={() => navigate('/')} variant="outline">
+        Return to Dashboard
+      </Button>
+    </Layout>
   );
 }
