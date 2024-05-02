@@ -128,26 +128,15 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 			return
 		}
 
-		jobRuns, err := t.repo.JobRun().ListJobRunsForWorkflowRun(ctx, tenantId, workflowRunId)
+		err = t.mq.AddMessage(
+			context.Background(),
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
+		)
 
 		if err != nil {
-			t.l.Err(err).Msg("could not list job runs for workflow run")
+			t.l.Err(err).Msg("could not add workflow run queued task")
 			return
-		}
-
-		for _, jobRunId := range jobRuns {
-			jobRunStr := sqlchelpers.UUIDToStr(jobRunId)
-
-			err = t.mq.AddMessage(
-				context.Background(),
-				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.JobRunQueuedToTask(tenantId, jobRunStr),
-			)
-
-			if err != nil {
-				t.l.Err(err).Msg("could not add job run queued task")
-				continue
-			}
 		}
 	}
 }

@@ -128,7 +128,7 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 
 		fs := make([]repository.CreateWorkflowRunOpt, 0)
 
-		if scheduled.ParentId.Valid {
+		if scheduled.ParentWorkflowRunId.Valid {
 			var childKey *string
 
 			if scheduled.ChildKey.Valid {
@@ -136,7 +136,7 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 			}
 
 			fs = append(fs, repository.WithParent(
-				sqlchelpers.UUIDToStr(scheduled.ParentId),
+				sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId),
 				sqlchelpers.UUIDToStr(scheduled.ParentStepRunId),
 				int(scheduled.ChildIndex.Int32),
 				childKey,
@@ -163,26 +163,15 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 			return
 		}
 
-		jobRuns, err := t.repo.JobRun().ListJobRunsForWorkflowRun(ctx, tenantId, workflowRunId)
+		err = t.mq.AddMessage(
+			context.Background(),
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
+		)
 
 		if err != nil {
-			t.l.Err(err).Msg("could not list job runs for workflow run")
+			t.l.Err(err).Msg("could not add workflow run queued task")
 			return
-		}
-
-		for _, jobRunId := range jobRuns {
-			jobRunStr := sqlchelpers.UUIDToStr(jobRunId)
-
-			err = t.mq.AddMessage(
-				context.Background(),
-				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.JobRunQueuedToTask(tenantId, jobRunStr),
-			)
-
-			if err != nil {
-				t.l.Err(err).Msg("could not add job run queued task")
-				continue
-			}
 		}
 
 		// get the scheduler

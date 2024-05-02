@@ -21,6 +21,8 @@ type Workflow struct {
 	Triggers WorkflowTriggers `yaml:"triggers"`
 
 	Jobs map[string]WorkflowJob `yaml:"jobs"`
+
+	OnFailureJob *WorkflowJob `yaml:"onFailureJob,omitempty"`
 }
 
 type WorkflowConcurrencyLimitStrategy string

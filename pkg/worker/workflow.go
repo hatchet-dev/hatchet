@@ -144,6 +144,8 @@ type WorkflowJob struct {
 
 	// The steps that are run in the job
 	Steps []*WorkflowStep
+
+	OnFailure *WorkflowJob
 }
 
 type WorkflowConcurrency struct {
@@ -169,11 +171,20 @@ func (c *WorkflowConcurrency) LimitStrategy(limitStrategy types.WorkflowConcurre
 }
 
 func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflow {
-
 	apiJob, err := j.ToWorkflowJob(svcName, namespace)
 
 	if err != nil {
 		panic(err)
+	}
+
+	var onFailureJob *types.WorkflowJob
+
+	if j.OnFailure != nil {
+		onFailureJob, err = j.OnFailure.ToWorkflowJob(svcName, namespace)
+
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	jobs := map[string]types.WorkflowJob{
@@ -181,8 +192,9 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 	}
 
 	w := types.Workflow{
-		Name: namespace + j.Name,
-		Jobs: jobs,
+		Name:         namespace + j.Name,
+		Jobs:         jobs,
+		OnFailureJob: onFailureJob,
 	}
 
 	if j.Concurrency != nil {
@@ -233,6 +245,14 @@ func (j *WorkflowJob) ToActionMap(svcName string) map[string]any {
 
 	if j.Concurrency != nil {
 		res["concurrency:"+getFnName(j.Concurrency.fn)] = j.Concurrency.fn
+	}
+
+	if j.OnFailure != nil {
+		onFailureActionMap := j.OnFailure.ToActionMap(svcName)
+
+		for k, v := range onFailureActionMap {
+			res[k] = v
+		}
 	}
 
 	return res

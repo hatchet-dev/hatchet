@@ -348,48 +348,25 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 
 	for i, job := range req.Opts.Jobs {
 		jobCp := job
+		res, err := getCreateJobOpts(jobCp, "DEFAULT")
 
-		steps := make([]repository.CreateWorkflowStepOpts, len(job.Steps))
-
-		for j, step := range job.Steps {
-			stepCp := step
-
-			parsedAction, err := types.ParseActionID(step.Action)
-
-			if err != nil {
-				return nil, err
-			}
-
-			retries := int(stepCp.Retries)
-
-			steps[j] = repository.CreateWorkflowStepOpts{
-				ReadableId: stepCp.ReadableId,
-				Action:     parsedAction.String(),
-				Parents:    stepCp.Parents,
-				Retries:    &retries,
-			}
-
-			if stepCp.Timeout != "" {
-				steps[j].Timeout = &stepCp.Timeout
-			}
-
-			for _, rateLimit := range stepCp.RateLimits {
-				steps[j].RateLimits = append(steps[j].RateLimits, repository.CreateWorkflowStepRateLimitOpts{
-					Key:   rateLimit.Key,
-					Units: int(rateLimit.Units),
-				})
-			}
-
-			if stepCp.UserData != "" {
-				steps[j].UserData = &stepCp.UserData
-			}
+		if err != nil {
+			return nil, err
 		}
 
-		jobs[i] = repository.CreateWorkflowJobOpts{
-			Name:        jobCp.Name,
-			Description: &jobCp.Description,
-			Steps:       steps,
+		jobs[i] = *res
+	}
+
+	var onFailureJob *repository.CreateWorkflowJobOpts
+
+	if req.Opts.OnFailureJob != nil {
+		onFailureJobCp, err := getCreateJobOpts(req.Opts.OnFailureJob, "ON_FAILURE")
+
+		if err != nil {
+			return nil, err
 		}
+
+		onFailureJob = onFailureJobCp
 	}
 
 	scheduledTriggers := make([]time.Time, 0)
@@ -433,7 +410,53 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		CronInput:         cronInput,
 		ScheduledTriggers: scheduledTriggers,
 		Jobs:              jobs,
+		OnFailureJob:      onFailureJob,
 		ScheduleTimeout:   req.Opts.ScheduleTimeout,
+	}, nil
+}
+
+func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repository.CreateWorkflowJobOpts, error) {
+	steps := make([]repository.CreateWorkflowStepOpts, len(req.Steps))
+
+	for j, step := range req.Steps {
+		stepCp := step
+
+		parsedAction, err := types.ParseActionID(step.Action)
+
+		if err != nil {
+			return nil, err
+		}
+
+		retries := int(stepCp.Retries)
+
+		steps[j] = repository.CreateWorkflowStepOpts{
+			ReadableId: stepCp.ReadableId,
+			Action:     parsedAction.String(),
+			Parents:    stepCp.Parents,
+			Retries:    &retries,
+		}
+
+		if stepCp.Timeout != "" {
+			steps[j].Timeout = &stepCp.Timeout
+		}
+
+		for _, rateLimit := range stepCp.RateLimits {
+			steps[j].RateLimits = append(steps[j].RateLimits, repository.CreateWorkflowStepRateLimitOpts{
+				Key:   rateLimit.Key,
+				Units: int(rateLimit.Units),
+			})
+		}
+
+		if stepCp.UserData != "" {
+			steps[j].UserData = &stepCp.UserData
+		}
+	}
+
+	return &repository.CreateWorkflowJobOpts{
+		Name:        req.Name,
+		Description: &req.Description,
+		Steps:       steps,
+		Kind:        kind,
 	}, nil
 }
 
