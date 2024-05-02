@@ -31,7 +31,7 @@ message Event {
     google.protobuf.Timestamp eventTimestamp = 5;
 
     // the payload for the event
-    string additionalMetadata = 6;
+    optional string additionalMetadata = 6;
 
 }
 
@@ -81,7 +81,7 @@ message PushEventRequest {
     google.protobuf.Timestamp eventTimestamp = 3;
 
     // metadata for the event
-    string metadata = 4;
+    optional string additionalMetadata = 4;
 }
 
 message ReplayEventRequest {

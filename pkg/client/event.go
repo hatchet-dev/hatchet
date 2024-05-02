@@ -54,7 +54,10 @@ func WithMetadata(metadata interface{}) PushOpFunc {
 			// Handle the error appropriately
 			return err
 		}
-		r.Metadata = string(metadataBytes)
+
+		metadataString := string(metadataBytes)
+
+		r.AdditionalMetadata = &metadataString
 
 		return nil
 	}

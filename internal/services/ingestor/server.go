@@ -2,7 +2,6 @@ package ingestor
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -22,9 +21,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	fmt.Println("Metadata: ", req.Metadata)
-
-	event, err := i.IngestEvent(ctx, tenantId, req.Key, []byte(req.Payload), []byte(req.Metadata))
+	event, err := i.IngestEvent(ctx, tenantId, req.Key, []byte(req.Payload), []byte(*req.AdditionalMetadata))
 
 	if err != nil {
 		return nil, err
