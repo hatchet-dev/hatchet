@@ -96,14 +96,9 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	additionalMetadata := make(map[string]interface{})
 
 	if req.AdditionalMetadata != nil {
-		additionalMetadataBytes, err := json.Marshal(req.AdditionalMetadata)
+		err := json.Unmarshal([]byte(*req.AdditionalMetadata), &additionalMetadata)
 		if err != nil {
-			return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
-		}
-
-		err = json.Unmarshal(additionalMetadataBytes, &additionalMetadata)
-		if err != nil {
-			return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
+			return nil, fmt.Errorf("could not unmarshal additional metadata: %w", err)
 		}
 	}
 
@@ -311,6 +306,8 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	}
 
 	workflowVersionId := sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID)
+
+	// FIXME add additional metadata?
 
 	_, err = a.repo.Workflow().CreateSchedules(
 		ctx,
