@@ -1,6 +1,9 @@
 package users
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 
 	"github.com/labstack/echo/v4"
@@ -25,7 +28,17 @@ func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurren
 		hasPass = true
 	}
 
-	transformedUser := transformers.ToUser(user, hasPass)
+	var hashedEmail *string
+
+	if u.config.Pylon.Secret != "" {
+		hashedEmail, err = signMessageWithHMAC(user.Email, u.config.Pylon.Secret)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	transformedUser := transformers.ToUser(user, hasPass, hashedEmail)
 
 	u.config.Analytics.Enqueue(
 		"user:current",
@@ -40,4 +53,19 @@ func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurren
 	return gen.UserGetCurrent200JSONResponse(
 		*transformedUser,
 	), nil
+}
+
+func signMessageWithHMAC(message, secret string) (*string, error) {
+	secretBytes, err := hex.DecodeString(secret)
+	if err != nil {
+		return nil, errors.New("unable to decode secret")
+	}
+
+	h := hmac.New(sha256.New, secretBytes)
+	h.Write([]byte(message))
+	signature := h.Sum(nil)
+
+	signedMsg := hex.EncodeToString(signature)
+
+	return &signedMsg, nil
 }

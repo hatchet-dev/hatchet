@@ -233,6 +233,23 @@ type ListWorkflowRunsOpts struct {
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
 }
 
+type WorkflowRunsMetricsOpts struct {
+	// (optional) the workflow id
+	WorkflowId *string `validate:"omitempty,uuid"`
+
+	// (optional) the workflow version id
+	WorkflowVersionId *string `validate:"omitempty,uuid"`
+
+	// (optional) the parent workflow run id
+	ParentId *string `validate:"omitempty,uuid"`
+
+	// (optional) the parent step run id
+	ParentStepRunId *string `validate:"omitempty,uuid"`
+
+	// (optional) the event id that triggered the workflow run
+	EventId *string `validate:"omitempty,uuid"`
+}
+
 type ListWorkflowRunsResult struct {
 	Rows  []*dbsqlc.ListWorkflowRunsRow
 	Count int
@@ -270,9 +287,20 @@ type ListWorkflowRunRoundRobinsOpts struct {
 	Limit *int
 }
 
+type WorkflowRunMetricsCountOpts struct {
+	// (optional) the workflow id
+	WorkflowId *string `validate:"omitempty,uuid"`
+
+	// (optional) the workflow version id
+	WorkflowVersionId *string `validate:"omitempty,uuid"`
+}
+
 type WorkflowRunAPIRepository interface {
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
+
+	// Counts by status
+	WorkflowRunMetricsCount(tenantId string, opts *WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*db.WorkflowRunModel, error)

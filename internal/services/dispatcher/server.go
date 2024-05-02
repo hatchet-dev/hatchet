@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,30 +18,12 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 )
-
-var ErrWorkerNotFound = fmt.Errorf("worker not found")
-
-func (d *DispatcherImpl) GetWorker(workerId string) (*subscribedWorker, error) {
-	workerInt, ok := d.workers.Load(workerId)
-	if !ok {
-		return nil, ErrWorkerNotFound
-	}
-
-	worker, ok := workerInt.(subscribedWorker)
-
-	if !ok {
-		return nil, fmt.Errorf("failed to cast worker with id %s to subscribedWorker", workerId)
-	}
-
-	return &worker, nil
-}
 
 type subscribedWorker struct {
 	// stream is the server side of the RPC stream
@@ -172,6 +155,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenServer) error {
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	sessionId := uuid.New().String()
 
 	s.l.Debug().Msgf("Received subscribe request from ID: %s", request.WorkerId)
 
@@ -184,8 +168,10 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		return err
 	}
 
+	shouldUpdateDispatcherId := !worker.DispatcherId.Valid || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
-	if worker.DispatcherId.Valid && sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId {
+	if shouldUpdateDispatcherId {
 		_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})
@@ -198,7 +184,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	fin := make(chan bool)
 
-	s.workers.Store(request.WorkerId, subscribedWorker{stream: stream, finished: fin})
+	s.workers.Add(request.WorkerId, sessionId, &subscribedWorker{stream: stream, finished: fin})
 
 	defer func() {
 		// non-blocking send
@@ -207,7 +193,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		default:
 		}
 
-		s.workers.Delete(request.WorkerId)
+		s.workers.DeleteForSession(request.WorkerId, sessionId)
 	}()
 
 	// update the worker with a last heartbeat time every 5 seconds as long as the worker is connected
@@ -263,6 +249,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenV2Server) error {
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	sessionId := uuid.New().String()
 
 	ctx := stream.Context()
 
@@ -275,8 +262,10 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		return err
 	}
 
+	shouldUpdateDispatcherId := !worker.DispatcherId.Valid || sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId
+
 	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
-	if worker.DispatcherId.Valid && sqlchelpers.UUIDToStr(worker.DispatcherId) != s.dispatcherId {
+	if shouldUpdateDispatcherId {
 		_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
 			DispatcherId: &s.dispatcherId,
 		})
@@ -289,7 +278,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	fin := make(chan bool)
 
-	s.workers.Store(request.WorkerId, subscribedWorker{stream: stream, finished: fin})
+	s.workers.Add(request.WorkerId, sessionId, &subscribedWorker{stream: stream, finished: fin})
 
 	defer func() {
 		// non-blocking send
@@ -298,17 +287,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		default:
 		}
 
-		s.workers.Delete(request.WorkerId)
-
-		inactive := db.WorkerStatusInactive
-
-		_, err := s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
-			Status: &inactive,
-		})
-
-		if err != nil {
-			s.l.Error().Err(err).Msgf("could not update worker %s status to inactive", request.WorkerId)
-		}
+		s.workers.DeleteForSession(request.WorkerId, sessionId)
 	}()
 
 	// Keep the connection alive for sending messages
@@ -701,18 +680,8 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	// no matter what, remove the worker from the connection pool
-	defer s.workers.Delete(request.WorkerId)
-
-	inactive := db.WorkerStatusInactive
-
-	_, err := s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
-		Status: &inactive,
-	})
-
-	if err != nil {
-		s.l.Error().Err(err).Msgf("could not update worker %s status to inactive", request.WorkerId)
-	}
+	// remove the worker from the connection pool
+	s.workers.Delete(request.WorkerId)
 
 	return &contracts.WorkerUnsubscribeResponse{
 		TenantId: tenantId,

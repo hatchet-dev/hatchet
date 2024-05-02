@@ -12,7 +12,7 @@ import (
 
 func (t *TickerImpl) runPollStepRuns(ctx context.Context) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
 		t.l.Debug().Msgf("ticker: polling step runs")

@@ -206,11 +206,12 @@ active_cron_schedules AS (
     JOIN 
         latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
     WHERE
-        "tickerId" IS NULL 
+        "enabled" = TRUE AND
+        ("tickerId" IS NULL 
         OR NOT EXISTS (
             SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
         )
-        OR "tickerId" = $1::uuid
+        OR "tickerId" = $1::uuid)
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
@@ -221,7 +222,7 @@ FROM
     active_cron_schedules
 WHERE
     cronSchedules."parentId" = active_cron_schedules."parentId"
-RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId", cronschedules.input, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId"
+RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId", cronschedules.input, cronschedules.enabled, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId"
 `
 
 type PollCronSchedulesRow struct {
@@ -229,6 +230,7 @@ type PollCronSchedulesRow struct {
 	Cron              string      `json:"cron"`
 	TickerId          pgtype.UUID `json:"tickerId"`
 	Input             []byte      `json:"input"`
+	Enabled           bool        `json:"enabled"`
 	WorkflowVersionId pgtype.UUID `json:"workflowVersionId"`
 	TenantId          pgtype.UUID `json:"tenantId"`
 }
@@ -247,6 +249,7 @@ func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, tickerid pgtyp
 			&i.Cron,
 			&i.TickerId,
 			&i.Input,
+			&i.Enabled,
 			&i.WorkflowVersionId,
 			&i.TenantId,
 		); err != nil {

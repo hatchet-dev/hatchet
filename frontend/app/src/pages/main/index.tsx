@@ -78,25 +78,25 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
       )}
     >
       <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full pb-16 md:pb-0">
-        <div className="grow">
+        <div className="grow w-full">
           <div className="py-2">
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
               Activity
             </h2>
             <div className="space-y-1">
               <Link to="/events" onClick={onNavLinkClick}>
-                <Button variant="ghost" className="w-full justify-start pl-0">
+                <Button variant="ghost" className="w-full justify-start pl-2">
                   <QueueListIcon className="mr-2 h-4 w-4" />
                   Events
                 </Button>
               </Link>
               <Link to="/workflow-runs" onClick={onNavLinkClick}>
-                <Button variant="ghost" className="w-full justify-start pl-0">
+                <Button variant="ghost" className="w-full justify-start pl-2">
                   <AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />
                   Workflow Runs
                 </Button>
               </Link>
-              {/* <Button variant="ghost" className="w-full justify-start pl-0">
+              {/* <Button variant="ghost" className="w-full justify-start pl-2">
                 <ChartBarSquareIcon className="mr-2 h-4 w-4" />
                 Metrics
               </Button> */}
@@ -108,14 +108,14 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <Link to="/workflows" onClick={onNavLinkClick}>
-                <Button variant="ghost" className="w-full justify-start pl-0">
+                <Button variant="ghost" className="w-full justify-start pl-2">
                   <Squares2X2Icon className="mr-2 h-4 w-4" />
                   Workflows
                 </Button>
               </Link>
 
               <Link to="/workers" onClick={onNavLinkClick}>
-                <Button variant="ghost" className="w-full justify-start pl-0">
+                <Button variant="ghost" className="w-full justify-start pl-2">
                   <ServerStackIcon className="mr-2 h-4 w-4" />
                   Workers
                 </Button>
@@ -128,7 +128,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <Link to="/tenant-settings" onClick={onNavLinkClick}>
-                <Button variant="ghost" className="w-full justify-start pl-0">
+                <Button variant="ghost" className="w-full justify-start pl-2">
                   <GearIcon className="mr-2 h-4 w-4" />
                   General
                 </Button>

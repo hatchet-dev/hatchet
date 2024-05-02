@@ -80,10 +80,10 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	cronParentId := sqlchelpers.UUIDToStr(cron.ParentId)
 
 	// schedule the cron
-	_, err = t.s.NewJob(
+	_, err = s.NewJob(
 		gocron.CronJob(cron.Cron, false),
 		gocron.NewTask(
-			t.runCronWorkflow(ctx, tenantId, workflowVersionId, cron.Cron, cronParentId, cron.Input),
+			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, cron.Input),
 		),
 	)
 
@@ -99,9 +99,9 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	return nil
 }
 
-func (t *TickerImpl) runCronWorkflow(ctx context.Context, tenantId, workflowVersionId, cron, cronParentId string, input []byte) func() {
+func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronParentId string, input []byte) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
@@ -164,7 +164,11 @@ func (t *TickerImpl) handleCancelCron(ctx context.Context, key string) error {
 
 	defer t.crons.Delete(key)
 
-	scheduler := schedulerVal.(gocron.Scheduler)
+	scheduler, ok := schedulerVal.(gocron.Scheduler)
+
+	if !ok {
+		return fmt.Errorf("could not cast scheduler")
+	}
 
 	// cancel the cron
 	if err := scheduler.Shutdown(); err != nil {

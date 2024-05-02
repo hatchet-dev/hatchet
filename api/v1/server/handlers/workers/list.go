@@ -14,7 +14,7 @@ import (
 func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	sixSecAgo := time.Now().Add(-6 * time.Second)
+	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
 	workers, err := t.config.APIRepository.Worker().ListWorkers(tenant.ID, &repository.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
@@ -28,7 +28,8 @@ func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListReque
 
 	for i, worker := range workers {
 		workerCp := worker
-		rows[i] = *transformers.ToWorkerSqlc(&workerCp.Worker)
+
+		rows[i] = *transformers.ToWorkerSqlc(&workerCp.Worker, &worker.RunningStepRuns)
 	}
 
 	return gen.WorkerList200JSONResponse(

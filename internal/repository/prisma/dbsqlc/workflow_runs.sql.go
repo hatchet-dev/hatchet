@@ -1227,3 +1227,75 @@ func (q *Queries) UpdateWorkflowRunGroupKey(ctx context.Context, db DBTX, arg Up
 	)
 	return &i, err
 }
+
+const workflowRunsMetricsCount = `-- name: WorkflowRunsMetricsCount :one
+SELECT
+    COUNT(CASE WHEN runs."status" = 'PENDING' THEN 1 END) AS "PENDING",
+    COUNT(CASE WHEN runs."status" = 'RUNNING' THEN 1 END) AS "RUNNING",
+    COUNT(CASE WHEN runs."status" = 'SUCCEEDED' THEN 1 END) AS "SUCCEEDED",
+    COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS "FAILED",
+    COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED"
+FROM
+    "WorkflowRun" as runs
+LEFT JOIN
+    "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
+LEFT JOIN
+    "Event" as events ON runTriggers."eventId" = events."id"
+LEFT JOIN
+    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+WHERE
+    runs."tenantId" = $1::uuid AND
+    (
+        $2::uuid IS NULL OR
+        workflow."id" = $2::uuid
+    ) AND
+    (
+        $3::uuid IS NULL OR
+        runs."parentId" = $3::uuid
+    ) AND
+    (
+        $4::uuid IS NULL OR
+        runs."parentStepRunId" = $4::uuid
+    ) AND
+    (
+        $5::uuid IS NULL OR
+        events."id" = $5::uuid
+    )
+`
+
+type WorkflowRunsMetricsCountParams struct {
+	Tenantid        pgtype.UUID `json:"tenantid"`
+	WorkflowId      pgtype.UUID `json:"workflowId"`
+	ParentId        pgtype.UUID `json:"parentId"`
+	ParentStepRunId pgtype.UUID `json:"parentStepRunId"`
+	EventId         pgtype.UUID `json:"eventId"`
+}
+
+type WorkflowRunsMetricsCountRow struct {
+	PENDING   int64 `json:"PENDING"`
+	RUNNING   int64 `json:"RUNNING"`
+	SUCCEEDED int64 `json:"SUCCEEDED"`
+	FAILED    int64 `json:"FAILED"`
+	QUEUED    int64 `json:"QUEUED"`
+}
+
+func (q *Queries) WorkflowRunsMetricsCount(ctx context.Context, db DBTX, arg WorkflowRunsMetricsCountParams) (*WorkflowRunsMetricsCountRow, error) {
+	row := db.QueryRow(ctx, workflowRunsMetricsCount,
+		arg.Tenantid,
+		arg.WorkflowId,
+		arg.ParentId,
+		arg.ParentStepRunId,
+		arg.EventId,
+	)
+	var i WorkflowRunsMetricsCountRow
+	err := row.Scan(
+		&i.PENDING,
+		&i.RUNNING,
+		&i.SUCCEEDED,
+		&i.FAILED,
+		&i.QUEUED,
+	)
+	return &i, err
+}

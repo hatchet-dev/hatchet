@@ -23,6 +23,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
+	"github.com/hatchet-dev/hatchet/internal/integrations/email"
+	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/github"
 	"github.com/hatchet-dev/hatchet/internal/logger"
@@ -233,6 +235,17 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		analyticsEmitter = analytics.NoOpAnalytics{} // TODO
 	}
 
+	var pylon server.PylonConfig
+
+	if cf.Pylon.Enabled {
+		if cf.Pylon.AppID == "" {
+			return nil, nil, fmt.Errorf("pylon app id is required")
+		}
+
+		pylon.AppID = cf.Pylon.AppID
+		pylon.Secret = cf.Pylon.Secret
+	}
+
 	auth := server.AuthConfig{
 		ConfigFile: cf.Auth,
 	}
@@ -319,6 +332,17 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		vcsProviders[vcs.VCSRepositoryKindGithub] = githubProvider
 	}
 
+	var emailSvc email.EmailService = &email.NoOpService{}
+
+	if cf.Email.Postmark.Enabled {
+		emailSvc = postmark.NewPostmarkClient(
+			cf.Email.Postmark.ServerKey,
+			cf.Email.Postmark.FromEmail,
+			cf.Email.Postmark.FromName,
+			cf.Email.Postmark.SupportEmail,
+		)
+	}
+
 	var internalClient client.Client
 
 	if cf.Runtime.WorkerEnabled {
@@ -365,6 +389,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	return cleanup, &server.ServerConfig{
 		Alerter:        alerter,
 		Analytics:      analyticsEmitter,
+		Pylon:          &pylon,
 		Runtime:        cf.Runtime,
 		Auth:           auth,
 		Encryption:     encryptionSvc,
@@ -379,6 +404,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		OpenTelemetry:  cf.OpenTelemetry,
 		VCSProviders:   vcsProviders,
 		InternalClient: internalClient,
+		Email:          emailSvc,
 	}, nil
 }
 

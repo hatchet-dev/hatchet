@@ -86,17 +86,17 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	if triggerAt.Before(time.Now()) {
 		t.l.Debug().Msg("ticker: trigger time is in the past, running now")
 
-		t.runScheduledWorkflow(ctx, tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow)()
+		t.runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow)()
 		return nil
 	}
 
 	// schedule the workflow
-	_, err = t.s.NewJob(
+	_, err = s.NewJob(
 		gocron.OneTimeJob(
 			gocron.OneTimeJobStartDateTime(triggerAt),
 		),
 		gocron.NewTask(
-			t.runScheduledWorkflow(ctx, tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow),
+			t.runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow),
 		),
 	)
 
@@ -112,9 +112,9 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	return nil
 }
 
-func (t *TickerImpl) runScheduledWorkflow(ctx context.Context, tenantId, workflowVersionId, scheduledWorkflowId string, scheduled *dbsqlc.PollScheduledWorkflowsRow) func() {
+func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId string, scheduled *dbsqlc.PollScheduledWorkflowsRow) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
@@ -219,7 +219,11 @@ func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error
 
 	defer t.scheduledWorkflows.Delete(key)
 
-	scheduler := schedulerVal.(gocron.Scheduler)
+	scheduler, ok := schedulerVal.(gocron.Scheduler)
+
+	if !ok {
+		return fmt.Errorf("could not cast scheduler")
+	}
 
 	// cancel the schedule
 	return scheduler.Shutdown()

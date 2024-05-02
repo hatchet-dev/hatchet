@@ -419,6 +419,9 @@ model WorkflowTriggerCronRef {
   // the cron expression
   cron String
 
+  // whether this cron is enabled or not
+  enabled Boolean @default(true)
+
   // the assigned ticker
   ticker   Ticker? @relation(fields: [tickerId], references: [id])
   tickerId String? @db.Uuid
@@ -1051,11 +1054,6 @@ model Ticker {
   groupKeyRuns GetGroupKeyRun[]
 }
 
-enum WorkerStatus {
-  ACTIVE
-  INACTIVE
-}
-
 model Worker {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -1072,9 +1070,6 @@ model Worker {
 
   // the worker name
   name String
-
-  // the worker's status
-  status WorkerStatus @default(ACTIVE)
 
   // the dispatcher the worker is connected to
   dispatcher   Dispatcher? @relation(fields: [dispatcherId], references: [id], onDelete: SetNull, onUpdate: Cascade)

@@ -21,10 +21,13 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		authTypes = append(authTypes, "github")
 	}
 
+	pylonAppID := u.config.Pylon.AppID
+
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{
 			Schemes: &authTypes,
 		},
+		PylonAppId: &pylonAppID,
 	}
 
 	return gen.MetadataGet200JSONResponse(meta), nil

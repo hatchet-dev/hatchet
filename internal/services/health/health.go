@@ -34,11 +34,16 @@ func (h *Health) Start() (func() error, error) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
+		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+
 		w.WriteHeader(http.StatusOK)
 	})
 
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy() || !h.repository.Health().IsHealthy() {
+		if !h.ready || !h.queue.IsReady() || !h.repository.Health().IsHealthy() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}

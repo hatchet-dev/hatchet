@@ -366,6 +366,79 @@ workflowRuns:
     summary: Get workflow runs
     tags:
       - Workflow
+workflowRunsMetrics:
+  get:
+    x-resources: ["tenant"]
+    description: Get a summary of  workflow run metrics for a tenant
+    operationId: workflow-run:get:metrics
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The event id to get runs for.
+        in: query
+        name: eventId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The workflow id to get runs for.
+        in: query
+        name: workflowId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The parent workflow run id
+        in: query
+        name: parentWorkflowRunId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The parent step run id
+        in: query
+        name: parentStepRunId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WorkflowRunsMetrics"
+        description: Successfully retrieved the workflow runs metrics
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get workflow runs
+    tags:
+      - Workflow
 workflowRun:
   get:
     x-resources: ["tenant", "workflow-run"]
