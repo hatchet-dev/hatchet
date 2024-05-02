@@ -8,7 +8,7 @@ tasks:
       - task: set-env-db
       - task: prisma-migrate
       - task: generate-all
-      - task: generate-local-encryption-key
+      - task: generate-local-encryption-keys
       - task: set-env-all
       - task: seed-dev
       - task: copy-ca-to-sdks
