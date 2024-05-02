@@ -62,6 +62,16 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 		listOpts.Statuses = &statuses
 	}
 
+	if request.Params.AdditionalMetadata != nil {
+		additionalMetadata := make(map[string]interface{}, len(*request.Params.AdditionalMetadata))
+
+		for k, v := range *request.Params.AdditionalMetadata {
+			additionalMetadata[k] = v
+		}
+
+		listOpts.AdditionalMetadata = &additionalMetadata
+	}
+
 	workflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(tenant.ID, listOpts)
 
 	if err != nil {

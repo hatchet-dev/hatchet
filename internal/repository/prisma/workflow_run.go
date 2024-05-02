@@ -263,6 +263,16 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		countParams.WorkflowVersionId = pgWorkflowVersionId
 	}
 
+	if opts.AdditionalMetadata != nil {
+		additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+		if err != nil {
+			return nil, err
+		}
+
+		queryParams.AdditionalMetadata = additionalMetadataBytes
+		countParams.AdditionalMetadata = additionalMetadataBytes
+	}
+
 	if opts.Ids != nil && len(opts.Ids) > 0 {
 		pgIds := make([]pgtype.UUID, len(opts.Ids))
 

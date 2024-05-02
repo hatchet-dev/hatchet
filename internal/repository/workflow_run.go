@@ -253,6 +253,9 @@ type ListWorkflowRunsOpts struct {
 
 	// (optional) the order direction
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
+
+	// (optional) exact metadata to filter by
+	AdditionalMetadata *map[string]interface{} `validate:"omitempty"`
 }
 
 type WorkflowRunsMetricsOpts struct {
