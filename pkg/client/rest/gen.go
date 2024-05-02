@@ -588,7 +588,8 @@ type TenantMemberRole string
 
 // TriggerWorkflowRunRequest defines model for TriggerWorkflowRunRequest.
 type TriggerWorkflowRunRequest struct {
-	Input map[string]interface{} `json:"input"`
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	Input              map[string]interface{}  `json:"input"`
 }
 
 // UpdateTenantInviteRequest defines model for UpdateTenantInviteRequest.

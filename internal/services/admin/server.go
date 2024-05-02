@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -92,6 +93,20 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 
 	var createOpts *repository.CreateWorkflowRunOpts
 
+	additionalMetadata := make(map[string]interface{})
+
+	if req.AdditionalMetadata != nil {
+		additionalMetadataBytes, err := json.Marshal(req.AdditionalMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
+		}
+
+		err = json.Unmarshal(additionalMetadataBytes, &additionalMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
+		}
+	}
+
 	if isParentTriggered {
 		createOpts, err = repository.GetCreateWorkflowRunOptsFromParent(
 			workflowVersion,
@@ -101,9 +116,10 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 			*req.ParentStepRunId,
 			int(*req.ChildIndex),
 			req.ChildKey,
+			additionalMetadata,
 		)
 	} else {
-		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input))
+		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input), additionalMetadata)
 	}
 
 	if err != nil {

@@ -17,6 +17,8 @@ import (
 )
 
 func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.WorkflowRunCreateRequestObject) (gen.WorkflowRunCreateResponseObject, error) {
+	// TODO metadata
+
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 	workflow := ctx.Get("workflow").(*db.WorkflowModel)
 
@@ -57,8 +59,26 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		), nil
 	}
 
-	createOpts, err := repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, inputBytes)
+	additionalMetadata := make(map[string]interface{})
 
+	if request.Body.AdditionalMetadata != nil {
+
+		additionalMetadataBytes, err := json.Marshal(request.Body.AdditionalMetadata)
+		if err != nil {
+			return gen.WorkflowRunCreate400JSONResponse(
+				apierrors.NewAPIErrors("Invalid additional metadata"),
+			), nil
+		}
+
+		err = json.Unmarshal(additionalMetadataBytes, &additionalMetadata)
+		if err != nil {
+			return gen.WorkflowRunCreate400JSONResponse(
+				apierrors.NewAPIErrors("Invalid additional metadata"),
+			), nil
+		}
+	}
+
+	createOpts, err := repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, inputBytes, additionalMetadata)
 	if err != nil {
 		return nil, err
 	}

@@ -266,6 +266,8 @@ TriggerWorkflowRunRequest:
   properties:
     input:
       type: object
+    additionalMetadata:
+      type: object
   required:
     - input
 

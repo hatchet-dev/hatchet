@@ -687,6 +687,7 @@ export interface RerunStepRunRequest {
 
 export interface TriggerWorkflowRunRequest {
   input: object;
+  additionalMetadata?: object;
 }
 
 export interface LinkGithubRepositoryRequest {
