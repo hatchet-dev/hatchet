@@ -500,6 +500,7 @@ export interface WorkflowRun {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   parentStepRunId?: string;
+  additionalMetadata?: Record<string, any>;
 }
 
 export interface WorkflowRunList {

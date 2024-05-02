@@ -771,20 +771,21 @@ type WorkflowMetrics struct {
 
 // WorkflowRun defines model for WorkflowRun.
 type WorkflowRun struct {
-	DisplayName       *string                 `json:"displayName,omitempty"`
-	Error             *string                 `json:"error,omitempty"`
-	FinishedAt        *time.Time              `json:"finishedAt,omitempty"`
-	Input             *map[string]interface{} `json:"input,omitempty"`
-	JobRuns           *[]JobRun               `json:"jobRuns,omitempty"`
-	Metadata          APIResourceMeta         `json:"metadata"`
-	ParentId          *openapi_types.UUID     `json:"parentId,omitempty"`
-	ParentStepRunId   *openapi_types.UUID     `json:"parentStepRunId,omitempty"`
-	StartedAt         *time.Time              `json:"startedAt,omitempty"`
-	Status            WorkflowRunStatus       `json:"status"`
-	TenantId          string                  `json:"tenantId"`
-	TriggeredBy       WorkflowRunTriggeredBy  `json:"triggeredBy"`
-	WorkflowVersion   *WorkflowVersion        `json:"workflowVersion,omitempty"`
-	WorkflowVersionId string                  `json:"workflowVersionId"`
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	DisplayName        *string                 `json:"displayName,omitempty"`
+	Error              *string                 `json:"error,omitempty"`
+	FinishedAt         *time.Time              `json:"finishedAt,omitempty"`
+	Input              *map[string]interface{} `json:"input,omitempty"`
+	JobRuns            *[]JobRun               `json:"jobRuns,omitempty"`
+	Metadata           APIResourceMeta         `json:"metadata"`
+	ParentId           *openapi_types.UUID     `json:"parentId,omitempty"`
+	ParentStepRunId    *openapi_types.UUID     `json:"parentStepRunId,omitempty"`
+	StartedAt          *time.Time              `json:"startedAt,omitempty"`
+	Status             WorkflowRunStatus       `json:"status"`
+	TenantId           string                  `json:"tenantId"`
+	TriggeredBy        WorkflowRunTriggeredBy  `json:"triggeredBy"`
+	WorkflowVersion    *WorkflowVersion        `json:"workflowVersion,omitempty"`
+	WorkflowVersionId  string                  `json:"workflowVersionId"`
 }
 
 // WorkflowRunList defines model for WorkflowRunList.
