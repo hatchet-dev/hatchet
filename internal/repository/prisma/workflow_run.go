@@ -403,6 +403,14 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 		queryParams.EventId = pgEventId
 	}
 
+	if opts.AdditionalMetadata != nil {
+		additionalMetadataBytes, err := json.Marshal(*opts.AdditionalMetadata)
+		if err != nil {
+			return nil, err
+		}
+		queryParams.AdditionalMetadata = additionalMetadataBytes
+	}
+
 	workflowRunsCount, err := queries.WorkflowRunsMetricsCount(ctx, pool, queryParams)
 
 	if err != nil {

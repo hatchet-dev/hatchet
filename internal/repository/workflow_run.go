@@ -273,6 +273,9 @@ type WorkflowRunsMetricsOpts struct {
 
 	// (optional) the event id that triggered the workflow run
 	EventId *string `validate:"omitempty,uuid"`
+
+	// (optional) exact metadata to filter by
+	AdditionalMetadata *map[string]interface{} `validate:"omitempty"`
 }
 
 type ListWorkflowRunsResult struct {

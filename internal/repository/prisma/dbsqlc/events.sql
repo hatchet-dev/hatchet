@@ -85,6 +85,10 @@ WHERE
         sqlc.narg('keys')::text[] IS NULL OR
         events."key" = ANY(sqlc.narg('keys')::text[])
     ) AND
+        (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        events."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
+    ) AND
     (
         (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR
         (workflow."id" = ANY(sqlc.narg('workflows')::text[]::uuid[]))

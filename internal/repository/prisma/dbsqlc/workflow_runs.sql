@@ -32,7 +32,8 @@ WHERE
     (
         sqlc.narg('parentStepRunId')::uuid IS NULL OR
         runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
-    ) AND    (
+    ) AND
+    (
         sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
     ) AND
@@ -79,6 +80,10 @@ WHERE
     (
         sqlc.narg('parentStepRunId')::uuid IS NULL OR
         runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+    ) AND
+    (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
     ) AND
     (
         sqlc.narg('eventId')::uuid IS NULL OR

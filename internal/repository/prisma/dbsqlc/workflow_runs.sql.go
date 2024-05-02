@@ -45,7 +45,8 @@ WHERE
     (
         $6::uuid IS NULL OR
         runs."parentStepRunId" = $6::uuid
-    ) AND    (
+    ) AND
+    (
         $7::jsonb IS NULL OR
         runs."additionalMetadata" @> $7::jsonb
     ) AND
@@ -1284,17 +1285,22 @@ WHERE
         runs."parentStepRunId" = $4::uuid
     ) AND
     (
-        $5::uuid IS NULL OR
-        events."id" = $5::uuid
+        $5::jsonb IS NULL OR
+        runs."additionalMetadata" @> $5::jsonb
+    ) AND
+    (
+        $6::uuid IS NULL OR
+        events."id" = $6::uuid
     )
 `
 
 type WorkflowRunsMetricsCountParams struct {
-	Tenantid        pgtype.UUID `json:"tenantid"`
-	WorkflowId      pgtype.UUID `json:"workflowId"`
-	ParentId        pgtype.UUID `json:"parentId"`
-	ParentStepRunId pgtype.UUID `json:"parentStepRunId"`
-	EventId         pgtype.UUID `json:"eventId"`
+	Tenantid           pgtype.UUID `json:"tenantid"`
+	WorkflowId         pgtype.UUID `json:"workflowId"`
+	ParentId           pgtype.UUID `json:"parentId"`
+	ParentStepRunId    pgtype.UUID `json:"parentStepRunId"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	EventId            pgtype.UUID `json:"eventId"`
 }
 
 type WorkflowRunsMetricsCountRow struct {
@@ -1311,6 +1317,7 @@ func (q *Queries) WorkflowRunsMetricsCount(ctx context.Context, db DBTX, arg Wor
 		arg.WorkflowId,
 		arg.ParentId,
 		arg.ParentStepRunId,
+		arg.AdditionalMetadata,
 		arg.EventId,
 	)
 	var i WorkflowRunsMetricsCountRow

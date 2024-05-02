@@ -217,39 +217,44 @@ WHERE
         $2::text[] IS NULL OR
         events."key" = ANY($2::text[])
     ) AND
-    (
-        ($3::text[])::uuid[] IS NULL OR
-        (workflow."id" = ANY($3::text[]::uuid[]))
+        (
+        $3::jsonb IS NULL OR
+        events."additionalMetadata" @> $3::jsonb
     ) AND
     (
-        $4::text IS NULL OR
-        workflow.name like concat('%', $4::text, '%') OR
-        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $4::text, '")') as jsonpath))
+        ($4::text[])::uuid[] IS NULL OR
+        (workflow."id" = ANY($4::text[]::uuid[]))
     ) AND
     (
-        $5::text[] IS NULL OR
-        "status" = ANY(cast($5::text[] as "WorkflowRunStatus"[]))
+        $5::text IS NULL OR
+        workflow.name like concat('%', $5::text, '%') OR
+        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $5::text, '")') as jsonpath))
+    ) AND
+    (
+        $6::text[] IS NULL OR
+        "status" = ANY(cast($6::text[] as "WorkflowRunStatus"[]))
     )
 GROUP BY
     events."id"
 ORDER BY
-    case when $6 = 'createdAt ASC' THEN events."createdAt" END ASC ,
-    case when $6 = 'createdAt DESC' then events."createdAt" END DESC
+    case when $7 = 'createdAt ASC' THEN events."createdAt" END ASC ,
+    case when $7 = 'createdAt DESC' then events."createdAt" END DESC
 OFFSET
-    COALESCE($7, 0)
+    COALESCE($8, 0)
 LIMIT
-    COALESCE($8, 50)
+    COALESCE($9, 50)
 `
 
 type ListEventsParams struct {
-	TenantId  pgtype.UUID `json:"tenantId"`
-	Keys      []string    `json:"keys"`
-	Workflows []string    `json:"workflows"`
-	Search    pgtype.Text `json:"search"`
-	Statuses  []string    `json:"statuses"`
-	Orderby   interface{} `json:"orderby"`
-	Offset    interface{} `json:"offset"`
-	Limit     interface{} `json:"limit"`
+	TenantId           pgtype.UUID `json:"tenantId"`
+	Keys               []string    `json:"keys"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	Workflows          []string    `json:"workflows"`
+	Search             pgtype.Text `json:"search"`
+	Statuses           []string    `json:"statuses"`
+	Orderby            interface{} `json:"orderby"`
+	Offset             interface{} `json:"offset"`
+	Limit              interface{} `json:"limit"`
 }
 
 type ListEventsRow struct {
@@ -265,6 +270,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 	rows, err := db.Query(ctx, listEvents,
 		arg.TenantId,
 		arg.Keys,
+		arg.AdditionalMetadata,
 		arg.Workflows,
 		arg.Search,
 		arg.Statuses,
