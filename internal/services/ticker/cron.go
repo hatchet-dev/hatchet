@@ -112,9 +112,9 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 			t.l.Err(err).Msg("could not get workflow version")
 			return
 		}
-
 		// create a new workflow run in the database
-		createOpts, err := repository.GetCreateWorkflowRunOptsFromCron(cron, cronParentId, workflowVersion, input)
+		// FIXME additionalMetadata is not used for cron runs
+		createOpts, err := repository.GetCreateWorkflowRunOptsFromCron(cron, cronParentId, workflowVersion, input, nil)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not get create workflow run opts")

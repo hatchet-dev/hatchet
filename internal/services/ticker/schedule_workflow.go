@@ -144,10 +144,12 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 		}
 
 		// create a new workflow run in the database
+		// FIXME additionalMetadata is not used for scheduled runs
 		createOpts, err := repository.GetCreateWorkflowRunOptsFromSchedule(
 			scheduledWorkflowId,
 			workflowVersion,
 			scheduled.Input,
+			nil,
 			fs...,
 		)
 
