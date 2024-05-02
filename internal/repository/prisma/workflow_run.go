@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -447,8 +448,12 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 			createParams.ParentId = sqlchelpers.UUIDFromStr(*opts.ParentId)
 		}
 
-		if opts.ParentStepRunId != nil {
-			createParams.ParentStepRunId = sqlchelpers.UUIDFromStr(*opts.ParentStepRunId)
+		if opts.AdditionalMetadata != nil {
+			additionalMetadataBytes, err := json.Marshal(*opts.AdditionalMetadata)
+			if err != nil {
+				return nil, err
+			}
+			createParams.Additionalmetadata = additionalMetadataBytes
 		}
 
 		// create a workflow

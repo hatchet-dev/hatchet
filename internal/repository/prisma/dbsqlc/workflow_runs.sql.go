@@ -342,7 +342,8 @@ INSERT INTO "WorkflowRun" (
     "childIndex",
     "childKey",
     "parentId",
-    "parentStepRunId"
+    "parentStepRunId",
+    "additionalMetadata"
 ) VALUES (
     COALESCE($1::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -358,19 +359,21 @@ INSERT INTO "WorkflowRun" (
     $5::int,
     $6::text,
     $7::uuid,
-    $8::uuid
+    $8::uuid,
+    $9::jsonb
 ) RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "gitRepoBranch", "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata"
 `
 
 type CreateWorkflowRunParams struct {
-	ID                pgtype.UUID `json:"id"`
-	DisplayName       pgtype.Text `json:"displayName"`
-	Tenantid          pgtype.UUID `json:"tenantid"`
-	Workflowversionid pgtype.UUID `json:"workflowversionid"`
-	ChildIndex        pgtype.Int4 `json:"childIndex"`
-	ChildKey          pgtype.Text `json:"childKey"`
-	ParentId          pgtype.UUID `json:"parentId"`
-	ParentStepRunId   pgtype.UUID `json:"parentStepRunId"`
+	ID                 pgtype.UUID `json:"id"`
+	DisplayName        pgtype.Text `json:"displayName"`
+	Tenantid           pgtype.UUID `json:"tenantid"`
+	Workflowversionid  pgtype.UUID `json:"workflowversionid"`
+	ChildIndex         pgtype.Int4 `json:"childIndex"`
+	ChildKey           pgtype.Text `json:"childKey"`
+	ParentId           pgtype.UUID `json:"parentId"`
+	ParentStepRunId    pgtype.UUID `json:"parentStepRunId"`
+	Additionalmetadata []byte      `json:"additionalmetadata"`
 }
 
 func (q *Queries) CreateWorkflowRun(ctx context.Context, db DBTX, arg CreateWorkflowRunParams) (*WorkflowRun, error) {
@@ -383,6 +386,7 @@ func (q *Queries) CreateWorkflowRun(ctx context.Context, db DBTX, arg CreateWork
 		arg.ChildKey,
 		arg.ParentId,
 		arg.ParentStepRunId,
+		arg.Additionalmetadata,
 	)
 	var i WorkflowRun
 	err := row.Scan(

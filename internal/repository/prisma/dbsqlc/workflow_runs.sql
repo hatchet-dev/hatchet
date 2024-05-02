@@ -327,7 +327,8 @@ INSERT INTO "WorkflowRun" (
     "childIndex",
     "childKey",
     "parentId",
-    "parentStepRunId"
+    "parentStepRunId",
+    "additionalMetadata"
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -343,7 +344,8 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('childIndex')::int,
     sqlc.narg('childKey')::text,
     sqlc.narg('parentId')::uuid,
-    sqlc.narg('parentStepRunId')::uuid
+    sqlc.narg('parentStepRunId')::uuid,
+    @additionalMetadata::jsonb
 ) RETURNING *;
 
 -- name: CreateWorkflowRunTriggeredBy :one
