@@ -191,6 +191,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
           select: false,
           'Triggered by': false,
           actions: false,
+          Metadata: false,
         }}
         showColumnToggle={false}
         isLoading={listWorkflowRunsQuery.isLoading}
