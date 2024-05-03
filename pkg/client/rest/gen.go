@@ -544,7 +544,9 @@ type StepRunStatus string
 
 // Tenant defines model for Tenant.
 type Tenant struct {
-	Metadata APIResourceMeta `json:"metadata"`
+	// AnalyticsOptOut Whether the tenant has opted out of analytics.
+	AnalyticsOptOut *bool           `json:"analyticsOptOut,omitempty"`
+	Metadata        APIResourceMeta `json:"metadata"`
 
 	// Name The name of the tenant.
 	Name string `json:"name"`

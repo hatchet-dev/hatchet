@@ -373,6 +373,7 @@ CREATE TABLE "Tenant" (
     "deletedAt" TIMESTAMP(3),
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
+    "analyticsOptOut" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );

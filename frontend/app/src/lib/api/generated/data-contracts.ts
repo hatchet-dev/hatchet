@@ -192,6 +192,8 @@ export interface Tenant {
   name: string;
   /** The slug of the tenant. */
   slug: string;
+  /** Whether the tenant has opted out of analytics. */
+  analyticsOptOut?: boolean;
 }
 
 export interface TenantMember {

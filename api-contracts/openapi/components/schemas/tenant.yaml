@@ -8,6 +8,9 @@ Tenant:
     slug:
       type: string
       description: The slug of the tenant.
+    analyticsOptOut:
+      type: boolean
+      description: Whether the tenant has opted out of analytics.
   required:
     - metadata
     - name
