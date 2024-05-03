@@ -16,6 +16,7 @@ export interface APIMeta {
    * @example "12345678-1234-1234-1234-123456789012"
    */
   pylonAppId?: string;
+  posthog?: APIMetaPosthog;
 }
 
 export interface APIMetaAuth {
@@ -24,6 +25,19 @@ export interface APIMetaAuth {
    * @example ["basic","google"]
    */
   schemes?: string[];
+}
+
+export interface APIMetaPosthog {
+  /**
+   * the PostHog API key
+   * @example "phk_1234567890abcdef"
+   */
+  apiKey?: string;
+  /**
+   * the PostHog API host
+   * @example "https://posthog.example.com"
+   */
+  apiHost?: string;
 }
 
 export type ListAPIMetaIntegration = APIMetaIntegration[];

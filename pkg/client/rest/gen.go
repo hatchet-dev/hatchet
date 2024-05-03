@@ -132,7 +132,8 @@ type APIErrors struct {
 
 // APIMeta defines model for APIMeta.
 type APIMeta struct {
-	Auth *APIMetaAuth `json:"auth,omitempty"`
+	Auth    *APIMetaAuth    `json:"auth,omitempty"`
+	Posthog *APIMetaPosthog `json:"posthog,omitempty"`
 
 	// PylonAppId the Pylon app ID for usepylon.com chat support
 	PylonAppId *string `json:"pylonAppId,omitempty"`
@@ -151,6 +152,15 @@ type APIMetaIntegration struct {
 
 	// Name the name of the integration
 	Name string `json:"name"`
+}
+
+// APIMetaPosthog defines model for APIMetaPosthog.
+type APIMetaPosthog struct {
+	// ApiHost the PostHog API host
+	ApiHost *string `json:"apiHost,omitempty"`
+
+	// ApiKey the PostHog API key
+	ApiKey *string `json:"apiKey,omitempty"`
 }
 
 // APIResourceMeta defines model for APIResourceMeta.
