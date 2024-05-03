@@ -86,7 +86,7 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 			return nil, err
 		}
 
-		listOpts.AdditionalMetadata = additionalMetadataBytes
+		listOpts.AdditionalMetadata = &additionalMetadataBytes
 	}
 
 	listRes, err := t.config.APIRepository.Event().ListEvents(tenant.ID, listOpts)
