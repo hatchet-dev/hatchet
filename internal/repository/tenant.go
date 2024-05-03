@@ -18,6 +18,10 @@ type CreateTenantOpts struct {
 	ID *string `validate:"omitempty,uuid"`
 }
 
+type UpdateTenantOpts struct {
+	AnalyticsOptOut *bool `validate:"omitempty"`
+}
+
 type CreateTenantMemberOpts struct {
 	Role   string `validate:"required,oneof=OWNER ADMIN MEMBER"`
 	UserId string `validate:"required,uuid"`
@@ -30,6 +34,9 @@ type UpdateTenantMemberOpts struct {
 type TenantAPIRepository interface {
 	// CreateTenant creates a new tenant.
 	CreateTenant(opts *CreateTenantOpts) (*db.TenantModel, error)
+
+	// CreateTenant creates a new tenant.
+	UpdateTenant(tenantId string, opts *UpdateTenantOpts) (*db.TenantModel, error)
 
 	// GetTenantByID returns the tenant with the given id
 	GetTenantByID(tenantId string) (*db.TenantModel, error)

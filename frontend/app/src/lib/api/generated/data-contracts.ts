@@ -281,6 +281,11 @@ export interface CreateTenantRequest {
   slug: string;
 }
 
+export interface UpdateTenantRequest {
+  /** Whether the tenant has opted out of analytics. */
+  analyticsOptOut?: boolean;
+}
+
 export interface Event {
   metadata: APIResourceMeta;
   /** The key for the event. */
