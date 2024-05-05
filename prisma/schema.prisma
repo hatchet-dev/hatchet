@@ -102,6 +102,9 @@ model Tenant {
   name String
   slug String @unique
 
+  // wheather the user has opted out of analytics
+  analyticsOptOut Boolean @default(false)
+
   events                    Event[]
   workflows                 Workflow[]
   jobs                      Job[]

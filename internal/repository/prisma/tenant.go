@@ -40,6 +40,18 @@ func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*
 	).Exec(context.Background())
 }
 
+func (r *tenantAPIRepository) UpdateTenant(id string, opts *repository.UpdateTenantOpts) (*db.TenantModel, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	return r.client.Tenant.FindUnique(
+		db.Tenant.ID.Equals(id),
+	).Update(
+		db.Tenant.AnalyticsOptOut.SetIfPresent(opts.AnalyticsOptOut),
+	).Exec(context.Background())
+}
+
 func (r *tenantAPIRepository) GetTenantByID(id string) (*db.TenantModel, error) {
 	return cache.MakeCacheable[db.TenantModel](r.cache, id, func() (*db.TenantModel, error) {
 		return r.client.Tenant.FindUnique(

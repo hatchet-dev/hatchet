@@ -680,12 +680,13 @@ type StreamEvent struct {
 }
 
 type Tenant struct {
-	ID        pgtype.UUID      `json:"id"`
-	CreatedAt pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt pgtype.Timestamp `json:"deletedAt"`
-	Name      string           `json:"name"`
-	Slug      string           `json:"slug"`
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
+	Name            string           `json:"name"`
+	Slug            string           `json:"slug"`
+	AnalyticsOptOut bool             `json:"analyticsOptOut"`
 }
 
 type TenantInviteLink struct {

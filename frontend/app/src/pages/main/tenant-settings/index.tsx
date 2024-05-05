@@ -14,6 +14,7 @@ import api, {
   SNSIntegration,
   TenantInvite,
   UpdateTenantInviteRequest,
+  UpdateTenantRequest,
   UserChangePasswordRequest,
   queries,
 } from '@/lib/api';
@@ -32,6 +33,10 @@ import { CreateSNSDialog } from './components/create-sns-dialog';
 import { DeleteSNSForm } from './components/delete-sns-form';
 import { ChangePasswordDialog } from './components/change-password-dialog';
 import { AxiosError } from 'axios';
+import { useTenantContext } from '@/lib/atoms';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@radix-ui/react-label';
+import { Spinner } from '@/components/ui/loading';
 
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -56,11 +61,86 @@ export default function TenantSettings() {
         {hasGithubIntegration && <GithubInstallationsList />}
         <Separator className="my-4" />
         <SNSIntegrationsList />
+        <Separator className="my-4" />
+        <GeneralSettings />
       </div>
     </div>
   );
 }
 
+function GeneralSettings() {
+  const [tenant] = useTenantContext();
+
+  if (!tenant) {
+    return null;
+  }
+
+  const AnalyticsOptOut: React.FC<{ checked: boolean }> = ({ checked }) => {
+    const [changed, setChanged] = useState(false);
+    const [checkedState, setChecked] = useState(checked);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const { handleApiError } = useApiError({});
+
+    const updateMutation = useMutation({
+      mutationKey: ['tenant:update'],
+      mutationFn: async (data: UpdateTenantRequest) => {
+        await api.tenantUpdate(tenant.metadata.id, data);
+      },
+      onMutate: () => {
+        setIsLoading(true);
+      },
+      onSuccess: () => {
+        window.location.reload();
+      },
+      onSettled: () => {
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 1000);
+      },
+      onError: handleApiError,
+    });
+
+    const save = () => {
+      updateMutation.mutate({
+        analyticsOptOut: checkedState,
+      });
+    };
+
+    return (
+      <div className="flex items-center space-x-2">
+        <Switch
+          id="aoo"
+          checked={checkedState}
+          onClick={() => {
+            setChecked((checkedState) => !checkedState);
+            setChanged(true);
+          }}
+        />
+        <Label htmlFor="aoo">Analytics Opt-Out</Label>
+        {changed &&
+          (isLoading ? (
+            <Spinner />
+          ) : (
+            <Button onClick={save} size="sm">
+              Save and Reload
+            </Button>
+          ))}
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <h3 className="text-xl font-semibold leading-tight text-foreground">
+        General Settings
+      </h3>
+      <Separator className="my-4" />
+
+      <AnalyticsOptOut checked={!!tenant.analyticsOptOut} />
+    </div>
+  );
+}
 function MembersList() {
   const { tenant } = useOutletContext<TenantContextType>();
   const [showChangePasswordDialog, setShowChangePasswordDialog] =

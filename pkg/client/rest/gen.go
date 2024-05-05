@@ -132,7 +132,8 @@ type APIErrors struct {
 
 // APIMeta defines model for APIMeta.
 type APIMeta struct {
-	Auth *APIMetaAuth `json:"auth,omitempty"`
+	Auth    *APIMetaAuth    `json:"auth,omitempty"`
+	Posthog *APIMetaPosthog `json:"posthog,omitempty"`
 
 	// PylonAppId the Pylon app ID for usepylon.com chat support
 	PylonAppId *string `json:"pylonAppId,omitempty"`
@@ -151,6 +152,15 @@ type APIMetaIntegration struct {
 
 	// Name the name of the integration
 	Name string `json:"name"`
+}
+
+// APIMetaPosthog defines model for APIMetaPosthog.
+type APIMetaPosthog struct {
+	// ApiHost the PostHog API host
+	ApiHost *string `json:"apiHost,omitempty"`
+
+	// ApiKey the PostHog API key
+	ApiKey *string `json:"apiKey,omitempty"`
 }
 
 // APIResourceMeta defines model for APIResourceMeta.
@@ -534,7 +544,9 @@ type StepRunStatus string
 
 // Tenant defines model for Tenant.
 type Tenant struct {
-	Metadata APIResourceMeta `json:"metadata"`
+	// AnalyticsOptOut Whether the tenant has opted out of analytics.
+	AnalyticsOptOut *bool           `json:"analyticsOptOut,omitempty"`
+	Metadata        APIResourceMeta `json:"metadata"`
 
 	// Name The name of the tenant.
 	Name string `json:"name"`
@@ -591,6 +603,12 @@ type TriggerWorkflowRunRequest struct {
 // UpdateTenantInviteRequest defines model for UpdateTenantInviteRequest.
 type UpdateTenantInviteRequest struct {
 	Role TenantMemberRole `json:"role"`
+}
+
+// UpdateTenantRequest defines model for UpdateTenantRequest.
+type UpdateTenantRequest struct {
+	// AnalyticsOptOut Whether the tenant has opted out of analytics.
+	AnalyticsOptOut *bool `json:"analyticsOptOut,omitempty"`
 }
 
 // User defines model for User.
@@ -1006,6 +1024,9 @@ type StepRunUpdateCreatePrJSONRequestBody = CreatePullRequestFromStepRun
 // TenantCreateJSONRequestBody defines body for TenantCreate for application/json ContentType.
 type TenantCreateJSONRequestBody = CreateTenantRequest
 
+// TenantUpdateJSONRequestBody defines body for TenantUpdate for application/json ContentType.
+type TenantUpdateJSONRequestBody = UpdateTenantRequest
+
 // ApiTokenCreateJSONRequestBody defines body for ApiTokenCreate for application/json ContentType.
 type ApiTokenCreateJSONRequestBody = CreateAPITokenRequest
 
@@ -1172,6 +1193,11 @@ type ClientInterface interface {
 	TenantCreateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	TenantCreate(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantUpdateWithBody request with any body
+	TenantUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	TenantUpdate(ctx context.Context, tenant openapi_types.UUID, body TenantUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ApiTokenList request
 	ApiTokenList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1553,6 +1579,30 @@ func (c *Client) TenantCreateWithBody(ctx context.Context, contentType string, b
 
 func (c *Client) TenantCreate(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantCreateRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantUpdateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantUpdate(ctx context.Context, tenant openapi_types.UUID, body TenantUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantUpdateRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2928,6 +2978,53 @@ func NewTenantCreateRequestWithBody(server string, contentType string, body io.R
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTenantUpdateRequest calls the generic TenantUpdate builder with application/json body
+func NewTenantUpdateRequest(server string, tenant openapi_types.UUID, body TenantUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTenantUpdateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewTenantUpdateRequestWithBody generates requests for TenantUpdate with any type of body
+func NewTenantUpdateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -5133,6 +5230,11 @@ type ClientWithResponsesInterface interface {
 
 	TenantCreateWithResponse(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantCreateResponse, error)
 
+	// TenantUpdateWithBodyWithResponse request with any body
+	TenantUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantUpdateResponse, error)
+
+	TenantUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, body TenantUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantUpdateResponse, error)
+
 	// ApiTokenListWithResponse request
 	ApiTokenListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*ApiTokenListResponse, error)
 
@@ -5693,6 +5795,30 @@ func (r TenantCreateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Tenant
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantUpdateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6940,6 +7066,23 @@ func (c *ClientWithResponses) TenantCreateWithResponse(ctx context.Context, body
 	return ParseTenantCreateResponse(rsp)
 }
 
+// TenantUpdateWithBodyWithResponse request with arbitrary body returning *TenantUpdateResponse
+func (c *ClientWithResponses) TenantUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantUpdateResponse, error) {
+	rsp, err := c.TenantUpdateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) TenantUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, body TenantUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantUpdateResponse, error) {
+	rsp, err := c.TenantUpdate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantUpdateResponse(rsp)
+}
+
 // ApiTokenListWithResponse request returning *ApiTokenListResponse
 func (c *ClientWithResponses) ApiTokenListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*ApiTokenListResponse, error) {
 	rsp, err := c.ApiTokenList(ctx, tenant, reqEditors...)
@@ -8064,6 +8207,46 @@ func ParseTenantCreateResponse(rsp *http.Response) (*TenantCreateResponse, error
 	}
 
 	response := &TenantCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Tenant
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantUpdateResponse parses an HTTP response from a TenantUpdateWithResponse call
+func ParseTenantUpdateResponse(rsp *http.Response) (*TenantUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantUpdateResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

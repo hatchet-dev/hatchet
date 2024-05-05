@@ -2,6 +2,8 @@ APIMeta:
   $ref: "./metadata.yaml#/APIMeta"
 APIMetaAuth:
   $ref: "./metadata.yaml#/APIMetaAuth"
+APIMetaPosthog:
+  $ref: "./metadata.yaml#/APIMetaPosthog"
 ListAPIMetaIntegration:
   $ref: "./metadata.yaml#/ListAPIMetaIntegration"
 APIMetaIntegration:
@@ -50,6 +52,8 @@ TenantList:
   $ref: "./tenant.yaml#/TenantList"
 CreateTenantRequest:
   $ref: "./tenant.yaml#/CreateTenantRequest"
+UpdateTenantRequest:
+  $ref: "./tenant.yaml#/UpdateTenantRequest"
 Event:
   $ref: "./event.yaml#/Event"
 EventData:

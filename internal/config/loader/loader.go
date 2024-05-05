@@ -221,12 +221,21 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	}
 
 	var analyticsEmitter analytics.Analytics
+	var feAnalyticsConfig *server.FePosthogConfig
 
 	if cf.Analytics.Posthog.Enabled {
 		analyticsEmitter, err = posthog.NewPosthogAnalytics(&posthog.PosthogAnalyticsOpts{
 			ApiKey:   cf.Analytics.Posthog.ApiKey,
 			Endpoint: cf.Analytics.Posthog.Endpoint,
 		})
+
+		if cf.Analytics.Posthog.FeApiKey != "" && cf.Analytics.Posthog.FeApiHost != "" {
+
+			feAnalyticsConfig = &server.FePosthogConfig{
+				ApiKey:  cf.Analytics.Posthog.FeApiKey,
+				ApiHost: cf.Analytics.Posthog.FeApiHost,
+			}
+		}
 
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not create posthog analytics: %w", err)
@@ -389,6 +398,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	return cleanup, &server.ServerConfig{
 		Alerter:        alerter,
 		Analytics:      analyticsEmitter,
+		FePosthog:      feAnalyticsConfig,
 		Pylon:          &pylon,
 		Runtime:        cf.Runtime,
 		Auth:           auth,

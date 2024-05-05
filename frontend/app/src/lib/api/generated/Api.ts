@@ -53,6 +53,7 @@ import {
   TenantMemberList,
   TriggerWorkflowRunRequest,
   UpdateTenantInviteRequest,
+  UpdateTenantRequest,
   User,
   UserChangePasswordRequest,
   UserLoginRequest,
@@ -487,6 +488,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<Tenant, APIErrors | APIError>({
       path: `/api/v1/tenants`,
       method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update an existing tenant
+   *
+   * @tags Tenant
+   * @name TenantUpdate
+   * @summary Update tenant
+   * @request PATCH:/api/v1/tenants/{tenant}
+   * @secure
+   */
+  tenantUpdate = (tenant: string, data: UpdateTenantRequest, params: RequestParams = {}) =>
+    this.request<Tenant, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}`,
+      method: "PATCH",
       body: data,
       secure: true,
       type: ContentType.Json,

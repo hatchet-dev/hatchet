@@ -107,6 +107,12 @@ type PosthogConfigFile struct {
 
 	// Endpoint is the endpoint for the Posthog instance
 	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty"`
+
+	// FeApiKey is the frontend API key for the Posthog instance
+	FeApiKey string `mapstructure:"feApiKey" json:"feApiKey,omitempty"`
+
+	// FeApiHost is the frontend API host for the Posthog instance
+	FeApiHost string `mapstructure:"feApiHost" json:"feApiHost,omitempty"`
 }
 
 // Encryption options
@@ -248,6 +254,11 @@ type PylonConfig struct {
 	Secret  string `mapstructure:"secret" json:"secret,omitempty"`
 }
 
+type FePosthogConfig struct {
+	ApiKey  string
+	ApiHost string
+}
+
 type ServerConfig struct {
 	*database.Config
 
@@ -258,6 +269,8 @@ type ServerConfig struct {
 	Analytics analytics.Analytics
 
 	Pylon *PylonConfig
+
+	FePosthog *FePosthogConfig
 
 	Encryption encryption.EncryptionService
 
@@ -319,6 +332,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("analytics.posthog.enabled", "SERVER_ANALYTICS_POSTHOG_ENABLED")
 	_ = v.BindEnv("analytics.posthog.apiKey", "SERVER_ANALYTICS_POSTHOG_API_KEY")
 	_ = v.BindEnv("analytics.posthog.endpoint", "SERVER_ANALYTICS_POSTHOG_ENDPOINT")
+	_ = v.BindEnv("analytics.posthog.feApiHost", "SERVER_ANALYTICS_POSTHOG_FE_API_HOST")
+	_ = v.BindEnv("analytics.posthog.feApiKey", "SERVER_ANALYTICS_POSTHOG_FE_API_KEY")
 
 	// pylon options
 	_ = v.BindEnv("pylon.enabled", "SERVER_PYLON_ENABLED")

@@ -23,11 +23,21 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 
 	pylonAppID := u.config.Pylon.AppID
 
+	var posthogConfig *gen.APIMetaPosthog
+
+	if u.config.FePosthog != nil {
+		posthogConfig = &gen.APIMetaPosthog{
+			ApiKey:  &u.config.FePosthog.ApiKey,
+			ApiHost: &u.config.FePosthog.ApiHost,
+		}
+	}
+
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{
 			Schemes: &authTypes,
 		},
 		PylonAppId: &pylonAppID,
+		Posthog:    posthogConfig,
 	}
 
 	return gen.MetadataGet200JSONResponse(meta), nil
