@@ -404,7 +404,7 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 	}
 
 	if opts.AdditionalMetadata != nil {
-		additionalMetadataBytes, err := json.Marshal(*opts.AdditionalMetadata)
+		additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
 		if err != nil {
 			return nil, err
 		}
@@ -467,7 +467,7 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 		}
 
 		if opts.AdditionalMetadata != nil {
-			additionalMetadataBytes, err := json.Marshal(*opts.AdditionalMetadata)
+			additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
 			if err != nil {
 				return nil, err
 			}

@@ -147,12 +147,14 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *msgqueue.M
 		return fmt.Errorf("could not decode task metadata: %w", err)
 	}
 
-	additionalMetadata := make(map[string]interface{})
+	var additionalMetadata map[string]interface{}
 
-	err = json.Unmarshal([]byte(payload.EventAdditionalMetadata), &additionalMetadata)
+	if payload.EventAdditionalMetadata != "" {
+		err = json.Unmarshal([]byte(payload.EventAdditionalMetadata), &additionalMetadata)
 
-	if err != nil {
-		return fmt.Errorf("could not unmarshal additional metadata: %w", err)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal additional metadata: %w", err)
+		}
 	}
 
 	return ec.processEvent(ctx, metadata.TenantId, payload.EventId, payload.EventKey, []byte(payload.EventData), additionalMetadata)

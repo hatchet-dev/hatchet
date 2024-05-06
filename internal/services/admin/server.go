@@ -93,7 +93,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 
 	var createOpts *repository.CreateWorkflowRunOpts
 
-	additionalMetadata := make(map[string]interface{})
+	var additionalMetadata map[string]interface{}
 
 	if req.AdditionalMetadata != nil {
 		err := json.Unmarshal([]byte(*req.AdditionalMetadata), &additionalMetadata)

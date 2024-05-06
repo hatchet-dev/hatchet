@@ -17,8 +17,6 @@ import (
 )
 
 func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.WorkflowRunCreateRequestObject) (gen.WorkflowRunCreateResponseObject, error) {
-	// TODO metadata
-
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 	workflow := ctx.Get("workflow").(*db.WorkflowModel)
 
@@ -59,7 +57,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		), nil
 	}
 
-	additionalMetadata := make(map[string]interface{})
+	var additionalMetadata map[string]interface{}
 
 	if request.Body.AdditionalMetadata != nil {
 

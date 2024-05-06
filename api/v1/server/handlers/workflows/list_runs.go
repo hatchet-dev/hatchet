@@ -79,7 +79,7 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 			}
 		}
 
-		listOpts.AdditionalMetadata = &additionalMetadata
+		listOpts.AdditionalMetadata = additionalMetadata
 	}
 
 	workflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(tenant.ID, listOpts)

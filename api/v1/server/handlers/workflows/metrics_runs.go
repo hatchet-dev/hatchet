@@ -51,7 +51,7 @@ func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.Wo
 			}
 		}
 
-		listOpts.AdditionalMetadata = &additionalMetadata
+		listOpts.AdditionalMetadata = additionalMetadata
 	}
 
 	workflowRunsMetricsCount, err := t.config.APIRepository.WorkflowRun().WorkflowRunMetricsCount(tenant.ID, listOpts)

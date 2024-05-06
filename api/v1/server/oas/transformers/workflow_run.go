@@ -296,7 +296,7 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 
 	workflowRunId := sqlchelpers.UUIDToStr(run.ID)
 
-	var additionalMetadata (map[string]interface{})
+	var additionalMetadata map[string]interface{}
 
 	if run.AdditionalMetadata != nil {
 		err := json.Unmarshal(run.AdditionalMetadata, &additionalMetadata)

@@ -48,7 +48,7 @@ type CreateWorkflowRunOpts struct {
 	ChildIndex *int
 
 	// (optional) additional metadata for the workflow run
-	AdditionalMetadata *map[string]interface{} `validate:"omitempty"`
+	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
 }
 
 type CreateGroupKeyRunOpts struct {
@@ -82,7 +82,7 @@ func GetCreateWorkflowRunOptsFromManual(
 		ManualTriggerInput: StringPtr(string(input)),
 		TriggeredBy:        string(datautils.TriggeredByManual),
 		InputData:          input,
-		AdditionalMetadata: &additionalMetadata,
+		AdditionalMetadata: additionalMetadata,
 	}
 
 	if input != nil {
@@ -110,7 +110,7 @@ func GetCreateWorkflowRunOptsFromParent(
 		ManualTriggerInput: StringPtr(string(input)),
 		TriggeredBy:        string(datautils.TriggeredByParent),
 		InputData:          input,
-		AdditionalMetadata: &additionalMetadata,
+		AdditionalMetadata: additionalMetadata,
 	}
 
 	WithParent(parentId, parentStepRunId, childIndex, childKey)(opts)
@@ -138,7 +138,7 @@ func GetCreateWorkflowRunOptsFromEvent(
 		TriggeringEventId:  &eventId,
 		TriggeredBy:        string(datautils.TriggeredByEvent),
 		InputData:          input,
-		AdditionalMetadata: &additionalMetadata,
+		AdditionalMetadata: additionalMetadata,
 	}
 
 	if input != nil {
@@ -166,7 +166,7 @@ func GetCreateWorkflowRunOptsFromCron(
 		CronParentId:       &cronParentId,
 		TriggeredBy:        string(datautils.TriggeredByCron),
 		InputData:          input,
-		AdditionalMetadata: &additionalMetadata,
+		AdditionalMetadata: additionalMetadata,
 	}
 
 	if input != nil {
@@ -193,7 +193,7 @@ func GetCreateWorkflowRunOptsFromSchedule(
 		ScheduledWorkflowId: &scheduledWorkflowId,
 		TriggeredBy:         string(datautils.TriggeredBySchedule),
 		InputData:           input,
-		AdditionalMetadata:  &additionalMetadata,
+		AdditionalMetadata:  additionalMetadata,
 	}
 
 	if input != nil {
@@ -255,7 +255,7 @@ type ListWorkflowRunsOpts struct {
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
 
 	// (optional) exact metadata to filter by
-	AdditionalMetadata *map[string]interface{} `validate:"omitempty"`
+	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
 }
 
 type WorkflowRunsMetricsOpts struct {
@@ -275,7 +275,7 @@ type WorkflowRunsMetricsOpts struct {
 	EventId *string `validate:"omitempty,uuid"`
 
 	// (optional) exact metadata to filter by
-	AdditionalMetadata *map[string]interface{} `validate:"omitempty"`
+	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
 }
 
 type ListWorkflowRunsResult struct {
