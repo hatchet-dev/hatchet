@@ -8,7 +8,13 @@
 CREATE TYPE "JobKind" AS ENUM ('DEFAULT', 'ON_FAILURE');
 
 -- AlterTable
+ALTER TABLE "Event" ADD COLUMN     "additionalMetadata" JSONB;
+
+-- AlterTable
 ALTER TABLE "Job" ADD COLUMN     "kind" "JobKind" NOT NULL DEFAULT 'DEFAULT';
+
+-- AlterTable
+ALTER TABLE "WorkflowRun" ADD COLUMN     "additionalMetadata" JSONB;
 
 -- AlterTable
 ALTER TABLE "WorkflowVersion" ADD COLUMN     "onFailureJobId" UUID;

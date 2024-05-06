@@ -47,7 +47,8 @@ INSERT INTO "Event" (
     "key",
     "tenantId",
     "replayedFromId",
-    "data"
+    "data",
+    "additionalMetadata"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -56,7 +57,8 @@ INSERT INTO "Event" (
     @key::text,
     @tenantId::uuid,
     sqlc.narg('replayedFromId')::uuid,
-    @data::jsonb
+    @data::jsonb,
+    @additionalMetadata::jsonb
 ) RETURNING *;
 
 -- name: ListEvents :many
@@ -82,6 +84,10 @@ WHERE
     (
         sqlc.narg('keys')::text[] IS NULL OR
         events."key" = ANY(sqlc.narg('keys')::text[])
+    ) AND
+        (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        events."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
     ) AND
     (
         (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR

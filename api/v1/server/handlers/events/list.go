@@ -1,11 +1,14 @@
 package events
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
 	"strings"
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/repository"
@@ -63,6 +66,29 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 		listOpts.WorkflowRunStatus = statuses
 	}
 
+	if request.Params.AdditionalMetadata != nil {
+		additionalMetadata := make(map[string]interface{}, len(*request.Params.AdditionalMetadata))
+
+		for _, v := range *request.Params.AdditionalMetadata {
+			splitValue := strings.Split(fmt.Sprintf("%v", v), ":")
+
+			if len(splitValue) == 2 {
+				additionalMetadata[splitValue[0]] = splitValue[1]
+			} else {
+				return gen.EventList400JSONResponse(apierrors.NewAPIErrors("Additional metadata filters must be in the format key:value.")), nil
+
+			}
+		}
+
+		additionalMetadataBytes, err := json.Marshal(additionalMetadata)
+
+		if err != nil {
+			return nil, err
+		}
+
+		listOpts.AdditionalMetadata = additionalMetadataBytes
+	}
+
 	listRes, err := t.config.APIRepository.Event().ListEvents(tenant.ID, listOpts)
 
 	if err != nil {
@@ -72,7 +98,11 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 	rows := make([]gen.Event, len(listRes.Rows))
 
 	for i, event := range listRes.Rows {
-		rows[i] = *transformers.ToEventFromSQLC(event)
+		eventData, err := transformers.ToEventFromSQLC(event)
+		if err != nil {
+			return nil, err
+		}
+		rows[i] = *eventData
 	}
 
 	// use the total rows and limit to calculate the total pages

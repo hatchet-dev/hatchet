@@ -296,6 +296,8 @@ export interface Event {
   tenantId: string;
   /** The workflow run summary for this event. */
   workflowRunSummary?: EventWorkflowRunSummary;
+  /** Additional metadata for the event. */
+  additionalMetadata?: object;
 }
 
 export interface EventData {
@@ -519,6 +521,7 @@ export interface WorkflowRun {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   parentStepRunId?: string;
+  additionalMetadata?: Record<string, any>;
 }
 
 export interface WorkflowRunList {
@@ -706,6 +709,7 @@ export interface RerunStepRunRequest {
 
 export interface TriggerWorkflowRunRequest {
   input: object;
+  additionalMetadata?: object;
 }
 
 export interface LinkGithubRepositoryRequest {

@@ -1,10 +1,13 @@
 package workflows
 
 import (
+	"fmt"
 	"math"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/repository"
@@ -60,6 +63,23 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 		}
 
 		listOpts.Statuses = &statuses
+	}
+
+	if request.Params.AdditionalMetadata != nil {
+		additionalMetadata := make(map[string]interface{}, len(*request.Params.AdditionalMetadata))
+
+		for _, v := range *request.Params.AdditionalMetadata {
+			splitValue := strings.Split(fmt.Sprintf("%v", v), ":")
+
+			if len(splitValue) == 2 {
+				additionalMetadata[splitValue[0]] = splitValue[1]
+			} else {
+				return gen.WorkflowRunList400JSONResponse(apierrors.NewAPIErrors("Additional metadata filters must be in the format key:value.")), nil
+
+			}
+		}
+
+		listOpts.AdditionalMetadata = additionalMetadata
 	}
 
 	workflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(tenant.ID, listOpts)

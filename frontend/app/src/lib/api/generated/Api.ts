@@ -674,6 +674,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       orderByField?: EventOrderByField;
       /** The order direction */
       orderByDirection?: EventOrderByDirection;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -1073,6 +1078,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       parentStepRunId?: string;
       /** A list of workflow run statuses to filter by */
       statuses?: WorkflowRunStatusList;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -1124,6 +1134,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       parentStepRunId?: string;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
     },
     params: RequestParams = {},
   ) =>

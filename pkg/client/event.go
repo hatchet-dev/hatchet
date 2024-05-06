@@ -12,8 +12,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
+type PushOpFunc func(*eventcontracts.PushEventRequest) error
+
 type EventClient interface {
-	Push(ctx context.Context, eventKey string, payload interface{}) error
+	Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error
 
 	PutLog(ctx context.Context, stepRunId, msg string) error
 
@@ -45,18 +47,45 @@ func newEvent(conn *grpc.ClientConn, opts *sharedClientOpts) EventClient {
 	}
 }
 
-func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload interface{}) error {
+func WithMetadata(metadata interface{}) PushOpFunc {
+	return func(r *eventcontracts.PushEventRequest) error {
+		metadataBytes, err := json.Marshal(metadata)
+		if err != nil {
+			// Handle the error appropriately
+			return err
+		}
+
+		metadataString := string(metadataBytes)
+
+		r.AdditionalMetadata = &metadataString
+
+		return nil
+	}
+}
+
+func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error {
+
+	request := eventcontracts.PushEventRequest{
+		Key:            a.namespace + eventKey,
+		EventTimestamp: timestamppb.Now(),
+	}
+
 	payloadBytes, err := json.Marshal(payload)
 
 	if err != nil {
 		return err
 	}
 
-	_, err = a.client.Push(a.ctx.newContext(ctx), &eventcontracts.PushEventRequest{
-		Key:            a.namespace + eventKey,
-		Payload:        string(payloadBytes),
-		EventTimestamp: timestamppb.Now(),
-	})
+	request.Payload = string(payloadBytes)
+
+	for _, optionFunc := range options {
+		err = optionFunc(&request)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = a.client.Push(a.ctx.newContext(ctx), &request)
 
 	if err != nil {
 		return err

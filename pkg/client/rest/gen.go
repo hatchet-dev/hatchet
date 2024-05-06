@@ -231,6 +231,9 @@ type CreateTenantRequest struct {
 
 // Event defines model for Event.
 type Event struct {
+	// AdditionalMetadata Additional metadata for the event.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
 	// Key The key for the event.
 	Key      string          `json:"key"`
 	Metadata APIResourceMeta `json:"metadata"`
@@ -597,7 +600,8 @@ type TenantMemberRole string
 
 // TriggerWorkflowRunRequest defines model for TriggerWorkflowRunRequest.
 type TriggerWorkflowRunRequest struct {
-	Input map[string]interface{} `json:"input"`
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	Input              map[string]interface{}  `json:"input"`
 }
 
 // UpdateTenantInviteRequest defines model for UpdateTenantInviteRequest.
@@ -785,20 +789,21 @@ type WorkflowMetrics struct {
 
 // WorkflowRun defines model for WorkflowRun.
 type WorkflowRun struct {
-	DisplayName       *string                 `json:"displayName,omitempty"`
-	Error             *string                 `json:"error,omitempty"`
-	FinishedAt        *time.Time              `json:"finishedAt,omitempty"`
-	Input             *map[string]interface{} `json:"input,omitempty"`
-	JobRuns           *[]JobRun               `json:"jobRuns,omitempty"`
-	Metadata          APIResourceMeta         `json:"metadata"`
-	ParentId          *openapi_types.UUID     `json:"parentId,omitempty"`
-	ParentStepRunId   *openapi_types.UUID     `json:"parentStepRunId,omitempty"`
-	StartedAt         *time.Time              `json:"startedAt,omitempty"`
-	Status            WorkflowRunStatus       `json:"status"`
-	TenantId          string                  `json:"tenantId"`
-	TriggeredBy       WorkflowRunTriggeredBy  `json:"triggeredBy"`
-	WorkflowVersion   *WorkflowVersion        `json:"workflowVersion,omitempty"`
-	WorkflowVersionId string                  `json:"workflowVersionId"`
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	DisplayName        *string                 `json:"displayName,omitempty"`
+	Error              *string                 `json:"error,omitempty"`
+	FinishedAt         *time.Time              `json:"finishedAt,omitempty"`
+	Input              *map[string]interface{} `json:"input,omitempty"`
+	JobRuns            *[]JobRun               `json:"jobRuns,omitempty"`
+	Metadata           APIResourceMeta         `json:"metadata"`
+	ParentId           *openapi_types.UUID     `json:"parentId,omitempty"`
+	ParentStepRunId    *openapi_types.UUID     `json:"parentStepRunId,omitempty"`
+	StartedAt          *time.Time              `json:"startedAt,omitempty"`
+	Status             WorkflowRunStatus       `json:"status"`
+	TenantId           string                  `json:"tenantId"`
+	TriggeredBy        WorkflowRunTriggeredBy  `json:"triggeredBy"`
+	WorkflowVersion    *WorkflowVersion        `json:"workflowVersion,omitempty"`
+	WorkflowVersionId  string                  `json:"workflowVersionId"`
 }
 
 // WorkflowRunList defines model for WorkflowRunList.
@@ -944,6 +949,9 @@ type EventListParams struct {
 
 	// OrderByDirection The order direction
 	OrderByDirection *EventOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
 // WorkflowRunListPullRequestsParams defines parameters for WorkflowRunListPullRequests.
@@ -974,6 +982,9 @@ type WorkflowRunListParams struct {
 
 	// Statuses A list of workflow run statuses to filter by
 	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
 // WorkflowRunGetMetricsParams defines parameters for WorkflowRunGetMetrics.
@@ -989,6 +1000,9 @@ type WorkflowRunGetMetricsParams struct {
 
 	// ParentStepRunId The parent step run id
 	ParentStepRunId *openapi_types.UUID `form:"parentStepRunId,omitempty" json:"parentStepRunId,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
@@ -3272,6 +3286,22 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 
 		}
 
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -4145,6 +4175,22 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 
 		}
 
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -4236,6 +4282,22 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 		if params.ParentStepRunId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentStepRunId", runtime.ParamLocationQuery, *params.ParentStepRunId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

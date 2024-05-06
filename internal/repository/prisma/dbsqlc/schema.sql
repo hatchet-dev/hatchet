@@ -70,6 +70,7 @@ CREATE TABLE "Event" (
     "tenantId" UUID NOT NULL,
     "replayedFromId" UUID,
     "data" JSONB,
+    "additionalMetadata" JSONB,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
@@ -560,6 +561,7 @@ CREATE TABLE "WorkflowRun" (
     "childKey" TEXT,
     "parentId" UUID,
     "parentStepRunId" UUID,
+    "additionalMetadata" JSONB,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );

@@ -437,14 +437,15 @@ type Dispatcher struct {
 }
 
 type Event struct {
-	ID             pgtype.UUID      `json:"id"`
-	CreatedAt      pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt      pgtype.Timestamp `json:"deletedAt"`
-	Key            string           `json:"key"`
-	TenantId       pgtype.UUID      `json:"tenantId"`
-	ReplayedFromId pgtype.UUID      `json:"replayedFromId"`
-	Data           []byte           `json:"data"`
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
+	Key                string           `json:"key"`
+	TenantId           pgtype.UUID      `json:"tenantId"`
+	ReplayedFromId     pgtype.UUID      `json:"replayedFromId"`
+	Data               []byte           `json:"data"`
+	AdditionalMetadata []byte           `json:"additionalMetadata"`
 }
 
 type GetGroupKeyRun struct {
@@ -874,6 +875,7 @@ type WorkflowRun struct {
 	ChildKey           pgtype.Text       `json:"childKey"`
 	ParentId           pgtype.UUID       `json:"parentId"`
 	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
+	AdditionalMetadata []byte            `json:"additionalMetadata"`
 }
 
 type WorkflowRunTriggeredBy struct {
