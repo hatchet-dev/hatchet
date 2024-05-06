@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -102,10 +101,6 @@ func run(job worker.WorkflowJob) error {
 		panic(fmt.Errorf("no events found"))
 	}
 
-	log.Printf("found %d events", len(events))
-	data, err := json.MarshalIndent(events, "", "  ")
-	log.Printf("events: %s", data)
-
 	for _, event := range events {
 		if len(event.WorkflowRuns()) == 0 {
 			panic(fmt.Errorf("no workflow runs found"))
@@ -120,8 +115,14 @@ func run(job worker.WorkflowJob) error {
 				}
 				for _, stepRun := range jobRuns.StepRuns() {
 					if stepRun.Status != db.StepRunStatusSucceeded {
-						// TODO enable this
-						//panic(fmt.Errorf("expected step run to be failed, got %s", stepRun.Status))
+						panic(fmt.Errorf("expected step run to be failed, got %s", stepRun.Status))
+					}
+					output, ok := stepRun.Output()
+					if !ok {
+						panic(fmt.Errorf("expected step run to have output, got %s", stepRun.Status))
+					}
+					if string(output) != `{"myData": "hi from step-one"}` {
+						panic(fmt.Errorf("expected step run output to be test, got %s", string(output)))
 					}
 				}
 			}
