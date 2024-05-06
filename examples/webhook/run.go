@@ -73,7 +73,7 @@ func run(job worker.WorkflowJob) error {
 		panic(fmt.Errorf("error pushing event: %w", err))
 	}
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	client := db.NewClient()
 	if err := client.Connect(); err != nil {
@@ -121,8 +121,8 @@ func run(job worker.WorkflowJob) error {
 					if !ok {
 						panic(fmt.Errorf("expected step run to have output, got %s", stepRun.Status))
 					}
-					if string(output) != `{"myData": "hi from step-one"}` {
-						panic(fmt.Errorf("expected step run output to be test, got %s", string(output)))
+					if string(output) != `{"myData":"hi from step-one"}` && string(output) != `{"myData":"hi from step-two"}` {
+						panic(fmt.Errorf("expected step run output to be valid, got %s", string(output)))
 					}
 				}
 			}
