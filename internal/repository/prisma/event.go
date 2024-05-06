@@ -95,7 +95,7 @@ func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEv
 	}
 
 	if opts.AdditionalMetadata != nil {
-		queryParams.AdditionalMetadata = *opts.AdditionalMetadata
+		queryParams.AdditionalMetadata = opts.AdditionalMetadata
 	}
 
 	orderByField := "createdAt"

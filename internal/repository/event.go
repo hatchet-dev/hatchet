@@ -53,7 +53,7 @@ type ListEventOpts struct {
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
 
 	// (optional) the event metadata
-	AdditionalMetadata *[]byte
+	AdditionalMetadata []byte
 }
 
 type ListEventResult struct {
