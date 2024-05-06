@@ -32,6 +32,50 @@ tenants:
     summary: Create tenant
     tags:
       - Tenant
+updateTenants:
+  patch:
+    x-resources: ["tenant"]
+    description: Update an existing tenant
+    operationId: tenant:update
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/UpdateTenantRequest"
+      description: The tenant properties to update
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Tenant"
+        description: Successfully created the tenant
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Update tenant
+    tags:
+      - Tenant
 invites:
   post:
     x-resources: ["tenant"]

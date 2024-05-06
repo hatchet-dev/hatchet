@@ -7,8 +7,9 @@ import (
 
 func ToTenant(tenant *db.TenantModel) *gen.Tenant {
 	return &gen.Tenant{
-		Metadata: *toAPIMetadata(tenant.ID, tenant.CreatedAt, tenant.UpdatedAt),
-		Name:     tenant.Name,
-		Slug:     tenant.Slug,
+		Metadata:        *toAPIMetadata(tenant.ID, tenant.CreatedAt, tenant.UpdatedAt),
+		Name:            tenant.Name,
+		Slug:            tenant.Slug,
+		AnalyticsOptOut: &tenant.AnalyticsOptOut,
 	}
 }
