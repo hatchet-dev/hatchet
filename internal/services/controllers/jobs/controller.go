@@ -202,6 +202,8 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 	switch task.ID {
 	case "job-run-queued":
 		return ec.handleJobRunQueued(ctx, task)
+	case "job-run-cancelled":
+		return ec.handleJobRunCancelled(ctx, task)
 	case "step-run-retry":
 		return ec.handleStepRunRetry(ctx, task)
 	case "step-run-queued":
@@ -268,7 +270,58 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgq
 	err = g.Wait()
 
 	if err != nil {
-		ec.l.Err(err).Msg("could not run step run requeue")
+		ec.l.Err(err).Msg("could not run job run queued")
+		return err
+	}
+
+	return nil
+}
+
+func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpan(ctx, "handle-job-run-cancelled")
+	defer span.End()
+
+	payload := tasktypes.JobRunCancelledTaskPayload{}
+	metadata := tasktypes.JobRunCancelledTaskMetadata{}
+
+	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode job task payload: %w", err)
+	}
+
+	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode job task metadata: %w", err)
+	}
+
+	stepRuns, err := ec.repo.StepRun().ListStepRuns(ctx, metadata.TenantId, &repository.ListStepRunsOpts{
+		JobRunId: &payload.JobRunId,
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not list step runs: %w", err)
+	}
+
+	g := new(errgroup.Group)
+
+	for _, stepRun := range stepRuns {
+		stepRunCp := stepRun
+
+		g.Go(func() error {
+			return ec.mq.AddMessage(
+				ctx,
+				msgqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunCancelToTask(stepRunCp, "JOB_RUN_CANCELLED"),
+			)
+		})
+	}
+
+	err = g.Wait()
+
+	if err != nil {
+		ec.l.Err(err).Msg("could not run job run cancelled")
 		return err
 	}
 

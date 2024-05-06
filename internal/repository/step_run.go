@@ -10,9 +10,26 @@ import (
 )
 
 type ListStepRunsOpts struct {
+	JobRunId *string `validate:"omitempty,uuid"`
+
 	WorkflowRunIds []string `validate:"dive,uuid"`
 
 	Status *dbsqlc.StepRunStatus
+}
+
+func IsFinalStepRunStatus(status dbsqlc.StepRunStatus) bool {
+	return status != dbsqlc.StepRunStatusPENDING &&
+		status != dbsqlc.StepRunStatusPENDINGASSIGNMENT &&
+		status != dbsqlc.StepRunStatusASSIGNED &&
+		status != dbsqlc.StepRunStatusRUNNING
+}
+
+func IsFinalJobRunStatus(status dbsqlc.JobRunStatus) bool {
+	return status != dbsqlc.JobRunStatusPENDING && status != dbsqlc.JobRunStatusRUNNING
+}
+
+func IsFinalWorkflowRunStatus(status dbsqlc.WorkflowRunStatus) bool {
+	return status != dbsqlc.WorkflowRunStatusPENDING && status != dbsqlc.WorkflowRunStatusRUNNING && status != dbsqlc.WorkflowRunStatusQUEUED
 }
 
 type UpdateStepRunOpts struct {

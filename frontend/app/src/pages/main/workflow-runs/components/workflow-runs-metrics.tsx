@@ -8,7 +8,13 @@ interface WorkflowRunsMetricsProps {
 }
 
 const calculatePercentage = (value: number, total: number): number => {
-  return Math.round((value / total) * 100);
+  const res = Math.round((value / total) * 100);
+
+  if (isNaN(res)) {
+    return 0;
+  }
+
+  return res;
 };
 
 export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({

@@ -98,6 +98,48 @@ func (ns NullInviteLinkStatus) Value() (driver.Value, error) {
 	return string(ns.InviteLinkStatus), nil
 }
 
+type JobKind string
+
+const (
+	JobKindDEFAULT   JobKind = "DEFAULT"
+	JobKindONFAILURE JobKind = "ON_FAILURE"
+)
+
+func (e *JobKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = JobKind(s)
+	case string:
+		*e = JobKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for JobKind: %T", src)
+	}
+	return nil
+}
+
+type NullJobKind struct {
+	JobKind JobKind `json:"JobKind"`
+	Valid   bool    `json:"valid"` // Valid is true if JobKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullJobKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.JobKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.JobKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullJobKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.JobKind), nil
+}
+
 type JobRunStatus string
 
 const (
@@ -518,6 +560,7 @@ type Job struct {
 	Name              string           `json:"name"`
 	Description       pgtype.Text      `json:"description"`
 	Timeout           pgtype.Text      `json:"timeout"`
+	Kind              JobKind          `json:"kind"`
 }
 
 type JobRun struct {
@@ -905,4 +948,5 @@ type WorkflowVersion struct {
 	WorkflowId      pgtype.UUID      `json:"workflowId"`
 	Checksum        string           `json:"checksum"`
 	ScheduleTimeout string           `json:"scheduleTimeout"`
+	OnFailureJobId  pgtype.UUID      `json:"onFailureJobId"`
 }

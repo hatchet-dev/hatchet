@@ -38,6 +38,8 @@ type CreateWorkflowVersionOpts struct {
 	// (required) the workflow jobs
 	Jobs []CreateWorkflowJobOpts `validate:"required,min=1,dive"`
 
+	OnFailureJob *CreateWorkflowJobOpts `json:"onFailureJob,omitempty" validate:"omitempty"`
+
 	// (optional) the workflow concurrency groups
 	Concurrency *CreateWorkflowConcurrencyOpts `json:"concurrency,omitempty" validator:"omitnil"`
 
@@ -96,6 +98,8 @@ type CreateWorkflowJobOpts struct {
 
 	// (required) the job steps
 	Steps []CreateWorkflowStepOpts `validate:"required,min=1,dive"`
+
+	Kind string `validate:"required,oneof=DEFAULT ON_FAILURE"`
 }
 
 type CreateWorkflowStepOpts struct {
@@ -106,7 +110,7 @@ type CreateWorkflowStepOpts struct {
 	Action string `validate:"required,actionId"`
 
 	// (optional) the step timeout
-	Timeout *string `validate:"omitempty,duration"`
+	Timeout *string `validate:"omitnil,duration"`
 
 	// (optional) the parents that this step depends on
 	Parents []string `validate:"dive,hatchetName"`

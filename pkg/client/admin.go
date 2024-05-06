@@ -246,45 +246,28 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		}
 	}
 
+	if workflow.OnFailureJob != nil {
+		onFailureJob, err := a.getJobOpts("on-failure", workflow.OnFailureJob)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not get on failure job opts: %w", err)
+		}
+
+		opts.OnFailureJob = onFailureJob
+	}
+
 	jobOpts := make([]*admincontracts.CreateWorkflowJobOpts, 0)
 
 	for jobName, job := range workflow.Jobs {
-		jobOpt := &admincontracts.CreateWorkflowJobOpts{
-			Name:        jobName,
-			Description: job.Description,
+		jobCp := job
+
+		res, err := a.getJobOpts(jobName, &jobCp)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not get job opts: %w", err)
 		}
 
-		stepOpts := make([]*admincontracts.CreateWorkflowStepOpts, len(job.Steps))
-
-		for i, step := range job.Steps {
-			inputBytes, err := json.Marshal(step.With)
-
-			if err != nil {
-				return nil, fmt.Errorf("could not marshal step inputs: %w", err)
-			}
-
-			stepOpt := &admincontracts.CreateWorkflowStepOpts{
-				ReadableId: step.ID,
-				Action:     step.ActionID,
-				Timeout:    step.Timeout,
-				Inputs:     string(inputBytes),
-				Parents:    step.Parents,
-				Retries:    int32(step.Retries),
-			}
-
-			for _, rateLimit := range step.RateLimits {
-				stepOpt.RateLimits = append(stepOpt.RateLimits, &admincontracts.CreateStepRateLimit{
-					Key:   rateLimit.Key,
-					Units: int32(rateLimit.Units),
-				})
-			}
-
-			stepOpts[i] = stepOpt
-		}
-
-		jobOpt.Steps = stepOpts
-
-		jobOpts = append(jobOpts, jobOpt)
+		jobOpts = append(jobOpts, res)
 	}
 
 	opts.ScheduledTriggers = make([]*timestamppb.Timestamp, len(workflow.Triggers.Schedules))
@@ -298,4 +281,43 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 	return &admincontracts.PutWorkflowRequest{
 		Opts: opts,
 	}, nil
+}
+
+func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*admincontracts.CreateWorkflowJobOpts, error) {
+	jobOpt := &admincontracts.CreateWorkflowJobOpts{
+		Name:        jobName,
+		Description: job.Description,
+	}
+
+	stepOpts := make([]*admincontracts.CreateWorkflowStepOpts, len(job.Steps))
+
+	for i, step := range job.Steps {
+		inputBytes, err := json.Marshal(step.With)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not marshal step inputs: %w", err)
+		}
+
+		stepOpt := &admincontracts.CreateWorkflowStepOpts{
+			ReadableId: step.ID,
+			Action:     step.ActionID,
+			Timeout:    step.Timeout,
+			Inputs:     string(inputBytes),
+			Parents:    step.Parents,
+			Retries:    int32(step.Retries),
+		}
+
+		for _, rateLimit := range step.RateLimits {
+			stepOpt.RateLimits = append(stepOpt.RateLimits, &admincontracts.CreateStepRateLimit{
+				Key:   rateLimit.Key,
+				Units: int32(rateLimit.Units),
+			})
+		}
+
+		stepOpts[i] = stepOpt
+	}
+
+	jobOpt.Steps = stepOpts
+
+	return jobOpt, nil
 }

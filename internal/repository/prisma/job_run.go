@@ -3,7 +3,6 @@ package prisma
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -60,8 +59,16 @@ func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, ten
 	return setJobRunStatusRunning(ctx, j.pool, j.queries, j.l, tenantId, jobRunId)
 }
 
-func (j *jobRunEngineRepository) ListJobRunsForWorkflowRun(ctx context.Context, tenantId, workflowRunId string) ([]pgtype.UUID, error) {
+func (j *jobRunEngineRepository) ListJobRunsForWorkflowRun(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error) {
 	return j.queries.ListJobRunsForWorkflowRun(ctx, j.pool, sqlchelpers.UUIDFromStr(workflowRunId))
+}
+
+func (j *jobRunEngineRepository) GetJobRunByWorkflowRunIdAndJobId(ctx context.Context, tenantId, workflowRunId, jobId string) (*dbsqlc.GetJobRunByWorkflowRunIdAndJobIdRow, error) {
+	return j.queries.GetJobRunByWorkflowRunIdAndJobId(ctx, j.pool, dbsqlc.GetJobRunByWorkflowRunIdAndJobIdParams{
+		Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
+		Jobid:         sqlchelpers.UUIDFromStr(jobId),
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+	})
 }
 
 func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId, jobRunId string) error {

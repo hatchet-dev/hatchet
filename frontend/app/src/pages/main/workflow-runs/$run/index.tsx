@@ -56,8 +56,10 @@ export default function ExpandedWorkflowRun() {
       runQuery.data.jobRuns &&
       runQuery.data.jobRuns[0].stepRuns
     ) {
-      const stepRun = runQuery.data.jobRuns[0].stepRuns.find(
-        (stepRun) => stepRun.metadata.id === selectedStepRun.metadata.id,
+      const stepRun = runQuery.data.jobRuns.find((jobRun) =>
+        jobRun.stepRuns?.find(
+          (stepRun) => stepRun.metadata.id === selectedStepRun.metadata.id,
+        ),
       );
 
       if (!stepRun) {

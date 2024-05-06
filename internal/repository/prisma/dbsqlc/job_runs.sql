@@ -108,8 +108,21 @@ WHERE
 
 -- name: ListJobRunsForWorkflowRun :many
 SELECT
-    "id"
+    "id",
+    "jobId"
 FROM
     "JobRun" jr
 WHERE
     jr."workflowRunId" = @workflowRunId::uuid;
+
+-- name: GetJobRunByWorkflowRunIdAndJobId :one
+SELECT
+    "id",
+    "jobId",
+    "status"
+FROM
+    "JobRun" jr
+WHERE
+    jr."tenantId" = @tenantId::uuid
+    AND jr."workflowRunId" = @workflowRunId::uuid
+    AND jr."jobId" = @jobId::uuid;

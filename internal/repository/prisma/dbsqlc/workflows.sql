@@ -196,7 +196,8 @@ INSERT INTO "Job" (
     "workflowVersionId",
     "name",
     "description",
-    "timeout"
+    "timeout",
+    "kind"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -206,8 +207,15 @@ INSERT INTO "Job" (
     @workflowVersionId::uuid,
     @name::text,
     @description::text,
-    @timeout::text
+    @timeout::text,
+    coalesce(sqlc.narg('kind')::"JobKind", 'DEFAULT')
 ) RETURNING *;
+
+-- name: LinkOnFailureJob :one
+UPDATE "WorkflowVersion"
+SET "onFailureJobId" = @jobId::uuid
+WHERE "id" = @workflowVersionId::uuid
+RETURNING *;
 
 -- name: CreateStep :one
 INSERT INTO "Step" (

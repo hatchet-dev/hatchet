@@ -330,6 +330,10 @@ model WorkflowVersion {
   // the declared jobs
   jobs Job[]
 
+  // a job that runs when the workflow fails
+  onFailureJob   Job?    @relation("OnFailureJob", fields: [onFailureJobId], references: [id])
+  onFailureJobId String? @unique @db.Uuid
+
   // all runs for the workflow
   runs WorkflowRun[]
 
@@ -469,6 +473,14 @@ model WorkflowTriggerScheduledRef {
   @@unique([parentId, parentStepRunId, childKey])
 }
 
+enum JobKind {
+  // DEFAULT job kinds get started immediately when the workflow execution starts
+  DEFAULT
+
+  // ON_FAILURE job kinds get started when the workflow fails
+  ON_FAILURE
+}
+
 model Job {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -498,6 +510,12 @@ model Job {
 
   // any runs for this job
   runs JobRun[]
+
+  // the kind of job
+  kind JobKind @default(DEFAULT)
+
+  // a link to workflow
+  failureRelations WorkflowVersion? @relation("OnFailureJob")
 
   // jobs names are unique per workflow
   @@unique([workflowVersionId, name])

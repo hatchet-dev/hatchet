@@ -242,13 +242,16 @@ WITH jobRuns AS (
         sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns,
         sum(case when runs."status" = 'CANCELLED' then 1 else 0 end) AS cancelledRuns
     FROM "JobRun" as runs
+    JOIN "Job" as job ON runs."jobId" = job."id"
     WHERE
         "workflowRunId" = (
             SELECT "workflowRunId"
             FROM "JobRun"
             WHERE "id" = @jobRunId::uuid
         ) AND
-        "tenantId" = @tenantId::uuid
+        runs."tenantId" = @tenantId::uuid AND
+        -- we should not include onFailure jobs in the calculation
+        job."kind" = 'DEFAULT'
 )
 UPDATE "WorkflowRun"
 SET "status" = CASE 

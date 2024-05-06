@@ -119,6 +119,45 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 	wc.l.Info().Msgf("finishing workflow run %s", workflowRunId)
 
+	// if there's an onFailure job, start that job
+	if workflowRun.WorkflowVersion.OnFailureJobId.Valid {
+		jobRun, err := wc.repo.JobRun().GetJobRunByWorkflowRunIdAndJobId(
+			ctx,
+			metadata.TenantId,
+			workflowRunId,
+			sqlchelpers.UUIDToStr(workflowRun.WorkflowVersion.OnFailureJobId),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not get job run: %w", err)
+		}
+
+		if !repository.IsFinalJobRunStatus(jobRun.Status) {
+			if workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusFAILED {
+				err = wc.mq.AddMessage(
+					ctx,
+					msgqueue.JOB_PROCESSING_QUEUE,
+					tasktypes.JobRunQueuedToTask(metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID)),
+				)
+
+				if err != nil {
+					return fmt.Errorf("could not add job run to task queue: %w", err)
+				}
+			} else if jobRun.Status != dbsqlc.JobRunStatus(db.JobRunStatusCancelled) {
+				// cancel the onFailure job
+				err = wc.mq.AddMessage(
+					ctx,
+					msgqueue.JOB_PROCESSING_QUEUE,
+					tasktypes.JobRunCancelledToTask(metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID)),
+				)
+
+				if err != nil {
+					return fmt.Errorf("could not add job run to task queue: %w", err)
+				}
+			}
+		}
+	}
+
 	if workflowRun.ConcurrencyLimitStrategy.Valid {
 		wc.l.Info().Msgf("workflow %s has concurrency settings", workflowRunId)
 
@@ -217,7 +256,12 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 	var returnErr error
 
 	for i := range jobRuns {
-		jobRunId := sqlchelpers.UUIDToStr(jobRuns[i])
+		// don't start job runs that are onFailure
+		if workflowRun.WorkflowVersion.OnFailureJobId.Valid && jobRuns[i].JobId == workflowRun.WorkflowVersion.OnFailureJobId {
+			continue
+		}
+
+		jobRunId := sqlchelpers.UUIDToStr(jobRuns[i].ID)
 
 		err := wc.mq.AddMessage(
 			context.Background(),
