@@ -157,6 +157,10 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 		}
 	}
 
+	if opts.JobRunId != nil {
+		listOpts.JobRunId = sqlchelpers.UUIDFromStr(*opts.JobRunId)
+	}
+
 	srs, err := s.queries.ListStepRuns(ctx, tx, listOpts)
 
 	if err != nil {
@@ -541,6 +545,19 @@ func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, s
 	return stepRun, updateInfo, nil
 }
 
+func (s *stepRunEngineRepository) UnlinkStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error {
+	_, err := s.queries.UnlinkStepRunFromWorker(ctx, s.pool, dbsqlc.UnlinkStepRunFromWorkerParams{
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not unlink step run from worker: %w", err)
+	}
+
+	return nil
+}
+
 func (s *stepRunEngineRepository) UpdateStepRunOverridesData(ctx context.Context, tenantId, stepRunId string, opts *repository.UpdateStepRunOverridesDataOpts) ([]byte, error) {
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err
@@ -862,7 +879,7 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 	}
 
 	if updateParams.Status.Valid &&
-		isFinalStepRunStatus(updateParams.Status.StepRunStatus) &&
+		repository.IsFinalStepRunStatus(updateParams.Status.StepRunStatus) &&
 		// we must have actually updated the status to a different state
 		string(innerStepRun.Status) != string(updateStepRun.Status) {
 		_, err := s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
@@ -918,26 +935,11 @@ func (s *stepRunEngineRepository) updateStepRunExtra(
 	}
 
 	return &repository.StepRunUpdateInfo{
-		JobRunFinalState:      isFinalJobRunStatus(jobRun.Status),
-		WorkflowRunFinalState: isFinalWorkflowRunStatus(workflowRun.Status),
+		JobRunFinalState:      repository.IsFinalJobRunStatus(jobRun.Status),
+		WorkflowRunFinalState: repository.IsFinalWorkflowRunStatus(workflowRun.Status),
 		WorkflowRunId:         sqlchelpers.UUIDToStr(workflowRun.ID),
 		WorkflowRunStatus:     string(workflowRun.Status),
 	}, nil
-}
-
-func isFinalStepRunStatus(status dbsqlc.StepRunStatus) bool {
-	return status != dbsqlc.StepRunStatusPENDING &&
-		status != dbsqlc.StepRunStatusPENDINGASSIGNMENT &&
-		status != dbsqlc.StepRunStatusASSIGNED &&
-		status != dbsqlc.StepRunStatusRUNNING
-}
-
-func isFinalJobRunStatus(status dbsqlc.JobRunStatus) bool {
-	return status != dbsqlc.JobRunStatusPENDING && status != dbsqlc.JobRunStatusRUNNING
-}
-
-func isFinalWorkflowRunStatus(status dbsqlc.WorkflowRunStatus) bool {
-	return status != dbsqlc.WorkflowRunStatusPENDING && status != dbsqlc.WorkflowRunStatusRUNNING && status != dbsqlc.WorkflowRunStatusQUEUED
 }
 
 // performant query for step run id, only returns what the engine needs

@@ -791,12 +791,16 @@ WITH currStepRun AS (
 UPDATE
     "StepRun" as sr
 SET "status" = CASE
+    -- When the step is in a final state, it cannot be updated
+    WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."status"
     -- When the given step run has failed or been cancelled, then all later step runs are cancelled
     WHEN (cs."status" = 'FAILED' OR cs."status" = 'CANCELLED') THEN 'CANCELLED'
     ELSE sr."status"
     END,
     -- When the previous step run timed out, the cancelled reason is set
     "cancelledReason" = CASE
+    -- When the step is in a final state, it cannot be updated
+    WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."cancelledReason"
     WHEN (cs."status" = 'CANCELLED' AND cs."cancelledReason" = 'TIMED_OUT'::text) THEN 'PREVIOUS_STEP_TIMED_OUT'
     WHEN (cs."status" = 'CANCELLED') THEN 'PREVIOUS_STEP_CANCELLED'
     ELSE NULL
@@ -868,6 +872,56 @@ func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg Resolve
 		return nil, err
 	}
 	return items, nil
+}
+
+const unlinkStepRunFromWorker = `-- name: UnlinkStepRunFromWorker :one
+UPDATE
+    "StepRun"
+SET
+    "workerId" = NULL
+WHERE
+    "id" = $1::uuid AND
+    "tenantId" = $2::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount"
+`
+
+type UnlinkStepRunFromWorkerParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) UnlinkStepRunFromWorker(ctx context.Context, db DBTX, arg UnlinkStepRunFromWorkerParams) (*StepRun, error) {
+	row := db.QueryRow(ctx, unlinkStepRunFromWorker, arg.Steprunid, arg.Tenantid)
+	var i StepRun
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.JobRunId,
+		&i.StepId,
+		&i.Order,
+		&i.WorkerId,
+		&i.TickerId,
+		&i.Status,
+		&i.Input,
+		&i.Output,
+		&i.RequeueAfter,
+		&i.ScheduleTimeoutAt,
+		&i.Error,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.TimeoutAt,
+		&i.CancelledAt,
+		&i.CancelledReason,
+		&i.CancelledError,
+		&i.InputSchema,
+		&i.CallerFiles,
+		&i.GitRepoBranch,
+		&i.RetryCount,
+	)
+	return &i, err
 }
 
 const updateStepRateLimits = `-- name: UpdateStepRateLimits :many

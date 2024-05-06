@@ -174,7 +174,8 @@ INSERT INTO "Job" (
     "workflowVersionId",
     "name",
     "description",
-    "timeout"
+    "timeout",
+    "kind"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -184,8 +185,9 @@ INSERT INTO "Job" (
     $6::uuid,
     $7::text,
     $8::text,
-    $9::text
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", name, description, timeout
+    $9::text,
+    coalesce($10::"JobKind", 'DEFAULT')
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", name, description, timeout, kind
 `
 
 type CreateJobParams struct {
@@ -198,6 +200,7 @@ type CreateJobParams struct {
 	Name              string           `json:"name"`
 	Description       string           `json:"description"`
 	Timeout           string           `json:"timeout"`
+	Kind              NullJobKind      `json:"kind"`
 }
 
 func (q *Queries) CreateJob(ctx context.Context, db DBTX, arg CreateJobParams) (*Job, error) {
@@ -211,6 +214,7 @@ func (q *Queries) CreateJob(ctx context.Context, db DBTX, arg CreateJobParams) (
 		arg.Name,
 		arg.Description,
 		arg.Timeout,
+		arg.Kind,
 	)
 	var i Job
 	err := row.Scan(
@@ -223,6 +227,7 @@ func (q *Queries) CreateJob(ctx context.Context, db DBTX, arg CreateJobParams) (
 		&i.Name,
 		&i.Description,
 		&i.Timeout,
+		&i.Kind,
 	)
 	return &i, err
 }
@@ -649,7 +654,7 @@ INSERT INTO "WorkflowVersion" (
     $7::uuid,
     coalesce($8::text, '5m'),
     $9::text
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", webhook
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", webhook, "onFailureJobId"
 `
 
 type CreateWorkflowVersionParams struct {
@@ -688,6 +693,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.Checksum,
 		&i.ScheduleTimeout,
 		&i.Webhook,
+		&i.OnFailureJobId,
 	)
 	return &i, err
 }
@@ -743,7 +749,7 @@ func (q *Queries) GetWorkflowLatestVersion(ctx context.Context, db DBTX, workflo
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions.webhook,
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions.webhook, workflowversions."onFailureJobId",
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns"
@@ -790,6 +796,7 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.Checksum,
 			&i.WorkflowVersion.ScheduleTimeout,
 			&i.WorkflowVersion.Webhook,
+			&i.WorkflowVersion.OnFailureJobId,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -804,6 +811,37 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 	return items, nil
 }
 
+const linkOnFailureJob = `-- name: LinkOnFailureJob :one
+UPDATE "WorkflowVersion"
+SET "onFailureJobId" = $1::uuid
+WHERE "id" = $2::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", webhook, "onFailureJobId"
+`
+
+type LinkOnFailureJobParams struct {
+	Jobid             pgtype.UUID `json:"jobid"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+}
+
+func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailureJobParams) (*WorkflowVersion, error) {
+	row := db.QueryRow(ctx, linkOnFailureJob, arg.Jobid, arg.Workflowversionid)
+	var i WorkflowVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.Order,
+		&i.WorkflowId,
+		&i.Checksum,
+		&i.ScheduleTimeout,
+		&i.Webhook,
+		&i.OnFailureJobId,
+	)
+	return &i, err
+}
+
 const listWorkflows = `-- name: ListWorkflows :many
 SELECT
     workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description
@@ -814,7 +852,7 @@ FROM (
         "Workflow" as workflows
     LEFT JOIN
         (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", webhook FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
+            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", webhook, "onFailureJobId" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
         ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
     LEFT JOIN
         "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
@@ -949,7 +987,7 @@ func (q *Queries) ListWorkflowsForEvent(ctx context.Context, db DBTX, arg ListWo
 
 const listWorkflowsLatestRuns = `-- name: ListWorkflowsLatestRuns :many
 SELECT
-    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", workflow."id" as "workflowId"
+    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", workflow."id" as "workflowId"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -1025,6 +1063,7 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 			&i.WorkflowRun.ChildKey,
 			&i.WorkflowRun.ParentId,
 			&i.WorkflowRun.ParentStepRunId,
+			&i.WorkflowRun.AdditionalMetadata,
 			&i.WorkflowId,
 		); err != nil {
 			return nil, err

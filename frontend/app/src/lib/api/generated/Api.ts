@@ -53,6 +53,7 @@ import {
   TenantMemberList,
   TriggerWorkflowRunRequest,
   UpdateTenantInviteRequest,
+  UpdateTenantRequest,
   User,
   UserChangePasswordRequest,
   UserLoginRequest,
@@ -494,6 +495,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Update an existing tenant
+   *
+   * @tags Tenant
+   * @name TenantUpdate
+   * @summary Update tenant
+   * @request PATCH:/api/v1/tenants/{tenant}
+   * @secure
+   */
+  tenantUpdate = (tenant: string, data: UpdateTenantRequest, params: RequestParams = {}) =>
+    this.request<Tenant, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Creates a new tenant invite
    *
    * @tags Tenant
@@ -654,6 +674,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       orderByField?: EventOrderByField;
       /** The order direction */
       orderByDirection?: EventOrderByDirection;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -1053,6 +1078,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       parentStepRunId?: string;
       /** A list of workflow run statuses to filter by */
       statuses?: WorkflowRunStatusList;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -1104,6 +1134,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       parentStepRunId?: string;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
     },
     params: RequestParams = {},
   ) =>

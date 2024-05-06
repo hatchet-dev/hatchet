@@ -5,6 +5,9 @@ CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWE
 CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
 
 -- CreateEnum
+CREATE TYPE "JobKind" AS ENUM ('DEFAULT', 'ON_FAILURE');
+
+-- CreateEnum
 CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
 
 -- CreateEnum
@@ -18,9 +21,6 @@ CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
 
 -- CreateEnum
 CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
-
--- CreateEnum
-CREATE TYPE "WorkerStatus" AS ENUM ('ACTIVE', 'INACTIVE');
 
 -- CreateEnum
 CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED');
@@ -70,6 +70,7 @@ CREATE TABLE "Event" (
     "tenantId" UUID NOT NULL,
     "replayedFromId" UUID,
     "data" JSONB,
+    "additionalMetadata" JSONB,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
@@ -191,6 +192,7 @@ CREATE TABLE "Job" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "timeout" TEXT,
+    "kind" "JobKind" NOT NULL DEFAULT 'DEFAULT',
 
     CONSTRAINT "Job_pkey" PRIMARY KEY ("id")
 );
@@ -376,6 +378,7 @@ CREATE TABLE "Tenant" (
     "deletedAt" TIMESTAMP(3),
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
+    "analyticsOptOut" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
@@ -486,7 +489,6 @@ CREATE TABLE "Worker" (
     "tenantId" UUID NOT NULL,
     "lastHeartbeatAt" TIMESTAMP(3),
     "name" TEXT NOT NULL,
-    "status" "WorkerStatus" NOT NULL DEFAULT 'ACTIVE',
     "dispatcherId" UUID,
     "maxRuns" INTEGER,
     "webhook" BOOLEAN NOT NULL DEFAULT false,
@@ -560,6 +562,7 @@ CREATE TABLE "WorkflowRun" (
     "childKey" TEXT,
     "parentId" UUID,
     "parentStepRunId" UUID,
+    "additionalMetadata" JSONB,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -647,6 +650,7 @@ CREATE TABLE "WorkflowVersion" (
     "checksum" TEXT NOT NULL,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
     "webhook" TEXT,
+    "onFailureJobId" UUID,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
@@ -905,6 +909,9 @@ CREATE UNIQUE INDEX "WorkflowTriggers_workflowVersionId_key" ON "WorkflowTrigger
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowVersion_id_key" ON "WorkflowVersion"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowVersion_onFailureJobId_key" ON "WorkflowVersion"("onFailureJobId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "_ActionToWorker_AB_unique" ON "_ActionToWorker"("A" ASC, "B" ASC);
@@ -1181,6 +1188,9 @@ ALTER TABLE "WorkflowTriggers" ADD CONSTRAINT "WorkflowTriggers_tenantId_fkey" F
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggers" ADD CONSTRAINT "WorkflowTriggers_workflowVersionId_fkey" FOREIGN KEY ("workflowVersionId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowVersion" ADD CONSTRAINT "WorkflowVersion_onFailureJobId_fkey" FOREIGN KEY ("onFailureJobId") REFERENCES "Job"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowVersion" ADD CONSTRAINT "WorkflowVersion_workflowId_fkey" FOREIGN KEY ("workflowId") REFERENCES "Workflow"("id") ON DELETE CASCADE ON UPDATE CASCADE;

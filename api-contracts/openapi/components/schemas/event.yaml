@@ -14,6 +14,9 @@ Event:
     workflowRunSummary:
       $ref: "#/EventWorkflowRunSummary"
       description: The workflow run summary for this event.
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the event.
   required:
     - metadata
     - key

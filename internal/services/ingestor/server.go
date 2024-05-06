@@ -21,7 +21,12 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	event, err := i.IngestEvent(ctx, tenantId, req.Key, []byte(req.Payload))
+	var additionalMeta []byte
+
+	if req.AdditionalMetadata != nil {
+		additionalMeta = []byte(*req.AdditionalMetadata)
+	}
+	event, err := i.IngestEvent(ctx, tenantId, req.Key, []byte(req.Payload), &additionalMeta)
 
 	if err != nil {
 		return nil, err

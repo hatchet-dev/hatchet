@@ -16,7 +16,7 @@ import (
 
 type Ingestor interface {
 	contracts.EventsServiceServer
-	IngestEvent(ctx context.Context, tenantId, eventName string, data []byte) (*dbsqlc.Event, error)
+	IngestEvent(ctx context.Context, tenantId, eventName string, data []byte, metadata *[]byte) (*dbsqlc.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
 }
 
@@ -97,14 +97,15 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}, nil
 }
 
-func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte, metadata *[]byte) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
-		TenantId: tenantId,
-		Key:      key,
-		Data:     data,
+		TenantId:           tenantId,
+		Key:                key,
+		Data:               data,
+		AdditionalMetadata: *metadata,
 	})
 
 	if err != nil {
@@ -132,10 +133,11 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string,
 	replayedId := sqlchelpers.UUIDToStr(replayedEvent.ID)
 
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
-		TenantId:      tenantId,
-		Key:           replayedEvent.Key,
-		Data:          replayedEvent.Data,
-		ReplayedEvent: &replayedId,
+		TenantId:           tenantId,
+		Key:                replayedEvent.Key,
+		Data:               replayedEvent.Data,
+		AdditionalMetadata: replayedEvent.AdditionalMetadata,
+		ReplayedEvent:      &replayedId,
 	})
 
 	if err != nil {
@@ -156,9 +158,10 @@ func eventToTask(e *dbsqlc.Event) *msgqueue.Message {
 	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
 
 	payloadTyped := tasktypes.EventTaskPayload{
-		EventId:   eventId,
-		EventKey:  e.Key,
-		EventData: string(e.Data),
+		EventId:                 eventId,
+		EventKey:                e.Key,
+		EventData:               string(e.Data),
+		EventAdditionalMetadata: string(e.AdditionalMetadata),
 	}
 
 	payload, _ := datautils.ToJSONMap(payloadTyped)

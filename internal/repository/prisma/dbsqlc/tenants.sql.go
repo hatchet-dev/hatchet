@@ -13,7 +13,7 @@ import (
 
 const getTenantByID = `-- name: GetTenantByID :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut"
 FROM
     "Tenant" as tenants
 WHERE
@@ -30,13 +30,14 @@ func (q *Queries) GetTenantByID(ctx context.Context, db DBTX, id pgtype.UUID) (*
 		&i.DeletedAt,
 		&i.Name,
 		&i.Slug,
+		&i.AnalyticsOptOut,
 	)
 	return &i, err
 }
 
 const listTenants = `-- name: ListTenants :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut"
 FROM
     "Tenant" as tenants
 `
@@ -57,6 +58,7 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 			&i.DeletedAt,
 			&i.Name,
 			&i.Slug,
+			&i.AnalyticsOptOut,
 		); err != nil {
 			return nil, err
 		}

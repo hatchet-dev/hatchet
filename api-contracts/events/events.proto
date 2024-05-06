@@ -29,6 +29,10 @@ message Event {
 
     // when the event was generated
     google.protobuf.Timestamp eventTimestamp = 5;
+
+    // the payload for the event
+    optional string additionalMetadata = 6;
+
 }
 
 message PutLogRequest {
@@ -75,6 +79,9 @@ message PushEventRequest {
 
     // when the event was generated
     google.protobuf.Timestamp eventTimestamp = 3;
+
+    // metadata for the event
+    optional string additionalMetadata = 4;
 }
 
 message ReplayEventRequest {

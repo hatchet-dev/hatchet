@@ -80,7 +80,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	cronParentId := sqlchelpers.UUIDToStr(cron.ParentId)
 
 	// schedule the cron
-	_, err = t.s.NewJob(
+	_, err = s.NewJob(
 		gocron.CronJob(cron.Cron, false),
 		gocron.NewTask(
 			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, cron.Input),
@@ -112,9 +112,9 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 			t.l.Err(err).Msg("could not get workflow version")
 			return
 		}
-
 		// create a new workflow run in the database
-		createOpts, err := repository.GetCreateWorkflowRunOptsFromCron(cron, cronParentId, workflowVersion, input)
+		// FIXME additionalMetadata is not used for cron runs
+		createOpts, err := repository.GetCreateWorkflowRunOptsFromCron(cron, cronParentId, workflowVersion, input, nil)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not get create workflow run opts")
@@ -128,26 +128,15 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 			return
 		}
 
-		jobRuns, err := t.repo.JobRun().ListJobRunsForWorkflowRun(ctx, tenantId, workflowRunId)
+		err = t.mq.AddMessage(
+			context.Background(),
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
+		)
 
 		if err != nil {
-			t.l.Err(err).Msg("could not list job runs for workflow run")
+			t.l.Err(err).Msg("could not add workflow run queued task")
 			return
-		}
-
-		for _, jobRunId := range jobRuns {
-			jobRunStr := sqlchelpers.UUIDToStr(jobRunId)
-
-			err = t.mq.AddMessage(
-				context.Background(),
-				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.JobRunQueuedToTask(tenantId, jobRunStr),
-			)
-
-			if err != nil {
-				t.l.Err(err).Msg("could not add job run queued task")
-				continue
-			}
 		}
 	}
 }
@@ -164,7 +153,11 @@ func (t *TickerImpl) handleCancelCron(ctx context.Context, key string) error {
 
 	defer t.crons.Delete(key)
 
-	scheduler := schedulerVal.(gocron.Scheduler)
+	scheduler, ok := schedulerVal.(gocron.Scheduler)
+
+	if !ok {
+		return fmt.Errorf("could not cast scheduler")
+	}
 
 	// cancel the cron
 	if err := scheduler.Shutdown(); err != nil {

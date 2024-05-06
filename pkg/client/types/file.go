@@ -23,6 +23,8 @@ type Workflow struct {
 	Webhook *string `yaml:"webhook"`
 
 	Jobs map[string]WorkflowJob `yaml:"jobs"`
+
+	OnFailureJob *WorkflowJob `yaml:"onFailureJob,omitempty"`
 }
 
 type WorkflowConcurrencyLimitStrategy string

@@ -34,6 +34,10 @@ WHERE
         runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
     ) AND
     (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
+    ) AND
+    (
         sqlc.narg('eventId')::uuid IS NULL OR
         events."id" = sqlc.narg('eventId')::uuid
     ) AND
@@ -78,6 +82,10 @@ WHERE
         runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
     ) AND
     (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
+    ) AND
+    (
         sqlc.narg('eventId')::uuid IS NULL OR
         events."id" = sqlc.narg('eventId')::uuid
     );
@@ -113,6 +121,10 @@ WHERE
     (
         sqlc.narg('ids')::uuid[] IS NULL OR
         runs."id" = ANY(sqlc.narg('ids')::uuid[])
+    ) AND 
+    (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
     ) AND
     (
         sqlc.narg('parentId')::uuid IS NULL OR
@@ -242,13 +254,16 @@ WITH jobRuns AS (
         sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns,
         sum(case when runs."status" = 'CANCELLED' then 1 else 0 end) AS cancelledRuns
     FROM "JobRun" as runs
+    JOIN "Job" as job ON runs."jobId" = job."id"
     WHERE
         "workflowRunId" = (
             SELECT "workflowRunId"
             FROM "JobRun"
             WHERE "id" = @jobRunId::uuid
         ) AND
-        "tenantId" = @tenantId::uuid
+        runs."tenantId" = @tenantId::uuid AND
+        -- we should not include onFailure jobs in the calculation
+        job."kind" = 'DEFAULT'
 )
 UPDATE "WorkflowRun"
 SET "status" = CASE 
@@ -327,7 +342,8 @@ INSERT INTO "WorkflowRun" (
     "childIndex",
     "childKey",
     "parentId",
-    "parentStepRunId"
+    "parentStepRunId",
+    "additionalMetadata"
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -343,7 +359,8 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('childIndex')::int,
     sqlc.narg('childKey')::text,
     sqlc.narg('parentId')::uuid,
-    sqlc.narg('parentStepRunId')::uuid
+    sqlc.narg('parentStepRunId')::uuid,
+    @additionalMetadata::jsonb
 ) RETURNING *;
 
 -- name: CreateWorkflowRunTriggeredBy :one

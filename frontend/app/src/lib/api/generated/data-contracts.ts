@@ -16,6 +16,7 @@ export interface APIMeta {
    * @example "12345678-1234-1234-1234-123456789012"
    */
   pylonAppId?: string;
+  posthog?: APIMetaPosthog;
 }
 
 export interface APIMetaAuth {
@@ -24,6 +25,19 @@ export interface APIMetaAuth {
    * @example ["basic","google"]
    */
   schemes?: string[];
+}
+
+export interface APIMetaPosthog {
+  /**
+   * the PostHog API key
+   * @example "phk_1234567890abcdef"
+   */
+  apiKey?: string;
+  /**
+   * the PostHog API host
+   * @example "https://posthog.example.com"
+   */
+  apiHost?: string;
 }
 
 export type ListAPIMetaIntegration = APIMetaIntegration[];
@@ -178,6 +192,8 @@ export interface Tenant {
   name: string;
   /** The slug of the tenant. */
   slug: string;
+  /** Whether the tenant has opted out of analytics. */
+  analyticsOptOut?: boolean;
 }
 
 export interface TenantMember {
@@ -265,6 +281,11 @@ export interface CreateTenantRequest {
   slug: string;
 }
 
+export interface UpdateTenantRequest {
+  /** Whether the tenant has opted out of analytics. */
+  analyticsOptOut?: boolean;
+}
+
 export interface Event {
   metadata: APIResourceMeta;
   /** The key for the event. */
@@ -275,6 +296,8 @@ export interface Event {
   tenantId: string;
   /** The workflow run summary for this event. */
   workflowRunSummary?: EventWorkflowRunSummary;
+  /** Additional metadata for the event. */
+  additionalMetadata?: object;
 }
 
 export interface EventData {
@@ -498,6 +521,7 @@ export interface WorkflowRun {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   parentStepRunId?: string;
+  additionalMetadata?: Record<string, any>;
 }
 
 export interface WorkflowRunList {
@@ -685,6 +709,7 @@ export interface RerunStepRunRequest {
 
 export interface TriggerWorkflowRunRequest {
   input: object;
+  additionalMetadata?: object;
 }
 
 export interface LinkGithubRepositoryRequest {

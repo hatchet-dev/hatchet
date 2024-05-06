@@ -98,6 +98,48 @@ func (ns NullInviteLinkStatus) Value() (driver.Value, error) {
 	return string(ns.InviteLinkStatus), nil
 }
 
+type JobKind string
+
+const (
+	JobKindDEFAULT   JobKind = "DEFAULT"
+	JobKindONFAILURE JobKind = "ON_FAILURE"
+)
+
+func (e *JobKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = JobKind(s)
+	case string:
+		*e = JobKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for JobKind: %T", src)
+	}
+	return nil
+}
+
+type NullJobKind struct {
+	JobKind JobKind `json:"JobKind"`
+	Valid   bool    `json:"valid"` // Valid is true if JobKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullJobKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.JobKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.JobKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullJobKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.JobKind), nil
+}
+
 type JobRunStatus string
 
 const (
@@ -318,48 +360,6 @@ func (ns NullVcsProvider) Value() (driver.Value, error) {
 	return string(ns.VcsProvider), nil
 }
 
-type WorkerStatus string
-
-const (
-	WorkerStatusACTIVE   WorkerStatus = "ACTIVE"
-	WorkerStatusINACTIVE WorkerStatus = "INACTIVE"
-)
-
-func (e *WorkerStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = WorkerStatus(s)
-	case string:
-		*e = WorkerStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for WorkerStatus: %T", src)
-	}
-	return nil
-}
-
-type NullWorkerStatus struct {
-	WorkerStatus WorkerStatus `json:"WorkerStatus"`
-	Valid        bool         `json:"valid"` // Valid is true if WorkerStatus is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullWorkerStatus) Scan(value interface{}) error {
-	if value == nil {
-		ns.WorkerStatus, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.WorkerStatus.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullWorkerStatus) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.WorkerStatus), nil
-}
-
 type WorkflowRunStatus string
 
 const (
@@ -437,14 +437,15 @@ type Dispatcher struct {
 }
 
 type Event struct {
-	ID             pgtype.UUID      `json:"id"`
-	CreatedAt      pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt      pgtype.Timestamp `json:"deletedAt"`
-	Key            string           `json:"key"`
-	TenantId       pgtype.UUID      `json:"tenantId"`
-	ReplayedFromId pgtype.UUID      `json:"replayedFromId"`
-	Data           []byte           `json:"data"`
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
+	Key                string           `json:"key"`
+	TenantId           pgtype.UUID      `json:"tenantId"`
+	ReplayedFromId     pgtype.UUID      `json:"replayedFromId"`
+	Data               []byte           `json:"data"`
+	AdditionalMetadata []byte           `json:"additionalMetadata"`
 }
 
 type GetGroupKeyRun struct {
@@ -560,6 +561,7 @@ type Job struct {
 	Name              string           `json:"name"`
 	Description       pgtype.Text      `json:"description"`
 	Timeout           pgtype.Text      `json:"timeout"`
+	Kind              JobKind          `json:"kind"`
 }
 
 type JobRun struct {
@@ -722,12 +724,13 @@ type StreamEvent struct {
 }
 
 type Tenant struct {
-	ID        pgtype.UUID      `json:"id"`
-	CreatedAt pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt pgtype.Timestamp `json:"deletedAt"`
-	Name      string           `json:"name"`
-	Slug      string           `json:"slug"`
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
+	Name            string           `json:"name"`
+	Slug            string           `json:"slug"`
+	AnalyticsOptOut bool             `json:"analyticsOptOut"`
 }
 
 type TenantInviteLink struct {
@@ -813,7 +816,6 @@ type Worker struct {
 	TenantId        pgtype.UUID      `json:"tenantId"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
 	Name            string           `json:"name"`
-	Status          WorkerStatus     `json:"status"`
 	DispatcherId    pgtype.UUID      `json:"dispatcherId"`
 	MaxRuns         pgtype.Int4      `json:"maxRuns"`
 	Webhook         bool             `json:"webhook"`
@@ -874,6 +876,7 @@ type WorkflowRun struct {
 	ChildKey           pgtype.Text       `json:"childKey"`
 	ParentId           pgtype.UUID       `json:"parentId"`
 	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
+	AdditionalMetadata []byte            `json:"additionalMetadata"`
 }
 
 type WorkflowRunTriggeredBy struct {
@@ -949,4 +952,5 @@ type WorkflowVersion struct {
 	Checksum        string           `json:"checksum"`
 	ScheduleTimeout string           `json:"scheduleTimeout"`
 	Webhook         pgtype.Text      `json:"webhook"`
+	OnFailureJobId  pgtype.UUID      `json:"onFailureJobId"`
 }

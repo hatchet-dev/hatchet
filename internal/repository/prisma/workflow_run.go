@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -262,6 +263,16 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		countParams.WorkflowVersionId = pgWorkflowVersionId
 	}
 
+	if opts.AdditionalMetadata != nil {
+		additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+		if err != nil {
+			return nil, err
+		}
+
+		queryParams.AdditionalMetadata = additionalMetadataBytes
+		countParams.AdditionalMetadata = additionalMetadataBytes
+	}
+
 	if opts.Ids != nil && len(opts.Ids) > 0 {
 		pgIds := make([]pgtype.UUID, len(opts.Ids))
 
@@ -392,6 +403,14 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 		queryParams.EventId = pgEventId
 	}
 
+	if opts.AdditionalMetadata != nil {
+		additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+		if err != nil {
+			return nil, err
+		}
+		queryParams.AdditionalMetadata = additionalMetadataBytes
+	}
+
 	workflowRunsCount, err := queries.WorkflowRunsMetricsCount(ctx, pool, queryParams)
 
 	if err != nil {
@@ -449,6 +468,14 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 
 		if opts.ParentStepRunId != nil {
 			createParams.ParentStepRunId = sqlchelpers.UUIDFromStr(*opts.ParentStepRunId)
+		}
+
+		if opts.AdditionalMetadata != nil {
+			additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+			if err != nil {
+				return nil, err
+			}
+			createParams.Additionalmetadata = additionalMetadataBytes
 		}
 
 		// create a workflow

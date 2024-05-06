@@ -20,7 +20,10 @@ import api, {
   queries,
 } from '@/lib/api';
 import invariant from 'tiny-invariant';
-import { FilterOption } from '@/components/molecules/data-table/data-table-toolbar';
+import {
+  FilterOption,
+  ToolbarType,
+} from '@/components/molecules/data-table/data-table-toolbar';
 import {
   Dialog,
   DialogContent,
@@ -147,6 +150,16 @@ function EventsTable() {
     return filter?.value as Array<WorkflowRunStatus>;
   }, [columnFilters]);
 
+  const AdditionalMetadataFilter = useMemo(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'Metadata');
+
+    if (!filter) {
+      return;
+    }
+
+    return filter?.value as Array<string>;
+  }, [columnFilters]);
+
   const offset = useMemo(() => {
     if (!pagination) {
       return;
@@ -170,6 +183,7 @@ function EventsTable() {
       limit: pageSize,
       search,
       statuses,
+      additionalMetadata: AdditionalMetadataFilter,
     }),
     refetchInterval: 2000,
   });
@@ -317,6 +331,11 @@ function EventsTable() {
             columnId: 'status',
             title: 'Status',
             options: workflowRunStatusFilters,
+          },
+          {
+            columnId: 'Metadata',
+            title: 'Metadata',
+            type: ToolbarType.KeyValue,
           },
         ]}
         showColumnToggle={true}

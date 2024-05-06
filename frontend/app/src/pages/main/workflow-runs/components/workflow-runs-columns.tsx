@@ -4,6 +4,7 @@ import { WorkflowRun } from '@/lib/api';
 import { relativeDate } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { RunStatus } from './run-statuses';
+import { AdditionalMetadata } from '../../events/components/additional-metadata';
 
 export const columns: ColumnDef<WorkflowRun>[] = [
   {
@@ -102,6 +103,20 @@ export const columns: ColumnDef<WorkflowRun>[] = [
     },
     enableSorting: false,
     enableHiding: true,
+  },
+  {
+    accessorKey: 'Metadata',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Metadata" />
+    ),
+    cell: ({ row }) => {
+      if (!row.original.additionalMetadata) {
+        return <div></div>;
+      }
+
+      return <AdditionalMetadata metadata={row.original.additionalMetadata} />;
+    },
+    enableSorting: false,
   },
   // {
   //   id: "actions",

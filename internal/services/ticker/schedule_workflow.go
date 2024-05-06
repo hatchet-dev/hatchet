@@ -91,7 +91,7 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	}
 
 	// schedule the workflow
-	_, err = t.s.NewJob(
+	_, err = s.NewJob(
 		gocron.OneTimeJob(
 			gocron.OneTimeJobStartDateTime(triggerAt),
 		),
@@ -128,7 +128,7 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 
 		fs := make([]repository.CreateWorkflowRunOpt, 0)
 
-		if scheduled.ParentId.Valid {
+		if scheduled.ParentWorkflowRunId.Valid {
 			var childKey *string
 
 			if scheduled.ChildKey.Valid {
@@ -136,7 +136,7 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 			}
 
 			fs = append(fs, repository.WithParent(
-				sqlchelpers.UUIDToStr(scheduled.ParentId),
+				sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId),
 				sqlchelpers.UUIDToStr(scheduled.ParentStepRunId),
 				int(scheduled.ChildIndex.Int32),
 				childKey,
@@ -144,10 +144,12 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 		}
 
 		// create a new workflow run in the database
+		// FIXME additionalMetadata is not used for scheduled runs
 		createOpts, err := repository.GetCreateWorkflowRunOptsFromSchedule(
 			scheduledWorkflowId,
 			workflowVersion,
 			scheduled.Input,
+			nil,
 			fs...,
 		)
 
@@ -163,26 +165,15 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 			return
 		}
 
-		jobRuns, err := t.repo.JobRun().ListJobRunsForWorkflowRun(ctx, tenantId, workflowRunId)
+		err = t.mq.AddMessage(
+			context.Background(),
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
+		)
 
 		if err != nil {
-			t.l.Err(err).Msg("could not list job runs for workflow run")
+			t.l.Err(err).Msg("could not add workflow run queued task")
 			return
-		}
-
-		for _, jobRunId := range jobRuns {
-			jobRunStr := sqlchelpers.UUIDToStr(jobRunId)
-
-			err = t.mq.AddMessage(
-				context.Background(),
-				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.JobRunQueuedToTask(tenantId, jobRunStr),
-			)
-
-			if err != nil {
-				t.l.Err(err).Msg("could not add job run queued task")
-				continue
-			}
 		}
 
 		// get the scheduler
@@ -219,7 +210,11 @@ func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error
 
 	defer t.scheduledWorkflows.Delete(key)
 
-	scheduler := schedulerVal.(gocron.Scheduler)
+	scheduler, ok := schedulerVal.(gocron.Scheduler)
+
+	if !ok {
+		return fmt.Errorf("could not cast scheduler")
+	}
 
 	// cancel the schedule
 	return scheduler.Shutdown()

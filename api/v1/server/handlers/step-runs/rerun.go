@@ -76,6 +76,15 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		return nil, fmt.Errorf("could not get step run for engine: %w", err)
 	}
 
+	// Unlink the step run from its existing worker. This is necessary because automatic retries increment the
+	// worker semaphore on failure/cancellation, but in this case we don't want to increment the semaphore.
+	// FIXME: this is very far decoupled from the actual worker logic, and should be refactored.
+	err = t.config.EngineRepository.StepRun().UnlinkStepRunFromWorker(ctx.Request().Context(), tenant.ID, stepRun.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not unlink step run from worker: %w", err)
+	}
+
 	// send a task to the taskqueue
 	err = t.config.MessageQueue.AddMessage(
 		ctx.Request().Context(),

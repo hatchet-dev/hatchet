@@ -1,6 +1,7 @@
 package transformers
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -20,13 +21,23 @@ func ToEvent(event *db.EventModel) *gen.Event {
 	return res
 }
 
-func ToEventFromSQLC(eventRow *dbsqlc.ListEventsRow) *gen.Event {
+func ToEventFromSQLC(eventRow *dbsqlc.ListEventsRow) (*gen.Event, error) {
 	event := eventRow.Event
 
+	var metadata map[string]interface{}
+
+	if event.AdditionalMetadata != nil {
+		err := json.Unmarshal(event.AdditionalMetadata, &metadata)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	res := &gen.Event{
-		Metadata: *toAPIMetadata(pgUUIDToStr(event.ID), event.CreatedAt.Time, event.UpdatedAt.Time),
-		Key:      event.Key,
-		TenantId: pgUUIDToStr(event.TenantId),
+		Metadata:           *toAPIMetadata(pgUUIDToStr(event.ID), event.CreatedAt.Time, event.UpdatedAt.Time),
+		Key:                event.Key,
+		TenantId:           pgUUIDToStr(event.TenantId),
+		AdditionalMetadata: &metadata,
 	}
 
 	res.WorkflowRunSummary = &gen.EventWorkflowRunSummary{
@@ -37,7 +48,7 @@ func ToEventFromSQLC(eventRow *dbsqlc.ListEventsRow) *gen.Event {
 		Queued:    &eventRow.Queuedruns,
 	}
 
-	return res
+	return res, nil
 }
 
 func pgUUIDToStr(uuid pgtype.UUID) string {

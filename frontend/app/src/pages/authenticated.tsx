@@ -11,6 +11,7 @@ import { useContextFromParent } from '@/lib/outlet';
 import { Loading } from '@/components/ui/loading.tsx';
 import { useQuery } from '@tanstack/react-query';
 import SupportChat from '@/components/molecules/support-chat';
+import AnalyticsProvider from '@/components/molecules/analytics-provider';
 
 const authMiddleware = async (currentUrl: string) => {
   try {
@@ -108,13 +109,15 @@ export default function Authenticated() {
   }
 
   return (
-    <SupportChat user={user}>
-      <div className="flex flex-row flex-1 w-full h-full">
-        <MainNav user={user} />
-        <div className="pt-16 flex-grow overflow-y-auto overflow-x-hidden">
-          <Outlet context={ctx} />
+    <AnalyticsProvider user={user}>
+      <SupportChat user={user}>
+        <div className="flex flex-row flex-1 w-full h-full">
+          <MainNav user={user} />
+          <div className="pt-16 flex-grow overflow-y-auto overflow-x-hidden">
+            <Outlet context={ctx} />
+          </div>
         </div>
-      </div>
-    </SupportChat>
+      </SupportChat>
+    </AnalyticsProvider>
   );
 }
