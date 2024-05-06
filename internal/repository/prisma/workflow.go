@@ -672,130 +672,32 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 
 	// create the workflow jobs
 	for _, jobOpts := range opts.Jobs {
-		jobId := uuid.New().String()
+		jobCp := jobOpts
 
-		var (
-			description, timeout string
-		)
+		_, err := r.createJobTx(ctx, tx, tenantId, sqlcWorkflowVersion.ID, opts, &jobCp)
 
-		if jobOpts.Description != nil {
-			description = *jobOpts.Description
+		if err != nil {
+			return "", err
 		}
+	}
 
-		sqlcJob, err := r.queries.CreateJob(
-			ctx,
-			tx,
-			dbsqlc.CreateJobParams{
-				ID:                sqlchelpers.UUIDFromStr(jobId),
-				Tenantid:          tenantId,
-				Workflowversionid: sqlcWorkflowVersion.ID,
-				Name:              jobOpts.Name,
-				Description:       description,
-				Timeout:           timeout,
-			},
-		)
+	// create the onFailure job if exists
+	if opts.OnFailureJob != nil {
+		onFailureJobCp := *opts.OnFailureJob
+
+		jobId, err := r.createJobTx(ctx, tx, tenantId, sqlcWorkflowVersion.ID, opts, &onFailureJobCp)
 
 		if err != nil {
 			return "", err
 		}
 
-		for _, stepOpts := range jobOpts.Steps {
-			stepId := uuid.New().String()
+		_, err = r.queries.LinkOnFailureJob(ctx, tx, dbsqlc.LinkOnFailureJobParams{
+			Workflowversionid: sqlcWorkflowVersion.ID,
+			Jobid:             sqlchelpers.UUIDFromStr(jobId),
+		})
 
-			var (
-				timeout        pgtype.Text
-				customUserData []byte
-				retries        pgtype.Int4
-			)
-
-			if stepOpts.Timeout != nil {
-				timeout = sqlchelpers.TextFromStr(*stepOpts.Timeout)
-			}
-
-			if stepOpts.UserData != nil {
-				customUserData = []byte(*stepOpts.UserData)
-			}
-
-			if stepOpts.Retries != nil {
-				retries = pgtype.Int4{
-					Valid: true,
-					Int32: int32(*stepOpts.Retries),
-				}
-			}
-
-			// upsert the action
-			_, err := r.queries.UpsertAction(
-				ctx,
-				tx,
-				dbsqlc.UpsertActionParams{
-					Action:   stepOpts.Action,
-					Tenantid: tenantId,
-				},
-			)
-
-			if err != nil {
-				return "", err
-			}
-
-			createStepParams := dbsqlc.CreateStepParams{
-				ID:             sqlchelpers.UUIDFromStr(stepId),
-				Tenantid:       tenantId,
-				Jobid:          sqlchelpers.UUIDFromStr(jobId),
-				Actionid:       stepOpts.Action,
-				Timeout:        timeout,
-				Readableid:     stepOpts.ReadableId,
-				CustomUserData: customUserData,
-				Retries:        retries,
-			}
-
-			if opts.ScheduleTimeout != nil {
-				createStepParams.ScheduleTimeout = sqlchelpers.TextFromStr(*opts.ScheduleTimeout)
-			}
-
-			_, err = r.queries.CreateStep(
-				ctx,
-				tx,
-				createStepParams,
-			)
-
-			if err != nil {
-				return "", err
-			}
-
-			if len(stepOpts.Parents) > 0 {
-				err := r.queries.AddStepParents(
-					ctx,
-					tx,
-					dbsqlc.AddStepParentsParams{
-						ID:      sqlchelpers.UUIDFromStr(stepId),
-						Parents: stepOpts.Parents,
-						Jobid:   sqlcJob.ID,
-					},
-				)
-
-				if err != nil {
-					return "", err
-				}
-			}
-
-			if len(stepOpts.RateLimits) > 0 {
-				for _, rateLimit := range stepOpts.RateLimits {
-					_, err := r.queries.CreateStepRateLimit(
-						ctx,
-						tx,
-						dbsqlc.CreateStepRateLimitParams{
-							Stepid:       sqlchelpers.UUIDFromStr(stepId),
-							Ratelimitkey: rateLimit.Key,
-							Units:        int32(rateLimit.Units),
-							Tenantid:     tenantId,
-						},
-					)
-
-					if err != nil {
-						return "", err
-					}
-				}
-			}
+		if err != nil {
+			return "", err
 		}
 	}
 
@@ -863,6 +765,140 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 	}
 
 	return workflowVersionId, nil
+}
+
+func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, tenantId, workflowVersionId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts, jobOpts *repository.CreateWorkflowJobOpts) (string, error) {
+	jobId := uuid.New().String()
+
+	var (
+		description, timeout string
+	)
+
+	if jobOpts.Description != nil {
+		description = *jobOpts.Description
+	}
+
+	sqlcJob, err := r.queries.CreateJob(
+		ctx,
+		tx,
+		dbsqlc.CreateJobParams{
+			ID:                sqlchelpers.UUIDFromStr(jobId),
+			Tenantid:          tenantId,
+			Workflowversionid: workflowVersionId,
+			Name:              jobOpts.Name,
+			Description:       description,
+			Timeout:           timeout,
+			Kind: dbsqlc.NullJobKind{
+				Valid:   true,
+				JobKind: dbsqlc.JobKind(jobOpts.Kind),
+			},
+		},
+	)
+
+	if err != nil {
+		return "", err
+	}
+
+	for _, stepOpts := range jobOpts.Steps {
+		stepId := uuid.New().String()
+
+		var (
+			timeout        pgtype.Text
+			customUserData []byte
+			retries        pgtype.Int4
+		)
+
+		if stepOpts.Timeout != nil {
+			timeout = sqlchelpers.TextFromStr(*stepOpts.Timeout)
+		}
+
+		if stepOpts.UserData != nil {
+			customUserData = []byte(*stepOpts.UserData)
+		}
+
+		if stepOpts.Retries != nil {
+			retries = pgtype.Int4{
+				Valid: true,
+				Int32: int32(*stepOpts.Retries),
+			}
+		}
+
+		// upsert the action
+		_, err := r.queries.UpsertAction(
+			ctx,
+			tx,
+			dbsqlc.UpsertActionParams{
+				Action:   stepOpts.Action,
+				Tenantid: tenantId,
+			},
+		)
+
+		if err != nil {
+			return "", err
+		}
+
+		createStepParams := dbsqlc.CreateStepParams{
+			ID:             sqlchelpers.UUIDFromStr(stepId),
+			Tenantid:       tenantId,
+			Jobid:          sqlchelpers.UUIDFromStr(jobId),
+			Actionid:       stepOpts.Action,
+			Timeout:        timeout,
+			Readableid:     stepOpts.ReadableId,
+			CustomUserData: customUserData,
+			Retries:        retries,
+		}
+
+		if opts.ScheduleTimeout != nil {
+			createStepParams.ScheduleTimeout = sqlchelpers.TextFromStr(*opts.ScheduleTimeout)
+		}
+
+		_, err = r.queries.CreateStep(
+			ctx,
+			tx,
+			createStepParams,
+		)
+
+		if err != nil {
+			return "", err
+		}
+
+		if len(stepOpts.Parents) > 0 {
+			err := r.queries.AddStepParents(
+				ctx,
+				tx,
+				dbsqlc.AddStepParentsParams{
+					ID:      sqlchelpers.UUIDFromStr(stepId),
+					Parents: stepOpts.Parents,
+					Jobid:   sqlcJob.ID,
+				},
+			)
+
+			if err != nil {
+				return "", err
+			}
+		}
+
+		if len(stepOpts.RateLimits) > 0 {
+			for _, rateLimit := range stepOpts.RateLimits {
+				_, err := r.queries.CreateStepRateLimit(
+					ctx,
+					tx,
+					dbsqlc.CreateStepRateLimitParams{
+						Stepid:       sqlchelpers.UUIDFromStr(stepId),
+						Ratelimitkey: rateLimit.Key,
+						Units:        int32(rateLimit.Units),
+						Tenantid:     tenantId,
+					},
+				)
+
+				if err != nil {
+					return "", err
+				}
+			}
+		}
+	}
+
+	return jobId, nil
 }
 
 func defaultWorkflowPopulator() []db.WorkflowRelationWith {

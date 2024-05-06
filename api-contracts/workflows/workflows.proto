@@ -28,6 +28,7 @@ message CreateWorkflowVersionOpts {
     WorkflowConcurrencyOpts concurrency = 8; // (optional) the workflow concurrency options
     optional string schedule_timeout = 9; // (optional) the timeout for the schedule
     optional string cron_input = 10; // (optional) the input for the cron trigger
+    optional CreateWorkflowJobOpts on_failure_job = 11; // (optional) the job to run on failure
 }
 
 enum ConcurrencyLimitStrategy {
