@@ -57,7 +57,7 @@ func (worker *subscribedWorker) StartStepRun(
 
 	if worker.webhook != nil {
 		log.Printf("starting step run %s as webhook", stepName)
-		return worker.webhook.Send(ctx, tenantId, &contracts.AssignedAction{
+		return worker.webhook.Start(ctx, &contracts.AssignedAction{
 			TenantId:      tenantId,
 			JobId:         sqlchelpers.UUIDToStr(stepRun.JobId),
 			JobName:       stepRun.JobName,

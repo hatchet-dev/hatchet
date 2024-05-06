@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -25,10 +24,9 @@ func main() {
 		panic(err)
 	}
 
-	events := make(chan string, 50)
-	cleanup, err := run(events, worker.WorkflowJob{
-		Name:        "timeout",
-		Description: "timeout",
+	err = run(worker.WorkflowJob{
+		Name:        "webhook",
+		Description: "webhook",
 		Steps: []*worker.WorkflowStep{
 			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 				time.Sleep(time.Second * 60)
@@ -38,11 +36,5 @@ func main() {
 	})
 	if err != nil {
 		panic(err)
-	}
-
-	<-events
-
-	if err := cleanup(); err != nil {
-		panic(fmt.Errorf("cleanup() error = %v", err))
 	}
 }

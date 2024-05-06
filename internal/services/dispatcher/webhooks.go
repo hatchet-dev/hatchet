@@ -5,10 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
@@ -45,7 +43,7 @@ type WebhookEvent struct {
 	StepName string `json:"stepName,omitempty"`
 }
 
-func (w *webhookController) Send(ctx context.Context, tenantId string, action *contracts.AssignedAction) error {
+func (w *webhookController) Start(ctx context.Context, action *contracts.AssignedAction) error {
 	log.Printf("sending webhook for action %s", action.ActionId)
 
 	// get webhook url from workflow version
@@ -68,15 +66,6 @@ func (w *webhookController) Send(ctx context.Context, tenantId string, action *c
 
 	log.Printf("sending webhook to %s", webhookUrl)
 
-	// TODO!!!! notify
-	// _, err = w.dispatcher.SendStepActionEvent(
-	//	ctx,
-	//	getActionEvent(assignedAction, client.ActionEventTypeStarted),
-	//)
-	// if err != nil {
-	//	return fmt.Errorf("could not send action event: %w", err)
-	//}
-
 	body, err := json.Marshal(action)
 	if err != nil {
 		return err
@@ -94,33 +83,5 @@ func (w *webhookController) Send(ctx context.Context, tenantId string, action *c
 		return fmt.Errorf("webhook failed with status code %d", resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("webhook response: %s", string(data))
-
-	log.Printf("setting step run status to completed")
-
-	payload, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	if err := w.dispatcher.handleStepRunCompletedImpl(ctx, tenantId, time.Now(), action.StepRunId, string(payload)); err != nil {
-		return fmt.Errorf("could not handle step run completed: %w", err)
-	}
-
 	return nil
 }
-
-// func getActionEvent(action *client.Action, eventType client.ActionEventType) *client.ActionEvent {
-//	timestamp := time.Now().UTC()
-//
-//	return &client.ActionEvent{
-//		Action:         action,
-//		EventTimestamp: &timestamp,
-//		EventType:      eventType,
-//	}
-//}

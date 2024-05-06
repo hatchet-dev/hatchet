@@ -63,8 +63,6 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 		}
 		defer client.Disconnect()
 
-		// TODO check for the database status
-
 		events, err := client.Event.FindMany(
 			db.Event.TenantID.Equals(c.TenantId()),
 			db.Event.Key.Equals("user:create:timeout"),
