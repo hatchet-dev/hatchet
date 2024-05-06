@@ -980,7 +980,7 @@ WITH jobRuns AS (
         ) AND
         runs."tenantId" = $2::uuid AND
         -- we should not include onFailure jobs in the calculation
-        job."kind" != 'ON_FAILURE'
+        job."kind" = 'DEFAULT'
 )
 UPDATE "WorkflowRun"
 SET "status" = CASE 
