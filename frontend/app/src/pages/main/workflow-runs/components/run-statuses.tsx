@@ -4,6 +4,47 @@ import { capitalize, cn } from '@/lib/utils';
 
 type RunStatusType = `${StepRunStatus | WorkflowRunStatus | JobRunStatus}`;
 
+const INDICATORS: Record<
+  RunStatusType,
+  {
+    variant: 'inProgress' | 'successful' | 'failed' | 'outline';
+    text: string;
+  }
+> = {
+  PENDING: {
+    variant: 'outline',
+    text: 'Pending',
+  },
+  PENDING_ASSIGNMENT: {
+    variant: 'outline',
+    text: 'Pending assignment',
+  },
+  ASSIGNED: {
+    variant: 'inProgress',
+    text: 'Assigned',
+  },
+  RUNNING: {
+    variant: 'inProgress',
+    text: 'Running',
+  },
+  SUCCEEDED: {
+    variant: 'successful',
+    text: 'Succeeded',
+  },
+  FAILED: {
+    variant: 'failed',
+    text: 'Failed',
+  },
+  CANCELLED: {
+    variant: 'failed',
+    text: 'Cancelled',
+  },
+  QUEUED: {
+    variant: 'inProgress',
+    text: 'Queued',
+  },
+};
+
 export function RunStatus({
   status,
   reason,
@@ -11,36 +52,11 @@ export function RunStatus({
   status: RunStatusType;
   reason?: string;
 }) {
-  let variant: 'inProgress' | 'successful' | 'failed' = 'inProgress';
-  let text = 'Running';
+  const indicator = INDICATORS[status];
 
-  switch (status) {
-    case 'SUCCEEDED':
-      variant = 'successful';
-      text = 'Succeeded';
-      break;
-    case 'FAILED':
-    case 'CANCELLED':
-      variant = 'failed';
-      text = 'Cancelled';
-
-      switch (reason) {
-        case 'TIMED_OUT':
-          text = 'Timed out';
-          break;
-        case 'SCHEDULING_TIMED_OUT':
-          text = 'No workers available';
-          break;
-        default:
-          break;
-      }
-
-      break;
-    default:
-      break;
-  }
-
-  return <Badge variant={variant}>{capitalize(text)}</Badge>;
+  return (
+    <Badge variant={indicator.variant}>{capitalize(indicator.text)}</Badge>
+  );
 }
 
 const indicatorVariants = {
