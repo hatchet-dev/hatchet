@@ -175,43 +175,47 @@ WHERE
 RETURNING *;
 
 -- name: ResolveLaterStepRuns :many
-WITH currStepRun AS (
+WITH RECURSIVE currStepRun AS (
   SELECT *
   FROM "StepRun"
   WHERE
     "id" = @stepRunId::uuid AND
     "tenantId" = @tenantId::uuid
+), childStepRuns AS (
+  SELECT sr."id", sr."status"
+  FROM "StepRun" sr
+  JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+  WHERE sro."A" = (SELECT "id" FROM currStepRun)
+  
+  UNION ALL
+  
+  SELECT sr."id", sr."status"
+  FROM "StepRun" sr
+  JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+  JOIN childStepRuns csr ON sro."A" = csr."id"
 )
 UPDATE
     "StepRun" as sr
-SET "status" = CASE
+SET  "status" = CASE
     -- When the step is in a final state, it cannot be updated
     WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."status"
-    -- When the given step run has failed or been cancelled, then all later step runs are cancelled
-    WHEN (cs."status" = 'FAILED' OR cs."status" = 'CANCELLED') THEN 'CANCELLED'
+    -- When the given step run has failed or been cancelled, then all child step runs are cancelled
+    WHEN (SELECT "status" FROM currStepRun) IN ('FAILED', 'CANCELLED') THEN 'CANCELLED'
     ELSE sr."status"
     END,
     -- When the previous step run timed out, the cancelled reason is set
     "cancelledReason" = CASE
     -- When the step is in a final state, it cannot be updated
     WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."cancelledReason"
-    WHEN (cs."status" = 'CANCELLED' AND cs."cancelledReason" = 'TIMED_OUT'::text) THEN 'PREVIOUS_STEP_TIMED_OUT'
-    WHEN (cs."status" = 'CANCELLED') THEN 'PREVIOUS_STEP_CANCELLED'
+    WHEN (SELECT "status" FROM currStepRun) = 'CANCELLED' AND (SELECT "cancelledReason" FROM currStepRun) = 'TIMED_OUT'::text THEN 'PREVIOUS_STEP_TIMED_OUT'
+    WHEN (SELECT "status" FROM currStepRun) = 'FAILED' THEN 'PREVIOUS_STEP_FAILED'
+    WHEN (SELECT "status" FROM currStepRun) = 'CANCELLED' THEN 'PREVIOUS_STEP_CANCELLED'
     ELSE NULL
     END
 FROM
-    currStepRun cs
+    childStepRuns csr
 WHERE
-    sr."jobRunId" = (
-        SELECT "jobRunId"
-        FROM "StepRun"
-        WHERE "id" = @stepRunId::uuid
-    ) AND
-    sr."order" > (
-        SELECT "order"
-        FROM "StepRun"
-        WHERE "id" = @stepRunId::uuid
-    ) AND
+    sr."id" = csr."id" AND
     sr."tenantId" = @tenantId::uuid
 RETURNING sr.*;
 
