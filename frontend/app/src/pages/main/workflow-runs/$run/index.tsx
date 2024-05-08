@@ -4,7 +4,6 @@ import CronPrettifier from 'cronstrue';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
-import { Badge } from '@/components/ui/badge';
 import { timeBetween } from '@/lib/utils';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
