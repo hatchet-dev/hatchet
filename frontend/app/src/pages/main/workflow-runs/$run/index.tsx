@@ -27,11 +27,10 @@ export default function ExpandedWorkflowRun() {
     ...queries.workflowRuns.get(tenant.metadata.id, params.run),
     refetchInterval: (query) => {
       const data = query.state.data;
-
       if (
-        data?.status != 'SUCCEEDED' &&
-        data?.status != 'FAILED' &&
-        data?.status != 'CANCELLED'
+        data &&
+        data.jobRuns &&
+        data.jobRuns.some((x) => x.status === 'RUNNING')
       ) {
         return 1000;
       }
