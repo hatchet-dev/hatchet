@@ -5,13 +5,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { Badge } from '@/components/ui/badge';
-import { relativeDate, timeBetween } from '@/lib/utils';
+import { timeBetween } from '@/lib/utils';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import WorkflowRunVisualizer from './components/workflow-run-visualizer';
 import { useEffect, useState } from 'react';
 import { StepRunPlayground } from './components/step-run-playground';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export default function ExpandedWorkflowRun() {
   const [selectedStepRun, setSelectedStepRun] = useState<StepRun | undefined>();
@@ -112,11 +113,11 @@ export default function ExpandedWorkflowRun() {
         </div>
         <div className="flex flex-row justify-start items-center gap-2">
           <div className="text-sm text-gray-700 dark:text-gray-300">
-            Created {relativeDate(run?.metadata.createdAt)}
+            Created <RelativeDate date={run?.metadata.createdAt} />
           </div>
           {run?.startedAt && (
             <div className="text-sm text-gray-700 dark:text-gray-300">
-              Started {relativeDate(run.startedAt)}
+              Started <RelativeDate date={run.startedAt} />
             </div>
           )}
           {run?.startedAt && run?.finishedAt && (

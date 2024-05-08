@@ -2,8 +2,8 @@ import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
 import { TenantAlertEmailGroup } from '@/lib/api';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
-import { relativeDate } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export const columns = ({
   onDeleteClick,
@@ -34,7 +34,9 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Created" />
       ),
       cell: ({ row }) => (
-        <div>{relativeDate(row.original.metadata.createdAt)}</div>
+        <div>
+          <RelativeDate date={row.original.metadata.createdAt} />
+        </div>
       ),
     },
     {

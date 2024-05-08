@@ -31,7 +31,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { relativeDate } from '@/lib/utils';
 import { CodeEditor } from '@/components/ui/code-editor';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -42,6 +41,7 @@ import {
 import { useApiError } from '@/lib/hooks';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export default function Events() {
   return (
@@ -366,7 +366,7 @@ function ExpandedEventContent({ event }: { event: Event }) {
       <DialogHeader>
         <DialogTitle>Event {event.key}</DialogTitle>
         <DialogDescription>
-          Seen {relativeDate(event.metadata.createdAt)}
+          Seen <RelativeDate date={event.metadata.createdAt} />
         </DialogDescription>
       </DialogHeader>
 

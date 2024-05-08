@@ -5,6 +5,7 @@ import { relativeDate } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { RunStatus } from './run-statuses';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export const columns: ColumnDef<WorkflowRun>[] = [
   {
@@ -78,7 +79,11 @@ export const columns: ColumnDef<WorkflowRun>[] = [
     cell: ({ row }) => {
       return (
         <div className="whitespace-nowrap">
-          {relativeDate(row.original.startedAt)}
+          {row.original.startedAt ? (
+            <RelativeDate date={row.original.startedAt} />
+          ) : (
+            'N/A'
+          )}
         </div>
       );
     },

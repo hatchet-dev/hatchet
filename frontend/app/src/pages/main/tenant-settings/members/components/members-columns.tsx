@@ -1,10 +1,11 @@
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
 import { TenantMember } from '@/lib/api';
-import { capitalize, relativeDate } from '@/lib/utils';
+import { capitalize } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
 import { useOutletContext } from 'react-router-dom';
 import { UserContextType } from '@/lib/outlet';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export const columns = ({
   onChangePasswordClick,
@@ -43,7 +44,9 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Joined" />
       ),
       cell: ({ row }) => (
-        <div>{relativeDate(row.original.metadata.createdAt)}</div>
+        <div>
+          <RelativeDate date={row.original.metadata.createdAt} />
+        </div>
       ),
     },
     {
