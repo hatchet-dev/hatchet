@@ -75,16 +75,18 @@ const RUN_STATUS_VARIANTS_REASON_OVERRIDES: Record<
 export function RunStatus({
   status,
   reason,
+  className,
 }: {
   status: RunStatusType;
   reason?: string;
+  className?: string;
 }) {
   const { text, variant } = RUN_STATUS_VARIANTS[status];
   const { text: overrideText, variant: overrideVariant } =
     (reason && RUN_STATUS_VARIANTS_REASON_OVERRIDES[reason]) || {};
 
   const StatusBadge = () => (
-    <Badge variant={overrideVariant || variant}>
+    <Badge variant={overrideVariant || variant} className={className}>
       {capitalize(overrideText || text)}
     </Badge>
   );

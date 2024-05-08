@@ -421,6 +421,7 @@ export function StepRunPlayground({
                         ? StepRunStatus.FAILED
                         : stepRun?.status || StepRunStatus.PENDING
                     }
+                    className="px-2"
                   />
                 </div>
 
