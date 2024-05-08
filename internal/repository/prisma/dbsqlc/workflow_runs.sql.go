@@ -65,6 +65,10 @@ WHERE
     (
         $11::timestamp IS NULL OR
         runs."createdAt" > $11::timestamp
+    ) AND
+    (
+        $12::timestamp IS NULL OR
+        runs."finishedAt" > $12::timestamp
     )
 `
 
@@ -80,6 +84,7 @@ type CountWorkflowRunsParams struct {
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
+	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -95,6 +100,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.GroupKey,
 		arg.Statuses,
 		arg.CreatedAfter,
+		arg.FinishedAfter,
 	)
 	var total int64
 	err := row.Scan(&total)
@@ -765,14 +771,18 @@ WHERE
     (
         $11::timestamp IS NULL OR
         runs."createdAt" > $11::timestamp
+    ) AND
+    (
+        $12::timestamp IS NULL OR
+        runs."finishedAt" > $12::timestamp
     )
 ORDER BY
-    case when $12 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when $12 = 'createdAt DESC' then runs."createdAt" END DESC
+    case when $13 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+    case when $13 = 'createdAt DESC' then runs."createdAt" END DESC
 OFFSET
-    COALESCE($13, 0)
+    COALESCE($14, 0)
 LIMIT
-    COALESCE($14, 50)
+    COALESCE($15, 50)
 `
 
 type ListWorkflowRunsParams struct {
@@ -787,6 +797,7 @@ type ListWorkflowRunsParams struct {
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
+	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
 	Orderby            interface{}      `json:"orderby"`
 	Offset             interface{}      `json:"offset"`
 	Limit              interface{}      `json:"limit"`
@@ -816,6 +827,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 		arg.GroupKey,
 		arg.Statuses,
 		arg.CreatedAfter,
+		arg.FinishedAfter,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,

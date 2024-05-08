@@ -243,7 +243,7 @@ failed_run_count_by_tenant AS (
         "status" = 'FAILED'
         AND (
             "lastAlertedAt" IS NULL OR
-            workflowRun."createdAt" >= "lastAlertedAt"
+            workflowRun."finishedAt" >= "lastAlertedAt"
         )
     GROUP BY workflowRun."tenantId"
 )
