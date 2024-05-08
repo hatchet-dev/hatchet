@@ -47,6 +47,9 @@ type CreateWorkflowRunOpts struct {
 
 	// (optional) the child index of the workflow run, if this is a child run of a different workflow
 	ChildIndex *int
+
+	// (optional) additional metadata for the workflow run
+	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
 }
 
 type CreateGroupKeyRunOpts struct {
@@ -72,6 +75,7 @@ func WithParent(
 func GetCreateWorkflowRunOptsFromManual(
 	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
 	input []byte,
+	additionalMetadata map[string]interface{},
 ) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
@@ -79,6 +83,7 @@ func GetCreateWorkflowRunOptsFromManual(
 		ManualTriggerInput: StringPtr(string(input)),
 		TriggeredBy:        string(datautils.TriggeredByManual),
 		InputData:          input,
+		AdditionalMetadata: additionalMetadata,
 	}
 
 	if input != nil {
@@ -98,6 +103,7 @@ func GetCreateWorkflowRunOptsFromParent(
 	parentId, parentStepRunId string,
 	childIndex int,
 	childKey *string,
+	additionalMetadata map[string]interface{},
 ) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
@@ -105,6 +111,7 @@ func GetCreateWorkflowRunOptsFromParent(
 		ManualTriggerInput: StringPtr(string(input)),
 		TriggeredBy:        string(datautils.TriggeredByParent),
 		InputData:          input,
+		AdditionalMetadata: additionalMetadata,
 	}
 
 	WithParent(parentId, parentStepRunId, childIndex, childKey)(opts)
@@ -120,13 +127,19 @@ func GetCreateWorkflowRunOptsFromParent(
 	return opts, nil
 }
 
-func GetCreateWorkflowRunOptsFromEvent(eventId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, input []byte) (*CreateWorkflowRunOpts, error) {
+func GetCreateWorkflowRunOptsFromEvent(
+	eventId string,
+	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
+	input []byte,
+	additionalMetadata map[string]interface{},
+) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
-		DisplayName:       StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
-		WorkflowVersionId: sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
-		TriggeringEventId: &eventId,
-		TriggeredBy:       string(datautils.TriggeredByEvent),
-		InputData:         input,
+		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
+		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		TriggeringEventId:  &eventId,
+		TriggeredBy:        string(datautils.TriggeredByEvent),
+		InputData:          input,
+		AdditionalMetadata: additionalMetadata,
 	}
 
 	if input != nil {
@@ -140,14 +153,21 @@ func GetCreateWorkflowRunOptsFromEvent(eventId string, workflowVersion *dbsqlc.G
 	return opts, nil
 }
 
-func GetCreateWorkflowRunOptsFromCron(cron, cronParentId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, input []byte) (*CreateWorkflowRunOpts, error) {
+func GetCreateWorkflowRunOptsFromCron(
+	cron,
+	cronParentId string,
+	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
+	input []byte,
+	additionalMetadata map[string]interface{},
+) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
-		DisplayName:       StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
-		WorkflowVersionId: sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
-		Cron:              &cron,
-		CronParentId:      &cronParentId,
-		TriggeredBy:       string(datautils.TriggeredByCron),
-		InputData:         input,
+		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
+		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		Cron:               &cron,
+		CronParentId:       &cronParentId,
+		TriggeredBy:        string(datautils.TriggeredByCron),
+		InputData:          input,
+		AdditionalMetadata: additionalMetadata,
 	}
 
 	if input != nil {
@@ -165,6 +185,7 @@ func GetCreateWorkflowRunOptsFromSchedule(
 	scheduledWorkflowId string,
 	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
 	input []byte,
+	additionalMetadata map[string]interface{},
 	fs ...CreateWorkflowRunOpt,
 ) (*CreateWorkflowRunOpts, error) {
 	opts := &CreateWorkflowRunOpts{
@@ -173,6 +194,7 @@ func GetCreateWorkflowRunOptsFromSchedule(
 		ScheduledWorkflowId: &scheduledWorkflowId,
 		TriggeredBy:         string(datautils.TriggeredBySchedule),
 		InputData:           input,
+		AdditionalMetadata:  additionalMetadata,
 	}
 
 	if input != nil {
@@ -235,6 +257,9 @@ type ListWorkflowRunsOpts struct {
 
 	// (optional) a time after which the run was created
 	CreatedAfter *time.Time
+
+	// (optional) exact metadata to filter by
+	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
 }
 
 type WorkflowRunsMetricsOpts struct {
@@ -252,6 +277,9 @@ type WorkflowRunsMetricsOpts struct {
 
 	// (optional) the event id that triggered the workflow run
 	EventId *string `validate:"omitempty,uuid"`
+
+	// (optional) exact metadata to filter by
+	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
 }
 
 type ListWorkflowRunsResult struct {

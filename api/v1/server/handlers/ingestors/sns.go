@@ -58,7 +58,7 @@ func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestO
 			return nil, err
 		}
 	default:
-		_, err := i.config.Ingestor.IngestEvent(ctx.Request().Context(), req.Tenant.String(), req.Event, body)
+		_, err := i.config.Ingestor.IngestEvent(ctx.Request().Context(), req.Tenant.String(), req.Event, body, nil)
 
 		if err != nil {
 			return nil, err

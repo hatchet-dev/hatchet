@@ -1,8 +1,12 @@
 package workflows
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -31,6 +35,23 @@ func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.Wo
 	if request.Params.ParentStepRunId != nil {
 		parentStepRunIdStr := request.Params.ParentStepRunId.String()
 		listOpts.ParentStepRunId = &parentStepRunIdStr
+	}
+
+	if request.Params.AdditionalMetadata != nil {
+		additionalMetadata := make(map[string]interface{}, len(*request.Params.AdditionalMetadata))
+
+		for _, v := range *request.Params.AdditionalMetadata {
+			splitValue := strings.Split(fmt.Sprintf("%v", v), ":")
+
+			if len(splitValue) == 2 {
+				additionalMetadata[splitValue[0]] = splitValue[1]
+			} else {
+				return gen.WorkflowRunGetMetrics400JSONResponse(apierrors.NewAPIErrors("Additional metadata filters must be in the format key:value.")), nil
+
+			}
+		}
+
+		listOpts.AdditionalMetadata = additionalMetadata
 	}
 
 	workflowRunsMetricsCount, err := t.config.APIRepository.WorkflowRun().WorkflowRunMetricsCount(tenant.ID, listOpts)

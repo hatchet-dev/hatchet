@@ -138,6 +138,9 @@ message TriggerWorkflowRequest {
     // child key will return an existing workflow run if the parent id, parent step run id, and
     // child index/key match an existing workflow run.
     optional string child_key = 6;
+
+    // (optional) additional metadata for the workflow
+    optional string additional_metadata = 7;
 }
 
 message TriggerWorkflowResponse {

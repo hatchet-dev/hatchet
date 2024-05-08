@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -92,6 +93,15 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 
 	var createOpts *repository.CreateWorkflowRunOpts
 
+	var additionalMetadata map[string]interface{}
+
+	if req.AdditionalMetadata != nil {
+		err := json.Unmarshal([]byte(*req.AdditionalMetadata), &additionalMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("could not unmarshal additional metadata: %w", err)
+		}
+	}
+
 	if isParentTriggered {
 		createOpts, err = repository.GetCreateWorkflowRunOptsFromParent(
 			workflowVersion,
@@ -101,9 +111,10 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 			*req.ParentStepRunId,
 			int(*req.ChildIndex),
 			req.ChildKey,
+			additionalMetadata,
 		)
 	} else {
-		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input))
+		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input), additionalMetadata)
 	}
 
 	if err != nil {
@@ -295,6 +306,8 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	}
 
 	workflowVersionId := sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID)
+
+	// FIXME add additional metadata?
 
 	_, err = a.repo.Workflow().CreateSchedules(
 		ctx,

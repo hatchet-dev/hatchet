@@ -61,12 +61,11 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 	return res
 }
 
-func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64) *gen.Worker {
+func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64, slots *int) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
 	maxRuns := int(worker.MaxRuns.Int32)
-	availableRuns := maxRuns - int(*stepCount)
 
 	status := gen.ACTIVE
 
@@ -80,7 +79,7 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64) *gen.Worker {
 		Status:        &status,
 		DispatcherId:  &dispatcherId,
 		MaxRuns:       &maxRuns,
-		AvailableRuns: &availableRuns,
+		AvailableRuns: slots,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

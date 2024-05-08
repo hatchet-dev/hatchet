@@ -74,7 +74,8 @@ INSERT INTO "Event" (
     "key",
     "tenantId",
     "replayedFromId",
-    "data"
+    "data",
+    "additionalMetadata"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -83,19 +84,21 @@ INSERT INTO "Event" (
     $5::text,
     $6::uuid,
     $7::uuid,
-    $8::jsonb
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data
+    $8::jsonb,
+    $9::jsonb
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
 `
 
 type CreateEventParams struct {
-	ID             pgtype.UUID      `json:"id"`
-	CreatedAt      pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt      pgtype.Timestamp `json:"updatedAt"`
-	Deletedat      pgtype.Timestamp `json:"deletedat"`
-	Key            string           `json:"key"`
-	Tenantid       pgtype.UUID      `json:"tenantid"`
-	ReplayedFromId pgtype.UUID      `json:"replayedFromId"`
-	Data           []byte           `json:"data"`
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	Deletedat          pgtype.Timestamp `json:"deletedat"`
+	Key                string           `json:"key"`
+	Tenantid           pgtype.UUID      `json:"tenantid"`
+	ReplayedFromId     pgtype.UUID      `json:"replayedFromId"`
+	Data               []byte           `json:"data"`
+	Additionalmetadata []byte           `json:"additionalmetadata"`
 }
 
 func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParams) (*Event, error) {
@@ -108,6 +111,7 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 		arg.Tenantid,
 		arg.ReplayedFromId,
 		arg.Data,
+		arg.Additionalmetadata,
 	)
 	var i Event
 	err := row.Scan(
@@ -119,13 +123,14 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 		&i.TenantId,
 		&i.ReplayedFromId,
 		&i.Data,
+		&i.AdditionalMetadata,
 	)
 	return &i, err
 }
 
 const getEventForEngine = `-- name: GetEventForEngine :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
 FROM
     "Event"
 WHERE
@@ -144,6 +149,7 @@ func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id pgtype.UUID
 		&i.TenantId,
 		&i.ReplayedFromId,
 		&i.Data,
+		&i.AdditionalMetadata,
 	)
 	return &i, err
 }
@@ -189,7 +195,7 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 
 const listEvents = `-- name: ListEvents :many
 SELECT
-    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data,
+    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, events."additionalMetadata",
     sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
     sum(case when runs."status" = 'QUEUED' then 1 else 0 end) AS queuedRuns,
     sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
@@ -211,39 +217,44 @@ WHERE
         $2::text[] IS NULL OR
         events."key" = ANY($2::text[])
     ) AND
-    (
-        ($3::text[])::uuid[] IS NULL OR
-        (workflow."id" = ANY($3::text[]::uuid[]))
+        (
+        $3::jsonb IS NULL OR
+        events."additionalMetadata" @> $3::jsonb
     ) AND
     (
-        $4::text IS NULL OR
-        workflow.name like concat('%', $4::text, '%') OR
-        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $4::text, '")') as jsonpath))
+        ($4::text[])::uuid[] IS NULL OR
+        (workflow."id" = ANY($4::text[]::uuid[]))
     ) AND
     (
-        $5::text[] IS NULL OR
-        "status" = ANY(cast($5::text[] as "WorkflowRunStatus"[]))
+        $5::text IS NULL OR
+        workflow.name like concat('%', $5::text, '%') OR
+        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $5::text, '")') as jsonpath))
+    ) AND
+    (
+        $6::text[] IS NULL OR
+        "status" = ANY(cast($6::text[] as "WorkflowRunStatus"[]))
     )
 GROUP BY
     events."id"
 ORDER BY
-    case when $6 = 'createdAt ASC' THEN events."createdAt" END ASC ,
-    case when $6 = 'createdAt DESC' then events."createdAt" END DESC
+    case when $7 = 'createdAt ASC' THEN events."createdAt" END ASC ,
+    case when $7 = 'createdAt DESC' then events."createdAt" END DESC
 OFFSET
-    COALESCE($7, 0)
+    COALESCE($8, 0)
 LIMIT
-    COALESCE($8, 50)
+    COALESCE($9, 50)
 `
 
 type ListEventsParams struct {
-	TenantId  pgtype.UUID `json:"tenantId"`
-	Keys      []string    `json:"keys"`
-	Workflows []string    `json:"workflows"`
-	Search    pgtype.Text `json:"search"`
-	Statuses  []string    `json:"statuses"`
-	Orderby   interface{} `json:"orderby"`
-	Offset    interface{} `json:"offset"`
-	Limit     interface{} `json:"limit"`
+	TenantId           pgtype.UUID `json:"tenantId"`
+	Keys               []string    `json:"keys"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	Workflows          []string    `json:"workflows"`
+	Search             pgtype.Text `json:"search"`
+	Statuses           []string    `json:"statuses"`
+	Orderby            interface{} `json:"orderby"`
+	Offset             interface{} `json:"offset"`
+	Limit              interface{} `json:"limit"`
 }
 
 type ListEventsRow struct {
@@ -259,6 +270,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 	rows, err := db.Query(ctx, listEvents,
 		arg.TenantId,
 		arg.Keys,
+		arg.AdditionalMetadata,
 		arg.Workflows,
 		arg.Search,
 		arg.Statuses,
@@ -282,6 +294,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Event.TenantId,
 			&i.Event.ReplayedFromId,
 			&i.Event.Data,
+			&i.Event.AdditionalMetadata,
 			&i.Pendingruns,
 			&i.Queuedruns,
 			&i.Runningruns,
@@ -300,7 +313,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 
 const listEventsByIDs = `-- name: ListEventsByIDs :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data 
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata" 
 FROM
     "Event" as events
 WHERE
@@ -331,6 +344,7 @@ func (q *Queries) ListEventsByIDs(ctx context.Context, db DBTX, arg ListEventsBy
 			&i.TenantId,
 			&i.ReplayedFromId,
 			&i.Data,
+			&i.AdditionalMetadata,
 		); err != nil {
 			return nil, err
 		}

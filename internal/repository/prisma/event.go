@@ -94,6 +94,10 @@ func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEv
 		countParams.Statuses = statuses
 	}
 
+	if opts.AdditionalMetadata != nil {
+		queryParams.AdditionalMetadata = opts.AdditionalMetadata
+	}
+
 	orderByField := "createdAt"
 	orderByDirection := "DESC"
 
@@ -219,10 +223,11 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 	}
 
 	createParams := dbsqlc.CreateEventParams{
-		ID:       sqlchelpers.UUIDFromStr(uuid.New().String()),
-		Key:      opts.Key,
-		Tenantid: sqlchelpers.UUIDFromStr(opts.TenantId),
-		Data:     opts.Data,
+		ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
+		Key:                opts.Key,
+		Tenantid:           sqlchelpers.UUIDFromStr(opts.TenantId),
+		Data:               opts.Data,
+		Additionalmetadata: opts.AdditionalMetadata,
 	}
 
 	if opts.ReplayedEvent != nil {

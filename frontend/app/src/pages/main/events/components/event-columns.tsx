@@ -17,6 +17,7 @@ import invariant from 'tiny-invariant';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
+import { AdditionalMetadata } from './additional-metadata';
 
 export const columns = ({
   onRowClick,
@@ -106,6 +107,22 @@ export const columns = ({
         return <WorkflowRunSummary event={row.original} />;
       },
     },
+    {
+      accessorKey: 'Metadata',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Metadata" />
+      ),
+      cell: ({ row }) => {
+        if (!row.original.additionalMetadata) {
+          return <div></div>;
+        }
+
+        return (
+          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+        );
+      },
+      enableSorting: false,
+    },
     // {
     //   id: "actions",
     //   cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
@@ -174,6 +191,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
           select: false,
           'Triggered by': false,
           actions: false,
+          Metadata: false,
         }}
         showColumnToggle={false}
         isLoading={listWorkflowRunsQuery.isLoading}

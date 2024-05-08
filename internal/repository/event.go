@@ -19,6 +19,9 @@ type CreateEventOpts struct {
 
 	// (optional) the event that this event is replaying
 	ReplayedEvent *string `validate:"omitempty,uuid"`
+
+	// (optional) the event metadata
+	AdditionalMetadata []byte
 }
 
 type ListEventOpts struct {
@@ -48,6 +51,9 @@ type ListEventOpts struct {
 
 	// (optional) the order direction
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
+
+	// (optional) the event metadata
+	AdditionalMetadata []byte
 }
 
 type ListEventResult struct {

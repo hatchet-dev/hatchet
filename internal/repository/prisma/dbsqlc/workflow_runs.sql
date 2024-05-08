@@ -34,6 +34,10 @@ WHERE
         runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
     ) AND
     (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
+    ) AND
+    (
         sqlc.narg('eventId')::uuid IS NULL OR
         events."id" = sqlc.narg('eventId')::uuid
     ) AND
@@ -82,6 +86,10 @@ WHERE
         runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
     ) AND
     (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
+    ) AND
+    (
         sqlc.narg('eventId')::uuid IS NULL OR
         events."id" = sqlc.narg('eventId')::uuid
     );
@@ -117,6 +125,10 @@ WHERE
     (
         sqlc.narg('ids')::uuid[] IS NULL OR
         runs."id" = ANY(sqlc.narg('ids')::uuid[])
+    ) AND 
+    (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
     ) AND
     (
         sqlc.narg('parentId')::uuid IS NULL OR
@@ -342,7 +354,8 @@ INSERT INTO "WorkflowRun" (
     "childIndex",
     "childKey",
     "parentId",
-    "parentStepRunId"
+    "parentStepRunId",
+    "additionalMetadata"
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -358,7 +371,8 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('childIndex')::int,
     sqlc.narg('childKey')::text,
     sqlc.narg('parentId')::uuid,
-    sqlc.narg('parentStepRunId')::uuid
+    sqlc.narg('parentStepRunId')::uuid,
+    @additionalMetadata::jsonb
 ) RETURNING *;
 
 -- name: CreateWorkflowRunTriggeredBy :one

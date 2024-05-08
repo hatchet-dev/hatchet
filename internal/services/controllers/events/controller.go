@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -146,10 +147,20 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *msgqueue.M
 		return fmt.Errorf("could not decode task metadata: %w", err)
 	}
 
-	return ec.processEvent(ctx, metadata.TenantId, payload.EventId, payload.EventKey, []byte(payload.EventData))
+	var additionalMetadata map[string]interface{}
+
+	if payload.EventAdditionalMetadata != "" {
+		err = json.Unmarshal([]byte(payload.EventAdditionalMetadata), &additionalMetadata)
+
+		if err != nil {
+			return fmt.Errorf("could not unmarshal additional metadata: %w", err)
+		}
+	}
+
+	return ec.processEvent(ctx, metadata.TenantId, payload.EventId, payload.EventKey, []byte(payload.EventData), additionalMetadata)
 }
 
-func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, eventId, eventKey string, data []byte) error {
+func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, eventId, eventKey string, data []byte, additionalMetadata map[string]interface{}) error {
 	ctx, span := telemetry.NewSpan(ctx, "process-event")
 	defer span.End()
 
@@ -168,7 +179,7 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 
 		g.Go(func() error {
 			// create a new workflow run in the database
-			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(eventId, workflowCp, data)
+			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(eventId, workflowCp, data, additionalMetadata)
 
 			if err != nil {
 				return fmt.Errorf("could not get create workflow run opts: %w", err)
