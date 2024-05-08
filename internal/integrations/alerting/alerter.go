@@ -46,9 +46,16 @@ func (t *TenantAlertManager) HandleAlert(tenantId string) error {
 		return err
 	}
 
-	if lastAlertedAt.IsZero() || time.Since(lastAlertedAt) > maxFrequency {
+	isZero := lastAlertedAt.IsZero()
+
+	if isZero || time.Since(lastAlertedAt) > maxFrequency {
 		// update the lastAlertedAt
 		now := time.Now().UTC()
+
+		// if we're in the zero state, we don't want to alert since the very beginning of the interval
+		if isZero {
+			lastAlertedAt = now.Add(-1 * maxFrequency)
+		}
 
 		err = t.repo.TenantAlertingSettings().UpdateTenantAlertingSettings(ctx, tenantId, &repository.UpdateTenantAlertingSettingsOpts{
 			LastAlertedAt: &now,
