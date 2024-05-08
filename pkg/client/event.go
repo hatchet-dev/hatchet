@@ -47,11 +47,10 @@ func newEvent(conn *grpc.ClientConn, opts *sharedClientOpts) EventClient {
 	}
 }
 
-func WithMetadata(metadata interface{}) PushOpFunc {
+func WithEventMetadata(metadata interface{}) PushOpFunc {
 	return func(r *eventcontracts.PushEventRequest) error {
 		metadataBytes, err := json.Marshal(metadata)
 		if err != nil {
-			// Handle the error appropriately
 			return err
 		}
 

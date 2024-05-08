@@ -7,5 +7,6 @@
   "on-failure": "On Failure Step",
   "streaming": "Streaming",
   "triggering-runs": "Triggering Runs",
-  "rate-limits": "Global Rate Limits"
+  "rate-limits": "Global Rate Limits",
+  "additional-metadata": "Additional Metadata"
 }
