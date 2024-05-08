@@ -2,7 +2,8 @@ import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
 import { TenantInvite } from '@/lib/api';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
-import { capitalize, relativeDate } from '@/lib/utils';
+import { capitalize } from '@/lib/utils';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export const columns = ({
   onEditClick,
@@ -34,7 +35,9 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Created" />
       ),
       cell: ({ row }) => (
-        <div>{relativeDate(row.original.metadata.createdAt)}</div>
+        <div>
+          <RelativeDate date={row.original.metadata.createdAt} />
+        </div>
       ),
     },
     {
@@ -43,7 +46,11 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Expires" />
       ),
       cell: ({ row }) => {
-        return <div>{relativeDate(row.original.expires)}</div>;
+        return (
+          <div>
+            <RelativeDate date={row.original.expires} />
+          </div>
+        );
       },
     },
     {

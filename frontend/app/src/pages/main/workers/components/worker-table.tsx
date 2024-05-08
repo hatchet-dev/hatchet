@@ -15,7 +15,7 @@ import {
   CardDescription,
   CardFooter,
 } from '@/components/ui/card';
-import { cn, relativeDate } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import {
   ArrowPathIcon,
   QuestionMarkCircleIcon,
@@ -23,6 +23,7 @@ import {
 import { BiCard, BiTable } from 'react-icons/bi';
 import { WorkerStatus, isHealthy } from '../$worker';
 import { ColumnFiltersState } from '@tanstack/react-table';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export function WorkersTable() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -102,9 +103,15 @@ export function WorkersTable() {
           <WorkerStatus status={data.status} health={isHealthy(data)} />
         </h3>
         <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
-          Started {relativeDate(data.metadata?.createdAt)}
+          Started <RelativeDate date={data.metadata?.createdAt} />
           <br />
-          Last seen {relativeDate(data?.lastHeartbeatAt)} <br />
+          Last seen{' '}
+          {data?.lastHeartbeatAt ? (
+            <RelativeDate date={data?.lastHeartbeatAt} />
+          ) : (
+            'N/A'
+          )}
+          <br />
           {(data.maxRuns ?? 0) > 0
             ? `${data.availableRuns} / ${data.maxRuns ?? 0}`
             : '100'}{' '}

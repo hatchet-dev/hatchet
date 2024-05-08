@@ -15,13 +15,14 @@ import {
   CardDescription,
   CardFooter,
 } from '@/components/ui/card';
-import { cn, relativeDate } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import {
   ArrowPathIcon,
   QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
 import { SortingState, VisibilityState } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export function WorkflowTable() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -89,8 +90,14 @@ export function WorkflowTable() {
           <Link to={`/workflows/${data.metadata?.id}`}>{data.name}</Link>
         </h3>
         <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
-          Last run {relativeDate(data.lastRun?.metadata?.createdAt)} <br />
-          Created at {relativeDate(data.metadata?.createdAt)}
+          Last run{' '}
+          {data.lastRun?.metadata?.createdAt ? (
+            <RelativeDate date={data.lastRun?.metadata?.createdAt} />
+          ) : (
+            'never'
+          )}
+          <br />
+          Created at <RelativeDate date={data.metadata?.createdAt} />
         </p>
       </div>
       <div className="px-4 py-4 sm:px-6">

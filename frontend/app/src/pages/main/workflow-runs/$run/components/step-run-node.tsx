@@ -1,10 +1,11 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { StepRun, StepRunStatus } from '@/lib/api';
-import { cn, formatDuration, relativeDate } from '@/lib/utils';
+import { cn, formatDuration } from '@/lib/utils';
 import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import { RunIndicator } from '../../components/run-statuses';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export interface StepRunNodeProps {
   stepRun: StepRun;
@@ -96,7 +97,7 @@ export function getTiming({ stepRun }: { stepRun: StepRun }) {
     <Label className="cursor-pointer">
       <span className="font-bold mr-2 text-xs">Started</span>
       <span className="text-gray-500 font-medium text-xs">
-        {relativeDate(stepRun.startedAt)}
+        <RelativeDate date={stepRun.startedAt} />
       </span>
     </Label>
   );
