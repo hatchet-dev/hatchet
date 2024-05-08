@@ -4,7 +4,6 @@ import CronPrettifier from 'cronstrue';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
-import { Badge } from '@/components/ui/badge';
 import { timeBetween } from '@/lib/utils';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
@@ -13,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { StepRunPlayground } from './components/step-run-playground';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import RelativeDate from '@/components/molecules/relative-date';
+import { RunStatus } from '../components/run-statuses';
 
 export default function ExpandedWorkflowRun() {
   const [selectedStepRun, setSelectedStepRun] = useState<StepRun | undefined>();
@@ -105,10 +105,7 @@ export default function ExpandedWorkflowRun() {
               /{selectedStepRun?.step?.readableId || '*'}
             </h2>
           </div>
-          <Badge className="text-sm mt-1" variant={'secondary'}>
-            {/* {workflow.versions && workflow.versions[0].version} */}
-            {run.status}
-          </Badge>
+          <RunStatus status={run.status} className="text-sm mt-1 px-4 shrink" />
         </div>
         <div className="flex flex-row justify-start items-center gap-2">
           <div className="text-sm text-gray-700 dark:text-gray-300">
