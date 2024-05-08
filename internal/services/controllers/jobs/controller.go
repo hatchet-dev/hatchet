@@ -525,21 +525,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
 			if isTimedOut {
-				var updateInfo *repository.StepRunUpdateInfo
-
-				stepRunCp, updateInfo, err = ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
-					CancelledAt:     &now,
-					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
-					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
-				})
-
-				if err != nil {
-					return fmt.Errorf("could not update step run %s: %w", stepRunId, err)
-				}
-
-				defer ec.handleStepRunUpdateInfo(stepRunCp, updateInfo)
-
-				return nil
+				return ec.cancelStepRun(ctx, tenantId, stepRunId, "SCHEDULING_TIMED_OUT")
 			}
 
 			return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
@@ -619,21 +605,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
 			if isTimedOut {
-				var updateInfo *repository.StepRunUpdateInfo
-
-				stepRunCp, updateInfo, err = ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
-					CancelledAt:     &now,
-					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
-					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
-				})
-
-				if err != nil {
-					return fmt.Errorf("could not update step run %s: %w", stepRunId, err)
-				}
-
-				defer ec.handleStepRunUpdateInfo(stepRunCp, updateInfo)
-
-				return nil
+				return ec.cancelStepRun(ctx, tenantId, stepRunId, "SCHEDULING_TIMED_OUT")
 			}
 
 			return ec.scheduleStepRun(ctx, tenantId, stepRunCp)

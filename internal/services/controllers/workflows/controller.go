@@ -376,7 +376,7 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 	// cancel current step run
 	now := time.Now().UTC()
 
-	_, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+	groupKeyRun, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		CancelledAt:     &now,
 		CancelledReason: repository.StringPtr(reason),
 		Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
@@ -386,7 +386,14 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 		return fmt.Errorf("could not update step run: %w", err)
 	}
 
-	// FIXME: eventually send the cancellation to the worker
+	// cancel all existing jobs on the workflow run
+	workflowRunId := sqlchelpers.UUIDToStr(groupKeyRun.WorkflowRunId)
 
-	return nil
+	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get workflow run: %w", err)
+	}
+
+	return wc.cancelWorkflowRunJobs(ctx, workflowRun)
 }
