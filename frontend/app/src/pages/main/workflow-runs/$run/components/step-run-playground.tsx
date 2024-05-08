@@ -106,11 +106,7 @@ export function StepRunPlayground({
     refetchInterval: (query) => {
       const data = query.state.data;
 
-      if (
-        data?.status != 'SUCCEEDED' &&
-        data?.status != 'FAILED' &&
-        data?.status != 'CANCELLED'
-      ) {
+      if (data?.status === StepRunStatus.RUNNING) {
         return 1000;
       }
 
