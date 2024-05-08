@@ -508,6 +508,92 @@ func (q *Queries) PollStepRuns(ctx context.Context, db DBTX, tickerid pgtype.UUI
 	return items, nil
 }
 
+const pollTenantAlerts = `-- name: PollTenantAlerts :many
+WITH active_tenant_alerts AS (
+    SELECT
+        alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt", alerts."tenantId", alerts."maxFrequency", alerts."lastAlertedAt", alerts."tickerId"
+    FROM
+        "TenantAlertingSettings" as alerts
+    -- only return alerts which have a slack webhook enabled
+    JOIN
+        "SlackAppWebhook" as webhooks ON webhooks."tenantId" = alerts."tenantId"
+    WHERE
+        "lastAlertedAt" IS NULL OR
+        "lastAlertedAt" <= NOW() - convert_duration_to_interval(alerts."maxFrequency")
+    FOR UPDATE SKIP LOCKED
+),
+failed_run_count_by_tenant AS (
+    SELECT
+        workflowRun."tenantId",
+        COUNT(*) as "failedWorkflowRunCount"
+    FROM
+        "WorkflowRun" as workflowRun
+    JOIN
+        active_tenant_alerts ON active_tenant_alerts."tenantId" = workflowRun."tenantId"
+    WHERE
+        "status" = 'FAILED'
+        AND (
+            "lastAlertedAt" IS NULL OR
+            workflowRun."createdAt" >= "lastAlertedAt"
+        )
+    GROUP BY workflowRun."tenantId"
+)
+UPDATE
+    "TenantAlertingSettings" as alerts
+SET
+    "tickerId" = $1::uuid,
+    "lastAlertedAt" = NOW()
+FROM
+    active_tenant_alerts
+WHERE
+    alerts."id" = active_tenant_alerts."id" AND
+    alerts."tenantId" IN (SELECT "tenantId" FROM failed_run_count_by_tenant WHERE "failedWorkflowRunCount" > 0)
+RETURNING alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt", alerts."tenantId", alerts."maxFrequency", alerts."lastAlertedAt", alerts."tickerId", active_tenant_alerts."lastAlertedAt" AS "prevLastAlertedAt"
+`
+
+type PollTenantAlertsRow struct {
+	ID                pgtype.UUID      `json:"id"`
+	CreatedAt         pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt         pgtype.Timestamp `json:"deletedAt"`
+	TenantId          pgtype.UUID      `json:"tenantId"`
+	MaxFrequency      string           `json:"maxFrequency"`
+	LastAlertedAt     pgtype.Timestamp `json:"lastAlertedAt"`
+	TickerId          pgtype.UUID      `json:"tickerId"`
+	PrevLastAlertedAt pgtype.Timestamp `json:"prevLastAlertedAt"`
+}
+
+// Finds tenant alerts which haven't alerted since their frequency and assigns them to a ticker
+func (q *Queries) PollTenantAlerts(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*PollTenantAlertsRow, error) {
+	rows, err := db.Query(ctx, pollTenantAlerts, tickerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*PollTenantAlertsRow
+	for rows.Next() {
+		var i PollTenantAlertsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.MaxFrequency,
+			&i.LastAlertedAt,
+			&i.TickerId,
+			&i.PrevLastAlertedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setTickersInactive = `-- name: SetTickersInactive :many
 UPDATE
     "Ticker" as tickers

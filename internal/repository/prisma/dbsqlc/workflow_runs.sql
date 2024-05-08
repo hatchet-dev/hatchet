@@ -42,12 +42,16 @@ WHERE
         events."id" = sqlc.narg('eventId')::uuid
     ) AND
     (
-    sqlc.narg('groupKey')::text IS NULL OR
-    runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
+        sqlc.narg('groupKey')::text IS NULL OR
+        runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
     ) AND
     (
         sqlc.narg('statuses')::text[] IS NULL OR
         "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+    ) AND
+    (
+        sqlc.narg('createdAfter')::timestamp IS NULL OR
+        runs."createdAt" > sqlc.narg('createdAfter')::timestamp
     );
 
 -- name: WorkflowRunsMetricsCount :one
@@ -139,12 +143,16 @@ WHERE
         events."id" = sqlc.narg('eventId')::uuid
     ) AND
     (
-    sqlc.narg('groupKey')::text IS NULL OR
-    runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
+        sqlc.narg('groupKey')::text IS NULL OR
+        runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
     ) AND
     (
         sqlc.narg('statuses')::text[] IS NULL OR
         "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+    ) AND
+    (
+        sqlc.narg('createdAfter')::timestamp IS NULL OR
+        runs."createdAt" > sqlc.narg('createdAfter')::timestamp
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
@@ -304,7 +312,11 @@ RETURNING "WorkflowRun".*;
 UPDATE
     "WorkflowRun"
 SET
-    "status" = COALESCE(sqlc.narg('status')::"WorkflowRunStatus", "status"),
+    "status" = CASE 
+    -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
+        ELSE COALESCE(sqlc.narg('status')::"WorkflowRunStatus", "status")
+    END,
     "error" = COALESCE(sqlc.narg('error')::text, "error"),
     "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
     "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt")

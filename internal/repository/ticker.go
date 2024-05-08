@@ -46,6 +46,8 @@ type TickerEngineRepository interface {
 
 	PollScheduledWorkflows(ctx context.Context, tickerId string) ([]*dbsqlc.PollScheduledWorkflowsRow, error)
 
+	PollTenantAlerts(ctx context.Context, tickerId string) ([]*dbsqlc.PollTenantAlertsRow, error)
+
 	// // AddJobRun assigns a job run to a ticker.
 	// AddJobRun(tickerId string, jobRun *db.JobRunModel) (*db.TickerModel, error)
 

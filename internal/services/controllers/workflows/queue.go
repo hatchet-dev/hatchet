@@ -119,6 +119,8 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 	wc.l.Info().Msgf("finishing workflow run %s", workflowRunId)
 
+	shouldAlertFailure := workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusFAILED
+
 	// if there's an onFailure job, start that job
 	if workflowRun.WorkflowVersion.OnFailureJobId.Valid {
 		jobRun, err := wc.repo.JobRun().GetJobRunByWorkflowRunIdAndJobId(
@@ -155,6 +157,18 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 					return fmt.Errorf("could not add job run to task queue: %w", err)
 				}
 			}
+		} else {
+			shouldAlertFailure = false
+		}
+	}
+
+	if shouldAlertFailure {
+		err := wc.tenantAlerter.HandleAlert(
+			sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId),
+		)
+
+		if err != nil {
+			wc.l.Err(err).Msg("could not handle alert")
 		}
 	}
 

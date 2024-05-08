@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
+	slackapp "github.com/hatchet-dev/hatchet/api/v1/server/handlers/slack-app"
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
@@ -40,6 +41,7 @@ type apiService struct {
 	*stepruns.StepRunService
 	*githubapp.GithubAppService
 	*ingestors.IngestorsService
+	*slackapp.SlackAppService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -55,6 +57,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		StepRunService:   stepruns.NewStepRunService(config),
 		GithubAppService: githubapp.NewGithubAppService(config),
 		IngestorsService: ingestors.NewIngestorsService(config),
+		SlackAppService:  slackapp.NewSlackAppService(config),
 	}
 }
 
@@ -116,6 +119,26 @@ func (t *APIServer) Run() (func() error, error) {
 		}
 
 		return tenantInvite, tenantInvite.TenantID, nil
+	})
+
+	populatorMW.RegisterGetter("slack", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		slackWebhook, err := config.APIRepository.Slack().GetSlackWebhookById(id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return slackWebhook, slackWebhook.TenantID, nil
+	})
+
+	populatorMW.RegisterGetter("alert-email-group", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		emailGroup, err := config.APIRepository.TenantAlertingSettings().GetTenantAlertGroupById(id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return emailGroup, emailGroup.TenantID, nil
 	})
 
 	populatorMW.RegisterGetter("sns", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {

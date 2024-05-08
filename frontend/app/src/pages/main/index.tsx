@@ -7,7 +7,7 @@ import {
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
-import { Link, Outlet, useOutletContext } from 'react-router-dom';
+import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
 import { Tenant, TenantMember } from '@/lib/api';
 import { GearIcon } from '@radix-ui/react-icons';
 import React, { useCallback } from 'react';
@@ -20,6 +20,7 @@ import { useTenantContext } from '@/lib/atoms';
 import { Loading } from '@/components/ui/loading.tsx';
 import { useSidebar } from '@/components/sidebar-provider';
 import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -84,22 +85,18 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               Activity
             </h2>
             <div className="space-y-1">
-              <Link to="/events" onClick={onNavLinkClick}>
-                <Button variant="ghost" className="w-full justify-start pl-2">
-                  <QueueListIcon className="mr-2 h-4 w-4" />
-                  Events
-                </Button>
-              </Link>
-              <Link to="/workflow-runs" onClick={onNavLinkClick}>
-                <Button variant="ghost" className="w-full justify-start pl-2">
-                  <AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />
-                  Workflow Runs
-                </Button>
-              </Link>
-              {/* <Button variant="ghost" className="w-full justify-start pl-2">
-                <ChartBarSquareIcon className="mr-2 h-4 w-4" />
-                Metrics
-              </Button> */}
+              <SidebarButtonPrimary
+                onNavLinkClick={onNavLinkClick}
+                to="/events"
+                name="Events"
+                icon={<QueueListIcon className="mr-2 h-4 w-4" />}
+              />
+              <SidebarButtonPrimary
+                onNavLinkClick={onNavLinkClick}
+                to="/workflow-runs"
+                name="Workflow Runs"
+                icon={<AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />}
+              />
             </div>
           </div>
           <div className="py-2">
@@ -107,19 +104,18 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               Resources
             </h2>
             <div className="space-y-1">
-              <Link to="/workflows" onClick={onNavLinkClick}>
-                <Button variant="ghost" className="w-full justify-start pl-2">
-                  <Squares2X2Icon className="mr-2 h-4 w-4" />
-                  Workflows
-                </Button>
-              </Link>
-
-              <Link to="/workers" onClick={onNavLinkClick}>
-                <Button variant="ghost" className="w-full justify-start pl-2">
-                  <ServerStackIcon className="mr-2 h-4 w-4" />
-                  Workers
-                </Button>
-              </Link>
+              <SidebarButtonPrimary
+                onNavLinkClick={onNavLinkClick}
+                to="/workflows"
+                name="Workflows"
+                icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
+              />
+              <SidebarButtonPrimary
+                onNavLinkClick={onNavLinkClick}
+                to="/workers"
+                name="Workers"
+                icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
+              />
             </div>
           </div>
           <div className="py-2">
@@ -127,17 +123,128 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               Settings
             </h2>
             <div className="space-y-1">
-              <Link to="/tenant-settings" onClick={onNavLinkClick}>
-                <Button variant="ghost" className="w-full justify-start pl-2">
-                  <GearIcon className="mr-2 h-4 w-4" />
-                  General
-                </Button>
-              </Link>
+              <SidebarButtonPrimary
+                onNavLinkClick={onNavLinkClick}
+                to="/tenant-settings/overview"
+                prefix="/tenant-settings"
+                name="General"
+                icon={<GearIcon className="mr-2 h-4 w-4" />}
+                collapsibleChildren={[
+                  <SidebarButtonSecondary
+                    key={1}
+                    onNavLinkClick={onNavLinkClick}
+                    to="/tenant-settings/overview"
+                    name="Overview"
+                  />,
+                  <SidebarButtonSecondary
+                    key={2}
+                    onNavLinkClick={onNavLinkClick}
+                    to="/tenant-settings/api-tokens"
+                    name="API Tokens"
+                  />,
+                  <SidebarButtonSecondary
+                    key={3}
+                    onNavLinkClick={onNavLinkClick}
+                    to="/tenant-settings/members"
+                    name="Members"
+                  />,
+                  <SidebarButtonSecondary
+                    key={4}
+                    onNavLinkClick={onNavLinkClick}
+                    to="/tenant-settings/alerting"
+                    name="Alerting"
+                  />,
+                  <SidebarButtonSecondary
+                    key={4}
+                    onNavLinkClick={onNavLinkClick}
+                    to="/tenant-settings/ingestors"
+                    name="Ingestors"
+                  />,
+                ]}
+              />
             </div>
           </div>
         </div>
         <TenantSwitcher memberships={memberships} currTenant={currTenant} />
       </div>
     </div>
+  );
+}
+
+function SidebarButtonPrimary({
+  onNavLinkClick,
+  to,
+  name,
+  icon,
+  prefix,
+  collapsibleChildren = [],
+}: {
+  onNavLinkClick: () => void;
+  to: string;
+  name: string;
+  icon: React.ReactNode;
+  prefix?: string;
+  collapsibleChildren?: React.ReactNode[];
+}) {
+  const location = useLocation();
+  const open = location.pathname.startsWith(prefix || to);
+  const selected = !prefix && location.pathname === to;
+
+  const primaryLink = (
+    <Link to={to} onClick={onNavLinkClick}>
+      <Button
+        variant="ghost"
+        className={cn(
+          'w-full justify-start pl-2 cursor-default',
+          selected && 'bg-slate-200 dark:bg-slate-800',
+        )}
+      >
+        {icon}
+        {name}
+      </Button>
+    </Link>
+  );
+
+  return collapsibleChildren.length == 0 ? (
+    primaryLink
+  ) : (
+    <Collapsible
+      open={open}
+      // onOpenChange={setIsOpen}
+      className="w-full"
+    >
+      {primaryLink}
+      <CollapsibleContent className={'space-y-2 ml-4 border-l border-muted'}>
+        {collapsibleChildren}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function SidebarButtonSecondary({
+  onNavLinkClick,
+  to,
+  name,
+}: {
+  onNavLinkClick: () => void;
+  to: string;
+  name: string;
+}) {
+  const location = useLocation();
+  const selected = location.pathname === to;
+
+  return (
+    <Link to={to} onClick={onNavLinkClick}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn(
+          'w-[calc(100%-3px)] justify-start pl-3 pr-0 ml-1 mr-3 cursor-default my-[1px]',
+          selected && 'bg-slate-200 dark:bg-slate-800',
+        )}
+      >
+        {name}
+      </Button>
+    </Link>
   );
 }

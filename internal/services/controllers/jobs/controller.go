@@ -1054,7 +1054,7 @@ func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *dbsqlc.GetStepRun
 		}
 	}()
 
-	if updateInfo.WorkflowRunFinalState {
+	if updateInfo.WorkflowRunFinalState && stepRun.JobKind == dbsqlc.JobKindDEFAULT {
 		err := ec.mq.AddMessage(
 			context.Background(),
 			msgqueue.WORKFLOW_PROCESSING_QUEUE,

@@ -635,6 +635,19 @@ type ServiceToWorker struct {
 	B pgtype.UUID `json:"B"`
 }
 
+type SlackAppWebhook struct {
+	ID          pgtype.UUID      `json:"id"`
+	CreatedAt   pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt   pgtype.Timestamp `json:"deletedAt"`
+	TenantId    pgtype.UUID      `json:"tenantId"`
+	TeamId      string           `json:"teamId"`
+	TeamName    string           `json:"teamName"`
+	ChannelId   string           `json:"channelId"`
+	ChannelName string           `json:"channelName"`
+	WebhookURL  []byte           `json:"webhookURL"`
+}
+
 type Step struct {
 	ID              pgtype.UUID      `json:"id"`
 	CreatedAt       pgtype.Timestamp `json:"createdAt"`
@@ -731,6 +744,26 @@ type Tenant struct {
 	Name            string           `json:"name"`
 	Slug            string           `json:"slug"`
 	AnalyticsOptOut bool             `json:"analyticsOptOut"`
+}
+
+type TenantAlertEmailGroup struct {
+	ID        pgtype.UUID      `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt pgtype.Timestamp `json:"deletedAt"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+	Emails    string           `json:"emails"`
+}
+
+type TenantAlertingSettings struct {
+	ID            pgtype.UUID      `json:"id"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt     pgtype.Timestamp `json:"deletedAt"`
+	TenantId      pgtype.UUID      `json:"tenantId"`
+	MaxFrequency  string           `json:"maxFrequency"`
+	LastAlertedAt pgtype.Timestamp `json:"lastAlertedAt"`
+	TickerId      pgtype.UUID      `json:"tickerId"`
 }
 
 type TenantInviteLink struct {

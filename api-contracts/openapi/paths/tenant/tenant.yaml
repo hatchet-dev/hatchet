@@ -76,6 +76,199 @@ updateTenants:
     summary: Update tenant
     tags:
       - Tenant
+tenantAlertingSettings:
+  get:
+    x-resources: ["tenant"]
+    description: Gets the alerting settings for a tenant
+    operationId: tenant-alerting-settings:get
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TenantAlertingSettings"
+        description: Successfully retrieved the tenant alerting settings
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Get tenant alerting settings
+    tags:
+      - Tenant
+alertEmailGroup:
+  patch:
+    x-resources: ["tenant", "alert-email-group"]
+    description: Updates a tenant alert email group
+    operationId: alert-email-group:update
+    parameters:
+      - description: The tenant alert email group id
+        in: path
+        name: alert-email-group
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/UpdateTenantAlertEmailGroupRequest"
+      description: The tenant alert email group to update
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TenantAlertEmailGroup"
+        description: Successfully updated the tenant alert email group
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Update tenant alert email group
+    tags:
+      - Tenant
+  delete:
+    x-resources: ["tenant", "alert-email-group"]
+    description: Deletes a tenant alert email group
+    operationId: alert-email-group:delete
+    parameters:
+      - description: The tenant alert email group id
+        in: path
+        name: alert-email-group
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "204":
+        description: Successfully deleted the tenant alert email group
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Delete tenant alert email group
+    tags:
+      - Tenant
+tenantAlertEmailGroups:
+  post:
+    x-resources: ["tenant"]
+    description: Creates a new tenant alert email group
+    operationId: alert-email-group:create
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/CreateTenantAlertEmailGroupRequest"
+      description: The tenant alert email group to create
+      required: true
+    responses:
+      "201":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TenantAlertEmailGroup"
+        description: Successfully created the tenant alert email group
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Create tenant alert email group
+    tags:
+      - Tenant
+  get:
+    x-resources: ["tenant"]
+    description: Gets a list of tenant alert email groups
+    operationId: alert-email-group:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TenantAlertEmailGroupList"
+        description: Successfully retrieved the tenant alert email groups
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: List tenant alert email groups
+    tags:
+      - Tenant
 invites:
   post:
     x-resources: ["tenant"]

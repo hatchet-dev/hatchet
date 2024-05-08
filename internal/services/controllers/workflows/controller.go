@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
@@ -26,11 +27,12 @@ type WorkflowsController interface {
 }
 
 type WorkflowsControllerImpl struct {
-	mq   msgqueue.MessageQueue
-	l    *zerolog.Logger
-	repo repository.EngineRepository
-	dv   datautils.DataDecoderValidator
-	s    gocron.Scheduler
+	mq            msgqueue.MessageQueue
+	l             *zerolog.Logger
+	repo          repository.EngineRepository
+	dv            datautils.DataDecoderValidator
+	s             gocron.Scheduler
+	tenantAlerter *alerting.TenantAlertManager
 }
 
 type WorkflowsControllerOpt func(*WorkflowsControllerOpts)
@@ -40,6 +42,7 @@ type WorkflowsControllerOpts struct {
 	l    *zerolog.Logger
 	repo repository.EngineRepository
 	dv   datautils.DataDecoderValidator
+	ta   *alerting.TenantAlertManager
 }
 
 func defaultWorkflowsControllerOpts() *WorkflowsControllerOpts {
@@ -74,6 +77,12 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) WorkflowsContro
 	}
 }
 
+func WithTenantAlerter(ta *alerting.TenantAlertManager) WorkflowsControllerOpt {
+	return func(opts *WorkflowsControllerOpts) {
+		opts.ta = ta
+	}
+}
+
 func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 	opts := defaultWorkflowsControllerOpts()
 
@@ -89,6 +98,10 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
+	if opts.ta == nil {
+		return nil, fmt.Errorf("tenant alerter is required. use WithTenantAlerter")
+	}
+
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 
 	if err != nil {
@@ -99,11 +112,12 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 	opts.l = &newLogger
 
 	return &WorkflowsControllerImpl{
-		mq:   opts.mq,
-		l:    opts.l,
-		repo: opts.repo,
-		dv:   opts.dv,
-		s:    s,
+		mq:            opts.mq,
+		l:             opts.l,
+		repo:          opts.repo,
+		dv:            opts.dv,
+		s:             s,
+		tenantAlerter: opts.ta,
 	}, nil
 }
 

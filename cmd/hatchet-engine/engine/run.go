@@ -80,6 +80,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			ticker.WithMessageQueue(sc.MessageQueue),
 			ticker.WithRepository(sc.EngineRepository),
 			ticker.WithLogger(sc.Logger),
+			ticker.WithTenantAlerter(sc.TenantAlerter),
 		)
 
 		if err != nil {
@@ -143,6 +144,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			workflows.WithMessageQueue(sc.MessageQueue),
 			workflows.WithRepository(sc.EngineRepository),
 			workflows.WithLogger(sc.Logger),
+			workflows.WithTenantAlerter(sc.TenantAlerter),
 		)
 		if err != nil {
 			return fmt.Errorf("could not create workflows controller: %w", err)

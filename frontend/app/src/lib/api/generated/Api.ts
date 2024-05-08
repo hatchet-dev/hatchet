@@ -18,6 +18,7 @@ import {
   CreateAPITokenResponse,
   CreatePullRequestFromStepRun,
   CreateSNSIntegrationRequest,
+  CreateTenantAlertEmailGroupRequest,
   CreateTenantInviteRequest,
   CreateTenantRequest,
   EventData,
@@ -36,6 +37,7 @@ import {
   ListGithubReposResponse,
   ListPullRequestsResponse,
   ListSNSIntegrations,
+  ListSlackWebhooks,
   LogLineLevelField,
   LogLineList,
   LogLineOrderByDirection,
@@ -48,10 +50,14 @@ import {
   SNSIntegration,
   StepRun,
   Tenant,
+  TenantAlertEmailGroup,
+  TenantAlertEmailGroupList,
+  TenantAlertingSettings,
   TenantInvite,
   TenantInviteList,
   TenantMemberList,
   TriggerWorkflowRunRequest,
+  UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
   UpdateTenantRequest,
   User,
@@ -242,6 +248,38 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Starts the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateSlackOauthStart
+   * @summary Start OAuth flow
+   * @request GET:/api/v1/tenants/{tenant}/slack/start
+   * @secure
+   */
+  userUpdateSlackOauthStart = (tenant: string, params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/tenants/${tenant}/slack/start`,
+      method: "GET",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description Completes the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateSlackOauthCallback
+   * @summary Complete OAuth flow
+   * @request GET:/api/v1/users/slack/callback
+   * @secure
+   */
+  userUpdateSlackOauthCallback = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/slack/callback`,
+      method: "GET",
+      secure: true,
+      ...params,
+    });
+  /**
    * @description Github App global webhook
    *
    * @tags Github
@@ -320,6 +358,81 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Creates a new tenant alert email group
+   *
+   * @tags Tenant
+   * @name AlertEmailGroupCreate
+   * @summary Create tenant alert email group
+   * @request POST:/api/v1/tenants/{tenant}/alerting-email-groups
+   * @secure
+   */
+  alertEmailGroupCreate = (tenant: string, data: CreateTenantAlertEmailGroupRequest, params: RequestParams = {}) =>
+    this.request<TenantAlertEmailGroup, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/alerting-email-groups`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets a list of tenant alert email groups
+   *
+   * @tags Tenant
+   * @name AlertEmailGroupList
+   * @summary List tenant alert email groups
+   * @request GET:/api/v1/tenants/{tenant}/alerting-email-groups
+   * @secure
+   */
+  alertEmailGroupList = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantAlertEmailGroupList, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/alerting-email-groups`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Updates a tenant alert email group
+   *
+   * @tags Tenant
+   * @name AlertEmailGroupUpdate
+   * @summary Update tenant alert email group
+   * @request PATCH:/api/v1/alerting-email-groups/{alert-email-group}
+   * @secure
+   */
+  alertEmailGroupUpdate = (
+    alertEmailGroup: string,
+    data: UpdateTenantAlertEmailGroupRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<TenantAlertEmailGroup, APIErrors | APIError>({
+      path: `/api/v1/alerting-email-groups/${alertEmailGroup}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Deletes a tenant alert email group
+   *
+   * @tags Tenant
+   * @name AlertEmailGroupDelete
+   * @summary Delete tenant alert email group
+   * @request DELETE:/api/v1/alerting-email-groups/{alert-email-group}
+   * @secure
+   */
+  alertEmailGroupDelete = (alertEmailGroup: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/alerting-email-groups/${alertEmailGroup}`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+    });
+  /**
    * @description Delete SNS integration
    *
    * @tags SNS
@@ -331,6 +444,39 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   snsDelete = (sns: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/sns/${sns}`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description List Slack webhooks
+   *
+   * @tags Slack
+   * @name SlackWebhookList
+   * @summary List Slack integrations
+   * @request GET:/api/v1/tenants/{tenant}/slack
+   * @secure
+   */
+  slackWebhookList = (tenant: string, params: RequestParams = {}) =>
+    this.request<ListSlackWebhooks, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/slack`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete Slack webhook
+   *
+   * @tags Slack
+   * @name SlackWebhookDelete
+   * @summary Delete Slack webhook
+   * @request DELETE:/api/v1/slack/{slack}
+   * @secure
+   */
+  slackWebhookDelete = (slack: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/slack/${slack}`,
       method: "DELETE",
       secure: true,
       ...params,
@@ -510,6 +656,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets the alerting settings for a tenant
+   *
+   * @tags Tenant
+   * @name TenantAlertingSettingsGet
+   * @summary Get tenant alerting settings
+   * @request GET:/api/v1/tenants/{tenant}/alerting/settings
+   * @secure
+   */
+  tenantAlertingSettingsGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantAlertingSettings, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/alerting/settings`,
+      method: "GET",
+      secure: true,
       format: "json",
       ...params,
     });

@@ -24,6 +24,12 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.userListTenantInvites()).data,
     },
   },
+  alertingSettings: {
+    get: (tenant: string) => ({
+      queryKey: ['tenant-alerting-settings:get', tenant],
+      queryFn: async () => (await api.tenantAlertingSettingsGet(tenant)).data,
+    }),
+  },
   members: {
     list: (tenant: string) => ({
       queryKey: ['tenant-member:list', tenant],
@@ -34,6 +40,18 @@ export const queries = createQueryKeyStore({
     list: (tenant: string) => ({
       queryKey: ['api-token:list', tenant],
       queryFn: async () => (await api.apiTokenList(tenant)).data,
+    }),
+  },
+  emailGroups: {
+    list: (tenant: string) => ({
+      queryKey: ['email-group:list', tenant],
+      queryFn: async () => (await api.alertEmailGroupList(tenant)).data,
+    }),
+  },
+  slackWebhooks: {
+    list: (tenant: string) => ({
+      queryKey: ['slack-webhook:list', tenant],
+      queryFn: async () => (await api.slackWebhookList(tenant)).data,
     }),
   },
   snsIntegrations: {
