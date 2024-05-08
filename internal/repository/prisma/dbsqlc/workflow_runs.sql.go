@@ -51,25 +51,30 @@ WHERE
         events."id" = $7::uuid
     ) AND
     (
-    $8::text IS NULL OR
-    runs."concurrencyGroupId" = $8::text
+        $8::text IS NULL OR
+        runs."concurrencyGroupId" = $8::text
     ) AND
     (
         $9::text[] IS NULL OR
         "status" = ANY(cast($9::text[] as "WorkflowRunStatus"[]))
+    ) AND
+    (
+        $10::timestamp IS NULL OR
+        runs."createdAt" > $10::timestamp
     )
 `
 
 type CountWorkflowRunsParams struct {
-	TenantId          pgtype.UUID   `json:"tenantId"`
-	WorkflowVersionId pgtype.UUID   `json:"workflowVersionId"`
-	WorkflowId        pgtype.UUID   `json:"workflowId"`
-	Ids               []pgtype.UUID `json:"ids"`
-	ParentId          pgtype.UUID   `json:"parentId"`
-	ParentStepRunId   pgtype.UUID   `json:"parentStepRunId"`
-	EventId           pgtype.UUID   `json:"eventId"`
-	GroupKey          pgtype.Text   `json:"groupKey"`
-	Statuses          []string      `json:"statuses"`
+	TenantId          pgtype.UUID      `json:"tenantId"`
+	WorkflowVersionId pgtype.UUID      `json:"workflowVersionId"`
+	WorkflowId        pgtype.UUID      `json:"workflowId"`
+	Ids               []pgtype.UUID    `json:"ids"`
+	ParentId          pgtype.UUID      `json:"parentId"`
+	ParentStepRunId   pgtype.UUID      `json:"parentStepRunId"`
+	EventId           pgtype.UUID      `json:"eventId"`
+	GroupKey          pgtype.Text      `json:"groupKey"`
+	Statuses          []string         `json:"statuses"`
+	CreatedAfter      pgtype.Timestamp `json:"createdAfter"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -83,6 +88,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.EventId,
 		arg.GroupKey,
 		arg.Statuses,
+		arg.CreatedAfter,
 	)
 	var total int64
 	err := row.Scan(&total)
@@ -732,35 +738,40 @@ WHERE
         events."id" = $7::uuid
     ) AND
     (
-    $8::text IS NULL OR
-    runs."concurrencyGroupId" = $8::text
+        $8::text IS NULL OR
+        runs."concurrencyGroupId" = $8::text
     ) AND
     (
         $9::text[] IS NULL OR
         "status" = ANY(cast($9::text[] as "WorkflowRunStatus"[]))
+    ) AND
+    (
+        $10::timestamp IS NULL OR
+        runs."createdAt" > $10::timestamp
     )
 ORDER BY
-    case when $10 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when $10 = 'createdAt DESC' then runs."createdAt" END DESC
+    case when $11 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+    case when $11 = 'createdAt DESC' then runs."createdAt" END DESC
 OFFSET
-    COALESCE($11, 0)
+    COALESCE($12, 0)
 LIMIT
-    COALESCE($12, 50)
+    COALESCE($13, 50)
 `
 
 type ListWorkflowRunsParams struct {
-	TenantId          pgtype.UUID   `json:"tenantId"`
-	WorkflowVersionId pgtype.UUID   `json:"workflowVersionId"`
-	WorkflowId        pgtype.UUID   `json:"workflowId"`
-	Ids               []pgtype.UUID `json:"ids"`
-	ParentId          pgtype.UUID   `json:"parentId"`
-	ParentStepRunId   pgtype.UUID   `json:"parentStepRunId"`
-	EventId           pgtype.UUID   `json:"eventId"`
-	GroupKey          pgtype.Text   `json:"groupKey"`
-	Statuses          []string      `json:"statuses"`
-	Orderby           interface{}   `json:"orderby"`
-	Offset            interface{}   `json:"offset"`
-	Limit             interface{}   `json:"limit"`
+	TenantId          pgtype.UUID      `json:"tenantId"`
+	WorkflowVersionId pgtype.UUID      `json:"workflowVersionId"`
+	WorkflowId        pgtype.UUID      `json:"workflowId"`
+	Ids               []pgtype.UUID    `json:"ids"`
+	ParentId          pgtype.UUID      `json:"parentId"`
+	ParentStepRunId   pgtype.UUID      `json:"parentStepRunId"`
+	EventId           pgtype.UUID      `json:"eventId"`
+	GroupKey          pgtype.Text      `json:"groupKey"`
+	Statuses          []string         `json:"statuses"`
+	CreatedAfter      pgtype.Timestamp `json:"createdAfter"`
+	Orderby           interface{}      `json:"orderby"`
+	Offset            interface{}      `json:"offset"`
+	Limit             interface{}      `json:"limit"`
 }
 
 type ListWorkflowRunsRow struct {
@@ -785,6 +796,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 		arg.EventId,
 		arg.GroupKey,
 		arg.Statuses,
+		arg.CreatedAfter,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
@@ -1120,7 +1132,11 @@ const updateWorkflowRun = `-- name: UpdateWorkflowRun :one
 UPDATE
     "WorkflowRun"
 SET
-    "status" = COALESCE($1::"WorkflowRunStatus", "status"),
+    "status" = CASE 
+    -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
+        ELSE COALESCE($1::"WorkflowRunStatus", "status")
+    END,
     "error" = COALESCE($2::text, "error"),
     "startedAt" = COALESCE($3::timestamp, "startedAt"),
     "finishedAt" = COALESCE($4::timestamp, "finishedAt")

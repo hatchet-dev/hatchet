@@ -40,6 +40,16 @@ CreateTenantInviteRequest:
   $ref: "./tenant.yaml#/CreateTenantInviteRequest"
 UpdateTenantInviteRequest:
   $ref: "./tenant.yaml#/UpdateTenantInviteRequest"
+TenantAlertingSettings:
+  $ref: "./tenant.yaml#/TenantAlertingSettings"
+TenantAlertEmailGroup:
+  $ref: "./tenant.yaml#/TenantAlertEmailGroup"
+TenantAlertEmailGroupList:
+  $ref: "./tenant.yaml#/TenantAlertEmailGroupList"
+CreateTenantAlertEmailGroupRequest:
+  $ref: "./tenant.yaml#/CreateTenantAlertEmailGroupRequest"
+UpdateTenantAlertEmailGroupRequest:
+  $ref: "./tenant.yaml#/UpdateTenantAlertEmailGroupRequest"
 TenantInvite:
   $ref: "./tenant.yaml#/TenantInvite"
 TenantInviteList:
@@ -184,6 +194,10 @@ SNSIntegration:
   $ref: "./sns.yaml#/SNSIntegration"
 ListSNSIntegrations:
   $ref: "./sns.yaml#/ListSNSIntegrations"
+SlackWebhook:
+  $ref: "./slack.yaml#/SlackWebhook"
+ListSlackWebhooks:
+  $ref: "./slack.yaml#/ListSlackWebhooks"
 CreateSNSIntegrationRequest:
   $ref: "./sns.yaml#/CreateSNSIntegrationRequest"
 WorkflowMetrics:

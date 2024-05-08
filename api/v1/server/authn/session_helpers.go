@@ -53,6 +53,61 @@ func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
 	return session.Save(c.Request(), c.Response())
 }
 
+func (s *SessionHelpers) SaveKV(
+	c echo.Context,
+	k, v string,
+) error {
+	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+
+	if err != nil {
+		return err
+	}
+
+	session.Values[k] = v
+
+	return session.Save(c.Request(), c.Response())
+}
+
+func (s *SessionHelpers) GetKey(
+	c echo.Context,
+	k string,
+) (string, error) {
+	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+
+	if err != nil {
+		return "", err
+	}
+
+	v, ok := session.Values[k]
+
+	if !ok {
+		return "", fmt.Errorf("key not found")
+	}
+
+	vStr, ok := v.(string)
+
+	if !ok {
+		return "", fmt.Errorf("could not cast value to string")
+	}
+
+	return vStr, nil
+}
+
+func (s *SessionHelpers) RemoveKey(
+	c echo.Context,
+	k string,
+) error {
+	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
+
+	if err != nil {
+		return err
+	}
+
+	delete(session.Values, k)
+
+	return session.Save(c.Request(), c.Response())
+}
+
 func (s *SessionHelpers) SaveOAuthState(
 	c echo.Context,
 	integration string,

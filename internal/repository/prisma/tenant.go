@@ -3,6 +3,7 @@ package prisma
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -33,11 +34,34 @@ func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*
 		return nil, err
 	}
 
-	return r.client.Tenant.CreateOne(
+	tenantId := uuid.New().String()
+
+	if opts.ID != nil {
+		tenantId = *opts.ID
+	}
+
+	createTenantTx := r.client.Tenant.CreateOne(
 		db.Tenant.Name.Set(opts.Name),
 		db.Tenant.Slug.Set(opts.Slug),
-		db.Tenant.ID.SetIfPresent(opts.ID),
+		db.Tenant.ID.Set(tenantId),
+	).Tx()
+
+	createSettingsTx := r.client.TenantAlertingSettings.CreateOne(
+		db.TenantAlertingSettings.Tenant.Link(
+			db.Tenant.ID.Equals(tenantId),
+		),
+	).Tx()
+
+	err := r.client.Prisma.Transaction(
+		createTenantTx,
+		createSettingsTx,
 	).Exec(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return createTenantTx.Result(), nil
 }
 
 func (r *tenantAPIRepository) UpdateTenant(id string, opts *repository.UpdateTenantOpts) (*db.TenantModel, error) {
@@ -48,6 +72,7 @@ func (r *tenantAPIRepository) UpdateTenant(id string, opts *repository.UpdateTen
 	return r.client.Tenant.FindUnique(
 		db.Tenant.ID.Equals(id),
 	).Update(
+		db.Tenant.Name.SetIfPresent(opts.Name),
 		db.Tenant.AnalyticsOptOut.SetIfPresent(opts.AnalyticsOptOut),
 	).Exec(context.Background())
 }

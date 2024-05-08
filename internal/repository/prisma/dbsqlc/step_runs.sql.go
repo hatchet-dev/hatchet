@@ -269,6 +269,7 @@ SELECT
     s."customUserData" AS "stepCustomUserData",
     j."name" AS "jobName",
     j."id" AS "jobId",
+    j."kind" AS "jobKind",
     wv."id" AS "workflowVersionId",
     w."name" AS "workflowName",
     w."id" AS "workflowId",
@@ -317,6 +318,7 @@ type GetStepRunForEngineRow struct {
 	StepCustomUserData  []byte      `json:"stepCustomUserData"`
 	JobName             string      `json:"jobName"`
 	JobId               pgtype.UUID `json:"jobId"`
+	JobKind             JobKind     `json:"jobKind"`
 	WorkflowVersionId   pgtype.UUID `json:"workflowVersionId"`
 	WorkflowName        string      `json:"workflowName"`
 	WorkflowId          pgtype.UUID `json:"workflowId"`
@@ -370,6 +372,7 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.StepCustomUserData,
 			&i.JobName,
 			&i.JobId,
+			&i.JobKind,
 			&i.WorkflowVersionId,
 			&i.WorkflowName,
 			&i.WorkflowId,

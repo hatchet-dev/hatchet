@@ -17,6 +17,22 @@ Tenant:
     - slug
   type: object
 
+TenantAlertingSettings:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    maxAlertingFrequency:
+      type: string
+      description: The max frequency at which to alert.
+    lastAlertedAt:
+      type: string
+      description: The last time an alert was sent.
+      format: date-time
+  required:
+    - metadata
+    - maxAlertingFrequency
+  type: object
+
 CreateTenantRequest:
   properties:
     name:
@@ -36,9 +52,17 @@ CreateTenantRequest:
 
 UpdateTenantRequest:
   properties:
+    name:
+      type: string
+      description: The name of the tenant.
     analyticsOptOut:
       type: boolean
       description: Whether the tenant has opted out of analytics.
+    maxAlertingFrequency:
+      type: string
+      description: The max frequency at which to alert.
+      x-oapi-codegen-extra-tags:
+        validate: "omitnil,duration"
   type: object
 
 TenantMember:
@@ -102,6 +126,56 @@ CreateTenantInviteRequest:
   required:
     - email
     - role
+  type: object
+
+TenantAlertEmailGroup:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    emails:
+      type: array
+      items:
+        type: string
+      description: A list of emails for users
+  required:
+    - metadata
+    - emails
+  type: object
+
+TenantAlertEmailGroupList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/TenantAlertEmailGroup"
+      type: array
+      x-go-name: Rows
+
+CreateTenantAlertEmailGroupRequest:
+  properties:
+    emails:
+      type: array
+      items:
+        type: string
+      description: A list of emails for users
+      x-oapi-codegen-extra-tags:
+        validate: "required,dive,email"
+  required:
+    - emails
+  type: object
+
+UpdateTenantAlertEmailGroupRequest:
+  properties:
+    emails:
+      type: array
+      items:
+        type: string
+      description: A list of emails for users
+      x-oapi-codegen-extra-tags:
+        validate: "required,dive,email"
+  required:
+    - emails
   type: object
 
 UpdateTenantInviteRequest:

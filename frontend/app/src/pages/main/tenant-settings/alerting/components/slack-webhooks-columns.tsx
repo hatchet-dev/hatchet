@@ -1,23 +1,30 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
-import { APIToken } from '@/lib/api';
+import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
+import { SlackWebhook } from '@/lib/api';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
 import { relativeDate } from '@/lib/utils';
 
 export const columns = ({
-  onRevokeClick,
+  onDeleteClick,
 }: {
-  onRevokeClick: (row: APIToken) => void;
-}): ColumnDef<APIToken>[] => {
+  onDeleteClick: (row: SlackWebhook) => void;
+}): ColumnDef<SlackWebhook>[] => {
   return [
     {
-      accessorKey: 'name',
+      accessorKey: 'teamName',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Name" />
+        <DataTableColumnHeader column={column} title="Team" />
       ),
-      cell: ({ row }) => <div>{row.getValue('name')}</div>,
+      cell: ({ row }) => <div>{row.original.teamName}</div>,
       enableSorting: false,
       enableHiding: false,
+    },
+    {
+      accessorKey: 'channelName',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Channel" />
+      ),
+      cell: ({ row }) => <div>{row.original.channelName}</div>,
     },
     {
       accessorKey: 'created',
@@ -29,25 +36,14 @@ export const columns = ({
       ),
     },
     {
-      accessorKey: 'Expires',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Expires" />
-      ),
-      cell: ({ row }) => {
-        return (
-          <div>{new Date(row.original.expiresAt).toLocaleDateString()}</div>
-        );
-      },
-    },
-    {
       id: 'actions',
       cell: ({ row }) => (
         <DataTableRowActions
           row={row}
           actions={[
             {
-              label: 'Revoke',
-              onClick: () => onRevokeClick(row.original),
+              label: 'Delete',
+              onClick: () => onDeleteClick(row.original),
             },
           ]}
         />

@@ -23,6 +23,7 @@ SELECT
     s."customUserData" AS "stepCustomUserData",
     j."name" AS "jobName",
     j."id" AS "jobId",
+    j."kind" AS "jobKind",
     wv."id" AS "workflowVersionId",
     w."name" AS "workflowName",
     w."id" AS "workflowId",

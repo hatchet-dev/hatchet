@@ -16,7 +16,6 @@ export const StepRunOutput: React.FC<StepRunOutputProps> = ({
     return <Loading />;
   }
 
-  console.log('err', errors);
   return (
     <>
       <CodeEditor

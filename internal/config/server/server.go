@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/config/database"
 	"github.com/hatchet-dev/hatchet/internal/config/shared"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
+	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -47,6 +48,8 @@ type ServerConfigFile struct {
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
 
 	VCS ConfigFileVCS `mapstructure:"vcs" json:"vcs,omitempty"`
+
+	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
 
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
 }
@@ -181,6 +184,18 @@ type ConfigFileVCS struct {
 	Github ConfigFileGithub `mapstructure:"github" json:"github,omitempty"`
 }
 
+type ConfigFileTenantAlerting struct {
+	Slack ConfigFileSlack `mapstructure:"slack" json:"slack,omitempty"`
+}
+
+type ConfigFileSlack struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+
+	SlackAppClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
+	SlackAppClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
+	SlackAppScopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"incoming-webhook\"]"`
+}
+
 type ConfigFileGithub struct {
 	Enabled                bool   `mapstructure:"enabled" json:"enabled"`
 	GithubAppClientID      string `mapstructure:"appClientID" json:"appClientID,omitempty"`
@@ -299,6 +314,10 @@ type ServerConfig struct {
 	InternalClient client.Client
 
 	Email email.EmailService
+
+	TenantAlerter *alerting.TenantAlertManager
+
+	AdditionalOAuthConfigs map[string]*oauth2.Config
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -404,6 +423,12 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("vcs.github.appWebhookURL", "SERVER_VCS_GITHUB_APP_WEBHOOK_URL")
 	_ = v.BindEnv("vcs.github.appID", "SERVER_VCS_GITHUB_APP_ID")
 	_ = v.BindEnv("vcs.github.appSecretPath", "SERVER_VCS_GITHUB_APP_SECRET_PATH")
+
+	// tenant alerting options
+	_ = v.BindEnv("tenantAlerting.slack.enabled", "SERVER_TENANT_ALERTING_SLACK_ENABLED")
+	_ = v.BindEnv("tenantAlerting.slack.clientID", "SERVER_TENANT_ALERTING_SLACK_CLIENT_ID")
+	_ = v.BindEnv("tenantAlerting.slack.clientSecret", "SERVER_TENANT_ALERTING_SLACK_CLIENT_SECRET")
+	_ = v.BindEnv("tenantAlerting.slack.scopes", "SERVER_TENANT_ALERTING_SLACK_SCOPES")
 
 	// email options
 	_ = v.BindEnv("email.postmark.enabled", "SERVER_EMAIL_POSTMARK_ENABLED")

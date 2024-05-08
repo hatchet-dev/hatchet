@@ -19,6 +19,8 @@ type CreateTenantOpts struct {
 }
 
 type UpdateTenantOpts struct {
+	Name *string
+
 	AnalyticsOptOut *bool `validate:"omitempty"`
 }
 

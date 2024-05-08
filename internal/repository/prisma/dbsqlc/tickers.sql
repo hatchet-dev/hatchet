@@ -215,3 +215,46 @@ FROM
 WHERE
     scheduledWorkflows."id" = active_scheduled_workflows."id"
 RETURNING scheduledWorkflows.*, active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId";
+
+-- name: PollTenantAlerts :many
+-- Finds tenant alerts which haven't alerted since their frequency and assigns them to a ticker
+WITH active_tenant_alerts AS (
+    SELECT
+        alerts.*
+    FROM
+        "TenantAlertingSettings" as alerts
+    -- only return alerts which have a slack webhook enabled
+    JOIN
+        "SlackAppWebhook" as webhooks ON webhooks."tenantId" = alerts."tenantId"
+    WHERE
+        "lastAlertedAt" IS NULL OR
+        "lastAlertedAt" <= NOW() - convert_duration_to_interval(alerts."maxFrequency")
+    FOR UPDATE SKIP LOCKED
+),
+failed_run_count_by_tenant AS (
+    SELECT
+        workflowRun."tenantId",
+        COUNT(*) as "failedWorkflowRunCount"
+    FROM
+        "WorkflowRun" as workflowRun
+    JOIN
+        active_tenant_alerts ON active_tenant_alerts."tenantId" = workflowRun."tenantId"
+    WHERE
+        "status" = 'FAILED'
+        AND (
+            "lastAlertedAt" IS NULL OR
+            workflowRun."createdAt" >= "lastAlertedAt"
+        )
+    GROUP BY workflowRun."tenantId"
+)
+UPDATE
+    "TenantAlertingSettings" as alerts
+SET
+    "tickerId" = @tickerId::uuid,
+    "lastAlertedAt" = NOW()
+FROM
+    active_tenant_alerts
+WHERE
+    alerts."id" = active_tenant_alerts."id" AND
+    alerts."tenantId" IN (SELECT "tenantId" FROM failed_run_count_by_tenant WHERE "failedWorkflowRunCount" > 0)
+RETURNING alerts.*, active_tenant_alerts."lastAlertedAt" AS "prevLastAlertedAt";

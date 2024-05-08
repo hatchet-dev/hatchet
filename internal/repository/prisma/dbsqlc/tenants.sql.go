@@ -11,6 +11,107 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getEmailGroups = `-- name: GetEmailGroups :many
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", emails
+FROM
+    "TenantAlertEmailGroup" as emailGroups
+WHERE
+    "tenantId" = $1::uuid
+`
+
+func (q *Queries) GetEmailGroups(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*TenantAlertEmailGroup, error) {
+	rows, err := db.Query(ctx, getEmailGroups, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*TenantAlertEmailGroup
+	for rows.Next() {
+		var i TenantAlertEmailGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.Emails,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSlackWebhooks = `-- name: GetSlackWebhooks :many
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", "teamId", "teamName", "channelId", "channelName", "webhookURL"
+FROM   
+    "SlackAppWebhook" as slackWebhooks
+WHERE
+    "tenantId" = $1::uuid
+`
+
+func (q *Queries) GetSlackWebhooks(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*SlackAppWebhook, error) {
+	rows, err := db.Query(ctx, getSlackWebhooks, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*SlackAppWebhook
+	for rows.Next() {
+		var i SlackAppWebhook
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.TeamId,
+			&i.TeamName,
+			&i.ChannelId,
+			&i.ChannelName,
+			&i.WebhookURL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTenantAlertingSettings = `-- name: GetTenantAlertingSettings :one
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId"
+FROM
+    "TenantAlertingSettings" as tenantAlertingSettings
+WHERE
+    "tenantId" = $1::uuid
+`
+
+func (q *Queries) GetTenantAlertingSettings(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*TenantAlertingSettings, error) {
+	row := db.QueryRow(ctx, getTenantAlertingSettings, tenantid)
+	var i TenantAlertingSettings
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.MaxFrequency,
+		&i.LastAlertedAt,
+		&i.TickerId,
+	)
+	return &i, err
+}
+
 const getTenantByID = `-- name: GetTenantByID :one
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut"
@@ -68,4 +169,35 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTenantAlertingSettings = `-- name: UpdateTenantAlertingSettings :one
+UPDATE
+    "TenantAlertingSettings" as tenantAlertingSettings
+SET
+    "lastAlertedAt" = COALESCE($1::timestamp, "lastAlertedAt")
+WHERE
+    "tenantId" = $2::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId"
+`
+
+type UpdateTenantAlertingSettingsParams struct {
+	LastAlertedAt pgtype.Timestamp `json:"lastAlertedAt"`
+	TenantId      pgtype.UUID      `json:"tenantId"`
+}
+
+func (q *Queries) UpdateTenantAlertingSettings(ctx context.Context, db DBTX, arg UpdateTenantAlertingSettingsParams) (*TenantAlertingSettings, error) {
+	row := db.QueryRow(ctx, updateTenantAlertingSettings, arg.LastAlertedAt, arg.TenantId)
+	var i TenantAlertingSettings
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.MaxFrequency,
+		&i.LastAlertedAt,
+		&i.TickerId,
+	)
+	return &i, err
 }

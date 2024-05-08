@@ -42,6 +42,10 @@ paths:
     $ref: "./paths/user/user.yaml#/oauth-start-github-app"
   /api/v1/users/github-app/callback:
     $ref: "./paths/user/user.yaml#/oauth-callback-github-app"
+  /api/v1/tenants/{tenant}/slack/start:
+    $ref: "./paths/user/user.yaml#/oauth-start-slack"
+  /api/v1/users/slack/callback:
+    $ref: "./paths/user/user.yaml#/oauth-callback-slack"
   /api/v1/github/webhook:
     $ref: "./paths/github-app/github-app.yaml#/globalWebhook"
   /api/v1/github/webhook/{webhook}:
@@ -50,8 +54,16 @@ paths:
     $ref: "./paths/ingestors/ingestors.yaml#/sns"
   /api/v1/tenants/{tenant}/sns:
     $ref: "./paths/ingestors/ingestors.yaml#/snsIntegration"
+  /api/v1/tenants/{tenant}/alerting-email-groups:
+    $ref: "./paths/tenant/tenant.yaml#/tenantAlertEmailGroups"
+  /api/v1/alerting-email-groups/{alert-email-group}:
+    $ref: "./paths/tenant/tenant.yaml#/alertEmailGroup"
   /api/v1/sns/{sns}:
     $ref: "./paths/ingestors/ingestors.yaml#/deleteSNS"
+  /api/v1/tenants/{tenant}/slack:
+    $ref: "./paths/slack/slack.yaml#/slackWebhook"
+  /api/v1/slack/{slack}:
+    $ref: "./paths/slack/slack.yaml#/deleteSlack"
   /api/v1/users/current:
     $ref: "./paths/user/user.yaml#/current"
   /api/v1/users/password:
@@ -72,6 +84,8 @@ paths:
     $ref: "./paths/tenant/tenant.yaml#/tenants"
   /api/v1/tenants/{tenant}:
     $ref: "./paths/tenant/tenant.yaml#/updateTenants"
+  /api/v1/tenants/{tenant}/alerting/settings:
+    $ref: "./paths/tenant/tenant.yaml#/tenantAlertingSettings"
   /api/v1/tenants/{tenant}/invites:
     $ref: "./paths/tenant/tenant.yaml#/invites"
   /api/v1/tenants/{tenant}/invites/{tenant-invite}:
