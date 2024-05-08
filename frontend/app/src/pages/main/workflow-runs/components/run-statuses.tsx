@@ -116,7 +116,6 @@ const indicatorVariants = {
 
 export function RunIndicator({
   status,
-  reason,
 }: {
   status: RunStatusType;
   reason?: string;
