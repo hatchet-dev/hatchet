@@ -223,9 +223,6 @@ WITH active_tenant_alerts AS (
         alerts.*
     FROM
         "TenantAlertingSettings" as alerts
-    -- only return alerts which have a slack webhook enabled
-    JOIN
-        "SlackAppWebhook" as webhooks ON webhooks."tenantId" = alerts."tenantId"
     WHERE
         "lastAlertedAt" IS NULL OR
         "lastAlertedAt" <= NOW() - convert_duration_to_interval(alerts."maxFrequency")
@@ -242,7 +239,10 @@ failed_run_count_by_tenant AS (
     WHERE
         "status" = 'FAILED'
         AND (
-            "lastAlertedAt" IS NULL OR
+            (
+                "lastAlertedAt" IS NULL AND
+                workflowRun."finishedAt" >= NOW() - convert_duration_to_interval(active_tenant_alerts."maxFrequency")
+            ) OR
             workflowRun."finishedAt" >= "lastAlertedAt"
         )
     GROUP BY workflowRun."tenantId"

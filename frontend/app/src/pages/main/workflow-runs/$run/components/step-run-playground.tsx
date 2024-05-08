@@ -137,7 +137,7 @@ export function StepRunPlayground({
 
   const stepRunDiffQuery = useQuery({
     ...queries.stepRuns.getDiff(stepRun?.metadata.id || ''),
-    enabled: !!stepRun,
+    enabled: !!stepRun && !!stepRun.input,
     refetchInterval: () => {
       if (stepRun?.status === StepRunStatus.RUNNING) {
         return 1000;
