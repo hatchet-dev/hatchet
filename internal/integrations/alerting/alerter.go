@@ -96,7 +96,7 @@ func (t *TenantAlertManager) sendAlert(ctx context.Context, tenantAlerting *repo
 			Limit:          &limit,
 			OrderBy:        repository.StringPtr("createdAt"),
 			OrderDirection: repository.StringPtr("DESC"),
-			CreatedAfter:   &prevLastAlertedAt,
+			FinishedAfter:  &prevLastAlertedAt,
 		},
 	)
 

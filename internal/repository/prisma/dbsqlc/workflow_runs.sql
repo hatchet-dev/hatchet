@@ -52,6 +52,10 @@ WHERE
     (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
         runs."createdAt" > sqlc.narg('createdAfter')::timestamp
+    ) AND
+    (
+        sqlc.narg('finishedAfter')::timestamp IS NULL OR
+        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
     );
 
 -- name: WorkflowRunsMetricsCount :one
@@ -153,6 +157,10 @@ WHERE
     (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
         runs."createdAt" > sqlc.narg('createdAfter')::timestamp
+    ) AND
+    (
+        sqlc.narg('finishedAfter')::timestamp IS NULL OR
+        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
