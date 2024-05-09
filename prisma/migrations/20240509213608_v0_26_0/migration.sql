@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT');
+CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED');
 
 -- CreateEnum
 CREATE TYPE "StepRunEventSeverity" AS ENUM ('INFO', 'WARNING', 'CRITICAL');
@@ -13,7 +13,8 @@ CREATE TABLE "StepRunEvent" (
     "reason" "StepRunEventReason" NOT NULL,
     "severity" "StepRunEventSeverity" NOT NULL,
     "message" TEXT NOT NULL,
-    "count" INTEGER NOT NULL
+    "count" INTEGER NOT NULL,
+    "data" JSONB
 );
 
 -- CreateIndex
