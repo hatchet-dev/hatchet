@@ -235,6 +235,29 @@ func ToStepRun(stepRun *db.StepRunModel) (*gen.StepRun, error) {
 	return res, nil
 }
 
+func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
+	res := &gen.StepRunEvent{
+		Id:            int(stepRunEvent.ID),
+		TimeFirstSeen: stepRunEvent.TimeFirstSeen.Time,
+		TimeLastSeen:  stepRunEvent.TimeLastSeen.Time,
+		StepRunId:     sqlchelpers.UUIDToStr(stepRunEvent.StepRunId),
+		Severity:      gen.StepRunEventSeverity(stepRunEvent.Severity),
+		Reason:        gen.StepRunEventReason(stepRunEvent.Reason),
+		Message:       stepRunEvent.Message,
+		Count:         int(stepRunEvent.Count),
+	}
+
+	if stepRunEvent.Data != nil {
+		data := make(map[string]interface{})
+
+		json.Unmarshal(stepRunEvent.Data, &data) // nolint:errcheck
+
+		res.Data = &data
+	}
+
+	return res
+}
+
 func getEpochFromTime(t time.Time) *int {
 	epoch := int(t.UnixMilli())
 	return &epoch
@@ -296,16 +319,28 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 
 	workflowRunId := sqlchelpers.UUIDToStr(run.ID)
 
+	var additionalMetadata map[string]interface{}
+
+	if run.AdditionalMetadata != nil {
+		err := json.Unmarshal(run.AdditionalMetadata, &additionalMetadata)
+
+		if err != nil {
+			return nil
+		}
+
+	}
+
 	res := &gen.WorkflowRun{
-		Metadata:          *toAPIMetadata(workflowRunId, run.CreatedAt.Time, run.UpdatedAt.Time),
-		DisplayName:       &run.DisplayName.String,
-		TenantId:          pgUUIDToStr(run.TenantId),
-		StartedAt:         startedAt,
-		FinishedAt:        finishedAt,
-		Status:            gen.WorkflowRunStatus(run.Status),
-		WorkflowVersionId: pgUUIDToStr(run.WorkflowVersionId),
-		WorkflowVersion:   workflowVersion,
-		TriggeredBy:       *triggeredBy,
+		Metadata:           *toAPIMetadata(workflowRunId, run.CreatedAt.Time, run.UpdatedAt.Time),
+		DisplayName:        &run.DisplayName.String,
+		TenantId:           pgUUIDToStr(run.TenantId),
+		StartedAt:          startedAt,
+		FinishedAt:         finishedAt,
+		Status:             gen.WorkflowRunStatus(run.Status),
+		WorkflowVersionId:  pgUUIDToStr(run.WorkflowVersionId),
+		WorkflowVersion:    workflowVersion,
+		TriggeredBy:        *triggeredBy,
+		AdditionalMetadata: &additionalMetadata,
 	}
 
 	return res

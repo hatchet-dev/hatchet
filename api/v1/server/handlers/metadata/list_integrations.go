@@ -17,5 +17,19 @@ func (u *MetadataService) MetadataListIntegrations(ctx echo.Context, request gen
 		})
 	}
 
+	if _, exists := u.config.AdditionalOAuthConfigs["slack"]; exists {
+		integrations = append(integrations, gen.APIMetaIntegration{
+			Enabled: true,
+			Name:    "slack",
+		})
+	}
+
+	if u.config.Email.IsValid() {
+		integrations = append(integrations, gen.APIMetaIntegration{
+			Enabled: true,
+			Name:    "email",
+		})
+	}
+
 	return gen.MetadataListIntegrations200JSONResponse(integrations), nil
 }

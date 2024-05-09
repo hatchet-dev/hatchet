@@ -32,13 +32,15 @@ func NewPostmarkClient(serverKey, fromEmail, fromName, supportEmail string) *Pos
 }
 
 const (
-	postmarkAPIURL     = "https://api.postmarkapp.com"
-	userInviteTemplate = "user-invitation"
+	postmarkAPIURL             = "https://api.postmarkapp.com"
+	userInviteTemplate         = "user-invitation"
+	workflowRunsFailedTemplate = "workflow-runs-failed"
 )
 
 type sendEmailFromTemplateRequest struct {
 	From          string      `json:"From"`
-	To            string      `json:"To"`
+	To            string      `json:"To,omitempty"`
+	Bcc           string      `json:"Bcc,omitempty"`
 	TemplateAlias string      `json:"TemplateAlias"`
 	TemplateModel interface{} `json:"TemplateModel"`
 }
@@ -47,14 +49,31 @@ type VerifyEmailData struct {
 	ActionURL string `json:"link" mapstructure:"action_url"`
 }
 
+func (s *PostmarkClient) IsValid() bool {
+	return true
+}
+
 func (c *PostmarkClient) SendTenantInviteEmail(ctx context.Context, to string, data email.TenantInviteEmailData) error {
 	return c.sendTemplateEmail(ctx, to, userInviteTemplate, data)
+}
+
+func (c *PostmarkClient) SendWorkflowRunFailedAlerts(ctx context.Context, emails []string, data email.WorkflowRunsFailedEmailData) error {
+	return c.sendTemplateEmailBCC(ctx, strings.Join(emails, ","), workflowRunsFailedTemplate, data)
 }
 
 func (c *PostmarkClient) sendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData interface{}) error {
 	return c.sendRequest(ctx, "/email/withTemplate", "POST", &sendEmailFromTemplateRequest{
 		From:          fmt.Sprintf("%s <%s>", c.fromName, c.fromEmail),
 		To:            to,
+		TemplateAlias: templateAlias,
+		TemplateModel: templateModelData,
+	})
+}
+
+func (c *PostmarkClient) sendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}) error {
+	return c.sendRequest(ctx, "/email/withTemplate", "POST", &sendEmailFromTemplateRequest{
+		From:          fmt.Sprintf("%s <%s>", c.fromName, c.fromEmail),
+		Bcc:           bcc,
 		TemplateAlias: templateAlias,
 		TemplateModel: templateModelData,
 	})

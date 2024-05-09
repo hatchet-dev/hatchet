@@ -40,6 +40,16 @@ CreateTenantInviteRequest:
   $ref: "./tenant.yaml#/CreateTenantInviteRequest"
 UpdateTenantInviteRequest:
   $ref: "./tenant.yaml#/UpdateTenantInviteRequest"
+TenantAlertingSettings:
+  $ref: "./tenant.yaml#/TenantAlertingSettings"
+TenantAlertEmailGroup:
+  $ref: "./tenant.yaml#/TenantAlertEmailGroup"
+TenantAlertEmailGroupList:
+  $ref: "./tenant.yaml#/TenantAlertEmailGroupList"
+CreateTenantAlertEmailGroupRequest:
+  $ref: "./tenant.yaml#/CreateTenantAlertEmailGroupRequest"
+UpdateTenantAlertEmailGroupRequest:
+  $ref: "./tenant.yaml#/UpdateTenantAlertEmailGroupRequest"
 TenantInvite:
   $ref: "./tenant.yaml#/TenantInvite"
 TenantInviteList:
@@ -124,6 +134,14 @@ WorkflowRunTriggeredBy:
   $ref: "./workflow_run.yaml#/WorkflowRunTriggeredBy"
 StepRun:
   $ref: "./workflow_run.yaml#/StepRun"
+StepRunEventReason:
+  $ref: "./workflow_run.yaml#/StepRunEventReason"
+StepRunEventSeverity:
+  $ref: "./workflow_run.yaml#/StepRunEventSeverity"
+StepRunEvent:
+  $ref: "./workflow_run.yaml#/StepRunEvent"
+StepRunEventList:
+  $ref: "./workflow_run.yaml#/StepRunEventList"
 WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 Worker:
@@ -184,6 +202,10 @@ SNSIntegration:
   $ref: "./sns.yaml#/SNSIntegration"
 ListSNSIntegrations:
   $ref: "./sns.yaml#/ListSNSIntegrations"
+SlackWebhook:
+  $ref: "./slack.yaml#/SlackWebhook"
+ListSlackWebhooks:
+  $ref: "./slack.yaml#/ListSlackWebhooks"
 CreateSNSIntegrationRequest:
   $ref: "./sns.yaml#/CreateSNSIntegrationRequest"
 WorkflowMetrics:

@@ -47,6 +47,9 @@ func run(ch <-chan interface{}, events chan<- string) error {
 				"test": "test",
 			},
 		},
+		client.WithRunMetadata(map[string]interface{}{
+			"hello": "world",
+		}),
 	)
 
 	if err != nil {

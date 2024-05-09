@@ -14,6 +14,7 @@ import (
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
+	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/auth/cookie"
 	"github.com/hatchet-dev/hatchet/internal/auth/oauth"
@@ -23,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
+	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
@@ -387,6 +389,17 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		}
 	}
 
+	additionalOAuthConfigs := make(map[string]*oauth2.Config)
+
+	if cf.TenantAlerting.Slack.Enabled {
+		additionalOAuthConfigs["slack"] = oauth.NewSlackClient(&oauth.Config{
+			ClientID:     cf.TenantAlerting.Slack.SlackAppClientID,
+			ClientSecret: cf.TenantAlerting.Slack.SlackAppClientSecret,
+			BaseURL:      cf.Runtime.ServerURL,
+			Scopes:       cf.TenantAlerting.Slack.SlackAppScopes,
+		})
+	}
+
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
 		if err := cleanup1(); err != nil {
@@ -396,25 +409,27 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	}
 
 	return cleanup, &server.ServerConfig{
-		Alerter:        alerter,
-		Analytics:      analyticsEmitter,
-		FePosthog:      feAnalyticsConfig,
-		Pylon:          &pylon,
-		Runtime:        cf.Runtime,
-		Auth:           auth,
-		Encryption:     encryptionSvc,
-		Config:         dc,
-		MessageQueue:   mq,
-		Services:       cf.Services,
-		Logger:         &l,
-		TLSConfig:      tls,
-		SessionStore:   ss,
-		Validator:      validator.NewDefaultValidator(),
-		Ingestor:       ingestor,
-		OpenTelemetry:  cf.OpenTelemetry,
-		VCSProviders:   vcsProviders,
-		InternalClient: internalClient,
-		Email:          emailSvc,
+		Alerter:                alerter,
+		Analytics:              analyticsEmitter,
+		FePosthog:              feAnalyticsConfig,
+		Pylon:                  &pylon,
+		Runtime:                cf.Runtime,
+		Auth:                   auth,
+		Encryption:             encryptionSvc,
+		Config:                 dc,
+		MessageQueue:           mq,
+		Services:               cf.Services,
+		Logger:                 &l,
+		TLSConfig:              tls,
+		SessionStore:           ss,
+		Validator:              validator.NewDefaultValidator(),
+		Ingestor:               ingestor,
+		OpenTelemetry:          cf.OpenTelemetry,
+		VCSProviders:           vcsProviders,
+		InternalClient:         internalClient,
+		Email:                  emailSvc,
+		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
+		AdditionalOAuthConfigs: additionalOAuthConfigs,
 	}, nil
 }
 

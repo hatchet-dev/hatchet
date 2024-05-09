@@ -29,7 +29,6 @@ const schema = z
   })
   .superRefine(({ newPassword, confirmNewPassword }, ctx) => {
     if (newPassword !== confirmNewPassword) {
-      console.log('passwords do not match');
       ctx.addIssue({
         code: 'custom',
         message: 'Passwords do not match',

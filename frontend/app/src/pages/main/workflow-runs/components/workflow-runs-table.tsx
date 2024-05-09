@@ -86,6 +86,16 @@ export function WorkflowRunsTable({
     return filter?.value as Array<WorkflowRunStatus>;
   }, [columnFilters]);
 
+  const AdditionalMetadataFilter = useMemo(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'Metadata');
+
+    if (!filter) {
+      return;
+    }
+
+    return filter?.value as Array<string>;
+  }, [columnFilters]);
+
   const listWorkflowRunsQuery = useQuery({
     ...queries.workflowRuns.list(tenant.metadata.id, {
       offset,
@@ -94,6 +104,7 @@ export function WorkflowRunsTable({
       workflowId: workflow,
       parentWorkflowRunId,
       parentStepRunId,
+      additionalMetadata: AdditionalMetadataFilter,
     }),
     refetchInterval,
   });
@@ -103,6 +114,7 @@ export function WorkflowRunsTable({
       workflowId: workflow,
       parentWorkflowRunId,
       parentStepRunId,
+      additionalMetadata: AdditionalMetadataFilter,
     }),
     refetchInterval,
   });
@@ -160,6 +172,11 @@ export function WorkflowRunsTable({
       columnId: 'status',
       title: 'Status',
       options: workflowRunStatusFilters,
+    },
+    {
+      columnId: 'Metadata',
+      title: 'Metadata',
+      type: ToolbarType.KeyValue,
     },
   ].filter((filter) => filterVisibility[filter.columnId] != false);
 

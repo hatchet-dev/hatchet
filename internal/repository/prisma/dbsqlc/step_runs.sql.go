@@ -204,6 +204,99 @@ func (q *Queries) AssignStepRunToWorker(ctx context.Context, db DBTX, arg Assign
 	return &i, err
 }
 
+const countStepRunEvents = `-- name: CountStepRunEvents :one
+SELECT
+    count(*) OVER() AS total
+FROM
+    "StepRunEvent"
+WHERE
+    "stepRunId" = $1::uuid
+`
+
+func (q *Queries) CountStepRunEvents(ctx context.Context, db DBTX, steprunid pgtype.UUID) (int64, error) {
+	row := db.QueryRow(ctx, countStepRunEvents, steprunid)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
+const createStepRunEvent = `-- name: CreateStepRunEvent :exec
+WITH input_values AS (
+    SELECT
+        CURRENT_TIMESTAMP AS "timeFirstSeen",
+        CURRENT_TIMESTAMP AS "timeLastSeen",
+        $1::uuid AS "stepRunId",
+        $2::"StepRunEventReason" AS "reason",
+        $3::"StepRunEventSeverity" AS "severity",
+        $4::text AS "message",
+        1 AS "count",
+        $5::jsonb AS "data"
+),
+updated AS (
+    UPDATE "StepRunEvent"
+    SET
+        "timeLastSeen" = CURRENT_TIMESTAMP,
+        "message" = input_values."message",
+        "count" = "StepRunEvent"."count" + 1,
+        "data" = input_values."data"
+    FROM input_values
+    WHERE
+        "StepRunEvent"."stepRunId" = input_values."stepRunId"
+        AND "StepRunEvent"."reason" = input_values."reason"
+        AND "StepRunEvent"."severity" = input_values."severity"
+        AND "StepRunEvent"."id" = (
+            SELECT "id"
+            FROM "StepRunEvent"
+            WHERE "stepRunId" = input_values."stepRunId"
+            ORDER BY "id" DESC
+            LIMIT 1
+        )
+    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data
+)
+INSERT INTO "StepRunEvent" (
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+)
+SELECT
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+FROM input_values
+WHERE NOT EXISTS (
+    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId"
+)
+`
+
+type CreateStepRunEventParams struct {
+	Steprunid pgtype.UUID          `json:"steprunid"`
+	Reason    StepRunEventReason   `json:"reason"`
+	Severity  StepRunEventSeverity `json:"severity"`
+	Message   string               `json:"message"`
+	Data      []byte               `json:"data"`
+}
+
+func (q *Queries) CreateStepRunEvent(ctx context.Context, db DBTX, arg CreateStepRunEventParams) error {
+	_, err := db.Exec(ctx, createStepRunEvent,
+		arg.Steprunid,
+		arg.Reason,
+		arg.Severity,
+		arg.Message,
+		arg.Data,
+	)
+	return err
+}
+
 const getStepRun = `-- name: GetStepRun :one
 SELECT
     "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount"
@@ -269,6 +362,7 @@ SELECT
     s."customUserData" AS "stepCustomUserData",
     j."name" AS "jobName",
     j."id" AS "jobId",
+    j."kind" AS "jobKind",
     wv."id" AS "workflowVersionId",
     w."name" AS "workflowName",
     w."id" AS "workflowId",
@@ -317,6 +411,7 @@ type GetStepRunForEngineRow struct {
 	StepCustomUserData  []byte      `json:"stepCustomUserData"`
 	JobName             string      `json:"jobName"`
 	JobId               pgtype.UUID `json:"jobId"`
+	JobKind             JobKind     `json:"jobKind"`
 	WorkflowVersionId   pgtype.UUID `json:"workflowVersionId"`
 	WorkflowName        string      `json:"workflowName"`
 	WorkflowId          pgtype.UUID `json:"workflowId"`
@@ -370,6 +465,7 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.StepCustomUserData,
 			&i.JobName,
 			&i.JobId,
+			&i.JobKind,
 			&i.WorkflowVersionId,
 			&i.WorkflowName,
 			&i.WorkflowId,
@@ -505,6 +601,57 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepRunEvents = `-- name: ListStepRunEvents :many
+SELECT
+    id, "timeFirstSeen", "timeLastSeen", "stepRunId", reason, severity, message, count, data
+FROM
+    "StepRunEvent"
+WHERE
+    "stepRunId" = $1::uuid
+ORDER BY
+    "id" DESC
+OFFSET
+    COALESCE($2, 0)
+LIMIT
+    COALESCE($3, 50)
+`
+
+type ListStepRunEventsParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Offset    interface{} `json:"offset"`
+	Limit     interface{} `json:"limit"`
+}
+
+func (q *Queries) ListStepRunEvents(ctx context.Context, db DBTX, arg ListStepRunEventsParams) ([]*StepRunEvent, error) {
+	rows, err := db.Query(ctx, listStepRunEvents, arg.Steprunid, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepRunEvent
+	for rows.Next() {
+		var i StepRunEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.TimeFirstSeen,
+			&i.TimeLastSeen,
+			&i.StepRunId,
+			&i.Reason,
+			&i.Severity,
+			&i.Message,
+			&i.Count,
+			&i.Data,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -778,54 +925,58 @@ func (q *Queries) ListStepRunsToRequeue(ctx context.Context, db DBTX, tenantid p
 }
 
 const resolveLaterStepRuns = `-- name: ResolveLaterStepRuns :many
-WITH currStepRun AS (
+WITH RECURSIVE currStepRun AS (
   SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount"
   FROM "StepRun"
   WHERE
-    "id" = $1::uuid AND
-    "tenantId" = $2::uuid
+    "id" = $2::uuid AND
+    "tenantId" = $1::uuid
+), childStepRuns AS (
+  SELECT sr."id", sr."status"
+  FROM "StepRun" sr
+  JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+  WHERE sro."A" = (SELECT "id" FROM currStepRun)
+  
+  UNION ALL
+  
+  SELECT sr."id", sr."status"
+  FROM "StepRun" sr
+  JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+  JOIN childStepRuns csr ON sro."A" = csr."id"
 )
 UPDATE
     "StepRun" as sr
-SET "status" = CASE
+SET  "status" = CASE
     -- When the step is in a final state, it cannot be updated
     WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."status"
-    -- When the given step run has failed or been cancelled, then all later step runs are cancelled
-    WHEN (cs."status" = 'FAILED' OR cs."status" = 'CANCELLED') THEN 'CANCELLED'
+    -- When the given step run has failed or been cancelled, then all child step runs are cancelled
+    WHEN (SELECT "status" FROM currStepRun) IN ('FAILED', 'CANCELLED') THEN 'CANCELLED'
     ELSE sr."status"
     END,
     -- When the previous step run timed out, the cancelled reason is set
     "cancelledReason" = CASE
     -- When the step is in a final state, it cannot be updated
     WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."cancelledReason"
-    WHEN (cs."status" = 'CANCELLED' AND cs."cancelledReason" = 'TIMED_OUT'::text) THEN 'PREVIOUS_STEP_TIMED_OUT'
-    WHEN (cs."status" = 'CANCELLED') THEN 'PREVIOUS_STEP_CANCELLED'
+    WHEN (SELECT "status" FROM currStepRun) = 'CANCELLED' AND (SELECT "cancelledReason" FROM currStepRun) = 'TIMED_OUT'::text THEN 'PREVIOUS_STEP_TIMED_OUT'
+    WHEN (SELECT "status" FROM currStepRun) = 'FAILED' THEN 'PREVIOUS_STEP_FAILED'
+    WHEN (SELECT "status" FROM currStepRun) = 'CANCELLED' THEN 'PREVIOUS_STEP_CANCELLED'
     ELSE NULL
     END
 FROM
-    currStepRun cs
+    childStepRuns csr
 WHERE
-    sr."jobRunId" = (
-        SELECT "jobRunId"
-        FROM "StepRun"
-        WHERE "id" = $1::uuid
-    ) AND
-    sr."order" > (
-        SELECT "order"
-        FROM "StepRun"
-        WHERE "id" = $1::uuid
-    ) AND
-    sr."tenantId" = $2::uuid
+    sr."id" = csr."id" AND
+    sr."tenantId" = $1::uuid
 RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount"
 `
 
 type ResolveLaterStepRunsParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
+	Steprunid pgtype.UUID `json:"steprunid"`
 }
 
 func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg ResolveLaterStepRunsParams) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, resolveLaterStepRuns, arg.Steprunid, arg.Tenantid)
+	rows, err := db.Query(ctx, resolveLaterStepRuns, arg.Tenantid, arg.Steprunid)
 	if err != nil {
 		return nil, err
 	}
@@ -1166,31 +1317,37 @@ func (q *Queries) UpdateStepRunOverridesData(ctx context.Context, db DBTX, arg U
 }
 
 const updateWorkerSemaphore = `-- name: UpdateWorkerSemaphore :one
-WITH worker_id AS (
+WITH step_run AS (
     SELECT
-        "workerId"
+        "id", "workerId"
     FROM
         "StepRun"
     WHERE
-        "id" = $2::uuid AND "tenantId" = $3::uuid
-),
-semaphore AS (
+        "id" = $2::uuid AND
+        "tenantId" = $3::uuid
+), worker AS (
     SELECT
-        "slots"
+        "id",
+        "maxRuns"
     FROM
-        "WorkerSemaphore" ws, worker_id
+        "Worker"
     WHERE
-        ws."workerId" = worker_id."workerId"
-    FOR UPDATE
+        "id" = (SELECT "workerId" FROM step_run)
 )
 UPDATE
     "WorkerSemaphore" ws
 SET
-    "slots" = (ws."slots" + $1::int)
+    -- This shouldn't happen, but we set guardrails to prevent negative slots or slots over
+    -- the worker's maxRuns
+    "slots" = CASE 
+        WHEN (ws."slots" + $1::int) < 0 THEN 0
+        WHEN (ws."slots" + $1::int) > COALESCE(worker."maxRuns", 100) THEN COALESCE(worker."maxRuns", 100)
+        ELSE (ws."slots" + $1::int)
+    END
 FROM
-    worker_id
+    worker
 WHERE
-    ws."workerId" = worker_id."workerId"
+    ws."workerId" = worker."id"
 RETURNING ws."workerId", ws.slots
 `
 

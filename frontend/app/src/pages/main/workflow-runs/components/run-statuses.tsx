@@ -1,84 +1,126 @@
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { JobRunStatus, StepRunStatus, WorkflowRunStatus } from '@/lib/api';
 import { capitalize, cn } from '@/lib/utils';
 
 type RunStatusType = `${StepRunStatus | WorkflowRunStatus | JobRunStatus}`;
 
+type RunStatusVariant = {
+  text: string;
+  variant: 'inProgress' | 'successful' | 'failed' | 'outline';
+};
+
+const RUN_STATUS_VARIANTS: Record<RunStatusType, RunStatusVariant> = {
+  SUCCEEDED: {
+    text: 'Succeeded',
+    variant: 'successful',
+  },
+  FAILED: {
+    text: 'Failed',
+    variant: 'failed',
+  },
+  CANCELLED: {
+    text: 'Cancelled',
+    variant: 'failed',
+  },
+  RUNNING: {
+    text: 'Running',
+    variant: 'inProgress',
+  },
+  QUEUED: {
+    text: 'Queued',
+    variant: 'outline',
+  },
+  PENDING: {
+    text: 'Pending',
+    variant: 'outline',
+  },
+  PENDING_ASSIGNMENT: {
+    text: 'Pending',
+    variant: 'outline',
+  },
+  ASSIGNED: {
+    text: 'Assigned',
+    variant: 'inProgress',
+  },
+};
+
+const RUN_STATUS_REASONS: Record<string, string> = {
+  TIMED_OUT: 'Runtime Timed Out',
+  SCHEDULING_TIMED_OUT: 'Scheduling Timed Out',
+};
+
+const RUN_STATUS_VARIANTS_REASON_OVERRIDES: Record<
+  keyof typeof RUN_STATUS_REASONS,
+  RunStatusVariant
+> = {
+  TIMED_OUT: {
+    text: 'Timed Out',
+    variant: 'failed',
+  },
+  SCHEDULING_TIMED_OUT: {
+    text: 'Timed Out',
+    variant: 'failed',
+  },
+};
+
+// TIMED_OUT
+// SCHEDULING_TIMED_OUT
+
 export function RunStatus({
   status,
   reason,
+  className,
 }: {
   status: RunStatusType;
   reason?: string;
+  className?: string;
 }) {
-  let variant: 'inProgress' | 'successful' | 'failed' = 'inProgress';
-  let text = 'Running';
+  const { text, variant } = RUN_STATUS_VARIANTS[status];
+  const { text: overrideText, variant: overrideVariant } =
+    (reason && RUN_STATUS_VARIANTS_REASON_OVERRIDES[reason]) || {};
 
-  switch (status) {
-    case 'SUCCEEDED':
-      variant = 'successful';
-      text = 'Succeeded';
-      break;
-    case 'FAILED':
-    case 'CANCELLED':
-      variant = 'failed';
-      text = 'Cancelled';
+  const StatusBadge = () => (
+    <Badge variant={overrideVariant || variant} className={className}>
+      {capitalize(overrideText || text)}
+    </Badge>
+  );
 
-      switch (reason) {
-        case 'TIMED_OUT':
-          text = 'Timed out';
-          break;
-        case 'SCHEDULING_TIMED_OUT':
-          text = 'No workers available';
-          break;
-        default:
-          break;
-      }
-
-      break;
-    default:
-      break;
+  if (!reason) {
+    return <StatusBadge />;
   }
 
-  return <Badge variant={variant}>{capitalize(text)}</Badge>;
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger>
+          <StatusBadge />
+        </TooltipTrigger>
+        <TooltipContent>{RUN_STATUS_REASONS[reason] || reason}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 const indicatorVariants = {
   successful: 'border-transparent rounded-full bg-green-500',
   failed: 'border-transparent rounded-full bg-red-500',
-  inProgress: 'border-transparent rounded-full bg-[#4EB4D7]',
+  inProgress: 'border-transparent rounded-full bg-yellow-500',
+  outline: 'border-gray-500 rounded-full bg-transparent',
 };
 
 export function RunIndicator({
   status,
-  reason,
 }: {
   status: RunStatusType;
   reason?: string;
 }) {
-  let variant: 'inProgress' | 'successful' | 'failed' = 'inProgress';
-
-  switch (status) {
-    case 'SUCCEEDED':
-      variant = 'successful';
-      break;
-    case 'FAILED':
-    case 'CANCELLED':
-      variant = 'failed';
-
-      switch (reason) {
-        case 'TIMED_OUT':
-          break;
-        case 'SCHEDULING_TIMED_OUT':
-          break;
-        default:
-          break;
-      }
-
-      break;
-    default:
-      break;
-  }
+  const variant = RUN_STATUS_VARIANTS[status].variant;
 
   return (
     <div

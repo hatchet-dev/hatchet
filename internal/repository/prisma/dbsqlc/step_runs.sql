@@ -23,6 +23,7 @@ SELECT
     s."customUserData" AS "stepCustomUserData",
     j."name" AS "jobName",
     j."id" AS "jobId",
+    j."kind" AS "jobKind",
     wv."id" AS "workflowVersionId",
     w."name" AS "workflowName",
     w."id" AS "workflowId",
@@ -174,43 +175,47 @@ WHERE
 RETURNING *;
 
 -- name: ResolveLaterStepRuns :many
-WITH currStepRun AS (
+WITH RECURSIVE currStepRun AS (
   SELECT *
   FROM "StepRun"
   WHERE
     "id" = @stepRunId::uuid AND
     "tenantId" = @tenantId::uuid
+), childStepRuns AS (
+  SELECT sr."id", sr."status"
+  FROM "StepRun" sr
+  JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+  WHERE sro."A" = (SELECT "id" FROM currStepRun)
+  
+  UNION ALL
+  
+  SELECT sr."id", sr."status"
+  FROM "StepRun" sr
+  JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+  JOIN childStepRuns csr ON sro."A" = csr."id"
 )
 UPDATE
     "StepRun" as sr
-SET "status" = CASE
+SET  "status" = CASE
     -- When the step is in a final state, it cannot be updated
     WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."status"
-    -- When the given step run has failed or been cancelled, then all later step runs are cancelled
-    WHEN (cs."status" = 'FAILED' OR cs."status" = 'CANCELLED') THEN 'CANCELLED'
+    -- When the given step run has failed or been cancelled, then all child step runs are cancelled
+    WHEN (SELECT "status" FROM currStepRun) IN ('FAILED', 'CANCELLED') THEN 'CANCELLED'
     ELSE sr."status"
     END,
     -- When the previous step run timed out, the cancelled reason is set
     "cancelledReason" = CASE
     -- When the step is in a final state, it cannot be updated
     WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."cancelledReason"
-    WHEN (cs."status" = 'CANCELLED' AND cs."cancelledReason" = 'TIMED_OUT'::text) THEN 'PREVIOUS_STEP_TIMED_OUT'
-    WHEN (cs."status" = 'CANCELLED') THEN 'PREVIOUS_STEP_CANCELLED'
+    WHEN (SELECT "status" FROM currStepRun) = 'CANCELLED' AND (SELECT "cancelledReason" FROM currStepRun) = 'TIMED_OUT'::text THEN 'PREVIOUS_STEP_TIMED_OUT'
+    WHEN (SELECT "status" FROM currStepRun) = 'FAILED' THEN 'PREVIOUS_STEP_FAILED'
+    WHEN (SELECT "status" FROM currStepRun) = 'CANCELLED' THEN 'PREVIOUS_STEP_CANCELLED'
     ELSE NULL
     END
 FROM
-    currStepRun cs
+    childStepRuns csr
 WHERE
-    sr."jobRunId" = (
-        SELECT "jobRunId"
-        FROM "StepRun"
-        WHERE "id" = @stepRunId::uuid
-    ) AND
-    sr."order" > (
-        SELECT "order"
-        FROM "StepRun"
-        WHERE "id" = @stepRunId::uuid
-    ) AND
+    sr."id" = csr."id" AND
     sr."tenantId" = @tenantId::uuid
 RETURNING sr.*;
 
@@ -561,32 +566,117 @@ FROM total_slots ts
 LEFT JOIN update_step_run usr ON true;    
 
 -- name: UpdateWorkerSemaphore :one
-WITH worker_id AS (
+WITH step_run AS (
     SELECT
-        "workerId"
+        "id", "workerId"
     FROM
         "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND "tenantId" = @tenantId::uuid
-),
-semaphore AS (
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid
+), worker AS (
     SELECT
-        "slots"
+        "id",
+        "maxRuns"
     FROM
-        "WorkerSemaphore" ws, worker_id
+        "Worker"
     WHERE
-        ws."workerId" = worker_id."workerId"
-    FOR UPDATE
+        "id" = (SELECT "workerId" FROM step_run)
 )
 UPDATE
     "WorkerSemaphore" ws
 SET
-    "slots" = (ws."slots" + @inc::int)
+    -- This shouldn't happen, but we set guardrails to prevent negative slots or slots over
+    -- the worker's maxRuns
+    "slots" = CASE 
+        WHEN (ws."slots" + @inc::int) < 0 THEN 0
+        WHEN (ws."slots" + @inc::int) > COALESCE(worker."maxRuns", 100) THEN COALESCE(worker."maxRuns", 100)
+        ELSE (ws."slots" + @inc::int)
+    END
 FROM
-    worker_id
+    worker
 WHERE
-    ws."workerId" = worker_id."workerId"
+    ws."workerId" = worker."id"
 RETURNING ws.*;
+
+-- name: CreateStepRunEvent :exec
+WITH input_values AS (
+    SELECT
+        CURRENT_TIMESTAMP AS "timeFirstSeen",
+        CURRENT_TIMESTAMP AS "timeLastSeen",
+        @stepRunId::uuid AS "stepRunId",
+        @reason::"StepRunEventReason" AS "reason",
+        @severity::"StepRunEventSeverity" AS "severity",
+        @message::text AS "message",
+        1 AS "count",
+        sqlc.narg('data')::jsonb AS "data"
+),
+updated AS (
+    UPDATE "StepRunEvent"
+    SET
+        "timeLastSeen" = CURRENT_TIMESTAMP,
+        "message" = input_values."message",
+        "count" = "StepRunEvent"."count" + 1,
+        "data" = input_values."data"
+    FROM input_values
+    WHERE
+        "StepRunEvent"."stepRunId" = input_values."stepRunId"
+        AND "StepRunEvent"."reason" = input_values."reason"
+        AND "StepRunEvent"."severity" = input_values."severity"
+        AND "StepRunEvent"."id" = (
+            SELECT "id"
+            FROM "StepRunEvent"
+            WHERE "stepRunId" = input_values."stepRunId"
+            ORDER BY "id" DESC
+            LIMIT 1
+        )
+    RETURNING "StepRunEvent".*
+)
+INSERT INTO "StepRunEvent" (
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+)
+SELECT
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+FROM input_values
+WHERE NOT EXISTS (
+    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId"
+);
+
+-- name: CountStepRunEvents :one
+SELECT
+    count(*) OVER() AS total
+FROM
+    "StepRunEvent"
+WHERE
+    "stepRunId" = @stepRunId::uuid;
+
+-- name: ListStepRunEvents :many
+SELECT
+    *
+FROM
+    "StepRunEvent"
+WHERE
+    "stepRunId" = @stepRunId::uuid
+ORDER BY
+    "id" DESC
+OFFSET
+    COALESCE(sqlc.narg('offset'), 0)
+LIMIT
+    COALESCE(sqlc.narg('limit'), 50);
 
 -- name: UpdateStepRateLimits :many
 WITH step_rate_limits AS (

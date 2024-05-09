@@ -1,9 +1,9 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { Workflow } from '@/lib/api';
-import { relativeDate } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { ChevronRightIcon } from '@radix-ui/react-icons';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export const columns: ColumnDef<Workflow>[] = [
   {
@@ -42,7 +42,9 @@ export const columns: ColumnDef<Workflow>[] = [
     cell: ({ row }) => {
       return (
         <div className="whitespace-nowrap">
-          {relativeDate(row.original.lastRun?.metadata.createdAt)}
+          {row.original.lastRun?.metadata.createdAt && (
+            <RelativeDate date={row.original.lastRun?.metadata.createdAt} />
+          )}
         </div>
       );
     },
@@ -67,7 +69,7 @@ export const columns: ColumnDef<Workflow>[] = [
     cell: ({ row }) => {
       return (
         <div className="whitespace-nowrap">
-          {relativeDate(row.original.metadata.createdAt)}
+          <RelativeDate date={row.original.metadata.createdAt} />
         </div>
       );
     },

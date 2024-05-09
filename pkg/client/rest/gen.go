@@ -45,10 +45,10 @@ const (
 
 // Defines values for LogLineLevel.
 const (
-	DEBUG LogLineLevel = "DEBUG"
-	ERROR LogLineLevel = "ERROR"
-	INFO  LogLineLevel = "INFO"
-	WARN  LogLineLevel = "WARN"
+	LogLineLevelDEBUG LogLineLevel = "DEBUG"
+	LogLineLevelERROR LogLineLevel = "ERROR"
+	LogLineLevelINFO  LogLineLevel = "INFO"
+	LogLineLevelWARN  LogLineLevel = "WARN"
 )
 
 // Defines values for LogLineOrderByDirection.
@@ -66,6 +66,26 @@ const (
 const (
 	Closed PullRequestState = "closed"
 	Open   PullRequestState = "open"
+)
+
+// Defines values for StepRunEventReason.
+const (
+	StepRunEventReasonASSIGNED           StepRunEventReason = "ASSIGNED"
+	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
+	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
+	StepRunEventReasonFINISHED           StepRunEventReason = "FINISHED"
+	StepRunEventReasonREQUEUEDNOWORKER   StepRunEventReason = "REQUEUED_NO_WORKER"
+	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
+	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
+	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
+	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
+)
+
+// Defines values for StepRunEventSeverity.
+const (
+	StepRunEventSeverityCRITICAL StepRunEventSeverity = "CRITICAL"
+	StepRunEventSeverityINFO     StepRunEventSeverity = "INFO"
+	StepRunEventSeverityWARNING  StepRunEventSeverity = "WARNING"
 )
 
 // Defines values for StepRunStatus.
@@ -102,12 +122,12 @@ const (
 
 // Defines values for WorkflowRunStatus.
 const (
-	CANCELLED WorkflowRunStatus = "CANCELLED"
-	FAILED    WorkflowRunStatus = "FAILED"
-	PENDING   WorkflowRunStatus = "PENDING"
-	QUEUED    WorkflowRunStatus = "QUEUED"
-	RUNNING   WorkflowRunStatus = "RUNNING"
-	SUCCEEDED WorkflowRunStatus = "SUCCEEDED"
+	WorkflowRunStatusCANCELLED WorkflowRunStatus = "CANCELLED"
+	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
+	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
+	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
+	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
+	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 )
 
 // APIError defines model for APIError.
@@ -213,6 +233,12 @@ type CreateSNSIntegrationRequest struct {
 	TopicArn string `json:"topicArn" validate:"required,min=1,max=256"`
 }
 
+// CreateTenantAlertEmailGroupRequest defines model for CreateTenantAlertEmailGroupRequest.
+type CreateTenantAlertEmailGroupRequest struct {
+	// Emails A list of emails for users
+	Emails []string `json:"emails" validate:"required,dive,email"`
+}
+
 // CreateTenantInviteRequest defines model for CreateTenantInviteRequest.
 type CreateTenantInviteRequest struct {
 	// Email The email of the user to invite.
@@ -231,6 +257,9 @@ type CreateTenantRequest struct {
 
 // Event defines model for Event.
 type Event struct {
+	// AdditionalMetadata Additional metadata for the event.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
 	// Key The key for the event.
 	Key      string          `json:"key"`
 	Metadata APIResourceMeta `json:"metadata"`
@@ -398,6 +427,12 @@ type ListSNSIntegrations struct {
 	Rows       []SNSIntegration   `json:"rows"`
 }
 
+// ListSlackWebhooks defines model for ListSlackWebhooks.
+type ListSlackWebhooks struct {
+	Pagination PaginationResponse `json:"pagination"`
+	Rows       []SlackWebhook     `json:"rows"`
+}
+
 // LogLine defines model for LogLine.
 type LogLine struct {
 	// CreatedAt The creation date of the log line.
@@ -486,6 +521,25 @@ type SNSIntegration struct {
 	TopicArn string `json:"topicArn"`
 }
 
+// SlackWebhook defines model for SlackWebhook.
+type SlackWebhook struct {
+	// ChannelId The channel id associated with this slack webhook.
+	ChannelId string `json:"channelId"`
+
+	// ChannelName The channel name associated with this slack webhook.
+	ChannelName string          `json:"channelName"`
+	Metadata    APIResourceMeta `json:"metadata"`
+
+	// TeamId The team id associated with this slack webhook.
+	TeamId string `json:"teamId"`
+
+	// TeamName The team name associated with this slack webhook.
+	TeamName string `json:"teamName"`
+
+	// TenantId The unique identifier for the tenant that the SNS integration belongs to.
+	TenantId openapi_types.UUID `json:"tenantId"`
+}
+
 // Step defines model for Step.
 type Step struct {
 	Action   string          `json:"action"`
@@ -539,6 +593,31 @@ type StepRunDiff struct {
 	Original string `json:"original"`
 }
 
+// StepRunEvent defines model for StepRunEvent.
+type StepRunEvent struct {
+	Count         int                     `json:"count"`
+	Data          *map[string]interface{} `json:"data,omitempty"`
+	Id            int                     `json:"id"`
+	Message       string                  `json:"message"`
+	Reason        StepRunEventReason      `json:"reason"`
+	Severity      StepRunEventSeverity    `json:"severity"`
+	StepRunId     string                  `json:"stepRunId"`
+	TimeFirstSeen time.Time               `json:"timeFirstSeen"`
+	TimeLastSeen  time.Time               `json:"timeLastSeen"`
+}
+
+// StepRunEventList defines model for StepRunEventList.
+type StepRunEventList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]StepRunEvent     `json:"rows,omitempty"`
+}
+
+// StepRunEventReason defines model for StepRunEventReason.
+type StepRunEventReason string
+
+// StepRunEventSeverity defines model for StepRunEventSeverity.
+type StepRunEventSeverity string
+
 // StepRunStatus defines model for StepRunStatus.
 type StepRunStatus string
 
@@ -553,6 +632,29 @@ type Tenant struct {
 
 	// Slug The slug of the tenant.
 	Slug string `json:"slug"`
+}
+
+// TenantAlertEmailGroup defines model for TenantAlertEmailGroup.
+type TenantAlertEmailGroup struct {
+	// Emails A list of emails for users
+	Emails   []string        `json:"emails"`
+	Metadata APIResourceMeta `json:"metadata"`
+}
+
+// TenantAlertEmailGroupList defines model for TenantAlertEmailGroupList.
+type TenantAlertEmailGroupList struct {
+	Pagination *PaginationResponse      `json:"pagination,omitempty"`
+	Rows       *[]TenantAlertEmailGroup `json:"rows,omitempty"`
+}
+
+// TenantAlertingSettings defines model for TenantAlertingSettings.
+type TenantAlertingSettings struct {
+	// LastAlertedAt The last time an alert was sent.
+	LastAlertedAt *time.Time `json:"lastAlertedAt,omitempty"`
+
+	// MaxAlertingFrequency The max frequency at which to alert.
+	MaxAlertingFrequency string          `json:"maxAlertingFrequency"`
+	Metadata             APIResourceMeta `json:"metadata"`
 }
 
 // TenantInvite defines model for TenantInvite.
@@ -597,7 +699,14 @@ type TenantMemberRole string
 
 // TriggerWorkflowRunRequest defines model for TriggerWorkflowRunRequest.
 type TriggerWorkflowRunRequest struct {
-	Input map[string]interface{} `json:"input"`
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	Input              map[string]interface{}  `json:"input"`
+}
+
+// UpdateTenantAlertEmailGroupRequest defines model for UpdateTenantAlertEmailGroupRequest.
+type UpdateTenantAlertEmailGroupRequest struct {
+	// Emails A list of emails for users
+	Emails []string `json:"emails" validate:"required,dive,email"`
 }
 
 // UpdateTenantInviteRequest defines model for UpdateTenantInviteRequest.
@@ -609,6 +718,12 @@ type UpdateTenantInviteRequest struct {
 type UpdateTenantRequest struct {
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
 	AnalyticsOptOut *bool `json:"analyticsOptOut,omitempty"`
+
+	// MaxAlertingFrequency The max frequency at which to alert.
+	MaxAlertingFrequency *string `json:"maxAlertingFrequency,omitempty" validate:"omitnil,duration"`
+
+	// Name The name of the tenant.
+	Name *string `json:"name,omitempty"`
 }
 
 // User defines model for User.
@@ -785,20 +900,21 @@ type WorkflowMetrics struct {
 
 // WorkflowRun defines model for WorkflowRun.
 type WorkflowRun struct {
-	DisplayName       *string                 `json:"displayName,omitempty"`
-	Error             *string                 `json:"error,omitempty"`
-	FinishedAt        *time.Time              `json:"finishedAt,omitempty"`
-	Input             *map[string]interface{} `json:"input,omitempty"`
-	JobRuns           *[]JobRun               `json:"jobRuns,omitempty"`
-	Metadata          APIResourceMeta         `json:"metadata"`
-	ParentId          *openapi_types.UUID     `json:"parentId,omitempty"`
-	ParentStepRunId   *openapi_types.UUID     `json:"parentStepRunId,omitempty"`
-	StartedAt         *time.Time              `json:"startedAt,omitempty"`
-	Status            WorkflowRunStatus       `json:"status"`
-	TenantId          string                  `json:"tenantId"`
-	TriggeredBy       WorkflowRunTriggeredBy  `json:"triggeredBy"`
-	WorkflowVersion   *WorkflowVersion        `json:"workflowVersion,omitempty"`
-	WorkflowVersionId string                  `json:"workflowVersionId"`
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	DisplayName        *string                 `json:"displayName,omitempty"`
+	Error              *string                 `json:"error,omitempty"`
+	FinishedAt         *time.Time              `json:"finishedAt,omitempty"`
+	Input              *map[string]interface{} `json:"input,omitempty"`
+	JobRuns            *[]JobRun               `json:"jobRuns,omitempty"`
+	Metadata           APIResourceMeta         `json:"metadata"`
+	ParentId           *openapi_types.UUID     `json:"parentId,omitempty"`
+	ParentStepRunId    *openapi_types.UUID     `json:"parentStepRunId,omitempty"`
+	StartedAt          *time.Time              `json:"startedAt,omitempty"`
+	Status             WorkflowRunStatus       `json:"status"`
+	TenantId           string                  `json:"tenantId"`
+	TriggeredBy        WorkflowRunTriggeredBy  `json:"triggeredBy"`
+	WorkflowVersion    *WorkflowVersion        `json:"workflowVersion,omitempty"`
+	WorkflowVersionId  string                  `json:"workflowVersionId"`
 }
 
 // WorkflowRunList defines model for WorkflowRunList.
@@ -898,6 +1014,15 @@ type WorkflowVersionMeta struct {
 	WorkflowId string    `json:"workflowId"`
 }
 
+// StepRunListEventsParams defines parameters for StepRunListEvents.
+type StepRunListEventsParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // LogLineListParams defines parameters for LogLineList.
 type LogLineListParams struct {
 	// Offset The number to skip
@@ -944,6 +1069,9 @@ type EventListParams struct {
 
 	// OrderByDirection The order direction
 	OrderByDirection *EventOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
 // WorkflowRunListPullRequestsParams defines parameters for WorkflowRunListPullRequests.
@@ -974,6 +1102,9 @@ type WorkflowRunListParams struct {
 
 	// Statuses A list of workflow run statuses to filter by
 	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
 // WorkflowRunGetMetricsParams defines parameters for WorkflowRunGetMetrics.
@@ -989,6 +1120,9 @@ type WorkflowRunGetMetricsParams struct {
 
 	// ParentStepRunId The parent step run id
 	ParentStepRunId *openapi_types.UUID `form:"parentStepRunId,omitempty" json:"parentStepRunId,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
@@ -1018,6 +1152,9 @@ type WorkflowVersionGetDefinitionParams struct {
 	Version *openapi_types.UUID `form:"version,omitempty" json:"version,omitempty"`
 }
 
+// AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
+type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
+
 // StepRunUpdateCreatePrJSONRequestBody defines body for StepRunUpdateCreatePr for application/json ContentType.
 type StepRunUpdateCreatePrJSONRequestBody = CreatePullRequestFromStepRun
 
@@ -1026,6 +1163,9 @@ type TenantCreateJSONRequestBody = CreateTenantRequest
 
 // TenantUpdateJSONRequestBody defines body for TenantUpdate for application/json ContentType.
 type TenantUpdateJSONRequestBody = UpdateTenantRequest
+
+// AlertEmailGroupCreateJSONRequestBody defines body for AlertEmailGroupCreate for application/json ContentType.
+type AlertEmailGroupCreateJSONRequestBody = CreateTenantAlertEmailGroupRequest
 
 // ApiTokenCreateJSONRequestBody defines body for ApiTokenCreate for application/json ContentType.
 type ApiTokenCreateJSONRequestBody = CreateAPITokenRequest
@@ -1145,6 +1285,14 @@ type ClientInterface interface {
 	// ReadinessGet request
 	ReadinessGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// AlertEmailGroupDelete request
+	AlertEmailGroupDelete(ctx context.Context, alertEmailGroup openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AlertEmailGroupUpdateWithBody request with any body
+	AlertEmailGroupUpdateWithBody(ctx context.Context, alertEmailGroup openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AlertEmailGroupUpdate(ctx context.Context, alertEmailGroup openapi_types.UUID, body AlertEmailGroupUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ApiTokenUpdateRevoke request
 	ApiTokenUpdateRevoke(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1172,6 +1320,9 @@ type ClientInterface interface {
 	// MetadataListIntegrations request
 	MetadataListIntegrations(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// SlackWebhookDelete request
+	SlackWebhookDelete(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SnsDelete request
 	SnsDelete(ctx context.Context, sns openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1186,6 +1337,9 @@ type ClientInterface interface {
 	// StepRunGetDiff request
 	StepRunGetDiff(ctx context.Context, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// StepRunListEvents request
+	StepRunListEvents(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// LogLineList request
 	LogLineList(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1198,6 +1352,17 @@ type ClientInterface interface {
 	TenantUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	TenantUpdate(ctx context.Context, tenant openapi_types.UUID, body TenantUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AlertEmailGroupList request
+	AlertEmailGroupList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AlertEmailGroupCreateWithBody request with any body
+	AlertEmailGroupCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AlertEmailGroupCreate(ctx context.Context, tenant openapi_types.UUID, body AlertEmailGroupCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantAlertingSettingsGet request
+	TenantAlertingSettingsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ApiTokenList request
 	ApiTokenList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1236,6 +1401,12 @@ type ClientInterface interface {
 
 	// TenantMemberList request
 	TenantMemberList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SlackWebhookList request
+	SlackWebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UserUpdateSlackOauthStart request
+	UserUpdateSlackOauthStart(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SnsList request
 	SnsList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1332,6 +1503,9 @@ type ClientInterface interface {
 
 	UserCreate(ctx context.Context, body UserCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UserUpdateSlackOauthCallback request
+	UserUpdateSlackOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WorkerGet request
 	WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1375,6 +1549,42 @@ func (c *Client) LivenessGet(ctx context.Context, reqEditors ...RequestEditorFn)
 
 func (c *Client) ReadinessGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReadinessGetRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlertEmailGroupDelete(ctx context.Context, alertEmailGroup openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlertEmailGroupDeleteRequest(c.Server, alertEmailGroup)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlertEmailGroupUpdateWithBody(ctx context.Context, alertEmailGroup openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlertEmailGroupUpdateRequestWithBody(c.Server, alertEmailGroup, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlertEmailGroupUpdate(ctx context.Context, alertEmailGroup openapi_types.UUID, body AlertEmailGroupUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlertEmailGroupUpdateRequest(c.Server, alertEmailGroup, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1493,6 +1703,18 @@ func (c *Client) MetadataListIntegrations(ctx context.Context, reqEditors ...Req
 	return c.Client.Do(req)
 }
 
+func (c *Client) SlackWebhookDelete(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSlackWebhookDeleteRequest(c.Server, slack)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) SnsDelete(ctx context.Context, sns openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSnsDeleteRequest(c.Server, sns)
 	if err != nil {
@@ -1553,6 +1775,18 @@ func (c *Client) StepRunGetDiff(ctx context.Context, stepRun openapi_types.UUID,
 	return c.Client.Do(req)
 }
 
+func (c *Client) StepRunListEvents(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStepRunListEventsRequest(c.Server, stepRun, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) LogLineList(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewLogLineListRequest(c.Server, stepRun, params)
 	if err != nil {
@@ -1603,6 +1837,54 @@ func (c *Client) TenantUpdateWithBody(ctx context.Context, tenant openapi_types.
 
 func (c *Client) TenantUpdate(ctx context.Context, tenant openapi_types.UUID, body TenantUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantUpdateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlertEmailGroupList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlertEmailGroupListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlertEmailGroupCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlertEmailGroupCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AlertEmailGroupCreate(ctx context.Context, tenant openapi_types.UUID, body AlertEmailGroupCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAlertEmailGroupCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantAlertingSettingsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantAlertingSettingsGetRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -1771,6 +2053,30 @@ func (c *Client) TenantInviteUpdate(ctx context.Context, tenant openapi_types.UU
 
 func (c *Client) TenantMemberList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantMemberListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SlackWebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSlackWebhookListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UserUpdateSlackOauthStart(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUserUpdateSlackOauthStartRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -2189,6 +2495,18 @@ func (c *Client) UserCreate(ctx context.Context, body UserCreateJSONRequestBody,
 	return c.Client.Do(req)
 }
 
+func (c *Client) UserUpdateSlackOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUserUpdateSlackOauthCallbackRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkerGetRequest(c.Server, worker)
 	if err != nil {
@@ -2359,6 +2677,87 @@ func NewReadinessGetRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewAlertEmailGroupDeleteRequest generates requests for AlertEmailGroupDelete
+func NewAlertEmailGroupDeleteRequest(server string, alertEmailGroup openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "alert-email-group", runtime.ParamLocationPath, alertEmailGroup)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/alerting-email-groups/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAlertEmailGroupUpdateRequest calls the generic AlertEmailGroupUpdate builder with application/json body
+func NewAlertEmailGroupUpdateRequest(server string, alertEmailGroup openapi_types.UUID, body AlertEmailGroupUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAlertEmailGroupUpdateRequestWithBody(server, alertEmailGroup, "application/json", bodyReader)
+}
+
+// NewAlertEmailGroupUpdateRequestWithBody generates requests for AlertEmailGroupUpdate with any type of body
+func NewAlertEmailGroupUpdateRequestWithBody(server string, alertEmailGroup openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "alert-email-group", runtime.ParamLocationPath, alertEmailGroup)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/alerting-email-groups/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -2655,6 +3054,40 @@ func NewMetadataListIntegrationsRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewSlackWebhookDeleteRequest generates requests for SlackWebhookDelete
+func NewSlackWebhookDeleteRequest(server string, slack openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "slack", runtime.ParamLocationPath, slack)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/slack/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewSnsDeleteRequest generates requests for SnsDelete
 func NewSnsDeleteRequest(server string, sns openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -2801,6 +3234,78 @@ func NewStepRunGetDiffRequest(server string, stepRun openapi_types.UUID) (*http.
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewStepRunListEventsRequest generates requests for StepRunListEvents
+func NewStepRunListEventsRequest(server string, stepRun openapi_types.UUID, params *StepRunListEventsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "step-run", runtime.ParamLocationPath, stepRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/step-runs/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -3034,6 +3539,121 @@ func NewTenantUpdateRequestWithBody(server string, tenant openapi_types.UUID, co
 	return req, nil
 }
 
+// NewAlertEmailGroupListRequest generates requests for AlertEmailGroupList
+func NewAlertEmailGroupListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/alerting-email-groups", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAlertEmailGroupCreateRequest calls the generic AlertEmailGroupCreate builder with application/json body
+func NewAlertEmailGroupCreateRequest(server string, tenant openapi_types.UUID, body AlertEmailGroupCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAlertEmailGroupCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewAlertEmailGroupCreateRequestWithBody generates requests for AlertEmailGroupCreate with any type of body
+func NewAlertEmailGroupCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/alerting-email-groups", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTenantAlertingSettingsGetRequest generates requests for TenantAlertingSettingsGet
+func NewTenantAlertingSettingsGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/alerting/settings", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewApiTokenListRequest generates requests for ApiTokenList
 func NewApiTokenListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -3259,6 +3879,22 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 		if params.OrderByDirection != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -3557,6 +4193,74 @@ func NewTenantMemberListRequest(server string, tenant openapi_types.UUID) (*http
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/tenants/%s/members", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSlackWebhookListRequest generates requests for SlackWebhookList
+func NewSlackWebhookListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/slack", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUserUpdateSlackOauthStartRequest generates requests for UserUpdateSlackOauthStart
+func NewUserUpdateSlackOauthStartRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/slack/start", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4145,6 +4849,22 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 
 		}
 
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -4236,6 +4956,22 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 		if params.ParentStepRunId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentStepRunId", runtime.ParamLocationQuery, *params.ParentStepRunId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -4730,6 +5466,33 @@ func NewUserCreateRequestWithBody(server string, contentType string, body io.Rea
 	return req, nil
 }
 
+// NewUserUpdateSlackOauthCallbackRequest generates requests for UserUpdateSlackOauthCallback
+func NewUserUpdateSlackOauthCallbackRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/users/slack/callback")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWorkerGetRequest generates requests for WorkerGet
 func NewWorkerGetRequest(server string, worker openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -5181,6 +5944,14 @@ type ClientWithResponsesInterface interface {
 	// ReadinessGetWithResponse request
 	ReadinessGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadinessGetResponse, error)
 
+	// AlertEmailGroupDeleteWithResponse request
+	AlertEmailGroupDeleteWithResponse(ctx context.Context, alertEmailGroup openapi_types.UUID, reqEditors ...RequestEditorFn) (*AlertEmailGroupDeleteResponse, error)
+
+	// AlertEmailGroupUpdateWithBodyWithResponse request with any body
+	AlertEmailGroupUpdateWithBodyWithResponse(ctx context.Context, alertEmailGroup openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlertEmailGroupUpdateResponse, error)
+
+	AlertEmailGroupUpdateWithResponse(ctx context.Context, alertEmailGroup openapi_types.UUID, body AlertEmailGroupUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*AlertEmailGroupUpdateResponse, error)
+
 	// ApiTokenUpdateRevokeWithResponse request
 	ApiTokenUpdateRevokeWithResponse(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*ApiTokenUpdateRevokeResponse, error)
 
@@ -5208,6 +5979,9 @@ type ClientWithResponsesInterface interface {
 	// MetadataListIntegrationsWithResponse request
 	MetadataListIntegrationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetadataListIntegrationsResponse, error)
 
+	// SlackWebhookDeleteWithResponse request
+	SlackWebhookDeleteWithResponse(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookDeleteResponse, error)
+
 	// SnsDeleteWithResponse request
 	SnsDeleteWithResponse(ctx context.Context, sns openapi_types.UUID, reqEditors ...RequestEditorFn) (*SnsDeleteResponse, error)
 
@@ -5222,6 +5996,9 @@ type ClientWithResponsesInterface interface {
 	// StepRunGetDiffWithResponse request
 	StepRunGetDiffWithResponse(ctx context.Context, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetDiffResponse, error)
 
+	// StepRunListEventsWithResponse request
+	StepRunListEventsWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error)
+
 	// LogLineListWithResponse request
 	LogLineListWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*LogLineListResponse, error)
 
@@ -5234,6 +6011,17 @@ type ClientWithResponsesInterface interface {
 	TenantUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantUpdateResponse, error)
 
 	TenantUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, body TenantUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantUpdateResponse, error)
+
+	// AlertEmailGroupListWithResponse request
+	AlertEmailGroupListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*AlertEmailGroupListResponse, error)
+
+	// AlertEmailGroupCreateWithBodyWithResponse request with any body
+	AlertEmailGroupCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlertEmailGroupCreateResponse, error)
+
+	AlertEmailGroupCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body AlertEmailGroupCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*AlertEmailGroupCreateResponse, error)
+
+	// TenantAlertingSettingsGetWithResponse request
+	TenantAlertingSettingsGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantAlertingSettingsGetResponse, error)
 
 	// ApiTokenListWithResponse request
 	ApiTokenListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*ApiTokenListResponse, error)
@@ -5272,6 +6060,12 @@ type ClientWithResponsesInterface interface {
 
 	// TenantMemberListWithResponse request
 	TenantMemberListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantMemberListResponse, error)
+
+	// SlackWebhookListWithResponse request
+	SlackWebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookListResponse, error)
+
+	// UserUpdateSlackOauthStartWithResponse request
+	UserUpdateSlackOauthStartWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*UserUpdateSlackOauthStartResponse, error)
 
 	// SnsListWithResponse request
 	SnsListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*SnsListResponse, error)
@@ -5368,6 +6162,9 @@ type ClientWithResponsesInterface interface {
 
 	UserCreateWithResponse(ctx context.Context, body UserCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*UserCreateResponse, error)
 
+	// UserUpdateSlackOauthCallbackWithResponse request
+	UserUpdateSlackOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateSlackOauthCallbackResponse, error)
+
 	// WorkerGetWithResponse request
 	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
 
@@ -5433,6 +6230,53 @@ func (r ReadinessGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ReadinessGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AlertEmailGroupDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r AlertEmailGroupDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AlertEmailGroupDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AlertEmailGroupUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantAlertEmailGroup
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r AlertEmailGroupUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AlertEmailGroupUpdateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5655,6 +6499,30 @@ func (r MetadataListIntegrationsResponse) StatusCode() int {
 	return 0
 }
 
+type SlackWebhookDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON401      *APIErrors
+	JSON405      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r SlackWebhookDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SlackWebhookDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type SnsDeleteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5753,6 +6621,31 @@ func (r StepRunGetDiffResponse) StatusCode() int {
 	return 0
 }
 
+type StepRunListEventsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *StepRunEventList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r StepRunListEventsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StepRunListEventsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type LogLineListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5819,6 +6712,78 @@ func (r TenantUpdateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AlertEmailGroupListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantAlertEmailGroupList
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r AlertEmailGroupListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AlertEmailGroupListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type AlertEmailGroupCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *TenantAlertEmailGroup
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r AlertEmailGroupCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AlertEmailGroupCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantAlertingSettingsGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantAlertingSettings
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantAlertingSettingsGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantAlertingSettingsGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6057,6 +7022,52 @@ func (r TenantMemberListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantMemberListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SlackWebhookListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ListSlackWebhooks
+	JSON400      *APIErrors
+	JSON401      *APIErrors
+	JSON405      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r SlackWebhookListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SlackWebhookListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UserUpdateSlackOauthStartResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r UserUpdateSlackOauthStartResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UserUpdateSlackOauthStartResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6700,6 +7711,27 @@ func (r UserCreateResponse) StatusCode() int {
 	return 0
 }
 
+type UserUpdateSlackOauthCallbackResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r UserUpdateSlackOauthCallbackResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UserUpdateSlackOauthCallbackResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkerGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -6915,6 +7947,32 @@ func (c *ClientWithResponses) ReadinessGetWithResponse(ctx context.Context, reqE
 	return ParseReadinessGetResponse(rsp)
 }
 
+// AlertEmailGroupDeleteWithResponse request returning *AlertEmailGroupDeleteResponse
+func (c *ClientWithResponses) AlertEmailGroupDeleteWithResponse(ctx context.Context, alertEmailGroup openapi_types.UUID, reqEditors ...RequestEditorFn) (*AlertEmailGroupDeleteResponse, error) {
+	rsp, err := c.AlertEmailGroupDelete(ctx, alertEmailGroup, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlertEmailGroupDeleteResponse(rsp)
+}
+
+// AlertEmailGroupUpdateWithBodyWithResponse request with arbitrary body returning *AlertEmailGroupUpdateResponse
+func (c *ClientWithResponses) AlertEmailGroupUpdateWithBodyWithResponse(ctx context.Context, alertEmailGroup openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlertEmailGroupUpdateResponse, error) {
+	rsp, err := c.AlertEmailGroupUpdateWithBody(ctx, alertEmailGroup, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlertEmailGroupUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) AlertEmailGroupUpdateWithResponse(ctx context.Context, alertEmailGroup openapi_types.UUID, body AlertEmailGroupUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*AlertEmailGroupUpdateResponse, error) {
+	rsp, err := c.AlertEmailGroupUpdate(ctx, alertEmailGroup, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlertEmailGroupUpdateResponse(rsp)
+}
+
 // ApiTokenUpdateRevokeWithResponse request returning *ApiTokenUpdateRevokeResponse
 func (c *ClientWithResponses) ApiTokenUpdateRevokeWithResponse(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*ApiTokenUpdateRevokeResponse, error) {
 	rsp, err := c.ApiTokenUpdateRevoke(ctx, apiToken, reqEditors...)
@@ -6996,6 +8054,15 @@ func (c *ClientWithResponses) MetadataListIntegrationsWithResponse(ctx context.C
 	return ParseMetadataListIntegrationsResponse(rsp)
 }
 
+// SlackWebhookDeleteWithResponse request returning *SlackWebhookDeleteResponse
+func (c *ClientWithResponses) SlackWebhookDeleteWithResponse(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookDeleteResponse, error) {
+	rsp, err := c.SlackWebhookDelete(ctx, slack, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSlackWebhookDeleteResponse(rsp)
+}
+
 // SnsDeleteWithResponse request returning *SnsDeleteResponse
 func (c *ClientWithResponses) SnsDeleteWithResponse(ctx context.Context, sns openapi_types.UUID, reqEditors ...RequestEditorFn) (*SnsDeleteResponse, error) {
 	rsp, err := c.SnsDelete(ctx, sns, reqEditors...)
@@ -7040,6 +8107,15 @@ func (c *ClientWithResponses) StepRunGetDiffWithResponse(ctx context.Context, st
 	return ParseStepRunGetDiffResponse(rsp)
 }
 
+// StepRunListEventsWithResponse request returning *StepRunListEventsResponse
+func (c *ClientWithResponses) StepRunListEventsWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error) {
+	rsp, err := c.StepRunListEvents(ctx, stepRun, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStepRunListEventsResponse(rsp)
+}
+
 // LogLineListWithResponse request returning *LogLineListResponse
 func (c *ClientWithResponses) LogLineListWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*LogLineListResponse, error) {
 	rsp, err := c.LogLineList(ctx, stepRun, params, reqEditors...)
@@ -7081,6 +8157,41 @@ func (c *ClientWithResponses) TenantUpdateWithResponse(ctx context.Context, tena
 		return nil, err
 	}
 	return ParseTenantUpdateResponse(rsp)
+}
+
+// AlertEmailGroupListWithResponse request returning *AlertEmailGroupListResponse
+func (c *ClientWithResponses) AlertEmailGroupListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*AlertEmailGroupListResponse, error) {
+	rsp, err := c.AlertEmailGroupList(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlertEmailGroupListResponse(rsp)
+}
+
+// AlertEmailGroupCreateWithBodyWithResponse request with arbitrary body returning *AlertEmailGroupCreateResponse
+func (c *ClientWithResponses) AlertEmailGroupCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AlertEmailGroupCreateResponse, error) {
+	rsp, err := c.AlertEmailGroupCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlertEmailGroupCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) AlertEmailGroupCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body AlertEmailGroupCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*AlertEmailGroupCreateResponse, error) {
+	rsp, err := c.AlertEmailGroupCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAlertEmailGroupCreateResponse(rsp)
+}
+
+// TenantAlertingSettingsGetWithResponse request returning *TenantAlertingSettingsGetResponse
+func (c *ClientWithResponses) TenantAlertingSettingsGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantAlertingSettingsGetResponse, error) {
+	rsp, err := c.TenantAlertingSettingsGet(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantAlertingSettingsGetResponse(rsp)
 }
 
 // ApiTokenListWithResponse request returning *ApiTokenListResponse
@@ -7203,6 +8314,24 @@ func (c *ClientWithResponses) TenantMemberListWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseTenantMemberListResponse(rsp)
+}
+
+// SlackWebhookListWithResponse request returning *SlackWebhookListResponse
+func (c *ClientWithResponses) SlackWebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookListResponse, error) {
+	rsp, err := c.SlackWebhookList(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSlackWebhookListResponse(rsp)
+}
+
+// UserUpdateSlackOauthStartWithResponse request returning *UserUpdateSlackOauthStartResponse
+func (c *ClientWithResponses) UserUpdateSlackOauthStartWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*UserUpdateSlackOauthStartResponse, error) {
+	rsp, err := c.UserUpdateSlackOauthStart(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUserUpdateSlackOauthStartResponse(rsp)
 }
 
 // SnsListWithResponse request returning *SnsListResponse
@@ -7504,6 +8633,15 @@ func (c *ClientWithResponses) UserCreateWithResponse(ctx context.Context, body U
 	return ParseUserCreateResponse(rsp)
 }
 
+// UserUpdateSlackOauthCallbackWithResponse request returning *UserUpdateSlackOauthCallbackResponse
+func (c *ClientWithResponses) UserUpdateSlackOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateSlackOauthCallbackResponse, error) {
+	rsp, err := c.UserUpdateSlackOauthCallback(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUserUpdateSlackOauthCallbackResponse(rsp)
+}
+
 // WorkerGetWithResponse request returning *WorkerGetResponse
 func (c *ClientWithResponses) WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error) {
 	rsp, err := c.WorkerGet(ctx, worker, reqEditors...)
@@ -7619,6 +8757,79 @@ func ParseReadinessGetResponse(rsp *http.Response) (*ReadinessGetResponse, error
 	response := &ReadinessGetResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseAlertEmailGroupDeleteResponse parses an HTTP response from a AlertEmailGroupDeleteWithResponse call
+func ParseAlertEmailGroupDeleteResponse(rsp *http.Response) (*AlertEmailGroupDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AlertEmailGroupDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAlertEmailGroupUpdateResponse parses an HTTP response from a AlertEmailGroupUpdateWithResponse call
+func ParseAlertEmailGroupUpdateResponse(rsp *http.Response) (*AlertEmailGroupUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AlertEmailGroupUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantAlertEmailGroup
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	}
 
 	return response, nil
@@ -7984,6 +9195,46 @@ func ParseMetadataListIntegrationsResponse(rsp *http.Response) (*MetadataListInt
 	return response, nil
 }
 
+// ParseSlackWebhookDeleteResponse parses an HTTP response from a SlackWebhookDeleteWithResponse call
+func ParseSlackWebhookDeleteResponse(rsp *http.Response) (*SlackWebhookDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SlackWebhookDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseSnsDeleteResponse parses an HTTP response from a SnsDeleteWithResponse call
 func ParseSnsDeleteResponse(rsp *http.Response) (*SnsDeleteResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -8158,6 +9409,53 @@ func ParseStepRunGetDiffResponse(rsp *http.Response) (*StepRunGetDiffResponse, e
 	return response, nil
 }
 
+// ParseStepRunListEventsResponse parses an HTTP response from a StepRunListEventsWithResponse call
+func ParseStepRunListEventsResponse(rsp *http.Response) (*StepRunListEventsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StepRunListEventsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest StepRunEventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseLogLineListResponse parses an HTTP response from a LogLineListWithResponse call
 func ParseLogLineListResponse(rsp *http.Response) (*LogLineListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -8254,6 +9552,126 @@ func ParseTenantUpdateResponse(rsp *http.Response) (*TenantUpdateResponse, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Tenant
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAlertEmailGroupListResponse parses an HTTP response from a AlertEmailGroupListWithResponse call
+func ParseAlertEmailGroupListResponse(rsp *http.Response) (*AlertEmailGroupListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AlertEmailGroupListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantAlertEmailGroupList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAlertEmailGroupCreateResponse parses an HTTP response from a AlertEmailGroupCreateWithResponse call
+func ParseAlertEmailGroupCreateResponse(rsp *http.Response) (*AlertEmailGroupCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AlertEmailGroupCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TenantAlertEmailGroup
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantAlertingSettingsGetResponse parses an HTTP response from a TenantAlertingSettingsGetWithResponse call
+func ParseTenantAlertingSettingsGetResponse(rsp *http.Response) (*TenantAlertingSettingsGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantAlertingSettingsGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantAlertingSettings
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -8659,6 +10077,69 @@ func ParseTenantMemberListResponse(rsp *http.Response) (*TenantMemberListRespons
 		}
 		response.JSON403 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseSlackWebhookListResponse parses an HTTP response from a SlackWebhookListWithResponse call
+func ParseSlackWebhookListResponse(rsp *http.Response) (*SlackWebhookListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SlackWebhookListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListSlackWebhooks
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUserUpdateSlackOauthStartResponse parses an HTTP response from a UserUpdateSlackOauthStartWithResponse call
+func ParseUserUpdateSlackOauthStartResponse(rsp *http.Response) (*UserUpdateSlackOauthStartResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UserUpdateSlackOauthStartResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil
@@ -9644,6 +11125,22 @@ func ParseUserCreateResponse(rsp *http.Response) (*UserCreateResponse, error) {
 		}
 		response.JSON405 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseUserUpdateSlackOauthCallbackResponse parses an HTTP response from a UserUpdateSlackOauthCallbackWithResponse call
+func ParseUserUpdateSlackOauthCallbackResponse(rsp *http.Response) (*UserUpdateSlackOauthCallbackResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UserUpdateSlackOauthCallbackResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil

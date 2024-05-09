@@ -133,6 +133,30 @@ model Tenant {
   snsIntegrations           SNSIntegration[]
   rateLimits                RateLimit[]
   stepRateLimits            StepRateLimit[]
+  alertEmailGroups          TenantAlertEmailGroup[]
+  slackWebhooks             SlackAppWebhook[]
+  alertingSettings          TenantAlertingSettings?
+}
+
+model TenantAlertingSettings {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @unique @db.Uuid
+
+  // the maximum alerting frequency
+  maxFrequency String @default("1h")
+
+  lastAlertedAt DateTime?
+
+  // the assigned ticker
+  ticker   Ticker? @relation(fields: [tickerId], references: [id])
+  tickerId String? @db.Uuid
 }
 
 enum TenantMemberRole {
@@ -228,6 +252,9 @@ model Event {
 
   // data stored in the event
   data Json?
+
+  // metadata stored in the event
+  additionalMetadata Json?
 
   // the workflow runs that were triggered by this event
   workflowRuns WorkflowRunTriggeredBy[]
@@ -329,6 +356,10 @@ model WorkflowVersion {
 
   // the declared jobs
   jobs Job[]
+
+  // a job that runs when the workflow fails
+  onFailureJob   Job?    @relation("OnFailureJob", fields: [onFailureJobId], references: [id])
+  onFailureJobId String? @unique @db.Uuid
 
   // all runs for the workflow
   runs WorkflowRun[]
@@ -469,6 +500,14 @@ model WorkflowTriggerScheduledRef {
   @@unique([parentId, parentStepRunId, childKey])
 }
 
+enum JobKind {
+  // DEFAULT job kinds get started immediately when the workflow execution starts
+  DEFAULT
+
+  // ON_FAILURE job kinds get started when the workflow fails
+  ON_FAILURE
+}
+
 model Job {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -498,6 +537,12 @@ model Job {
 
   // any runs for this job
   runs JobRun[]
+
+  // the kind of job
+  kind JobKind @default(DEFAULT)
+
+  // a link to workflow
+  failureRelations WorkflowVersion? @relation("OnFailureJob")
 
   // jobs names are unique per workflow
   @@unique([workflowVersionId, name])
@@ -681,6 +726,9 @@ model WorkflowRun {
   gitRepoBranch String?
 
   pullRequests GithubPullRequest[]
+
+  // (optional) additonal metadata for the workflow run
+  additionalMetadata Json?
 
   @@unique([parentId, parentStepRunId, childKey])
 }
@@ -965,20 +1013,61 @@ model StepRun {
   childWorkflowRuns WorkflowRun[]
   childSchedules    WorkflowTriggerScheduledRef[]
 
+  events StepRunEvent[]
+
   // index for ListStepRunsToRequeue and ListStepRunsToReassign
   @@index([tenantId, status, input, requeueAfter, createdAt])
-
   // index for LinkStepRunParents
   @@index([stepId])
-
   // index for ListStartableStepRuns
   @@index([jobRunId, status])
-
   // index for ResolveLaterStepRuns
   @@index([id, tenantId])
-
   // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
   @@index([jobRunId, tenantId, order])
+}
+
+enum StepRunEventReason {
+  REQUEUED_NO_WORKER
+  REQUEUED_RATE_LIMIT
+  SCHEDULING_TIMED_OUT
+
+  ASSIGNED
+  STARTED
+  FINISHED
+  FAILED
+  RETRYING
+  CANCELLED
+}
+
+enum StepRunEventSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model StepRunEvent {
+  id            BigInt   @unique @default(autoincrement()) @db.BigInt
+  timeFirstSeen DateTime @default(now())
+  timeLastSeen  DateTime @default(now())
+
+  // the parent step run
+  stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepRunId String  @db.Uuid
+
+  // the event reason
+  reason StepRunEventReason
+
+  // the event severity
+  severity StepRunEventSeverity
+
+  message String
+
+  count Int
+
+  data Json?
+
+  @@index([stepRunId])
 }
 
 model StepRunResultArchive {
@@ -1055,6 +1144,7 @@ model Ticker {
   crons        WorkflowTriggerCronRef[]
   scheduled    WorkflowTriggerScheduledRef[]
   groupKeyRuns GetGroupKeyRun[]
+  tenantAlerts TenantAlertingSettings[]
 }
 
 model Worker {
@@ -1182,6 +1272,43 @@ model GithubAppInstallation {
   tenantVcsProviderId String?                    @db.Uuid
 
   @@unique([installationId, accountId])
+}
+
+model TenantAlertEmailGroup {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // a list of comma-separated emails for the group
+  emails String
+}
+
+model SlackAppWebhook {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  teamId   String
+  teamName String
+
+  channelId   String
+  channelName String
+
+  // encrypted at rest
+  webhookURL Bytes @db.ByteA
+
+  @@unique([tenantId, teamId, channelId])
 }
 
 model GithubAppOAuth {

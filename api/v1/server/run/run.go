@@ -8,6 +8,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
@@ -17,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
+	slackapp "github.com/hatchet-dev/hatchet/api/v1/server/handlers/slack-app"
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
@@ -40,6 +42,7 @@ type apiService struct {
 	*stepruns.StepRunService
 	*githubapp.GithubAppService
 	*ingestors.IngestorsService
+	*slackapp.SlackAppService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -55,6 +58,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		StepRunService:   stepruns.NewStepRunService(config),
 		GithubAppService: githubapp.NewGithubAppService(config),
 		IngestorsService: ingestors.NewIngestorsService(config),
+		SlackAppService:  slackapp.NewSlackAppService(config),
 	}
 }
 
@@ -116,6 +120,26 @@ func (t *APIServer) Run() (func() error, error) {
 		}
 
 		return tenantInvite, tenantInvite.TenantID, nil
+	})
+
+	populatorMW.RegisterGetter("slack", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		slackWebhook, err := config.APIRepository.Slack().GetSlackWebhookById(id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return slackWebhook, slackWebhook.TenantID, nil
+	})
+
+	populatorMW.RegisterGetter("alert-email-group", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		emailGroup, err := config.APIRepository.TenantAlertingSettings().GetTenantAlertGroupById(id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return emailGroup, emailGroup.TenantID, nil
 	})
 
 	populatorMW.RegisterGetter("sns", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -207,9 +231,53 @@ func (t *APIServer) Run() (func() error, error) {
 		return nil, err
 	}
 
+	loggerMiddleware := middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogURI:       true,
+		LogStatus:    true,
+		LogError:     true,
+		LogLatency:   true,
+		LogRemoteIP:  true,
+		LogHost:      true,
+		LogMethod:    true,
+		LogURIPath:   true,
+		LogUserAgent: true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			statusCode := v.Status
+
+			// note that the status code is not set yet as it gets picked up by the global err handler
+			// see here: https://github.com/labstack/echo/issues/2310#issuecomment-1288196898
+			if v.Error != nil {
+				statusCode = 500
+			}
+
+			var e *zerolog.Event
+
+			switch {
+			case statusCode >= 500:
+				e = t.config.Logger.Error().Err(v.Error)
+			case statusCode >= 400:
+				e = t.config.Logger.Warn()
+			default:
+				e = t.config.Logger.Info()
+			}
+
+			e.
+				Dur("latency", v.Latency).
+				Int("status", statusCode).
+				Str("method", v.Method).
+				Str("uri", v.URI).
+				Str("user_agent", v.UserAgent).
+				Str("remote_ip", v.RemoteIP).
+				Str("host", v.Host).
+				Msg("API")
+
+			return nil
+		},
+	})
+
 	// register echo middleware
 	e.Use(
-		middleware.Logger(),
+		loggerMiddleware,
 		middleware.Recover(),
 		allHatchetMiddleware,
 	)

@@ -229,6 +229,38 @@ export interface UpdateTenantInviteRequest {
   role: TenantMemberRole;
 }
 
+export interface TenantAlertingSettings {
+  metadata: APIResourceMeta;
+  /** The max frequency at which to alert. */
+  maxAlertingFrequency: string;
+  /**
+   * The last time an alert was sent.
+   * @format date-time
+   */
+  lastAlertedAt?: string;
+}
+
+export interface TenantAlertEmailGroup {
+  metadata: APIResourceMeta;
+  /** A list of emails for users */
+  emails: string[];
+}
+
+export interface TenantAlertEmailGroupList {
+  pagination?: PaginationResponse;
+  rows?: TenantAlertEmailGroup[];
+}
+
+export interface CreateTenantAlertEmailGroupRequest {
+  /** A list of emails for users */
+  emails: string[];
+}
+
+export interface UpdateTenantAlertEmailGroupRequest {
+  /** A list of emails for users */
+  emails: string[];
+}
+
 export interface TenantInvite {
   metadata: APIResourceMeta;
   /** The email of the user to invite. */
@@ -282,8 +314,12 @@ export interface CreateTenantRequest {
 }
 
 export interface UpdateTenantRequest {
+  /** The name of the tenant. */
+  name?: string;
   /** Whether the tenant has opted out of analytics. */
   analyticsOptOut?: boolean;
+  /** The max frequency at which to alert. */
+  maxAlertingFrequency?: string;
 }
 
 export interface Event {
@@ -296,6 +332,8 @@ export interface Event {
   tenantId: string;
   /** The workflow run summary for this event. */
   workflowRunSummary?: EventWorkflowRunSummary;
+  /** Additional metadata for the event. */
+  additionalMetadata?: object;
 }
 
 export interface EventData {
@@ -519,6 +557,7 @@ export interface WorkflowRun {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   parentStepRunId?: string;
+  additionalMetadata?: Record<string, any>;
 }
 
 export interface WorkflowRunList {
@@ -633,6 +672,43 @@ export interface StepRun {
   cancelledError?: string;
 }
 
+export enum StepRunEventReason {
+  REQUEUED_NO_WORKER = "REQUEUED_NO_WORKER",
+  REQUEUED_RATE_LIMIT = "REQUEUED_RATE_LIMIT",
+  SCHEDULING_TIMED_OUT = "SCHEDULING_TIMED_OUT",
+  ASSIGNED = "ASSIGNED",
+  STARTED = "STARTED",
+  FINISHED = "FINISHED",
+  FAILED = "FAILED",
+  RETRYING = "RETRYING",
+  CANCELLED = "CANCELLED",
+}
+
+export enum StepRunEventSeverity {
+  INFO = "INFO",
+  WARNING = "WARNING",
+  CRITICAL = "CRITICAL",
+}
+
+export interface StepRunEvent {
+  id: number;
+  /** @format date-time */
+  timeFirstSeen: string;
+  /** @format date-time */
+  timeLastSeen: string;
+  stepRunId: string;
+  reason: StepRunEventReason;
+  severity: StepRunEventSeverity;
+  message: string;
+  count: number;
+  data?: object;
+}
+
+export interface StepRunEventList {
+  pagination?: PaginationResponse;
+  rows?: StepRunEvent[];
+}
+
 export interface WorkerList {
   pagination?: PaginationResponse;
   rows?: Worker[];
@@ -706,6 +782,7 @@ export interface RerunStepRunRequest {
 
 export interface TriggerWorkflowRunRequest {
   input: object;
+  additionalMetadata?: object;
 }
 
 export interface LinkGithubRepositoryRequest {
@@ -836,6 +913,28 @@ export interface SNSIntegration {
 export interface ListSNSIntegrations {
   pagination: PaginationResponse;
   rows: SNSIntegration[];
+}
+
+export interface SlackWebhook {
+  metadata: APIResourceMeta;
+  /**
+   * The unique identifier for the tenant that the SNS integration belongs to.
+   * @format uuid
+   */
+  tenantId: string;
+  /** The team name associated with this slack webhook. */
+  teamName: string;
+  /** The team id associated with this slack webhook. */
+  teamId: string;
+  /** The channel name associated with this slack webhook. */
+  channelName: string;
+  /** The channel id associated with this slack webhook. */
+  channelId: string;
+}
+
+export interface ListSlackWebhooks {
+  pagination: PaginationResponse;
+  rows: SlackWebhook[];
 }
 
 export interface CreateSNSIntegrationRequest {

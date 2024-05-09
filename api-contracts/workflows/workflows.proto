@@ -28,6 +28,7 @@ message CreateWorkflowVersionOpts {
     WorkflowConcurrencyOpts concurrency = 8; // (optional) the workflow concurrency options
     optional string schedule_timeout = 9; // (optional) the timeout for the schedule
     optional string cron_input = 10; // (optional) the input for the cron trigger
+    optional CreateWorkflowJobOpts on_failure_job = 11; // (optional) the job to run on failure
 }
 
 enum ConcurrencyLimitStrategy {
@@ -137,6 +138,9 @@ message TriggerWorkflowRequest {
     // child key will return an existing workflow run if the parent id, parent step run id, and
     // child index/key match an existing workflow run.
     optional string child_key = 6;
+
+    // (optional) additional metadata for the workflow
+    optional string additional_metadata = 7;
 }
 
 message TriggerWorkflowResponse {
@@ -147,6 +151,10 @@ enum RateLimitDuration {
     SECOND = 0;
     MINUTE = 1;
     HOUR = 2;
+    DAY = 3;
+    WEEK = 4;
+    MONTH = 5;
+    YEAR = 6;
 }
 
 message PutRateLimitRequest {

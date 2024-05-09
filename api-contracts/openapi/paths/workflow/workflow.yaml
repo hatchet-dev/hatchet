@@ -344,6 +344,15 @@ workflowRuns:
         required: false
         schema:
           $ref: "../../components/schemas/_index.yaml#/WorkflowRunStatusList"
+      - description: A list of metadata key value pairs to filter by
+        in: query
+        name: additionalMetadata
+        example: ["key1:value1", "key2:value2"]
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
     responses:
       "200":
         content:
@@ -417,6 +426,15 @@ workflowRunsMetrics:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: A list of metadata key value pairs to filter by
+        in: query
+        name: additionalMetadata
+        example: ["key1:value1", "key2:value2"]
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
     responses:
       "200":
         content:

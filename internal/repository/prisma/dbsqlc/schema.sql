@@ -5,10 +5,19 @@ CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWE
 CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
 
 -- CreateEnum
+CREATE TYPE "JobKind" AS ENUM ('DEFAULT', 'ON_FAILURE');
+
+-- CreateEnum
 CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
 
 -- CreateEnum
 CREATE TYPE "LogLineLevel" AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
+
+-- CreateEnum
+CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "StepRunEventSeverity" AS ENUM ('INFO', 'WARNING', 'CRITICAL');
 
 -- CreateEnum
 CREATE TYPE "StepRunStatus" AS ENUM ('PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
@@ -67,6 +76,7 @@ CREATE TABLE "Event" (
     "tenantId" UUID NOT NULL,
     "replayedFromId" UUID,
     "data" JSONB,
+    "additionalMetadata" JSONB,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
@@ -188,6 +198,7 @@ CREATE TABLE "Job" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "timeout" TEXT,
+    "kind" "JobKind" NOT NULL DEFAULT 'DEFAULT',
 
     CONSTRAINT "Job_pkey" PRIMARY KEY ("id")
 );
@@ -275,6 +286,22 @@ CREATE TABLE "Service" (
 );
 
 -- CreateTable
+CREATE TABLE "SlackAppWebhook" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    "tenantId" UUID NOT NULL,
+    "teamId" TEXT NOT NULL,
+    "teamName" TEXT NOT NULL,
+    "channelId" TEXT NOT NULL,
+    "channelName" TEXT NOT NULL,
+    "webhookURL" BYTEA NOT NULL,
+
+    CONSTRAINT "SlackAppWebhook_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Step" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -333,6 +360,19 @@ CREATE TABLE "StepRun" (
 );
 
 -- CreateTable
+CREATE TABLE "StepRunEvent" (
+    "id" BIGSERIAL NOT NULL,
+    "timeFirstSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "timeLastSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "stepRunId" UUID NOT NULL,
+    "reason" "StepRunEventReason" NOT NULL,
+    "severity" "StepRunEventSeverity" NOT NULL,
+    "message" TEXT NOT NULL,
+    "count" INTEGER NOT NULL,
+    "data" JSONB
+);
+
+-- CreateTable
 CREATE TABLE "StepRunResultArchive" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -376,6 +416,32 @@ CREATE TABLE "Tenant" (
     "analyticsOptOut" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TenantAlertEmailGroup" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    "tenantId" UUID NOT NULL,
+    "emails" TEXT NOT NULL,
+
+    CONSTRAINT "TenantAlertEmailGroup_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TenantAlertingSettings" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    "tenantId" UUID NOT NULL,
+    "maxFrequency" TEXT NOT NULL DEFAULT '1h',
+    "lastAlertedAt" TIMESTAMP(3),
+    "tickerId" UUID,
+
+    CONSTRAINT "TenantAlertingSettings_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -556,6 +622,7 @@ CREATE TABLE "WorkflowRun" (
     "childKey" TEXT,
     "parentId" UUID,
     "parentStepRunId" UUID,
+    "additionalMetadata" JSONB,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -642,6 +709,7 @@ CREATE TABLE "WorkflowVersion" (
     "workflowId" UUID NOT NULL,
     "checksum" TEXT NOT NULL,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
+    "onFailureJobId" UUID,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
@@ -776,6 +844,12 @@ CREATE UNIQUE INDEX "Service_id_key" ON "Service"("id" ASC);
 CREATE UNIQUE INDEX "Service_tenantId_name_key" ON "Service"("tenantId" ASC, "name" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "SlackAppWebhook_id_key" ON "SlackAppWebhook"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SlackAppWebhook_tenantId_teamId_channelId_key" ON "SlackAppWebhook"("tenantId" ASC, "teamId" ASC, "channelId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Step_id_key" ON "Step"("id" ASC);
 
 -- CreateIndex
@@ -788,6 +862,12 @@ CREATE UNIQUE INDEX "StepRateLimit_stepId_rateLimitKey_key" ON "StepRateLimit"("
 CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun"("id" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "StepRunEvent_id_key" ON "StepRunEvent"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRunEvent_stepRunId_idx" ON "StepRunEvent"("stepRunId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "StepRunResultArchive_id_key" ON "StepRunResultArchive"("id" ASC);
 
 -- CreateIndex
@@ -795,6 +875,15 @@ CREATE UNIQUE INDEX "Tenant_id_key" ON "Tenant"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Tenant_slug_key" ON "Tenant"("slug" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TenantAlertEmailGroup_id_key" ON "TenantAlertEmailGroup"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TenantAlertingSettings_id_key" ON "TenantAlertingSettings"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TenantAlertingSettings_tenantId_key" ON "TenantAlertingSettings"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TenantInviteLink_id_key" ON "TenantInviteLink"("id" ASC);
@@ -900,6 +989,9 @@ CREATE UNIQUE INDEX "WorkflowTriggers_workflowVersionId_key" ON "WorkflowTrigger
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowVersion_id_key" ON "WorkflowVersion"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowVersion_onFailureJobId_key" ON "WorkflowVersion"("onFailureJobId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "_ActionToWorker_AB_unique" ON "_ActionToWorker"("A" ASC, "B" ASC);
@@ -1034,6 +1126,9 @@ ALTER TABLE "SNSIntegration" ADD CONSTRAINT "SNSIntegration_tenantId_fkey" FOREI
 ALTER TABLE "Service" ADD CONSTRAINT "Service_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "SlackAppWebhook" ADD CONSTRAINT "SlackAppWebhook_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Step" ADD CONSTRAINT "Step_actionId_tenantId_fkey" FOREIGN KEY ("actionId", "tenantId") REFERENCES "Action"("actionId", "tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1067,6 +1162,9 @@ ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_tickerId_fkey" FOREIGN KEY ("ticke
 ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "StepRunEvent" ADD CONSTRAINT "StepRunEvent_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "StepRunResultArchive" ADD CONSTRAINT "StepRunResultArchive_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1074,6 +1172,15 @@ ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_stepRunId_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TenantAlertEmailGroup" ADD CONSTRAINT "TenantAlertEmailGroup_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TenantAlertingSettings" ADD CONSTRAINT "TenantAlertingSettings_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TenantAlertingSettings" ADD CONSTRAINT "TenantAlertingSettings_tickerId_fkey" FOREIGN KEY ("tickerId") REFERENCES "Ticker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TenantInviteLink" ADD CONSTRAINT "TenantInviteLink_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1176,6 +1283,9 @@ ALTER TABLE "WorkflowTriggers" ADD CONSTRAINT "WorkflowTriggers_tenantId_fkey" F
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggers" ADD CONSTRAINT "WorkflowTriggers_workflowVersionId_fkey" FOREIGN KEY ("workflowVersionId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowVersion" ADD CONSTRAINT "WorkflowVersion_onFailureJobId_fkey" FOREIGN KEY ("onFailureJobId") REFERENCES "Job"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowVersion" ADD CONSTRAINT "WorkflowVersion_workflowId_fkey" FOREIGN KEY ("workflowId") REFERENCES "Workflow"("id") ON DELETE CASCADE ON UPDATE CASCADE;

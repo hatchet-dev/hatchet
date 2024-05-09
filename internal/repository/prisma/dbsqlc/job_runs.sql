@@ -24,10 +24,11 @@ UPDATE "JobRun"
 SET "status" = CASE 
     -- Final states are final, cannot be updated
     WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+    -- NOTE: Order of the following conditions is important
+    -- When one step run is running, then the job is running
+    WHEN (s.runningRuns > 0 OR s.pendingRuns > 0) THEN 'RUNNING'
     -- When one step run has failed, then the job is failed
     WHEN s.failedRuns > 0 THEN 'FAILED'
-    -- When one step run is running, then the job is running
-    WHEN s.runningRuns > 0 THEN 'RUNNING'
     -- When one step run has been cancelled, then the job is cancelled
     WHEN s.cancelledRuns > 0 THEN 'CANCELLED'
     -- When no step runs exist that are not succeeded, then the job is succeeded
@@ -108,8 +109,21 @@ WHERE
 
 -- name: ListJobRunsForWorkflowRun :many
 SELECT
-    "id"
+    "id",
+    "jobId"
 FROM
     "JobRun" jr
 WHERE
     jr."workflowRunId" = @workflowRunId::uuid;
+
+-- name: GetJobRunByWorkflowRunIdAndJobId :one
+SELECT
+    "id",
+    "jobId",
+    "status"
+FROM
+    "JobRun" jr
+WHERE
+    jr."tenantId" = @tenantId::uuid
+    AND jr."workflowRunId" = @workflowRunId::uuid
+    AND jr."jobId" = @jobId::uuid;

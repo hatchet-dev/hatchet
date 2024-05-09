@@ -11,28 +11,66 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getJobRunByWorkflowRunIdAndJobId = `-- name: GetJobRunByWorkflowRunIdAndJobId :one
+SELECT
+    "id",
+    "jobId",
+    "status"
+FROM
+    "JobRun" jr
+WHERE
+    jr."tenantId" = $1::uuid
+    AND jr."workflowRunId" = $2::uuid
+    AND jr."jobId" = $3::uuid
+`
+
+type GetJobRunByWorkflowRunIdAndJobIdParams struct {
+	Tenantid      pgtype.UUID `json:"tenantid"`
+	Workflowrunid pgtype.UUID `json:"workflowrunid"`
+	Jobid         pgtype.UUID `json:"jobid"`
+}
+
+type GetJobRunByWorkflowRunIdAndJobIdRow struct {
+	ID     pgtype.UUID  `json:"id"`
+	JobId  pgtype.UUID  `json:"jobId"`
+	Status JobRunStatus `json:"status"`
+}
+
+func (q *Queries) GetJobRunByWorkflowRunIdAndJobId(ctx context.Context, db DBTX, arg GetJobRunByWorkflowRunIdAndJobIdParams) (*GetJobRunByWorkflowRunIdAndJobIdRow, error) {
+	row := db.QueryRow(ctx, getJobRunByWorkflowRunIdAndJobId, arg.Tenantid, arg.Workflowrunid, arg.Jobid)
+	var i GetJobRunByWorkflowRunIdAndJobIdRow
+	err := row.Scan(&i.ID, &i.JobId, &i.Status)
+	return &i, err
+}
+
 const listJobRunsForWorkflowRun = `-- name: ListJobRunsForWorkflowRun :many
 SELECT
-    "id"
+    "id",
+    "jobId"
 FROM
     "JobRun" jr
 WHERE
     jr."workflowRunId" = $1::uuid
 `
 
-func (q *Queries) ListJobRunsForWorkflowRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) ([]pgtype.UUID, error) {
+type ListJobRunsForWorkflowRunRow struct {
+	ID    pgtype.UUID `json:"id"`
+	JobId pgtype.UUID `json:"jobId"`
+}
+
+func (q *Queries) ListJobRunsForWorkflowRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) ([]*ListJobRunsForWorkflowRunRow, error) {
 	rows, err := db.Query(ctx, listJobRunsForWorkflowRun, workflowrunid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []*ListJobRunsForWorkflowRunRow
 	for rows.Next() {
-		var id pgtype.UUID
-		if err := rows.Scan(&id); err != nil {
+		var i ListJobRunsForWorkflowRunRow
+		if err := rows.Scan(&i.ID, &i.JobId); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -60,10 +98,11 @@ UPDATE "JobRun"
 SET "status" = CASE 
     -- Final states are final, cannot be updated
     WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+    -- NOTE: Order of the following conditions is important
+    -- When one step run is running, then the job is running
+    WHEN (s.runningRuns > 0 OR s.pendingRuns > 0) THEN 'RUNNING'
     -- When one step run has failed, then the job is failed
     WHEN s.failedRuns > 0 THEN 'FAILED'
-    -- When one step run is running, then the job is running
-    WHEN s.runningRuns > 0 THEN 'RUNNING'
     -- When one step run has been cancelled, then the job is cancelled
     WHEN s.cancelledRuns > 0 THEN 'CANCELLED'
     -- When no step runs exist that are not succeeded, then the job is succeeded

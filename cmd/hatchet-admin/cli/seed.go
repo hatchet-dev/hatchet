@@ -149,6 +149,7 @@ func seedDev(repo repository.EngineRepository, tenantId string) error {
 			Jobs: []repository.CreateWorkflowJobOpts{
 				{
 					Name: "job-name",
+					Kind: "DEFAULT",
 					Steps: []repository.CreateWorkflowStepOpts{
 						{
 							ReadableId: "echo1",

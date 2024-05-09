@@ -6,12 +6,14 @@ type APIRepository interface {
 	Event() EventAPIRepository
 	Log() LogsAPIRepository
 	Tenant() TenantAPIRepository
+	TenantAlertingSettings() TenantAlertingAPIRepository
 	TenantInvite() TenantInviteRepository
 	Workflow() WorkflowAPIRepository
 	WorkflowRun() WorkflowRunAPIRepository
 	JobRun() JobRunAPIRepository
 	StepRun() StepRunAPIRepository
 	Github() GithubRepository
+	Slack() SlackRepository
 	SNS() SNSRepository
 	Step() StepRepository
 	Worker() WorkerAPIRepository
@@ -28,6 +30,7 @@ type EngineRepository interface {
 	JobRun() JobRunEngineRepository
 	StepRun() StepRunEngineRepository
 	Tenant() TenantEngineRepository
+	TenantAlertingSettings() TenantAlertingEngineRepository
 	Ticker() TickerEngineRepository
 	Worker() WorkerEngineRepository
 	Workflow() WorkflowEngineRepository

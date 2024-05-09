@@ -10,9 +10,26 @@ import (
 )
 
 type ListStepRunsOpts struct {
+	JobRunId *string `validate:"omitempty,uuid"`
+
 	WorkflowRunIds []string `validate:"dive,uuid"`
 
 	Status *dbsqlc.StepRunStatus
+}
+
+func IsFinalStepRunStatus(status dbsqlc.StepRunStatus) bool {
+	return status != dbsqlc.StepRunStatusPENDING &&
+		status != dbsqlc.StepRunStatusPENDINGASSIGNMENT &&
+		status != dbsqlc.StepRunStatusASSIGNED &&
+		status != dbsqlc.StepRunStatusRUNNING
+}
+
+func IsFinalJobRunStatus(status dbsqlc.JobRunStatus) bool {
+	return status != dbsqlc.JobRunStatusPENDING && status != dbsqlc.JobRunStatusRUNNING
+}
+
+func IsFinalWorkflowRunStatus(status dbsqlc.WorkflowRunStatus) bool {
+	return status != dbsqlc.WorkflowRunStatusPENDING && status != dbsqlc.WorkflowRunStatusRUNNING && status != dbsqlc.WorkflowRunStatusQUEUED
 }
 
 type UpdateStepRunOpts struct {
@@ -41,6 +58,12 @@ type UpdateStepRunOpts struct {
 	Output []byte
 
 	RetryCount *int
+
+	EventMessage *string
+
+	EventReason *dbsqlc.StepRunEventReason
+
+	EventSeverity *dbsqlc.StepRunEventSeverity
 }
 
 type UpdateStepRunOverridesDataOpts struct {
@@ -51,6 +74,14 @@ type UpdateStepRunOverridesDataOpts struct {
 
 func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
 	return &status
+}
+
+func StepRunEventReasonPtr(reason dbsqlc.StepRunEventReason) *dbsqlc.StepRunEventReason {
+	return &reason
+}
+
+func StepRunEventSeverityPtr(severity dbsqlc.StepRunEventSeverity) *dbsqlc.StepRunEventSeverity {
+	return &severity
 }
 
 var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
@@ -64,10 +95,25 @@ type StepRunUpdateInfo struct {
 	WorkflowRunStatus     string
 }
 
+type ListStepRunEventOpts struct {
+	// (optional) number of events to skip
+	Offset *int
+
+	// (optional) number of events to return
+	Limit *int
+}
+
+type ListStepRunEventResult struct {
+	Rows  []*dbsqlc.StepRunEvent
+	Count int
+}
+
 type StepRunAPIRepository interface {
 	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
 
 	GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error)
+
+	ListStepRunEvents(stepRunId string, opts *ListStepRunEventOpts) (*ListStepRunEventResult, error)
 }
 
 type StepRunEngineRepository interface {

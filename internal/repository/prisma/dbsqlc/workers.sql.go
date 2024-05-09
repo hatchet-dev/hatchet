@@ -182,11 +182,14 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns",
-    COUNT(runs."id") FILTER (WHERE runs."status" = 'RUNNING') AS "runningStepRuns"
+    COUNT(runs."id") FILTER (WHERE runs."status" = 'RUNNING') AS "runningStepRuns",
+    ws."slots" AS "slots"
 FROM
     "Worker" workers
 LEFT JOIN
     "StepRun" AS runs ON runs."workerId" = workers."id" AND runs."status" = 'RUNNING'
+JOIN
+    "WorkerSemaphore" AS ws ON ws."workerId" = workers."id"
 WHERE
     workers."tenantId" = $1
     AND (
@@ -212,6 +215,7 @@ WHERE
         ))
     )
 GROUP BY
+    ws."slots",
     workers."id"
 `
 
@@ -225,6 +229,7 @@ type ListWorkersWithStepCountParams struct {
 type ListWorkersWithStepCountRow struct {
 	Worker          Worker `json:"worker"`
 	RunningStepRuns int64  `json:"runningStepRuns"`
+	Slots           int32  `json:"slots"`
 }
 
 func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg ListWorkersWithStepCountParams) ([]*ListWorkersWithStepCountRow, error) {
@@ -252,6 +257,7 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 			&i.Worker.DispatcherId,
 			&i.Worker.MaxRuns,
 			&i.RunningStepRuns,
+			&i.Slots,
 		); err != nil {
 			return nil, err
 		}

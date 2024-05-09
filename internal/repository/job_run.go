@@ -3,9 +3,8 @@ package repository
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
 
 type UpdateJobRunLookupDataOpts struct {
@@ -36,5 +35,7 @@ type JobRunEngineRepository interface {
 	// run is being manually replayed, but shouldn't be used by most callers.
 	SetJobRunStatusRunning(ctx context.Context, tenantId, jobRunId string) error
 
-	ListJobRunsForWorkflowRun(ctx context.Context, tenantId, workflowRunId string) ([]pgtype.UUID, error)
+	ListJobRunsForWorkflowRun(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error)
+
+	GetJobRunByWorkflowRunIdAndJobId(ctx context.Context, tenantId, workflowRunId, jobId string) (*dbsqlc.GetJobRunByWorkflowRunIdAndJobIdRow, error)
 }

@@ -119,6 +119,59 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 	wc.l.Info().Msgf("finishing workflow run %s", workflowRunId)
 
+	shouldAlertFailure := workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusFAILED
+
+	// if there's an onFailure job, start that job
+	if workflowRun.WorkflowVersion.OnFailureJobId.Valid {
+		jobRun, err := wc.repo.JobRun().GetJobRunByWorkflowRunIdAndJobId(
+			ctx,
+			metadata.TenantId,
+			workflowRunId,
+			sqlchelpers.UUIDToStr(workflowRun.WorkflowVersion.OnFailureJobId),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not get job run: %w", err)
+		}
+
+		if !repository.IsFinalJobRunStatus(jobRun.Status) {
+			if workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusFAILED {
+				err = wc.mq.AddMessage(
+					ctx,
+					msgqueue.JOB_PROCESSING_QUEUE,
+					tasktypes.JobRunQueuedToTask(metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID)),
+				)
+
+				if err != nil {
+					return fmt.Errorf("could not add job run to task queue: %w", err)
+				}
+			} else if jobRun.Status != dbsqlc.JobRunStatus(db.JobRunStatusCancelled) {
+				// cancel the onFailure job
+				err = wc.mq.AddMessage(
+					ctx,
+					msgqueue.JOB_PROCESSING_QUEUE,
+					tasktypes.JobRunCancelledToTask(metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID)),
+				)
+
+				if err != nil {
+					return fmt.Errorf("could not add job run to task queue: %w", err)
+				}
+			}
+		} else {
+			shouldAlertFailure = false
+		}
+	}
+
+	if shouldAlertFailure {
+		err := wc.tenantAlerter.HandleAlert(
+			sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId),
+		)
+
+		if err != nil {
+			wc.l.Err(err).Msg("could not handle alert")
+		}
+	}
+
 	if workflowRun.ConcurrencyLimitStrategy.Valid {
 		wc.l.Info().Msgf("workflow %s has concurrency settings", workflowRunId)
 
@@ -202,7 +255,7 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 }
 
 func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, workflowRun *dbsqlc.GetWorkflowRunRow) error {
-	ctx, span := telemetry.NewSpan(ctx, "process-event") // nolint:ineffassign
+	ctx, span := telemetry.NewSpan(ctx, "queue-workflow-run-jobs") // nolint:ineffassign
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId)
@@ -217,12 +270,54 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 	var returnErr error
 
 	for i := range jobRuns {
-		jobRunId := sqlchelpers.UUIDToStr(jobRuns[i])
+		// don't start job runs that are onFailure
+		if workflowRun.WorkflowVersion.OnFailureJobId.Valid && jobRuns[i].JobId == workflowRun.WorkflowVersion.OnFailureJobId {
+			continue
+		}
+
+		jobRunId := sqlchelpers.UUIDToStr(jobRuns[i].ID)
 
 		err := wc.mq.AddMessage(
 			context.Background(),
 			msgqueue.JOB_PROCESSING_QUEUE,
 			tasktypes.JobRunQueuedToTask(tenantId, jobRunId),
+		)
+
+		if err != nil {
+			returnErr = multierror.Append(err, fmt.Errorf("could not add job run to task queue: %w", err))
+		}
+	}
+
+	return returnErr
+}
+
+func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, workflowRun *dbsqlc.GetWorkflowRunRow) error {
+	ctx, span := telemetry.NewSpan(ctx, "cancel-workflow-run-jobs") // nolint:ineffassign
+	defer span.End()
+
+	tenantId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId)
+	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+
+	jobRuns, err := wc.repo.JobRun().ListJobRunsForWorkflowRun(ctx, tenantId, workflowRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not list job runs: %w", err)
+	}
+
+	var returnErr error
+
+	for i := range jobRuns {
+		// don't cancel job runs that are onFailure
+		if workflowRun.WorkflowVersion.OnFailureJobId.Valid && jobRuns[i].JobId == workflowRun.WorkflowVersion.OnFailureJobId {
+			continue
+		}
+
+		jobRunId := sqlchelpers.UUIDToStr(jobRuns[i].ID)
+
+		err := wc.mq.AddMessage(
+			context.Background(),
+			msgqueue.JOB_PROCESSING_QUEUE,
+			tasktypes.JobRunCancelledToTask(tenantId, jobRunId),
 		)
 
 		if err != nil {
@@ -301,17 +396,7 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunRequeueTenant(ctx context.Co
 			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
 			if isTimedOut {
-				_, err := ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
-					CancelledAt:     &now,
-					CancelledReason: repository.StringPtr("SCHEDULING_TIMED_OUT"),
-					Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
-				})
-
-				if err != nil {
-					return fmt.Errorf("could not update get group key run %s: %w", getGroupKeyRunId, err)
-				}
-
-				return nil
+				return ec.cancelGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, "SCHEDULING_TIMED_OUT")
 			}
 
 			requeueAfter := time.Now().UTC().Add(time.Second * 4)

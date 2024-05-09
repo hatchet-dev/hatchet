@@ -34,16 +34,28 @@ WHERE
         runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
     ) AND
     (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
+    ) AND
+    (
         sqlc.narg('eventId')::uuid IS NULL OR
         events."id" = sqlc.narg('eventId')::uuid
     ) AND
     (
-    sqlc.narg('groupKey')::text IS NULL OR
-    runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
+        sqlc.narg('groupKey')::text IS NULL OR
+        runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
     ) AND
     (
         sqlc.narg('statuses')::text[] IS NULL OR
         "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+    ) AND
+    (
+        sqlc.narg('createdAfter')::timestamp IS NULL OR
+        runs."createdAt" > sqlc.narg('createdAfter')::timestamp
+    ) AND
+    (
+        sqlc.narg('finishedAfter')::timestamp IS NULL OR
+        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
     );
 
 -- name: WorkflowRunsMetricsCount :one
@@ -76,6 +88,10 @@ WHERE
     (
         sqlc.narg('parentStepRunId')::uuid IS NULL OR
         runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+    ) AND
+    (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
     ) AND
     (
         sqlc.narg('eventId')::uuid IS NULL OR
@@ -113,6 +129,10 @@ WHERE
     (
         sqlc.narg('ids')::uuid[] IS NULL OR
         runs."id" = ANY(sqlc.narg('ids')::uuid[])
+    ) AND 
+    (
+        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
     ) AND
     (
         sqlc.narg('parentId')::uuid IS NULL OR
@@ -127,12 +147,20 @@ WHERE
         events."id" = sqlc.narg('eventId')::uuid
     ) AND
     (
-    sqlc.narg('groupKey')::text IS NULL OR
-    runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
+        sqlc.narg('groupKey')::text IS NULL OR
+        runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
     ) AND
     (
         sqlc.narg('statuses')::text[] IS NULL OR
         "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+    ) AND
+    (
+        sqlc.narg('createdAfter')::timestamp IS NULL OR
+        runs."createdAt" > sqlc.narg('createdAfter')::timestamp
+    ) AND
+    (
+        sqlc.narg('finishedAfter')::timestamp IS NULL OR
+        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
@@ -242,13 +270,16 @@ WITH jobRuns AS (
         sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns,
         sum(case when runs."status" = 'CANCELLED' then 1 else 0 end) AS cancelledRuns
     FROM "JobRun" as runs
+    JOIN "Job" as job ON runs."jobId" = job."id"
     WHERE
         "workflowRunId" = (
             SELECT "workflowRunId"
             FROM "JobRun"
             WHERE "id" = @jobRunId::uuid
         ) AND
-        "tenantId" = @tenantId::uuid
+        runs."tenantId" = @tenantId::uuid AND
+        -- we should not include onFailure jobs in the calculation
+        job."kind" = 'DEFAULT'
 )
 UPDATE "WorkflowRun"
 SET "status" = CASE 
@@ -289,7 +320,11 @@ RETURNING "WorkflowRun".*;
 UPDATE
     "WorkflowRun"
 SET
-    "status" = COALESCE(sqlc.narg('status')::"WorkflowRunStatus", "status"),
+    "status" = CASE 
+    -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
+        ELSE COALESCE(sqlc.narg('status')::"WorkflowRunStatus", "status")
+    END,
     "error" = COALESCE(sqlc.narg('error')::text, "error"),
     "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
     "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt")
@@ -327,7 +362,8 @@ INSERT INTO "WorkflowRun" (
     "childIndex",
     "childKey",
     "parentId",
-    "parentStepRunId"
+    "parentStepRunId",
+    "additionalMetadata"
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -343,7 +379,8 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('childIndex')::int,
     sqlc.narg('childKey')::text,
     sqlc.narg('parentId')::uuid,
-    sqlc.narg('parentStepRunId')::uuid
+    sqlc.narg('parentStepRunId')::uuid,
+    @additionalMetadata::jsonb
 ) RETURNING *;
 
 -- name: CreateWorkflowRunTriggeredBy :one

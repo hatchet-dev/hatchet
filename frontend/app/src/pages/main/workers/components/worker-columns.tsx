@@ -1,8 +1,8 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { Worker } from '@/lib/api';
-import { relativeDate } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export const columns: ColumnDef<Worker>[] = [
   {
@@ -47,7 +47,7 @@ export const columns: ColumnDef<Worker>[] = [
     cell: ({ row }) => {
       return (
         <div className="whitespace-nowrap">
-          {relativeDate(row.original.metadata.createdAt)}
+          <RelativeDate date={row.original.metadata.createdAt} />
         </div>
       );
     },
@@ -66,7 +66,9 @@ export const columns: ColumnDef<Worker>[] = [
     cell: ({ row }) => {
       return (
         <div className="whitespace-nowrap">
-          {relativeDate(row.original.lastHeartbeatAt)}
+          {row.original.lastHeartbeatAt && (
+            <RelativeDate date={row.original.lastHeartbeatAt} />
+          )}
         </div>
       );
     },

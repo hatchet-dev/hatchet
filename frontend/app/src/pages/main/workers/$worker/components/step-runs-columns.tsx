@@ -4,6 +4,7 @@ import { StepRun } from '@/lib/api';
 import { relativeDate } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { RunStatus } from '@/pages/main/workflow-runs/components/run-statuses';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export const columns: ColumnDef<StepRun>[] = [
   {
@@ -53,7 +54,13 @@ export const columns: ColumnDef<StepRun>[] = [
       <DataTableColumnHeader column={column} title="Started at" />
     ),
     cell: ({ row }) => {
-      return <div>{relativeDate(row.original.startedAt)}</div>;
+      return (
+        <div>
+          {row.original.startedAt && (
+            <RelativeDate date={row.original.startedAt} />
+          )}
+        </div>
+      );
     },
     enableSorting: false,
     enableHiding: false,

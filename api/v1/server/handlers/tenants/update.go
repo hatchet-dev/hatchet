@@ -20,17 +20,34 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 	}
 
 	// construct the database query
-	createOpts := &repository.UpdateTenantOpts{}
+	updateOpts := &repository.UpdateTenantOpts{}
 
 	if request.Body.AnalyticsOptOut != nil {
-		createOpts.AnalyticsOptOut = request.Body.AnalyticsOptOut
+		updateOpts.AnalyticsOptOut = request.Body.AnalyticsOptOut
+	}
+
+	if request.Body.Name != nil {
+		updateOpts.Name = request.Body.Name
 	}
 
 	// update the tenant
-	tenant, err := t.config.APIRepository.Tenant().UpdateTenant(tenant.ID, createOpts)
+	tenant, err := t.config.APIRepository.Tenant().UpdateTenant(tenant.ID, updateOpts)
 
 	if err != nil {
 		return nil, err
+	}
+
+	if request.Body.MaxAlertingFrequency != nil {
+		_, err = t.config.APIRepository.TenantAlertingSettings().UpsertTenantAlertingSettings(
+			tenant.ID,
+			&repository.UpsertTenantAlertingSettingsOpts{
+				MaxFrequency: request.Body.MaxAlertingFrequency,
+			},
+		)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return gen.TenantUpdate200JSONResponse(

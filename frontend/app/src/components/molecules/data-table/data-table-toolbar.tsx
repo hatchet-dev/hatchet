@@ -16,13 +16,14 @@ export interface FilterOption {
 export enum ToolbarType {
   Checkbox = 'checkbox',
   Radio = 'radio',
+  KeyValue = 'key-value',
 }
 
 export type ToolbarFilters = {
   columnId: string;
   title: string;
   type?: ToolbarType;
-  options: FilterOption[];
+  options?: FilterOption[];
 }[];
 
 interface DataTableToolbarProps<TData> {
