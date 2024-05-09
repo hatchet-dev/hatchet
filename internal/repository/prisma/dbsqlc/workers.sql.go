@@ -275,7 +275,8 @@ WITH stepRuns AS (
     sr."workerId",
     COUNT(*) AS runningRuns
   FROM "StepRun" sr
-  WHERE sr."status" IN ('RUNNING', 'ASSIGNED')
+  WHERE sr."status" IN ('RUNNING', 'ASSIGNED') AND
+        sr."semaphoreReleased" = FALSE
   GROUP BY sr."workerId"
 )
 UPDATE "WorkerSemaphore" ws
