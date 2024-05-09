@@ -349,6 +349,7 @@ CREATE TABLE "StepRun" (
     "callerFiles" JSONB,
     "gitRepoBranch" TEXT,
     "retryCount" INTEGER NOT NULL DEFAULT 0,
+    "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );

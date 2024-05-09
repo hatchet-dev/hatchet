@@ -88,6 +88,24 @@ WHERE
     "id" = @id::uuid
 RETURNING *;
 
+
+-- name: ResolveWorkerSemaphoreSlots :execrows
+WITH stepRuns AS (
+  SELECT 
+    sr."workerId",
+    COUNT(*) AS runningRuns
+  FROM "StepRun" sr
+  WHERE sr."status" IN ('RUNNING', 'ASSIGNED')
+  GROUP BY sr."workerId"
+)
+UPDATE "WorkerSemaphore" ws
+SET "slots" = COALESCE(w."maxRuns", 100) - COALESCE(sr.runningRuns, 0)
+FROM "Worker" w
+LEFT JOIN stepRuns sr ON w."id" = sr."workerId"
+WHERE ws."workerId" = w."id" AND
+     "slots" != COALESCE(w."maxRuns", 100) - COALESCE(sr.runningRuns, 0) AND
+     "lastHeartbeatAt" > (CURRENT_TIMESTAMP - INTERVAL '1 minute');
+
 -- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (
     "A", 
