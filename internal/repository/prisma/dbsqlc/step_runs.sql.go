@@ -204,6 +204,99 @@ func (q *Queries) AssignStepRunToWorker(ctx context.Context, db DBTX, arg Assign
 	return &i, err
 }
 
+const countStepRunEvents = `-- name: CountStepRunEvents :one
+SELECT
+    count(*) OVER() AS total
+FROM
+    "StepRunEvent"
+WHERE
+    "stepRunId" = $1::uuid
+`
+
+func (q *Queries) CountStepRunEvents(ctx context.Context, db DBTX, steprunid pgtype.UUID) (int64, error) {
+	row := db.QueryRow(ctx, countStepRunEvents, steprunid)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
+const createStepRunEvent = `-- name: CreateStepRunEvent :exec
+WITH input_values AS (
+    SELECT
+        CURRENT_TIMESTAMP AS "timeFirstSeen",
+        CURRENT_TIMESTAMP AS "timeLastSeen",
+        $1::uuid AS "stepRunId",
+        $2::"StepRunEventReason" AS "reason",
+        $3::"StepRunEventSeverity" AS "severity",
+        $4::text AS "message",
+        1 AS "count",
+        $5::jsonb AS "data"
+),
+updated AS (
+    UPDATE "StepRunEvent"
+    SET
+        "timeLastSeen" = CURRENT_TIMESTAMP,
+        "message" = input_values."message",
+        "count" = "StepRunEvent"."count" + 1,
+        "data" = input_values."data"
+    FROM input_values
+    WHERE
+        "StepRunEvent"."stepRunId" = input_values."stepRunId"
+        AND "StepRunEvent"."reason" = input_values."reason"
+        AND "StepRunEvent"."severity" = input_values."severity"
+        AND "StepRunEvent"."id" = (
+            SELECT "id"
+            FROM "StepRunEvent"
+            WHERE "stepRunId" = input_values."stepRunId"
+            ORDER BY "id" DESC
+            LIMIT 1
+        )
+    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data
+)
+INSERT INTO "StepRunEvent" (
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+)
+SELECT
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+FROM input_values
+WHERE NOT EXISTS (
+    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId"
+)
+`
+
+type CreateStepRunEventParams struct {
+	Steprunid pgtype.UUID          `json:"steprunid"`
+	Reason    StepRunEventReason   `json:"reason"`
+	Severity  StepRunEventSeverity `json:"severity"`
+	Message   string               `json:"message"`
+	Data      []byte               `json:"data"`
+}
+
+func (q *Queries) CreateStepRunEvent(ctx context.Context, db DBTX, arg CreateStepRunEventParams) error {
+	_, err := db.Exec(ctx, createStepRunEvent,
+		arg.Steprunid,
+		arg.Reason,
+		arg.Severity,
+		arg.Message,
+		arg.Data,
+	)
+	return err
+}
+
 const getStepRun = `-- name: GetStepRun :one
 SELECT
     "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount"
@@ -508,6 +601,57 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepRunEvents = `-- name: ListStepRunEvents :many
+SELECT
+    id, "timeFirstSeen", "timeLastSeen", "stepRunId", reason, severity, message, count, data
+FROM
+    "StepRunEvent"
+WHERE
+    "stepRunId" = $1::uuid
+ORDER BY
+    "id" DESC
+OFFSET
+    COALESCE($2, 0)
+LIMIT
+    COALESCE($3, 50)
+`
+
+type ListStepRunEventsParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Offset    interface{} `json:"offset"`
+	Limit     interface{} `json:"limit"`
+}
+
+func (q *Queries) ListStepRunEvents(ctx context.Context, db DBTX, arg ListStepRunEventsParams) ([]*StepRunEvent, error) {
+	rows, err := db.Query(ctx, listStepRunEvents, arg.Steprunid, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepRunEvent
+	for rows.Next() {
+		var i StepRunEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.TimeFirstSeen,
+			&i.TimeLastSeen,
+			&i.StepRunId,
+			&i.Reason,
+			&i.Severity,
+			&i.Message,
+			&i.Count,
+			&i.Data,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

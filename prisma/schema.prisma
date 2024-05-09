@@ -1009,6 +1009,51 @@ model StepRun {
 
   childWorkflowRuns WorkflowRun[]
   childSchedules    WorkflowTriggerScheduledRef[]
+
+  events StepRunEvent[]
+}
+
+enum StepRunEventReason {
+  REQUEUED_NO_WORKER
+  REQUEUED_RATE_LIMIT
+  SCHEDULING_TIMED_OUT
+
+  ASSIGNED
+  STARTED
+  FINISHED
+  FAILED
+  RETRYING
+  CANCELLED
+}
+
+enum StepRunEventSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model StepRunEvent {
+  id            BigInt   @unique @default(autoincrement()) @db.BigInt
+  timeFirstSeen DateTime @default(now())
+  timeLastSeen  DateTime @default(now())
+
+  // the parent step run
+  stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepRunId String  @db.Uuid
+
+  // the event reason
+  reason StepRunEventReason
+
+  // the event severity
+  severity StepRunEventSeverity
+
+  message String
+
+  count Int
+
+  data Json?
+
+  @@index([stepRunId])
 }
 
 model StepRunResultArchive {

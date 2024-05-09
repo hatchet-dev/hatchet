@@ -415,10 +415,14 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 		metadata.TenantId,
 		sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
 		&repository.UpdateStepRunOpts{
-			Input:      inputBytes,
-			Status:     repository.StepRunStatusPtr(db.StepRunStatusPending),
-			IsRerun:    true,
-			RetryCount: &retryCount,
+			Input:       inputBytes,
+			Status:      repository.StepRunStatusPtr(db.StepRunStatusPending),
+			IsRerun:     true,
+			RetryCount:  &retryCount,
+			EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonRETRYING),
+			EventMessage: repository.StringPtr(
+				fmt.Sprintf("Retrying step run. This is retry %d / %d", retryCount, stepRun.StepRetries),
+			),
 		},
 	)
 
@@ -768,8 +772,12 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ms
 	}
 
 	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
-		StartedAt: &startedAt,
-		Status:    repository.StepRunStatusPtr(db.StepRunStatusRunning),
+		StartedAt:   &startedAt,
+		Status:      repository.StepRunStatusPtr(db.StepRunStatusRunning),
+		EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSTARTED),
+		EventMessage: repository.StringPtr(
+			fmt.Sprintf("Step run started running on %s", startedAt.Format(time.RFC1123)),
+		),
 	})
 
 	if err != nil {
@@ -814,9 +822,13 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	}
 
 	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
-		FinishedAt: &finishedAt,
-		Status:     repository.StepRunStatusPtr(db.StepRunStatusSucceeded),
-		Output:     stepOutput,
+		FinishedAt:  &finishedAt,
+		Status:      repository.StepRunStatusPtr(db.StepRunStatusSucceeded),
+		Output:      stepOutput,
+		EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonFINISHED),
+		EventMessage: repository.StringPtr(
+			fmt.Sprintf("Step run finished on %s", finishedAt.Format(time.RFC1123)),
+		),
 	})
 
 	if err != nil {
@@ -891,11 +903,24 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 
 	scheduleTimeoutAt := getScheduleTimeout(stepRun)
 
+	eventMessage := repository.StringPtr(
+		fmt.Sprintf("Step run failed on %s", failedAt.Format(time.RFC1123)),
+	)
+
+	if shouldRetry {
+		eventMessage = repository.StringPtr(
+			fmt.Sprintf("Step run failed on %s, and will be retried.", failedAt.Format(time.RFC1123)),
+		)
+	}
+
 	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
 		FinishedAt:        &failedAt,
 		Error:             &payload.Error,
 		Status:            repository.StepRunStatusPtr(status),
 		ScheduleTimeoutAt: &scheduleTimeoutAt,
+		EventReason:       repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonFAILED),
+		EventMessage:      eventMessage,
+		EventSeverity:     repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
 	})
 
 	if err != nil {
@@ -971,6 +996,11 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 		CancelledAt:     &now,
 		CancelledReason: repository.StringPtr(reason),
 		Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
+		EventReason:     repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonCANCELLED),
+		EventMessage: repository.StringPtr(
+			fmt.Sprintf("Step run was cancelled on %s for the following reason: %s", now.Format(time.RFC1123), reason),
+		),
+		EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),
 	})
 
 	if err != nil {
