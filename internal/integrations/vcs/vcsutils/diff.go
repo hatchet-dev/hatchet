@@ -13,6 +13,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
+var ErrNoInput = errors.New("no input found")
+
 // GetStepRunOverrideDiffs returns a map of the override keys to the override values which have changed
 // between the first step run and the latest step run.
 func GetStepRunOverrideDiffs(repo repository.StepRunAPIRepository, stepRun *db.StepRunModel) (diffs map[string]string, original map[string]string, err error) {
@@ -32,12 +34,20 @@ func GetStepRunOverrideDiffs(repo repository.StepRunAPIRepository, stepRun *db.S
 	firstInput, err := getStepRunInput(archivedResult)
 
 	if err != nil {
+		if errors.Is(err, ErrNoInput) {
+			return nil, nil, ErrNoInput
+		}
+
 		return nil, nil, fmt.Errorf("could not get input from archived result: %w", err)
 	}
 
 	secondInput, err := getStepRunInput(stepRun)
 
 	if err != nil {
+		if errors.Is(err, ErrNoInput) {
+			return nil, nil, ErrNoInput
+		}
+
 		return nil, nil, fmt.Errorf("could not get input from step run: %w", err)
 	}
 
@@ -87,7 +97,7 @@ func getStepRunInput(in inputtable) (*datautils.StepRunData, error) {
 	input, ok := in.Input()
 
 	if !ok {
-		return nil, fmt.Errorf("could not get input from inputtable")
+		return nil, ErrNoInput
 	}
 
 	data := &datautils.StepRunData{}

@@ -51,7 +51,7 @@ func main() {
 
 	err = c.Admin().PutRateLimit("api1", &types.RateLimitOpts{
 		Max:      3,
-		Duration: "second",
+		Duration: "day",
 	})
 
 	if err != nil {
