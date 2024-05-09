@@ -702,6 +702,7 @@ type StepRun struct {
 	CallerFiles       []byte           `json:"callerFiles"`
 	GitRepoBranch     pgtype.Text      `json:"gitRepoBranch"`
 	RetryCount        int32            `json:"retryCount"`
+	SemaphoreReleased bool             `json:"semaphoreReleased"`
 }
 
 type StepRunOrder struct {

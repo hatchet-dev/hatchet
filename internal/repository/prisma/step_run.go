@@ -315,6 +315,56 @@ var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg st
 	return nil
 }
 
+func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string) error {
+	tx, err := s.pool.Begin(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer deferRollback(ctx, s.l, tx.Rollback)
+
+	stepRun, err := s.GetStepRunForEngine(context.Background(), tenantId, stepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run for engine: %w", err)
+	}
+
+	if stepRun.StepRun.SemaphoreReleased {
+		return nil
+	}
+
+	// Update the old worker semaphore. This will only increment if the step run was already assigned to a worker,
+	// which means the step run is being retried or rerun.
+	_, err = s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
+		Inc:       1,
+		Steprunid: stepRun.StepRun.ID,
+		Tenantid:  stepRun.StepRun.TenantId,
+	})
+
+	isNoRowsErr := err != nil && errors.Is(err, pgx.ErrNoRows)
+
+	if err != nil && !isNoRowsErr {
+		return fmt.Errorf("could not upsert old worker semaphore: %w", err)
+	}
+
+	// Update the Step Run to release the semaphore
+	_, err = s.queries.UpdateStepRun(ctx, tx, dbsqlc.UpdateStepRunParams{
+		ID:       stepRun.StepRun.ID,
+		Tenantid: stepRun.StepRun.TenantId,
+		SemaphoreReleased: pgtype.Bool{
+			Valid: true,
+			Bool:  true,
+		},
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not update step run semaphoreRelease: %w", err)
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (s *stepRunEngineRepository) incrementWorkerSemaphore(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) error {
 	tx, err := s.pool.Begin(ctx)
 
@@ -769,6 +819,14 @@ func getUpdateParams(
 		},
 	}
 
+	// if this is a rerun, we need to reset semaphore released flag
+	if opts.IsRerun {
+		updateParams.SemaphoreReleased = pgtype.Bool{
+			Valid: true,
+			Bool:  false,
+		}
+	}
+
 	if opts.Output != nil {
 		updateJobRunLookupDataParams = &dbsqlc.UpdateJobRunLookupDataWithStepRunParams{
 			Steprunid: pgStepRunId,
@@ -880,8 +938,11 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 
 	if updateParams.Status.Valid &&
 		repository.IsFinalStepRunStatus(updateParams.Status.StepRunStatus) &&
+		// the semaphore has not already been released manually
+		!updateStepRun.SemaphoreReleased &&
 		// we must have actually updated the status to a different state
 		string(innerStepRun.Status) != string(updateStepRun.Status) {
+
 		_, err := s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
 			Inc:       1,
 			Steprunid: updateStepRun.ID,

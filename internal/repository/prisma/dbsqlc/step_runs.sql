@@ -158,7 +158,8 @@ SET
         WHEN sqlc.narg('rerun')::boolean THEN NULL
         ELSE COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
     END,
-    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount")
+    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount"),
+    "semaphoreReleased" = COALESCE(sqlc.narg('semaphoreReleased')::boolean, "semaphoreReleased")
 WHERE 
   "id" = @id::uuid AND
   "tenantId" = @tenantId::uuid
@@ -196,6 +197,7 @@ SET "status" = CASE
     -- When the step is in a final state, it cannot be updated
     WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."cancelledReason"
     WHEN (cs."status" = 'CANCELLED' AND cs."cancelledReason" = 'TIMED_OUT'::text) THEN 'PREVIOUS_STEP_TIMED_OUT'
+    WHEN (cs."status" = 'FAILED') THEN 'PREVIOUS_STEP_FAILED'
     WHEN (cs."status" = 'CANCELLED') THEN 'PREVIOUS_STEP_CANCELLED'
     ELSE NULL
     END
