@@ -348,6 +348,15 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 		return fmt.Errorf("could not upsert old worker semaphore: %w", err)
 	}
 
+	_, err = s.queries.UnlinkStepRunFromWorker(ctx, tx, dbsqlc.UnlinkStepRunFromWorkerParams{
+		Steprunid: stepRun.StepRun.ID,
+		Tenantid:  stepRun.StepRun.TenantId,
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not unlink step run from worker: %w", err)
+	}
+
 	// Update the Step Run to release the semaphore
 	_, err = s.queries.UpdateStepRun(ctx, tx, dbsqlc.UpdateStepRunParams{
 		ID:       stepRun.StepRun.ID,
