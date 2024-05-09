@@ -232,7 +232,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
+		return nil, fmt.Errorf("could not schedule worker semaphore slot resolver polling: %w", err)
 	}
 
 	t.s.Start()
