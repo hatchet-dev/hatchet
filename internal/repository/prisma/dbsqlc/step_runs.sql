@@ -158,7 +158,8 @@ SET
         WHEN sqlc.narg('rerun')::boolean THEN NULL
         ELSE COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
     END,
-    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount")
+    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount"),
+    "semaphoreReleased" = COALESCE(sqlc.narg('semaphoreReleased')::boolean, "semaphoreReleased")
 WHERE 
   "id" = @id::uuid AND
   "tenantId" = @tenantId::uuid

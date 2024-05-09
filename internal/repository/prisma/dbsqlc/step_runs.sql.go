@@ -1042,10 +1042,11 @@ SET
         WHEN $4::boolean THEN NULL
         ELSE COALESCE($11::text, "cancelledReason")
     END,
-    "retryCount" = COALESCE($12::int, "retryCount")
+    "retryCount" = COALESCE($12::int, "retryCount"),
+    "semaphoreReleased" = COALESCE($13::boolean, "semaphoreReleased")
 WHERE 
-  "id" = $13::uuid AND
-  "tenantId" = $14::uuid
+  "id" = $14::uuid AND
+  "tenantId" = $15::uuid
 RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased"
 `
 
@@ -1062,6 +1063,7 @@ type UpdateStepRunParams struct {
 	CancelledAt       pgtype.Timestamp  `json:"cancelledAt"`
 	CancelledReason   pgtype.Text       `json:"cancelledReason"`
 	RetryCount        pgtype.Int4       `json:"retryCount"`
+	SemaphoreReleased pgtype.Bool       `json:"semaphoreReleased"`
 	ID                pgtype.UUID       `json:"id"`
 	Tenantid          pgtype.UUID       `json:"tenantid"`
 }
@@ -1080,6 +1082,7 @@ func (q *Queries) UpdateStepRun(ctx context.Context, db DBTX, arg UpdateStepRunP
 		arg.CancelledAt,
 		arg.CancelledReason,
 		arg.RetryCount,
+		arg.SemaphoreReleased,
 		arg.ID,
 		arg.Tenantid,
 	)

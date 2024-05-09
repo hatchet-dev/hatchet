@@ -27,6 +27,8 @@ service Dispatcher {
     rpc PutOverridesData(OverridesData) returns (OverridesDataResponse) {}
 
     rpc Unsubscribe(WorkerUnsubscribeRequest) returns (WorkerUnsubscribeResponse) {}
+
+    rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
 }
 
 message WorkerRegisterRequest {
@@ -291,3 +293,10 @@ message HeartbeatRequest {
 }
 
 message HeartbeatResponse {}
+
+message ReleaseSlotRequest {
+    // the id of the step run to release
+    string stepRunId = 1;
+}
+
+message ReleaseSlotResponse {}

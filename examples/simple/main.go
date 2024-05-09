@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/joho/godotenv"
 
@@ -80,6 +81,13 @@ func run(events chan<- string) (func() error, error) {
 					if err != nil {
 						return nil, err
 					}
+
+					time.Sleep(10 * time.Second)
+
+					fmt.Println("ReleaseSlot")
+					ctx.ReleaseSlot()
+
+					time.Sleep(10 * time.Second)
 
 					log.Printf("step-one")
 					events <- "step-one"
