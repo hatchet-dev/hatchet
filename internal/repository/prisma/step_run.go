@@ -338,6 +338,19 @@ func (s *stepRunEngineRepository) incrementWorkerSemaphore(ctx context.Context, 
 		return fmt.Errorf("could not upsert old worker semaphore: %w", err)
 	}
 
+	// this means that a worker is assigned: unlink the existing worker from the step run,
+	// so that we don't re-increment the old worker semaphore on each retry
+	if err == nil {
+		_, err = s.queries.UnlinkStepRunFromWorker(ctx, tx, dbsqlc.UnlinkStepRunFromWorkerParams{
+			Steprunid: stepRun.StepRun.ID,
+			Tenantid:  stepRun.StepRun.TenantId,
+		})
+
+		if err != nil {
+			return fmt.Errorf("could not unlink step run from worker: %w", err)
+		}
+	}
+
 	return tx.Commit(ctx)
 }
 
