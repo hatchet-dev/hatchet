@@ -566,31 +566,37 @@ FROM total_slots ts
 LEFT JOIN update_step_run usr ON true;    
 
 -- name: UpdateWorkerSemaphore :one
-WITH worker_id AS (
+WITH step_run AS (
     SELECT
-        "workerId"
+        "id", "workerId"
     FROM
         "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND "tenantId" = @tenantId::uuid
-),
-semaphore AS (
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid
+), worker AS (
     SELECT
-        "slots"
+        "id",
+        "maxRuns"
     FROM
-        "WorkerSemaphore" ws, worker_id
+        "Worker"
     WHERE
-        ws."workerId" = worker_id."workerId"
-    FOR UPDATE
+        "id" = (SELECT "workerId" FROM step_run)
 )
 UPDATE
     "WorkerSemaphore" ws
 SET
-    "slots" = (ws."slots" + @inc::int)
+    -- This shouldn't happen, but we set guardrails to prevent negative slots or slots over
+    -- the worker's maxRuns
+    "slots" = CASE 
+        WHEN (ws."slots" + @inc::int) < 0 THEN 0
+        WHEN (ws."slots" + @inc::int) > COALESCE(worker."maxRuns", 100) THEN COALESCE(worker."maxRuns", 100)
+        ELSE (ws."slots" + @inc::int)
+    END
 FROM
-    worker_id
+    worker
 WHERE
-    ws."workerId" = worker_id."workerId"
+    ws."workerId" = worker."id"
 RETURNING ws.*;
 
 -- name: UpdateStepRateLimits :many

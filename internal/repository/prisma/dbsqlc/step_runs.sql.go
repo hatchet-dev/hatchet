@@ -1173,31 +1173,37 @@ func (q *Queries) UpdateStepRunOverridesData(ctx context.Context, db DBTX, arg U
 }
 
 const updateWorkerSemaphore = `-- name: UpdateWorkerSemaphore :one
-WITH worker_id AS (
+WITH step_run AS (
     SELECT
-        "workerId"
+        "id", "workerId"
     FROM
         "StepRun"
     WHERE
-        "id" = $2::uuid AND "tenantId" = $3::uuid
-),
-semaphore AS (
+        "id" = $2::uuid AND
+        "tenantId" = $3::uuid
+), worker AS (
     SELECT
-        "slots"
+        "id",
+        "maxRuns"
     FROM
-        "WorkerSemaphore" ws, worker_id
+        "Worker"
     WHERE
-        ws."workerId" = worker_id."workerId"
-    FOR UPDATE
+        "id" = (SELECT "workerId" FROM step_run)
 )
 UPDATE
     "WorkerSemaphore" ws
 SET
-    "slots" = (ws."slots" + $1::int)
+    -- This shouldn't happen, but we set guardrails to prevent negative slots or slots over
+    -- the worker's maxRuns
+    "slots" = CASE 
+        WHEN (ws."slots" + $1::int) < 0 THEN 0
+        WHEN (ws."slots" + $1::int) > COALESCE(worker."maxRuns", 100) THEN COALESCE(worker."maxRuns", 100)
+        ELSE (ws."slots" + $1::int)
+    END
 FROM
-    worker_id
+    worker
 WHERE
-    ws."workerId" = worker_id."workerId"
+    ws."workerId" = worker."id"
 RETURNING ws."workerId", ws.slots
 `
 
