@@ -49,6 +49,7 @@ import {
   RerunStepRunRequest,
   SNSIntegration,
   StepRun,
+  StepRunEventList,
   Tenant,
   TenantAlertEmailGroup,
   TenantAlertEmailGroupList,
@@ -1185,6 +1186,39 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<GetStepRunDiffResponse, APIErrors>({
       path: `/api/v1/step-runs/${stepRun}/diff`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List events for a step run
+   *
+   * @tags Step Run
+   * @name StepRunListEvents
+   * @summary List events for step run
+   * @request GET:/api/v1/step-runs/{step-run}/events
+   * @secure
+   */
+  stepRunListEvents = (
+    stepRun: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<StepRunEventList, APIErrors>({
+      path: `/api/v1/step-runs/${stepRun}/events`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,

@@ -599,6 +599,85 @@ WHERE
     ws."workerId" = worker."id"
 RETURNING ws.*;
 
+-- name: CreateStepRunEvent :exec
+WITH input_values AS (
+    SELECT
+        CURRENT_TIMESTAMP AS "timeFirstSeen",
+        CURRENT_TIMESTAMP AS "timeLastSeen",
+        @stepRunId::uuid AS "stepRunId",
+        @reason::"StepRunEventReason" AS "reason",
+        @severity::"StepRunEventSeverity" AS "severity",
+        @message::text AS "message",
+        1 AS "count",
+        sqlc.narg('data')::jsonb AS "data"
+),
+updated AS (
+    UPDATE "StepRunEvent"
+    SET
+        "timeLastSeen" = CURRENT_TIMESTAMP,
+        "message" = input_values."message",
+        "count" = "StepRunEvent"."count" + 1,
+        "data" = input_values."data"
+    FROM input_values
+    WHERE
+        "StepRunEvent"."stepRunId" = input_values."stepRunId"
+        AND "StepRunEvent"."reason" = input_values."reason"
+        AND "StepRunEvent"."severity" = input_values."severity"
+        AND "StepRunEvent"."id" = (
+            SELECT "id"
+            FROM "StepRunEvent"
+            WHERE "stepRunId" = input_values."stepRunId"
+            ORDER BY "id" DESC
+            LIMIT 1
+        )
+    RETURNING "StepRunEvent".*
+)
+INSERT INTO "StepRunEvent" (
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+)
+SELECT
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+FROM input_values
+WHERE NOT EXISTS (
+    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId"
+);
+
+-- name: CountStepRunEvents :one
+SELECT
+    count(*) OVER() AS total
+FROM
+    "StepRunEvent"
+WHERE
+    "stepRunId" = @stepRunId::uuid;
+
+-- name: ListStepRunEvents :many
+SELECT
+    *
+FROM
+    "StepRunEvent"
+WHERE
+    "stepRunId" = @stepRunId::uuid
+ORDER BY
+    "id" DESC
+OFFSET
+    COALESCE(sqlc.narg('offset'), 0)
+LIMIT
+    COALESCE(sqlc.narg('limit'), 50);
+
 -- name: UpdateStepRateLimits :many
 WITH step_rate_limits AS (
     SELECT

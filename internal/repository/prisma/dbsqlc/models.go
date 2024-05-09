@@ -229,6 +229,98 @@ func (ns NullLogLineLevel) Value() (driver.Value, error) {
 	return string(ns.LogLineLevel), nil
 }
 
+type StepRunEventReason string
+
+const (
+	StepRunEventReasonREQUEUEDNOWORKER   StepRunEventReason = "REQUEUED_NO_WORKER"
+	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
+	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
+	StepRunEventReasonASSIGNED           StepRunEventReason = "ASSIGNED"
+	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
+	StepRunEventReasonFINISHED           StepRunEventReason = "FINISHED"
+	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
+	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
+	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
+)
+
+func (e *StepRunEventReason) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StepRunEventReason(s)
+	case string:
+		*e = StepRunEventReason(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StepRunEventReason: %T", src)
+	}
+	return nil
+}
+
+type NullStepRunEventReason struct {
+	StepRunEventReason StepRunEventReason `json:"StepRunEventReason"`
+	Valid              bool               `json:"valid"` // Valid is true if StepRunEventReason is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStepRunEventReason) Scan(value interface{}) error {
+	if value == nil {
+		ns.StepRunEventReason, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StepRunEventReason.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStepRunEventReason) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StepRunEventReason), nil
+}
+
+type StepRunEventSeverity string
+
+const (
+	StepRunEventSeverityINFO     StepRunEventSeverity = "INFO"
+	StepRunEventSeverityWARNING  StepRunEventSeverity = "WARNING"
+	StepRunEventSeverityCRITICAL StepRunEventSeverity = "CRITICAL"
+)
+
+func (e *StepRunEventSeverity) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StepRunEventSeverity(s)
+	case string:
+		*e = StepRunEventSeverity(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StepRunEventSeverity: %T", src)
+	}
+	return nil
+}
+
+type NullStepRunEventSeverity struct {
+	StepRunEventSeverity StepRunEventSeverity `json:"StepRunEventSeverity"`
+	Valid                bool                 `json:"valid"` // Valid is true if StepRunEventSeverity is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStepRunEventSeverity) Scan(value interface{}) error {
+	if value == nil {
+		ns.StepRunEventSeverity, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StepRunEventSeverity.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStepRunEventSeverity) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StepRunEventSeverity), nil
+}
+
 type StepRunStatus string
 
 const (
@@ -702,6 +794,18 @@ type StepRun struct {
 	CallerFiles       []byte           `json:"callerFiles"`
 	GitRepoBranch     pgtype.Text      `json:"gitRepoBranch"`
 	RetryCount        int32            `json:"retryCount"`
+}
+
+type StepRunEvent struct {
+	ID            int64                `json:"id"`
+	TimeFirstSeen pgtype.Timestamp     `json:"timeFirstSeen"`
+	TimeLastSeen  pgtype.Timestamp     `json:"timeLastSeen"`
+	StepRunId     pgtype.UUID          `json:"stepRunId"`
+	Reason        StepRunEventReason   `json:"reason"`
+	Severity      StepRunEventSeverity `json:"severity"`
+	Message       string               `json:"message"`
+	Count         int32                `json:"count"`
+	Data          []byte               `json:"data"`
 }
 
 type StepRunOrder struct {

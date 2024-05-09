@@ -58,6 +58,10 @@ tasks:
   prisma-migrate:
     cmds:
       - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev --skip-generate
+  prisma-push:
+    cmds:
+      - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go db push
+      - task: generate-sqlc
   seed-dev:
     cmds:
       - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev --skip-generate

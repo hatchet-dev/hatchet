@@ -235,6 +235,29 @@ func ToStepRun(stepRun *db.StepRunModel) (*gen.StepRun, error) {
 	return res, nil
 }
 
+func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
+	res := &gen.StepRunEvent{
+		Id:            int(stepRunEvent.ID),
+		TimeFirstSeen: stepRunEvent.TimeFirstSeen.Time,
+		TimeLastSeen:  stepRunEvent.TimeLastSeen.Time,
+		StepRunId:     sqlchelpers.UUIDToStr(stepRunEvent.StepRunId),
+		Severity:      gen.StepRunEventSeverity(stepRunEvent.Severity),
+		Reason:        gen.StepRunEventReason(stepRunEvent.Reason),
+		Message:       stepRunEvent.Message,
+		Count:         int(stepRunEvent.Count),
+	}
+
+	if stepRunEvent.Data != nil {
+		data := make(map[string]interface{})
+
+		json.Unmarshal(stepRunEvent.Data, &data) // nolint:errcheck
+
+		res.Data = &data
+	}
+
+	return res
+}
+
 func getEpochFromTime(t time.Time) *int {
 	epoch := int(t.UnixMilli())
 	return &epoch

@@ -45,10 +45,10 @@ const (
 
 // Defines values for LogLineLevel.
 const (
-	DEBUG LogLineLevel = "DEBUG"
-	ERROR LogLineLevel = "ERROR"
-	INFO  LogLineLevel = "INFO"
-	WARN  LogLineLevel = "WARN"
+	LogLineLevelDEBUG LogLineLevel = "DEBUG"
+	LogLineLevelERROR LogLineLevel = "ERROR"
+	LogLineLevelINFO  LogLineLevel = "INFO"
+	LogLineLevelWARN  LogLineLevel = "WARN"
 )
 
 // Defines values for LogLineOrderByDirection.
@@ -66,6 +66,26 @@ const (
 const (
 	Closed PullRequestState = "closed"
 	Open   PullRequestState = "open"
+)
+
+// Defines values for StepRunEventReason.
+const (
+	StepRunEventReasonASSIGNED           StepRunEventReason = "ASSIGNED"
+	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
+	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
+	StepRunEventReasonFINISHED           StepRunEventReason = "FINISHED"
+	StepRunEventReasonREQUEUEDNOWORKER   StepRunEventReason = "REQUEUED_NO_WORKER"
+	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
+	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
+	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
+	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
+)
+
+// Defines values for StepRunEventSeverity.
+const (
+	StepRunEventSeverityCRITICAL StepRunEventSeverity = "CRITICAL"
+	StepRunEventSeverityINFO     StepRunEventSeverity = "INFO"
+	StepRunEventSeverityWARNING  StepRunEventSeverity = "WARNING"
 )
 
 // Defines values for StepRunStatus.
@@ -102,12 +122,12 @@ const (
 
 // Defines values for WorkflowRunStatus.
 const (
-	CANCELLED WorkflowRunStatus = "CANCELLED"
-	FAILED    WorkflowRunStatus = "FAILED"
-	PENDING   WorkflowRunStatus = "PENDING"
-	QUEUED    WorkflowRunStatus = "QUEUED"
-	RUNNING   WorkflowRunStatus = "RUNNING"
-	SUCCEEDED WorkflowRunStatus = "SUCCEEDED"
+	WorkflowRunStatusCANCELLED WorkflowRunStatus = "CANCELLED"
+	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
+	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
+	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
+	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
+	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 )
 
 // APIError defines model for APIError.
@@ -573,6 +593,31 @@ type StepRunDiff struct {
 	Original string `json:"original"`
 }
 
+// StepRunEvent defines model for StepRunEvent.
+type StepRunEvent struct {
+	Count         int                     `json:"count"`
+	Data          *map[string]interface{} `json:"data,omitempty"`
+	Id            int                     `json:"id"`
+	Message       string                  `json:"message"`
+	Reason        StepRunEventReason      `json:"reason"`
+	Severity      StepRunEventSeverity    `json:"severity"`
+	StepRunId     string                  `json:"stepRunId"`
+	TimeFirstSeen time.Time               `json:"timeFirstSeen"`
+	TimeLastSeen  time.Time               `json:"timeLastSeen"`
+}
+
+// StepRunEventList defines model for StepRunEventList.
+type StepRunEventList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]StepRunEvent     `json:"rows,omitempty"`
+}
+
+// StepRunEventReason defines model for StepRunEventReason.
+type StepRunEventReason string
+
+// StepRunEventSeverity defines model for StepRunEventSeverity.
+type StepRunEventSeverity string
+
 // StepRunStatus defines model for StepRunStatus.
 type StepRunStatus string
 
@@ -969,6 +1014,15 @@ type WorkflowVersionMeta struct {
 	WorkflowId string    `json:"workflowId"`
 }
 
+// StepRunListEventsParams defines parameters for StepRunListEvents.
+type StepRunListEventsParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // LogLineListParams defines parameters for LogLineList.
 type LogLineListParams struct {
 	// Offset The number to skip
@@ -1282,6 +1336,9 @@ type ClientInterface interface {
 
 	// StepRunGetDiff request
 	StepRunGetDiff(ctx context.Context, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StepRunListEvents request
+	StepRunListEvents(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// LogLineList request
 	LogLineList(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1708,6 +1765,18 @@ func (c *Client) StepRunUpdateCreatePr(ctx context.Context, stepRun openapi_type
 
 func (c *Client) StepRunGetDiff(ctx context.Context, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunGetDiffRequest(c.Server, stepRun)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) StepRunListEvents(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStepRunListEventsRequest(c.Server, stepRun, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3165,6 +3234,78 @@ func NewStepRunGetDiffRequest(server string, stepRun openapi_types.UUID) (*http.
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewStepRunListEventsRequest generates requests for StepRunListEvents
+func NewStepRunListEventsRequest(server string, stepRun openapi_types.UUID, params *StepRunListEventsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "step-run", runtime.ParamLocationPath, stepRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/step-runs/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -5855,6 +5996,9 @@ type ClientWithResponsesInterface interface {
 	// StepRunGetDiffWithResponse request
 	StepRunGetDiffWithResponse(ctx context.Context, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetDiffResponse, error)
 
+	// StepRunListEventsWithResponse request
+	StepRunListEventsWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error)
+
 	// LogLineListWithResponse request
 	LogLineListWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*LogLineListResponse, error)
 
@@ -6471,6 +6615,31 @@ func (r StepRunGetDiffResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r StepRunGetDiffResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type StepRunListEventsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *StepRunEventList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r StepRunListEventsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StepRunListEventsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -7938,6 +8107,15 @@ func (c *ClientWithResponses) StepRunGetDiffWithResponse(ctx context.Context, st
 	return ParseStepRunGetDiffResponse(rsp)
 }
 
+// StepRunListEventsWithResponse request returning *StepRunListEventsResponse
+func (c *ClientWithResponses) StepRunListEventsWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error) {
+	rsp, err := c.StepRunListEvents(ctx, stepRun, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStepRunListEventsResponse(rsp)
+}
+
 // LogLineListWithResponse request returning *LogLineListResponse
 func (c *ClientWithResponses) LogLineListWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*LogLineListResponse, error) {
 	rsp, err := c.LogLineList(ctx, stepRun, params, reqEditors...)
@@ -9200,6 +9378,53 @@ func ParseStepRunGetDiffResponse(rsp *http.Response) (*StepRunGetDiffResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest GetStepRunDiffResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStepRunListEventsResponse parses an HTTP response from a StepRunListEventsWithResponse call
+func ParseStepRunListEventsResponse(rsp *http.Response) (*StepRunListEventsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StepRunListEventsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest StepRunEventList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

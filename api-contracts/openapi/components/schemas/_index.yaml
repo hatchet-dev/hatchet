@@ -134,6 +134,14 @@ WorkflowRunTriggeredBy:
   $ref: "./workflow_run.yaml#/WorkflowRunTriggeredBy"
 StepRun:
   $ref: "./workflow_run.yaml#/StepRun"
+StepRunEventReason:
+  $ref: "./workflow_run.yaml#/StepRunEventReason"
+StepRunEventSeverity:
+  $ref: "./workflow_run.yaml#/StepRunEventSeverity"
+StepRunEvent:
+  $ref: "./workflow_run.yaml#/StepRunEvent"
+StepRunEventList:
+  $ref: "./workflow_run.yaml#/StepRunEventList"
 WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 Worker:
