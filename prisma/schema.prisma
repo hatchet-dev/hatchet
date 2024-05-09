@@ -882,6 +882,9 @@ model JobRun {
 
   // errors while cancelling the run
   cancelledError String?
+
+  // index for ResolveWorkflowRunStatus and ListJobRunsForWorkflowRun
+  @@index([workflowRunId, tenantId])
 }
 
 model JobRunLookupData {
@@ -1011,6 +1014,17 @@ model StepRun {
   childSchedules    WorkflowTriggerScheduledRef[]
 
   events StepRunEvent[]
+
+  // index for ListStepRunsToRequeue and ListStepRunsToReassign
+  @@index([tenantId, status, input, requeueAfter, createdAt])
+  // index for LinkStepRunParents
+  @@index([stepId])
+  // index for ListStartableStepRuns
+  @@index([jobRunId, status])
+  // index for ResolveLaterStepRuns
+  @@index([id, tenantId])
+  // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
+  @@index([jobRunId, tenantId, order])
 }
 
 enum StepRunEventReason {
