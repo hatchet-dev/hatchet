@@ -79,54 +79,37 @@ function StepRunEventCard({ event }: { event: StepRunEvent }) {
   );
 }
 
-function getTitleFromReason(reason: StepRunEventReason, message: string) {
-  switch (reason) {
-    case StepRunEventReason.ASSIGNED:
-      return 'Assigned to worker';
-    case StepRunEventReason.STARTED:
-      return 'Started';
-    case StepRunEventReason.FINISHED:
-      return 'Completed';
-    case StepRunEventReason.FAILED:
-      return 'Failed';
-    case StepRunEventReason.CANCELLED:
-      return 'Cancelled';
-    case StepRunEventReason.RETRYING:
-      return 'Retrying';
-    case StepRunEventReason.REQUEUED_NO_WORKER:
-      return 'Requeueing (no worker available)';
-    case StepRunEventReason.REQUEUED_RATE_LIMIT:
-      return 'Requeueing (rate limit)';
-    case StepRunEventReason.SCHEDULING_TIMED_OUT:
-      return 'Scheduling timed out';
+const REASON_TO_TITLE: Record<StepRunEventReason, string> = {
+  [StepRunEventReason.ASSIGNED]: 'Assigned to worker',
+  [StepRunEventReason.STARTED]: 'Started',
+  [StepRunEventReason.FINISHED]: 'Completed',
+  [StepRunEventReason.FAILED]: 'Failed',
+  [StepRunEventReason.CANCELLED]: 'Cancelled',
+  [StepRunEventReason.RETRYING]: 'Retrying',
+  [StepRunEventReason.REQUEUED_NO_WORKER]: 'Requeueing (no worker available)',
+  [StepRunEventReason.REQUEUED_RATE_LIMIT]: 'Requeueing (rate limit)',
+  [StepRunEventReason.SCHEDULING_TIMED_OUT]: 'Scheduling timed out',
+};
 
-    default:
-      return message;
-  }
+function getTitleFromReason(reason: StepRunEventReason, message: string) {
+  return REASON_TO_TITLE[reason] || message;
 }
 
 function renderCardFooter(event: StepRunEvent) {
-  console.log(event.data);
-
   if (event.data) {
     const data = event.data as any;
 
-    switch (event.reason) {
-      case StepRunEventReason.ASSIGNED:
-        // render a link to the worker
-        console.log(event.data);
-        if (data.worker_id) {
-          return (
-            <CardFooter>
-              <Link to={`/workers/${data.worker_id}`}>
-                <Button variant="link" size="xs">
-                  <ArrowRightIcon className="w-4 h-4 mr-1" />
-                  View Worker
-                </Button>
-              </Link>
-            </CardFooter>
-          );
-        }
+    if (event.reason == StepRunEventReason.ASSIGNED && data.worker_id) {
+      return (
+        <CardFooter>
+          <Link to={`/workers/${data.worker_id}`}>
+            <Button variant="link" size="xs">
+              <ArrowRightIcon className="w-4 h-4 mr-1" />
+              View Worker
+            </Button>
+          </Link>
+        </CardFooter>
+      );
     }
   }
 
