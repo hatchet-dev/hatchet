@@ -820,6 +820,9 @@ CREATE UNIQUE INDEX "Job_workflowVersionId_name_key" ON "Job"("workflowVersionId
 CREATE UNIQUE INDEX "JobRun_id_key" ON "JobRun"("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "JobRun_workflowRunId_tenantId_idx" ON "JobRun"("workflowRunId" ASC, "tenantId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "JobRunLookupData_id_key" ON "JobRunLookupData"("id" ASC);
 
 -- CreateIndex
@@ -860,6 +863,21 @@ CREATE UNIQUE INDEX "StepRateLimit_stepId_rateLimitKey_key" ON "StepRateLimit"("
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_id_tenantId_idx" ON "StepRun"("id" ASC, "tenantId" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_jobRunId_status_idx" ON "StepRun"("jobRunId" ASC, "status" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, "tenantId" ASC, "order" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_tenantId_status_input_requeueAfter_createdAt_idx" ON "StepRun"("tenantId" ASC, "status" ASC, "input" ASC, "requeueAfter" ASC, "createdAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRunEvent_id_key" ON "StepRunEvent"("id" ASC);
