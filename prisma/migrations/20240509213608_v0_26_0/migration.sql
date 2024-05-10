@@ -2,13 +2,7 @@
 CREATE INDEX "JobRun_workflowRunId_tenantId_idx" ON "JobRun" ("workflowRunId", "tenantId");
 
 -- CreateIndex
-CREATE INDEX "StepRun_tenantId_status_input_requeueAfter_createdAt_idx" ON "StepRun" (
-    "tenantId",
-    "status",
-    "input",
-    "requeueAfter",
-    "createdAt"
-);
+CREATE INDEX "StepRun_tenantId_status_requeueAfter_createdAt_idx" ON "StepRun" ("tenantId", "status", "requeueAfter", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "StepRun_stepId_idx" ON "StepRun" ("stepId");

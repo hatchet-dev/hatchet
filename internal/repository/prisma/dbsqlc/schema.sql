@@ -877,7 +877,7 @@ CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, 
 CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 
 -- CreateIndex
-CREATE INDEX "StepRun_tenantId_status_input_requeueAfter_createdAt_idx" ON "StepRun"("tenantId" ASC, "status" ASC, "input" ASC, "requeueAfter" ASC, "createdAt" ASC);
+CREATE INDEX "StepRun_tenantId_status_requeueAfter_createdAt_idx" ON "StepRun"("tenantId" ASC, "status" ASC, "requeueAfter" ASC, "createdAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRunEvent_id_key" ON "StepRunEvent"("id" ASC);
