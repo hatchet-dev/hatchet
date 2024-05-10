@@ -1016,7 +1016,7 @@ model StepRun {
   events StepRunEvent[]
 
   // index for ListStepRunsToRequeue and ListStepRunsToReassign
-  @@index([tenantId, status, input, requeueAfter, createdAt])
+  @@index([tenantId, status, requeueAfter, createdAt])
   // index for LinkStepRunParents
   @@index([stepId])
   // index for ListStartableStepRuns
