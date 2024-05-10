@@ -271,6 +271,7 @@ StepRunEventReason:
     - RETRYING
     - CANCELLED
     - REASSIGNED
+    - TIMED_OUT
 
 StepRunEventSeverity:
   type: string

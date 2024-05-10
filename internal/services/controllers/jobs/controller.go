@@ -899,13 +899,16 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 		return fmt.Errorf("could not decode step run failed task metadata: %w", err)
 	}
 
-	// update the step run in the database
 	failedAt, err := time.Parse(time.RFC3339, payload.FailedAt)
 	if err != nil {
 		return fmt.Errorf("could not parse failed at: %w", err)
 	}
 
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
+	return ec.failStepRun(ctx, metadata.TenantId, payload.StepRunId, payload.Error, failedAt)
+}
+
+func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRunId, errorReason string, failedAt time.Time) error {
+	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
@@ -922,24 +925,29 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 
 	scheduleTimeoutAt := getScheduleTimeout(stepRun)
 
-	eventMessage := repository.StringPtr(
-		fmt.Sprintf("Step run failed on %s", failedAt.Format(time.RFC1123)),
-	)
+	eventMessage := fmt.Sprintf("Step run failed on %s", failedAt.Format(time.RFC1123))
 
-	if shouldRetry {
-		eventMessage = repository.StringPtr(
-			fmt.Sprintf("Step run failed on %s, and will be retried.", failedAt.Format(time.RFC1123)),
-		)
+	eventReason := dbsqlc.StepRunEventReasonFAILED
+
+	if errorReason == "TIMED_OUT" {
+		eventReason = dbsqlc.StepRunEventReasonTIMEDOUT
+		eventMessage = fmt.Sprintf("Step exceeded timeout duration (%s)", stepRun.StepTimeout.String)
 	}
 
-	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
+	if shouldRetry {
+		eventMessage += ", and will be retried."
+	} else {
+		eventMessage += eventMessage + "."
+	}
+
+	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
 		FinishedAt:        &failedAt,
-		Error:             &payload.Error,
+		Error:             &errorReason,
 		Status:            repository.StepRunStatusPtr(status),
 		ScheduleTimeoutAt: &scheduleTimeoutAt,
 		Event: &repository.CreateStepRunEventOpts{
-			EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonFAILED),
-			EventMessage:  eventMessage,
+			EventReason:   repository.StepRunEventReasonPtr(eventReason),
+			EventMessage:  repository.StringPtr(eventMessage),
 			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
 		},
 	})
@@ -981,7 +989,7 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *m
 		return fmt.Errorf("could not decode step run timed out task metadata: %w", err)
 	}
 
-	return ec.cancelStepRun(ctx, metadata.TenantId, payload.StepRunId, "TIMED_OUT")
+	return ec.failStepRun(ctx, metadata.TenantId, payload.StepRunId, "TIMED_OUT", time.Now().UTC())
 }
 
 func (ec *JobsControllerImpl) handleStepRunCancelled(ctx context.Context, task *msgqueue.Message) error {

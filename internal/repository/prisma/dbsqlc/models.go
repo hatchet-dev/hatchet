@@ -242,6 +242,7 @@ const (
 	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
 	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
 	StepRunEventReasonREASSIGNED         StepRunEventReason = "REASSIGNED"
+	StepRunEventReasonTIMEDOUT           StepRunEventReason = "TIMED_OUT"
 )
 
 func (e *StepRunEventReason) Scan(src interface{}) error {
