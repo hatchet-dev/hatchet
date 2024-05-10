@@ -90,7 +90,7 @@ const REASON_TO_TITLE: Record<StepRunEventReason, string> = {
   [StepRunEventReason.REQUEUED_RATE_LIMIT]: 'Requeueing (rate limit)',
   [StepRunEventReason.SCHEDULING_TIMED_OUT]: 'Scheduling timed out',
   [StepRunEventReason.REASSIGNED]: 'Reassigned',
-  [StepRunEventReason.TIMED_OUT]: 'Runtime timed out',
+  [StepRunEventReason.TIMED_OUT]: 'Execution timed out',
 };
 
 function getTitleFromReason(reason: StepRunEventReason, message: string) {
