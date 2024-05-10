@@ -258,6 +258,68 @@ StepRun:
     - stepId
     - status
 
+StepRunEventReason:
+  type: string
+  enum:
+    - REQUEUED_NO_WORKER
+    - REQUEUED_RATE_LIMIT
+    - SCHEDULING_TIMED_OUT
+    - ASSIGNED
+    - STARTED
+    - FINISHED
+    - FAILED
+    - RETRYING
+    - CANCELLED
+
+StepRunEventSeverity:
+  type: string
+  enum:
+    - INFO
+    - WARNING
+    - CRITICAL
+
+StepRunEvent:
+  type: object
+  properties:
+    id:
+      type: integer
+    timeFirstSeen:
+      type: string
+      format: date-time
+    timeLastSeen:
+      type: string
+      format: date-time
+    stepRunId:
+      type: string
+    reason:
+      $ref: "#/StepRunEventReason"
+    severity:
+      $ref: "#/StepRunEventSeverity"
+    message:
+      type: string
+    count:
+      type: integer
+    data:
+      type: object
+  required:
+    - id
+    - timeFirstSeen
+    - timeLastSeen
+    - stepRunId
+    - reason
+    - severity
+    - message
+    - count
+
+StepRunEventList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/StepRunEvent"
+      type: array
+
 RerunStepRunRequest:
   properties:
     input:

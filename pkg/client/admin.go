@@ -27,7 +27,7 @@ type AdminClient interface {
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
 
 	// RunWorkflow triggers a workflow run and returns the run id
-	RunWorkflow(workflowName string, input interface{}) (string, error)
+	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (string, error)
 
 	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
 
@@ -143,17 +143,43 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 	return nil
 }
 
-func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}) (string, error) {
+type RunOptFunc func(*admincontracts.TriggerWorkflowRequest) error
+
+func WithRunMetadata(metadata interface{}) RunOptFunc {
+	return func(r *admincontracts.TriggerWorkflowRequest) error {
+		metadataBytes, err := json.Marshal(metadata)
+		if err != nil {
+			return err
+		}
+
+		metadataString := string(metadataBytes)
+
+		r.AdditionalMetadata = &metadataString
+
+		return nil
+	}
+}
+
+func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, options ...RunOptFunc) (string, error) {
 	inputBytes, err := json.Marshal(input)
 
 	if err != nil {
 		return "", fmt.Errorf("could not marshal input: %w", err)
 	}
 
-	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.TriggerWorkflowRequest{
+	request := admincontracts.TriggerWorkflowRequest{
 		Name:  workflowName,
 		Input: string(inputBytes),
-	})
+	}
+
+	for _, optionFunc := range options {
+		err = optionFunc(&request)
+		if err != nil {
+			return "", fmt.Errorf("could not apply run option: %w", err)
+		}
+	}
+
+	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &request)
 
 	if err != nil {
 		return "", fmt.Errorf("could not trigger workflow: %w", err)

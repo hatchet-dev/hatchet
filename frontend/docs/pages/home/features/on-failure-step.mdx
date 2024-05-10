@@ -1,0 +1,121 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+
+# On Failure Step
+
+The On Failure Step is a special step in Hatchet workflows that allows you to define a function to be executed in the event that any step in the main workflow fails. This feature enables you to handle errors, perform cleanup tasks, or trigger notifications in case of workflow failures.
+
+## Defining an On Failure Step
+
+You can define an On Failure Step on your Workflow using the Hatchet client libraries:
+
+<Tabs items={['Python', 'Typescript', 'Go']}>
+<Tabs.Tab>
+```python
+@hatchet.workflow(on_events=["user:create"])
+class OnFailureWorkflow:
+    @hatchet.step()
+    def step1(self, context: Context):
+        raise Exception("step1 failed")
+
+    @hatchet.on_failure_step()
+    def on_failure(self, context):
+        print("executed on_failure")
+        print(context)
+
+````
+</Tabs.Tab>
+
+<Tabs.Tab>
+```typescript
+const workflow: Workflow = {
+  id: 'on-failure-example',
+  description: 'test',
+  on: {
+    event: 'user:create',
+  },
+  steps: [
+    {
+      name: 'step1',
+      run: async (ctx) => {
+        console.log('Starting Step 1!');
+        await sleep(1000);
+        throw new Error('Step 1 failed');
+      },
+    },
+  ],
+  onFailure: {
+    name: 'on-failure-step',
+    run: async (ctx) => {
+      console.log('Starting On Failure Step!');
+      return { onFailure: 'step' };
+    },
+  },
+};
+````
+
+</Tabs.Tab>
+<Tabs.Tab>
+```go
+
+func StepOne(ctx worker.HatchetContext) (result \*stepOneOutput, err error) {
+return nil, fmt.Errorf("test on failure")
+}
+
+func OnFailure(ctx worker.HatchetContext) (result \*stepOneOutput, err error) {
+return &stepOneOutput{
+Message: "Failure!",
+}, nil
+}
+
+err = w.On(
+worker.NoTrigger(),
+&worker.WorkflowJob{
+Name: "on-failure-workflow",
+Description: "This runs at a scheduled time.",
+Steps: []*worker.WorkflowStep{
+worker.Fn(StepOne).SetName("step-one"),
+},
+OnFailure: &worker.WorkflowJob{
+Name: "scheduled-workflow-failure",
+Description: "This runs when the scheduled workflow fails.",
+Steps: []*worker.WorkflowStep{
+worker.Fn(OnFailure).SetName("on-failure"),
+},
+},
+},
+)
+
+````
+</Tabs.Tab>
+</Tabs>
+
+In the above examples, the `on_failure` step is defined separately from the main workflow steps. It will be executed only if any of the main workflow steps fail.
+
+{/* <Callout type="info">
+The On Failure Step has access to the workflow context, which contains information about the failed step and the error that occurred.
+</Callout> */}
+
+## Use Cases
+
+Some common use cases for the On Failure Step include:
+
+- Performing cleanup tasks after a workflow failure
+- Sending notifications or alerts about the failure
+- Logging additional information for debugging purposes
+- Triggering a compensating action or a fallback workflow
+
+By utilizing the On Failure Step, you can handle workflow failures gracefully and ensure that necessary actions are taken in case of errors.
+
+### Example: Sending a Slack Notification on Failure
+
+```python
+@hatchet.on_failure_step()
+def on_failure(self, context):
+    slack_client.send_message(
+        f"Workflow {context.workflow_run_id()} failed"
+    )
+````
+
+In this example, the On Failure Step sends a Slack notification with details about the failed workflow, including the workflow run ID which can be used to find the run in the Hatchet Dashboard.
+
+By leveraging the On Failure Step, you can enhance the reliability and observability of your workflows, ensuring that failures are handled appropriately and relevant stakeholders are notified.

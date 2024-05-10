@@ -31,6 +31,7 @@ import { StepRunLogs } from './step-run-logs';
 import { RunStatus } from '../../components/run-statuses';
 import { QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { WorkflowRunsTable } from '../../components/workflow-runs-table';
+import { StepRunEvents } from './step-run-events';
 
 export function StepRunPlayground({
   stepRun,
@@ -106,11 +107,7 @@ export function StepRunPlayground({
     refetchInterval: (query) => {
       const data = query.state.data;
 
-      if (
-        data?.status != 'SUCCEEDED' &&
-        data?.status != 'FAILED' &&
-        data?.status != 'CANCELLED'
-      ) {
+      if (data?.status === StepRunStatus.RUNNING) {
         return 1000;
       }
 
@@ -137,7 +134,7 @@ export function StepRunPlayground({
 
   const stepRunDiffQuery = useQuery({
     ...queries.stepRuns.getDiff(stepRun?.metadata.id || ''),
-    enabled: !!stepRun,
+    enabled: !!stepRun && !!stepRun.input,
     refetchInterval: () => {
       if (stepRun?.status === StepRunStatus.RUNNING) {
         return 1000;
@@ -417,6 +414,9 @@ export function StepRunPlayground({
                       <TabsTrigger value="logs" className="px-8">
                         Logs
                       </TabsTrigger>
+                      <TabsTrigger value="events" className="px-8">
+                        Events
+                      </TabsTrigger>
                     </TabsList>
                   </div>
                   <RunStatus
@@ -425,6 +425,7 @@ export function StepRunPlayground({
                         ? StepRunStatus.FAILED
                         : stepRun?.status || StepRunStatus.PENDING
                     }
+                    className="px-2"
                   />
                 </div>
 
@@ -444,6 +445,9 @@ export function StepRunPlayground({
                 </TabsContent>
                 <TabsContent value="logs">
                   <StepRunLogs stepRun={stepRun} />
+                </TabsContent>
+                <TabsContent value="events">
+                  <StepRunEvents stepRun={stepRun} />
                 </TabsContent>
               </Tabs>
 

@@ -133,6 +133,30 @@ model Tenant {
   snsIntegrations           SNSIntegration[]
   rateLimits                RateLimit[]
   stepRateLimits            StepRateLimit[]
+  alertEmailGroups          TenantAlertEmailGroup[]
+  slackWebhooks             SlackAppWebhook[]
+  alertingSettings          TenantAlertingSettings?
+}
+
+model TenantAlertingSettings {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @unique @db.Uuid
+
+  // the maximum alerting frequency
+  maxFrequency String @default("1h")
+
+  lastAlertedAt DateTime?
+
+  // the assigned ticker
+  ticker   Ticker? @relation(fields: [tickerId], references: [id])
+  tickerId String? @db.Uuid
 }
 
 enum TenantMemberRole {
@@ -861,6 +885,9 @@ model JobRun {
 
   // errors while cancelling the run
   cancelledError String?
+
+  // index for ResolveWorkflowRunStatus and ListJobRunsForWorkflowRun
+  @@index([workflowRunId, tenantId])
 }
 
 model JobRunLookupData {
@@ -988,6 +1015,62 @@ model StepRun {
 
   childWorkflowRuns WorkflowRun[]
   childSchedules    WorkflowTriggerScheduledRef[]
+
+  events StepRunEvent[]
+
+  // index for ListStepRunsToRequeue and ListStepRunsToReassign
+  @@index([tenantId, status, requeueAfter, createdAt])
+  // index for LinkStepRunParents
+  @@index([stepId])
+  // index for ListStartableStepRuns
+  @@index([jobRunId, status])
+  // index for ResolveLaterStepRuns
+  @@index([id, tenantId])
+  // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
+  @@index([jobRunId, tenantId, order])
+}
+
+enum StepRunEventReason {
+  REQUEUED_NO_WORKER
+  REQUEUED_RATE_LIMIT
+  SCHEDULING_TIMED_OUT
+
+  ASSIGNED
+  STARTED
+  FINISHED
+  FAILED
+  RETRYING
+  CANCELLED
+}
+
+enum StepRunEventSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model StepRunEvent {
+  id            BigInt   @unique @default(autoincrement()) @db.BigInt
+  timeFirstSeen DateTime @default(now())
+  timeLastSeen  DateTime @default(now())
+
+  // the parent step run
+  stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepRunId String  @db.Uuid
+
+  // the event reason
+  reason StepRunEventReason
+
+  // the event severity
+  severity StepRunEventSeverity
+
+  message String
+
+  count Int
+
+  data Json?
+
+  @@index([stepRunId])
 }
 
 model StepRunResultArchive {
@@ -1064,6 +1147,7 @@ model Ticker {
   crons        WorkflowTriggerCronRef[]
   scheduled    WorkflowTriggerScheduledRef[]
   groupKeyRuns GetGroupKeyRun[]
+  tenantAlerts TenantAlertingSettings[]
 }
 
 model Worker {
@@ -1193,6 +1277,43 @@ model GithubAppInstallation {
   tenantVcsProviderId String?                    @db.Uuid
 
   @@unique([installationId, accountId])
+}
+
+model TenantAlertEmailGroup {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // a list of comma-separated emails for the group
+  emails String
+}
+
+model SlackAppWebhook {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  teamId   String
+  teamName String
+
+  channelId   String
+  channelName String
+
+  // encrypted at rest
+  webhookURL Bytes @db.ByteA
+
+  @@unique([tenantId, teamId, channelId])
 }
 
 model GithubAppOAuth {

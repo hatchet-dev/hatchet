@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
@@ -25,6 +26,7 @@ type TickerImpl struct {
 	l    *zerolog.Logger
 	repo repository.EngineRepository
 	s    gocron.Scheduler
+	ta   *alerting.TenantAlertManager
 
 	crons              sync.Map
 	scheduledWorkflows sync.Map
@@ -41,6 +43,7 @@ type TickerOpts struct {
 	l        *zerolog.Logger
 	repo     repository.EngineRepository
 	tickerId string
+	ta       *alerting.TenantAlertManager
 
 	dv datautils.DataDecoderValidator
 }
@@ -72,6 +75,12 @@ func WithLogger(l *zerolog.Logger) TickerOpt {
 	}
 }
 
+func WithTenantAlerter(ta *alerting.TenantAlertManager) TickerOpt {
+	return func(opts *TickerOpts) {
+		opts.ta = ta
+	}
+}
+
 func New(fs ...TickerOpt) (*TickerImpl, error) {
 	opts := defaultTickerOpts()
 
@@ -85,6 +94,10 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 
 	if opts.repo == nil {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
+	}
+
+	if opts.ta == nil {
+		return nil, fmt.Errorf("tenant alerter is required. use WithTenantAlerter")
 	}
 
 	newLogger := opts.l.With().Str("service", "ticker").Logger()
@@ -103,6 +116,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		s:        s,
 		dv:       opts.dv,
 		tickerId: opts.tickerId,
+		ta:       opts.ta,
 	}, nil
 }
 
@@ -193,6 +207,19 @@ func (t *TickerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule stream event cleanup: %w", err)
+	}
+
+	// poll for tenant alerts every minute, since minimum alerting frequency is 5 minutes
+	_, err = t.s.NewJob(
+		gocron.DurationJob(time.Minute*1),
+		gocron.NewTask(
+			t.runPollTenantAlerts(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
 	}
 
 	t.s.Start()

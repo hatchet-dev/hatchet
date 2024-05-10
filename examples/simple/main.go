@@ -126,8 +126,8 @@ func run(events chan<- string) (func() error, error) {
 			context.Background(),
 			"user:create:simple",
 			testEvent,
-			client.WithMetadata(map[string]string{
-				"meta": "test",
+			client.WithEventMetadata(map[string]string{
+				"hello": "world",
 			}),
 		)
 		if err != nil {

@@ -1,10 +1,10 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { WorkflowRun } from '@/lib/api';
-import { relativeDate } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { RunStatus } from './run-statuses';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export const columns: ColumnDef<WorkflowRun>[] = [
   {
@@ -78,7 +78,11 @@ export const columns: ColumnDef<WorkflowRun>[] = [
     cell: ({ row }) => {
       return (
         <div className="whitespace-nowrap">
-          {relativeDate(row.original.startedAt)}
+          {row.original.startedAt ? (
+            <RelativeDate date={row.original.startedAt} />
+          ) : (
+            'N/A'
+          )}
         </div>
       );
     },
@@ -95,9 +99,11 @@ export const columns: ColumnDef<WorkflowRun>[] = [
       />
     ),
     cell: ({ row }) => {
-      const finishedAt = row.original.finishedAt
-        ? relativeDate(row.original.finishedAt)
-        : 'N/A';
+      const finishedAt = row.original.finishedAt ? (
+        <RelativeDate date={row.original.finishedAt} />
+      ) : (
+        'N/A'
+      );
 
       return <div className="whitespace-nowrap">{finishedAt}</div>;
     },

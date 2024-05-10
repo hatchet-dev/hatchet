@@ -229,6 +229,98 @@ func (ns NullLogLineLevel) Value() (driver.Value, error) {
 	return string(ns.LogLineLevel), nil
 }
 
+type StepRunEventReason string
+
+const (
+	StepRunEventReasonREQUEUEDNOWORKER   StepRunEventReason = "REQUEUED_NO_WORKER"
+	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
+	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
+	StepRunEventReasonASSIGNED           StepRunEventReason = "ASSIGNED"
+	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
+	StepRunEventReasonFINISHED           StepRunEventReason = "FINISHED"
+	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
+	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
+	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
+)
+
+func (e *StepRunEventReason) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StepRunEventReason(s)
+	case string:
+		*e = StepRunEventReason(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StepRunEventReason: %T", src)
+	}
+	return nil
+}
+
+type NullStepRunEventReason struct {
+	StepRunEventReason StepRunEventReason `json:"StepRunEventReason"`
+	Valid              bool               `json:"valid"` // Valid is true if StepRunEventReason is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStepRunEventReason) Scan(value interface{}) error {
+	if value == nil {
+		ns.StepRunEventReason, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StepRunEventReason.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStepRunEventReason) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StepRunEventReason), nil
+}
+
+type StepRunEventSeverity string
+
+const (
+	StepRunEventSeverityINFO     StepRunEventSeverity = "INFO"
+	StepRunEventSeverityWARNING  StepRunEventSeverity = "WARNING"
+	StepRunEventSeverityCRITICAL StepRunEventSeverity = "CRITICAL"
+)
+
+func (e *StepRunEventSeverity) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StepRunEventSeverity(s)
+	case string:
+		*e = StepRunEventSeverity(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StepRunEventSeverity: %T", src)
+	}
+	return nil
+}
+
+type NullStepRunEventSeverity struct {
+	StepRunEventSeverity StepRunEventSeverity `json:"StepRunEventSeverity"`
+	Valid                bool                 `json:"valid"` // Valid is true if StepRunEventSeverity is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStepRunEventSeverity) Scan(value interface{}) error {
+	if value == nil {
+		ns.StepRunEventSeverity, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StepRunEventSeverity.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStepRunEventSeverity) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StepRunEventSeverity), nil
+}
+
 type StepRunStatus string
 
 const (
@@ -635,6 +727,19 @@ type ServiceToWorker struct {
 	B pgtype.UUID `json:"B"`
 }
 
+type SlackAppWebhook struct {
+	ID          pgtype.UUID      `json:"id"`
+	CreatedAt   pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt   pgtype.Timestamp `json:"deletedAt"`
+	TenantId    pgtype.UUID      `json:"tenantId"`
+	TeamId      string           `json:"teamId"`
+	TeamName    string           `json:"teamName"`
+	ChannelId   string           `json:"channelId"`
+	ChannelName string           `json:"channelName"`
+	WebhookURL  []byte           `json:"webhookURL"`
+}
+
 type Step struct {
 	ID              pgtype.UUID      `json:"id"`
 	CreatedAt       pgtype.Timestamp `json:"createdAt"`
@@ -691,6 +796,18 @@ type StepRun struct {
 	RetryCount        int32            `json:"retryCount"`
 }
 
+type StepRunEvent struct {
+	ID            int64                `json:"id"`
+	TimeFirstSeen pgtype.Timestamp     `json:"timeFirstSeen"`
+	TimeLastSeen  pgtype.Timestamp     `json:"timeLastSeen"`
+	StepRunId     pgtype.UUID          `json:"stepRunId"`
+	Reason        StepRunEventReason   `json:"reason"`
+	Severity      StepRunEventSeverity `json:"severity"`
+	Message       string               `json:"message"`
+	Count         int32                `json:"count"`
+	Data          []byte               `json:"data"`
+}
+
 type StepRunOrder struct {
 	A pgtype.UUID `json:"A"`
 	B pgtype.UUID `json:"B"`
@@ -731,6 +848,26 @@ type Tenant struct {
 	Name            string           `json:"name"`
 	Slug            string           `json:"slug"`
 	AnalyticsOptOut bool             `json:"analyticsOptOut"`
+}
+
+type TenantAlertEmailGroup struct {
+	ID        pgtype.UUID      `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt pgtype.Timestamp `json:"deletedAt"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+	Emails    string           `json:"emails"`
+}
+
+type TenantAlertingSettings struct {
+	ID            pgtype.UUID      `json:"id"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt     pgtype.Timestamp `json:"deletedAt"`
+	TenantId      pgtype.UUID      `json:"tenantId"`
+	MaxFrequency  string           `json:"maxFrequency"`
+	LastAlertedAt pgtype.Timestamp `json:"lastAlertedAt"`
+	TickerId      pgtype.UUID      `json:"tickerId"`
 }
 
 type TenantInviteLink struct {

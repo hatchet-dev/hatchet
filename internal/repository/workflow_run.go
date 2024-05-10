@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/encryption"
@@ -253,6 +254,12 @@ type ListWorkflowRunsOpts struct {
 
 	// (optional) the order direction
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
+
+	// (optional) a time after which the run was created
+	CreatedAfter *time.Time
+
+	// (optional) a time before which the run was finished
+	FinishedAfter *time.Time
 
 	// (optional) exact metadata to filter by
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`

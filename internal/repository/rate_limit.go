@@ -11,7 +11,7 @@ type UpsertRateLimitOpts struct {
 	Limit int
 
 	// The rate limit duration
-	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR"`
+	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
 }
 
 type RateLimitEngineRepository interface {

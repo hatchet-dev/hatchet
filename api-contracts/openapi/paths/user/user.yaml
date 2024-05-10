@@ -243,6 +243,53 @@ oauth-callback-github-app:
     summary: Complete OAuth flow
     tags:
       - User
+oauth-start-slack:
+  get:
+    x-resources: ["tenant"]
+    description: Starts the OAuth flow
+    operationId: user:update:slack-oauth-start
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "302":
+        description: Successfully started the OAuth flow
+        headers:
+          location:
+            schema:
+              type: string
+    # Note that the security scheme requires cookies, because this endpoint is for linking
+    # a Slack account to an existing user account.
+    security:
+      - cookieAuth: []
+    summary: Start OAuth flow
+    tags:
+      - User
+oauth-callback-slack:
+  get:
+    description: Completes the OAuth flow
+    operationId: user:update:slack-oauth-callback
+    responses:
+      "302":
+        description: Successfully completed the OAuth flow
+        headers:
+          location:
+            schema:
+              type: string
+    # Note that the security scheme requires cookies, because this endpoint is for linking
+    # a Slack account to an existing user account.
+    security:
+      - cookieAuth: []
+    summary: Complete OAuth flow
+    tags:
+      - User
 logout:
   post:
     description: Logs out a user.

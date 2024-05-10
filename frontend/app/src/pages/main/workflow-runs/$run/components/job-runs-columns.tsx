@@ -3,6 +3,7 @@ import { DataTableColumnHeader } from '@/components/molecules/data-table/data-ta
 import { JobRun, StepRun } from '@/lib/api';
 import { relativeDate } from '@/lib/utils';
 import { RunStatus } from '../../components/run-statuses';
+import RelativeDate from '@/components/molecules/relative-date';
 
 type JobRunRow = {
   kind: 'job';
@@ -58,7 +59,13 @@ export const columns: ColumnDef<JobRunColumns>[] = [
       <DataTableColumnHeader column={column} title="Started at" />
     ),
     cell: ({ row }) => {
-      return <div>{relativeDate(row.original.startedAt)}</div>;
+      return (
+        <div>
+          {row.original.startedAt && (
+            <RelativeDate date={row.original.startedAt} />
+          )}
+        </div>
+      );
     },
     enableSorting: false,
     enableHiding: false,

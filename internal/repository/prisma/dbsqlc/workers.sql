@@ -1,11 +1,14 @@
 -- name: ListWorkersWithStepCount :many
 SELECT
     sqlc.embed(workers),
-    COUNT(runs."id") FILTER (WHERE runs."status" = 'RUNNING') AS "runningStepRuns"
+    COUNT(runs."id") FILTER (WHERE runs."status" = 'RUNNING') AS "runningStepRuns",
+    ws."slots" AS "slots"
 FROM
     "Worker" workers
 LEFT JOIN
     "StepRun" AS runs ON runs."workerId" = workers."id" AND runs."status" = 'RUNNING'
+JOIN
+    "WorkerSemaphore" AS ws ON ws."workerId" = workers."id"
 WHERE
     workers."tenantId" = @tenantId
     AND (
@@ -31,6 +34,7 @@ WHERE
         ))
     )
 GROUP BY
+    ws."slots",
     workers."id";
 
 -- name: GetWorkerForEngine :one

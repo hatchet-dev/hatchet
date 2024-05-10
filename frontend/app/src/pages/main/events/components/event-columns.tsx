@@ -4,7 +4,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { columns as workflowRunsColumns } from '../../workflow-runs/components/workflow-runs-columns';
 import { Event, queries } from '@/lib/api';
-import { relativeDate } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -18,6 +17,7 @@ import { DataTable } from '@/components/molecules/data-table/data-table';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { AdditionalMetadata } from './additional-metadata';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export const columns = ({
   onRowClick,
@@ -76,7 +76,11 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Seen at" />
       ),
       cell: ({ row }) => {
-        return <div>{relativeDate(row.original.metadata.createdAt)}</div>;
+        return (
+          <div>
+            <RelativeDate date={row.original.metadata.createdAt} />
+          </div>
+        );
       },
     },
     // empty columns to get column filtering to work properly

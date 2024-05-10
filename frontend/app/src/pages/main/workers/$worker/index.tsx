@@ -3,7 +3,6 @@ import { queries, Worker } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
-import { relativeDate } from '@/lib/utils';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/molecules/data-table/data-table';
@@ -17,6 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
@@ -101,9 +101,9 @@ export default function ExpandedWorkflowRun() {
         </div>
         <Separator className="my-4" />
         <p className="mt-1 max-w-2xl text-gray-700 dark:text-gray-300">
-          Started {relativeDate(worker.metadata?.createdAt)}
+          Started <RelativeDate date={worker.metadata?.createdAt} />
           <br />
-          Last seen {relativeDate(worker?.lastHeartbeatAt)} <br />
+          Last seen <RelativeDate date={worker.metadata?.createdAt} /> <br />
           {(worker.maxRuns ?? 0) > 0
             ? `${worker.availableRuns} / ${worker.maxRuns ?? 0}`
             : '100'}{' '}

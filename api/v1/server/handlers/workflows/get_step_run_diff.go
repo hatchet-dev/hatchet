@@ -1,10 +1,12 @@
 package workflows
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/vcsutils"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -16,6 +18,12 @@ func (t *WorkflowService) StepRunGetDiff(ctx echo.Context, request gen.StepRunGe
 	diffs, originalValues, err := vcsutils.GetStepRunOverrideDiffs(t.config.APIRepository.StepRun(), stepRun)
 
 	if err != nil {
+		if errors.Is(err, vcsutils.ErrNoInput) {
+			return gen.StepRunGetDiff404JSONResponse(
+				apierrors.NewAPIErrors("step run does not have an input"),
+			), nil
+		}
+
 		return nil, fmt.Errorf("could not get diffs: %s", err)
 	}
 

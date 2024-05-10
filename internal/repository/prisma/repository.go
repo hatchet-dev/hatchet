@@ -13,22 +13,24 @@ import (
 )
 
 type apiRepository struct {
-	apiToken     repository.APITokenRepository
-	event        repository.EventAPIRepository
-	log          repository.LogsAPIRepository
-	tenant       repository.TenantAPIRepository
-	tenantInvite repository.TenantInviteRepository
-	workflow     repository.WorkflowAPIRepository
-	workflowRun  repository.WorkflowRunAPIRepository
-	jobRun       repository.JobRunAPIRepository
-	stepRun      repository.StepRunAPIRepository
-	github       repository.GithubRepository
-	step         repository.StepRepository
-	sns          repository.SNSRepository
-	worker       repository.WorkerAPIRepository
-	userSession  repository.UserSessionRepository
-	user         repository.UserRepository
-	health       repository.HealthRepository
+	apiToken       repository.APITokenRepository
+	event          repository.EventAPIRepository
+	log            repository.LogsAPIRepository
+	tenant         repository.TenantAPIRepository
+	tenantAlerting repository.TenantAlertingAPIRepository
+	tenantInvite   repository.TenantInviteRepository
+	workflow       repository.WorkflowAPIRepository
+	workflowRun    repository.WorkflowRunAPIRepository
+	jobRun         repository.JobRunAPIRepository
+	stepRun        repository.StepRunAPIRepository
+	github         repository.GithubRepository
+	step           repository.StepRepository
+	slack          repository.SlackRepository
+	sns            repository.SNSRepository
+	worker         repository.WorkerAPIRepository
+	userSession    repository.UserSessionRepository
+	user           repository.UserRepository
+	health         repository.HealthRepository
 }
 
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
@@ -78,22 +80,24 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 	}
 
 	return &apiRepository{
-		apiToken:     NewAPITokenRepository(client, opts.v, opts.cache),
-		event:        NewEventAPIRepository(client, pool, opts.v, opts.l),
-		log:          NewLogAPIRepository(pool, opts.v, opts.l),
-		tenant:       NewTenantAPIRepository(client, opts.v, opts.cache),
-		tenantInvite: NewTenantInviteRepository(client, opts.v),
-		workflow:     NewWorkflowRepository(client, pool, opts.v, opts.l),
-		workflowRun:  NewWorkflowRunRepository(client, pool, opts.v, opts.l),
-		jobRun:       NewJobRunAPIRepository(client, pool, opts.v, opts.l),
-		stepRun:      NewStepRunAPIRepository(client, pool, opts.v, opts.l),
-		github:       NewGithubRepository(client, opts.v),
-		step:         NewStepRepository(client, opts.v),
-		sns:          NewSNSRepository(client, opts.v),
-		worker:       NewWorkerAPIRepository(client, pool, opts.v, opts.l),
-		userSession:  NewUserSessionRepository(client, opts.v),
-		user:         NewUserRepository(client, opts.v),
-		health:       NewHealthAPIRepository(client, pool),
+		apiToken:       NewAPITokenRepository(client, opts.v, opts.cache),
+		event:          NewEventAPIRepository(client, pool, opts.v, opts.l),
+		log:            NewLogAPIRepository(pool, opts.v, opts.l),
+		tenant:         NewTenantAPIRepository(client, opts.v, opts.cache),
+		tenantAlerting: NewTenantAlertingAPIRepository(client, opts.v, opts.cache),
+		tenantInvite:   NewTenantInviteRepository(client, opts.v),
+		workflow:       NewWorkflowRepository(client, pool, opts.v, opts.l),
+		workflowRun:    NewWorkflowRunRepository(client, pool, opts.v, opts.l),
+		jobRun:         NewJobRunAPIRepository(client, pool, opts.v, opts.l),
+		stepRun:        NewStepRunAPIRepository(client, pool, opts.v, opts.l),
+		github:         NewGithubRepository(client, opts.v),
+		step:           NewStepRepository(client, opts.v),
+		slack:          NewSlackRepository(client, opts.v),
+		sns:            NewSNSRepository(client, opts.v),
+		worker:         NewWorkerAPIRepository(client, pool, opts.v, opts.l),
+		userSession:    NewUserSessionRepository(client, opts.v),
+		user:           NewUserRepository(client, opts.v),
+		health:         NewHealthAPIRepository(client, pool),
 	}
 }
 
@@ -117,6 +121,10 @@ func (r *apiRepository) Tenant() repository.TenantAPIRepository {
 	return r.tenant
 }
 
+func (r *apiRepository) TenantAlertingSettings() repository.TenantAlertingAPIRepository {
+	return r.tenantAlerting
+}
+
 func (r *apiRepository) TenantInvite() repository.TenantInviteRepository {
 	return r.tenantInvite
 }
@@ -135,6 +143,10 @@ func (r *apiRepository) JobRun() repository.JobRunAPIRepository {
 
 func (r *apiRepository) StepRun() repository.StepRunAPIRepository {
 	return r.stepRun
+}
+
+func (r *apiRepository) Slack() repository.SlackRepository {
+	return r.slack
 }
 
 func (r *apiRepository) SNS() repository.SNSRepository {
@@ -170,6 +182,7 @@ type engineRepository struct {
 	jobRun         repository.JobRunEngineRepository
 	stepRun        repository.StepRunEngineRepository
 	tenant         repository.TenantEngineRepository
+	tenantAlerting repository.TenantAlertingEngineRepository
 	ticker         repository.TickerEngineRepository
 	worker         repository.WorkerEngineRepository
 	workflow       repository.WorkflowEngineRepository
@@ -209,6 +222,10 @@ func (r *engineRepository) StepRun() repository.StepRunEngineRepository {
 
 func (r *engineRepository) Tenant() repository.TenantEngineRepository {
 	return r.tenant
+}
+
+func (r *engineRepository) TenantAlertingSettings() repository.TenantAlertingEngineRepository {
+	return r.tenantAlerting
 }
 
 func (r *engineRepository) Ticker() repository.TickerEngineRepository {
@@ -262,6 +279,7 @@ func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) reposito
 		jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
 		stepRun:        NewStepRunEngineRepository(pool, opts.v, opts.l),
 		tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
+		tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
 		ticker:         NewTickerRepository(pool, opts.v, opts.l),
 		worker:         NewWorkerEngineRepository(pool, opts.v, opts.l),
 		workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l),

@@ -48,10 +48,10 @@ const (
 
 // Defines values for LogLineLevel.
 const (
-	DEBUG LogLineLevel = "DEBUG"
-	ERROR LogLineLevel = "ERROR"
-	INFO  LogLineLevel = "INFO"
-	WARN  LogLineLevel = "WARN"
+	LogLineLevelDEBUG LogLineLevel = "DEBUG"
+	LogLineLevelERROR LogLineLevel = "ERROR"
+	LogLineLevelINFO  LogLineLevel = "INFO"
+	LogLineLevelWARN  LogLineLevel = "WARN"
 )
 
 // Defines values for LogLineOrderByDirection.
@@ -69,6 +69,26 @@ const (
 const (
 	Closed PullRequestState = "closed"
 	Open   PullRequestState = "open"
+)
+
+// Defines values for StepRunEventReason.
+const (
+	StepRunEventReasonASSIGNED           StepRunEventReason = "ASSIGNED"
+	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
+	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
+	StepRunEventReasonFINISHED           StepRunEventReason = "FINISHED"
+	StepRunEventReasonREQUEUEDNOWORKER   StepRunEventReason = "REQUEUED_NO_WORKER"
+	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
+	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
+	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
+	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
+)
+
+// Defines values for StepRunEventSeverity.
+const (
+	StepRunEventSeverityCRITICAL StepRunEventSeverity = "CRITICAL"
+	StepRunEventSeverityINFO     StepRunEventSeverity = "INFO"
+	StepRunEventSeverityWARNING  StepRunEventSeverity = "WARNING"
 )
 
 // Defines values for StepRunStatus.
@@ -105,12 +125,12 @@ const (
 
 // Defines values for WorkflowRunStatus.
 const (
-	CANCELLED WorkflowRunStatus = "CANCELLED"
-	FAILED    WorkflowRunStatus = "FAILED"
-	PENDING   WorkflowRunStatus = "PENDING"
-	QUEUED    WorkflowRunStatus = "QUEUED"
-	RUNNING   WorkflowRunStatus = "RUNNING"
-	SUCCEEDED WorkflowRunStatus = "SUCCEEDED"
+	WorkflowRunStatusCANCELLED WorkflowRunStatus = "CANCELLED"
+	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
+	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
+	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
+	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
+	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 )
 
 // APIError defines model for APIError.
@@ -214,6 +234,12 @@ type CreatePullRequestFromStepRun struct {
 type CreateSNSIntegrationRequest struct {
 	// TopicArn The Amazon Resource Name (ARN) of the SNS topic.
 	TopicArn string `json:"topicArn" validate:"required,min=1,max=256"`
+}
+
+// CreateTenantAlertEmailGroupRequest defines model for CreateTenantAlertEmailGroupRequest.
+type CreateTenantAlertEmailGroupRequest struct {
+	// Emails A list of emails for users
+	Emails []string `json:"emails" validate:"required,dive,email"`
 }
 
 // CreateTenantInviteRequest defines model for CreateTenantInviteRequest.
@@ -404,6 +430,12 @@ type ListSNSIntegrations struct {
 	Rows       []SNSIntegration   `json:"rows"`
 }
 
+// ListSlackWebhooks defines model for ListSlackWebhooks.
+type ListSlackWebhooks struct {
+	Pagination PaginationResponse `json:"pagination"`
+	Rows       []SlackWebhook     `json:"rows"`
+}
+
 // LogLine defines model for LogLine.
 type LogLine struct {
 	// CreatedAt The creation date of the log line.
@@ -492,6 +524,25 @@ type SNSIntegration struct {
 	TopicArn string `json:"topicArn"`
 }
 
+// SlackWebhook defines model for SlackWebhook.
+type SlackWebhook struct {
+	// ChannelId The channel id associated with this slack webhook.
+	ChannelId string `json:"channelId"`
+
+	// ChannelName The channel name associated with this slack webhook.
+	ChannelName string          `json:"channelName"`
+	Metadata    APIResourceMeta `json:"metadata"`
+
+	// TeamId The team id associated with this slack webhook.
+	TeamId string `json:"teamId"`
+
+	// TeamName The team name associated with this slack webhook.
+	TeamName string `json:"teamName"`
+
+	// TenantId The unique identifier for the tenant that the SNS integration belongs to.
+	TenantId openapi_types.UUID `json:"tenantId"`
+}
+
 // Step defines model for Step.
 type Step struct {
 	Action   string          `json:"action"`
@@ -545,6 +596,31 @@ type StepRunDiff struct {
 	Original string `json:"original"`
 }
 
+// StepRunEvent defines model for StepRunEvent.
+type StepRunEvent struct {
+	Count         int                     `json:"count"`
+	Data          *map[string]interface{} `json:"data,omitempty"`
+	Id            int                     `json:"id"`
+	Message       string                  `json:"message"`
+	Reason        StepRunEventReason      `json:"reason"`
+	Severity      StepRunEventSeverity    `json:"severity"`
+	StepRunId     string                  `json:"stepRunId"`
+	TimeFirstSeen time.Time               `json:"timeFirstSeen"`
+	TimeLastSeen  time.Time               `json:"timeLastSeen"`
+}
+
+// StepRunEventList defines model for StepRunEventList.
+type StepRunEventList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]StepRunEvent     `json:"rows,omitempty"`
+}
+
+// StepRunEventReason defines model for StepRunEventReason.
+type StepRunEventReason string
+
+// StepRunEventSeverity defines model for StepRunEventSeverity.
+type StepRunEventSeverity string
+
 // StepRunStatus defines model for StepRunStatus.
 type StepRunStatus string
 
@@ -559,6 +635,29 @@ type Tenant struct {
 
 	// Slug The slug of the tenant.
 	Slug string `json:"slug"`
+}
+
+// TenantAlertEmailGroup defines model for TenantAlertEmailGroup.
+type TenantAlertEmailGroup struct {
+	// Emails A list of emails for users
+	Emails   []string        `json:"emails"`
+	Metadata APIResourceMeta `json:"metadata"`
+}
+
+// TenantAlertEmailGroupList defines model for TenantAlertEmailGroupList.
+type TenantAlertEmailGroupList struct {
+	Pagination *PaginationResponse      `json:"pagination,omitempty"`
+	Rows       *[]TenantAlertEmailGroup `json:"rows,omitempty"`
+}
+
+// TenantAlertingSettings defines model for TenantAlertingSettings.
+type TenantAlertingSettings struct {
+	// LastAlertedAt The last time an alert was sent.
+	LastAlertedAt *time.Time `json:"lastAlertedAt,omitempty"`
+
+	// MaxAlertingFrequency The max frequency at which to alert.
+	MaxAlertingFrequency string          `json:"maxAlertingFrequency"`
+	Metadata             APIResourceMeta `json:"metadata"`
 }
 
 // TenantInvite defines model for TenantInvite.
@@ -607,6 +706,12 @@ type TriggerWorkflowRunRequest struct {
 	Input              map[string]interface{}  `json:"input"`
 }
 
+// UpdateTenantAlertEmailGroupRequest defines model for UpdateTenantAlertEmailGroupRequest.
+type UpdateTenantAlertEmailGroupRequest struct {
+	// Emails A list of emails for users
+	Emails []string `json:"emails" validate:"required,dive,email"`
+}
+
 // UpdateTenantInviteRequest defines model for UpdateTenantInviteRequest.
 type UpdateTenantInviteRequest struct {
 	Role TenantMemberRole `json:"role"`
@@ -616,6 +721,12 @@ type UpdateTenantInviteRequest struct {
 type UpdateTenantRequest struct {
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
 	AnalyticsOptOut *bool `json:"analyticsOptOut,omitempty"`
+
+	// MaxAlertingFrequency The max frequency at which to alert.
+	MaxAlertingFrequency *string `json:"maxAlertingFrequency,omitempty" validate:"omitnil,duration"`
+
+	// Name The name of the tenant.
+	Name *string `json:"name,omitempty"`
 }
 
 // User defines model for User.
@@ -906,6 +1017,15 @@ type WorkflowVersionMeta struct {
 	WorkflowId string    `json:"workflowId"`
 }
 
+// StepRunListEventsParams defines parameters for StepRunListEvents.
+type StepRunListEventsParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // LogLineListParams defines parameters for LogLineList.
 type LogLineListParams struct {
 	// Offset The number to skip
@@ -1035,6 +1155,9 @@ type WorkflowVersionGetDefinitionParams struct {
 	Version *openapi_types.UUID `form:"version,omitempty" json:"version,omitempty"`
 }
 
+// AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
+type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
+
 // StepRunUpdateCreatePrJSONRequestBody defines body for StepRunUpdateCreatePr for application/json ContentType.
 type StepRunUpdateCreatePrJSONRequestBody = CreatePullRequestFromStepRun
 
@@ -1043,6 +1166,9 @@ type TenantCreateJSONRequestBody = CreateTenantRequest
 
 // TenantUpdateJSONRequestBody defines body for TenantUpdate for application/json ContentType.
 type TenantUpdateJSONRequestBody = UpdateTenantRequest
+
+// AlertEmailGroupCreateJSONRequestBody defines body for AlertEmailGroupCreate for application/json ContentType.
+type AlertEmailGroupCreateJSONRequestBody = CreateTenantAlertEmailGroupRequest
 
 // ApiTokenCreateJSONRequestBody defines body for ApiTokenCreate for application/json ContentType.
 type ApiTokenCreateJSONRequestBody = CreateAPITokenRequest
@@ -1091,6 +1217,12 @@ type ServerInterface interface {
 	// Get readiness
 	// (GET /api/ready)
 	ReadinessGet(ctx echo.Context) error
+	// Delete tenant alert email group
+	// (DELETE /api/v1/alerting-email-groups/{alert-email-group})
+	AlertEmailGroupDelete(ctx echo.Context, alertEmailGroup openapi_types.UUID) error
+	// Update tenant alert email group
+	// (PATCH /api/v1/alerting-email-groups/{alert-email-group})
+	AlertEmailGroupUpdate(ctx echo.Context, alertEmailGroup openapi_types.UUID) error
 	// Revoke API Token
 	// (POST /api/v1/api-tokens/{api-token})
 	ApiTokenUpdateRevoke(ctx echo.Context, apiToken openapi_types.UUID) error
@@ -1118,6 +1250,9 @@ type ServerInterface interface {
 	// List integrations
 	// (GET /api/v1/meta/integrations)
 	MetadataListIntegrations(ctx echo.Context) error
+	// Delete Slack webhook
+	// (DELETE /api/v1/slack/{slack})
+	SlackWebhookDelete(ctx echo.Context, slack openapi_types.UUID) error
 	// Delete SNS integration
 	// (DELETE /api/v1/sns/{sns})
 	SnsDelete(ctx echo.Context, sns openapi_types.UUID) error
@@ -1130,6 +1265,9 @@ type ServerInterface interface {
 	// Get diff
 	// (GET /api/v1/step-runs/{step-run}/diff)
 	StepRunGetDiff(ctx echo.Context, stepRun openapi_types.UUID) error
+	// List events for step run
+	// (GET /api/v1/step-runs/{step-run}/events)
+	StepRunListEvents(ctx echo.Context, stepRun openapi_types.UUID, params StepRunListEventsParams) error
 	// List log lines
 	// (GET /api/v1/step-runs/{step-run}/logs)
 	LogLineList(ctx echo.Context, stepRun openapi_types.UUID, params LogLineListParams) error
@@ -1139,6 +1277,15 @@ type ServerInterface interface {
 	// Update tenant
 	// (PATCH /api/v1/tenants/{tenant})
 	TenantUpdate(ctx echo.Context, tenant openapi_types.UUID) error
+	// List tenant alert email groups
+	// (GET /api/v1/tenants/{tenant}/alerting-email-groups)
+	AlertEmailGroupList(ctx echo.Context, tenant openapi_types.UUID) error
+	// Create tenant alert email group
+	// (POST /api/v1/tenants/{tenant}/alerting-email-groups)
+	AlertEmailGroupCreate(ctx echo.Context, tenant openapi_types.UUID) error
+	// Get tenant alerting settings
+	// (GET /api/v1/tenants/{tenant}/alerting/settings)
+	TenantAlertingSettingsGet(ctx echo.Context, tenant openapi_types.UUID) error
 	// List API Tokens
 	// (GET /api/v1/tenants/{tenant}/api-tokens)
 	ApiTokenList(ctx echo.Context, tenant openapi_types.UUID) error
@@ -1169,6 +1316,12 @@ type ServerInterface interface {
 	// List tenant members
 	// (GET /api/v1/tenants/{tenant}/members)
 	TenantMemberList(ctx echo.Context, tenant openapi_types.UUID) error
+	// List Slack integrations
+	// (GET /api/v1/tenants/{tenant}/slack)
+	SlackWebhookList(ctx echo.Context, tenant openapi_types.UUID) error
+	// Start OAuth flow
+	// (GET /api/v1/tenants/{tenant}/slack/start)
+	UserUpdateSlackOauthStart(ctx echo.Context, tenant openapi_types.UUID) error
 	// List SNS integrations
 	// (GET /api/v1/tenants/{tenant}/sns)
 	SnsList(ctx echo.Context, tenant openapi_types.UUID) error
@@ -1250,6 +1403,9 @@ type ServerInterface interface {
 	// Register user
 	// (POST /api/v1/users/register)
 	UserCreate(ctx echo.Context) error
+	// Complete OAuth flow
+	// (GET /api/v1/users/slack/callback)
+	UserUpdateSlackOauthCallback(ctx echo.Context) error
 	// Get worker
 	// (GET /api/v1/workers/{worker})
 	WorkerGet(ctx echo.Context, worker openapi_types.UUID) error
@@ -1296,6 +1452,46 @@ func (w *ServerInterfaceWrapper) ReadinessGet(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.ReadinessGet(ctx)
+	return err
+}
+
+// AlertEmailGroupDelete converts echo context to params.
+func (w *ServerInterfaceWrapper) AlertEmailGroupDelete(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "alert-email-group" -------------
+	var alertEmailGroup openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "alert-email-group", runtime.ParamLocationPath, ctx.Param("alert-email-group"), &alertEmailGroup)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter alert-email-group: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.AlertEmailGroupDelete(ctx, alertEmailGroup)
+	return err
+}
+
+// AlertEmailGroupUpdate converts echo context to params.
+func (w *ServerInterfaceWrapper) AlertEmailGroupUpdate(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "alert-email-group" -------------
+	var alertEmailGroup openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "alert-email-group", runtime.ParamLocationPath, ctx.Param("alert-email-group"), &alertEmailGroup)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter alert-email-group: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.AlertEmailGroupUpdate(ctx, alertEmailGroup)
 	return err
 }
 
@@ -1449,6 +1645,26 @@ func (w *ServerInterfaceWrapper) MetadataListIntegrations(ctx echo.Context) erro
 	return err
 }
 
+// SlackWebhookDelete converts echo context to params.
+func (w *ServerInterfaceWrapper) SlackWebhookDelete(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "slack" -------------
+	var slack openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "slack", runtime.ParamLocationPath, ctx.Param("slack"), &slack)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter slack: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.SlackWebhookDelete(ctx, slack)
+	return err
+}
+
 // SnsDelete converts echo context to params.
 func (w *ServerInterfaceWrapper) SnsDelete(ctx echo.Context) error {
 	var err error
@@ -1530,6 +1746,42 @@ func (w *ServerInterfaceWrapper) StepRunGetDiff(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.StepRunGetDiff(ctx, stepRun)
+	return err
+}
+
+// StepRunListEvents converts echo context to params.
+func (w *ServerInterfaceWrapper) StepRunListEvents(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "step-run" -------------
+	var stepRun openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "step-run", runtime.ParamLocationPath, ctx.Param("step-run"), &stepRun)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter step-run: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StepRunListEventsParams
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", ctx.QueryParams(), &params.Offset)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter offset: %s", err))
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", ctx.QueryParams(), &params.Limit)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter limit: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.StepRunListEvents(ctx, stepRun, params)
 	return err
 }
 
@@ -1627,6 +1879,66 @@ func (w *ServerInterfaceWrapper) TenantUpdate(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantUpdate(ctx, tenant)
+	return err
+}
+
+// AlertEmailGroupList converts echo context to params.
+func (w *ServerInterfaceWrapper) AlertEmailGroupList(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.AlertEmailGroupList(ctx, tenant)
+	return err
+}
+
+// AlertEmailGroupCreate converts echo context to params.
+func (w *ServerInterfaceWrapper) AlertEmailGroupCreate(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.AlertEmailGroupCreate(ctx, tenant)
+	return err
+}
+
+// TenantAlertingSettingsGet converts echo context to params.
+func (w *ServerInterfaceWrapper) TenantAlertingSettingsGet(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.TenantAlertingSettingsGet(ctx, tenant)
 	return err
 }
 
@@ -1908,6 +2220,44 @@ func (w *ServerInterfaceWrapper) TenantMemberList(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantMemberList(ctx, tenant)
+	return err
+}
+
+// SlackWebhookList converts echo context to params.
+func (w *ServerInterfaceWrapper) SlackWebhookList(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.SlackWebhookList(ctx, tenant)
+	return err
+}
+
+// UserUpdateSlackOauthStart converts echo context to params.
+func (w *ServerInterfaceWrapper) UserUpdateSlackOauthStart(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UserUpdateSlackOauthStart(ctx, tenant)
 	return err
 }
 
@@ -2460,6 +2810,17 @@ func (w *ServerInterfaceWrapper) UserCreate(ctx echo.Context) error {
 	return err
 }
 
+// UserUpdateSlackOauthCallback converts echo context to params.
+func (w *ServerInterfaceWrapper) UserUpdateSlackOauthCallback(ctx echo.Context) error {
+	var err error
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.UserUpdateSlackOauthCallback(ctx)
+	return err
+}
+
 // WorkerGet converts echo context to params.
 func (w *ServerInterfaceWrapper) WorkerGet(ctx echo.Context) error {
 	var err error
@@ -2693,6 +3054,8 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 
 	router.GET(baseURL+"/api/live", wrapper.LivenessGet)
 	router.GET(baseURL+"/api/ready", wrapper.ReadinessGet)
+	router.DELETE(baseURL+"/api/v1/alerting-email-groups/:alert-email-group", wrapper.AlertEmailGroupDelete)
+	router.PATCH(baseURL+"/api/v1/alerting-email-groups/:alert-email-group", wrapper.AlertEmailGroupUpdate)
 	router.POST(baseURL+"/api/v1/api-tokens/:api-token", wrapper.ApiTokenUpdateRevoke)
 	router.GET(baseURL+"/api/v1/events/:event/data", wrapper.EventDataGet)
 	router.GET(baseURL+"/api/v1/github-app/installations", wrapper.GithubAppListInstallations)
@@ -2702,13 +3065,18 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.POST(baseURL+"/api/v1/github/webhook/:webhook", wrapper.GithubUpdateTenantWebhook)
 	router.GET(baseURL+"/api/v1/meta", wrapper.MetadataGet)
 	router.GET(baseURL+"/api/v1/meta/integrations", wrapper.MetadataListIntegrations)
+	router.DELETE(baseURL+"/api/v1/slack/:slack", wrapper.SlackWebhookDelete)
 	router.DELETE(baseURL+"/api/v1/sns/:sns", wrapper.SnsDelete)
 	router.POST(baseURL+"/api/v1/sns/:tenant/:event", wrapper.SnsUpdate)
 	router.POST(baseURL+"/api/v1/step-runs/:step-run/create-pr", wrapper.StepRunUpdateCreatePr)
 	router.GET(baseURL+"/api/v1/step-runs/:step-run/diff", wrapper.StepRunGetDiff)
+	router.GET(baseURL+"/api/v1/step-runs/:step-run/events", wrapper.StepRunListEvents)
 	router.GET(baseURL+"/api/v1/step-runs/:step-run/logs", wrapper.LogLineList)
 	router.POST(baseURL+"/api/v1/tenants", wrapper.TenantCreate)
 	router.PATCH(baseURL+"/api/v1/tenants/:tenant", wrapper.TenantUpdate)
+	router.GET(baseURL+"/api/v1/tenants/:tenant/alerting-email-groups", wrapper.AlertEmailGroupList)
+	router.POST(baseURL+"/api/v1/tenants/:tenant/alerting-email-groups", wrapper.AlertEmailGroupCreate)
+	router.GET(baseURL+"/api/v1/tenants/:tenant/alerting/settings", wrapper.TenantAlertingSettingsGet)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/api-tokens", wrapper.ApiTokenList)
 	router.POST(baseURL+"/api/v1/tenants/:tenant/api-tokens", wrapper.ApiTokenCreate)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/events", wrapper.EventList)
@@ -2719,6 +3087,8 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.DELETE(baseURL+"/api/v1/tenants/:tenant/invites/:tenant-invite", wrapper.TenantInviteDelete)
 	router.PATCH(baseURL+"/api/v1/tenants/:tenant/invites/:tenant-invite", wrapper.TenantInviteUpdate)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/members", wrapper.TenantMemberList)
+	router.GET(baseURL+"/api/v1/tenants/:tenant/slack", wrapper.SlackWebhookList)
+	router.GET(baseURL+"/api/v1/tenants/:tenant/slack/start", wrapper.UserUpdateSlackOauthStart)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/sns", wrapper.SnsList)
 	router.POST(baseURL+"/api/v1/tenants/:tenant/sns", wrapper.SnsCreate)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/step-runs/:step-run", wrapper.StepRunGet)
@@ -2746,6 +3116,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/api/v1/users/memberships", wrapper.TenantMembershipsList)
 	router.POST(baseURL+"/api/v1/users/password", wrapper.UserUpdatePassword)
 	router.POST(baseURL+"/api/v1/users/register", wrapper.UserCreate)
+	router.GET(baseURL+"/api/v1/users/slack/callback", wrapper.UserUpdateSlackOauthCallback)
 	router.GET(baseURL+"/api/v1/workers/:worker", wrapper.WorkerGet)
 	router.DELETE(baseURL+"/api/v1/workflows/:workflow", wrapper.WorkflowDelete)
 	router.GET(baseURL+"/api/v1/workflows/:workflow", wrapper.WorkflowGet)
@@ -2801,6 +3172,76 @@ type ReadinessGet500Response struct {
 func (response ReadinessGet500Response) VisitReadinessGetResponse(w http.ResponseWriter) error {
 	w.WriteHeader(500)
 	return nil
+}
+
+type AlertEmailGroupDeleteRequestObject struct {
+	AlertEmailGroup openapi_types.UUID `json:"alert-email-group"`
+}
+
+type AlertEmailGroupDeleteResponseObject interface {
+	VisitAlertEmailGroupDeleteResponse(w http.ResponseWriter) error
+}
+
+type AlertEmailGroupDelete204Response struct {
+}
+
+func (response AlertEmailGroupDelete204Response) VisitAlertEmailGroupDeleteResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type AlertEmailGroupDelete400JSONResponse APIErrors
+
+func (response AlertEmailGroupDelete400JSONResponse) VisitAlertEmailGroupDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AlertEmailGroupDelete403JSONResponse APIError
+
+func (response AlertEmailGroupDelete403JSONResponse) VisitAlertEmailGroupDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AlertEmailGroupUpdateRequestObject struct {
+	AlertEmailGroup openapi_types.UUID `json:"alert-email-group"`
+	Body            *AlertEmailGroupUpdateJSONRequestBody
+}
+
+type AlertEmailGroupUpdateResponseObject interface {
+	VisitAlertEmailGroupUpdateResponse(w http.ResponseWriter) error
+}
+
+type AlertEmailGroupUpdate200JSONResponse TenantAlertEmailGroup
+
+func (response AlertEmailGroupUpdate200JSONResponse) VisitAlertEmailGroupUpdateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AlertEmailGroupUpdate400JSONResponse APIErrors
+
+func (response AlertEmailGroupUpdate400JSONResponse) VisitAlertEmailGroupUpdateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AlertEmailGroupUpdate403JSONResponse APIError
+
+func (response AlertEmailGroupUpdate403JSONResponse) VisitAlertEmailGroupUpdateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
 }
 
 type ApiTokenUpdateRevokeRequestObject struct {
@@ -3140,6 +3581,49 @@ func (response MetadataListIntegrations400JSONResponse) VisitMetadataListIntegra
 	return json.NewEncoder(w).Encode(response)
 }
 
+type SlackWebhookDeleteRequestObject struct {
+	Slack openapi_types.UUID `json:"slack"`
+}
+
+type SlackWebhookDeleteResponseObject interface {
+	VisitSlackWebhookDeleteResponse(w http.ResponseWriter) error
+}
+
+type SlackWebhookDelete204Response struct {
+}
+
+func (response SlackWebhookDelete204Response) VisitSlackWebhookDeleteResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SlackWebhookDelete400JSONResponse APIErrors
+
+func (response SlackWebhookDelete400JSONResponse) VisitSlackWebhookDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SlackWebhookDelete401JSONResponse APIErrors
+
+func (response SlackWebhookDelete401JSONResponse) VisitSlackWebhookDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SlackWebhookDelete405JSONResponse APIErrors
+
+func (response SlackWebhookDelete405JSONResponse) VisitSlackWebhookDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(405)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type SnsDeleteRequestObject struct {
 	Sns openapi_types.UUID `json:"sns"`
 }
@@ -3316,6 +3800,51 @@ func (response StepRunGetDiff404JSONResponse) VisitStepRunGetDiffResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type StepRunListEventsRequestObject struct {
+	StepRun openapi_types.UUID `json:"step-run"`
+	Params  StepRunListEventsParams
+}
+
+type StepRunListEventsResponseObject interface {
+	VisitStepRunListEventsResponse(w http.ResponseWriter) error
+}
+
+type StepRunListEvents200JSONResponse StepRunEventList
+
+func (response StepRunListEvents200JSONResponse) VisitStepRunListEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StepRunListEvents400JSONResponse APIErrors
+
+func (response StepRunListEvents400JSONResponse) VisitStepRunListEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StepRunListEvents403JSONResponse APIErrors
+
+func (response StepRunListEvents403JSONResponse) VisitStepRunListEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StepRunListEvents404JSONResponse APIErrors
+
+func (response StepRunListEvents404JSONResponse) VisitStepRunListEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type LogLineListRequestObject struct {
 	StepRun openapi_types.UUID `json:"step-run"`
 	Params  LogLineListParams
@@ -3417,6 +3946,112 @@ func (response TenantUpdate400JSONResponse) VisitTenantUpdateResponse(w http.Res
 type TenantUpdate403JSONResponse APIError
 
 func (response TenantUpdate403JSONResponse) VisitTenantUpdateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AlertEmailGroupListRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+}
+
+type AlertEmailGroupListResponseObject interface {
+	VisitAlertEmailGroupListResponse(w http.ResponseWriter) error
+}
+
+type AlertEmailGroupList200JSONResponse TenantAlertEmailGroupList
+
+func (response AlertEmailGroupList200JSONResponse) VisitAlertEmailGroupListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AlertEmailGroupList400JSONResponse APIErrors
+
+func (response AlertEmailGroupList400JSONResponse) VisitAlertEmailGroupListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AlertEmailGroupList403JSONResponse APIError
+
+func (response AlertEmailGroupList403JSONResponse) VisitAlertEmailGroupListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AlertEmailGroupCreateRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+	Body   *AlertEmailGroupCreateJSONRequestBody
+}
+
+type AlertEmailGroupCreateResponseObject interface {
+	VisitAlertEmailGroupCreateResponse(w http.ResponseWriter) error
+}
+
+type AlertEmailGroupCreate201JSONResponse TenantAlertEmailGroup
+
+func (response AlertEmailGroupCreate201JSONResponse) VisitAlertEmailGroupCreateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AlertEmailGroupCreate400JSONResponse APIErrors
+
+func (response AlertEmailGroupCreate400JSONResponse) VisitAlertEmailGroupCreateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AlertEmailGroupCreate403JSONResponse APIError
+
+func (response AlertEmailGroupCreate403JSONResponse) VisitAlertEmailGroupCreateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantAlertingSettingsGetRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+}
+
+type TenantAlertingSettingsGetResponseObject interface {
+	VisitTenantAlertingSettingsGetResponse(w http.ResponseWriter) error
+}
+
+type TenantAlertingSettingsGet200JSONResponse TenantAlertingSettings
+
+func (response TenantAlertingSettingsGet200JSONResponse) VisitTenantAlertingSettingsGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantAlertingSettingsGet400JSONResponse APIErrors
+
+func (response TenantAlertingSettingsGet400JSONResponse) VisitTenantAlertingSettingsGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantAlertingSettingsGet403JSONResponse APIError
+
+func (response TenantAlertingSettingsGet403JSONResponse) VisitTenantAlertingSettingsGetResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
 
@@ -3760,6 +4395,72 @@ func (response TenantMemberList403JSONResponse) VisitTenantMemberListResponse(w 
 	w.WriteHeader(403)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type SlackWebhookListRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+}
+
+type SlackWebhookListResponseObject interface {
+	VisitSlackWebhookListResponse(w http.ResponseWriter) error
+}
+
+type SlackWebhookList200JSONResponse ListSlackWebhooks
+
+func (response SlackWebhookList200JSONResponse) VisitSlackWebhookListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SlackWebhookList400JSONResponse APIErrors
+
+func (response SlackWebhookList400JSONResponse) VisitSlackWebhookListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SlackWebhookList401JSONResponse APIErrors
+
+func (response SlackWebhookList401JSONResponse) VisitSlackWebhookListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SlackWebhookList405JSONResponse APIErrors
+
+func (response SlackWebhookList405JSONResponse) VisitSlackWebhookListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(405)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UserUpdateSlackOauthStartRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+}
+
+type UserUpdateSlackOauthStartResponseObject interface {
+	VisitUserUpdateSlackOauthStartResponse(w http.ResponseWriter) error
+}
+
+type UserUpdateSlackOauthStart302ResponseHeaders struct {
+	Location string
+}
+
+type UserUpdateSlackOauthStart302Response struct {
+	Headers UserUpdateSlackOauthStart302ResponseHeaders
+}
+
+func (response UserUpdateSlackOauthStart302Response) VisitUserUpdateSlackOauthStartResponse(w http.ResponseWriter) error {
+	w.Header().Set("location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(302)
+	return nil
 }
 
 type SnsListRequestObject struct {
@@ -4709,6 +5410,27 @@ func (response UserCreate405JSONResponse) VisitUserCreateResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type UserUpdateSlackOauthCallbackRequestObject struct {
+}
+
+type UserUpdateSlackOauthCallbackResponseObject interface {
+	VisitUserUpdateSlackOauthCallbackResponse(w http.ResponseWriter) error
+}
+
+type UserUpdateSlackOauthCallback302ResponseHeaders struct {
+	Location string
+}
+
+type UserUpdateSlackOauthCallback302Response struct {
+	Headers UserUpdateSlackOauthCallback302ResponseHeaders
+}
+
+func (response UserUpdateSlackOauthCallback302Response) VisitUserUpdateSlackOauthCallbackResponse(w http.ResponseWriter) error {
+	w.Header().Set("location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(302)
+	return nil
+}
+
 type WorkerGetRequestObject struct {
 	Worker openapi_types.UUID `json:"worker"`
 }
@@ -5053,6 +5775,10 @@ type StrictServerInterface interface {
 
 	ReadinessGet(ctx echo.Context, request ReadinessGetRequestObject) (ReadinessGetResponseObject, error)
 
+	AlertEmailGroupDelete(ctx echo.Context, request AlertEmailGroupDeleteRequestObject) (AlertEmailGroupDeleteResponseObject, error)
+
+	AlertEmailGroupUpdate(ctx echo.Context, request AlertEmailGroupUpdateRequestObject) (AlertEmailGroupUpdateResponseObject, error)
+
 	ApiTokenUpdateRevoke(ctx echo.Context, request ApiTokenUpdateRevokeRequestObject) (ApiTokenUpdateRevokeResponseObject, error)
 
 	EventDataGet(ctx echo.Context, request EventDataGetRequestObject) (EventDataGetResponseObject, error)
@@ -5071,6 +5797,8 @@ type StrictServerInterface interface {
 
 	MetadataListIntegrations(ctx echo.Context, request MetadataListIntegrationsRequestObject) (MetadataListIntegrationsResponseObject, error)
 
+	SlackWebhookDelete(ctx echo.Context, request SlackWebhookDeleteRequestObject) (SlackWebhookDeleteResponseObject, error)
+
 	SnsDelete(ctx echo.Context, request SnsDeleteRequestObject) (SnsDeleteResponseObject, error)
 
 	SnsUpdate(ctx echo.Context, request SnsUpdateRequestObject) (SnsUpdateResponseObject, error)
@@ -5079,11 +5807,19 @@ type StrictServerInterface interface {
 
 	StepRunGetDiff(ctx echo.Context, request StepRunGetDiffRequestObject) (StepRunGetDiffResponseObject, error)
 
+	StepRunListEvents(ctx echo.Context, request StepRunListEventsRequestObject) (StepRunListEventsResponseObject, error)
+
 	LogLineList(ctx echo.Context, request LogLineListRequestObject) (LogLineListResponseObject, error)
 
 	TenantCreate(ctx echo.Context, request TenantCreateRequestObject) (TenantCreateResponseObject, error)
 
 	TenantUpdate(ctx echo.Context, request TenantUpdateRequestObject) (TenantUpdateResponseObject, error)
+
+	AlertEmailGroupList(ctx echo.Context, request AlertEmailGroupListRequestObject) (AlertEmailGroupListResponseObject, error)
+
+	AlertEmailGroupCreate(ctx echo.Context, request AlertEmailGroupCreateRequestObject) (AlertEmailGroupCreateResponseObject, error)
+
+	TenantAlertingSettingsGet(ctx echo.Context, request TenantAlertingSettingsGetRequestObject) (TenantAlertingSettingsGetResponseObject, error)
 
 	ApiTokenList(ctx echo.Context, request ApiTokenListRequestObject) (ApiTokenListResponseObject, error)
 
@@ -5104,6 +5840,10 @@ type StrictServerInterface interface {
 	TenantInviteUpdate(ctx echo.Context, request TenantInviteUpdateRequestObject) (TenantInviteUpdateResponseObject, error)
 
 	TenantMemberList(ctx echo.Context, request TenantMemberListRequestObject) (TenantMemberListResponseObject, error)
+
+	SlackWebhookList(ctx echo.Context, request SlackWebhookListRequestObject) (SlackWebhookListResponseObject, error)
+
+	UserUpdateSlackOauthStart(ctx echo.Context, request UserUpdateSlackOauthStartRequestObject) (UserUpdateSlackOauthStartResponseObject, error)
 
 	SnsList(ctx echo.Context, request SnsListRequestObject) (SnsListResponseObject, error)
 
@@ -5158,6 +5898,8 @@ type StrictServerInterface interface {
 	UserUpdatePassword(ctx echo.Context, request UserUpdatePasswordRequestObject) (UserUpdatePasswordResponseObject, error)
 
 	UserCreate(ctx echo.Context, request UserCreateRequestObject) (UserCreateResponseObject, error)
+
+	UserUpdateSlackOauthCallback(ctx echo.Context, request UserUpdateSlackOauthCallbackRequestObject) (UserUpdateSlackOauthCallbackResponseObject, error)
 
 	WorkerGet(ctx echo.Context, request WorkerGetRequestObject) (WorkerGetResponseObject, error)
 
@@ -5227,6 +5969,62 @@ func (sh *strictHandler) ReadinessGet(ctx echo.Context) error {
 		return err
 	} else if validResponse, ok := response.(ReadinessGetResponseObject); ok {
 		return validResponse.VisitReadinessGetResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// AlertEmailGroupDelete operation middleware
+func (sh *strictHandler) AlertEmailGroupDelete(ctx echo.Context, alertEmailGroup openapi_types.UUID) error {
+	var request AlertEmailGroupDeleteRequestObject
+
+	request.AlertEmailGroup = alertEmailGroup
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.AlertEmailGroupDelete(ctx, request.(AlertEmailGroupDeleteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AlertEmailGroupDelete")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(AlertEmailGroupDeleteResponseObject); ok {
+		return validResponse.VisitAlertEmailGroupDeleteResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// AlertEmailGroupUpdate operation middleware
+func (sh *strictHandler) AlertEmailGroupUpdate(ctx echo.Context, alertEmailGroup openapi_types.UUID) error {
+	var request AlertEmailGroupUpdateRequestObject
+
+	request.AlertEmailGroup = alertEmailGroup
+
+	var body AlertEmailGroupUpdateJSONRequestBody
+	if err := ctx.Bind(&body); err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.AlertEmailGroupUpdate(ctx, request.(AlertEmailGroupUpdateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AlertEmailGroupUpdate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(AlertEmailGroupUpdateResponseObject); ok {
+		return validResponse.VisitAlertEmailGroupUpdateResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -5452,6 +6250,31 @@ func (sh *strictHandler) MetadataListIntegrations(ctx echo.Context) error {
 	return nil
 }
 
+// SlackWebhookDelete operation middleware
+func (sh *strictHandler) SlackWebhookDelete(ctx echo.Context, slack openapi_types.UUID) error {
+	var request SlackWebhookDeleteRequestObject
+
+	request.Slack = slack
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SlackWebhookDelete(ctx, request.(SlackWebhookDeleteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SlackWebhookDelete")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(SlackWebhookDeleteResponseObject); ok {
+		return validResponse.VisitSlackWebhookDeleteResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // SnsDelete operation middleware
 func (sh *strictHandler) SnsDelete(ctx echo.Context, sns openapi_types.UUID) error {
 	var request SnsDeleteRequestObject
@@ -5559,6 +6382,32 @@ func (sh *strictHandler) StepRunGetDiff(ctx echo.Context, stepRun openapi_types.
 	return nil
 }
 
+// StepRunListEvents operation middleware
+func (sh *strictHandler) StepRunListEvents(ctx echo.Context, stepRun openapi_types.UUID, params StepRunListEventsParams) error {
+	var request StepRunListEventsRequestObject
+
+	request.StepRun = stepRun
+	request.Params = params
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.StepRunListEvents(ctx, request.(StepRunListEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StepRunListEvents")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(StepRunListEventsResponseObject); ok {
+		return validResponse.VisitStepRunListEventsResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // LogLineList operation middleware
 func (sh *strictHandler) LogLineList(ctx echo.Context, stepRun openapi_types.UUID, params LogLineListParams) error {
 	var request LogLineListRequestObject
@@ -5639,6 +6488,87 @@ func (sh *strictHandler) TenantUpdate(ctx echo.Context, tenant openapi_types.UUI
 		return err
 	} else if validResponse, ok := response.(TenantUpdateResponseObject); ok {
 		return validResponse.VisitTenantUpdateResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// AlertEmailGroupList operation middleware
+func (sh *strictHandler) AlertEmailGroupList(ctx echo.Context, tenant openapi_types.UUID) error {
+	var request AlertEmailGroupListRequestObject
+
+	request.Tenant = tenant
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.AlertEmailGroupList(ctx, request.(AlertEmailGroupListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AlertEmailGroupList")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(AlertEmailGroupListResponseObject); ok {
+		return validResponse.VisitAlertEmailGroupListResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// AlertEmailGroupCreate operation middleware
+func (sh *strictHandler) AlertEmailGroupCreate(ctx echo.Context, tenant openapi_types.UUID) error {
+	var request AlertEmailGroupCreateRequestObject
+
+	request.Tenant = tenant
+
+	var body AlertEmailGroupCreateJSONRequestBody
+	if err := ctx.Bind(&body); err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.AlertEmailGroupCreate(ctx, request.(AlertEmailGroupCreateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AlertEmailGroupCreate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(AlertEmailGroupCreateResponseObject); ok {
+		return validResponse.VisitAlertEmailGroupCreateResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// TenantAlertingSettingsGet operation middleware
+func (sh *strictHandler) TenantAlertingSettingsGet(ctx echo.Context, tenant openapi_types.UUID) error {
+	var request TenantAlertingSettingsGetRequestObject
+
+	request.Tenant = tenant
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.TenantAlertingSettingsGet(ctx, request.(TenantAlertingSettingsGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TenantAlertingSettingsGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(TenantAlertingSettingsGetResponseObject); ok {
+		return validResponse.VisitTenantAlertingSettingsGetResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -5916,6 +6846,56 @@ func (sh *strictHandler) TenantMemberList(ctx echo.Context, tenant openapi_types
 		return err
 	} else if validResponse, ok := response.(TenantMemberListResponseObject); ok {
 		return validResponse.VisitTenantMemberListResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// SlackWebhookList operation middleware
+func (sh *strictHandler) SlackWebhookList(ctx echo.Context, tenant openapi_types.UUID) error {
+	var request SlackWebhookListRequestObject
+
+	request.Tenant = tenant
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SlackWebhookList(ctx, request.(SlackWebhookListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SlackWebhookList")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(SlackWebhookListResponseObject); ok {
+		return validResponse.VisitSlackWebhookListResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// UserUpdateSlackOauthStart operation middleware
+func (sh *strictHandler) UserUpdateSlackOauthStart(ctx echo.Context, tenant openapi_types.UUID) error {
+	var request UserUpdateSlackOauthStartRequestObject
+
+	request.Tenant = tenant
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UserUpdateSlackOauthStart(ctx, request.(UserUpdateSlackOauthStartRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UserUpdateSlackOauthStart")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(UserUpdateSlackOauthStartResponseObject); ok {
+		return validResponse.VisitUserUpdateSlackOauthStartResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -6618,6 +7598,29 @@ func (sh *strictHandler) UserCreate(ctx echo.Context) error {
 	return nil
 }
 
+// UserUpdateSlackOauthCallback operation middleware
+func (sh *strictHandler) UserUpdateSlackOauthCallback(ctx echo.Context) error {
+	var request UserUpdateSlackOauthCallbackRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UserUpdateSlackOauthCallback(ctx, request.(UserUpdateSlackOauthCallbackRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UserUpdateSlackOauthCallback")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(UserUpdateSlackOauthCallbackResponseObject); ok {
+		return validResponse.VisitUserUpdateSlackOauthCallbackResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // WorkerGet operation middleware
 func (sh *strictHandler) WorkerGet(ctx echo.Context, worker openapi_types.UUID) error {
 	var request WorkerGetRequestObject
@@ -6837,140 +7840,155 @@ func (sh *strictHandler) WorkflowVersionGetDefinition(ctx echo.Context, workflow
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/+x9a2/cuLLgXxG0C+w5QPuZZM5cA/eDY3syPpPY3nY8we7AMGiJ3c2xWtSQlJ0+gf/7",
-	"BV8SJZES1e7utCf6ktgWH8VivVisKn4LIzzPcApTRsOjbyGNZnAOxI/HV+dnhGDCf84IziBhCIovEY4h",
-	"/z+GNCIoYwin4VEIgiinDM+DXwGLZpAFkPcORONRCL+CeZbA8Ojg7f7+KJxgMgcsPApzlLKf3oajkC0y",
-	"GB6FKGVwCkn4PKoO35zN+D2YYBKwGaJyTnO68Lhs+AgVTHNIKZjCclbKCEqnYlIc0bsEpQ+2KfnfA4YD",
-	"NoNBjKN8DlMGLACMAjQJEAvgV0QZrYAzRWyW3+9GeL43k3jaieGj/tkG0QTBJG5Cw2EQnwI2A8yYPEA0",
-	"AJTiCAEG4+AJsZmAB2RZgiJwn1S2I0zB3IKI51FI4F85IjAOj/6oTH1bNMb3f8KIcRg1rdAmscDi74jB",
-	"ufjhfxM4CY/C/7VX0t6eIry9guqei2kAIWDRAEmN64DmE2SgCQvI2cwDAN75mDd9HoUZpmyGp569rlRr",
-	"3nGR4PQ4y84de3fFv/NNCc5PBfnkFIo+nDaCiO8pzbMME1bZroPDN2/f/fSvn3f4D7V/+N//a//g0Lqd",
-	"LiwdK5xUMSXWJX9sgq7ggnHAB6UBngQcszBlKBLsYEL8R3gPKIrCUTjFeJpAvmMFJTSIvbHlLrDPuZwg",
-	"QAuHGs2lnMwtiH+aQTaDilVROQTnGdUpwKngb5RSBtLI4I17jBMIUg6EYBorbvgXjhA5RAljUwZ0Mp3i",
-	"TL2YFkq/Kom0RvAZ+hVT5qBATNmveBocX50HM97KhHHGWEaP9vYU/e+qL5w4bUIKZOg3uOie5wEuKtNk",
-	"s4e7knTBfRTDiTf5jiHFOYmgndkjArkAPHasnqE5NEQnUWMFT4AGqmsF0sP9w8Odg8OdgzefD/eP9n86",
-	"evvz7s8///z/Q0OZxYDBHT6wDUXIIQhQLOnFAGIUoDS4uZGCgQ9tAnJ/f3jw9uf9f+0cvv0J7rx9A97t",
-	"gMN38c7bg3/9dBAfRJPJf0ETqDxHfCVz8PUjTKec2d/8NArnKDV/bUCbZ/Gy2EsAZYHqv0oU1thDrKrc",
-	"ZBNkB6t8xg/QJi2+ZohAalvqlxmU0oDTLuPdA9V613vf55CBGEgK7VAhFYJ2ipnPNTFTwLZb3ebDd++6",
-	"cFjANiqkTYEMKxKjCGbsPH1EDI7hXzmUsqWKTyQ+S8z2JNo+RDoKv+5gkKEdbmFOYboDvzICdhiYCige",
-	"QYL4voRHxYpHghWeG4Qk4bWt90SQlyYd54rt+3Qsd0mahi/aJjG+D3w0wymFTQCZpvwmJVXAagdDjuKG",
-	"4ypPEoWjXwieXzOYjXMLw90TkEazC4W09jmNtrfFRNcX14b+d24LwxmKjolr4XPwH5wGmucCPkfwj+Px",
-	"xT81Y11fXAdijCZqliC+OUr/+2A0B1//+/DdT00qLIB14/czTEHaxX1wDlBiX7H4pBeXU24H4UBS/0pW",
-	"KKcWC8MJ7JJ3cjWf4PwekjFv37DwxXBqsC6s9OTNugxlYpBVYEEsgyb51D4p/7L6SUfq/Cj45NlhSAqg",
-	"bHg8e4SpBXMgjhGHHCSfDBVWk3FFm0DrkkLgQT6ssbpywgebqcix8wAXzu4r0agS5X6kWba3neE4uOen",
-	"1a2sn7vVqdy5kCdMHiYJfhrn6XU+nwOy6IJMbNWXZrcWxS5N7mIht3rDT4HNarZvM19sc2+Df/z7+vIi",
-	"uF8wSP/ZrT7E0MX0v72MBvQYH5GN6TMwRWlxOGxD6FXRstCeQn49+bssiuU0z68a0G2BsgXESxJD8n5x",
-	"igiMNEgwzed85wDl53e+VYb8qO2F6v+L9lbpvqWF7ux6DQGJZlZ/gIveG7icAGQ98QtBn3Mdw1lVtgpI",
-	"nlYNeLcTMoNpzGHpGFg16zPyXznMuyGWrfqMS/I09YBYNeszMs2jCMK4G+iiof/onA4/QKZsxlM0mbit",
-	"2RhNJv6EbwzZ6VSUI3MZ9UH4aI6z7DylDCSJw9MEogjnKbsDj4ABcpeTxErGullqt3lHITJmuaOQMZRO",
-	"qXO4pRWgW0u4AahBP7Kt2WZVSAy+F/a76wzQghB6F8MJyBNmfC48cNZDgobP6OqGawwz3ISKwAy7YRJf",
-	"8VMKSfe5xWg7Moa1AfRvfG+h8bbLD6GOjesPZYT8ie931+SBaIxJGcz68WCT+armVdMXjOYQ58y+fPWx",
-	"a+mPkFCEU+sMbmYowDIHKFwkcumOnbQeeCOQRjBJtDvNz29UdCpu4dxNxhBQSSiW66MU0Vm/qf+UFNm2",
-	"o5xoZUvH7r2A6AikVb4vMUwZIKzfYigDLKce6+HmhWyr6Hucp73VzBJUHj1A0s4CfZZrnCm6QDbsqlrP",
-	"5fmlOogmkGIX3FxzXWyTthyvzi5Ozy8+hKNwfHNxIX+6vjk5OTs7PTsNR+Evx+cfxQ8nxxcnZx/5zzYT",
-	"8yNKH0qZTxHDZOH0FkwR461KrdWUPKQYJZB6xyp41EAXTu+DMQyXK22DXGqV0zqKUDbWYUzd7jrKWsDp",
-	"dWPQ8KlWpqzio7awUQ3rNhrhByj7zZ/vrXK9q4VP1STCl0rd5udGj23FtYX15MYhtlqq2wK+3YzuMsMN",
-	"ENV8LpowjUxYWXQP8BTdOSjCkB1Lji9sTcfohs+8bc+MVt6TG0N3Y9yc4FbBVnWz0+9MSlVoVkVDePoR",
-	"pbDX7TEXl+IzN725LtZGaIKnQYJS2OduUAYiWefgw6kGnWa9q7dsYXHC1rBl3qOW0VHFDLclqj7CR5iY",
-	"avr07P0NV83nF79chqPwy/H4IhyFZ+Px5diuj41xCm+RFwVUILDxk/r+/Z1tmqzsQlt+fIHDrTpCT5eb",
-	"6tzidLMgwLzM/RZGOSEwZXeZoN3DUZjCr/q3N6MwzefiFxoeHew/j+qcVelsCy5QLYJMUmEx8aGXl8qA",
-	"xRqgA782R37jN3K5LmtMBGYgMX2CvKlwZSeIMnmxU4ZB7vs4xSwSy5TqbXriPaCwNGMbe2y0/BWC2K/l",
-	"+anRwnSSlk0uxPI7m3FrH/ZQYLJ9dYzPiCVuR400Zi/afDmyyaW/Q8fs0JiljikLrDZMubZi5NhMCxpv",
-	"q2RR4FbLA5xBrgSjBNNKHFmJjTHk5PXjxHWMYZaAhbhccF+k86/ncVXobzoMqz0EVkN4K5ZE+CFaOCFa",
-	"tjDLbY6VBuZ4Mz5qzeiyDDiFlN0QR8TBzfhjwHBAYRqLaAplWtCA4fXc7LqOt3mK/sphgGKYMjRBkBRX",
-	"jOrmVsWyyaAPMzL0HiY4nWqI69vZ3LD1xZz4OWBa40iEH9ZyiaE3t+lhnKEkJrB60u6g0jV5BTNAdJaC",
-	"PyQEghjcJ9Dt9pDfiyhMGFAGMytxrsxZ7ZjBvb3GKip7rZ1ragOl7XMeO7d+Dc7pY3aW4YrlYCj8Fbmw",
-	"BREazsqeNLAcDUMnyMt41Ms+LeiqS+eKQ97Dn6uuH4r2q+dBnDMXiEuyp7jfPp4waYL5IXPl9wOyS8vO",
-	"+N0hKBarXiL4Xo3xti7Z4iF4+qy46NKy4idMXNcSXmqooMBiZa13AOYlfUNCqXCxJiHjmOtyO14wQfwU",
-	"m3QvQAZIFe2NcW9LyNquJ9RPd8fX1+cfLj6dXXwOR6H8RdxPvOj64nMRsVZT2ilIFgxF9DJjl7k9dl3l",
-	"uhRGzgzQAGcMxoHSRsUgu9Y0l7WHrrsiIF8cQtkd6O6MhjSjbNcXXvtchNq7TQYjwUIOs9Hkg+VieLsM",
-	"cUWJKLbHSurPbqzJFu57NTVCJfR+CSqpBB+Xe2UGUnbQzha4ISukXFe//Jw9xTuSUcMxH1ccoc09bcL/",
-	"3QjKP2aXs15X6xsKiexxld8nKGojBTFeSxi6CfPWbLrav2U2faz2SSu6yy8XZ2Ou0U4/nV+Eo/DT2af3",
-	"Z3bf/meCplNIDFvd6YqwR5c3kNvbY3EjssC8UiVWkqXgJAsTEDcW1q7FbT7kG2pj7U7VBuKYQEpNFVfR",
-	"RFpmNjUd//AroDNbktQM0Jk55P+htelUcrTUEjJt+lpmIAcnM8CcE/4OSWEeupEqFDVH6aNqzv+KSBUG",
-	"u3k0A/QKUPqEie8cIMhUh4BCtkGjK0Y0S8CiYnzp/eutE6vYvXUQ2MkMpFOoEeTOz4FPbiQKexE+lVjT",
-	"Gt0O+xKuYz2yWHfWCkgBRCv+XgZD4xJbfRlV8ORC+Uc8RenymWHL8feLEsW2DuN6jVkXrsdwiijj/78i",
-	"dPudyhyCYQt3Syct+26aqc3pDGX0tdprDft1g9p8HVpGTmbbti/CEeW6tHCcntVHeaaUrqwgAmmQQcLX",
-	"x+Hxd1KCR4AScJ9A7XruSKtpTgu/wihnMIhwqmIbksWuveYRoplI5STnHeUiID9Ao2kK46DstAWFIxIg",
-	"rrEJu4eAHbNW70aJJVEzgsKUBSCY6d67qy3AMQdf3Ts4B1/RPJ+vbifX7juTUO3aHeQRTHUuFXXdfPE2",
-	"4i5KLrUoYVUO/NLA99JtbvHiiW/NxehT5/HJ5/Pfz0Rcmfrxtq+Tzy1OtkDsK7lmjRDT52dbWlCW4MUc",
-	"dvtD9BinRY8TnE7QtLOymiO5SAf27zoSRhzbzL/YhvDCkUoyqZMVFxb90xs2wpBODGn7xiILwXR5DOk1",
-	"fgZW1aWyl/pRJR/vd9mxCK5oC0PxZTs+7omWm5Elh3cKmfH9A8F5ZnEYpEq7B08zFM2CKWRU4C4quwZT",
-	"3rc4LBqEYN2bBM0Ru2YEMDhduKSV/BowLH0RujCQOasYJxDlkEA0g7EpzuQlz935xd3V+PLD+Oz6OhyF",
-	"p+PLq7uLsy9n15/DUfh/b85uzspfP4wvb67uxpc3F6d348v35xdWj1tPpVbqrYLWrDm6bw7t4YiVfVdT",
-	"1xE4sm5kG1U0ZNSPkZczdeUYL5VRYR3NdQ1TWpFyvOA4ywIzaccr2GkNecg98oTcS741aEvGrNadjgXx",
-	"n59at0b3thsKL4pi2rCNIewIr8qKuvUnyAiKLOkeQqr+BhcnOE9dhn0tBroplB/ggtotZj08FyotU9Qs",
-	"dC7kQUAzGKEJispJgn9kgFIYB48IBBOUMEj+6Rli/aWaQulzb1H+9cpozUgOLeOrY7IzNnm1oUfFDUov",
-	"GGX8hj+plbFHdRvkxSF/UoZt+hwr51aHm+8DwtqSnc2CKkWwUnuUkbzYg/H7RY/BPxu9jARjZVz2tEUt",
-	"I7w8Tfl3I71f4a662Nt2+bAlB0njmOMv51eVdK0sV3v4UmMyjbG+azMItSZgHARnSenD6ZUhUZpxpgSn",
-	"19xwzx15JfDR4+BdFFpS4fnriYPuSfpFpw56pk7lL2q+9NkwPdSJ7NhFirXmjfkV4VmDFTXRWj8q4rR+",
-	"0zRu/ViSveVz22r4YdyCvwST1XhbXuyOsN+iSAjbCESx1wnh4mpi57CW4OA75CDarglVos7EkaRz5woQ",
-	"feG01L7C/qK5hjdbtPljI3i6x8AFflZrfkl9aUdfqULvlJOpP5oNO6DOKxUvkQ8mTMeS4ZB8iZvxJXHy",
-	"JK4FtLt8KoW10XfPqeHfswsD9dFLpDwZHmffE6Xu01MVaZg1lioD3XaTyynkpyB7OhoBT9XPFs8MeAr+",
-	"3/Gnj0FcNOwvMavzeABtL1G/IQr7AaiEH31glBPEFtfl0xX3EBBI9AsX8k0LfnoTfy4XOGNMpGBEGD8g",
-	"qJsjjiH5J+3ZPgob77Sohw/EtQ1KJ9iOZP0kzvHVOe8qE5fD6l+LXQoPdvd398UmZzAFGQqPwje7B7v7",
-	"wo5jM7G0PZChvQQ9QuU4b877QTvGeasUUhoUBxxOg4V7MPyovn8Q6yLqHCJmOdzfbw78KwQJmwkR+c72",
-	"/QKzYs7KzoRHf9yOQqpLeHIIy4b6iuQPNX40g9FDeMv7i7USCOJF92J5M9S22rFusMrlCuAChgMgCuQH",
-	"jIDJREUVt62+gLZz+Y8H/L8dUYKd7n0rfn4WUsX6xscYPuIHGIDUeL1AestURHUdNccZErWGZOSq7C7P",
-	"DmAOmVBRf7SWkBd1JMMjQaUlzxSwhia3S7+TlBgVObaMr+T5trGTb5sIuc6jCFI6yZNkERCxvFgG1uoK",
-	"S2/lBkc4Zeqkp15N4iPs/akSFEugfV4yUhE7dQ/0HCR8yTAOMAnuQRyQslTP2/03mwHjF0zuURxDGSdc",
-	"0qYiHb6xn9XOafIs/3Y7Cr/u6Jc/xLeCrsotr1CwtHL3von/n/e06nNxtHxnS5edBmlZDrpKt0U5a8nS",
-	"nfQqi1cLKrOQqzzkb5JUV0dzZWFvy2bXyJ8RBB8VA0iMiP0YuKAioQ3MlDwgXTwt9C9pqEL78q5qB2TZ",
-	"nnnPRp0M8BFR5rqda6q14lqQdzuvNV0bvXnUn+tHiNVFbhMtHmwGjJsU5GyGCfoPjOXE7zYz8SfIZjgO",
-	"UswCkCT4Sb9kUVov3yoG8h+3zxVzpotcNe/IJn68sfdtOtsx//K8Jy7WvXmmuIZHsINlRH0/H+VhguPU",
-	"ITWwX6k2cVU/7MfSlT0YOPr1cnSNmeoM3dCGdSZ4EcuLv/OfdkQ8zXP5O2e55717VQLUWzQUHVrFwvuy",
-	"1WuTDCOfuCQnkCWqW0HsO6ku0e+eU7Xwn3IzErBRYrafECyobRCAr1cAGiJjFcJv7wnezzB+cHtwjLmn",
-	"Cb4HSaC72IWWdNx8EE2/FC27XVwVws0I5r/AuJhsoNltotmqE1FSCLBRSLfFrSlw75v64dmLFlUeug8t",
-	"yhy1khY7laga1Kk/nwyy3qhFPXDM345jGnTcxjFz2O6spM0HEPX9jvGUeJVTdASp+ypiVehTYdd9TJbi",
-	"Mm5biLnjLsUM9FP7WEToCv2sO+/gTIbBSslR3+Q9VKt57z5OgCQJKq1dGyydcpWGa7VZbe9d9Nr8hC8P",
-	"T6qr2yZCqBpptU1o7r+5yZSfMmlKn+WuJpBZoqlOxd/r1WAbG3ydUtnSR7fVS8u6dBxVBLItV2USR3ED",
-	"GYOW+/5aruADJ8FqZri+uG67suBE12QT+flZX9m5zUM+r745a7CItAV9WKQoD2fnjALajTpN5B2QLBO5",
-	"1IVh/bV3A4iDwQAdDFAvA5QymO2QXCgv9ePznnzqYycjbs6Ur6QHIMjyJNE7owJBioCuBtPKvBfJuOp1",
-	"f+LDwLqegFu5KdjXreHkuwlYxgythAgUGsqHFn4heF5UP2jShfQJZzkLGJYPBtV3oYGD5zXahX3Br0gY",
-	"9aSMsA0rK/ixwwX4rG83M+sF5kybp3W9r9i7RlZakBSRmG2aX3Nkt7iJVX3m9ogdNJnotEwtDe4he4Iq",
-	"ZX6OKdPlR/g3kEq6miBCxV92XeLoA2SiQvRrkkNr4mbHW9n9TnmxehN74ODvycGcb2JJ1mti2wRP2z0Z",
-	"tHi7jtY4t8mL5itrr4QRRy155AwH9AFlGra/ckgWJXB4MqHCOWcBxf1qV/t0skzI/cIxpfj80hmPCw9O",
-	"Ah9hQvm8Mgm+ZWLRsjKz72t88gk6x8qpeGkuELMZcEwwcQAiO/QFRD1oZwHiiyijjgORSeBePzaf0+s5",
-	"eeUpPgce5PRx8d5fKxSnRrNlICn7r/mG3JAGXcqHk6QZcEqHYNOaH7OQwoYu+Iin/dWA/Ey7ToU0AKK+",
-	"riMhQN7eyabhOg9V1SrZjrOUfqlLH6Y2enrS5eV7nJNYUZH+b0zjfUhcHVUKYtMUrnDbIHIbRRcuSVln",
-	"gdmqQUmvhUgY+Cpf3mwn8NfjnlyTZ8NWqr6dCcs8RlERTSNw4MfXxI+KT7z5UdN3K18aaWrtl6dF1hj1",
-	"y0rzPXBsBY+u925X4GPZUETt8x2sr7r1VaS20X75brfPow7fe+8UzMLm+lFVkkSApnVDKa3fRV5OOvDX",
-	"qvhLMcKSCaXtCqesndLi3wJJog6dFQZ0JJO+Fl3zIzu2HuDCy63F21Vm9aoJI8hAVHZollRzw2SUFfWC",
-	"rZQVvQE06psuByLJU1UjAXrBqtt6O6Tspd++k5NQ7Of3cRGKqbfAQWjCYboHW4ilCGl9gIvgESQ5DDKA",
-	"SINeisqY4jXVgyPR9CAc8d8O5W+HXLzb1mMpqGplhq638deeVz/4OFdiZSu0eGfT+yj/PSHkPS0AqTk8",
-	"rIDf4GI4dJaqcCn6F8geeMDGA4GyTFbJBwRmCVi01QTi32kAChEvOzo4QFcCEoP+uIdRiQBVZbHVPapL",
-	"ywgNSTTeNucW9VdUErhBVTkrIImXzFarrOSz1rQ9jahkzcpj2NRxeWE8Nv2D66kGPvr5bWrYHq4JKhqr",
-	"QYv+lwWjHlfQaoJWWh98o8adefWJ6/ZLO4nbXhfoB2vhziWu7TRhDGxpvU0v+WY1l3iKz/UfduTvHhlz",
-	"tDhU+bCyf+7cVnpaq3zVDttOgY7Xrls7uVfnC24v99oy54r9cUVaVfdR6LW2+JN+nPDKU+S2kBPWGyaz",
-	"nN79boEynpwr4Xs1nKsCWHpzbpvmm8vHwXue0XQvO4vLx72HM1r1sfPlz2ga24MxaDujlbS4GluQdkVy",
-	"1XLOqS0FfCB+Gb11fXFdKQTiT/8NLA853ltUfsHFCF7VFzoDyDzKkAxeEYGAKn+1xo2tjmark3p7N4Z6",
-	"KlvM0E7O8+ToVo1qSdJsTas2M6kXknNdCdKv9gj5d8/Y9i21ULV4NVaGNO1NpWlXaPEJUCEjXHnbxfYY",
-	"coH/iW/0skl77XJiLwJpBBP3Ff8xY3CeMXEDLdsa4qOj0IscepAgr1uCxIgKz6QSIZIIku2zMb7zFX8X",
-	"o2yKoQkk6qF5R8iOeOfel4dF84GFtzGIiOSp2qoOv3FRNUq+n2Fb7vNWWCpDCFFrCJEMsd+4QCnX1Fqn",
-	"STar1XtpOVlcy2EH0fL9rIP6q6fLnCTUvg8Hiq0+UOhdWovUeMLkQb4e7PY4JEkgm3WkZ38RjQb3vsx3",
-	"WupWa8gYdTy+qAiwVhgNkmX9bhrRSmOav3b53yppc50ModLeXrM7rrJg52scBgZfMdeq7VqSbQf3nJ1z",
-	"C9z0q2tYoanl+XkvIx6vN5hlU2mtKLLVHDbIhQ9ilNOlA6uvC8BK5WrK5D2nK0cZeifEGpt3LTqu//rf",
-	"pJcl60voyKMK6Q7yp3YVX8XO2iUQ9TKmRUs/62EwqEvVPJjUq1fM/XjCkwn2uB725oRA+LV9bemhJMu2",
-	"lmQx8175nFPIiq3ddUws2p/H4aYsG3/IdJf1A5cBwpHmsL5qYMnGBj9sDD6L39QKm3IUrxeura5jM9RN",
-	"aUHdC5S44NlBkbtP2OtT5ntzviMR7YpOk6Bx0q8ypurex2P2Sc34ul8LG1ThoAo3pQoHbdPQNlRLkRdo",
-	"HC28Bs2zFs2TU0joXpQTopbiTrcTUWyyYcC7NTTIDYXkA2QnarA10hifqSdRCYiH2P5tepCRQ4EfEDzO",
-	"ubj94/a58Zp0jdw0jYvtt5CxfE9/B2TZXgSS5B5ED06SPsFcCjMo6fqSwxBYH2Hkk8mgPvke5HGWXXKU",
-	"nugZanT+Zv+w46HQSE0dN6eeQRCrvNcEyz2xxp4UCum5F071oquT9kArZYC4xcQ1/7o0QkXv/tgUIH0H",
-	"XApwl0HkGmlziwlzZXS4FhrcTgJ8Mb1hPE3geuhNDP03pzeJvhXTW4m4vx29dVXWK0vAVguZCceEl3nJ",
-	"RzBradBwm0rZGWVXf6g6dj6HF1+16lfnzkl7eyCKYMZaErPE935lgWSfNb29JgdvVLJ57v3+vFz5UK+t",
-	"Pd1IIKmzXpubvggUUd8tiUL8ez/6kn3CdWW88MFXQF9y5QN9daSbcCQtQV8JnqKW/LOPeEoDlAZA6Mbd",
-	"FgPjoxhoTbW3uArm42/oKSAvP0+Cp1MYB2go3bBd7p2qWudU4+vHSfAU56yDGXDO/LiBD7UlNMpBGYj0",
-	"9fggJfX4kq0q+TVDWY8jkNHJ7xhkFm8T3VRM1loJ3D5p//OQiaLhTLTMmcjEYDdJZoDSJ0xityzVz/QK",
-	"Ygt0+zaReqXHXJ+NcTID6bSYaJuMjUhAFheIGsT5KxLnkqyqlO7BRAROuSAjbYc+2YK2WiRrfcKdT6DB",
-	"2CaG0cgbrmFfhZ2uSajb5lFpoTLhCxKf1E2LNSNTST1TNOUYrclRYorXm7e8RKTMlvHT1iQs98hXHmnS",
-	"aRC4jMEscho9nl4wUxe94i39X18wggfbswM3ygJvO9yG5jsEBYBD2YsNlb24cFS5UMRqUMwyuXmiZq5P",
-	"vr4XJ/TQAtvHBqsPoFwyanLQBvZAyeVJvEMn7CUofdiRwSktPkuUPgQgkM0CAjNMEcPymWVgAmnnDeXN",
-	"ROmDDFh5VYyy+tNOiYhxgUnfcm6JYyc2Wt3Nm8k5tIrDmxAPavQ7q1HB1TZKWpOo8UkE4qRSzfgpBMEj",
-	"JNRWud7QwD0Sf7ZBvlgSMmRqYT07sUdW4vI5iXaApgTnmUgLKUHQG+QERXT6DS4qwHwPM+SFORyK5IY0",
-	"jm0RWZXkkXnB7WsSWIyg6bTNdfpZNlDvjy5V4Mv/0Y2tlFifLeyyG5xPhM+O5pw6YDySVWcAg5QVPIVo",
-	"MIGixLQrebAU+Ftu0CkyMHa1T3XeWrGozZtxPnXLzOdUh6pl2yQStQzqqJfWVfezh1hUfEl96x1qjvcS",
-	"ib/Lxq/InfJ3kIlrljBqU19ohg2yZqvMr5IU12R+aTmzF8MJSpFOCekjcsqefaXPaTnnIIf+ZnLI2NsX",
-	"HgwNyhyE0xYKJ3ODlpdT9TCdewgIJEWYzsgauAPJo5YXOUnCozB8vn3+nwAAAP//WCbbvi07AQA=",
+	"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",
+	"qORFikP/0Pdfbl/+fwAAAP//cjLBB7NoAQA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
