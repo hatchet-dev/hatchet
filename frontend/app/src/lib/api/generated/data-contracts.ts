@@ -682,6 +682,7 @@ export enum StepRunEventReason {
   FAILED = "FAILED",
   RETRYING = "RETRYING",
   CANCELLED = "CANCELLED",
+  REASSIGNED = "REASSIGNED",
 }
 
 export enum StepRunEventSeverity {

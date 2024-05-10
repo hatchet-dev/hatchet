@@ -74,6 +74,7 @@ const (
 	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
 	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
 	StepRunEventReasonFINISHED           StepRunEventReason = "FINISHED"
+	StepRunEventReasonREASSIGNED         StepRunEventReason = "REASSIGNED"
 	StepRunEventReasonREQUEUEDNOWORKER   StepRunEventReason = "REQUEUED_NO_WORKER"
 	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
 	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"

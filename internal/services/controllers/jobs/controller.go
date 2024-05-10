@@ -613,6 +613,21 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 				return ec.cancelStepRun(ctx, tenantId, stepRunId, "SCHEDULING_TIMED_OUT")
 			}
 
+			eventData := map[string]interface{}{
+				"worker_id": sqlchelpers.UUIDToStr(stepRunCp.StepRun.WorkerId),
+			}
+
+			err = ec.repo.StepRun().CreateStepRunEvent(ctx, tenantId, stepRunId, repository.CreateStepRunEventOpts{
+				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
+				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
+				EventMessage:  repository.StringPtr("Worker has become inactive"),
+				EventData:     &eventData,
+			})
+
+			if err != nil {
+				return fmt.Errorf("could not create step run event: %w", err)
+			}
+
 			return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
 		})
 	}
