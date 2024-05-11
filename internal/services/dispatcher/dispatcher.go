@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
@@ -303,7 +304,11 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("recovered from panic: %v", r)
+			recoverErr := recoveryutils.RecoverWithAlert(d.l, d.a, r)
+
+			if recoverErr != nil {
+				err = recoverErr
+			}
 		}
 	}()
 

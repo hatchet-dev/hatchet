@@ -18,8 +18,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
 
 type WorkflowsController interface {
@@ -33,23 +35,28 @@ type WorkflowsControllerImpl struct {
 	dv            datautils.DataDecoderValidator
 	s             gocron.Scheduler
 	tenantAlerter *alerting.TenantAlertManager
+	a             *hatcheterrors.Wrapped
 }
 
 type WorkflowsControllerOpt func(*WorkflowsControllerOpts)
 
 type WorkflowsControllerOpts struct {
-	mq   msgqueue.MessageQueue
-	l    *zerolog.Logger
-	repo repository.EngineRepository
-	dv   datautils.DataDecoderValidator
-	ta   *alerting.TenantAlertManager
+	mq      msgqueue.MessageQueue
+	l       *zerolog.Logger
+	repo    repository.EngineRepository
+	dv      datautils.DataDecoderValidator
+	ta      *alerting.TenantAlertManager
+	alerter hatcheterrors.Alerter
 }
 
 func defaultWorkflowsControllerOpts() *WorkflowsControllerOpts {
 	logger := logger.NewDefaultLogger("workflows-controller")
+	alerter := hatcheterrors.NoOpAlerter{}
+
 	return &WorkflowsControllerOpts{
-		l:  &logger,
-		dv: datautils.NewDataDecoderValidator(),
+		l:       &logger,
+		dv:      datautils.NewDataDecoderValidator(),
+		alerter: alerter,
 	}
 }
 
@@ -68,6 +75,12 @@ func WithLogger(l *zerolog.Logger) WorkflowsControllerOpt {
 func WithRepository(r repository.EngineRepository) WorkflowsControllerOpt {
 	return func(opts *WorkflowsControllerOpts) {
 		opts.repo = r
+	}
+}
+
+func WithAlerter(a hatcheterrors.Alerter) WorkflowsControllerOpt {
+	return func(opts *WorkflowsControllerOpts) {
+		opts.alerter = a
 	}
 }
 
@@ -111,6 +124,9 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 	newLogger := opts.l.With().Str("service", "workflows-controller").Logger()
 	opts.l = &newLogger
 
+	a := hatcheterrors.NewWrapped(opts.alerter)
+	a.WithData(map[string]interface{}{"service": "workflows-controller"})
+
 	return &WorkflowsControllerImpl{
 		mq:            opts.mq,
 		l:             opts.l,
@@ -118,6 +134,7 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 		dv:            opts.dv,
 		s:             s,
 		tenantAlerter: opts.ta,
+		a:             a,
 	}, nil
 }
 
@@ -193,7 +210,17 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
+func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoverErr := recoveryutils.RecoverWithAlert(wc.l, wc.a, r)
+
+			if recoverErr != nil {
+				err = recoverErr
+			}
+		}
+	}()
+
 	switch task.ID {
 	case "workflow-run-queued":
 		return wc.handleWorkflowRunQueued(ctx, task)
