@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/labstack/echo/v4"
+
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
