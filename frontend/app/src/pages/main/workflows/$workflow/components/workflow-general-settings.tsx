@@ -1,6 +1,7 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { WorkflowVersion } from '@/lib/api';
+import CronPrettifier from 'cronstrue';
 
 export default function WorkflowGeneralSettings({
   workflow,
@@ -67,12 +68,19 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
         <>
           <Label>Crons</Label>
           {workflow.triggers.crons.map((event) => (
-            <Input
-              key={event.cron}
-              disabled
-              placeholder="shadcn"
-              value={event.cron}
-            />
+            <>
+              <Input
+                key={event.cron}
+                disabled
+                placeholder="shadcn"
+                value={event.cron}
+              />
+              {event.cron && (
+                <span className="text-sm mb-2 text-gray-500">
+                  (runs {CronPrettifier.toString(event.cron).toLowerCase()} UTC)
+                </span>
+              )}
+            </>
           ))}
         </>
       )}
