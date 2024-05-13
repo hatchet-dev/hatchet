@@ -231,9 +231,7 @@ export function WorkflowRunsTable({
       variant={'outline'}
       aria-label="Cancel Selected Runs"
     >
-      <XMarkIcon
-        className={`mr-2 h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-      />
+      <XMarkIcon className={`mr-2 h-4 w-4 transition-transform`} />
       Cancel Selected Runs
     </Button>,
     <Button
