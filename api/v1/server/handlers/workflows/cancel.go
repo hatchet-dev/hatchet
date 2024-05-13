@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
@@ -32,7 +33,9 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 
 			// Lookup step runs for the workflow run
 			runIdStr := runId.String()
-			stepRuns, err := t.config.EngineRepository.StepRun().ListStepRunsByWorkflowRunId(ctx.Request().Context(), tenant.ID, runIdStr)
+			stepRuns, err := t.config.EngineRepository.StepRun().ListStepRuns(ctx.Request().Context(), tenant.ID, &repository.ListStepRunsOpts{
+				WorkflowRunIds: []string{runIdStr},
+			})
 			if err != nil {
 				returnErr = multierror.Append(err, fmt.Errorf("failed to list step runs for workflow run %s", runIdStr))
 				return
