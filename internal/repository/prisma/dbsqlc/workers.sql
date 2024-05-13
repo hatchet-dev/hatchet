@@ -90,22 +90,28 @@ RETURNING *;
 
 
 -- name: ResolveWorkerSemaphoreSlots :execrows
-WITH stepRuns AS (
-  SELECT 
-    sr."workerId",
-    COUNT(*) AS runningRuns
-  FROM "StepRun" sr
-  WHERE sr."status" IN ('RUNNING', 'ASSIGNED') AND
-        sr."semaphoreReleased" = FALSE
-  GROUP BY sr."workerId"
-)
 UPDATE "WorkerSemaphore" ws
-SET "slots" = COALESCE(w."maxRuns", 100) - COALESCE(sr.runningRuns, 0)
+SET "slots" = COALESCE(w."maxRuns", 100) - COALESCE(
+    (
+        SELECT COUNT(*)
+        FROM "StepRun" sr
+        WHERE sr."status" IN ('RUNNING', 'ASSIGNED')
+            AND sr."semaphoreReleased" = FALSE
+            AND sr."workerId" = w."id"
+    ), 0
+)
 FROM "Worker" w
-LEFT JOIN stepRuns sr ON w."id" = sr."workerId"
-WHERE ws."workerId" = w."id" AND
-     "slots" != COALESCE(w."maxRuns", 100) - COALESCE(sr.runningRuns, 0) AND
-     "lastHeartbeatAt" > (CURRENT_TIMESTAMP - INTERVAL '1 minute');
+WHERE ws."workerId" = w."id"
+    AND "slots" != COALESCE(w."maxRuns", 100) - COALESCE(
+        (
+            SELECT COUNT(*)
+            FROM "StepRun" sr
+            WHERE sr."status" IN ('RUNNING', 'ASSIGNED')
+                AND sr."semaphoreReleased" = FALSE
+                AND sr."workerId" = w."id"
+        ), 0
+    )
+    AND "lastHeartbeatAt" > (CURRENT_TIMESTAMP - INTERVAL '1 minute');
 
 -- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (
