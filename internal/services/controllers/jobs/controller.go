@@ -958,6 +958,44 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 
 	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
+	attemptCancel := false
+
+	if errorReason == "TIMED_OUT" {
+		attemptCancel = true
+	}
+
+	if !stepRun.StepRun.WorkerId.Valid {
+		// this is not a fatal error
+		ec.l.Warn().Msgf("step run %s has no worker id, skipping cancellation", stepRunId)
+		attemptCancel = false
+	}
+
+	// Attempt to cancel the previous running step run
+	if attemptCancel {
+
+		workerId := sqlchelpers.UUIDToStr(stepRun.StepRun.WorkerId)
+
+		worker, err := ec.repo.Worker().GetWorkerForEngine(ctx, tenantId, workerId)
+
+		if err != nil {
+			return fmt.Errorf("could not get worker: %w", err)
+		} else if !worker.DispatcherId.Valid {
+			return fmt.Errorf("worker has no dispatcher id")
+		}
+
+		dispatcherId := sqlchelpers.UUIDToStr(worker.DispatcherId)
+
+		err = ec.mq.AddMessage(
+			ctx,
+			msgqueue.QueueTypeFromDispatcherID(dispatcherId),
+			stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, *repository.StringPtr(eventMessage)),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not add job assigned task to task queue: %w", err)
+		}
+	}
+
 	if shouldRetry {
 		// send a task to the taskqueue
 		return ec.mq.AddMessage(
