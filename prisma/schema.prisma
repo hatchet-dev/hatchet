@@ -1041,6 +1041,7 @@ enum StepRunEventReason {
   FAILED
   RETRYING
   CANCELLED
+  SLOT_RELEASED
 }
 
 enum StepRunEventSeverity {

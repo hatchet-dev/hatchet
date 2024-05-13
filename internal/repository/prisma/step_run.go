@@ -394,6 +394,26 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 		return nil
 	}
 
+	data := map[string]interface{}{"worker_id": sqlchelpers.UUIDToStr(stepRun.StepRun.WorkerId)}
+
+	dataBytes, err := json.Marshal(data)
+
+	if err != nil {
+		return fmt.Errorf("could not marshal data: %w", err)
+	}
+
+	err = s.queries.CreateStepRunEvent(ctx, tx, dbsqlc.CreateStepRunEventParams{
+		Steprunid: stepRun.StepRun.ID,
+		Reason:    dbsqlc.StepRunEventReasonSLOTRELEASED,
+		Severity:  dbsqlc.StepRunEventSeverityINFO,
+		Message:   "Slot released",
+		Data:      dataBytes,
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not create step run event: %w", err)
+	}
+
 	// Update the old worker semaphore. This will only increment if the step run was already assigned to a worker,
 	// which means the step run is being retried or rerun.
 	_, err = s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
