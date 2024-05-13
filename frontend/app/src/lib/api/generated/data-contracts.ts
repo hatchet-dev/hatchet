@@ -672,6 +672,43 @@ export interface StepRun {
   cancelledError?: string;
 }
 
+export enum StepRunEventReason {
+  REQUEUED_NO_WORKER = "REQUEUED_NO_WORKER",
+  REQUEUED_RATE_LIMIT = "REQUEUED_RATE_LIMIT",
+  SCHEDULING_TIMED_OUT = "SCHEDULING_TIMED_OUT",
+  ASSIGNED = "ASSIGNED",
+  STARTED = "STARTED",
+  FINISHED = "FINISHED",
+  FAILED = "FAILED",
+  RETRYING = "RETRYING",
+  CANCELLED = "CANCELLED",
+}
+
+export enum StepRunEventSeverity {
+  INFO = "INFO",
+  WARNING = "WARNING",
+  CRITICAL = "CRITICAL",
+}
+
+export interface StepRunEvent {
+  id: number;
+  /** @format date-time */
+  timeFirstSeen: string;
+  /** @format date-time */
+  timeLastSeen: string;
+  stepRunId: string;
+  reason: StepRunEventReason;
+  severity: StepRunEventSeverity;
+  message: string;
+  count: number;
+  data?: object;
+}
+
+export interface StepRunEventList {
+  pagination?: PaginationResponse;
+  rows?: StepRunEvent[];
+}
+
 export interface WorkerList {
   pagination?: PaginationResponse;
   rows?: Worker[];

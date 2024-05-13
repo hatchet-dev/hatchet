@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -71,6 +72,65 @@ func (s *stepRunAPIRepository) GetFirstArchivedStepRunResult(tenantId, stepRunId
 	).OrderBy(
 		db.StepRunResultArchive.Order.Order(db.ASC),
 	).Exec(context.Background())
+}
+
+func (s *stepRunAPIRepository) ListStepRunEvents(stepRunId string, opts *repository.ListStepRunEventOpts) (*repository.ListStepRunEventResult, error) {
+	if err := s.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	tx, err := s.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), s.l, tx.Rollback)
+
+	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
+
+	listParams := dbsqlc.ListStepRunEventsParams{
+		Steprunid: pgStepRunId,
+	}
+
+	if opts.Offset != nil {
+		listParams.Offset = *opts.Offset
+	}
+
+	if opts.Limit != nil {
+		listParams.Limit = *opts.Limit
+	}
+
+	events, err := s.queries.ListStepRunEvents(context.Background(), tx, listParams)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			events = make([]*dbsqlc.StepRunEvent, 0)
+		} else {
+			return nil, fmt.Errorf("could not list step run events: %w", err)
+		}
+	}
+
+	count, err := s.queries.CountStepRunEvents(context.Background(), tx, pgStepRunId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			count = 0
+		} else {
+			return nil, fmt.Errorf("could not count step run events: %w", err)
+		}
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return &repository.ListStepRunEventResult{
+		Rows:  events,
+		Count: int(count),
+	}, nil
 }
 
 type stepRunEngineRepository struct {
@@ -496,6 +556,36 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 	return assigned, nil
 }
 
+func (s *stepRunEngineRepository) deferredStepRunEvent(
+	stepRunId pgtype.UUID,
+	reason dbsqlc.StepRunEventReason,
+	severity dbsqlc.StepRunEventSeverity,
+	message string,
+	data map[string]interface{},
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	dataBytes, err := json.Marshal(data)
+
+	if err != nil {
+		s.l.Err(err).Msg("could not marshal deferred step run event data")
+		return
+	}
+
+	err = s.queries.CreateStepRunEvent(ctx, s.pool, dbsqlc.CreateStepRunEventParams{
+		Steprunid: stepRunId,
+		Message:   message,
+		Reason:    reason,
+		Severity:  severity,
+		Data:      dataBytes,
+	})
+
+	if err != nil {
+		s.l.Err(err).Msg("could not create deferred step run event")
+	}
+}
+
 func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (string, string, error) {
 
 	err := s.incrementWorkerSemaphore(ctx, stepRun)
@@ -530,11 +620,49 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		var target *errNoWorkerWithSlots
 
 		if errors.As(err, &target) {
+			defer s.deferredStepRunEvent(
+				stepRun.StepRun.ID,
+				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
+				dbsqlc.StepRunEventSeverityWARNING,
+				"No worker available",
+				nil,
+			)
+
 			return "", "", repository.ErrNoWorkerAvailable
+		}
+
+		if errors.Is(err, repository.ErrNoWorkerAvailable) {
+			defer s.deferredStepRunEvent(
+				stepRun.StepRun.ID,
+				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
+				dbsqlc.StepRunEventSeverityWARNING,
+				"No worker available",
+				nil,
+			)
+		}
+
+		if errors.Is(err, repository.ErrRateLimitExceeded) {
+			defer s.deferredStepRunEvent(
+				stepRun.StepRun.ID,
+				dbsqlc.StepRunEventReasonREQUEUEDRATELIMIT,
+				dbsqlc.StepRunEventSeverityWARNING,
+				"Rate limit exceeded",
+				nil,
+			)
 		}
 
 		return "", "", err
 	}
+
+	defer s.deferredStepRunEvent(
+		stepRun.StepRun.ID,
+		dbsqlc.StepRunEventReasonASSIGNED,
+		dbsqlc.StepRunEventSeverityINFO,
+		fmt.Sprintf("Assigned to worker %s", sqlchelpers.UUIDToStr(assigned.WorkerId)),
+		map[string]interface{}{
+			"worker_id": sqlchelpers.UUIDToStr(assigned.WorkerId),
+		},
+	)
 
 	return sqlchelpers.UUIDToStr(assigned.WorkerId), sqlchelpers.UUIDToStr(assigned.DispatcherId), nil
 }
@@ -547,7 +675,7 @@ func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, s
 		return nil, nil, err
 	}
 
-	updateParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams, err := getUpdateParams(tenantId, stepRunId, opts)
+	updateParams, createEventParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams, err := getUpdateParams(tenantId, stepRunId, opts)
 
 	if err != nil {
 		return nil, nil, err
@@ -575,7 +703,7 @@ func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, s
 			return err
 		}
 
-		stepRun, err = s.updateStepRunCore(ctx, tx, tenantId, updateParams, updateJobRunLookupDataParams, innerStepRun)
+		stepRun, err = s.updateStepRunCore(ctx, tx, tenantId, updateParams, createEventParams, updateJobRunLookupDataParams, innerStepRun)
 
 		if err != nil {
 			return err
@@ -730,7 +858,12 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		return nil, err
 	}
 
-	updateParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams, err := getUpdateParams(tenantId, stepRunId, opts)
+	updateParams,
+		createEventParams,
+		updateJobRunLookupDataParams,
+		resolveJobRunParams,
+		resolveLaterStepRunsParams,
+		err := getUpdateParams(tenantId, stepRunId, opts)
 
 	if err != nil {
 		return nil, err
@@ -765,7 +898,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 			isNotPending = true
 		}
 
-		sr, err := s.updateStepRunCore(ctx, tx, tenantId, updateParams, updateJobRunLookupDataParams, innerStepRun)
+		sr, err := s.updateStepRunCore(ctx, tx, tenantId, updateParams, createEventParams, updateJobRunLookupDataParams, innerStepRun)
 		if err != nil {
 			return err
 		}
@@ -824,6 +957,7 @@ func getUpdateParams(
 	opts *repository.UpdateStepRunOpts,
 ) (
 	updateParams dbsqlc.UpdateStepRunParams,
+	createStepRunEventParams *dbsqlc.CreateStepRunEventParams,
 	updateJobRunLookupDataParams *dbsqlc.UpdateJobRunLookupDataWithStepRunParams,
 	resolveJobRunParams dbsqlc.ResolveJobRunStatusParams,
 	resolveLaterStepRunsParams dbsqlc.ResolveLaterStepRunsParams,
@@ -846,6 +980,23 @@ func getUpdateParams(
 		updateParams.SemaphoreReleased = pgtype.Bool{
 			Valid: true,
 			Bool:  false,
+		}
+	}
+
+	var createParams *dbsqlc.CreateStepRunEventParams
+
+	if opts.EventMessage != nil && opts.EventReason != nil {
+		severity := dbsqlc.StepRunEventSeverityINFO
+
+		if opts.EventSeverity != nil {
+			severity = *opts.EventSeverity
+		}
+
+		createParams = &dbsqlc.CreateStepRunEventParams{
+			Steprunid: pgStepRunId,
+			Message:   *opts.EventMessage,
+			Reason:    *opts.EventReason,
+			Severity:  severity,
 		}
 	}
 
@@ -887,7 +1038,7 @@ func getUpdateParams(
 		runStatus := dbsqlc.NullStepRunStatus{}
 
 		if err := runStatus.Scan(string(*opts.Status)); err != nil {
-			return updateParams, nil, resolveJobRunParams, resolveLaterStepRunsParams, err
+			return updateParams, nil, nil, resolveJobRunParams, resolveLaterStepRunsParams, err
 		}
 
 		updateParams.Status = runStatus
@@ -920,7 +1071,12 @@ func getUpdateParams(
 		}
 	}
 
-	return updateParams, updateJobRunLookupDataParams, resolveJobRunParams, resolveLaterStepRunsParams, nil
+	return updateParams,
+		createParams,
+		updateJobRunLookupDataParams,
+		resolveJobRunParams,
+		resolveLaterStepRunsParams,
+		nil
 }
 
 func (s *stepRunEngineRepository) updateStepRunCore(
@@ -928,6 +1084,7 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 	tx pgx.Tx,
 	tenantId string,
 	updateParams dbsqlc.UpdateStepRunParams,
+	createEventParams *dbsqlc.CreateStepRunEventParams,
 	updateJobRunLookupDataParams *dbsqlc.UpdateJobRunLookupDataWithStepRunParams,
 	innerStepRun *dbsqlc.StepRun,
 ) (*dbsqlc.GetStepRunForEngineRow, error) {
@@ -947,6 +1104,15 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get step run for engine: %w", err)
+	}
+
+	// create a step run event if not nil
+	if createEventParams != nil {
+		err = s.queries.CreateStepRunEvent(ctx, tx, *createEventParams)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create step run event: %w", err)
+		}
 	}
 
 	// update the job run lookup data if not nil
