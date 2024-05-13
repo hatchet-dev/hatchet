@@ -173,7 +173,7 @@ export default function ExpandedWorkflowRun() {
                     cancelWorkflowRunMutation.mutate();
                   }}
                 >
-                  Attempt Cancel - All Running Steps
+                  Cancel all running steps
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
