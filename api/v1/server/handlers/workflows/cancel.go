@@ -9,7 +9,6 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -41,7 +40,10 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 				return
 			}
 
+			// wr, err := t.config.EngineRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenant.ID, runIdStr)
+
 			var canceledStepRuns []*db.StepRunModel
+
 			for _, stepRun := range stepRuns {
 				status := stepRun.StepRun.Status
 				// If the step run is not in a final state, send a task to the taskqueue to cancel it
@@ -67,6 +69,7 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 
 					// Add the canceled step run to the list
 					canceledStepRuns = append(canceledStepRuns, stepRunDb)
+
 				}
 			}
 
@@ -80,23 +83,28 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 		return nil, returnErr
 	}
 
-	var allCanceledStepRuns []*db.StepRunModel
-	canceledStepRunsMap.Range(func(_, value interface{}) bool {
-		canceledStepRuns := value.([]*db.StepRunModel)
-		allCanceledStepRuns = append(allCanceledStepRuns, canceledStepRuns...)
+	var cancelledWorkflowRunIds []uuid.UUID
+	var rangeErr error
+
+	canceledStepRunsMap.Range(func(key, _ interface{}) bool {
+		runId, ok := key.(uuid.UUID)
+		if !ok {
+			rangeErr = fmt.Errorf("failed to convert key to uuid.UUID")
+			return false
+		}
+		cancelledWorkflowRunIds = append(cancelledWorkflowRunIds, runId)
 		return true
 	})
 
-	// Transform the canceled step runs to the response format
-	canceledStepRunsResponse := make([]gen.StepRun, len(allCanceledStepRuns))
-	for i, stepRun := range allCanceledStepRuns {
-		res, err := transformers.ToStepRun(stepRun)
-		if err != nil {
-			return nil, err
-		}
-		canceledStepRunsResponse[i] = *res
+	if rangeErr != nil {
+		return nil, rangeErr
 	}
 
-	// Return the list of canceled step runs in the response
-	return gen.WorkflowRunCancel200JSONResponse(canceledStepRunsResponse), nil
+	// Create a new instance of gen.WorkflowRunCancel200JSONResponse and assign canceledWorkflowRunUUIDs to its WorkflowRunIds field
+	response := gen.WorkflowRunCancel200JSONResponse{
+		WorkflowRunIds: &cancelledWorkflowRunIds,
+	}
+
+	// Return the response
+	return response, nil
 }

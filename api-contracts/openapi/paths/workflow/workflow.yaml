@@ -301,9 +301,15 @@ cancelWorkflowRuns:
         content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "../../components/schemas/_index.yaml#/StepRun"
+                type: object
+                properties:
+                  workflowRunIds:
+                      type: array
+                      items:
+                        type: string
+                        format: uuid
+                        minLength: 36
+                        maxLength: 36
         description: Successfully cancelled the workflow runs
       "400":
         content:

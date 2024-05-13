@@ -952,7 +952,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   workflowRunCancel = (tenant: string, data: WorkflowRunsCancelRequest, params: RequestParams = {}) =>
-    this.request<StepRun[], APIErrors>({
+    this.request<
+      {
+        workflowRunIds?: string[];
+      },
+      APIErrors
+    >({
       path: `/api/v1/tenants/${tenant}/workflows/cancel`,
       method: "POST",
       body: data,

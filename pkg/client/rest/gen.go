@@ -7410,9 +7410,11 @@ func (r WorkflowListResponse) StatusCode() int {
 type WorkflowRunCancelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *[]StepRun
-	JSON400      *APIErrors
-	JSON403      *APIErrors
+	JSON200      *struct {
+		WorkflowRunIds *[]openapi_types.UUID `json:"workflowRunIds,omitempty"`
+	}
+	JSON400 *APIErrors
+	JSON403 *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -10718,7 +10720,9 @@ func ParseWorkflowRunCancelResponse(rsp *http.Response) (*WorkflowRunCancelRespo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []StepRun
+		var dest struct {
+			WorkflowRunIds *[]openapi_types.UUID `json:"workflowRunIds,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
