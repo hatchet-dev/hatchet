@@ -118,6 +118,19 @@ WorkflowRunStatusList:
   items:
     $ref: "#/WorkflowRunStatus"
 
+WorkflowRunsCancelRequest:
+  type: object
+  properties:
+    workflowRunIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+  required:
+    - workflowRunIds
+
 WorkflowRunTriggeredBy:
   type: object
   properties:
