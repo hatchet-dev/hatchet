@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { WorkflowRunsMetricsView } from './workflow-runs-metrics';
 import queryClient from '@/query-client';
+import { useApiError } from '@/lib/hooks';
 
 export interface WorkflowRunsTableProps {
   workflowId?: string;
@@ -137,6 +138,8 @@ export function WorkflowRunsTable({
       .map(([id]) => (listWorkflowRunsQuery.data?.rows || [])[Number(id)]);
   }, [listWorkflowRunsQuery.data?.rows, rowSelection]);
 
+  const { handleApiError } = useApiError({});
+
   const cancelWorkflowRunMutation = useMutation({
     mutationKey: ['workflow-run:cancel', tenant.metadata.id, selectedRuns],
     mutationFn: async () => {
@@ -157,6 +160,7 @@ export function WorkflowRunsTable({
         queryKey: queries.workflowRuns.list(tenant.metadata.id, {}).queryKey,
       });
     },
+    onError: handleApiError,
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {

@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { BiDotsVertical } from 'react-icons/bi';
+import { useApiError } from '@/lib/hooks';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -88,6 +89,8 @@ export default function ExpandedWorkflowRun() {
     }
   }, [runQuery.data, params.run, selectedStepRun]);
 
+  const { handleApiError } = useApiError({});
+
   const cancelWorkflowRunMutation = useMutation({
     mutationKey: [
       'workflow-run:cancel',
@@ -107,20 +110,7 @@ export default function ExpandedWorkflowRun() {
 
       return res.data;
     },
-    // onMutate: () => {
-    // setErrors([]);
-    // },
-    // onSuccess: (stepRun: StepRun[]) => {
-    // queryClient.invalidateQueries({
-    //   queryKey: queries.workflowRuns.get(
-    //     tenant.metadata.id,
-    //     workflowRun.metadata.id,
-    //   ).queryKey,
-    // });
-    // setStepRun(stepRun);
-    // getStepRunQuery.refetch();
-    // },
-    // onError: handleApiError,
+    onError: handleApiError,
   });
 
   if (runQuery.isLoading || !runQuery.data) {
