@@ -768,7 +768,6 @@ step_runs AS (
         AND ((
             sr."status" = 'RUNNING'
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-            AND s."retries" > sr."retryCount"
         ) OR (
             sr."status" = 'ASSIGNED'
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
