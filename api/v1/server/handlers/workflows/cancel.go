@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
@@ -20,6 +21,7 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 	runIds := request.Body.WorkflowRunIds
 
 	canceledStepRunsChannel := make(chan []*db.StepRunModel, len(runIds))
+	var returnErr error
 
 	for _, runId := range runIds {
 		go func(runId uuid.UUID) {
@@ -27,7 +29,7 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 			runIdStr := runId.String()
 			stepRuns, err := t.config.EngineRepository.StepRun().ListStepRunsByWorkflowRunId(ctx.Request().Context(), tenant.ID, runIdStr)
 			if err != nil {
-				// Handle the error appropriately
+				returnErr = multierror.Append(err, fmt.Errorf("failed to list step runs for workflow run %s", runIdStr))
 				canceledStepRunsChannel <- nil
 				return
 			}
@@ -47,14 +49,14 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 						tasktypes.StepRunCancelToTask(stepRun, reason),
 					)
 					if err != nil {
-						// Handle the error appropriately
+						returnErr = multierror.Append(err, fmt.Errorf("failed to send cancel task for step run %s", pgUUIDToStr(stepRun.StepRun.ID)))
 						continue
 					}
 
 					stepRunId := pgUUIDToStr(stepRun.StepRun.ID)
 					stepRunDb, err := t.config.APIRepository.StepRun().GetStepRunById(tenant.ID, stepRunId)
 					if err != nil {
-						// Handle the error appropriately
+						returnErr = multierror.Append(err, fmt.Errorf("failed to get step run %s", stepRunId))
 						continue
 					}
 
@@ -75,6 +77,10 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 		}
 	}
 
+	if returnErr != nil {
+		return nil, returnErr
+	}
+
 	// Transform the canceled step runs to the response format
 	canceledStepRunsResponse := make([]gen.StepRun, len(allCanceledStepRuns))
 	for i, stepRun := range allCanceledStepRuns {
@@ -82,8 +88,7 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 		res, err := transformers.ToStepRun(stepRun)
 
 		if err != nil {
-			// Handle the error appropriately
-			continue
+			return nil, err
 		}
 
 		canceledStepRunsResponse[i] = *res
