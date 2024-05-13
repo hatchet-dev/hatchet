@@ -14,6 +14,12 @@ CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED',
 CREATE TYPE "LogLineLevel" AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
 
 -- CreateEnum
+CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'SLOT_RELEASED');
+
+-- CreateEnum
+CREATE TYPE "StepRunEventSeverity" AS ENUM ('INFO', 'WARNING', 'CRITICAL');
+
+-- CreateEnum
 CREATE TYPE "StepRunStatus" AS ENUM ('PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
 
 -- CreateEnum
@@ -352,6 +358,19 @@ CREATE TABLE "StepRun" (
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StepRunEvent" (
+    "id" BIGSERIAL NOT NULL,
+    "timeFirstSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "timeLastSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "stepRunId" UUID NOT NULL,
+    "reason" "StepRunEventReason" NOT NULL,
+    "severity" "StepRunEventSeverity" NOT NULL,
+    "message" TEXT NOT NULL,
+    "count" INTEGER NOT NULL,
+    "data" JSONB
 );
 
 -- CreateTable
@@ -802,6 +821,9 @@ CREATE UNIQUE INDEX "Job_workflowVersionId_name_key" ON "Job"("workflowVersionId
 CREATE UNIQUE INDEX "JobRun_id_key" ON "JobRun"("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "JobRun_workflowRunId_tenantId_idx" ON "JobRun"("workflowRunId" ASC, "tenantId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "JobRunLookupData_id_key" ON "JobRunLookupData"("id" ASC);
 
 -- CreateIndex
@@ -842,6 +864,27 @@ CREATE UNIQUE INDEX "StepRateLimit_stepId_rateLimitKey_key" ON "StepRateLimit"("
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_id_tenantId_idx" ON "StepRun"("id" ASC, "tenantId" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_jobRunId_status_idx" ON "StepRun"("jobRunId" ASC, "status" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, "tenantId" ASC, "order" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_tenantId_status_requeueAfter_createdAt_idx" ON "StepRun"("tenantId" ASC, "status" ASC, "requeueAfter" ASC, "createdAt" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "StepRunEvent_id_key" ON "StepRunEvent"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRunEvent_stepRunId_idx" ON "StepRunEvent"("stepRunId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRunResultArchive_id_key" ON "StepRunResultArchive"("id" ASC);
@@ -1136,6 +1179,9 @@ ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_tickerId_fkey" FOREIGN KEY ("ticke
 
 -- AddForeignKey
 ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StepRunEvent" ADD CONSTRAINT "StepRunEvent_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "StepRunResultArchive" ADD CONSTRAINT "StepRunResultArchive_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;

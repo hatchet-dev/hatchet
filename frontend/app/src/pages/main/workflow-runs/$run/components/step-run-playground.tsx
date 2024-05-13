@@ -31,6 +31,7 @@ import { StepRunLogs } from './step-run-logs';
 import { RunStatus } from '../../components/run-statuses';
 import { QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { WorkflowRunsTable } from '../../components/workflow-runs-table';
+import { StepRunEvents } from './step-run-events';
 
 export function StepRunPlayground({
   stepRun,
@@ -413,6 +414,9 @@ export function StepRunPlayground({
                       <TabsTrigger value="logs" className="px-8">
                         Logs
                       </TabsTrigger>
+                      <TabsTrigger value="events" className="px-8">
+                        Events
+                      </TabsTrigger>
                     </TabsList>
                   </div>
                   <RunStatus
@@ -441,6 +445,9 @@ export function StepRunPlayground({
                 </TabsContent>
                 <TabsContent value="logs">
                   <StepRunLogs stepRun={stepRun} />
+                </TabsContent>
+                <TabsContent value="events">
+                  <StepRunEvents stepRun={stepRun} />
                 </TabsContent>
               </Tabs>
 
