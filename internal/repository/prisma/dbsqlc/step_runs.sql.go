@@ -940,7 +940,7 @@ SET
 WHERE
     "id" = $2::uuid AND
     "tenantId" = $3::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased"
 `
 
 type RefreshTimeoutAtParams struct {
@@ -979,6 +979,7 @@ func (q *Queries) RefreshTimeoutAt(ctx context.Context, db DBTX, arg RefreshTime
 		&i.CallerFiles,
 		&i.GitRepoBranch,
 		&i.RetryCount,
+		&i.SemaphoreReleased,
 	)
 	return &i, err
 }

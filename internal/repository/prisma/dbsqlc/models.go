@@ -241,6 +241,7 @@ const (
 	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
 	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
 	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
+	StepRunEventReasonTIMEOUTREFRESHED   StepRunEventReason = "TIMEOUT_REFRESHED"
 	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
 )
 
