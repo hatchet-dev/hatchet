@@ -689,6 +689,27 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 	}, nil
 }
 
+func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	stepRun, err := d.repo.StepRun().RefreshTimeoutAt(ctx, tenantId, request.StepRunId, request.IncrementTimeoutBy)
+
+	if err != nil {
+		return nil, err
+	}
+
+	timeoutAt := &timestamppb.Timestamp{
+		Seconds: stepRun.TimeoutAt.Time.Unix(),
+		Nanos:   int32(stepRun.TimeoutAt.Time.Nanosecond()),
+	}
+
+	return &contracts.RefreshTimeoutResponse{
+		TimeoutAt: timeoutAt,
+	}, nil
+
+}
+
 func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)

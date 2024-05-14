@@ -35,6 +35,7 @@ type DispatcherClient interface {
 	SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	PutOverridesData(ctx context.Context, in *OverridesData, opts ...grpc.CallOption) (*OverridesDataResponse, error)
 	Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error)
+	RefreshTimeout(ctx context.Context, in *RefreshTimeoutRequest, opts ...grpc.CallOption) (*RefreshTimeoutResponse, error)
 }
 
 type dispatcherClient struct {
@@ -226,6 +227,15 @@ func (c *dispatcherClient) Unsubscribe(ctx context.Context, in *WorkerUnsubscrib
 	return out, nil
 }
 
+func (c *dispatcherClient) RefreshTimeout(ctx context.Context, in *RefreshTimeoutRequest, opts ...grpc.CallOption) (*RefreshTimeoutResponse, error) {
+	out := new(RefreshTimeoutResponse)
+	err := c.cc.Invoke(ctx, "/Dispatcher/RefreshTimeout", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DispatcherServer is the server API for Dispatcher service.
 // All implementations must embed UnimplementedDispatcherServer
 // for forward compatibility
@@ -243,6 +253,7 @@ type DispatcherServer interface {
 	SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error)
 	PutOverridesData(context.Context, *OverridesData) (*OverridesDataResponse, error)
 	Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error)
+	RefreshTimeout(context.Context, *RefreshTimeoutRequest) (*RefreshTimeoutResponse, error)
 	mustEmbedUnimplementedDispatcherServer()
 }
 
@@ -279,6 +290,9 @@ func (UnimplementedDispatcherServer) PutOverridesData(context.Context, *Override
 }
 func (UnimplementedDispatcherServer) Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Unsubscribe not implemented")
+}
+func (UnimplementedDispatcherServer) RefreshTimeout(context.Context, *RefreshTimeoutRequest) (*RefreshTimeoutResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RefreshTimeout not implemented")
 }
 func (UnimplementedDispatcherServer) mustEmbedUnimplementedDispatcherServer() {}
 
@@ -490,6 +504,24 @@ func _Dispatcher_Unsubscribe_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dispatcher_RefreshTimeout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshTimeoutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).RefreshTimeout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/Dispatcher/RefreshTimeout",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).RefreshTimeout(ctx, req.(*RefreshTimeoutRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Dispatcher_ServiceDesc is the grpc.ServiceDesc for Dispatcher service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -520,6 +552,10 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Unsubscribe",
 			Handler:    _Dispatcher_Unsubscribe_Handler,
+		},
+		{
+			MethodName: "RefreshTimeout",
+			Handler:    _Dispatcher_RefreshTimeout_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

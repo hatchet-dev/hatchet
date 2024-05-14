@@ -147,4 +147,6 @@ type StepRunEngineRepository interface {
 	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error
+
+	RefreshTimeoutAt(ctx context.Context, tenantId, stepRunId string, timeoutAt string) (*dbsqlc.StepRun, error)
 }
