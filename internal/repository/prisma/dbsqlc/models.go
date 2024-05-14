@@ -241,7 +241,7 @@ const (
 	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
 	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
 	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
-	StepRunEventReasonTIMEOUTREFRESHED   StepRunEventReason = "TIMEOUT_REFRESHED"
+	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
 )
 
 func (e *StepRunEventReason) Scan(src interface{}) error {
@@ -795,6 +795,7 @@ type StepRun struct {
 	CallerFiles       []byte           `json:"callerFiles"`
 	GitRepoBranch     pgtype.Text      `json:"gitRepoBranch"`
 	RetryCount        int32            `json:"retryCount"`
+	SemaphoreReleased bool             `json:"semaphoreReleased"`
 }
 
 type StepRunEvent struct {

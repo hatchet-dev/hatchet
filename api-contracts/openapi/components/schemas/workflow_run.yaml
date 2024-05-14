@@ -271,6 +271,7 @@ StepRunEventReason:
     - RETRYING
     - CANCELLED
     - TIMEOUT_REFRESHED
+    - SLOT_RELEASED
 
 StepRunEventSeverity:
   type: string

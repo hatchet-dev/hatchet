@@ -35,7 +35,7 @@ type DispatcherClient interface {
 	SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	PutOverridesData(ctx context.Context, in *OverridesData, opts ...grpc.CallOption) (*OverridesDataResponse, error)
 	Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error)
-	RefreshTimeout(ctx context.Context, in *RefreshTimeoutRequest, opts ...grpc.CallOption) (*RefreshTimeoutResponse, error)
+	ReleaseSlot(ctx context.Context, in *ReleaseSlotRequest, opts ...grpc.CallOption) (*ReleaseSlotResponse, error)
 }
 
 type dispatcherClient struct {
@@ -227,9 +227,9 @@ func (c *dispatcherClient) Unsubscribe(ctx context.Context, in *WorkerUnsubscrib
 	return out, nil
 }
 
-func (c *dispatcherClient) RefreshTimeout(ctx context.Context, in *RefreshTimeoutRequest, opts ...grpc.CallOption) (*RefreshTimeoutResponse, error) {
-	out := new(RefreshTimeoutResponse)
-	err := c.cc.Invoke(ctx, "/Dispatcher/RefreshTimeout", in, out, opts...)
+func (c *dispatcherClient) ReleaseSlot(ctx context.Context, in *ReleaseSlotRequest, opts ...grpc.CallOption) (*ReleaseSlotResponse, error) {
+	out := new(ReleaseSlotResponse)
+	err := c.cc.Invoke(ctx, "/Dispatcher/ReleaseSlot", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +253,7 @@ type DispatcherServer interface {
 	SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error)
 	PutOverridesData(context.Context, *OverridesData) (*OverridesDataResponse, error)
 	Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error)
-	RefreshTimeout(context.Context, *RefreshTimeoutRequest) (*RefreshTimeoutResponse, error)
+	ReleaseSlot(context.Context, *ReleaseSlotRequest) (*ReleaseSlotResponse, error)
 	mustEmbedUnimplementedDispatcherServer()
 }
 
@@ -291,8 +291,8 @@ func (UnimplementedDispatcherServer) PutOverridesData(context.Context, *Override
 func (UnimplementedDispatcherServer) Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Unsubscribe not implemented")
 }
-func (UnimplementedDispatcherServer) RefreshTimeout(context.Context, *RefreshTimeoutRequest) (*RefreshTimeoutResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RefreshTimeout not implemented")
+func (UnimplementedDispatcherServer) ReleaseSlot(context.Context, *ReleaseSlotRequest) (*ReleaseSlotResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReleaseSlot not implemented")
 }
 func (UnimplementedDispatcherServer) mustEmbedUnimplementedDispatcherServer() {}
 
@@ -504,20 +504,20 @@ func _Dispatcher_Unsubscribe_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Dispatcher_RefreshTimeout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RefreshTimeoutRequest)
+func _Dispatcher_ReleaseSlot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleaseSlotRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DispatcherServer).RefreshTimeout(ctx, in)
+		return srv.(DispatcherServer).ReleaseSlot(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/Dispatcher/RefreshTimeout",
+		FullMethod: "/Dispatcher/ReleaseSlot",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DispatcherServer).RefreshTimeout(ctx, req.(*RefreshTimeoutRequest))
+		return srv.(DispatcherServer).ReleaseSlot(ctx, req.(*ReleaseSlotRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -554,8 +554,8 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Dispatcher_Unsubscribe_Handler,
 		},
 		{
-			MethodName: "RefreshTimeout",
-			Handler:    _Dispatcher_RefreshTimeout_Handler,
+			MethodName: "ReleaseSlot",
+			Handler:    _Dispatcher_ReleaseSlot_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
