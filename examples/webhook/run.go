@@ -31,14 +31,14 @@ func run(job worker.WorkflowJob) error {
 
 	port := "8741"
 
-	err = w.RegisterWebhook(worker.Events("user:create:webhook"), fmt.Sprintf("http://localhost:%s/webhook", port), &job)
+	ww, err := w.RegisterWebhook(worker.Events("user:create:webhook"), fmt.Sprintf("http://localhost:%s/webhook", port), &job)
 	if err != nil {
 		return fmt.Errorf("error registering webhook workflow: %w", err)
 	}
 
 	go func() {
 		// create webserver to handle webhook requests
-		http.HandleFunc("/webhook", w.Middleware(func(event dispatcher.WebhookEvent) interface{} {
+		http.HandleFunc("/webhook", ww.Middleware(func(event dispatcher.WebhookEvent) interface{} {
 			log.Printf("webhook received with event: %+v", event)
 
 			return struct {
