@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/creasty/defaults v1.7.0
-	github.com/fatih/color v1.16.0
+	github.com/fatih/color v1.17.0
 	github.com/getkin/kin-openapi v0.124.0
 	github.com/go-co-op/gocron/v2 v2.5.0
 	github.com/google/go-github/v57 v57.0.0
@@ -33,7 +33,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.26.0
 	go.opentelemetry.io/otel/trace v1.26.0
 	go.uber.org/goleak v1.3.0
-	google.golang.org/api v0.179.0
+	google.golang.org/api v0.180.0
 	sigs.k8s.io/yaml v1.4.0
 )
 

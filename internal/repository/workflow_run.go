@@ -77,6 +77,10 @@ func GetCreateWorkflowRunOptsFromManual(
 	input []byte,
 	additionalMetadata map[string]interface{},
 ) (*CreateWorkflowRunOpts, error) {
+	if input == nil {
+		input = []byte("{}")
+	}
+
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
 		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
@@ -86,11 +90,9 @@ func GetCreateWorkflowRunOptsFromManual(
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if input != nil {
-		if workflowVersion.ConcurrencyLimitStrategy.Valid {
-			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
-				Input: input,
-			}
+	if workflowVersion.ConcurrencyLimitStrategy.Valid {
+		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+			Input: input,
 		}
 	}
 
@@ -105,6 +107,10 @@ func GetCreateWorkflowRunOptsFromParent(
 	childKey *string,
 	additionalMetadata map[string]interface{},
 ) (*CreateWorkflowRunOpts, error) {
+	if input == nil {
+		input = []byte("{}")
+	}
+
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
 		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
@@ -116,11 +122,9 @@ func GetCreateWorkflowRunOptsFromParent(
 
 	WithParent(parentId, parentStepRunId, childIndex, childKey)(opts)
 
-	if input != nil {
-		if workflowVersion.ConcurrencyLimitStrategy.Valid {
-			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
-				Input: input,
-			}
+	if workflowVersion.ConcurrencyLimitStrategy.Valid {
+		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+			Input: input,
 		}
 	}
 
@@ -133,6 +137,10 @@ func GetCreateWorkflowRunOptsFromEvent(
 	input []byte,
 	additionalMetadata map[string]interface{},
 ) (*CreateWorkflowRunOpts, error) {
+	if input == nil {
+		input = []byte("{}")
+	}
+
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
 		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
@@ -142,11 +150,9 @@ func GetCreateWorkflowRunOptsFromEvent(
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if input != nil {
-		if workflowVersion.ConcurrencyLimitStrategy.Valid {
-			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
-				Input: input,
-			}
+	if workflowVersion.ConcurrencyLimitStrategy.Valid {
+		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+			Input: input,
 		}
 	}
 
@@ -160,6 +166,10 @@ func GetCreateWorkflowRunOptsFromCron(
 	input []byte,
 	additionalMetadata map[string]interface{},
 ) (*CreateWorkflowRunOpts, error) {
+	if input == nil {
+		input = []byte("{}")
+	}
+
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:        StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
 		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
@@ -170,11 +180,9 @@ func GetCreateWorkflowRunOptsFromCron(
 		AdditionalMetadata: additionalMetadata,
 	}
 
-	if input != nil {
-		if workflowVersion.ConcurrencyLimitStrategy.Valid {
-			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
-				Input: input,
-			}
+	if workflowVersion.ConcurrencyLimitStrategy.Valid {
+		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+			Input: input,
 		}
 	}
 
@@ -188,6 +196,10 @@ func GetCreateWorkflowRunOptsFromSchedule(
 	additionalMetadata map[string]interface{},
 	fs ...CreateWorkflowRunOpt,
 ) (*CreateWorkflowRunOpts, error) {
+	if input == nil {
+		input = []byte("{}")
+	}
+
 	opts := &CreateWorkflowRunOpts{
 		DisplayName:         StringPtr(getWorkflowRunDisplayName(workflowVersion.WorkflowName)),
 		WorkflowVersionId:   sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
@@ -197,11 +209,9 @@ func GetCreateWorkflowRunOptsFromSchedule(
 		AdditionalMetadata:  additionalMetadata,
 	}
 
-	if input != nil {
-		if workflowVersion.ConcurrencyLimitStrategy.Valid {
-			opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
-				Input: input,
-			}
+	if workflowVersion.ConcurrencyLimitStrategy.Valid {
+		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
+			Input: input,
 		}
 	}
 

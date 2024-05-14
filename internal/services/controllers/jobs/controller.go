@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
@@ -198,7 +199,17 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
+func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoverErr := recoveryutils.RecoverWithAlert(ec.l, ec.a, r)
+
+			if recoverErr != nil {
+				err = recoverErr
+			}
+		}
+	}()
+
 	switch task.ID {
 	case "job-run-queued":
 		return ec.handleJobRunQueued(ctx, task)
@@ -1044,15 +1055,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *dbsqlc.GetStepRunForEngineRow, updateInfo *repository.StepRunUpdateInfo) {
 	defer func() {
 		if r := recover(); r != nil {
-			err, ok := r.(error)
-
-			if !ok {
-				err = fmt.Errorf("%v", r)
-			}
-
-			ec.l.Error().Err(err).Msg("recovered from panic")
-
-			return
+			recoveryutils.RecoverWithAlert(ec.l, ec.a, r) // nolint:errcheck
 		}
 	}()
 
