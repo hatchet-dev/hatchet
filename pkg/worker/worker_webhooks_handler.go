@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
-func (w *Worker) Middleware(process func(event dispatcher.WebhookEvent) interface{}) http.HandlerFunc {
+func (w *Worker) WebhookHandler(process func(event dispatcher.WebhookEvent) interface{}) http.HandlerFunc {
 	return func(writer http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(r.Body)
 		if err != nil {

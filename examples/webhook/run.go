@@ -38,7 +38,7 @@ func run(job worker.WorkflowJob) error {
 
 	go func() {
 		// create webserver to handle webhook requests
-		http.HandleFunc("/webhook", w.Middleware(func(event dispatcher.WebhookEvent) interface{} {
+		http.HandleFunc("/webhook", w.WebhookHandler(func(event dispatcher.WebhookEvent) interface{} {
 			log.Printf("webhook received with event: %+v", event)
 
 			return struct {
