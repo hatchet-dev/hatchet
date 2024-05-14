@@ -1008,6 +1008,9 @@ model StepRun {
   // the github branch that this is running on
   gitRepoBranch String?
 
+  // if the semaphore was released prior to terminal state
+  semaphoreReleased Boolean @default(false)
+
   archivedResults StepRunResultArchive[]
 
   streamEvents StreamEvent[]
@@ -1041,6 +1044,7 @@ enum StepRunEventReason {
   FAILED
   RETRYING
   CANCELLED
+  SLOT_RELEASED
 }
 
 enum StepRunEventSeverity {

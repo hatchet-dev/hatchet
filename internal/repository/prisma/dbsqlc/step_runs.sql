@@ -158,7 +158,8 @@ SET
         WHEN sqlc.narg('rerun')::boolean THEN NULL
         ELSE COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
     END,
-    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount")
+    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount"),
+    "semaphoreReleased" = COALESCE(sqlc.narg('semaphoreReleased')::boolean, "semaphoreReleased")
 WHERE
   "id" = @id::uuid AND
   "tenantId" = @tenantId::uuid
@@ -186,9 +187,9 @@ WITH RECURSIVE currStepRun AS (
   FROM "StepRun" sr
   JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
   WHERE sro."A" = (SELECT "id" FROM currStepRun)
-  
+
   UNION ALL
-  
+
   SELECT sr."id", sr."status"
   FROM "StepRun" sr
   JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
@@ -591,7 +592,7 @@ UPDATE
 SET
     -- This shouldn't happen, but we set guardrails to prevent negative slots or slots over
     -- the worker's maxRuns
-    "slots" = CASE 
+    "slots" = CASE
         WHEN (ws."slots" + @inc::int) < 0 THEN 0
         WHEN (ws."slots" + @inc::int) > COALESCE(worker."maxRuns", 100) THEN COALESCE(worker."maxRuns", 100)
         ELSE (ws."slots" + @inc::int)

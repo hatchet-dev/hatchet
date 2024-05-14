@@ -78,6 +78,7 @@ const (
 	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
 	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
 	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
+	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
 	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
 )
 
