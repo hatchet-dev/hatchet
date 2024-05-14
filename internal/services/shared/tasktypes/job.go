@@ -31,16 +31,18 @@ func JobRunQueuedToTask(tenantId, jobRunId string) *msgqueue.Message {
 }
 
 type JobRunCancelledTaskPayload struct {
-	JobRunId string `json:"job_run_id" validate:"required,uuid"`
+	JobRunId string  `json:"job_run_id" validate:"required,uuid"`
+	Reason   *string `json:"reason,omitempty"`
 }
 
 type JobRunCancelledTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
-func JobRunCancelledToTask(tenantId, jobRunId string) *msgqueue.Message {
+func JobRunCancelledToTask(tenantId, jobRunId string, reason *string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(JobRunCancelledTaskPayload{
 		JobRunId: jobRunId,
+		Reason:   reason,
 	})
 
 	metadata, _ := datautils.ToJSONMap(JobRunCancelledTaskMetadata{

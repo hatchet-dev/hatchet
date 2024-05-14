@@ -152,7 +152,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 				err = wc.mq.AddMessage(
 					ctx,
 					msgqueue.JOB_PROCESSING_QUEUE,
-					tasktypes.JobRunCancelledToTask(metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID)),
+					tasktypes.JobRunCancelledToTask(metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID), nil),
 				)
 
 				if err != nil {
@@ -319,7 +319,7 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, wo
 		err := wc.mq.AddMessage(
 			context.Background(),
 			msgqueue.JOB_PROCESSING_QUEUE,
-			tasktypes.JobRunCancelledToTask(tenantId, jobRunId),
+			tasktypes.JobRunCancelledToTask(tenantId, jobRunId, nil),
 		)
 
 		if err != nil {

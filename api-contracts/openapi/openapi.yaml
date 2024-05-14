@@ -106,6 +106,8 @@ paths:
     $ref: "./paths/event/event.yaml#/keys"
   /api/v1/tenants/{tenant}/workflows:
     $ref: "./paths/workflow/workflow.yaml#/withTenant"
+  /api/v1/tenants/{tenant}/workflows/cancel:
+    $ref: "./paths/workflow/workflow.yaml#/cancelWorkflowRuns"
   /api/v1/workflows/{workflow}:
     $ref: "./paths/workflow/workflow.yaml#/withWorkflow"
   /api/v1/workflows/{workflow}/versions:

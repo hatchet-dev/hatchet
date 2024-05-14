@@ -589,6 +589,10 @@ export enum WorkflowRunStatus {
 
 export type WorkflowRunStatusList = WorkflowRunStatus[];
 
+export interface WorkflowRunsCancelRequest {
+  workflowRunIds: string[];
+}
+
 export enum JobRunStatus {
   PENDING = "PENDING",
   RUNNING = "RUNNING",
