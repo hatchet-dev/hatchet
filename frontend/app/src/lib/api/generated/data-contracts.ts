@@ -464,6 +464,7 @@ export interface WorkflowVersion {
   workflow?: Workflow;
   concurrency?: WorkflowConcurrency;
   triggers?: WorkflowTriggers;
+  scheduleTimeout?: string;
   jobs?: Job[];
 }
 

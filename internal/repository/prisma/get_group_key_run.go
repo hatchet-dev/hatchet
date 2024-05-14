@@ -214,7 +214,7 @@ func (s *getGroupKeyRunRepository) GetGroupKeyRunForEngine(ctx context.Context, 
 	}
 
 	if len(res) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("could not find group key run %s", getGroupKeyRunId)
 	}
 
 	return res[0], nil

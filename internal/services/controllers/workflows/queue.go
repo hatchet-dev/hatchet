@@ -54,7 +54,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 
 	// determine if we should start this workflow run or we need to limit its concurrency
 	// if the workflow has concurrency settings, then we need to check if we can start it
-	if workflowRun.ConcurrencyLimitStrategy.Valid {
+	if workflowRun.ConcurrencyLimitStrategy.Valid && workflowRun.GetGroupKeyRunId.Valid {
 		wc.l.Info().Msgf("workflow %s has concurrency settings", workflowRunId)
 
 		groupKeyRunId := sqlchelpers.UUIDToStr(workflowRun.GetGroupKeyRunId)
@@ -76,6 +76,8 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		}
 
 		return nil
+	} else if workflowRun.ConcurrencyLimitStrategy.Valid && !workflowRun.GetGroupKeyRunId.Valid {
+		return fmt.Errorf("workflow run %s has concurrency settings but no group key run", workflowRunId)
 	}
 
 	err = wc.queueWorkflowRunJobs(ctx, workflowRun)

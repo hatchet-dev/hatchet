@@ -141,6 +141,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 	if sc.HasService("workflowscontroller") {
 		wc, err := workflows.New(
+			workflows.WithAlerter(sc.Alerter),
 			workflows.WithMessageQueue(sc.MessageQueue),
 			workflows.WithRepository(sc.EngineRepository),
 			workflows.WithLogger(sc.Logger),

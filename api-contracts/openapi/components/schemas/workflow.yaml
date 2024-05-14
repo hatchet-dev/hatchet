@@ -122,6 +122,8 @@ WorkflowVersion:
       $ref: "#/WorkflowConcurrency"
     triggers:
       $ref: "#/WorkflowTriggers"
+    scheduleTimeout:
+      type: string
     jobs:
       type: array
       items:
