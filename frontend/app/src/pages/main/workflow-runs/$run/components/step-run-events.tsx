@@ -91,6 +91,7 @@ const REASON_TO_TITLE: Record<StepRunEventReason, string> = {
   [StepRunEventReason.SCHEDULING_TIMED_OUT]: 'Scheduling timed out',
   [StepRunEventReason.REASSIGNED]: 'Reassigned',
   [StepRunEventReason.TIMED_OUT]: 'Execution timed out',
+  [StepRunEventReason.SLOT_RELEASED]: 'Slot released',
 };
 
 function getTitleFromReason(reason: StepRunEventReason, message: string) {
@@ -101,12 +102,7 @@ function renderCardFooter(event: StepRunEvent) {
   if (event.data) {
     const data = event.data as any;
 
-    if (
-      [StepRunEventReason.ASSIGNED, StepRunEventReason.REASSIGNED].includes(
-        event.reason,
-      ) &&
-      data.worker_id
-    ) {
+    if (data.worker_id) {
       return (
         <CardFooter>
           <Link to={`/workers/${data.worker_id}`}>

@@ -222,6 +222,19 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
 	}
 
+	// poll to resolve worker semaphore slots every 1 minute
+	_, err = t.s.NewJob(
+		gocron.DurationJob(time.Minute*1),
+		gocron.NewTask(
+			t.runWorkerSemaphoreSlotResolver(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule worker semaphore slot resolver polling: %w", err)
+	}
+
 	t.s.Start()
 
 	cleanup := func() error {

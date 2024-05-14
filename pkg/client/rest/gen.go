@@ -79,6 +79,7 @@ const (
 	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
 	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
 	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
+	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
 	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
 	StepRunEventReasonTIMEDOUT           StepRunEventReason = "TIMED_OUT"
 )
@@ -987,11 +988,12 @@ type WorkflowTriggers struct {
 
 // WorkflowVersion defines model for WorkflowVersion.
 type WorkflowVersion struct {
-	Concurrency *WorkflowConcurrency `json:"concurrency,omitempty"`
-	Jobs        *[]Job               `json:"jobs,omitempty"`
-	Metadata    APIResourceMeta      `json:"metadata"`
-	Order       int32                `json:"order"`
-	Triggers    *WorkflowTriggers    `json:"triggers,omitempty"`
+	Concurrency     *WorkflowConcurrency `json:"concurrency,omitempty"`
+	Jobs            *[]Job               `json:"jobs,omitempty"`
+	Metadata        APIResourceMeta      `json:"metadata"`
+	Order           int32                `json:"order"`
+	ScheduleTimeout *string              `json:"scheduleTimeout,omitempty"`
+	Triggers        *WorkflowTriggers    `json:"triggers,omitempty"`
 
 	// Version The version of the workflow.
 	Version    string    `json:"version"`

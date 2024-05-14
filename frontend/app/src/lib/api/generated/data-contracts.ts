@@ -464,6 +464,7 @@ export interface WorkflowVersion {
   workflow?: Workflow;
   concurrency?: WorkflowConcurrency;
   triggers?: WorkflowTriggers;
+  scheduleTimeout?: string;
   jobs?: Job[];
 }
 
@@ -684,6 +685,7 @@ export enum StepRunEventReason {
   CANCELLED = "CANCELLED",
   REASSIGNED = "REASSIGNED",
   TIMED_OUT = "TIMED_OUT",
+  SLOT_RELEASED = "SLOT_RELEASED",
 }
 
 export enum StepRunEventSeverity {

@@ -120,6 +120,8 @@ func ToWorkflowVersion(workflow *db.WorkflowModel, version *db.WorkflowVersionMo
 		res.Version = setVersion
 	}
 
+	res.ScheduleTimeout = &version.ScheduleTimeout
+
 	if version.RelationsWorkflowVersion.Jobs != nil {
 		if jobs := version.Jobs(); jobs != nil {
 			apiJobs := make([]gen.Job, len(jobs))

@@ -71,4 +71,6 @@ type WorkerEngineRepository interface {
 	DeleteWorker(ctx context.Context, tenantId, workerId string) error
 
 	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
+
+	ResolveWorkerSemaphoreSlots(ctx context.Context) (int64, error)
 }

@@ -106,7 +106,7 @@ func defaultClientOpts(cf *client.ClientConfigFile) *ClientOpts {
 
 func WithLogLevel(lvl string) ClientOpt {
 	return func(opts *ClientOpts) {
-		logger := logger.NewDefaultLogger("worker")
+		logger := logger.NewDefaultLogger("client")
 		lvl, err := zerolog.ParseLevel(lvl)
 
 		if err == nil {
