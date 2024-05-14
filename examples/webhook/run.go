@@ -111,11 +111,11 @@ func run(job worker.WorkflowJob) error {
 			}
 			for _, jobRuns := range workflowRun.Parent().JobRuns() {
 				if jobRuns.Status != db.JobRunStatusSucceeded {
-					panic(fmt.Errorf("expected job run to be running, got %s", jobRuns.Status))
+					panic(fmt.Errorf("expected job run to be succeeded, got %s", jobRuns.Status))
 				}
 				for _, stepRun := range jobRuns.StepRuns() {
 					if stepRun.Status != db.StepRunStatusSucceeded {
-						panic(fmt.Errorf("expected step run to be failed, got %s", stepRun.Status))
+						panic(fmt.Errorf("expected step run to be succeeded, got %s", stepRun.Status))
 					}
 					output, ok := stepRun.Output()
 					if !ok {

@@ -76,6 +76,7 @@ import {
   WorkflowRunList,
   WorkflowRunStatus,
   WorkflowRunStatusList,
+  WorkflowRunsCancelRequest,
   WorkflowRunsMetrics,
   WorkflowVersion,
   WorkflowVersionDefinition,
@@ -938,6 +939,30 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/tenants/${tenant}/workflows`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Cancel a batch of workflow runs
+   *
+   * @tags Workflow Run
+   * @name WorkflowRunCancel
+   * @summary Cancel workflow runs
+   * @request POST:/api/v1/tenants/{tenant}/workflows/cancel
+   * @secure
+   */
+  workflowRunCancel = (tenant: string, data: WorkflowRunsCancelRequest, params: RequestParams = {}) =>
+    this.request<
+      {
+        workflowRunIds?: string[];
+      },
+      APIErrors
+    >({
+      path: `/api/v1/tenants/${tenant}/workflows/cancel`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });

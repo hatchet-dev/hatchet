@@ -12,7 +12,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
-          version: "25.2"
+          version: "26.1"
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -25,7 +25,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
           run_install: false
 
       - name: Compose
@@ -51,7 +51,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
-          version: "25.1"
+          version: "26.1"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -78,7 +78,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
-          version: "25.1"
+          version: "26.1"
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -91,7 +91,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
           run_install: false
 
       - name: Compose
@@ -129,7 +129,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
-          version: "25.1"
+          version: "26.1"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -139,7 +139,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
           run_install: false
 
       - name: Compose
@@ -213,7 +213,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
-          version: "25.1"
+          version: "26.1"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -223,7 +223,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
           run_install: false
 
       - name: Compose

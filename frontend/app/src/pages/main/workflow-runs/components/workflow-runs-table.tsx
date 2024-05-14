@@ -4,12 +4,13 @@ import { useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   PaginationState,
+  RowSelectionState,
   SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import { WorkflowRunStatus, queries } from '@/lib/api';
+import api, { WorkflowRunStatus, queries } from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
@@ -19,8 +20,10 @@ import {
   ToolbarType,
 } from '@/components/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { WorkflowRunsMetricsView } from './workflow-runs-metrics';
+import queryClient from '@/query-client';
+import { useApiError } from '@/lib/hooks';
 
 export interface WorkflowRunsTableProps {
   workflowId?: string;
@@ -127,6 +130,39 @@ export function WorkflowRunsTable({
     ...queries.workflows.list(tenant.metadata.id),
   });
 
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  const selectedRuns = useMemo(() => {
+    return Object.entries(rowSelection)
+      .filter(([_, selected]) => !!selected)
+      .map(([id]) => (listWorkflowRunsQuery.data?.rows || [])[Number(id)]);
+  }, [listWorkflowRunsQuery.data?.rows, rowSelection]);
+
+  const { handleApiError } = useApiError({});
+
+  const cancelWorkflowRunMutation = useMutation({
+    mutationKey: ['workflow-run:cancel', tenant.metadata.id, selectedRuns],
+    mutationFn: async () => {
+      const tenantId = tenant.metadata.id;
+      const workflowRunIds = selectedRuns.map((wr) => wr.metadata.id);
+
+      invariant(tenantId, 'has tenantId');
+      invariant(workflowRunIds, 'has runIds');
+
+      const res = await api.workflowRunCancel(tenantId, {
+        workflowRunIds,
+      });
+
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queries.workflowRuns.list(tenant.metadata.id, {}).queryKey,
+      });
+    },
+    onError: handleApiError,
+  });
+
   const workflowKeyFilters = useMemo((): FilterOption[] => {
     return (
       workflowKeys?.rows?.map((key) => ({
@@ -189,6 +225,20 @@ export function WorkflowRunsTable({
 
   const actions = [
     <Button
+      disabled={!Object.values(rowSelection).some((selected) => !!selected)}
+      key="cancel"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        cancelWorkflowRunMutation.mutate();
+      }}
+      variant={'outline'}
+      aria-label="Cancel Selected Runs"
+    >
+      <XMarkIcon className={`mr-2 h-4 w-4 transition-transform`} />
+      Cancel Selected Runs
+    </Button>,
+    <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -232,6 +282,8 @@ export function WorkflowRunsTable({
         pagination={pagination}
         setPagination={setPagination}
         onSetPageSize={setPageSize}
+        rowSelection={rowSelection}
+        setRowSelection={setRowSelection}
         pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
       />
     </>

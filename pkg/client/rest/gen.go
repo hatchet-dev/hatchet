@@ -942,6 +942,11 @@ type WorkflowRunTriggeredBy struct {
 	ParentId     string          `json:"parentId"`
 }
 
+// WorkflowRunsCancelRequest defines model for WorkflowRunsCancelRequest.
+type WorkflowRunsCancelRequest struct {
+	WorkflowRunIds []openapi_types.UUID `json:"workflowRunIds"`
+}
+
 // WorkflowRunsMetrics defines model for WorkflowRunsMetrics.
 type WorkflowRunsMetrics struct {
 	Counts *WorkflowRunsMetricsCounts `json:"counts,omitempty"`
@@ -1188,6 +1193,9 @@ type SnsCreateJSONRequestBody = CreateSNSIntegrationRequest
 
 // StepRunUpdateRerunJSONRequestBody defines body for StepRunUpdateRerun for application/json ContentType.
 type StepRunUpdateRerunJSONRequestBody = RerunStepRunRequest
+
+// WorkflowRunCancelJSONRequestBody defines body for WorkflowRunCancel for application/json ContentType.
+type WorkflowRunCancelJSONRequestBody = WorkflowRunsCancelRequest
 
 // TenantInviteAcceptJSONRequestBody defines body for TenantInviteAccept for application/json ContentType.
 type TenantInviteAcceptJSONRequestBody = AcceptInviteRequest
@@ -1445,6 +1453,11 @@ type ClientInterface interface {
 
 	// WorkflowList request
 	WorkflowList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowRunCancelWithBody request with any body
+	WorkflowRunCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WorkflowRunCancel(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunList request
 	WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2225,6 +2238,30 @@ func (c *Client) WorkflowRunListPullRequests(ctx context.Context, tenant openapi
 
 func (c *Client) WorkflowList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowRunCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunCancelRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowRunCancel(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunCancelRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4712,6 +4749,53 @@ func NewWorkflowListRequest(server string, tenant openapi_types.UUID) (*http.Req
 	return req, nil
 }
 
+// NewWorkflowRunCancelRequest calls the generic WorkflowRunCancel builder with application/json body
+func NewWorkflowRunCancelRequest(server string, tenant openapi_types.UUID, body WorkflowRunCancelJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWorkflowRunCancelRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewWorkflowRunCancelRequestWithBody generates requests for WorkflowRunCancel with any type of body
+func NewWorkflowRunCancelRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/cancel", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewWorkflowRunListRequest generates requests for WorkflowRunList
 func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params *WorkflowRunListParams) (*http.Request, error) {
 	var err error
@@ -6105,6 +6189,11 @@ type ClientWithResponsesInterface interface {
 	// WorkflowListWithResponse request
 	WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error)
 
+	// WorkflowRunCancelWithBodyWithResponse request with any body
+	WorkflowRunCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunCancelResponse, error)
+
+	WorkflowRunCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowRunCancelResponse, error)
+
 	// WorkflowRunListWithResponse request
 	WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*WorkflowRunListResponse, error)
 
@@ -7322,6 +7411,32 @@ func (r WorkflowListResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowRunCancelResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		WorkflowRunIds *[]openapi_types.UUID `json:"workflowRunIds,omitempty"`
+	}
+	JSON400 *APIErrors
+	JSON403 *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowRunCancelResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowRunCancelResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowRunListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -8442,6 +8557,23 @@ func (c *ClientWithResponses) WorkflowListWithResponse(ctx context.Context, tena
 		return nil, err
 	}
 	return ParseWorkflowListResponse(rsp)
+}
+
+// WorkflowRunCancelWithBodyWithResponse request with arbitrary body returning *WorkflowRunCancelResponse
+func (c *ClientWithResponses) WorkflowRunCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunCancelResponse, error) {
+	rsp, err := c.WorkflowRunCancelWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowRunCancelResponse(rsp)
+}
+
+func (c *ClientWithResponses) WorkflowRunCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowRunCancelResponse, error) {
+	rsp, err := c.WorkflowRunCancel(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowRunCancelResponse(rsp)
 }
 
 // WorkflowRunListWithResponse request returning *WorkflowRunListResponse
@@ -10553,6 +10685,48 @@ func ParseWorkflowListResponse(rsp *http.Response) (*WorkflowListResponse, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest WorkflowList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowRunCancelResponse parses an HTTP response from a WorkflowRunCancelWithResponse call
+func ParseWorkflowRunCancelResponse(rsp *http.Response) (*WorkflowRunCancelResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowRunCancelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			WorkflowRunIds *[]openapi_types.UUID `json:"workflowRunIds,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

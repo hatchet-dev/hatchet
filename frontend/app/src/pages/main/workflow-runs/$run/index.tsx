@@ -1,7 +1,12 @@
 import { Separator } from '@/components/ui/separator';
-import { StepRun, StepRunStatus, queries } from '@/lib/api';
+import api, {
+  StepRun,
+  StepRunStatus,
+  WorkflowRunStatus,
+  queries,
+} from '@/lib/api';
 import CronPrettifier from 'cronstrue';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { timeBetween } from '@/lib/utils';
@@ -13,6 +18,22 @@ import { StepRunPlayground } from './components/step-run-playground';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import RelativeDate from '@/components/molecules/relative-date';
 import { RunStatus } from '../components/run-statuses';
+import { Button } from '@/components/ui/button';
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { BiDotsVertical } from 'react-icons/bi';
+import { useApiError } from '@/lib/hooks';
+
+export const WORKFLOW_RUN_TERMINAL_STATUSES = [
+  WorkflowRunStatus.CANCELLED,
+  WorkflowRunStatus.FAILED,
+  WorkflowRunStatus.SUCCEEDED,
+];
 
 export default function ExpandedWorkflowRun() {
   const [selectedStepRun, setSelectedStepRun] = useState<StepRun | undefined>();
@@ -68,6 +89,30 @@ export default function ExpandedWorkflowRun() {
     }
   }, [runQuery.data, params.run, selectedStepRun]);
 
+  const { handleApiError } = useApiError({});
+
+  const cancelWorkflowRunMutation = useMutation({
+    mutationKey: [
+      'workflow-run:cancel',
+      runQuery?.data?.tenantId,
+      runQuery?.data?.metadata.id,
+    ],
+    mutationFn: async () => {
+      const tenantId = runQuery?.data?.tenantId;
+      const workflowRunId = runQuery?.data?.metadata.id;
+
+      invariant(tenantId, 'has tenantId');
+      invariant(workflowRunId, 'has tenantId');
+
+      const res = await api.workflowRunCancel(tenantId, {
+        workflowRunIds: [workflowRunId],
+      });
+
+      return res.data;
+    },
+    onError: handleApiError,
+  });
+
   if (runQuery.isLoading || !runQuery.data) {
     return <Loading />;
   }
@@ -105,7 +150,34 @@ export default function ExpandedWorkflowRun() {
               /{selectedStepRun?.step?.readableId || '*'}
             </h2>
           </div>
-          <RunStatus status={run.status} className="text-sm mt-1 px-4 shrink" />
+          <div className="flex flex-row gap-2 items-center">
+            <RunStatus
+              status={run.status}
+              className="text-sm mt-1 px-4 shrink"
+            />
+
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                <Button
+                  aria-label="Workflow Actions"
+                  size="icon"
+                  variant="outline"
+                >
+                  <BiDotsVertical />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  disabled={WORKFLOW_RUN_TERMINAL_STATUSES.includes(run.status)}
+                  onClick={() => {
+                    cancelWorkflowRunMutation.mutate();
+                  }}
+                >
+                  Cancel all running steps
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         <div className="flex flex-row justify-start items-center gap-2">
           <div className="text-sm text-gray-700 dark:text-gray-300">
