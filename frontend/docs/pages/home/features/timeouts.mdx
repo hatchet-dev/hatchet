@@ -5,12 +5,14 @@ Timeouts are an important concept in Hatchet that allow you to control how long 
 ## Timeout Format
 
 In Hatchet, timeouts are specified using a string in the format `<number><unit>`, where `<number>` is an integer and `<unit>` is one of:
+
 - `s` for seconds
 - `m` for minutes
 - `h` for hours
 - `d` for days
 
 For example:
+
 - `10s` means 10 seconds
 - `4m` means 4 minutes
 - `1h` means 1 hour
@@ -70,9 +72,9 @@ const myStep: CreateStep<any, any> = {
   timeout: "30s",
   run: async (ctx) => {
     await sleep(20 * 1000);
-    ctx.refreshTimeout('15s');
+    ctx.refreshTimeout("15s");
     await sleep(10 * 1000);
-    return { step1: 'step1 results!' };
+    return { step1: "step1 results!" };
   },
 };
 ```
