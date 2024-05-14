@@ -19,9 +19,8 @@ func TestSimple(t *testing.T) {
 	defer cancel()
 
 	events := make(chan string, 50)
-	done := make(chan interface{})
 
-	err := run(done, events)
+	cleanup, err := run(events)
 	if err != nil {
 		t.Fatalf("/run() error = %v", err)
 	}
@@ -43,5 +42,7 @@ outer:
 		"step-two",
 	}, items)
 
-	<-done // Wait for the run function to complete
+	if err := cleanup(); err != nil {
+		t.Fatalf("cleanup() error = %v", err)
+	}
 }
