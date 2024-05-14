@@ -325,3 +325,7 @@ func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, wor
 
 	return err
 }
+
+func (w *workerEngineRepository) ResolveWorkerSemaphoreSlots(ctx context.Context) (int64, error) {
+	return w.queries.ResolveWorkerSemaphoreSlots(ctx, w.pool)
+}

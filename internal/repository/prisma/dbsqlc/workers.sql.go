@@ -269,6 +269,39 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 	return items, nil
 }
 
+const resolveWorkerSemaphoreSlots = `-- name: ResolveWorkerSemaphoreSlots :execrows
+UPDATE "WorkerSemaphore" ws
+SET "slots" = COALESCE(w."maxRuns", 100) - COALESCE(
+    (
+        SELECT COUNT(*)
+        FROM "StepRun" sr
+        WHERE sr."status" IN ('RUNNING', 'ASSIGNED')
+            AND sr."semaphoreReleased" = FALSE
+            AND sr."workerId" = w."id"
+    ), 0
+)
+FROM "Worker" w
+WHERE ws."workerId" = w."id"
+    AND "slots" != COALESCE(w."maxRuns", 100) - COALESCE(
+        (
+            SELECT COUNT(*)
+            FROM "StepRun" sr
+            WHERE sr."status" IN ('RUNNING', 'ASSIGNED')
+                AND sr."semaphoreReleased" = FALSE
+                AND sr."workerId" = w."id"
+        ), 0
+    )
+    AND "lastHeartbeatAt" > (CURRENT_TIMESTAMP - INTERVAL '1 minute')
+`
+
+func (q *Queries) ResolveWorkerSemaphoreSlots(ctx context.Context, db DBTX) (int64, error) {
+	result, err := db.Exec(ctx, resolveWorkerSemaphoreSlots)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateWorker = `-- name: UpdateWorker :one
 UPDATE
     "Worker"
