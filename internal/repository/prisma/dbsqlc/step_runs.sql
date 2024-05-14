@@ -572,7 +572,7 @@ SET
     "timeoutAt" = CASE
         -- Only update timeoutAt if the step run is currently in RUNNING status
         WHEN sr."status" = 'RUNNING' THEN
-            CURRENT_TIMESTAMP + convert_duration_to_interval(sqlc.narg('incrementTimeoutBy')::text)
+            COALESCE(sr."timeoutAt", CURRENT_TIMESTAMP) + convert_duration_to_interval(sqlc.narg('incrementTimeoutBy')::text)
             ELSE sr."timeoutAt"
         END,
     "updatedAt" = CURRENT_TIMESTAMP
