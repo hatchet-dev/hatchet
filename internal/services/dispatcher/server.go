@@ -331,6 +331,23 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	return &contracts.HeartbeatResponse{}, nil
 }
 
+func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	if req.StepRunId == "" {
+		return nil, fmt.Errorf("step run id is required")
+	}
+
+	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, req.StepRunId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.ReleaseSlotResponse{}, nil
+}
+
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
