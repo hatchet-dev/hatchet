@@ -270,6 +270,7 @@ StepRunEventReason:
     - FAILED
     - RETRYING
     - CANCELLED
+    - TIMEOUT_REFRESHED
 
 StepRunEventSeverity:
   type: string

@@ -79,6 +79,7 @@ const (
 	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
 	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
 	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
+	StepRunEventReasonTIMEOUTREFRESHED   StepRunEventReason = "TIMEOUT_REFRESHED"
 )
 
 // Defines values for StepRunEventSeverity.

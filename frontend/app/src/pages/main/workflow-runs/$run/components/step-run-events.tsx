@@ -89,6 +89,7 @@ const REASON_TO_TITLE: Record<StepRunEventReason, string> = {
   [StepRunEventReason.REQUEUED_NO_WORKER]: 'Requeueing (no worker available)',
   [StepRunEventReason.REQUEUED_RATE_LIMIT]: 'Requeueing (rate limit)',
   [StepRunEventReason.SCHEDULING_TIMED_OUT]: 'Scheduling timed out',
+  [StepRunEventReason.TIMEOUT_REFRESHED]: 'Timeout refreshed',
 };
 
 function getTitleFromReason(reason: StepRunEventReason, message: string) {

@@ -1208,15 +1208,25 @@ func (s *stepRunEngineRepository) RefreshTimeoutAt(ctx context.Context, tenantId
 		return nil, err
 	}
 
+	stepRunUUID := sqlchelpers.UUIDFromStr(stepRunId)
+	tenantUUID := sqlchelpers.UUIDFromStr(tenantId)
+
 	res, err := s.queries.RefreshTimeoutAt(ctx, tx, dbsqlc.RefreshTimeoutAtParams{
-		Steprunid:          sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Steprunid:          stepRunUUID,
+		Tenantid:           tenantUUID,
 		IncrementTimeoutBy: sqlchelpers.TextFromStr(incrementTimeoutBy),
 	})
 
 	if err != nil {
 		return nil, err
 	}
+
+	defer s.deferredStepRunEvent(
+		stepRunUUID,
+		dbsqlc.StepRunEventReasonTIMEOUTREFRESHED,
+		dbsqlc.StepRunEventSeverityINFO,
+		fmt.Sprintf("Timeout refreshed by %s", incrementTimeoutBy),
+		nil)
 
 	err = tx.Commit(ctx)
 
