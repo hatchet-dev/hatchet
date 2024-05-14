@@ -7,20 +7,16 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
-type WebhookWorker struct {
-	w *Worker
-}
-
-func (w *Worker) RegisterWebhook(t triggerConverter, url string, workflow workflowConverter) (*WebhookWorker, error) {
+func (w *Worker) RegisterWebhook(t triggerConverter, url string, workflow workflowConverter) error {
 	// get the default service
 	svc, ok := w.services.Load("default")
 
 	if !ok {
-		return nil, fmt.Errorf("could not load default service")
+		return fmt.Errorf("could not load default service")
 	}
 
 	if err := svc.(*Service).RegisterWebhook(t, url, workflow); err != nil {
-		return nil, fmt.Errorf("could not register webhook: %w", err)
+		return fmt.Errorf("could not register webhook: %w", err)
 	}
 
 	actionNames := []string{}
@@ -35,8 +31,8 @@ func (w *Worker) RegisterWebhook(t triggerConverter, url string, workflow workfl
 		MaxRuns:    w.maxRuns,
 		Webhook:    true,
 	}); err != nil {
-		return nil, fmt.Errorf("could not register worker: %w", err)
+		return fmt.Errorf("could not register worker: %w", err)
 	}
 
-	return &WebhookWorker{w: w}, nil
+	return nil
 }

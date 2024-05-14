@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
-func (w *WebhookWorker) Middleware(process func(event dispatcher.WebhookEvent) interface{}) http.HandlerFunc {
+func (w *Worker) Middleware(process func(event dispatcher.WebhookEvent) interface{}) http.HandlerFunc {
 	return func(writer http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -41,7 +41,7 @@ func (w *WebhookWorker) Middleware(process func(event dispatcher.WebhookEvent) i
 		_, _ = writer.Write([]byte("OK"))
 
 		timestamp := time.Now().UTC()
-		_, err = w.w.client.Dispatcher().SendStepActionEvent(context.TODO(),
+		_, err = w.client.Dispatcher().SendStepActionEvent(context.TODO(),
 			&client.ActionEvent{
 				Action: &client.Action{
 					//WorkerId:         event.WorkerId,
