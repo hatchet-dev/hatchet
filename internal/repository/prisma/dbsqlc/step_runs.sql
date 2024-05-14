@@ -344,11 +344,11 @@ step_runs AS (
         sr."tenantId" = @tenantId::uuid
         AND ((
             sr."status" = 'RUNNING'
-            AND (w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds' OR w."webhook" = true)
+            AND (w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds' OR w."webhook" = true)
             AND s."retries" > sr."retryCount"
         ) OR (
             sr."status" = 'ASSIGNED'
-            AND (w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds' OR w."webhook" = true)
+            AND (w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds' OR w."webhook" = true)
         ))
         AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL

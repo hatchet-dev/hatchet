@@ -14,7 +14,7 @@ CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED',
 CREATE TYPE "LogLineLevel" AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
 
 -- CreateEnum
-CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED');
+CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'SLOT_RELEASED', 'TIMED_OUT', 'REASSIGNED');
 
 -- CreateEnum
 CREATE TYPE "StepRunEventSeverity" AS ENUM ('INFO', 'WARNING', 'CRITICAL');
@@ -355,6 +355,7 @@ CREATE TABLE "StepRun" (
     "callerFiles" JSONB,
     "gitRepoBranch" TEXT,
     "retryCount" INTEGER NOT NULL DEFAULT 0,
+    "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );
@@ -710,8 +711,8 @@ CREATE TABLE "WorkflowVersion" (
     "workflowId" UUID NOT NULL,
     "checksum" TEXT NOT NULL,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
-    "webhook" TEXT,
     "onFailureJobId" UUID,
+    "webhook" TEXT,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
@@ -1357,3 +1358,4 @@ ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_A_fk
 
 -- AddForeignKey
 ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_B_fkey" FOREIGN KEY ("B") REFERENCES "WorkflowTag"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+

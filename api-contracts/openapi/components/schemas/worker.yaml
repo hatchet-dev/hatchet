@@ -39,7 +39,6 @@ Worker:
       minLength: 36
       maxLength: 36
       format: uuid
-      required:
   required:
     - metadata
     - name

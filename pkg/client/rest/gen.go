@@ -74,12 +74,14 @@ const (
 	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
 	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
 	StepRunEventReasonFINISHED           StepRunEventReason = "FINISHED"
+	StepRunEventReasonREASSIGNED         StepRunEventReason = "REASSIGNED"
 	StepRunEventReasonREQUEUEDNOWORKER   StepRunEventReason = "REQUEUED_NO_WORKER"
 	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
 	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
 	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
 	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
 	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
+	StepRunEventReasonTIMEDOUT           StepRunEventReason = "TIMED_OUT"
 )
 
 // Defines values for StepRunEventSeverity.
