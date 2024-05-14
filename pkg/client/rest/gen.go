@@ -82,6 +82,7 @@ const (
 	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
 	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
 	StepRunEventReasonTIMEDOUT           StepRunEventReason = "TIMED_OUT"
+	StepRunEventReasonTIMEOUTREFRESHED   StepRunEventReason = "TIMEOUT_REFRESHED"
 )
 
 // Defines values for StepRunEventSeverity.
