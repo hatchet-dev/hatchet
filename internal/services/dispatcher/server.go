@@ -345,10 +345,7 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 		return nil, err
 	}
 
-	fmt.Println("Received release slot request from ID: ", tenantId)
-
 	return &contracts.ReleaseSlotResponse{}, nil
-
 }
 
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher

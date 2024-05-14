@@ -384,7 +384,7 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
-	stepRun, err := s.GetStepRunForEngine(context.Background(), tenantId, stepRunId)
+	stepRun, err := s.getStepRunForEngineTx(context.Background(), tx, tenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run for engine: %w", err)
@@ -1213,7 +1213,11 @@ func (s *stepRunEngineRepository) updateStepRunExtra(
 
 // performant query for step run id, only returns what the engine needs
 func (s *stepRunEngineRepository) GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
-	res, err := s.queries.GetStepRunForEngine(ctx, s.pool, dbsqlc.GetStepRunForEngineParams{
+	return s.getStepRunForEngineTx(ctx, s.pool, tenantId, stepRunId)
+}
+
+func (s *stepRunEngineRepository) getStepRunForEngineTx(ctx context.Context, dbtx dbsqlc.DBTX, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
+	res, err := s.queries.GetStepRunForEngine(ctx, dbtx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(stepRunId)},
 		TenantId: sqlchelpers.UUIDFromStr(tenantId),
 	})

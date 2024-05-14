@@ -2,11 +2,9 @@ import api, { CreateTenantRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { TenantCreateForm } from './components/tenant-create-form';
 
 export default function CreateTenant() {
-  const navigate = useNavigate();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
@@ -24,10 +22,7 @@ export default function CreateTenant() {
     },
     onSuccess: async (tenant) => {
       await listMembershipsQuery.refetch();
-      navigate({
-        pathname: `/onboarding/get-started`,
-        search: `tenant=${tenant.metadata.id}`,
-      });
+      window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
     },
     onError: handleApiError,
   });
