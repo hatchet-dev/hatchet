@@ -158,7 +158,8 @@ SET
         WHEN sqlc.narg('rerun')::boolean THEN NULL
         ELSE COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
     END,
-    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount")
+    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount"),
+    "semaphoreReleased" = COALESCE(sqlc.narg('semaphoreReleased')::boolean, "semaphoreReleased")
 WHERE 
   "id" = @id::uuid AND
   "tenantId" = @tenantId::uuid
@@ -340,11 +341,10 @@ step_runs AS (
         sr."tenantId" = @tenantId::uuid
         AND ((
             sr."status" = 'RUNNING'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
-            AND s."retries" > sr."retryCount"
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ) OR (
             sr."status" = 'ASSIGNED'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ))
         AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL

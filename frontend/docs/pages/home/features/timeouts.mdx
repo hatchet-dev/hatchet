@@ -1,6 +1,13 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+
 # Timeouts in Hatchet
 
-Timeouts are an important concept in Hatchet that allow you to control how long a workflow or step is allowed to run before it is considered to have failed. This is useful for ensuring that your workflows don't run indefinitely and consume unnecessary resources.
+Timeouts are an important concept in Hatchet that allow you to control how long a workflow or step is allowed to run before it is considered to have failed. This is useful for ensuring that your workflows don't run indefinitely and consume unnecessary resources. Timeouts in Hatchat are treated as failures and the step will be [retried](/features/retries/simple) if specified.
+
+There are two types of timeouts in Hatchet:
+
+1. **Scheduling Timeouts** (Default 5m) - the time a step is allowed to wait in the queue before it is cancelled
+2. **Execution Timeouts** (Default 60s) - the time a step is allowed to run before it is considered to have failed
 
 ## Timeout Format
 
@@ -20,33 +27,66 @@ For example:
 
 If no unit is specified, seconds are assumed.
 
-## Default Timeout
+### Scheduling Timeouts
 
-By default, if no timeout is specified for a workflow or step, a timeout of 60 seconds is used. This means that if a workflow or step takes longer than 60 seconds to complete, it will be considered to have failed.
+To specify a timeout for an entire workflow, you can set the `Schedule Timeout` property in the workflow definition:
 
-## Specifying Timeouts
-
-Timeouts can be specified at both the workflow and step level:
-
-### Workflow Timeouts
-
-To specify a timeout for an entire workflow, you can set the `timeout` property in the workflow definition:
-
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+@hatchet.workflow(schedule_timeout="2m")
+class TimeoutWorkflow:
+  # ...
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
 ```typescript
 const myWorkflow: Workflow = {
   id: "my-workflow",
   // ...
-  timeout: "2m",
+  scheduleTimeout: "2m",
   // ...
 };
 ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+cleanup, err := run(events, worker.WorkflowJob{
+  Name:        "timeout",
+  Description: "timeout",
+  ScheduleTimeoutAt: "2m",
+  Steps: []*worker.WorkflowStep{
+    worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+      time.Sleep(time.Second * 60)
+      return nil, nil
+    }).SetName("step-one")
+  },
+})
+```
+  </Tabs.Tab>
+</Tabs>
 
-This would set a timeout of 2 minutes for the entire workflow. If the workflow takes longer than 2 minutes to complete, it will fail.
+This would set a timeout of 2 minutes for all steps in the workflow. If the workflow takes longer than 2 minutes for assignment of the step to a worker, it will be cancelled and will not be assigned to a worker.
 
 ### Step Timeouts
 
 To specify a timeout for an individual step, you can set the `timeout` property in the step definition:
 
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+@hatchet.step(timeout="30s")
+def timeout(self, context):
+    try:
+        print("started step2")
+        context.sleep(5)
+        print("finished step2")
+    except Exception as e:
+        print("caught an exception: " + str(e))
+        raise e
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
 ```typescript
 const myStep: CreateStep<any, any> = {
   name: "my-step",
@@ -57,8 +97,30 @@ const myStep: CreateStep<any, any> = {
   },
 };
 ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+cleanup, err := run(events, worker.WorkflowJob{
+		Name:        "timeout",
+		Description: "timeout",
+		Steps: []*worker.WorkflowStep{
+			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+				time.Sleep(time.Second * 60)
+				return nil, nil
+			}).SetName("step-one").SetTimeout("30s"),
+		},
+	})
+```
+  </Tabs.Tab>
+</Tabs>
 
-This would set a timeout of 30 seconds for this specific step. If the step takes longer than 30 seconds to complete, it will fail.
+This would set a timeout of 30 seconds for this specific step. If the step takes longer than 30 seconds to complete, it will fail and the workflow will be cancelled.
+
+<Callout type="warning">
+  A timed out step does not gurantee that the step will be stopped immediately.
+  The step will be stopped as soon as the worker is able to stop the step. See
+  [cancellation](/features/cancellation) for more information.
+</Callout>
 
 ## Use Cases
 

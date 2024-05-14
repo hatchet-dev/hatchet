@@ -85,12 +85,8 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 			for _, workflowRun := range event.WorkflowRuns() {
 				for _, jobRuns := range workflowRun.Parent().JobRuns() {
 					for _, stepRun := range jobRuns.StepRuns() {
-						if stepRun.Status != db.StepRunStatusCancelled {
+						if stepRun.Status != db.StepRunStatusFailed {
 							panic(fmt.Errorf("expected step run to be failed, got %s", stepRun.Status))
-						}
-						reason, _ := stepRun.CancelledReason()
-						if reason != "TIMED_OUT" {
-							panic(fmt.Errorf("expected step run to be failed, got %s", reason))
 						}
 					}
 				}

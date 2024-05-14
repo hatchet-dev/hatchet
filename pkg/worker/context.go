@@ -36,6 +36,8 @@ type HatchetContext interface {
 
 	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error)
 
+	ReleaseSlot() error
+
 	client() client.Client
 
 	action() *client.Action
@@ -160,6 +162,16 @@ func (h *hatchetContext) Log(message string) {
 	if err != nil {
 		h.l.Err(err).Msg("could not put log")
 	}
+}
+
+func (h *hatchetContext) ReleaseSlot() error {
+	err := h.c.Dispatcher().ReleaseSlot(h, h.a.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("failed to release slot: %w", err)
+	}
+
+	return nil
 }
 
 func (h *hatchetContext) StreamEvent(message []byte) {
