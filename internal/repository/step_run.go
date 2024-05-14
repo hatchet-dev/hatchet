@@ -32,6 +32,16 @@ func IsFinalWorkflowRunStatus(status dbsqlc.WorkflowRunStatus) bool {
 	return status != dbsqlc.WorkflowRunStatusPENDING && status != dbsqlc.WorkflowRunStatusRUNNING && status != dbsqlc.WorkflowRunStatusQUEUED
 }
 
+type CreateStepRunEventOpts struct {
+	EventMessage *string
+
+	EventReason *dbsqlc.StepRunEventReason
+
+	EventSeverity *dbsqlc.StepRunEventSeverity
+
+	EventData *map[string]interface{}
+}
+
 type UpdateStepRunOpts struct {
 	IsRerun bool
 
@@ -59,11 +69,7 @@ type UpdateStepRunOpts struct {
 
 	RetryCount *int
 
-	EventMessage *string
-
-	EventReason *dbsqlc.StepRunEventReason
-
-	EventSeverity *dbsqlc.StepRunEventSeverity
+	Event *CreateStepRunEventOpts
 }
 
 type UpdateStepRunOverridesDataOpts struct {
@@ -127,6 +133,8 @@ type StepRunEngineRepository interface {
 	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *StepRunUpdateInfo, error)
+
+	CreateStepRunEvent(ctx context.Context, tenantId, stepRunId string, opts CreateStepRunEventOpts) error
 
 	UnlinkStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error
 

@@ -971,6 +971,46 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 	return stepRun, nil
 }
 
+func (s *stepRunEngineRepository) CreateStepRunEvent(ctx context.Context, tenantId, stepRunId string, opts repository.CreateStepRunEventOpts) error {
+
+	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
+
+	if opts.EventMessage != nil && opts.EventReason != nil {
+		severity := dbsqlc.StepRunEventSeverityINFO
+
+		if opts.EventSeverity != nil {
+			severity = *opts.EventSeverity
+		}
+
+		var eventData []byte
+		var err error
+
+		if opts.EventData != nil {
+			eventData, err = json.Marshal(opts.EventData)
+
+			if err != nil {
+				return fmt.Errorf("could not marshal step run event data: %w", err)
+			}
+		}
+
+		createParams := &dbsqlc.CreateStepRunEventParams{
+			Steprunid: pgStepRunId,
+			Message:   *opts.EventMessage,
+			Reason:    *opts.EventReason,
+			Severity:  severity,
+			Data:      eventData,
+		}
+
+		err = s.queries.CreateStepRunEvent(ctx, s.pool, *createParams)
+
+		if err != nil {
+			return fmt.Errorf("could not create step run event: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func getUpdateParams(
 	tenantId,
 	stepRunId string,
@@ -1005,17 +1045,19 @@ func getUpdateParams(
 
 	var createParams *dbsqlc.CreateStepRunEventParams
 
-	if opts.EventMessage != nil && opts.EventReason != nil {
+	event := opts.Event
+
+	if event != nil && event.EventMessage != nil && event.EventReason != nil {
 		severity := dbsqlc.StepRunEventSeverityINFO
 
-		if opts.EventSeverity != nil {
-			severity = *opts.EventSeverity
+		if event.EventSeverity != nil {
+			severity = *event.EventSeverity
 		}
 
 		createParams = &dbsqlc.CreateStepRunEventParams{
 			Steprunid: pgStepRunId,
-			Message:   *opts.EventMessage,
-			Reason:    *opts.EventReason,
+			Message:   *event.EventMessage,
+			Reason:    *event.EventReason,
 			Severity:  severity,
 		}
 	}
