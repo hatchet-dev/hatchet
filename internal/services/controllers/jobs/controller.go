@@ -320,11 +320,17 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 	for _, stepRun := range stepRuns {
 		stepRunCp := stepRun
 
+		reason := "JOB_RUN_CANCELLED"
+
+		if payload.Reason != nil {
+			reason = *payload.Reason
+		}
+
 		g.Go(func() error {
 			return ec.mq.AddMessage(
 				ctx,
 				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.StepRunCancelToTask(stepRunCp, "JOB_RUN_CANCELLED"),
+				tasktypes.StepRunCancelToTask(stepRunCp, reason),
 			)
 		})
 	}

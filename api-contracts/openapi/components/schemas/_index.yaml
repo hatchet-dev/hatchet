@@ -124,6 +124,8 @@ WorkflowRunStatus:
   $ref: "./workflow_run.yaml#/WorkflowRunStatus"
 WorkflowRunStatusList:
   $ref: "./workflow_run.yaml#/WorkflowRunStatusList"
+WorkflowRunsCancelRequest:
+  $ref: "./workflow_run.yaml#/WorkflowRunsCancelRequest"
 JobRunStatus:
   $ref: "./workflow_run.yaml#/JobRunStatus"
 StepRunStatus:
