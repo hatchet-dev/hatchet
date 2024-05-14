@@ -32,6 +32,7 @@ import { RunStatus } from '../../components/run-statuses';
 import { QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { WorkflowRunsTable } from '../../components/workflow-runs-table';
 import { StepRunEvents } from './step-run-events';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export function StepRunPlayground({
   stepRun,
@@ -453,6 +454,12 @@ export function StepRunPlayground({
 
               {isLoading && disabled && (
                 <>
+                  {stepRun.timeoutAt && (
+                    <div>
+                      Timeout in{' '}
+                      <RelativeDate date={stepRun.timeoutAt} future />
+                    </div>
+                  )}
                   <Button className="w-fit" onClick={handleOnCancel}>
                     <>
                       <XMarkIcon className={cn('h-4 w-4 mr-2')} />
