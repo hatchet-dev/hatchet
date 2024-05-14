@@ -769,11 +769,10 @@ step_runs AS (
         sr."tenantId" = $1::uuid
         AND ((
             sr."status" = 'RUNNING'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
-            AND s."retries" > sr."retryCount"
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ) OR (
             sr."status" = 'ASSIGNED'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ))
         AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
