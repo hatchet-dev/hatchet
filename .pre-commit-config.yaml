@@ -6,7 +6,9 @@ repos:
       - id: mixed-line-ending
         args: ["--fix=lf"]
       - id: end-of-file-fixer
-        exclude: \.sql
+        exclude: prisma/migrations/.*\.sql
+      - id: trailing-whitespace
+        exclude: prisma/migrations/.*\.sql
       - id: check-yaml
   - repo: https://github.com/golangci/golangci-lint
     rev: v1.57.1

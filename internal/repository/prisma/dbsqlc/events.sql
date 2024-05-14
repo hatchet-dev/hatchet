@@ -127,7 +127,7 @@ ORDER BY
 
 -- name: ListEventsByIDs :many
 SELECT
-    * 
+    *
 FROM
     "Event" as events
 WHERE

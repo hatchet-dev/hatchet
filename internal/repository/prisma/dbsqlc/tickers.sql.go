@@ -199,15 +199,15 @@ active_cron_schedules AS (
         triggers."tenantId" AS "tenantId"
     FROM
         "WorkflowTriggerCronRef" as cronSchedule
-    JOIN 
+    JOIN
         "WorkflowTriggers" as triggers ON triggers."id" = cronSchedule."parentId"
     JOIN
         "WorkflowVersion" as versions ON versions."id" = triggers."workflowVersionId"
-    JOIN 
+    JOIN
         latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
     WHERE
         "enabled" = TRUE AND
-        ("tickerId" IS NULL 
+        ("tickerId" IS NULL
         OR NOT EXISTS (
             SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
         )
@@ -276,7 +276,7 @@ WITH getGroupKeyRunsToTimeout AS (
             NOT EXISTS (
                 SELECT 1 FROM "Ticker" WHERE "id" = getGroupKeyRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
             )
-            OR "tickerId" IS NULL 
+            OR "tickerId" IS NULL
         )
     FOR UPDATE SKIP LOCKED
 )
@@ -350,7 +350,7 @@ not_run_scheduled_workflows AS (
         "WorkflowTriggerScheduledRef" as scheduledWorkflow
     JOIN
         "WorkflowVersion" as versions ON versions."id" = scheduledWorkflow."parentId"
-    JOIN 
+    JOIN
         latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
     JOIN
         "Workflow" as workflow ON workflow."id" = versions."workflowId"
@@ -360,7 +360,7 @@ not_run_scheduled_workflows AS (
         "triggerAt" <= NOW() + INTERVAL '5 seconds'
         AND runTriggeredBy IS NULL
         AND (
-            "tickerId" IS NULL 
+            "tickerId" IS NULL
             OR NOT EXISTS (
                 SELECT 1 FROM "Ticker" WHERE "id" = scheduledWorkflow."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
             )
@@ -446,7 +446,7 @@ WITH stepRunsToTimeout AS (
             NOT EXISTS (
                 SELECT 1 FROM "Ticker" WHERE "id" = stepRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
             )
-            OR "tickerId" IS NULL 
+            OR "tickerId" IS NULL
         )
     FOR UPDATE SKIP LOCKED
 )

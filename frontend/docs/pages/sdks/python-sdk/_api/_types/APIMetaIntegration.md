@@ -5,8 +5,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**name** | **str** | the name of the integration | 
-**enabled** | **bool** | whether this integration is enabled on the instance | 
+**name** | **str** | the name of the integration |
+**enabled** | **bool** | whether this integration is enabled on the instance |
 
 ## Example
 

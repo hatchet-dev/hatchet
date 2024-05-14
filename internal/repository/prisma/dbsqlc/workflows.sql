@@ -2,32 +2,32 @@
 SELECT
     count(workflows) OVER() AS total
 FROM
-    "Workflow" as workflows 
+    "Workflow" as workflows
 WHERE
     workflows."tenantId" = $1 AND
     (
         sqlc.narg('eventKey')::text IS NULL OR
         workflows."id" IN (
-            SELECT 
+            SELECT
                 DISTINCT ON(t1."workflowId") t1."workflowId"
-            FROM 
+            FROM
                 "WorkflowVersion" AS t1
-                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id" 
-            WHERE 
+                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+            WHERE
                 (
                     j2."id" IN (
-                        SELECT 
-                            t3."parentId" 
-                        FROM 
+                        SELECT
+                            t3."parentId"
+                        FROM
                             "public"."WorkflowTriggerEventRef" AS t3
-                        WHERE 
+                        WHERE
                             t3."eventKey" = sqlc.narg('eventKey')::text
                             AND t3."parentId" IS NOT NULL
-                    ) 
-                    AND j2."id" IS NOT NULL 
+                    )
+                    AND j2."id" IS NOT NULL
                     AND t1."workflowId" IS NOT NULL
                 )
-            ORDER BY 
+            ORDER BY
                 t1."workflowId" DESC, t1."order" DESC
         )
     );
@@ -46,40 +46,40 @@ WHERE
     (
         sqlc.narg('eventKey')::text IS NULL OR
         workflow."id" IN (
-            SELECT 
+            SELECT
                 DISTINCT ON(t1."workflowId") t1."workflowId"
-            FROM 
+            FROM
                 "WorkflowVersion" AS t1
-                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id" 
-            WHERE 
+                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+            WHERE
                 (
                     j2."id" IN (
-                        SELECT 
-                            t3."parentId" 
-                        FROM 
+                        SELECT
+                            t3."parentId"
+                        FROM
                             "public"."WorkflowTriggerEventRef" AS t3
-                        WHERE 
+                        WHERE
                             t3."eventKey" = sqlc.narg('eventKey')::text
                             AND t3."parentId" IS NOT NULL
-                    ) 
-                    AND j2."id" IS NOT NULL 
+                    )
+                    AND j2."id" IS NOT NULL
                     AND t1."workflowId" IS NOT NULL
                 )
-            ORDER BY 
+            ORDER BY
                 t1."workflowId" DESC, t1."order" DESC
         )
     )
-ORDER BY 
-    workflow."id" DESC, runs."createdAt" DESC; 
+ORDER BY
+    workflow."id" DESC, runs."createdAt" DESC;
 
 -- name: ListWorkflows :many
-SELECT 
+SELECT
     sqlc.embed(workflows)
 FROM (
     SELECT
         DISTINCT ON(workflows."id") workflows.*
     FROM
-        "Workflow" as workflows 
+        "Workflow" as workflows
     LEFT JOIN
         (
             SELECT * FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
@@ -89,31 +89,31 @@ FROM (
     LEFT JOIN
         "WorkflowTriggerEventRef" as workflowTriggerEventRef ON workflowTrigger."id" = workflowTriggerEventRef."parentId"
     WHERE
-        workflows."tenantId" = $1 
+        workflows."tenantId" = $1
         AND
         (
             sqlc.narg('eventKey')::text IS NULL OR
             workflows."id" IN (
-                SELECT 
+                SELECT
                     DISTINCT ON(t1."workflowId") t1."workflowId"
-                FROM 
+                FROM
                     "WorkflowVersion" AS t1
-                    LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id" 
-                WHERE 
+                    LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+                WHERE
                     (
                         j2."id" IN (
-                            SELECT 
-                                t3."parentId" 
-                            FROM 
+                            SELECT
+                                t3."parentId"
+                            FROM
                                 "public"."WorkflowTriggerEventRef" AS t3
-                            WHERE 
+                            WHERE
                                 t3."eventKey" = sqlc.narg('eventKey')::text
                                 AND t3."parentId" IS NOT NULL
-                        ) 
-                        AND j2."id" IS NOT NULL 
+                        )
+                        AND j2."id" IS NOT NULL
                         AND t1."workflowId" IS NOT NULL
                     )
-                ORDER BY 
+                ORDER BY
                     t1."workflowId" DESC
             )
         )
@@ -248,12 +248,12 @@ INSERT INTO "Step" (
 
 -- name: AddStepParents :exec
 INSERT INTO "_StepOrder" ("A", "B")
-SELECT 
+SELECT
     step."id",
     @id::uuid
-FROM 
+FROM
     unnest(@parents::text[]) AS parent_readable_id
-JOIN 
+JOIN
     "Step" AS step ON step."readableId" = parent_readable_id AND step."jobId" = @jobId::uuid;
 
 -- name: CreateStepRateLimit :one
@@ -280,7 +280,7 @@ VALUES (
     LOWER(@action::text),
     @tenantId::uuid
 )
-ON CONFLICT ("tenantId", "actionId") DO UPDATE 
+ON CONFLICT ("tenantId", "actionId") DO UPDATE
 SET
     "tenantId" = EXCLUDED."tenantId"
 WHERE
@@ -370,7 +370,7 @@ LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
 LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
 WHERE
     (j1."tenantId"::uuid = @tenantId AND j1.id IS NOT NULL)
-    AND 
+    AND
     (j2.id IN (
         SELECT t3."parentId"
         FROM "WorkflowTriggerEventRef" AS t3
