@@ -3,10 +3,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
@@ -17,65 +19,73 @@ func TestWebhook(t *testing.T) {
 
 	tests := []struct {
 		name string
-		job  worker.WorkflowJob
+		job  func(events chan<- string) worker.WorkflowJob
 	}{
 		{
 			name: "simple action",
-			job: worker.WorkflowJob{
-				Webhook:     fmt.Sprintf("http://localhost:%s/webhook", port),
-				Name:        "simple-webhook",
-				Description: "simple webhook",
-				Steps: []*worker.WorkflowStep{ // TODO add events channel to make sure both steps were executed
-					worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
-						log.Printf("step one received")
+			job: func(events chan<- string) worker.WorkflowJob {
+				return worker.WorkflowJob{
+					Webhook:     fmt.Sprintf("http://localhost:%s/webhook", port),
+					Name:        "simple-webhook",
+					Description: "simple webhook",
+					Steps: []*worker.WorkflowStep{
+						worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
+							//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
 
-						time.Sleep(time.Second * 3) // this needs to be 3
+							events <- "step-one"
 
-						log.Printf("step name: %s", ctx.StepName())
+							return &output{
+								Message: "hi from " + ctx.StepName(),
+							}, nil
+						}).SetName("step-one").SetTimeout("60s"),
+						worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
+							var out output
+							if err := ctx.StepOutput("step-one", &out); err != nil {
+								panic(err)
+							}
+							if out.Message != "hi from step-one" {
+								panic(fmt.Errorf("expected step run output to be valid, got %s", out.Message))
+							}
 
-						//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
+							events <- "step-two"
 
-						time.Sleep(time.Second * 2)
+							//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
 
-						return &output{
-							Message: "hi from " + ctx.StepName(),
-						}, nil
-					}).SetName("step-one").SetTimeout("60s"),
-					worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
-						log.Printf("step two received")
-
-						time.Sleep(time.Second * 2)
-
-						log.Printf("step name: %s", ctx.StepName())
-
-						var out output
-						if err := ctx.StepOutput("step-one", &out); err != nil {
-							panic(err)
-						}
-						log.Printf("this is step-two, step-one had output: %+v", out)
-
-						if out.Message != "hi from step-one" {
-							panic(fmt.Errorf("expected step run output to be valid, got %s", out.Message))
-						}
-
-						//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
-
-						time.Sleep(time.Second * 2)
-
-						return &output{
-							Message: "hi from " + ctx.StepName(),
-						}, nil
-					}).SetName("step-two").SetTimeout("60s").AddParents("step-one"),
-				},
+							return &output{
+								Message: "hi from " + ctx.StepName(),
+							}, nil
+						}).SetName("step-two").SetTimeout("60s").AddParents("step-one"),
+					},
+				}
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := run(tt.job)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			events := make(chan string, 10)
+			err := run(tt.job(events))
 			if err != nil {
 				t.Fatalf("run() error = %s", err)
 			}
+
+			var items []string
+		outer:
+			for {
+				select {
+				case item := <-events:
+					items = append(items, item)
+				case <-ctx.Done():
+					break outer
+				}
+			}
+
+			assert.Equal(t, []string{
+				"step-one",
+				"step-two",
+			}, items)
 		})
 	}
 }

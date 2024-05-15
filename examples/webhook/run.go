@@ -70,16 +70,15 @@ func run(job worker.WorkflowJob) error {
 		panic(fmt.Errorf("error pushing event: %w", err))
 	}
 
-	time.Sleep(2 * time.Second) // this needs to be 2
-
 	// TODO test for assigned status before it is started
+	//time.Sleep(2 * time.Second)
 	//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusAssigned, nil)
 
-	time.Sleep(20 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	verifyStepRuns(client, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
 		if string(output) != `{"message":"hi from step-one"}` && string(output) != `{"message":"hi from step-two"}` {
-			panic(fmt.Errorf("expected step run output to be valid, got %s", string(output)))
+			panic(fmt.Errorf("expected step run output to be valid, got %s", output))
 		}
 	})
 
