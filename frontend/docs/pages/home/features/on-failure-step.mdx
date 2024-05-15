@@ -57,32 +57,32 @@ const workflow: Workflow = {
 <Tabs.Tab>
 ```go
 
-func StepOne(ctx worker.HatchetContext) (result \*stepOneOutput, err error) {
-return nil, fmt.Errorf("test on failure")
+func StepOne(ctx worker.HatchetContext)(result *stepOneOutput, err error) {
+    return nil, fmt.Errorf("test on failure")
 }
 
-func OnFailure(ctx worker.HatchetContext) (result \*stepOneOutput, err error) {
-return &stepOneOutput{
-Message: "Failure!",
-}, nil
+func OnFailure(ctx worker.HatchetContext)(result *stepOneOutput, err error) {
+    return &stepOneOutput {
+        Message: "Failure!",
+    }, nil
 }
 
-err = w.On(
-worker.NoTrigger(),
-&worker.WorkflowJob{
-Name: "on-failure-workflow",
-Description: "This runs at a scheduled time.",
-Steps: []*worker.WorkflowStep{
-worker.Fn(StepOne).SetName("step-one"),
-},
-OnFailure: &worker.WorkflowJob{
-Name: "scheduled-workflow-failure",
-Description: "This runs when the scheduled workflow fails.",
-Steps: []*worker.WorkflowStep{
-worker.Fn(OnFailure).SetName("on-failure"),
-},
-},
-},
+
+err := w.On(
+    worker.NoTrigger(), & worker.WorkflowJob {
+        Name: "on-failure-workflow",
+        Description: "This runs at a scheduled time.",
+        Steps: [] * worker.WorkflowStep {
+            worker.Fn(StepOne).SetName("step-one"),
+        },
+        OnFailure: & worker.WorkflowJob {
+            Name: "scheduled-workflow-failure",
+            Description: "This runs when the scheduled workflow fails.",
+            Steps: [] * worker.WorkflowStep {
+                worker.Fn(OnFailure).SetName("on-failure"),
+            },
+        },
+    },
 )
 
 ````
