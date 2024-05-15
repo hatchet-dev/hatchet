@@ -29,18 +29,40 @@ func (w *Worker) WebhookHandler(process func(event dispatcher.WebhookEvent) inte
 		indent, _ := json.MarshalIndent(event, "", "  ")
 		log.Printf("data: %s", string(indent))
 
-		// TODO set event to started
+		timestamp := time.Now().UTC()
+		_, err = w.client.Dispatcher().SendStepActionEvent(context.TODO(),
+			&client.ActionEvent{
+				Action: &client.Action{
+					//WorkerId:         event.WorkerId,
+					TenantId:         event.TenantId,
+					WorkflowRunId:    event.WorkflowRunId,
+					GetGroupKeyRunId: event.GetGroupKeyRunId,
+					JobId:            event.JobId,
+					JobName:          event.JobName,
+					JobRunId:         event.JobRunId,
+					StepId:           event.StepId,
+					StepName:         event.StepName,
+					StepRunId:        event.StepRunId,
+					ActionId:         event.ActionId,
+					//ActionPayload:    event.ActionPayload,
+					//ActionType:       event.ActionType,
+				},
+				EventTimestamp: &timestamp,
+				EventType:      client.ActionEventTypeStarted,
+			},
+		)
+		if err != nil {
+			panic(err)
+		}
 
 		resp := process(event)
 
 		log.Printf("got response from user: %+v", resp)
 
-		// TODO set event to completed
-
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte("OK"))
 
-		timestamp := time.Now().UTC()
+		timestamp = time.Now().UTC()
 		_, err = w.client.Dispatcher().SendStepActionEvent(context.TODO(),
 			&client.ActionEvent{
 				Action: &client.Action{
