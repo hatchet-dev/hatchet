@@ -13,6 +13,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
+var port = "8741"
+
 func run(job worker.WorkflowJob) error {
 	c, err := client.New()
 	if err != nil {
@@ -34,41 +36,14 @@ func run(job worker.WorkflowJob) error {
 	}
 	defer client.Disconnect()
 
-	port := "8741"
-
-	err = w.RegisterWebhook(worker.Events("user:create:webhook"), fmt.Sprintf("http://localhost:%s/webhook", port), &job)
+	err = w.On(worker.Events("user:create:webhook"), &job)
 	if err != nil {
 		return fmt.Errorf("error registering webhook workflow: %w", err)
 	}
 
 	go func() {
 		// create webserver to handle webhook requests
-		http.HandleFunc("/webhook", w.WebhookHandler(func(ctx worker.HatchetContext) interface{} {
-			log.Printf("webhook received with event: %+v", ctx)
-
-			time.Sleep(time.Second * 3) // this needs to be 3
-
-			log.Printf("step name: %s", ctx.StepName())
-
-			if ctx.StepName() == "step-two" {
-				var out interface{}
-				if err := ctx.StepOutput("step-one", out); err != nil {
-					// TODO THIS CURRENTLY ERRORS AND NEEDS TO BE FIXED
-					log.Printf("error getting step output: %s", err)
-					//panic(err)
-				}
-				log.Printf("this is step-two, step-one had output: %+v", out)
-			}
-			verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
-
-			time.Sleep(time.Second * 3)
-
-			return struct {
-				MyData string `json:"myData"`
-			}{
-				MyData: "hi from " + ctx.StepName(),
-			}
-		}))
+		http.HandleFunc("/webhook", w.WebhookHandler())
 
 		log.Printf("starting webhook server on port %s", port)
 		if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -100,10 +75,10 @@ func run(job worker.WorkflowJob) error {
 	// TODO test for assigned status before it is started
 	//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusAssigned, nil)
 
-	time.Sleep(15 * time.Second)
+	time.Sleep(20 * time.Second)
 
 	verifyStepRuns(client, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
-		if string(output) != `{"myData":"hi from step-one"}` && string(output) != `{"myData":"hi from step-two"}` {
+		if string(output) != `{"message":"hi from step-one"}` && string(output) != `{"message":"hi from step-two"}` {
 			panic(fmt.Errorf("expected step run output to be valid, got %s", string(output)))
 		}
 	})

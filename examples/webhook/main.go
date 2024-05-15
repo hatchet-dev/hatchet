@@ -1,7 +1,7 @@
 package main
 
 import (
-	"time"
+	"log"
 
 	"github.com/joho/godotenv"
 
@@ -14,7 +14,7 @@ type userCreateEvent struct {
 	Data     map[string]string `json:"data"`
 }
 
-type stepOneOutput struct {
+type output struct {
 	Message string `json:"message"`
 }
 
@@ -28,9 +28,17 @@ func main() {
 		Name:        "webhook",
 		Description: "webhook",
 		Steps: []*worker.WorkflowStep{
-			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-				time.Sleep(time.Second * 60)
-				return nil, nil
+			worker.Fn(func(ctx worker.HatchetContext) (result *output, err error) {
+				log.Printf("step name: %s", ctx.StepName())
+				return &output{
+					Message: "hi from " + ctx.StepName(),
+				}, nil
+			}).SetName("step-one").SetTimeout("10s"),
+			worker.Fn(func(ctx worker.HatchetContext) (result *output, err error) {
+				log.Printf("step name: %s", ctx.StepName())
+				return &output{
+					Message: "hi from " + ctx.StepName(),
+				}, nil
 			}).SetName("step-one").SetTimeout("10s"),
 		},
 	})

@@ -1,8 +1,11 @@
 package worker
 
 import (
+	"context"
 	"fmt"
+	"log"
 
+	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -55,6 +58,25 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 
 		if err != nil {
 			return err
+		}
+	}
+
+	if apiWorkflow.Webhook != nil {
+		log.Printf("registering webhook worker") // TODO this recreates a worker every time, we should only do this once
+
+		var actionNames []string
+
+		for _, action := range s.worker.actions {
+			actionNames = append(actionNames, action.Name())
+		}
+
+		if err := s.worker.client.Dispatcher().RegisterWorker(context.Background(), &client.GetActionListenerRequest{
+			WorkerName: s.worker.name,
+			Actions:    actionNames,
+			MaxRuns:    s.worker.maxRuns,
+			Webhook:    true,
+		}); err != nil {
+			return fmt.Errorf("could not register worker: %w", err)
 		}
 	}
 

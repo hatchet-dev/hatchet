@@ -146,6 +146,9 @@ type WorkflowJob struct {
 	Steps []*WorkflowStep
 
 	OnFailure *WorkflowJob
+
+	// Webhook URL if this is a webhook job
+	Webhook string
 }
 
 type WorkflowConcurrency struct {
@@ -209,6 +212,10 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 		if j.Concurrency.limitStrategy != nil {
 			w.Concurrency.LimitStrategy = *j.Concurrency.limitStrategy
 		}
+	}
+
+	if j.Webhook != "" {
+		w.Webhook = &j.Webhook
 	}
 
 	return w
