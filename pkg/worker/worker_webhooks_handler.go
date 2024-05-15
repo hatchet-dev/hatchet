@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
-func (w *Worker) WebhookHandler(process func(event dispatcher.WebhookEvent) interface{}) http.HandlerFunc {
+func (w *Worker) WebhookHandler(process func(ctx HatchetContext) interface{}) http.HandlerFunc {
 	return func(writer http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -29,24 +29,26 @@ func (w *Worker) WebhookHandler(process func(event dispatcher.WebhookEvent) inte
 		indent, _ := json.MarshalIndent(event, "", "  ")
 		log.Printf("data: %s", string(indent))
 
+		action := &client.Action{
+			//WorkerId:         event.WorkerId,
+			TenantId:         event.TenantId,
+			WorkflowRunId:    event.WorkflowRunId,
+			GetGroupKeyRunId: event.GetGroupKeyRunId,
+			JobId:            event.JobId,
+			JobName:          event.JobName,
+			JobRunId:         event.JobRunId,
+			StepId:           event.StepId,
+			StepName:         event.StepName,
+			StepRunId:        event.StepRunId,
+			ActionId:         event.ActionId,
+			//ActionPayload:    event.ActionPayload,
+			//ActionType:       event.ActionType,
+		}
+
 		timestamp := time.Now().UTC()
 		_, err = w.client.Dispatcher().SendStepActionEvent(context.TODO(),
 			&client.ActionEvent{
-				Action: &client.Action{
-					//WorkerId:         event.WorkerId,
-					TenantId:         event.TenantId,
-					WorkflowRunId:    event.WorkflowRunId,
-					GetGroupKeyRunId: event.GetGroupKeyRunId,
-					JobId:            event.JobId,
-					JobName:          event.JobName,
-					JobRunId:         event.JobRunId,
-					StepId:           event.StepId,
-					StepName:         event.StepName,
-					StepRunId:        event.StepRunId,
-					ActionId:         event.ActionId,
-					//ActionPayload:    event.ActionPayload,
-					//ActionType:       event.ActionType,
-				},
+				Action:         action,
 				EventTimestamp: &timestamp,
 				EventType:      client.ActionEventTypeStarted,
 			},
@@ -55,7 +57,11 @@ func (w *Worker) WebhookHandler(process func(event dispatcher.WebhookEvent) inte
 			panic(err)
 		}
 
-		resp := process(event)
+		ctx, err := newHatchetContext(context.TODO(), action, w.client, w.l)
+		if err != nil {
+			panic(err)
+		}
+		resp := process(ctx)
 
 		log.Printf("got response from user: %+v", resp)
 
@@ -65,21 +71,7 @@ func (w *Worker) WebhookHandler(process func(event dispatcher.WebhookEvent) inte
 		timestamp = time.Now().UTC()
 		_, err = w.client.Dispatcher().SendStepActionEvent(context.TODO(),
 			&client.ActionEvent{
-				Action: &client.Action{
-					//WorkerId:         event.WorkerId,
-					TenantId:         event.TenantId,
-					WorkflowRunId:    event.WorkflowRunId,
-					GetGroupKeyRunId: event.GetGroupKeyRunId,
-					JobId:            event.JobId,
-					JobName:          event.JobName,
-					JobRunId:         event.JobRunId,
-					StepId:           event.StepId,
-					StepName:         event.StepName,
-					StepRunId:        event.StepRunId,
-					ActionId:         event.ActionId,
-					//ActionPayload:    event.ActionPayload,
-					//ActionType:       event.ActionType,
-				},
+				Action:         action,
 				EventTimestamp: &timestamp,
 				EventType:      client.ActionEventTypeCompleted,
 				EventPayload:   resp,

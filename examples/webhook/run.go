@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -44,11 +43,22 @@ func run(job worker.WorkflowJob) error {
 
 	go func() {
 		// create webserver to handle webhook requests
-		http.HandleFunc("/webhook", w.WebhookHandler(func(event dispatcher.WebhookEvent) interface{} {
-			log.Printf("webhook received with event: %+v", event)
+		http.HandleFunc("/webhook", w.WebhookHandler(func(ctx worker.HatchetContext) interface{} {
+			log.Printf("webhook received with event: %+v", ctx)
 
 			time.Sleep(time.Second * 3) // this needs to be 3
 
+			log.Printf("step name: %s", ctx.StepName())
+
+			if ctx.StepName() == "step-two" {
+				var out interface{}
+				if err := ctx.StepOutput("step-one", out); err != nil {
+					// TODO THIS CURRENTLY ERRORS AND NEEDS TO BE FIXED
+					log.Printf("error getting step output: %s", err)
+					//panic(err)
+				}
+				log.Printf("this is step-two, step-one had output: %+v", out)
+			}
 			verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
 
 			time.Sleep(time.Second * 3)
@@ -56,7 +66,7 @@ func run(job worker.WorkflowJob) error {
 			return struct {
 				MyData string `json:"myData"`
 			}{
-				MyData: "hi from " + event.StepName,
+				MyData: "hi from " + ctx.StepName(),
 			}
 		}))
 
