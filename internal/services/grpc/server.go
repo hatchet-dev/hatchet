@@ -246,7 +246,7 @@ func (s *Server) startGRPC() (func() error, error) {
 	))
 
 	var enforcement = keepalive.EnforcementPolicy{
-		MinTime:             10 * time.Second,
+		MinTime:             5 * time.Second,
 		PermitWithoutStream: true,
 	}
 
