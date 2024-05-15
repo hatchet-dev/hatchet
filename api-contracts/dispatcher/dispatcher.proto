@@ -98,6 +98,9 @@ message AssignedAction {
 
     // the step name
     string stepName = 12;
+
+    // the number of previous attempts of the step run (0-based)
+    int32 retryCount = 13;
 }
 
 message WorkerListenRequest {

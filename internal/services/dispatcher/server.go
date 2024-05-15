@@ -61,6 +61,7 @@ func (worker *subscribedWorker) StartStepRun(
 		ActionPayload: string(inputBytes),
 		StepName:      stepName,
 		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
+		RetryCount:    stepRun.StepRun.RetryCount,
 	})
 }
 
@@ -104,6 +105,7 @@ func (worker *subscribedWorker) CancelStepRun(
 		ActionType:    contracts.ActionType_CANCEL_STEP_RUN,
 		StepName:      stepRun.StepReadableId.String,
 		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
+		RetryCount:    stepRun.StepRun.RetryCount,
 	})
 }
 
