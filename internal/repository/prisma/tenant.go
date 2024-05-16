@@ -44,6 +44,7 @@ func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*
 		db.Tenant.Name.Set(opts.Name),
 		db.Tenant.Slug.Set(opts.Slug),
 		db.Tenant.ID.Set(tenantId),
+		db.Tenant.WebhookSecret.SetOptional(opts.WebhookSecret),
 	).Tx()
 
 	createSettingsTx := r.client.TenantAlertingSettings.CreateOne(

@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hatchet-dev/hatchet/internal/config/loader"
+	"github.com/hatchet-dev/hatchet/internal/randstr"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
@@ -85,11 +86,18 @@ func runSeed(cf *loader.ConfigLoader) error {
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			// seed an example tenant
+			var secret string
+			if dc.Seed.IsDevelopment {
+				secret = "secret"
+			} else {
+				secret = randstr.MustGenerateRandomString(32)
+			}
 			// initialize a tenant
 			tenant, err = dc.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
-				ID:   &dc.Seed.DefaultTenantID,
-				Name: dc.Seed.DefaultTenantName,
-				Slug: dc.Seed.DefaultTenantSlug,
+				ID:            &dc.Seed.DefaultTenantID,
+				Name:          dc.Seed.DefaultTenantName,
+				Slug:          dc.Seed.DefaultTenantSlug,
+				WebhookSecret: repository.StringPtr(secret),
 			})
 
 			if err != nil {
