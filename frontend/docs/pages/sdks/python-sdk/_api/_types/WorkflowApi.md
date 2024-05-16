@@ -78,7 +78,7 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **step_run** | **str**| The step run id | 
+ **step_run** | **str**| The step run id |
 
 ### Return type
 
@@ -167,8 +167,8 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **step_run** | **str**| The step run id | 
- **create_pull_request_from_step_run** | [**CreatePullRequestFromStepRun**](CreatePullRequestFromStepRun.md)| The input to create a pull request | 
+ **step_run** | **str**| The step run id |
+ **create_pull_request_from_step_run** | [**CreatePullRequestFromStepRun**](CreatePullRequestFromStepRun.md)| The input to create a pull request |
 
 ### Return type
 
@@ -256,7 +256,7 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **workflow** | **str**| The workflow id | 
+ **workflow** | **str**| The workflow id |
 
 ### Return type
 
@@ -343,7 +343,7 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **tenant** | **str**| The tenant id | 
+ **tenant** | **str**| The tenant id |
 
 ### Return type
 
@@ -431,8 +431,8 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **tenant** | **str**| The tenant id | 
- **workflow_run** | **str**| The workflow run id | 
+ **tenant** | **str**| The tenant id |
+ **workflow_run** | **str**| The workflow run id |
 
 ### Return type
 
@@ -523,11 +523,11 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **tenant** | **str**| The tenant id | 
- **offset** | **int**| The number to skip | [optional] 
- **limit** | **int**| The number to limit by | [optional] 
- **event_id** | **str**| The event id to get runs for. | [optional] 
- **workflow_id** | **str**| The workflow id to get runs for. | [optional] 
+ **tenant** | **str**| The tenant id |
+ **offset** | **int**| The number to skip | [optional]
+ **limit** | **int**| The number to limit by | [optional]
+ **event_id** | **str**| The event id to get runs for. | [optional]
+ **workflow_id** | **str**| The workflow id to get runs for. | [optional]
 
 ### Return type
 
@@ -617,9 +617,9 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **tenant** | **str**| The tenant id | 
- **workflow_run** | **str**| The workflow run id | 
- **state** | [**PullRequestState**](.md)| The pull request state | [optional] 
+ **tenant** | **str**| The tenant id |
+ **workflow_run** | **str**| The workflow run id |
+ **state** | [**PullRequestState**](.md)| The pull request state | [optional]
 
 ### Return type
 
@@ -708,8 +708,8 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **workflow** | **str**| The workflow id | 
- **link_github_repository_request** | [**LinkGithubRepositoryRequest**](LinkGithubRepositoryRequest.md)| The input to link a github repository | 
+ **workflow** | **str**| The workflow id |
+ **link_github_repository_request** | [**LinkGithubRepositoryRequest**](LinkGithubRepositoryRequest.md)| The input to link a github repository |
 
 ### Return type
 
@@ -798,8 +798,8 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **workflow** | **str**| The workflow id | 
- **version** | **str**| The workflow version. If not supplied, the latest version is fetched. | [optional] 
+ **workflow** | **str**| The workflow id |
+ **version** | **str**| The workflow version. If not supplied, the latest version is fetched. | [optional]
 
 ### Return type
 
@@ -888,8 +888,8 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **workflow** | **str**| The workflow id | 
- **version** | **str**| The workflow version. If not supplied, the latest version is fetched. | [optional] 
+ **workflow** | **str**| The workflow id |
+ **version** | **str**| The workflow version. If not supplied, the latest version is fetched. | [optional]
 
 ### Return type
 

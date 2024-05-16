@@ -5,9 +5,9 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**current_page** | **int** | the current page | [optional] 
-**next_page** | **int** | the next page | [optional] 
-**num_pages** | **int** | the total number of pages for listing | [optional] 
+**current_page** | **int** | the current page | [optional]
+**next_page** | **int** | the next page | [optional]
+**num_pages** | **int** | the total number of pages for listing | [optional]
 
 ## Example
 

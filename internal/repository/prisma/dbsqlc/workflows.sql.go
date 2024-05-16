@@ -13,12 +13,12 @@ import (
 
 const addStepParents = `-- name: AddStepParents :exec
 INSERT INTO "_StepOrder" ("A", "B")
-SELECT 
+SELECT
     step."id",
     $1::uuid
-FROM 
+FROM
     unnest($2::text[]) AS parent_readable_id
-JOIN 
+JOIN
     "Step" AS step ON step."readableId" = parent_readable_id AND step."jobId" = $3::uuid
 `
 
@@ -121,32 +121,32 @@ const countWorkflows = `-- name: CountWorkflows :one
 SELECT
     count(workflows) OVER() AS total
 FROM
-    "Workflow" as workflows 
+    "Workflow" as workflows
 WHERE
     workflows."tenantId" = $1 AND
     (
         $2::text IS NULL OR
         workflows."id" IN (
-            SELECT 
+            SELECT
                 DISTINCT ON(t1."workflowId") t1."workflowId"
-            FROM 
+            FROM
                 "WorkflowVersion" AS t1
-                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id" 
-            WHERE 
+                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+            WHERE
                 (
                     j2."id" IN (
-                        SELECT 
-                            t3."parentId" 
-                        FROM 
+                        SELECT
+                            t3."parentId"
+                        FROM
                             "public"."WorkflowTriggerEventRef" AS t3
-                        WHERE 
+                        WHERE
                             t3."eventKey" = $2::text
                             AND t3."parentId" IS NOT NULL
-                    ) 
-                    AND j2."id" IS NOT NULL 
+                    )
+                    AND j2."id" IS NOT NULL
                     AND t1."workflowId" IS NOT NULL
                 )
-            ORDER BY 
+            ORDER BY
                 t1."workflowId" DESC, t1."order" DESC
         )
     )
@@ -836,13 +836,13 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 }
 
 const listWorkflows = `-- name: ListWorkflows :many
-SELECT 
+SELECT
     workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description
 FROM (
     SELECT
         DISTINCT ON(workflows."id") workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description
     FROM
-        "Workflow" as workflows 
+        "Workflow" as workflows
     LEFT JOIN
         (
             SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
@@ -852,31 +852,31 @@ FROM (
     LEFT JOIN
         "WorkflowTriggerEventRef" as workflowTriggerEventRef ON workflowTrigger."id" = workflowTriggerEventRef."parentId"
     WHERE
-        workflows."tenantId" = $1 
+        workflows."tenantId" = $1
         AND
         (
             $2::text IS NULL OR
             workflows."id" IN (
-                SELECT 
+                SELECT
                     DISTINCT ON(t1."workflowId") t1."workflowId"
-                FROM 
+                FROM
                     "WorkflowVersion" AS t1
-                    LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id" 
-                WHERE 
+                    LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+                WHERE
                     (
                         j2."id" IN (
-                            SELECT 
-                                t3."parentId" 
-                            FROM 
+                            SELECT
+                                t3."parentId"
+                            FROM
                                 "public"."WorkflowTriggerEventRef" AS t3
-                            WHERE 
+                            WHERE
                                 t3."eventKey" = $2::text
                                 AND t3."parentId" IS NOT NULL
-                        ) 
-                        AND j2."id" IS NOT NULL 
+                        )
+                        AND j2."id" IS NOT NULL
                         AND t1."workflowId" IS NOT NULL
                     )
-                ORDER BY 
+                ORDER BY
                     t1."workflowId" DESC
             )
         )
@@ -944,7 +944,7 @@ LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
 LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
 WHERE
     (j1."tenantId"::uuid = $1 AND j1.id IS NOT NULL)
-    AND 
+    AND
     (j2.id IN (
         SELECT t3."parentId"
         FROM "WorkflowTriggerEventRef" AS t3
@@ -992,30 +992,30 @@ WHERE
     (
         $2::text IS NULL OR
         workflow."id" IN (
-            SELECT 
+            SELECT
                 DISTINCT ON(t1."workflowId") t1."workflowId"
-            FROM 
+            FROM
                 "WorkflowVersion" AS t1
-                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id" 
-            WHERE 
+                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+            WHERE
                 (
                     j2."id" IN (
-                        SELECT 
-                            t3."parentId" 
-                        FROM 
+                        SELECT
+                            t3."parentId"
+                        FROM
                             "public"."WorkflowTriggerEventRef" AS t3
-                        WHERE 
+                        WHERE
                             t3."eventKey" = $2::text
                             AND t3."parentId" IS NOT NULL
-                    ) 
-                    AND j2."id" IS NOT NULL 
+                    )
+                    AND j2."id" IS NOT NULL
                     AND t1."workflowId" IS NOT NULL
                 )
-            ORDER BY 
+            ORDER BY
                 t1."workflowId" DESC, t1."order" DESC
         )
     )
-ORDER BY 
+ORDER BY
     workflow."id" DESC, runs."createdAt" DESC
 `
 
@@ -1080,7 +1080,7 @@ VALUES (
     LOWER($1::text),
     $2::uuid
 )
-ON CONFLICT ("tenantId", "actionId") DO UPDATE 
+ON CONFLICT ("tenantId", "actionId") DO UPDATE
 SET
     "tenantId" = EXCLUDED."tenantId"
 WHERE

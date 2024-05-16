@@ -5,8 +5,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**parent_id** | **str** |  | [optional] 
-**event_key** | **str** |  | [optional] 
+**parent_id** | **str** |  | [optional]
+**event_key** | **str** |  | [optional]
 
 ## Example
 

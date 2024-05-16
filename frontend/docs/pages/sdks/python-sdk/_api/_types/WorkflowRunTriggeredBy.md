@@ -5,12 +5,12 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  | 
-**parent_id** | **str** |  | 
-**event_id** | **str** |  | [optional] 
-**event** | [**Event**](Event.md) |  | [optional] 
-**cron_parent_id** | **str** |  | [optional] 
-**cron_schedule** | **str** |  | [optional] 
+**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  |
+**parent_id** | **str** |  |
+**event_id** | **str** |  | [optional]
+**event** | [**Event**](Event.md) |  | [optional]
+**cron_parent_id** | **str** |  | [optional]
+**cron_schedule** | **str** |  | [optional]
 
 ## Example
 

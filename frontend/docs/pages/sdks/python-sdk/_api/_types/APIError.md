@@ -5,10 +5,10 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**code** | **int** | a custom Hatchet error code | [optional] 
-**field** | **str** | the field that this error is associated with, if applicable | [optional] 
-**description** | **str** | a description for this error | 
-**docs_link** | **str** | a link to the documentation for this error, if it exists | [optional] 
+**code** | **int** | a custom Hatchet error code | [optional]
+**field** | **str** | the field that this error is associated with, if applicable | [optional]
+**description** | **str** | a description for this error |
+**docs_link** | **str** | a link to the documentation for this error, if it exists | [optional]
 
 ## Example
 

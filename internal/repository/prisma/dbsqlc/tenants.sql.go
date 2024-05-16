@@ -50,7 +50,7 @@ func (q *Queries) GetEmailGroups(ctx context.Context, db DBTX, tenantid pgtype.U
 const getSlackWebhooks = `-- name: GetSlackWebhooks :many
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", "tenantId", "teamId", "teamName", "channelId", "channelName", "webhookURL"
-FROM   
+FROM
     "SlackAppWebhook" as slackWebhooks
 WHERE
     "tenantId" = $1::uuid

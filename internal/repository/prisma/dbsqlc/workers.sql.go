@@ -139,10 +139,10 @@ func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorker
 
 const linkActionsToWorker = `-- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (
-    "A", 
+    "A",
     "B"
-) SELECT 
-    unnest($1::uuid[]), 
+) SELECT
+    unnest($1::uuid[]),
     $2::uuid
 ON CONFLICT DO NOTHING
 `
@@ -160,10 +160,10 @@ func (q *Queries) LinkActionsToWorker(ctx context.Context, db DBTX, arg LinkActi
 const linkServicesToWorker = `-- name: LinkServicesToWorker :exec
 INSERT INTO "_ServiceToWorker" (
     "A",
-    "B" 
+    "B"
 )
 VALUES (
-    unnest($1::uuid[]), 
+    unnest($1::uuid[]),
     $2::uuid
 )
 ON CONFLICT DO NOTHING
@@ -359,7 +359,7 @@ VALUES (
     $1::text,
     $2::uuid
 )
-ON CONFLICT ("tenantId", "name") DO UPDATE 
+ON CONFLICT ("tenantId", "name") DO UPDATE
 SET
     "updatedAt" = CURRENT_TIMESTAMP
 WHERE

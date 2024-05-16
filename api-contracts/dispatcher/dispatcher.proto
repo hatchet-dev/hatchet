@@ -259,13 +259,13 @@ message WorkflowRunEvent {
 message StepRunResult {
     string stepRunId = 1;
 
-    string stepReadableId = 2; 
+    string stepReadableId = 2;
 
     string jobRunId = 3;
 
     optional string error = 4;
 
-    optional string output = 5; 
+    optional string output = 5;
 }
 
 message OverridesData {

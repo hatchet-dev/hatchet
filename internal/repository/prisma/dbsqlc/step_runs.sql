@@ -40,7 +40,7 @@ JOIN
     "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
 JOIN
     "Job" j ON jr."jobId" = j."id"
-JOIN 
+JOIN
     "WorkflowRun" wr ON jr."workflowRunId" = wr."id"
 JOIN
     "WorkflowVersion" wv ON wr."workflowVersionId" = wv."id"
@@ -59,29 +59,29 @@ WITH job_run AS (
     FROM "JobRun"
     WHERE "id" = @jobRunId::uuid
 )
-SELECT 
+SELECT
     DISTINCT ON (child_run."id")
     child_run."id" AS "id"
-FROM 
+FROM
     "StepRun" AS child_run
-LEFT JOIN 
+LEFT JOIN
     "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
 JOIN
     job_run ON true
-WHERE 
+WHERE
     child_run."jobRunId" = @jobRunId::uuid
     AND child_run."status" = 'PENDING'
     AND job_run."status" = 'RUNNING'
     -- case on whether parentStepRunId is null
     AND (
-        (sqlc.narg('parentStepRunId')::uuid IS NULL AND step_run_order."A" IS NULL) OR 
+        (sqlc.narg('parentStepRunId')::uuid IS NULL AND step_run_order."A" IS NULL) OR
         (
             step_run_order."A" = sqlc.narg('parentStepRunId')::uuid
             AND NOT EXISTS (
                 SELECT 1
                 FROM "_StepRunOrder" AS parent_order
                 JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
-                WHERE 
+                WHERE
                     parent_order."B" = child_run."id"
                     AND parent_run."status" != 'SUCCEEDED'
             )
@@ -130,7 +130,7 @@ SET
         WHEN sqlc.narg('rerun')::boolean THEN NULL
         ELSE  COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt")
     END,
-    "status" = CASE 
+    "status" = CASE
         -- if this is a rerun, we permit status updates
         WHEN sqlc.narg('rerun')::boolean THEN COALESCE(sqlc.narg('status'), "status")
         -- Final states are final, cannot be updated
@@ -160,7 +160,7 @@ SET
     END,
     "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount"),
     "semaphoreReleased" = COALESCE(sqlc.narg('semaphoreReleased')::boolean, "semaphoreReleased")
-WHERE 
+WHERE
   "id" = @id::uuid AND
   "tenantId" = @tenantId::uuid
 RETURNING "StepRun".*;
@@ -187,9 +187,9 @@ WITH RECURSIVE currStepRun AS (
   FROM "StepRun" sr
   JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
   WHERE sro."A" = (SELECT "id" FROM currStepRun)
-  
+
   UNION ALL
-  
+
   SELECT sr."id", sr."status"
   FROM "StepRun" sr
   JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
@@ -223,7 +223,7 @@ RETURNING sr.*;
 -- name: UpdateStepRunOverridesData :one
 UPDATE
     "StepRun" AS sr
-SET 
+SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "input" = jsonb_set("input", @fieldPath::text[], @jsonData::jsonb, true),
     "callerFiles" = jsonb_set("callerFiles", @overridesKey::text[], to_jsonb(@callerFile::text), true)
@@ -353,7 +353,7 @@ step_runs AS (
             SELECT 1
             FROM "_StepRunOrder" AS order_table
             JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-            WHERE 
+            WHERE
                 order_table."B" = sr."id"
                 AND prev_sr."status" != 'SUCCEEDED'
         )
@@ -376,7 +376,7 @@ SET
     -- requeue after now plus 4 seconds
     "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
     "updatedAt" = CURRENT_TIMESTAMP
-FROM 
+FROM
     locked_step_runs
 WHERE
     "StepRun"."id" = locked_step_runs."id"
@@ -425,7 +425,7 @@ step_runs AS (
             SELECT 1
             FROM "_StepRunOrder" AS order_table
             JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-            WHERE 
+            WHERE
                 order_table."B" = sr."id"
                 AND prev_sr."status" != 'SUCCEEDED'
         )
@@ -448,7 +448,7 @@ SET
     -- requeue after now plus 4 seconds
     "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
     "updatedAt" = CURRENT_TIMESTAMP
-FROM 
+FROM
     locked_step_runs
 WHERE
     "StepRun"."id" = locked_step_runs."id"
@@ -460,7 +460,7 @@ WITH valid_workers AS (
         w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
     FROM
         "Worker" w
-    LEFT JOIN 
+    LEFT JOIN
         "WorkerSemaphore" ws ON w."id" = ws."workerId"
     WHERE
         w."tenantId" = @tenantId::uuid
@@ -494,7 +494,7 @@ WITH valid_workers AS (
         w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
     FROM
         "Worker" w
-    LEFT JOIN 
+    LEFT JOIN
         "WorkerSemaphore" ws ON w."id" = ws."workerId"
     WHERE
         w."tenantId" = @tenantId::uuid
@@ -557,13 +557,13 @@ update_step_run AS (
         "tenantId" = @tenantId::uuid AND
         "status" = 'PENDING_ASSIGNMENT' AND
         EXISTS (SELECT 1 FROM selected_worker)
-    RETURNING 
-        "StepRun"."id", "StepRun"."workerId", 
+    RETURNING
+        "StepRun"."id", "StepRun"."workerId",
         (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId"
 )
 SELECT ts."totalSlots"::int, usr."id", usr."workerId", usr."dispatcherId"
 FROM total_slots ts
-LEFT JOIN update_step_run usr ON true;    
+LEFT JOIN update_step_run usr ON true;
 
 -- name: UpdateWorkerSemaphore :one
 WITH step_run AS (
@@ -588,7 +588,7 @@ UPDATE
 SET
     -- This shouldn't happen, but we set guardrails to prevent negative slots or slots over
     -- the worker's maxRuns
-    "slots" = CASE 
+    "slots" = CASE
         WHEN (ws."slots" + @inc::int) < 0 THEN 0
         WHEN (ws."slots" + @inc::int) > COALESCE(worker."maxRuns", 100) THEN COALESCE(worker."maxRuns", 100)
         ELSE (ws."slots" + @inc::int)

@@ -5,8 +5,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**name** | **str** | The name of the workflow. | 
-**color** | **str** | The description of the workflow. | 
+**name** | **str** | The name of the workflow. |
+**color** | **str** | The description of the workflow. |
 
 ## Example
 

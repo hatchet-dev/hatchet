@@ -5,12 +5,12 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  | 
-**git_repo_name** | **str** | The repository name. | 
-**git_repo_owner** | **str** | The repository owner. | 
-**git_repo_branch** | **str** | The repository branch. | 
-**github_app_installation** | [**GithubAppInstallation**](GithubAppInstallation.md) | The Github App installation. | [optional] 
-**github_app_installation_id** | **str** | The id of the Github App installation. | 
+**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  |
+**git_repo_name** | **str** | The repository name. |
+**git_repo_owner** | **str** | The repository owner. |
+**git_repo_branch** | **str** | The repository branch. |
+**github_app_installation** | [**GithubAppInstallation**](GithubAppInstallation.md) | The Github App installation. | [optional]
+**github_app_installation_id** | **str** | The id of the Github App installation. |
 
 ## Example
 
