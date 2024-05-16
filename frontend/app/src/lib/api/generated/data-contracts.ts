@@ -691,6 +691,7 @@ export enum StepRunEventReason {
   REASSIGNED = "REASSIGNED",
   TIMED_OUT = "TIMED_OUT",
   SLOT_RELEASED = "SLOT_RELEASED",
+  MANUAL_RETRY = "MANUAL_RETRY",
 }
 
 export enum StepRunEventSeverity {

@@ -54,7 +54,7 @@ func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(tenantId string, opts
 		return nil, err
 	}
 
-	return workflowRunMetricsCount(context.Background(), w.pool, w.queries, w.l, tenantId, opts)
+	return workflowRunMetricsCount(context.Background(), w.pool, w.queries, tenantId, opts)
 }
 
 func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*db.WorkflowRunModel, error) {
@@ -377,7 +377,7 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 	return res, nil
 }
 
-func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error) {
+func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, tenantId string, opts *repository.WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error) {
 
 	pgTenantId := &pgtype.UUID{}
 

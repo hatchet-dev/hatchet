@@ -138,6 +138,8 @@ type StepRunEngineRepository interface {
 
 	UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *StepRunUpdateInfo, error)
 
+	ReplayStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
+
 	CreateStepRunEvent(ctx context.Context, tenantId, stepRunId string, opts CreateStepRunEventOpts) error
 
 	UnlinkStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error
