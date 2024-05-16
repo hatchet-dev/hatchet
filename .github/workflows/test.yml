@@ -185,6 +185,7 @@ jobs:
           . .env
           set +a
 
+          export SEED_DEVELOPMENT=true
           go run ./cmd/hatchet-admin quickstart
 
           go run ./cmd/hatchet-engine --config ./generated/ &
