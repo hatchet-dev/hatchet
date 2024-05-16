@@ -16,7 +16,7 @@ You can attach additional metadata when pushing events or triggering workflow ru
 hatchet.event.push("user:create", {'userId': '1234'}, options={
   "additional_metadata": {
     "source": "api" # Arbitrary key-value pair
-  }  
+  }
 })
 ```
   </Tabs.Tab>
@@ -54,7 +54,7 @@ err := c.Event().Push(
   <Tabs.Tab>
 ```python
 workflowRunId = hatchet.admin.run_workflow(
-    "user-workflow", 
+    "user-workflow",
     {'userId': '1234'},
     options={
         'additional_metadata': {
@@ -63,7 +63,7 @@ workflowRunId = hatchet.admin.run_workflow(
     }
 )
 ```
-  </Tabs.Tab>  
+  </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
 const workflowRunId = await hatchet.admin.run_workflow(

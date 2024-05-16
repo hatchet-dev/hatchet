@@ -5,11 +5,11 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  | [optional] 
-**workflow_version_id** | **str** |  | [optional] 
-**tenant_id** | **str** |  | [optional] 
-**events** | [**List[WorkflowTriggerEventRef]**](WorkflowTriggerEventRef.md) |  | [optional] 
-**crons** | [**List[WorkflowTriggerCronRef]**](WorkflowTriggerCronRef.md) |  | [optional] 
+**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  | [optional]
+**workflow_version_id** | **str** |  | [optional]
+**tenant_id** | **str** |  | [optional]
+**events** | [**List[WorkflowTriggerEventRef]**](WorkflowTriggerEventRef.md) |  | [optional]
+**crons** | [**List[WorkflowTriggerCronRef]**](WorkflowTriggerCronRef.md) |  | [optional]
 
 ## Example
 

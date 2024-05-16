@@ -38,6 +38,8 @@ type HatchetContext interface {
 
 	ReleaseSlot() error
 
+	RefreshTimeout(incrementTimeoutBy string) error
+
 	client() client.Client
 
 	action() *client.Action
@@ -169,6 +171,16 @@ func (h *hatchetContext) ReleaseSlot() error {
 
 	if err != nil {
 		return fmt.Errorf("failed to release slot: %w", err)
+	}
+
+	return nil
+}
+
+func (h *hatchetContext) RefreshTimeout(incrementTimeoutBy string) error {
+	err := h.c.Dispatcher().RefreshTimeout(h, h.a.StepRunId, incrementTimeoutBy)
+
+	if err != nil {
+		return fmt.Errorf("failed to refresh timeout: %w", err)
 	}
 
 	return nil

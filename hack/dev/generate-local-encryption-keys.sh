@@ -1,5 +1,5 @@
 #!/bin/bash
-# This scripts generates local encryption keys for development. 
+# This scripts generates local encryption keys for development.
 
 set -eux
 

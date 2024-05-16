@@ -5,7 +5,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**auth** | [**APIMetaAuth**](APIMetaAuth.md) |  | [optional] 
+**auth** | [**APIMetaAuth**](APIMetaAuth.md) |  | [optional]
 
 ## Example
 

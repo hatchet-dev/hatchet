@@ -5,8 +5,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**rows** | [**List[WorkflowRun]**](WorkflowRun.md) |  | [optional] 
-**pagination** | [**PaginationResponse**](PaginationResponse.md) |  | [optional] 
+**rows** | [**List[WorkflowRun]**](WorkflowRun.md) |  | [optional]
+**pagination** | [**PaginationResponse**](PaginationResponse.md) |  | [optional]
 
 ## Example
 

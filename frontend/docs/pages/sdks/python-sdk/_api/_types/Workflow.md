@@ -5,14 +5,14 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  | 
-**name** | **str** | The name of the workflow. | 
-**description** | **str** | The description of the workflow. | [optional] 
-**versions** | [**List[WorkflowVersionMeta]**](WorkflowVersionMeta.md) |  | [optional] 
-**tags** | [**List[WorkflowTag]**](WorkflowTag.md) | The tags of the workflow. | [optional] 
-**last_run** | [**WorkflowRun**](WorkflowRun.md) |  | [optional] 
-**jobs** | [**List[Job]**](Job.md) | The jobs of the workflow. | [optional] 
-**deployment** | [**WorkflowDeploymentConfig**](WorkflowDeploymentConfig.md) |  | [optional] 
+**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  |
+**name** | **str** | The name of the workflow. |
+**description** | **str** | The description of the workflow. | [optional]
+**versions** | [**List[WorkflowVersionMeta]**](WorkflowVersionMeta.md) |  | [optional]
+**tags** | [**List[WorkflowTag]**](WorkflowTag.md) | The tags of the workflow. | [optional]
+**last_run** | [**WorkflowRun**](WorkflowRun.md) |  | [optional]
+**jobs** | [**List[Job]**](Job.md) | The jobs of the workflow. | [optional]
+**deployment** | [**WorkflowDeploymentConfig**](WorkflowDeploymentConfig.md) |  | [optional]
 
 ## Example
 

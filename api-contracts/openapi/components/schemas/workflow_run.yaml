@@ -283,6 +283,7 @@ StepRunEventReason:
     - FAILED
     - RETRYING
     - CANCELLED
+    - TIMEOUT_REFRESHED
     - REASSIGNED
     - TIMED_OUT
     - SLOT_RELEASED

@@ -313,7 +313,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 
 const listEventsByIDs = `-- name: ListEventsByIDs :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata" 
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
 FROM
     "Event" as events
 WHERE

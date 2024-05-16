@@ -23,7 +23,7 @@ WHERE
 -- name: GetSlackWebhooks :many
 SELECT
     *
-FROM   
+FROM
     "SlackAppWebhook" as slackWebhooks
 WHERE
     "tenantId" = sqlc.arg('tenantId')::uuid;

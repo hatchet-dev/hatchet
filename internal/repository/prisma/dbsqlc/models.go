@@ -244,6 +244,7 @@ const (
 	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
 	StepRunEventReasonTIMEDOUT           StepRunEventReason = "TIMED_OUT"
 	StepRunEventReasonREASSIGNED         StepRunEventReason = "REASSIGNED"
+	StepRunEventReasonTIMEOUTREFRESHED   StepRunEventReason = "TIMEOUT_REFRESHED"
 )
 
 func (e *StepRunEventReason) Scan(src interface{}) error {

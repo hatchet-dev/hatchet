@@ -5,9 +5,9 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**id** | **str** | the id of this resource, in UUID format | 
-**created_at** | **datetime** | the time that this resource was created | 
-**updated_at** | **datetime** | the time that this resource was last updated | 
+**id** | **str** | the id of this resource, in UUID format |
+**created_at** | **datetime** | the time that this resource was created |
+**updated_at** | **datetime** | the time that this resource was last updated |
 
 ## Example
 

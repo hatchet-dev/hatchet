@@ -954,7 +954,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	if shouldRetry {
 		eventMessage += ", and will be retried."
 	} else {
-		eventMessage += eventMessage + "."
+		eventMessage += "."
 	}
 
 	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
