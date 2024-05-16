@@ -245,6 +245,13 @@ func (s *Server) startGRPC() (func() error, error) {
 		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
 
+	var enforcement = keepalive.EnforcementPolicy{
+		MinTime:             5 * time.Second,
+		PermitWithoutStream: true,
+	}
+
+	serverOpts = append(serverOpts, grpc.KeepaliveEnforcementPolicy(enforcement))
+
 	var kasp = keepalive.ServerParameters{
 		// ping the client every 30 seconds if idle to ensure the connection is still active
 		Time: 30 * time.Second,

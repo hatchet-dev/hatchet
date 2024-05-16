@@ -5,11 +5,11 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  | 
-**version** | **str** | The version of the workflow. | 
-**order** | **int** |  | 
-**workflow_id** | **str** |  | 
-**workflow** | [**Workflow**](Workflow.md) |  | [optional] 
+**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  |
+**version** | **str** | The version of the workflow. |
+**order** | **int** |  |
+**workflow_id** | **str** |  |
+**workflow** | [**Workflow**](Workflow.md) |  | [optional]
 
 ## Example
 

@@ -115,10 +115,10 @@ WHERE ws."workerId" = w."id"
 
 -- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (
-    "A", 
+    "A",
     "B"
-) SELECT 
-    unnest(@actionIds::uuid[]), 
+) SELECT
+    unnest(@actionIds::uuid[]),
     @workerId::uuid
 ON CONFLICT DO NOTHING;
 
@@ -137,7 +137,7 @@ VALUES (
     @name::text,
     @tenantId::uuid
 )
-ON CONFLICT ("tenantId", "name") DO UPDATE 
+ON CONFLICT ("tenantId", "name") DO UPDATE
 SET
     "updatedAt" = CURRENT_TIMESTAMP
 WHERE
@@ -147,10 +147,10 @@ RETURNING *;
 -- name: LinkServicesToWorker :exec
 INSERT INTO "_ServiceToWorker" (
     "A",
-    "B" 
+    "B"
 )
 VALUES (
-    unnest(@services::uuid[]), 
+    unnest(@services::uuid[]),
     @workerId::uuid
 )
 ON CONFLICT DO NOTHING;

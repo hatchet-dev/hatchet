@@ -1,9 +1,9 @@
 -- name: UpsertRateLimit :one
 INSERT INTO "RateLimit" (
-    "tenantId", 
-    "key", 
-    "limitValue", 
-    "value", 
+    "tenantId",
+    "key",
+    "limitValue",
+    "value",
     "window"
 ) VALUES (
     @tenantId::uuid,
@@ -11,7 +11,7 @@ INSERT INTO "RateLimit" (
     sqlc.arg('limit')::int,
     sqlc.arg('limit')::int,
     COALESCE(sqlc.narg('window')::text, '1 minute')
-) ON CONFLICT ("tenantId", "key") DO UPDATE SET 
+) ON CONFLICT ("tenantId", "key") DO UPDATE SET
     "limitValue" = sqlc.arg('limit')::int,
     "window" = COALESCE(sqlc.narg('window')::text, '1 minute')
 RETURNING *;

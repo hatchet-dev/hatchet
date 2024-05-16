@@ -336,7 +336,7 @@ SET
     "startedAt" = COALESCE($2::timestamp, "startedAt"),
     "finishedAt" = COALESCE($3::timestamp, "finishedAt"),
     "scheduleTimeoutAt" = COALESCE($4::timestamp, "scheduleTimeoutAt"),
-    "status" = CASE 
+    "status" = CASE
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
         ELSE COALESCE($5, "status")
@@ -346,7 +346,7 @@ SET
     "error" = COALESCE($8::text, "error"),
     "cancelledAt" = COALESCE($9::timestamp, "cancelledAt"),
     "cancelledReason" = COALESCE($10::text, "cancelledReason")
-WHERE 
+WHERE
   "id" = $11::uuid AND
   "tenantId" = $12::uuid
 RETURNING "GetGroupKeyRun".id, "GetGroupKeyRun"."createdAt", "GetGroupKeyRun"."updatedAt", "GetGroupKeyRun"."deletedAt", "GetGroupKeyRun"."tenantId", "GetGroupKeyRun"."workerId", "GetGroupKeyRun"."tickerId", "GetGroupKeyRun".status, "GetGroupKeyRun".input, "GetGroupKeyRun".output, "GetGroupKeyRun"."requeueAfter", "GetGroupKeyRun".error, "GetGroupKeyRun"."startedAt", "GetGroupKeyRun"."finishedAt", "GetGroupKeyRun"."timeoutAt", "GetGroupKeyRun"."cancelledAt", "GetGroupKeyRun"."cancelledReason", "GetGroupKeyRun"."cancelledError", "GetGroupKeyRun"."workflowRunId", "GetGroupKeyRun"."scheduleTimeoutAt"

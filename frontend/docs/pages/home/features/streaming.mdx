@@ -98,17 +98,17 @@ To stream a file from a step context, encode the file data as base64 and stream 
 def step1(self, context: Context):
     # Get the directory of the current script
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Construct the path to the image file relative to the script's directory
     image_path = os.path.join(script_dir, "image.jpeg")
-    
+
     # Load the image file
     with open(image_path, "rb") as image_file:
         image_data = image_file.read()
-    
+
     # Encode the image data as base64
     base64_image = base64.b64encode(image_data).decode('utf-8')
-    
+
     # Stream the base64-encoded image data
     context.put_stream(base64_image)
 

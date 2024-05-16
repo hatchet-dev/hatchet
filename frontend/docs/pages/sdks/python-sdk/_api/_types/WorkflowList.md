@@ -5,9 +5,9 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  | [optional] 
-**rows** | [**List[Workflow]**](Workflow.md) |  | [optional] 
-**pagination** | [**PaginationResponse**](PaginationResponse.md) |  | [optional] 
+**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  | [optional]
+**rows** | [**List[Workflow]**](Workflow.md) |  | [optional]
+**pagination** | [**PaginationResponse**](PaginationResponse.md) |  | [optional]
 
 ## Example
 

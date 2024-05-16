@@ -5,8 +5,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**parent_id** | **str** |  | [optional] 
-**cron** | **str** |  | [optional] 
+**parent_id** | **str** |  | [optional]
+**cron** | **str** |  | [optional]
 
 ## Example
 

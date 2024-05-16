@@ -158,7 +158,7 @@ func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
 
 	err := r.client.Prisma.QueryRaw(
 		`
-		SELECT DISTINCT ON("Event"."key") "Event"."key" 
+		SELECT DISTINCT ON("Event"."key") "Event"."key"
 		FROM "Event"
 		WHERE
 		"Event"."tenantId"::text = $1

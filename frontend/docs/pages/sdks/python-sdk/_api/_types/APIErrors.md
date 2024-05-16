@@ -5,7 +5,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**errors** | [**List[APIError]**](APIError.md) |  | 
+**errors** | [**List[APIError]**](APIError.md) |  |
 
 ## Example
 
