@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/internal/signature"
 )
 
 type webhookController struct {
@@ -46,6 +47,15 @@ type WebhookEvent struct {
 func (w *webhookController) Start(ctx context.Context, action *contracts.AssignedAction) error {
 	log.Printf("sending webhook for action %s", action.ActionId)
 
+	tenant, err := w.repo.Tenant().GetTenantByID(ctx, action.TenantId)
+	if err != nil {
+		return err
+	}
+
+	if !tenant.WebhookSecret.Valid {
+		return fmt.Errorf("no webhook secret found for tenant %s", action.TenantId)
+	}
+
 	// get webhook url from workflow version
 	workflowRun, err := w.repo.WorkflowRun().GetWorkflowRunById(ctx, action.TenantId, action.WorkflowRunId)
 	if err != nil {
@@ -70,8 +80,20 @@ func (w *webhookController) Start(ctx context.Context, action *contracts.Assigne
 	if err != nil {
 		return err
 	}
+
+	req, err := http.NewRequest("POST", webhookUrl, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+
+	sig, err := signature.Sign(string(body), tenant.WebhookSecret.String)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Hatchet-Signature", sig)
+
 	// nolint:gosec
-	resp, err := http.Post(webhookUrl, "application/json", bytes.NewReader(body))
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

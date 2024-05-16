@@ -43,7 +43,7 @@ func run(job worker.WorkflowJob) error {
 
 	go func() {
 		// create webserver to handle webhook requests
-		http.HandleFunc("/webhook", w.WebhookHandler())
+		http.HandleFunc("/webhook", w.WebhookHandler("secret"))
 
 		log.Printf("starting webhook server on port %s", port)
 		if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil && !errors.Is(err, http.ErrServerClosed) {

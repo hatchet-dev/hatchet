@@ -105,6 +105,8 @@ model Tenant {
   // wheather the user has opted out of analytics
   analyticsOptOut Boolean @default(false)
 
+  webhookSecret String?
+
   events                    Event[]
   workflows                 Workflow[]
   jobs                      Job[]

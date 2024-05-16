@@ -853,6 +853,7 @@ type Tenant struct {
 	Name            string           `json:"name"`
 	Slug            string           `json:"slug"`
 	AnalyticsOptOut bool             `json:"analyticsOptOut"`
+	WebhookSecret   pgtype.Text      `json:"webhookSecret"`
 }
 
 type TenantAlertEmailGroup struct {

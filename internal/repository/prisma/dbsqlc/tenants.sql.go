@@ -114,7 +114,7 @@ func (q *Queries) GetTenantAlertingSettings(ctx context.Context, db DBTX, tenant
 
 const getTenantByID = `-- name: GetTenantByID :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut"
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "webhookSecret"
 FROM
     "Tenant" as tenants
 WHERE
@@ -132,13 +132,14 @@ func (q *Queries) GetTenantByID(ctx context.Context, db DBTX, id pgtype.UUID) (*
 		&i.Name,
 		&i.Slug,
 		&i.AnalyticsOptOut,
+		&i.WebhookSecret,
 	)
 	return &i, err
 }
 
 const listTenants = `-- name: ListTenants :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut"
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "webhookSecret"
 FROM
     "Tenant" as tenants
 `
@@ -160,6 +161,7 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 			&i.Name,
 			&i.Slug,
 			&i.AnalyticsOptOut,
+			&i.WebhookSecret,
 		); err != nil {
 			return nil, err
 		}

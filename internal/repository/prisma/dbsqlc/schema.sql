@@ -415,6 +415,7 @@ CREATE TABLE "Tenant" (
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "analyticsOptOut" BOOLEAN NOT NULL DEFAULT false,
+    "webhookSecret" TEXT,
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
