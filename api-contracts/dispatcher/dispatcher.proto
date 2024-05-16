@@ -28,6 +28,8 @@ service Dispatcher {
 
     rpc Unsubscribe(WorkerUnsubscribeRequest) returns (WorkerUnsubscribeResponse) {}
 
+    rpc RefreshTimeout(RefreshTimeoutRequest) returns (RefreshTimeoutResponse) {}
+
     rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
 }
 
@@ -294,6 +296,17 @@ message HeartbeatRequest {
 
 message HeartbeatResponse {}
 
+message RefreshTimeoutRequest {
+    // the id of the step run to release
+    string stepRunId = 1;
+
+    string incrementTimeoutBy = 2;
+}
+
+message RefreshTimeoutResponse {
+    google.protobuf.Timestamp timeoutAt = 1;
+
+}
 message ReleaseSlotRequest {
     // the id of the step run to release
     string stepRunId = 1;

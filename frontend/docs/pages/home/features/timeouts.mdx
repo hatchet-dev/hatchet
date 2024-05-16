@@ -122,6 +122,29 @@ This would set a timeout of 30 seconds for this specific step. If the step takes
   [cancellation](/features/cancellation) for more information.
 </Callout>
 
+## Refreshing Timeouts
+
+In some cases, you may need to extend the timeout for a step while it is running. This can be done using the `refreshTimeout` function provided by the step context (`ctx`).
+
+For example:
+
+```typescript
+const myStep: CreateStep<any, any> = {
+  name: "my-step",
+  timeout: "30s",
+  run: async (ctx) => {
+    await sleep(20 * 1000);
+    ctx.refreshTimeout("15s");
+    await sleep(10 * 1000);
+    return { step1: "step1 results!" };
+  },
+};
+```
+
+In this example, the step initially has a timeout of 30 seconds. After 19 seconds, the `refreshTimeout` function is called with an argument of `'15s'`, which extends the timeout by an additional 15 seconds. This allows the step to continue running for a total of 45 seconds (30 seconds initial timeout + 15 seconds refreshed timeout).
+
+The `refreshTimeout` function can be called multiple times within a step to further extend the timeout as needed.
+
 ## Use Cases
 
 Timeouts are useful in a variety of scenarios:

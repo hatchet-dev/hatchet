@@ -565,6 +565,22 @@ SELECT ts."totalSlots"::int, usr."id", usr."workerId", usr."dispatcherId"
 FROM total_slots ts
 LEFT JOIN update_step_run usr ON true;
 
+-- name: RefreshTimeoutBy :one
+UPDATE
+    "StepRun" sr
+SET
+    "timeoutAt" = CASE
+        -- Only update timeoutAt if the step run is currently in RUNNING status
+        WHEN sr."status" = 'RUNNING' THEN
+            COALESCE(sr."timeoutAt", CURRENT_TIMESTAMP) + convert_duration_to_interval(sqlc.narg('incrementTimeoutBy')::text)
+            ELSE sr."timeoutAt"
+        END,
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" = @stepRunId::uuid AND
+    "tenantId" = @tenantId::uuid
+RETURNING *;
+
 -- name: UpdateWorkerSemaphore :one
 WITH step_run AS (
     SELECT

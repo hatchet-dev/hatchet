@@ -56,6 +56,10 @@ func (c *testHatchetContext) ReleaseSlot() error {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) RefreshTimeout(incrementIntervalBy string) error {
+	panic("not implemented")
+}
+
 func (c *testHatchetContext) StreamEvent(message []byte) {
 	panic("not implemented")
 }

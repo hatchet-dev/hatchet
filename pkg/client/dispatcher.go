@@ -24,6 +24,8 @@ type DispatcherClient interface {
 	SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
 	ReleaseSlot(ctx context.Context, stepRunId string) error
+
+	RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error
 }
 
 const (
@@ -484,6 +486,19 @@ func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *
 func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string) error {
 	_, err := a.client.ReleaseSlot(a.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
 		StepRunId: stepRunId,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error {
+	_, err := a.client.RefreshTimeout(a.ctx.newContext(ctx), &dispatchercontracts.RefreshTimeoutRequest{
+		StepRunId:          stepRunId,
+		IncrementTimeoutBy: incrementTimeoutBy,
 	})
 
 	if err != nil {

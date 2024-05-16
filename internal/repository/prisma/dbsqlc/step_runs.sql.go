@@ -925,6 +925,64 @@ func (q *Queries) ListStepRunsToRequeue(ctx context.Context, db DBTX, tenantid p
 	return items, nil
 }
 
+const refreshTimeoutBy = `-- name: RefreshTimeoutBy :one
+UPDATE
+    "StepRun" sr
+SET
+    "timeoutAt" = CASE
+        -- Only update timeoutAt if the step run is currently in RUNNING status
+        WHEN sr."status" = 'RUNNING' THEN
+            COALESCE(sr."timeoutAt", CURRENT_TIMESTAMP) + convert_duration_to_interval($1::text)
+            ELSE sr."timeoutAt"
+        END,
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" = $2::uuid AND
+    "tenantId" = $3::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased"
+`
+
+type RefreshTimeoutByParams struct {
+	IncrementTimeoutBy pgtype.Text `json:"incrementTimeoutBy"`
+	Steprunid          pgtype.UUID `json:"steprunid"`
+	Tenantid           pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTimeoutByParams) (*StepRun, error) {
+	row := db.QueryRow(ctx, refreshTimeoutBy, arg.IncrementTimeoutBy, arg.Steprunid, arg.Tenantid)
+	var i StepRun
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.JobRunId,
+		&i.StepId,
+		&i.Order,
+		&i.WorkerId,
+		&i.TickerId,
+		&i.Status,
+		&i.Input,
+		&i.Output,
+		&i.RequeueAfter,
+		&i.ScheduleTimeoutAt,
+		&i.Error,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.TimeoutAt,
+		&i.CancelledAt,
+		&i.CancelledReason,
+		&i.CancelledError,
+		&i.InputSchema,
+		&i.CallerFiles,
+		&i.GitRepoBranch,
+		&i.RetryCount,
+		&i.SemaphoreReleased,
+	)
+	return &i, err
+}
+
 const resolveLaterStepRuns = `-- name: ResolveLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
   SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased"
