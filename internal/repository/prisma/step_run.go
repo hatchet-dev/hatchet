@@ -376,110 +376,59 @@ var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg st
 }
 
 func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string) error {
-	tx, err := s.pool.Begin(ctx)
+	return deadlockRetry(s.l, func() error {
+		tx, err := s.pool.Begin(ctx)
 
-	if err != nil {
-		return err
-	}
+		if err != nil {
+			return err
+		}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+		defer deferRollback(ctx, s.l, tx.Rollback)
 
-	stepRun, err := s.getStepRunForEngineTx(context.Background(), tx, tenantId, stepRunId)
+		stepRun, err := s.getStepRunForEngineTx(context.Background(), tx, tenantId, stepRunId)
 
-	if err != nil {
-		return fmt.Errorf("could not get step run for engine: %w", err)
-	}
+		if err != nil {
+			return fmt.Errorf("could not get step run for engine: %w", err)
+		}
 
-	if stepRun.StepRun.SemaphoreReleased {
-		return nil
-	}
+		if stepRun.StepRun.SemaphoreReleased {
+			return nil
+		}
 
-	data := map[string]interface{}{"worker_id": sqlchelpers.UUIDToStr(stepRun.StepRun.WorkerId)}
+		data := map[string]interface{}{"worker_id": sqlchelpers.UUIDToStr(stepRun.StepRun.WorkerId)}
 
-	dataBytes, err := json.Marshal(data)
+		dataBytes, err := json.Marshal(data)
 
-	if err != nil {
-		return fmt.Errorf("could not marshal data: %w", err)
-	}
+		if err != nil {
+			return fmt.Errorf("could not marshal data: %w", err)
+		}
 
-	err = s.queries.CreateStepRunEvent(ctx, tx, dbsqlc.CreateStepRunEventParams{
-		Steprunid: stepRun.StepRun.ID,
-		Reason:    dbsqlc.StepRunEventReasonSLOTRELEASED,
-		Severity:  dbsqlc.StepRunEventSeverityINFO,
-		Message:   "Slot released",
-		Data:      dataBytes,
-	})
+		err = s.queries.CreateStepRunEvent(ctx, tx, dbsqlc.CreateStepRunEventParams{
+			Steprunid: stepRun.StepRun.ID,
+			Reason:    dbsqlc.StepRunEventReasonSLOTRELEASED,
+			Severity:  dbsqlc.StepRunEventSeverityINFO,
+			Message:   "Slot released",
+			Data:      dataBytes,
+		})
 
-	if err != nil {
-		return fmt.Errorf("could not create step run event: %w", err)
-	}
+		if err != nil {
+			return fmt.Errorf("could not create step run event: %w", err)
+		}
 
-	// Update the old worker semaphore. This will only increment if the step run was already assigned to a worker,
-	// which means the step run is being retried or rerun.
-	_, err = s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
-		Inc:       1,
-		Steprunid: stepRun.StepRun.ID,
-		Tenantid:  stepRun.StepRun.TenantId,
-	})
+		// Update the old worker semaphore. This will only increment if the step run was already assigned to a worker,
+		// which means the step run is being retried or rerun.
+		_, err = s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
+			Inc:       1,
+			Steprunid: stepRun.StepRun.ID,
+			Tenantid:  stepRun.StepRun.TenantId,
+		})
 
-	isNoRowsErr := err != nil && errors.Is(err, pgx.ErrNoRows)
+		isNoRowsErr := err != nil && errors.Is(err, pgx.ErrNoRows)
 
-	if err != nil && !isNoRowsErr {
-		return fmt.Errorf("could not upsert old worker semaphore: %w", err)
-	}
+		if err != nil && !isNoRowsErr {
+			return fmt.Errorf("could not upsert old worker semaphore: %w", err)
+		}
 
-	_, err = s.queries.UnlinkStepRunFromWorker(ctx, tx, dbsqlc.UnlinkStepRunFromWorkerParams{
-		Steprunid: stepRun.StepRun.ID,
-		Tenantid:  stepRun.StepRun.TenantId,
-	})
-
-	if err != nil {
-		return fmt.Errorf("could not unlink step run from worker: %w", err)
-	}
-
-	// Update the Step Run to release the semaphore
-	_, err = s.queries.UpdateStepRun(ctx, tx, dbsqlc.UpdateStepRunParams{
-		ID:       stepRun.StepRun.ID,
-		Tenantid: stepRun.StepRun.TenantId,
-		SemaphoreReleased: pgtype.Bool{
-			Valid: true,
-			Bool:  true,
-		},
-	})
-
-	if err != nil {
-		return fmt.Errorf("could not update step run semaphoreRelease: %w", err)
-	}
-
-	return tx.Commit(ctx)
-}
-
-func (s *stepRunEngineRepository) incrementWorkerSemaphore(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) error {
-	tx, err := s.pool.Begin(ctx)
-
-	if err != nil {
-		return err
-	}
-
-	defer deferRollback(ctx, s.l, tx.Rollback)
-
-	// Update the old worker semaphore. This will only increment if the step run was already assigned to a worker,
-	// which means the step run is being retried or rerun.
-	_, err = s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
-		Inc:       1,
-		Steprunid: stepRun.StepRun.ID,
-		Tenantid:  stepRun.StepRun.TenantId,
-	})
-
-	isNoRowsErr := err != nil && errors.Is(err, pgx.ErrNoRows)
-
-	if err != nil && !isNoRowsErr {
-		return fmt.Errorf("could not upsert old worker semaphore: %w", err)
-	}
-
-	// this means that a worker is assigned: unlink the existing worker from the step run,
-	// so that we don't re-increment the old worker semaphore on each retry
-	if err == nil {
 		_, err = s.queries.UnlinkStepRunFromWorker(ctx, tx, dbsqlc.UnlinkStepRunFromWorkerParams{
 			Steprunid: stepRun.StepRun.ID,
 			Tenantid:  stepRun.StepRun.TenantId,
@@ -488,9 +437,64 @@ func (s *stepRunEngineRepository) incrementWorkerSemaphore(ctx context.Context, 
 		if err != nil {
 			return fmt.Errorf("could not unlink step run from worker: %w", err)
 		}
-	}
 
-	return tx.Commit(ctx)
+		// Update the Step Run to release the semaphore
+		_, err = s.queries.UpdateStepRun(ctx, tx, dbsqlc.UpdateStepRunParams{
+			ID:       stepRun.StepRun.ID,
+			Tenantid: stepRun.StepRun.TenantId,
+			SemaphoreReleased: pgtype.Bool{
+				Valid: true,
+				Bool:  true,
+			},
+		})
+
+		if err != nil {
+			return fmt.Errorf("could not update step run semaphoreRelease: %w", err)
+		}
+
+		return tx.Commit(ctx)
+	})
+}
+
+func (s *stepRunEngineRepository) incrementWorkerSemaphore(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) error {
+	return deadlockRetry(s.l, func() error {
+		tx, err := s.pool.Begin(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		defer deferRollback(ctx, s.l, tx.Rollback)
+
+		// Update the old worker semaphore. This will only increment if the step run was already assigned to a worker,
+		// which means the step run is being retried or rerun.
+		_, err = s.queries.UpdateWorkerSemaphore(ctx, tx, dbsqlc.UpdateWorkerSemaphoreParams{
+			Inc:       1,
+			Steprunid: stepRun.StepRun.ID,
+			Tenantid:  stepRun.StepRun.TenantId,
+		})
+
+		isNoRowsErr := err != nil && errors.Is(err, pgx.ErrNoRows)
+
+		if err != nil && !isNoRowsErr {
+			return fmt.Errorf("could not upsert old worker semaphore: %w", err)
+		}
+
+		// this means that a worker is assigned: unlink the existing worker from the step run,
+		// so that we don't re-increment the old worker semaphore on each retry
+		if err == nil {
+			_, err = s.queries.UnlinkStepRunFromWorker(ctx, tx, dbsqlc.UnlinkStepRunFromWorkerParams{
+				Steprunid: stepRun.StepRun.ID,
+				Tenantid:  stepRun.StepRun.TenantId,
+			})
+
+			if err != nil {
+				return fmt.Errorf("could not unlink step run from worker: %w", err)
+			}
+		}
+
+		return tx.Commit(ctx)
+	})
 }
 
 type errNoWorkerWithSlots struct {
