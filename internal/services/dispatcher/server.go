@@ -131,6 +131,12 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		opts.MaxRuns = &mr
 	}
 
+	if apiErrors, err := s.v.ValidateAPI(opts); err != nil {
+		return nil, err
+	} else if apiErrors != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
+	}
+
 	// create a worker in the database
 	worker, err := s.repo.Worker().CreateNewWorker(ctx, tenantId, opts)
 
@@ -710,9 +716,17 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	stepRun, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, repository.RefreshTimeoutBy{
+	opts := repository.RefreshTimeoutBy{
 		IncrementTimeoutBy: request.IncrementTimeoutBy,
-	})
+	}
+
+	if apiErrors, err := d.v.ValidateAPI(opts); err != nil {
+		return nil, err
+	} else if apiErrors != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
+	}
+
+	stepRun, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, opts)
 
 	if err != nil {
 		return nil, err

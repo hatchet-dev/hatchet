@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -127,13 +129,21 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 		metadata = []byte(req.Metadata)
 	}
 
-	_, err := i.logRepository.PutLog(ctx, tenantId, &repository.CreateLogLineOpts{
+	opts := &repository.CreateLogLineOpts{
 		StepRunId: req.StepRunId,
 		CreatedAt: createdAt,
 		Message:   req.Message,
 		Level:     req.Level,
 		Metadata:  metadata,
-	})
+	}
+
+	if apiErrors, err := i.v.ValidateAPI(opts); err != nil {
+		return nil, err
+	} else if apiErrors != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
+	}
+
+	_, err := i.logRepository.PutLog(ctx, tenantId, opts)
 
 	if err != nil {
 		return nil, err
