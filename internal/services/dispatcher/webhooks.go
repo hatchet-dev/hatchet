@@ -86,6 +86,8 @@ func (w *webhookController) Start(ctx context.Context, action *contracts.Assigne
 		return err
 	}
 
+	log.Printf("using secret: %s", tenant.WebhookSecret.String)
+
 	sig, err := signature.Sign(string(body), tenant.WebhookSecret.String)
 	if err != nil {
 		return err

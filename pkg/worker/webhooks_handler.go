@@ -30,6 +30,7 @@ func (w *Worker) WebhookHandler(secret string) http.HandlerFunc {
 			panic(fmt.Errorf("could not sign data: %w", err))
 		}
 
+		log.Printf("secret: %s", secret)
 		log.Printf("actual: %s", actual)
 		log.Printf("expected: %s", expected)
 
