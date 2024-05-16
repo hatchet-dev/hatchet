@@ -1338,16 +1338,10 @@ func sleepWithJitter(min, max time.Duration) {
 }
 
 func (s *stepRunEngineRepository) RefreshTimeoutAt(ctx context.Context, tenantId, stepRunId string, incrementTimeoutBy string) (*dbsqlc.StepRun, error) {
-	tx, err := s.pool.Begin(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
 	stepRunUUID := sqlchelpers.UUIDFromStr(stepRunId)
 	tenantUUID := sqlchelpers.UUIDFromStr(tenantId)
 
-	res, err := s.queries.RefreshTimeoutAt(ctx, tx, dbsqlc.RefreshTimeoutAtParams{
+	res, err := s.queries.RefreshTimeoutAt(ctx, s.pool, dbsqlc.RefreshTimeoutAtParams{
 		Steprunid:          stepRunUUID,
 		Tenantid:           tenantUUID,
 		IncrementTimeoutBy: sqlchelpers.TextFromStr(incrementTimeoutBy),
@@ -1363,12 +1357,6 @@ func (s *stepRunEngineRepository) RefreshTimeoutAt(ctx context.Context, tenantId
 		dbsqlc.StepRunEventSeverityINFO,
 		fmt.Sprintf("Timeout refreshed by %s", incrementTimeoutBy),
 		nil)
-
-	err = tx.Commit(ctx)
-
-	if err != nil {
-		return nil, err
-	}
 
 	return res, nil
 }
