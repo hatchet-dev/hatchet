@@ -103,7 +103,13 @@ export default function ExpandedWorkflowRun() {
         <p className="mt-1 max-w-2xl text-gray-700 dark:text-gray-300">
           Started <RelativeDate date={worker.metadata?.createdAt} />
           <br />
-          Last seen <RelativeDate date={worker.metadata?.createdAt} /> <br />
+          Last seen{' '}
+          {worker.lastHeartbeatAt ? (
+            <RelativeDate date={worker.lastHeartbeatAt} />
+          ) : (
+            'never'
+          )}
+          <br />
           {(worker.maxRuns ?? 0) > 0
             ? `${worker.availableRuns} / ${worker.maxRuns ?? 0}`
             : '100'}{' '}
