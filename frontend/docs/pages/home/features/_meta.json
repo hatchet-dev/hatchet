@@ -4,7 +4,7 @@
   "retries": "Retries",
   "timeouts": "Timeouts",
   "errors-and-logging": "Errors and Logging",
-  "on-failure": "On Failure Step",
+  "on-failure-step": "On Failure Step",
   "streaming": "Streaming",
   "triggering-runs": "Triggering Runs",
   "rate-limits": "Global Rate Limits",
