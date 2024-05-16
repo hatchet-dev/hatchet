@@ -29,7 +29,7 @@ service Dispatcher {
     rpc Unsubscribe(WorkerUnsubscribeRequest) returns (WorkerUnsubscribeResponse) {}
 
     rpc RefreshTimeout(RefreshTimeoutRequest) returns (RefreshTimeoutResponse) {}
-    
+
     rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
 }
 
@@ -305,7 +305,7 @@ message RefreshTimeoutRequest {
 
 message RefreshTimeoutResponse {
     google.protobuf.Timestamp timeoutAt = 1;
- 
+
 }
 message ReleaseSlotRequest {
     // the id of the step run to release

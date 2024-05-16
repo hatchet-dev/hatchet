@@ -274,7 +274,7 @@ triggerWorkflow:
     tags:
       - Workflow Run
 
-cancelWorkflowRuns: 
+cancelWorkflowRuns:
   post:
     x-resources: ["tenant"]
     description: Cancel a batch of workflow runs
