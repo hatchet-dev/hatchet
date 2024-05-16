@@ -259,7 +259,7 @@ INSERT INTO "JobRun" (
     "workflowRunId",
     "jobId",
     "status"
-) 
+)
 SELECT
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -317,7 +317,7 @@ INSERT INTO "StepRun" (
     "status",
     "requeueAfter",
     "callerFiles"
-) 
+)
 SELECT
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -590,9 +590,9 @@ func (q *Queries) GetScheduledChildWorkflowRun(ctx context.Context, db DBTX, arg
 
 const getWorkflowRun = `-- name: GetWorkflowRun :many
 SELECT
-    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", 
-    runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId", 
-    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", 
+    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata",
+    runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
+    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId",
     workflow."name" as "workflowName",
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
@@ -696,14 +696,14 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 
 const linkStepRunParents = `-- name: LinkStepRunParents :exec
 INSERT INTO "_StepRunOrder" ("A", "B")
-SELECT 
+SELECT
     parent_run."id" AS "A",
     child_run."id" AS "B"
-FROM 
+FROM
     "_StepOrder" AS step_order
-JOIN 
+JOIN
     "StepRun" AS parent_run ON parent_run."stepId" = step_order."A" AND parent_run."jobRunId" = $1::uuid
-JOIN 
+JOIN
     "StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = $1::uuid
 `
 
@@ -714,14 +714,14 @@ func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, jobrunid pgty
 
 const listWorkflowRuns = `-- name: ListWorkflowRuns :many
 SELECT
-    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", 
-    workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description, 
-    runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId", 
-    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", 
+    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata",
+    workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description,
+    runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
+    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId",
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable events field
     events.id, events.key, events."createdAt", events."updatedAt"
 FROM
-    "WorkflowRun" as runs 
+    "WorkflowRun" as runs
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
 LEFT JOIN
@@ -743,7 +743,7 @@ WHERE
     (
         $4::uuid[] IS NULL OR
         runs."id" = ANY($4::uuid[])
-    ) AND 
+    ) AND
     (
         $5::jsonb IS NULL OR
         runs."additionalMetadata" @> $5::jsonb
@@ -944,7 +944,7 @@ WITH workflow_runs AS (
             ORDER BY
                 rn, seqnum ASC
             LIMIT
-                -- We can run up to maxRuns per group, so we multiple max runs by the number of groups, then subtract the 
+                -- We can run up to maxRuns per group, so we multiple max runs by the number of groups, then subtract the
                 -- total number of running workflows.
                 ($3::int) * (SELECT count FROM total_group_count)
         ) AND
@@ -1028,7 +1028,7 @@ WITH jobRuns AS (
         job."kind" = 'DEFAULT'
 )
 UPDATE "WorkflowRun"
-SET "status" = CASE 
+SET "status" = CASE
     -- Final states are final, cannot be updated
     WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
     -- We check for running first, because if a job run is running, then the workflow is running
@@ -1038,7 +1038,7 @@ SET "status" = CASE
     -- When all job runs have succeeded, then the workflow is succeeded
     WHEN j.succeededRuns > 0 AND j.pendingRuns = 0 AND j.runningRuns = 0 AND j.failedRuns = 0 AND j.cancelledRuns = 0 THEN 'SUCCEEDED'
     ELSE "status"
-END, "finishedAt" = CASE 
+END, "finishedAt" = CASE
     -- Final states are final, cannot be updated
     WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
     -- We check for running first, because if a job run is running, then the workflow is not finished
@@ -1046,7 +1046,7 @@ END, "finishedAt" = CASE
     -- When one job run has failed or been cancelled, then the workflow is failed
     WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN NOW()
     ELSE "finishedAt"
-END, "startedAt" = CASE 
+END, "startedAt" = CASE
     -- Started at is final, cannot be changed
     WHEN "startedAt" IS NOT NULL THEN "startedAt"
     -- If a job is running or in a final state, then the workflow has started
@@ -1102,7 +1102,7 @@ SET
     "error" = COALESCE($2::text, "error"),
     "startedAt" = COALESCE($3::timestamp, "startedAt"),
     "finishedAt" = COALESCE($4::timestamp, "finishedAt")
-WHERE 
+WHERE
     "tenantId" = $5::uuid AND
     "id" = ANY($6::uuid[])
 RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."gitRepoBranch", "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata"
@@ -1167,7 +1167,7 @@ const updateWorkflowRun = `-- name: UpdateWorkflowRun :one
 UPDATE
     "WorkflowRun"
 SET
-    "status" = CASE 
+    "status" = CASE
     -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
         ELSE COALESCE($1::"WorkflowRunStatus", "status")
@@ -1175,7 +1175,7 @@ SET
     "error" = COALESCE($2::text, "error"),
     "startedAt" = COALESCE($3::timestamp, "startedAt"),
     "finishedAt" = COALESCE($4::timestamp, "finishedAt")
-WHERE 
+WHERE
     "id" = $5::uuid AND
     "tenantId" = $6::uuid
 RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."gitRepoBranch", "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata"
@@ -1232,24 +1232,24 @@ WITH groupKeyRun AS (
         "tenantId" = $1::uuid
 )
 UPDATE "WorkflowRun" workflowRun
-SET "status" = CASE 
+SET "status" = CASE
     -- Final states are final, cannot be updated. We also can't move out of a queued state
     WHEN "status" IN ('SUCCEEDED', 'FAILED', 'QUEUED') THEN "status"
     -- When the GetGroupKeyRun failed or been cancelled, then the workflow is failed
     WHEN groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN 'FAILED'
     WHEN groupKeyRun.output IS NOT NULL THEN 'QUEUED'
     ELSE "status"
-END, "finishedAt" = CASE 
+END, "finishedAt" = CASE
     -- Final states are final, cannot be updated
     WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
     -- When one job run has failed or been cancelled, then the workflow is failed
     WHEN groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN NOW()
     ELSE "finishedAt"
-END, 
+END,
 "concurrencyGroupId" = groupKeyRun."output"
 FROM
     groupKeyRun
-WHERE 
+WHERE
 workflowRun."id" = groupKeyRun."workflowRunId" AND
 workflowRun."tenantId" = $1::uuid
 RETURNING workflowrun."createdAt", workflowrun."updatedAt", workflowrun."deletedAt", workflowrun."tenantId", workflowrun."workflowVersionId", workflowrun.status, workflowrun.error, workflowrun."startedAt", workflowrun."finishedAt", workflowrun."concurrencyGroupId", workflowrun."displayName", workflowrun.id, workflowrun."gitRepoBranch", workflowrun."childIndex", workflowrun."childKey", workflowrun."parentId", workflowrun."parentStepRunId", workflowrun."additionalMetadata"

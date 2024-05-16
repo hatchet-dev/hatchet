@@ -13,10 +13,10 @@ import (
 
 const upsertRateLimit = `-- name: UpsertRateLimit :one
 INSERT INTO "RateLimit" (
-    "tenantId", 
-    "key", 
-    "limitValue", 
-    "value", 
+    "tenantId",
+    "key",
+    "limitValue",
+    "value",
     "window"
 ) VALUES (
     $1::uuid,
@@ -24,7 +24,7 @@ INSERT INTO "RateLimit" (
     $3::int,
     $3::int,
     COALESCE($4::text, '1 minute')
-) ON CONFLICT ("tenantId", "key") DO UPDATE SET 
+) ON CONFLICT ("tenantId", "key") DO UPDATE SET
     "limitValue" = $3::int,
     "window" = COALESCE($4::text, '1 minute')
 RETURNING "tenantId", key, "limitValue", value, "window", "lastRefill"

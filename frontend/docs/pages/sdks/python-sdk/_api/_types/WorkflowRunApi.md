@@ -72,9 +72,9 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **workflow** | **str**| The workflow id | 
- **trigger_workflow_run_request** | [**TriggerWorkflowRunRequest**](TriggerWorkflowRunRequest.md)| The input to the workflow run | 
- **version** | **str**| The workflow version. If not supplied, the latest version is fetched. | [optional] 
+ **workflow** | **str**| The workflow id |
+ **trigger_workflow_run_request** | [**TriggerWorkflowRunRequest**](TriggerWorkflowRunRequest.md)| The input to the workflow run |
+ **version** | **str**| The workflow version. If not supplied, the latest version is fetched. | [optional]
 
 ### Return type
 

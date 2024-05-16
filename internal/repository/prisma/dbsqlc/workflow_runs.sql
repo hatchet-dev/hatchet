@@ -100,14 +100,14 @@ WHERE
 
 -- name: ListWorkflowRuns :many
 SELECT
-    sqlc.embed(runs), 
-    sqlc.embed(workflow), 
-    sqlc.embed(runTriggers), 
-    sqlc.embed(workflowVersion), 
+    sqlc.embed(runs),
+    sqlc.embed(workflow),
+    sqlc.embed(runTriggers),
+    sqlc.embed(workflowVersion),
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable events field
     events.id, events.key, events."createdAt", events."updatedAt"
 FROM
-    "WorkflowRun" as runs 
+    "WorkflowRun" as runs
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
 LEFT JOIN
@@ -129,7 +129,7 @@ WHERE
     (
         sqlc.narg('ids')::uuid[] IS NULL OR
         runs."id" = ANY(sqlc.narg('ids')::uuid[])
-    ) AND 
+    ) AND
     (
         sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
@@ -213,7 +213,7 @@ WITH workflow_runs AS (
             ORDER BY
                 rn, seqnum ASC
             LIMIT
-                -- We can run up to maxRuns per group, so we multiple max runs by the number of groups, then subtract the 
+                -- We can run up to maxRuns per group, so we multiple max runs by the number of groups, then subtract the
                 -- total number of running workflows.
                 (@maxRuns::int) * (SELECT count FROM total_group_count)
         ) AND
@@ -240,24 +240,24 @@ WITH groupKeyRun AS (
         "tenantId" = @tenantId::uuid
 )
 UPDATE "WorkflowRun" workflowRun
-SET "status" = CASE 
+SET "status" = CASE
     -- Final states are final, cannot be updated. We also can't move out of a queued state
     WHEN "status" IN ('SUCCEEDED', 'FAILED', 'QUEUED') THEN "status"
     -- When the GetGroupKeyRun failed or been cancelled, then the workflow is failed
     WHEN groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN 'FAILED'
     WHEN groupKeyRun.output IS NOT NULL THEN 'QUEUED'
     ELSE "status"
-END, "finishedAt" = CASE 
+END, "finishedAt" = CASE
     -- Final states are final, cannot be updated
     WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
     -- When one job run has failed or been cancelled, then the workflow is failed
     WHEN groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN NOW()
     ELSE "finishedAt"
-END, 
+END,
 "concurrencyGroupId" = groupKeyRun."output"
 FROM
     groupKeyRun
-WHERE 
+WHERE
 workflowRun."id" = groupKeyRun."workflowRunId" AND
 workflowRun."tenantId" = @tenantId::uuid
 RETURNING workflowRun.*;
@@ -282,7 +282,7 @@ WITH jobRuns AS (
         job."kind" = 'DEFAULT'
 )
 UPDATE "WorkflowRun"
-SET "status" = CASE 
+SET "status" = CASE
     -- Final states are final, cannot be updated
     WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
     -- We check for running first, because if a job run is running, then the workflow is running
@@ -292,7 +292,7 @@ SET "status" = CASE
     -- When all job runs have succeeded, then the workflow is succeeded
     WHEN j.succeededRuns > 0 AND j.pendingRuns = 0 AND j.runningRuns = 0 AND j.failedRuns = 0 AND j.cancelledRuns = 0 THEN 'SUCCEEDED'
     ELSE "status"
-END, "finishedAt" = CASE 
+END, "finishedAt" = CASE
     -- Final states are final, cannot be updated
     WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
     -- We check for running first, because if a job run is running, then the workflow is not finished
@@ -300,7 +300,7 @@ END, "finishedAt" = CASE
     -- When one job run has failed or been cancelled, then the workflow is failed
     WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN NOW()
     ELSE "finishedAt"
-END, "startedAt" = CASE 
+END, "startedAt" = CASE
     -- Started at is final, cannot be changed
     WHEN "startedAt" IS NOT NULL THEN "startedAt"
     -- If a job is running or in a final state, then the workflow has started
@@ -320,7 +320,7 @@ RETURNING "WorkflowRun".*;
 UPDATE
     "WorkflowRun"
 SET
-    "status" = CASE 
+    "status" = CASE
     -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
         ELSE COALESCE(sqlc.narg('status')::"WorkflowRunStatus", "status")
@@ -328,7 +328,7 @@ SET
     "error" = COALESCE(sqlc.narg('error')::text, "error"),
     "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
     "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt")
-WHERE 
+WHERE
     "id" = @id::uuid AND
     "tenantId" = @tenantId::uuid
 RETURNING "WorkflowRun".*;
@@ -341,7 +341,7 @@ SET
     "error" = COALESCE(sqlc.narg('error')::text, "error"),
     "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
     "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt")
-WHERE 
+WHERE
     "tenantId" = @tenantId::uuid AND
     "id" = ANY(@ids::uuid[])
 RETURNING "WorkflowRun".*;
@@ -462,7 +462,7 @@ INSERT INTO "JobRun" (
     "workflowRunId",
     "jobId",
     "status"
-) 
+)
 SELECT
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -516,7 +516,7 @@ INSERT INTO "StepRun" (
     "status",
     "requeueAfter",
     "callerFiles"
-) 
+)
 SELECT
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -534,21 +534,21 @@ WHERE
 
 -- name: LinkStepRunParents :exec
 INSERT INTO "_StepRunOrder" ("A", "B")
-SELECT 
+SELECT
     parent_run."id" AS "A",
     child_run."id" AS "B"
-FROM 
+FROM
     "_StepOrder" AS step_order
-JOIN 
+JOIN
     "StepRun" AS parent_run ON parent_run."stepId" = step_order."A" AND parent_run."jobRunId" = @jobRunId::uuid
-JOIN 
+JOIN
     "StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = @jobRunId::uuid;
 
 -- name: GetWorkflowRun :many
 SELECT
-    sqlc.embed(runs), 
-    sqlc.embed(runTriggers), 
-    sqlc.embed(workflowVersion), 
+    sqlc.embed(runs),
+    sqlc.embed(runTriggers),
+    sqlc.embed(workflowVersion),
     workflow."name" as "workflowName",
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",

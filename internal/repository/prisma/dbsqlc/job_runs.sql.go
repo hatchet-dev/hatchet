@@ -92,10 +92,10 @@ WITH stepRuns AS (
             FROM "StepRun"
             WHERE "id" = $1::uuid
         ) AND
-        "tenantId" = $2::uuid    
+        "tenantId" = $2::uuid
 )
 UPDATE "JobRun"
-SET "status" = CASE 
+SET "status" = CASE
     -- Final states are final, cannot be updated
     WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
     -- NOTE: Order of the following conditions is important
@@ -108,7 +108,7 @@ SET "status" = CASE
     -- When no step runs exist that are not succeeded, then the job is succeeded
     WHEN s.succeededRuns > 0 AND s.pendingRuns = 0 AND s.runningRuns = 0 AND s.failedRuns = 0 AND s.cancelledRuns = 0 THEN 'SUCCEEDED'
     ELSE "status"
-END, "finishedAt" = CASE 
+END, "finishedAt" = CASE
     -- Final states are final, cannot be updated
     WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
     WHEN s.runningRuns > 0 THEN NULL
@@ -117,7 +117,7 @@ END, "finishedAt" = CASE
     -- When no step runs exist that are not succeeded, then the job is finished
     WHEN s.succeededRuns > 0 AND s.pendingRuns = 0 AND s.runningRuns = 0 AND s.failedRuns = 0 AND s.cancelledRuns = 0 THEN NOW()
     ELSE "finishedAt"
-END, "startedAt" = CASE 
+END, "startedAt" = CASE
     -- Started at is final, cannot be changed
     WHEN "startedAt" IS NOT NULL THEN "startedAt"
     -- If steps are running (or have finished), then set the started at time
@@ -173,11 +173,11 @@ WITH readable_id AS (
     )
 )
 UPDATE "JobRunLookupData"
-SET 
+SET
     "data" = jsonb_set(
-        "JobRunLookupData"."data", 
-        ARRAY['steps', (SELECT "readableId" FROM readable_id)], 
-        $1::jsonb, 
+        "JobRunLookupData"."data",
+        ARRAY['steps', (SELECT "readableId" FROM readable_id)],
+        $1::jsonb,
         true
     ),
     "updatedAt" = CURRENT_TIMESTAMP
@@ -256,7 +256,7 @@ INSERT INTO "JobRunLookupData" (
     $2::uuid,
     jsonb_set('{}', $3::text[], $4::jsonb, true)
 ) ON CONFLICT ("jobRunId", "tenantId") DO UPDATE
-SET 
+SET
     "data" = jsonb_set("JobRunLookupData"."data", $3::text[], $4::jsonb, true),
     "updatedAt" = CURRENT_TIMESTAMP
 `

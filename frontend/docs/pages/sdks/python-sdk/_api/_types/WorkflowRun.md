@@ -5,18 +5,18 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  | 
-**tenant_id** | **str** |  | 
-**workflow_version_id** | **str** |  | 
-**workflow_version** | [**WorkflowVersion**](WorkflowVersion.md) |  | [optional] 
-**status** | [**WorkflowRunStatus**](WorkflowRunStatus.md) |  | 
-**display_name** | **str** |  | [optional] 
-**job_runs** | [**List[JobRun]**](JobRun.md) |  | [optional] 
-**triggered_by** | [**WorkflowRunTriggeredBy**](WorkflowRunTriggeredBy.md) |  | 
-**input** | **Dict[str, object]** |  | [optional] 
-**error** | **str** |  | [optional] 
-**started_at** | **datetime** |  | [optional] 
-**finished_at** | **datetime** |  | [optional] 
+**metadata** | [**APIResourceMeta**](APIResourceMeta.md) |  |
+**tenant_id** | **str** |  |
+**workflow_version_id** | **str** |  |
+**workflow_version** | [**WorkflowVersion**](WorkflowVersion.md) |  | [optional]
+**status** | [**WorkflowRunStatus**](WorkflowRunStatus.md) |  |
+**display_name** | **str** |  | [optional]
+**job_runs** | [**List[JobRun]**](JobRun.md) |  | [optional]
+**triggered_by** | [**WorkflowRunTriggeredBy**](WorkflowRunTriggeredBy.md) |  |
+**input** | **Dict[str, object]** |  | [optional]
+**error** | **str** |  | [optional]
+**started_at** | **datetime** |  | [optional]
+**finished_at** | **datetime** |  | [optional]
 
 ## Example
 

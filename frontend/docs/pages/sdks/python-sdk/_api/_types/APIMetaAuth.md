@@ -5,7 +5,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**schemes** | **List[str]** | the supported types of authentication | [optional] 
+**schemes** | **List[str]** | the supported types of authentication | [optional]
 
 ## Example
 

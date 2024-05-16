@@ -5,7 +5,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**raw_definition** | **str** | The raw YAML definition of the workflow. | 
+**raw_definition** | **str** | The raw YAML definition of the workflow. |
 
 ## Example
 
