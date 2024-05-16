@@ -565,7 +565,7 @@ SELECT ts."totalSlots"::int, usr."id", usr."workerId", usr."dispatcherId"
 FROM total_slots ts
 LEFT JOIN update_step_run usr ON true;    
 
--- name: RefreshTimeoutAt :one
+-- name: RefreshTimeoutBy :one
 UPDATE
     "StepRun" sr
 SET

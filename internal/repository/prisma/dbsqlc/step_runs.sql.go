@@ -925,7 +925,7 @@ func (q *Queries) ListStepRunsToRequeue(ctx context.Context, db DBTX, tenantid p
 	return items, nil
 }
 
-const refreshTimeoutAt = `-- name: RefreshTimeoutAt :one
+const refreshTimeoutBy = `-- name: RefreshTimeoutBy :one
 UPDATE
     "StepRun" sr
 SET
@@ -942,14 +942,14 @@ WHERE
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased"
 `
 
-type RefreshTimeoutAtParams struct {
+type RefreshTimeoutByParams struct {
 	IncrementTimeoutBy pgtype.Text `json:"incrementTimeoutBy"`
 	Steprunid          pgtype.UUID `json:"steprunid"`
 	Tenantid           pgtype.UUID `json:"tenantid"`
 }
 
-func (q *Queries) RefreshTimeoutAt(ctx context.Context, db DBTX, arg RefreshTimeoutAtParams) (*StepRun, error) {
-	row := db.QueryRow(ctx, refreshTimeoutAt, arg.IncrementTimeoutBy, arg.Steprunid, arg.Tenantid)
+func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTimeoutByParams) (*StepRun, error) {
+	row := db.QueryRow(ctx, refreshTimeoutBy, arg.IncrementTimeoutBy, arg.Steprunid, arg.Tenantid)
 	var i StepRun
 	err := row.Scan(
 		&i.ID,

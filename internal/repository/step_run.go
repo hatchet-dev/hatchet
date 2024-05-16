@@ -114,6 +114,10 @@ type ListStepRunEventResult struct {
 	Count int
 }
 
+type RefreshTimeoutBy struct {
+	IncrementTimeoutBy string `validate:"required,duration"`
+}
+
 type StepRunAPIRepository interface {
 	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
 
@@ -158,5 +162,5 @@ type StepRunEngineRepository interface {
 
 	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error
 
-	RefreshTimeoutAt(ctx context.Context, tenantId, stepRunId string, timeoutAt string) (*dbsqlc.StepRun, error)
+	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
 }

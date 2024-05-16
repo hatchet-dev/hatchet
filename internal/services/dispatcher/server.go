@@ -710,7 +710,9 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	stepRun, err := d.repo.StepRun().RefreshTimeoutAt(ctx, tenantId, request.StepRunId, request.IncrementTimeoutBy)
+	stepRun, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, repository.RefreshTimeoutBy{
+		IncrementTimeoutBy: request.IncrementTimeoutBy,
+	})
 
 	if err != nil {
 		return nil, err
