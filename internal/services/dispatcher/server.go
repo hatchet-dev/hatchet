@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -783,6 +784,20 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
+
+	// verify that the event payload can be unmarshalled into a map type
+	if request.EventPayload != "" {
+		res := make(map[string]interface{})
+
+		if err := json.Unmarshal([]byte(request.EventPayload), &res); err != nil {
+			// if the payload starts with a [, then it is an array which we don't currently support
+			if request.EventPayload[0] == '[' {
+				return nil, status.Errorf(codes.InvalidArgument, "Return value is an array, which is not supported")
+			}
+
+			return nil, status.Errorf(codes.InvalidArgument, "Return value is not a valid JSON object")
+		}
+	}
 
 	finishedAt := request.EventTimestamp.AsTime()
 
