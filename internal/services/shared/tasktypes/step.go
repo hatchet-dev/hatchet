@@ -121,6 +121,18 @@ type StepRunRetryTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
+type StepRunReplayTaskPayload struct {
+	StepRunId string `json:"step_run_id" validate:"required,uuid"`
+	JobRunId  string `json:"job_run_id" validate:"required,uuid"`
+
+	// optional - if not provided, the step run will be retried with the same input
+	InputData string `json:"input_data,omitempty"`
+}
+
+type StepRunReplayTaskMetadata struct {
+	TenantId string `json:"tenant_id" validate:"required,uuid"`
+}
+
 func TenantToStepRunRequeueTask(tenant db.TenantModel) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(StepRunRequeueTaskPayload{
 		TenantId: tenant.ID,
@@ -155,6 +167,29 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 
 	return &msgqueue.Message{
 		ID:       "step-run-retry",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	}
+}
+
+func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
+	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
+
+	payload, _ := datautils.ToJSONMap(StepRunReplayTaskPayload{
+		JobRunId:  jobRunId,
+		StepRunId: stepRunId,
+		InputData: string(inputData),
+	})
+
+	metadata, _ := datautils.ToJSONMap(StepRunReplayTaskMetadata{
+		TenantId: tenantId,
+	})
+
+	return &msgqueue.Message{
+		ID:       "step-run-replay",
 		Payload:  payload,
 		Metadata: metadata,
 		Retries:  3,
