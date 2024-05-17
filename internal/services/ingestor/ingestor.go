@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/internal/validator"
 )
 
 type Ingestor interface {
@@ -64,6 +65,7 @@ type IngestorImpl struct {
 	logRepository         repository.LogsEngineRepository
 	streamEventRepository repository.StreamEventsEngineRepository
 	mq                    msgqueue.MessageQueue
+	v                     validator.Validator
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -94,6 +96,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		streamEventRepository: opts.streamEventRepository,
 		logRepository:         opts.logRepository,
 		mq:                    opts.mq,
+		v:                     validator.NewDefaultValidator(),
 	}, nil
 }
 

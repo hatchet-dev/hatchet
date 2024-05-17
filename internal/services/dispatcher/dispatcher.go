@@ -22,6 +22,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
+	"github.com/hatchet-dev/hatchet/internal/validator"
 
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 )
@@ -38,6 +39,7 @@ type DispatcherImpl struct {
 	mq           msgqueue.MessageQueue
 	l            *zerolog.Logger
 	dv           datautils.DataDecoderValidator
+	v            validator.Validator
 	repo         repository.EngineRepository
 	dispatcherId string
 	workers      *workers
@@ -196,6 +198,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		mq:           opts.mq,
 		l:            opts.l,
 		dv:           opts.dv,
+		v:            validator.NewDefaultValidator(),
 		repo:         opts.repo,
 		dispatcherId: opts.dispatcherId,
 		workers:      &workers{},
