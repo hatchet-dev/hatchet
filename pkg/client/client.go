@@ -203,7 +203,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		transportCreds = credentials.NewTLS(opts.tls)
 	}
 
-	conn, err := grpc.Dial(
+	conn, err := grpc.NewClient(
 		opts.hostPort,
 		grpc.WithTransportCredentials(transportCreds),
 	)

@@ -215,6 +215,8 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 		return ec.handleJobRunQueued(ctx, task)
 	case "job-run-cancelled":
 		return ec.handleJobRunCancelled(ctx, task)
+	case "step-run-replay":
+		return ec.handleStepRunReplay(ctx, task)
 	case "step-run-retry":
 		return ec.handleStepRunRetry(ctx, task)
 	case "step-run-queued":
@@ -370,7 +372,80 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 		return fmt.Errorf("could not archive step run result: %w", err)
 	}
 
-	ec.l.Error().Err(fmt.Errorf("starting step run retry"))
+	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run: %w", err)
+	}
+
+	inputBytes := stepRun.StepRun.Input
+	retryCount := int(stepRun.StepRun.RetryCount) + 1
+
+	// update step run
+	_, _, err = ec.repo.StepRun().UpdateStepRun(
+		ctx,
+		metadata.TenantId,
+		sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
+		&repository.UpdateStepRunOpts{
+			Input:      inputBytes,
+			Status:     repository.StepRunStatusPtr(db.StepRunStatusPending),
+			IsRerun:    true,
+			RetryCount: &retryCount,
+			Event: &repository.CreateStepRunEventOpts{
+				EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonRETRYING),
+				EventMessage: repository.StringPtr(
+					fmt.Sprintf("Retrying step run. This is retry %d / %d", retryCount, stepRun.StepRetries),
+				)},
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not update step run: %w", err)
+	}
+
+	// send a task to the taskqueue
+	return ec.mq.AddMessage(
+		ctx,
+		msgqueue.JOB_PROCESSING_QUEUE,
+		tasktypes.StepRunQueuedToTask(stepRun),
+	)
+}
+
+// handleStepRunReplay replays a step run from scratch - it resets the workflow run state, job run state, and
+// all cancelled step runs which are children of the step run being replayed.
+func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-replay")
+	defer span.End()
+
+	payload := tasktypes.StepRunReplayTaskPayload{}
+	metadata := tasktypes.StepRunReplayTaskMetadata{}
+
+	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode job task payload: %w", err)
+	}
+
+	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode job task metadata: %w", err)
+	}
+
+	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not archive step run result: %w", err)
+	}
+
+	// Unlink the step run from its existing worker. This is necessary because automatic retries increment the
+	// worker semaphore on failure/cancellation, but in this case we don't want to increment the semaphore.
+	// FIXME: this is very far decoupled from the actual worker logic, and should be refactored.
+	err = ec.repo.StepRun().UnlinkStepRunFromWorker(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not unlink step run from worker: %w", err)
+	}
 
 	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
@@ -427,7 +502,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 	}
 
 	// update step run
-	_, _, err = ec.repo.StepRun().UpdateStepRun(
+	_, err = ec.repo.StepRun().ReplayStepRun(
 		ctx,
 		metadata.TenantId,
 		sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
@@ -437,15 +512,15 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 			IsRerun:    true,
 			RetryCount: &retryCount,
 			Event: &repository.CreateStepRunEventOpts{
-				EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonRETRYING),
+				EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonRETRIEDBYUSER),
 				EventMessage: repository.StringPtr(
-					fmt.Sprintf("Retrying step run. This is retry %d / %d", retryCount, stepRun.StepRetries),
+					"This step was manually replayed by a user",
 				)},
 		},
 	)
 
 	if err != nil {
-		return fmt.Errorf("could not update step run: %w", err)
+		return fmt.Errorf("could not update step run for replay: %w", err)
 	}
 
 	// send a task to the taskqueue
