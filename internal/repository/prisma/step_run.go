@@ -514,10 +514,6 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
-	if err != nil {
-		return nil, err
-	}
-
 	assigned, err := s.queries.AssignStepRunToWorker(ctx, tx, dbsqlc.AssignStepRunToWorkerParams{
 		Steprunid:   stepRun.StepRun.ID,
 		Tenantid:    stepRun.StepRun.TenantId,
@@ -769,6 +765,140 @@ func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, s
 	return stepRun, updateInfo, nil
 }
 
+func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "replay-step-run")
+	defer span.End()
+
+	if err := s.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	updateParams, createEventParams, updateJobRunLookupDataParams, _, _, err := getUpdateParams(tenantId, stepRunId, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var stepRun *dbsqlc.GetStepRunForEngineRow
+
+	err = deadlockRetry(s.l, func() error {
+		tx, err := s.pool.Begin(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		defer deferRollback(ctx, s.l, tx.Rollback)
+
+		innerStepRun, err := s.queries.GetStepRun(ctx, tx, dbsqlc.GetStepRunParams{
+			ID:       sqlchelpers.UUIDFromStr(stepRunId),
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			return err
+		}
+
+		stepRun, err = s.updateStepRunCore(ctx, tx, tenantId, updateParams, createEventParams, updateJobRunLookupDataParams, innerStepRun)
+
+		if err != nil {
+			return err
+		}
+
+		// reset the job run, workflow run and all fields as part of the core tx
+		_, err = s.queries.ReplayStepRunResetWorkflowRun(ctx, tx, stepRun.JobRunId)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = s.queries.ReplayStepRunResetJobRun(ctx, tx, stepRun.JobRunId)
+
+		if err != nil {
+			return err
+		}
+
+		laterStepRuns, err := s.queries.GetLaterStepRunsForReplay(ctx, tx, dbsqlc.GetLaterStepRunsForReplayParams{
+			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+			Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+		})
+
+		if err != nil {
+			return err
+		}
+
+		// archive each of the later step run results
+		for _, laterStepRun := range laterStepRuns {
+			laterStepRunCp := laterStepRun
+			laterStepRunId := sqlchelpers.UUIDToStr(laterStepRun.ID)
+
+			err = s.archiveStepRunResult(ctx, tx, tenantId, laterStepRunId)
+
+			if err != nil {
+				return err
+			}
+
+			// create a deferred event for each of these step runs
+			defer s.deferredStepRunEvent(
+				laterStepRunCp.ID,
+				dbsqlc.StepRunEventReasonRETRIEDBYUSER,
+				dbsqlc.StepRunEventSeverityINFO,
+				fmt.Sprintf("Parent step run %s was replayed, resetting step run result", stepRun.StepReadableId.String),
+				nil,
+			)
+		}
+
+		// reset all later step runs to a pending state
+		_, err = s.queries.ReplayStepRunResetLaterStepRuns(ctx, tx, dbsqlc.ReplayStepRunResetLaterStepRunsParams{
+			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+			Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+		})
+
+		if err != nil {
+			return err
+		}
+
+		err = tx.Commit(ctx)
+
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return stepRun, nil
+}
+
+func (s *stepRunEngineRepository) PreflightCheckReplayStepRun(ctx context.Context, tenantId, stepRunId string) error {
+	// verify that the step run is in a final state
+	stepRun, err := s.getStepRunForEngineTx(ctx, s.pool, tenantId, stepRunId)
+
+	if err != nil {
+		return err
+	}
+
+	if !repository.IsFinalStepRunStatus(stepRun.StepRun.Status) {
+		return repository.ErrPreflightReplayStepRunNotInFinalState
+	}
+
+	// verify that child step runs are in a final state
+	childStepRuns, err := s.queries.ListNonFinalChildStepRuns(ctx, s.pool, dbsqlc.ListNonFinalChildStepRunsParams{
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("could not list non-final child step runs: %w", err)
+	}
+
+	if len(childStepRuns) > 0 {
+		return repository.ErrPreflightReplayChildStepRunNotInFinalState
+	}
+
+	return nil
+}
+
 func (s *stepRunEngineRepository) UnlinkStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error {
 	_, err := s.queries.UnlinkStepRunFromWorker(ctx, s.pool, dbsqlc.UnlinkStepRunFromWorkerParams{
 		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
@@ -794,10 +924,6 @@ func (s *stepRunEngineRepository) UpdateStepRunOverridesData(ctx context.Context
 	}
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
-
-	if err != nil {
-		return nil, err
-	}
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
@@ -923,15 +1049,12 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		}
 
 		sr, err := s.updateStepRunCore(ctx, tx, tenantId, updateParams, createEventParams, updateJobRunLookupDataParams, innerStepRun)
+
 		if err != nil {
 			return err
 		}
 
 		stepRun = sr
-
-		if err != nil {
-			return err
-		}
 
 		if err := tx.Commit(ctx); err != nil {
 			return err
@@ -1317,7 +1440,11 @@ func (s *stepRunEngineRepository) ListStartableStepRuns(ctx context.Context, ten
 }
 
 func (s *stepRunEngineRepository) ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error {
-	_, err := s.queries.ArchiveStepRunResultFromStepRun(ctx, s.pool, dbsqlc.ArchiveStepRunResultFromStepRunParams{
+	return s.archiveStepRunResult(ctx, s.pool, tenantId, stepRunId)
+}
+
+func (s *stepRunEngineRepository) archiveStepRunResult(ctx context.Context, db dbsqlc.DBTX, tenantId, stepRunId string) error {
+	_, err := s.queries.ArchiveStepRunResultFromStepRun(ctx, db, dbsqlc.ArchiveStepRunResultFromStepRunParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
 	})
