@@ -730,3 +730,137 @@ WHERE
     srl."tenantId" = lrl."tenantId" AND
     srl."key" = lrl."key"
 RETURNING srl.*;
+
+-- name: ReplayStepRunResetWorkflowRun :one
+WITH workflow_run_id AS (
+    SELECT
+        "workflowRunId"
+    FROM
+        "JobRun"
+    WHERE
+        "id" = @jobRunId::uuid
+)
+UPDATE
+    "WorkflowRun"
+SET
+    "status" = 'RUNNING',
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "startedAt" = NULL,
+    "finishedAt" = NULL
+WHERE
+    "id" = (SELECT "workflowRunId" FROM workflow_run_id)
+RETURNING *;
+
+-- name: ReplayStepRunResetJobRun :one
+UPDATE
+    "JobRun"
+SET
+    "status" = 'RUNNING',
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "startedAt" = NULL,
+    "finishedAt" = NULL,
+    "timeoutAt" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "cancelledError" = NULL
+WHERE
+    "id" = @jobRunId::uuid
+RETURNING *;
+
+-- name: GetLaterStepRunsForReplay :many
+WITH RECURSIVE currStepRun AS (
+    SELECT *
+    FROM "StepRun"
+    WHERE
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid
+), childStepRuns AS (
+    SELECT sr."id", sr."status"
+    FROM "StepRun" sr
+    JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+    WHERE sro."A" = (SELECT "id" FROM currStepRun)
+
+    UNION ALL
+
+    SELECT sr."id", sr."status"
+    FROM "StepRun" sr
+    JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+    JOIN childStepRuns csr ON sro."A" = csr."id"
+)
+SELECT
+    sr.*
+FROM
+    "StepRun" sr
+JOIN
+    childStepRuns csr ON sr."id" = csr."id"
+WHERE
+    sr."tenantId" = @tenantId::uuid;
+
+-- name: ReplayStepRunResetLaterStepRuns :many
+WITH RECURSIVE currStepRun AS (
+    SELECT *
+    FROM "StepRun"
+    WHERE
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid
+), childStepRuns AS (
+    SELECT sr."id", sr."status"
+    FROM "StepRun" sr
+    JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+    WHERE sro."A" = (SELECT "id" FROM currStepRun)
+
+    UNION ALL
+
+    SELECT sr."id", sr."status"
+    FROM "StepRun" sr
+    JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+    JOIN childStepRuns csr ON sro."A" = csr."id"
+)
+UPDATE
+    "StepRun" as sr
+SET
+    "status" = 'PENDING',
+    "scheduleTimeoutAt" = NULL,
+    "finishedAt" = NULL,
+    "startedAt" = NULL,
+    "output" = NULL,
+    "error" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL
+FROM
+    childStepRuns csr
+WHERE
+    sr."id" = csr."id" AND
+    sr."tenantId" = @tenantId::uuid
+RETURNING sr.*;
+
+-- name: ListNonFinalChildStepRuns :many
+WITH RECURSIVE currStepRun AS (
+    SELECT *
+    FROM "StepRun"
+    WHERE
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid
+), childStepRuns AS (
+    SELECT sr."id", sr."status"
+    FROM "StepRun" sr
+    JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+    WHERE sro."A" = (SELECT "id" FROM currStepRun)
+
+    UNION ALL
+
+    SELECT sr."id", sr."status"
+    FROM "StepRun" sr
+    JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+    JOIN childStepRuns csr ON sro."A" = csr."id"
+)
+-- Select all child step runs that are not in a final state
+SELECT
+    sr.*
+FROM
+    "StepRun" sr
+JOIN
+    childStepRuns csr ON sr."id" = csr."id"
+WHERE
+    sr."tenantId" = @tenantId::uuid AND
+    sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED');

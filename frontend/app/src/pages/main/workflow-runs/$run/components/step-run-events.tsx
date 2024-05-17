@@ -93,6 +93,7 @@ const REASON_TO_TITLE: Record<StepRunEventReason, string> = {
   [StepRunEventReason.REASSIGNED]: 'Reassigned',
   [StepRunEventReason.TIMED_OUT]: 'Execution timed out',
   [StepRunEventReason.SLOT_RELEASED]: 'Slot released',
+  [StepRunEventReason.RETRIED_BY_USER]: 'Replayed by user',
 };
 
 function getTitleFromReason(reason: StepRunEventReason, message: string) {

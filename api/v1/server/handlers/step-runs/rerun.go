@@ -2,6 +2,7 @@ package stepruns
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -22,6 +23,7 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 	stepRun := ctx.Get("step-run").(*db.StepRunModel)
 
 	// preflight check to make sure there's at least one worker to serve this request
+	// FIXME: merge this preflight check with the one below
 	action := stepRun.Step().ActionID
 
 	sixSecAgo := time.Now().Add(-6 * time.Second)
@@ -38,6 +40,25 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		), nil
 	}
 
+	// preflight check to verify step run status
+	err = t.config.EngineRepository.StepRun().PreflightCheckReplayStepRun(ctx.Request().Context(), tenant.ID, stepRun.ID)
+
+	if err != nil {
+		if errors.Is(err, repository.ErrPreflightReplayStepRunNotInFinalState) {
+			return gen.StepRunUpdateRerun400JSONResponse(
+				apierrors.NewAPIErrors("Step run cannot be replayed because it is not finished running yet."),
+			), nil
+		}
+
+		if errors.Is(err, repository.ErrPreflightReplayChildStepRunNotInFinalState) {
+			return gen.StepRunUpdateRerun400JSONResponse(
+				apierrors.NewAPIErrors("Step run cannot be replayed because it has child step runs that are not finished running yet."),
+			), nil
+		}
+
+		return nil, fmt.Errorf("could not preflight check step run: %w", err)
+	}
+
 	// make sure input can be marshalled and unmarshalled to input type
 	inputBytes, err := json.Marshal(request.Body.Input)
 
@@ -49,7 +70,7 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 
 	data := &datautils.StepRunData{}
 
-	if err := json.Unmarshal(inputBytes, data); err != nil || data == nil {
+	if err := json.Unmarshal(inputBytes, data); err != nil {
 		return gen.StepRunUpdateRerun400JSONResponse(
 			apierrors.NewAPIErrors("Invalid input"),
 		), nil
@@ -63,33 +84,17 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		), nil
 	}
 
-	// set the job run and workflow run to running status
-	err = t.config.APIRepository.JobRun().SetJobRunStatusRunning(tenant.ID, stepRun.JobRunID)
-
-	if err != nil {
-		return nil, err
-	}
-
 	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(ctx.Request().Context(), tenant.ID, stepRun.ID)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get step run for engine: %w", err)
 	}
 
-	// Unlink the step run from its existing worker. This is necessary because automatic retries increment the
-	// worker semaphore on failure/cancellation, but in this case we don't want to increment the semaphore.
-	// FIXME: this is very far decoupled from the actual worker logic, and should be refactored.
-	err = t.config.EngineRepository.StepRun().UnlinkStepRunFromWorker(ctx.Request().Context(), tenant.ID, stepRun.ID)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not unlink step run from worker: %w", err)
-	}
-
 	// send a task to the taskqueue
 	err = t.config.MessageQueue.AddMessage(
 		ctx.Request().Context(),
 		msgqueue.JOB_PROCESSING_QUEUE,
-		tasktypes.StepRunRetryToTask(engineStepRun, inputBytes),
+		tasktypes.StepRunReplayToTask(engineStepRun, inputBytes),
 	)
 
 	if err != nil {
