@@ -592,7 +592,7 @@ const getWorkflowRun = `-- name: GetWorkflowRun :many
 SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata",
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
-    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.webhook,
+    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion.webhook, workflowversion."onFailureJobId",
     workflow."name" as "workflowName",
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
@@ -678,8 +678,8 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 			&i.WorkflowVersion.WorkflowId,
 			&i.WorkflowVersion.Checksum,
 			&i.WorkflowVersion.ScheduleTimeout,
-			&i.WorkflowVersion.OnFailureJobId,
 			&i.WorkflowVersion.Webhook,
+			&i.WorkflowVersion.OnFailureJobId,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -718,7 +718,7 @@ SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."gitRepoBranch", runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata",
     workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description,
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
-    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.webhook,
+    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion.webhook, workflowversion."onFailureJobId",
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable events field
     events.id, events.key, events."createdAt", events."updatedAt"
 FROM
@@ -886,8 +886,8 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 			&i.WorkflowVersion.WorkflowId,
 			&i.WorkflowVersion.Checksum,
 			&i.WorkflowVersion.ScheduleTimeout,
-			&i.WorkflowVersion.OnFailureJobId,
 			&i.WorkflowVersion.Webhook,
+			&i.WorkflowVersion.OnFailureJobId,
 			&i.ID,
 			&i.Key,
 			&i.CreatedAt,

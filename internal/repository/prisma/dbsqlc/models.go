@@ -241,9 +241,9 @@ const (
 	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
 	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
 	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
-	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
 	StepRunEventReasonTIMEDOUT           StepRunEventReason = "TIMED_OUT"
 	StepRunEventReasonREASSIGNED         StepRunEventReason = "REASSIGNED"
+	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
 	StepRunEventReasonTIMEOUTREFRESHED   StepRunEventReason = "TIMEOUT_REFRESHED"
 )
 
@@ -1094,6 +1094,6 @@ type WorkflowVersion struct {
 	WorkflowId      pgtype.UUID      `json:"workflowId"`
 	Checksum        string           `json:"checksum"`
 	ScheduleTimeout string           `json:"scheduleTimeout"`
-	OnFailureJobId  pgtype.UUID      `json:"onFailureJobId"`
 	Webhook         pgtype.Text      `json:"webhook"`
+	OnFailureJobId  pgtype.UUID      `json:"onFailureJobId"`
 }

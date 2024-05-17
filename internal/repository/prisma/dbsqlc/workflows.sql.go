@@ -654,7 +654,7 @@ INSERT INTO "WorkflowVersion" (
     $7::uuid,
     coalesce($8::text, '5m'),
     $9::text
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", webhook
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", webhook, "onFailureJobId"
 `
 
 type CreateWorkflowVersionParams struct {
@@ -692,8 +692,8 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.WorkflowId,
 		&i.Checksum,
 		&i.ScheduleTimeout,
-		&i.OnFailureJobId,
 		&i.Webhook,
+		&i.OnFailureJobId,
 	)
 	return &i, err
 }
@@ -749,7 +749,7 @@ func (q *Queries) GetWorkflowLatestVersion(ctx context.Context, db DBTX, workflo
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.webhook,
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions.webhook, workflowversions."onFailureJobId",
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns"
@@ -795,8 +795,8 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.WorkflowId,
 			&i.WorkflowVersion.Checksum,
 			&i.WorkflowVersion.ScheduleTimeout,
-			&i.WorkflowVersion.OnFailureJobId,
 			&i.WorkflowVersion.Webhook,
+			&i.WorkflowVersion.OnFailureJobId,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -815,7 +815,7 @@ const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
 WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", webhook
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", webhook, "onFailureJobId"
 `
 
 type LinkOnFailureJobParams struct {
@@ -836,8 +836,8 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 		&i.WorkflowId,
 		&i.Checksum,
 		&i.ScheduleTimeout,
-		&i.OnFailureJobId,
 		&i.Webhook,
+		&i.OnFailureJobId,
 	)
 	return &i, err
 }
@@ -852,7 +852,7 @@ FROM (
         "Workflow" as workflows
     LEFT JOIN
         (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", webhook FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
+            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", webhook, "onFailureJobId" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
         ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
     LEFT JOIN
         "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
