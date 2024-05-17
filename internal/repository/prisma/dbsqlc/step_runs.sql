@@ -833,3 +833,34 @@ WHERE
     sr."id" = csr."id" AND
     sr."tenantId" = @tenantId::uuid
 RETURNING sr.*;
+
+-- name: ListNonFinalChildStepRuns :many
+WITH RECURSIVE currStepRun AS (
+    SELECT *
+    FROM "StepRun"
+    WHERE
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid
+), childStepRuns AS (
+    SELECT sr."id", sr."status"
+    FROM "StepRun" sr
+    JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+    WHERE sro."A" = (SELECT "id" FROM currStepRun)
+
+    UNION ALL
+
+    SELECT sr."id", sr."status"
+    FROM "StepRun" sr
+    JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+    JOIN childStepRuns csr ON sro."A" = csr."id"
+)
+-- Select all child step runs that are not in a final state
+SELECT
+    sr.*
+FROM
+    "StepRun" sr
+JOIN
+    childStepRuns csr ON sr."id" = csr."id"
+WHERE
+    sr."tenantId" = @tenantId::uuid AND
+    sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED');

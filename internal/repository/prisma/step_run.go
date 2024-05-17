@@ -841,7 +841,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 			// create a deferred event for each of these step runs
 			defer s.deferredStepRunEvent(
 				laterStepRunCp.ID,
-				dbsqlc.StepRunEventReasonMANUALRETRY,
+				dbsqlc.StepRunEventReasonRETRIEDBYUSER,
 				dbsqlc.StepRunEventSeverityINFO,
 				fmt.Sprintf("Parent step run %s was replayed, resetting step run result", stepRun.StepReadableId.String),
 				nil,
@@ -868,6 +868,35 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 	}
 
 	return stepRun, nil
+}
+
+func (s *stepRunEngineRepository) PreflightCheckReplayStepRun(ctx context.Context, tenantId, stepRunId string) error {
+	// verify that the step run is in a final state
+	stepRun, err := s.getStepRunForEngineTx(ctx, s.pool, tenantId, stepRunId)
+
+	if err != nil {
+		return err
+	}
+
+	if !repository.IsFinalStepRunStatus(stepRun.StepRun.Status) {
+		return repository.ErrPreflightReplayStepRunNotInFinalState
+	}
+
+	// verify that child step runs are in a final state
+	childStepRuns, err := s.queries.ListNonFinalChildStepRuns(ctx, s.pool, dbsqlc.ListNonFinalChildStepRunsParams{
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("could not list non-final child step runs: %w", err)
+	}
+
+	if len(childStepRuns) > 0 {
+		return repository.ErrPreflightReplayChildStepRunNotInFinalState
+	}
+
+	return nil
 }
 
 func (s *stepRunEngineRepository) UnlinkStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error {

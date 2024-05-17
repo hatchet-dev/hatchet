@@ -512,7 +512,7 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 			IsRerun:    true,
 			RetryCount: &retryCount,
 			Event: &repository.CreateStepRunEventOpts{
-				EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonMANUALRETRY),
+				EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonRETRIEDBYUSER),
 				EventMessage: repository.StringPtr(
 					"This step was manually replayed by a user",
 				)},

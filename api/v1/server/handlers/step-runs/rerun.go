@@ -2,6 +2,7 @@ package stepruns
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -22,6 +23,7 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 	stepRun := ctx.Get("step-run").(*db.StepRunModel)
 
 	// preflight check to make sure there's at least one worker to serve this request
+	// FIXME: merge this preflight check with the one below
 	action := stepRun.Step().ActionID
 
 	sixSecAgo := time.Now().Add(-6 * time.Second)
@@ -36,6 +38,25 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		return gen.StepRunUpdateRerun400JSONResponse(
 			apierrors.NewAPIErrors("There are no workers available to execute this step run."),
 		), nil
+	}
+
+	// preflight check to verify step run status
+	err = t.config.EngineRepository.StepRun().PreflightCheckReplayStepRun(ctx.Request().Context(), tenant.ID, stepRun.ID)
+
+	if err != nil {
+		if errors.Is(err, repository.ErrPreflightReplayStepRunNotInFinalState) {
+			return gen.StepRunUpdateRerun400JSONResponse(
+				apierrors.NewAPIErrors("Step run cannot be replayed because it is not finished running yet."),
+			), nil
+		}
+
+		if errors.Is(err, repository.ErrPreflightReplayChildStepRunNotInFinalState) {
+			return gen.StepRunUpdateRerun400JSONResponse(
+				apierrors.NewAPIErrors("Step run cannot be replayed because it has child step runs that are not finished running yet."),
+			), nil
+		}
+
+		return nil, fmt.Errorf("could not preflight check step run: %w", err)
 	}
 
 	// make sure input can be marshalled and unmarshalled to input type

@@ -632,6 +632,91 @@ func (q *Queries) GetTotalSlots(ctx context.Context, db DBTX, arg GetTotalSlotsP
 	return items, nil
 }
 
+const listNonFinalChildStepRuns = `-- name: ListNonFinalChildStepRuns :many
+WITH RECURSIVE currStepRun AS (
+    SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased"
+    FROM "StepRun"
+    WHERE
+        "id" = $2::uuid AND
+        "tenantId" = $1::uuid
+), childStepRuns AS (
+    SELECT sr."id", sr."status"
+    FROM "StepRun" sr
+    JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+    WHERE sro."A" = (SELECT "id" FROM currStepRun)
+
+    UNION ALL
+
+    SELECT sr."id", sr."status"
+    FROM "StepRun" sr
+    JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
+    JOIN childStepRuns csr ON sro."A" = csr."id"
+)
+SELECT
+    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased"
+FROM
+    "StepRun" sr
+JOIN
+    childStepRuns csr ON sr."id" = csr."id"
+WHERE
+    sr."tenantId" = $1::uuid AND
+    sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
+`
+
+type ListNonFinalChildStepRunsParams struct {
+	Tenantid  pgtype.UUID `json:"tenantid"`
+	Steprunid pgtype.UUID `json:"steprunid"`
+}
+
+// Select all child step runs that are not in a final state
+func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, arg ListNonFinalChildStepRunsParams) ([]*StepRun, error) {
+	rows, err := db.Query(ctx, listNonFinalChildStepRuns, arg.Tenantid, arg.Steprunid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepRun
+	for rows.Next() {
+		var i StepRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.JobRunId,
+			&i.StepId,
+			&i.Order,
+			&i.WorkerId,
+			&i.TickerId,
+			&i.Status,
+			&i.Input,
+			&i.Output,
+			&i.RequeueAfter,
+			&i.ScheduleTimeoutAt,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.TimeoutAt,
+			&i.CancelledAt,
+			&i.CancelledReason,
+			&i.CancelledError,
+			&i.InputSchema,
+			&i.CallerFiles,
+			&i.GitRepoBranch,
+			&i.RetryCount,
+			&i.SemaphoreReleased,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStartableStepRuns = `-- name: ListStartableStepRuns :many
 WITH job_run AS (
     SELECT "status"

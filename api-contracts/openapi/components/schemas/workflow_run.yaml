@@ -287,7 +287,7 @@ StepRunEventReason:
     - REASSIGNED
     - TIMED_OUT
     - SLOT_RELEASED
-    - MANUAL_RETRY
+    - RETRIED_BY_USER
 
 StepRunEventSeverity:
   type: string

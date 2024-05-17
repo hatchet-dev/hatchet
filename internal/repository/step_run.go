@@ -118,6 +118,9 @@ type RefreshTimeoutBy struct {
 	IncrementTimeoutBy string `validate:"required,duration"`
 }
 
+var ErrPreflightReplayStepRunNotInFinalState = fmt.Errorf("step run is not in a final state")
+var ErrPreflightReplayChildStepRunNotInFinalState = fmt.Errorf("child step run is not in a final state")
+
 type StepRunAPIRepository interface {
 	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
 
@@ -139,6 +142,9 @@ type StepRunEngineRepository interface {
 	UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *StepRunUpdateInfo, error)
 
 	ReplayStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
+
+	// PreflightCheckReplayStepRun checks if a step run can be replayed. If it can, it will return nil.
+	PreflightCheckReplayStepRun(ctx context.Context, tenantId, stepRunId string) error
 
 	CreateStepRunEvent(ctx context.Context, tenantId, stepRunId string, opts CreateStepRunEventOpts) error
 
