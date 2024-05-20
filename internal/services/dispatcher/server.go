@@ -147,6 +147,11 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	log.Printf("create worker opts webhook %v", request.Webhook)
 
+	if request.Webhook != nil {
+		// TODO check if a webhook worker already exists, if so, return existing (for now)
+		_ = time.Now()
+	}
+
 	opts := &repository.CreateWorkerOpts{
 		DispatcherId: s.dispatcherId,
 		Name:         request.WorkerName,
