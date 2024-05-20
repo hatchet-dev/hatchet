@@ -943,11 +943,14 @@ step_runs AS (
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ) OR (
             sr."status" = 'ASSIGNED'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+            -- reassign if the run is stuck in assigned
+            AND (
+                sr."updatedAt" < NOW() - INTERVAL '30 seconds'
+                OR w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+            )
         ))
         AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
-        -- Step run cannot have a failed parent
         AND NOT EXISTS (
             SELECT 1
             FROM "_StepRunOrder" AS order_table

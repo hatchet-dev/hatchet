@@ -345,9 +345,11 @@ step_runs AS (
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ) OR (
             sr."status" = 'ASSIGNED'
-            -- reassign if the work is suck in assigned
-            sr.""
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+            -- reassign if the run is stuck in assigned
+            AND (
+                sr."updatedAt" < NOW() - INTERVAL '30 seconds'
+                OR w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+            )
         ))
         AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
