@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/joho/godotenv"
@@ -25,6 +26,7 @@ func main() {
 	}
 
 	err = run(worker.WorkflowJob{
+		Webhook:     fmt.Sprintf("http://localhost:%s/webhook", port),
 		Name:        "webhook",
 		Description: "webhook",
 		Steps: []*worker.WorkflowStep{
