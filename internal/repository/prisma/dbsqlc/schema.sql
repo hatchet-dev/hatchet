@@ -553,6 +553,7 @@ CREATE TABLE "Worker" (
     "name" TEXT NOT NULL,
     "dispatcherId" UUID,
     "maxRuns" INTEGER,
+    "isActive" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );

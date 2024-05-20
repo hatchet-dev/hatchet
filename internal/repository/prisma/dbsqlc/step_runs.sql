@@ -310,6 +310,7 @@ WITH valid_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
     GROUP BY
         w."id"
 ),
@@ -344,11 +345,12 @@ step_runs AS (
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ) OR (
             sr."status" = 'ASSIGNED'
+            -- reassign if the work is suck in assigned
+            sr.""
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ))
         AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
-        -- Step run cannot have a failed parent
         AND NOT EXISTS (
             SELECT 1
             FROM "_StepRunOrder" AS order_table
@@ -395,6 +397,7 @@ WITH valid_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
     GROUP BY
         w."id"
 ),
@@ -466,6 +469,7 @@ WITH valid_workers AS (
         w."tenantId" = @tenantId::uuid
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
@@ -500,6 +504,7 @@ WITH valid_workers AS (
         w."tenantId" = @tenantId::uuid
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"

@@ -32,6 +32,9 @@ type UpdateWorkerOpts struct {
 	// When the last worker heartbeat was
 	LastHeartbeatAt *time.Time
 
+	// If the worker is active and accepting new runs
+	IsActive *bool
+
 	// A list of actions this worker can run
 	Actions []string `validate:"dive,actionId"`
 }

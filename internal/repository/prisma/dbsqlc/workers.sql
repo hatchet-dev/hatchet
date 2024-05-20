@@ -41,7 +41,8 @@ GROUP BY
 SELECT
     w."id" AS "id",
     w."tenantId" AS "tenantId",
-    w."dispatcherId" AS "dispatcherId"
+    w."dispatcherId" AS "dispatcherId",
+    w."isActive" AS "isActive"
 FROM
     "Worker" w
 WHERE
@@ -83,7 +84,8 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "dispatcherId" = coalesce(sqlc.narg('dispatcherId')::uuid, "dispatcherId"),
     "maxRuns" = coalesce(sqlc.narg('maxRuns')::int, "maxRuns"),
-    "lastHeartbeatAt" = coalesce(sqlc.narg('lastHeartbeatAt')::timestamp, "lastHeartbeatAt")
+    "lastHeartbeatAt" = coalesce(sqlc.narg('lastHeartbeatAt')::timestamp, "lastHeartbeatAt"),
+    "isActive" = coalesce(sqlc.narg('isActive')::boolean, "isActive")
 WHERE
     "id" = @id::uuid
 RETURNING *;

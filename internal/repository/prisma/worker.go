@@ -279,6 +279,13 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 		updateParams.DispatcherId = sqlchelpers.UUIDFromStr(*opts.DispatcherId)
 	}
 
+	if opts.IsActive != nil {
+		updateParams.IsActive = pgtype.Bool{
+			Bool:  *opts.IsActive,
+			Valid: true,
+		}
+	}
+
 	worker, err := w.queries.UpdateWorker(ctx, tx, updateParams)
 
 	if err != nil {
