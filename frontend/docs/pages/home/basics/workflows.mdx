@@ -80,7 +80,7 @@ const workflow: Workflow = {
     },
     {
       name: 'load_docs',
-      parents: ['dag-step1'],
+      parents: ['start'],
       run: async (ctx) => {
         // Load the relevant documents
         return {

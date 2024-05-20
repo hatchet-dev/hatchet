@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -157,6 +158,12 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	if request.MaxRuns != nil {
 		mr := int(*request.MaxRuns)
 		opts.MaxRuns = &mr
+	}
+
+	if apiErrors, err := s.v.ValidateAPI(opts); err != nil {
+		return nil, err
+	} else if apiErrors != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
 	}
 
 	// create a worker in the database
@@ -738,9 +745,17 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	stepRun, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, repository.RefreshTimeoutBy{
+	opts := repository.RefreshTimeoutBy{
 		IncrementTimeoutBy: request.IncrementTimeoutBy,
-	})
+	}
+
+	if apiErrors, err := d.v.ValidateAPI(opts); err != nil {
+		return nil, err
+	} else if apiErrors != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
+	}
+
+	stepRun, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, opts)
 
 	if err != nil {
 		return nil, err
@@ -792,11 +807,32 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 	}, nil
 }
 
-func (s *DispatcherImpl) handleStepRunCompletedImpl(ctx context.Context, tenantId string, finishedAt time.Time, stepRunId string, eventPayload string) error {
+func (s *DispatcherImpl) handleStepRunCompletedImpl(ctx context.Context, request *contracts.StepActionEvent) error {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
+
+	// verify that the event payload can be unmarshalled into a map type
+	if request.EventPayload != "" {
+		res := make(map[string]interface{})
+
+		if err := json.Unmarshal([]byte(request.EventPayload), &res); err != nil {
+			// if the payload starts with a [, then it is an array which we don't currently support
+			if request.EventPayload[0] == '[' {
+				return status.Errorf(codes.InvalidArgument, "Return value is an array, which is not supported")
+			}
+
+			return status.Errorf(codes.InvalidArgument, "Return value is not a valid JSON object")
+		}
+	}
+
+	finishedAt := request.EventTimestamp.AsTime()
+
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunFinishedTaskPayload{
-		StepRunId:      stepRunId,
+		StepRunId:      request.StepRunId,
 		FinishedAt:     finishedAt.Format(time.RFC3339),
-		StepOutputData: eventPayload,
+		StepOutputData: request.EventPayload,
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunFinishedTaskMetadata{
@@ -824,7 +860,7 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
 
-	if err := s.handleStepRunCompletedImpl(ctx, tenantId, request.EventTimestamp.AsTime(), request.StepRunId, request.EventPayload); err != nil {
+	if err := s.handleStepRunCompletedImpl(ctx, request); err != nil {
 		return nil, err
 	}
 
