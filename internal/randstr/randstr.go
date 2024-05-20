@@ -7,6 +7,10 @@ import (
 
 const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-"
 
+func MustGenerateWebhookSecret() string {
+	return MustGenerateRandomString(32)
+}
+
 func MustGenerateRandomString(n int) string {
 	s, err := GenerateRandomString(n)
 

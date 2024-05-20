@@ -90,7 +90,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 			if dc.Seed.IsDevelopment {
 				secret = "secret"
 			} else {
-				secret = randstr.MustGenerateRandomString(32)
+				secret = randstr.MustGenerateWebhookSecret()
 			}
 			// initialize a tenant
 			tenant, err = dc.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
