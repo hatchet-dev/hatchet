@@ -44,9 +44,7 @@ type WebhookEvent struct {
 	StepName string `json:"stepName,omitempty"`
 }
 
-func (w *webhookController) Start(ctx context.Context, action *contracts.AssignedAction) error {
-	log.Printf("sending webhook for action %s", action.ActionId)
-
+func (w *webhookController) Send(ctx context.Context, action *contracts.AssignedAction) error {
 	tenant, err := w.repo.Tenant().GetTenantByID(ctx, action.TenantId)
 	if err != nil {
 		return err

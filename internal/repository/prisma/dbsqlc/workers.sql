@@ -66,7 +66,7 @@ INSERT INTO "Worker" (
     @name::text,
     @dispatcherId::uuid,
     sqlc.narg('maxRuns')::int,
-    sqlc.narg('webhook')::boolean
+    @webhook::boolean
 ) RETURNING *;
 
 -- name: CreateWorkerSemaphore :one

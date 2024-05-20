@@ -38,7 +38,7 @@ type CreateWorkerParams struct {
 	Name         string      `json:"name"`
 	Dispatcherid pgtype.UUID `json:"dispatcherid"`
 	MaxRuns      pgtype.Int4 `json:"maxRuns"`
-	Webhook      pgtype.Bool `json:"webhook"`
+	Webhook      bool        `json:"webhook"`
 }
 
 func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerParams) (*Worker, error) {

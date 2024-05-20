@@ -165,7 +165,10 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 		Tenantid:     pgTenantId,
 		Dispatcherid: sqlchelpers.UUIDFromStr(opts.DispatcherId),
 		Name:         opts.Name,
-		Webhook:      sqlchelpers.BoolFromValue(opts.Webhook),
+	}
+
+	if opts.Webhook != nil {
+		createParams.Webhook = *opts.Webhook
 	}
 
 	createSemParams := dbsqlc.CreateWorkerSemaphoreParams{}
