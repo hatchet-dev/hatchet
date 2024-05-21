@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -335,4 +336,18 @@ func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, wor
 
 func (w *workerEngineRepository) ResolveWorkerSemaphoreSlots(ctx context.Context) (int64, error) {
 	return w.queries.ResolveWorkerSemaphoreSlots(ctx, w.pool)
+}
+
+func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error) {
+	worker, err := w.queries.UpdateWorkerActiveStatus(ctx, w.pool, dbsqlc.UpdateWorkerActiveStatusParams{
+		ID:                      sqlchelpers.UUIDFromStr(workerId),
+		Isactive:                isActive,
+		LastListenerEstablished: sqlchelpers.TimestampFromTime(timestamp),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not update worker active status: %w", err)
+	}
+
+	return worker, nil
 }
