@@ -101,9 +101,16 @@ export default function ExpandedWorkflowRun() {
         </div>
         <Separator className="my-4" />
         <p className="mt-1 max-w-2xl text-gray-700 dark:text-gray-300">
-          Started <RelativeDate date={worker.metadata?.createdAt} />
+          First Connected: <RelativeDate date={worker.metadata?.createdAt} />
+          {worker.lastListenerEstablished && (
+            <>
+              <br />
+              Last Listener Established:{' '}
+              <RelativeDate date={worker.lastListenerEstablished} />
+            </>
+          )}
           <br />
-          Last seen{' '}
+          Last Heartbeat:{' '}
           {worker.lastHeartbeatAt ? (
             <RelativeDate date={worker.lastHeartbeatAt} />
           ) : (
