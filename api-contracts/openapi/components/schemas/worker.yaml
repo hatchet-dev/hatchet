@@ -10,6 +10,11 @@ Worker:
       description: The time this worker last sent a heartbeat.
       format: date-time
       example: 2022-12-13T15:06:48.888358-05:00
+    lastListenerEstablished:
+      type: string
+      description: The time this worker last sent a heartbeat.
+      format: date-time
+      example: 2022-12-13T15:06:48.888358-05:00
     actions:
       type: array
       description: The actions this worker can perform.

@@ -554,6 +554,7 @@ CREATE TABLE "Worker" (
     "dispatcherId" UUID,
     "maxRuns" INTEGER,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
+    "lastListenerEstablished" TIMESTAMP(3),
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );

@@ -1172,6 +1172,8 @@ model Worker {
   // whether this worker is active or not
   isActive Boolean @default(false)
 
+  lastListenerEstablished DateTime?
+
   // the worker name
   name String
 
