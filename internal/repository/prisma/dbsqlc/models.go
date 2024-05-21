@@ -961,6 +961,7 @@ type Worker struct {
 	Name            string           `json:"name"`
 	DispatcherId    pgtype.UUID      `json:"dispatcherId"`
 	MaxRuns         pgtype.Int4      `json:"maxRuns"`
+	IsActive        bool             `json:"isActive"`
 }
 
 type WorkerSemaphore struct {
