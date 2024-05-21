@@ -134,7 +134,7 @@ export function WorkflowRunsTable({
 
   const selectedRuns = useMemo(() => {
     return Object.entries(rowSelection)
-      .filter(([_, selected]) => !!selected)
+      .filter(([, selected]) => !!selected)
       .map(([id]) => (listWorkflowRunsQuery.data?.rows || [])[Number(id)]);
   }, [listWorkflowRunsQuery.data?.rows, rowSelection]);
 
