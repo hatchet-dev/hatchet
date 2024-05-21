@@ -30,7 +30,7 @@ INSERT INTO "Worker" (
     $3::uuid,
     $4::int,
     $5::boolean
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", webhook
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", webhook, "isActive"
 `
 
 type CreateWorkerParams struct {
@@ -61,6 +61,7 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		&i.DispatcherId,
 		&i.MaxRuns,
 		&i.Webhook,
+		&i.IsActive,
 	)
 	return &i, err
 }
@@ -92,7 +93,7 @@ DELETE FROM
     "Worker"
 WHERE
     "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", webhook
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", webhook, "isActive"
 `
 
 func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*Worker, error) {
@@ -109,6 +110,7 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*W
 		&i.DispatcherId,
 		&i.MaxRuns,
 		&i.Webhook,
+		&i.IsActive,
 	)
 	return &i, err
 }
@@ -117,7 +119,8 @@ const getWorkerForEngine = `-- name: GetWorkerForEngine :one
 SELECT
     w."id" AS "id",
     w."tenantId" AS "tenantId",
-    w."dispatcherId" AS "dispatcherId"
+    w."dispatcherId" AS "dispatcherId",
+    w."isActive" AS "isActive"
 FROM
     "Worker" w
 WHERE
@@ -134,12 +137,18 @@ type GetWorkerForEngineRow struct {
 	ID           pgtype.UUID `json:"id"`
 	TenantId     pgtype.UUID `json:"tenantId"`
 	DispatcherId pgtype.UUID `json:"dispatcherId"`
+	IsActive     bool        `json:"isActive"`
 }
 
 func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorkerForEngineParams) (*GetWorkerForEngineRow, error) {
 	row := db.QueryRow(ctx, getWorkerForEngine, arg.Tenantid, arg.ID)
 	var i GetWorkerForEngineRow
-	err := row.Scan(&i.ID, &i.TenantId, &i.DispatcherId)
+	err := row.Scan(
+		&i.ID,
+		&i.TenantId,
+		&i.DispatcherId,
+		&i.IsActive,
+	)
 	return &i, err
 }
 
@@ -187,7 +196,7 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 
 const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
-    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers.webhook,
+    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers.webhook, workers."isActive",
     COUNT(runs."id") FILTER (WHERE runs."status" = 'RUNNING') AS "runningStepRuns",
     ws."slots" AS "slots"
 FROM
@@ -263,6 +272,7 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 			&i.Worker.DispatcherId,
 			&i.Worker.MaxRuns,
 			&i.Worker.Webhook,
+			&i.Worker.IsActive,
 			&i.RunningStepRuns,
 			&i.Slots,
 		); err != nil {
@@ -316,16 +326,18 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "dispatcherId" = coalesce($1::uuid, "dispatcherId"),
     "maxRuns" = coalesce($2::int, "maxRuns"),
-    "lastHeartbeatAt" = coalesce($3::timestamp, "lastHeartbeatAt")
+    "lastHeartbeatAt" = coalesce($3::timestamp, "lastHeartbeatAt"),
+    "isActive" = coalesce($4::boolean, "isActive")
 WHERE
-    "id" = $4::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", webhook
+    "id" = $5::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", webhook, "isActive"
 `
 
 type UpdateWorkerParams struct {
 	DispatcherId    pgtype.UUID      `json:"dispatcherId"`
 	MaxRuns         pgtype.Int4      `json:"maxRuns"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
+	IsActive        pgtype.Bool      `json:"isActive"`
 	ID              pgtype.UUID      `json:"id"`
 }
 
@@ -334,6 +346,7 @@ func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerPar
 		arg.DispatcherId,
 		arg.MaxRuns,
 		arg.LastHeartbeatAt,
+		arg.IsActive,
 		arg.ID,
 	)
 	var i Worker
@@ -348,6 +361,7 @@ func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerPar
 		&i.DispatcherId,
 		&i.MaxRuns,
 		&i.Webhook,
+		&i.IsActive,
 	)
 	return &i, err
 }

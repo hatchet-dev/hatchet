@@ -1174,6 +1174,9 @@ model Worker {
   // the last heartbeat time
   lastHeartbeatAt DateTime?
 
+  // whether this worker is active or not
+  isActive Boolean @default(false)
+
   webhook Boolean @default(false)
 
   // the worker name

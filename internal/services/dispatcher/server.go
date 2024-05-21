@@ -316,6 +316,17 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		}
 	}
 
+	// set the worker as active
+	isActive := true
+	_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+		IsActive: &isActive,
+	})
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("could not update worker %s active status", request.WorkerId)
+		return err
+	}
+
 	fin := make(chan bool)
 
 	s.workers.Add(request.WorkerId, sessionId, &subscribedWorker{stream: stream, finished: fin})
@@ -327,6 +338,8 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		default:
 		}
 
+		fmt.Println("deleting worker", request.WorkerId, sessionId)
+
 		s.workers.DeleteForSession(request.WorkerId, sessionId)
 	}()
 
@@ -335,9 +348,31 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		select {
 		case <-fin:
 			s.l.Debug().Msgf("closing stream for worker id: %s", request.WorkerId)
+
+			isActive := false
+			_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+				IsActive: &isActive,
+			})
+
+			if err != nil {
+				s.l.Error().Err(err).Msgf("could not update worker %s active status", request.WorkerId)
+				return err
+			}
+
 			return nil
 		case <-ctx.Done():
 			s.l.Debug().Msgf("worker id %s has disconnected", request.WorkerId)
+
+			isActive := false
+			_, err = s.repo.Worker().UpdateWorker(context.Background(), tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
+				IsActive: &isActive,
+			})
+
+			if err != nil {
+				s.l.Error().Err(err).Msgf("could not update worker %s active status", request.WorkerId)
+				return err
+			}
+
 			return nil
 		}
 	}
@@ -359,7 +394,17 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		s.l.Warn().Msgf("heartbeat time is greater than expected heartbeat interval")
 	}
 
-	_, err := s.repo.Worker().UpdateWorker(ctx, tenantId, req.WorkerId, &repository.UpdateWorkerOpts{
+	worker, err := s.repo.Worker().GetWorkerForEngine(ctx, tenantId, req.WorkerId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !worker.IsActive {
+		return nil, fmt.Errorf("Heartbeat rejected, worker stream is not active")
+	}
+
+	_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, req.WorkerId, &repository.UpdateWorkerOpts{
 		// use the system time for heartbeat
 		LastHeartbeatAt: &heartbeatAt,
 	})

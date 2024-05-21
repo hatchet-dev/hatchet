@@ -310,7 +310,10 @@ WITH valid_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND (
-            w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+            (
+              w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+              AND w."isActive" = true
+            )
             OR w."webhook" = true
         )
     GROUP BY
@@ -348,11 +351,15 @@ step_runs AS (
             AND s."retries" > sr."retryCount"
         ) OR (
             sr."status" = 'ASSIGNED'
-            AND (w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds' OR w."webhook" = true)
+            -- reassign if the run is stuck in assigned
+            AND (
+                sr."updatedAt" < NOW() - INTERVAL '30 seconds'
+                OR w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+                OR w."webhook" = true
+            )
         ))
         AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
-        -- Step run cannot have a failed parent
         AND NOT EXISTS (
             SELECT 1
             FROM "_StepRunOrder" AS order_table
@@ -398,7 +405,11 @@ WITH valid_workers AS (
         "WorkerSemaphore" ws ON w."id" = ws."workerId"
     WHERE
         w."tenantId" = @tenantId::uuid
-        AND (w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' OR w."webhook" = true)
+        AND (
+          w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+          OR w."webhook" = true
+        )
+        AND w."isActive" = true
     GROUP BY
         w."id"
 ),
@@ -469,7 +480,11 @@ WITH valid_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."dispatcherId" IS NOT NULL
-        AND (w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' OR w."webhook" = true)
+        AND (
+      w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        OR w."webhook" = true
+      )
+        AND w."isActive" = true
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
@@ -503,7 +518,11 @@ WITH valid_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."dispatcherId" IS NOT NULL
-        AND (w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' OR w."webhook" = true)
+        AND (
+      w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        OR w."webhook" = true
+      )
+      AND w."isActive" = true
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"

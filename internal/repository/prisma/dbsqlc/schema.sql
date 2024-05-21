@@ -555,6 +555,7 @@ CREATE TABLE "Worker" (
     "dispatcherId" UUID,
     "maxRuns" INTEGER,
     "webhook" BOOLEAN NOT NULL DEFAULT false,
+    "isActive" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
