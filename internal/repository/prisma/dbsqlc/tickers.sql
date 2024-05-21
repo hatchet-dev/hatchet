@@ -78,7 +78,14 @@ WITH stepRunsToTimeout AS (
         AND "timeoutAt" < NOW()
         AND (
             NOT EXISTS (
-                SELECT 1 FROM "Ticker" WHERE "id" = stepRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+                SELECT 1
+                FROM "Ticker"
+                WHERE "id" = stepRun."tickerId"
+                AND "isActive" = true
+                AND (
+                  "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+                  OR "webhook" = true
+                )
             )
             OR "tickerId" IS NULL
         )

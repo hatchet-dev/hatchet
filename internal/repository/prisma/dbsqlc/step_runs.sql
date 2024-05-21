@@ -311,7 +311,10 @@ WITH valid_workers AS (
         w."tenantId" = @tenantId::uuid
         AND (
             (
-              w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+              (
+                w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+                OR w."webhook" = true
+              )
               AND w."isActive" = true
             )
             OR w."webhook" = true
@@ -347,7 +350,10 @@ step_runs AS (
         sr."tenantId" = @tenantId::uuid
         AND ((
             sr."status" = 'RUNNING'
-            AND (w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds' OR w."webhook" = true)
+            AND (
+              w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+              OR w."webhook" = true
+            )
             AND s."retries" > sr."retryCount"
         ) OR (
             sr."status" = 'ASSIGNED'
@@ -481,9 +487,9 @@ WITH valid_workers AS (
         w."tenantId" = @tenantId::uuid
         AND w."dispatcherId" IS NOT NULL
         AND (
-      w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        OR w."webhook" = true
-      )
+          w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+          OR w."webhook" = true
+        )
         AND w."isActive" = true
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
@@ -519,10 +525,10 @@ WITH valid_workers AS (
         w."tenantId" = @tenantId::uuid
         AND w."dispatcherId" IS NOT NULL
         AND (
-      w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        OR w."webhook" = true
-      )
-      AND w."isActive" = true
+          w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+          OR w."webhook" = true
+        )
+        AND w."isActive" = true
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
