@@ -42,6 +42,10 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 		res.LastHeartbeatAt = &lastHeartbeatAt
 	}
 
+	if lastListenerEstablished, ok := worker.LastListenerEstablished(); ok {
+		res.LastListenerEstablished = &lastListenerEstablished
+	}
+
 	if semaphore, ok := worker.Semaphore(); ok {
 		res.AvailableRuns = &semaphore.Slots
 	}

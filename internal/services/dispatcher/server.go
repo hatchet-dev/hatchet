@@ -316,11 +316,9 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		}
 	}
 
-	// set the worker as active
-	isActive := true
-	_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
-		IsActive: &isActive,
-	})
+	sessionEstablished := time.Now().UTC()
+
+	_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, true, sessionEstablished)
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not update worker %s active status", request.WorkerId)
@@ -338,8 +336,6 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		default:
 		}
 
-		fmt.Println("deleting worker", request.WorkerId, sessionId)
-
 		s.workers.DeleteForSession(request.WorkerId, sessionId)
 	}()
 
@@ -349,10 +345,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		case <-fin:
 			s.l.Debug().Msgf("closing stream for worker id: %s", request.WorkerId)
 
-			isActive := false
-			_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
-				IsActive: &isActive,
-			})
+			_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
 
 			if err != nil {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status", request.WorkerId)
@@ -363,10 +356,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		case <-ctx.Done():
 			s.l.Debug().Msgf("worker id %s has disconnected", request.WorkerId)
 
-			isActive := false
-			_, err = s.repo.Worker().UpdateWorker(context.Background(), tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
-				IsActive: &isActive,
-			})
+			_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
 
 			if err != nil {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status", request.WorkerId)
@@ -400,7 +390,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		return nil, err
 	}
 
-	if !worker.IsActive {
+	if worker.LastListenerEstablished.Valid && !worker.IsActive {
 		return nil, fmt.Errorf("Heartbeat rejected, worker stream is not active")
 	}
 

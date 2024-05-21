@@ -556,6 +556,7 @@ CREATE TABLE "Worker" (
     "maxRuns" INTEGER,
     "webhook" BOOLEAN NOT NULL DEFAULT false,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
+    "lastListenerEstablished" TIMESTAMP(3),
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
