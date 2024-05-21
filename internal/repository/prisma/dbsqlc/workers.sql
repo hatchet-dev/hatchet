@@ -58,7 +58,8 @@ INSERT INTO "Worker" (
     "name",
     "dispatcherId",
     "maxRuns",
-    "webhook"
+    "webhook",
+    "isActive"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -67,7 +68,8 @@ INSERT INTO "Worker" (
     @name::text,
     @dispatcherId::uuid,
     sqlc.narg('maxRuns')::int,
-    @webhook::boolean
+    @webhook::boolean,
+    @isActive::boolean
 ) RETURNING *;
 
 -- name: CreateWorkerSemaphore :one

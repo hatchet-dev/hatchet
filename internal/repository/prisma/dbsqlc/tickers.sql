@@ -82,10 +82,7 @@ WITH stepRunsToTimeout AS (
                 FROM "Ticker"
                 WHERE "id" = stepRun."tickerId"
                 AND "isActive" = true
-                AND (
-                  "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
-                  OR "webhook" = true
-                )
+                AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
             )
             OR "tickerId" IS NULL
         )

@@ -169,6 +169,7 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 
 	if opts.Webhook != nil {
 		createParams.Webhook = *opts.Webhook
+		createParams.Isactive = true
 	}
 
 	createSemParams := dbsqlc.CreateWorkerSemaphoreParams{}

@@ -20,7 +20,8 @@ INSERT INTO "Worker" (
     "name",
     "dispatcherId",
     "maxRuns",
-    "webhook"
+    "webhook",
+    "isActive"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -29,7 +30,8 @@ INSERT INTO "Worker" (
     $2::text,
     $3::uuid,
     $4::int,
-    $5::boolean
+    $5::boolean,
+    $6::boolean
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", webhook, "isActive"
 `
 
@@ -39,6 +41,7 @@ type CreateWorkerParams struct {
 	Dispatcherid pgtype.UUID `json:"dispatcherid"`
 	MaxRuns      pgtype.Int4 `json:"maxRuns"`
 	Webhook      bool        `json:"webhook"`
+	Isactive     bool        `json:"isactive"`
 }
 
 func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerParams) (*Worker, error) {
@@ -48,6 +51,7 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		arg.Dispatcherid,
 		arg.MaxRuns,
 		arg.Webhook,
+		arg.Isactive,
 	)
 	var i Worker
 	err := row.Scan(
