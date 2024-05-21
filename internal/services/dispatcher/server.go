@@ -303,8 +303,6 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		default:
 		}
 
-		fmt.Println("deleting worker", request.WorkerId, sessionId)
-
 		s.workers.DeleteForSession(request.WorkerId, sessionId)
 	}()
 
