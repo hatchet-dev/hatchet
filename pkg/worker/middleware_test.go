@@ -64,6 +64,10 @@ func (c *testHatchetContext) StreamEvent(message []byte) {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) RetryCount() int {
+	panic("not implemented")
+}
+
 func (c *testHatchetContext) action() *client.Action {
 	panic("not implemented")
 }
