@@ -100,6 +100,8 @@ paths:
     $ref: "./paths/event/event.yaml#/replayEvents"
   /api/v1/tenants/{tenant}/members:
     $ref: "./paths/tenant/tenant.yaml#/members"
+  /api/v1/tenants/{tenant}/members/{member}:
+    $ref: "./paths/tenant/tenant.yaml#/member"
   /api/v1/events/{event}/data:
     $ref: "./paths/event/event.yaml#/eventData"
   /api/v1/tenants/{tenant}/events/keys:

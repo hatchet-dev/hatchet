@@ -56,6 +56,7 @@ import {
   TenantAlertingSettings,
   TenantInvite,
   TenantInviteList,
+  TenantMember,
   TenantMemberList,
   TriggerWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
@@ -887,6 +888,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<TenantMemberList, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/members`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete a member from a tenant
+   *
+   * @tags Tenant
+   * @name TenantMemberDelete
+   * @summary Delete a tenant member
+   * @request DELETE:/api/v1/tenants/{tenant}/members/{member}
+   * @secure
+   */
+  tenantMemberDelete = (tenant: string, member: string, params: RequestParams = {}) =>
+    this.request<TenantMember, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/members/${member}`,
+      method: "DELETE",
       secure: true,
       format: "json",
       ...params,

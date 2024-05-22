@@ -1416,6 +1416,9 @@ type ClientInterface interface {
 	// TenantMemberList request
 	TenantMemberList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// TenantMemberDelete request
+	TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SlackWebhookList request
 	SlackWebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2072,6 +2075,18 @@ func (c *Client) TenantInviteUpdate(ctx context.Context, tenant openapi_types.UU
 
 func (c *Client) TenantMemberList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantMemberListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantMemberDeleteRequest(c.Server, tenant, member)
 	if err != nil {
 		return nil, err
 	}
@@ -4253,6 +4268,47 @@ func NewTenantMemberListRequest(server string, tenant openapi_types.UUID) (*http
 	return req, nil
 }
 
+// NewTenantMemberDeleteRequest generates requests for TenantMemberDelete
+func NewTenantMemberDeleteRequest(server string, tenant openapi_types.UUID, member openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "member", runtime.ParamLocationPath, member)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/members/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewSlackWebhookListRequest generates requests for SlackWebhookList
 func NewSlackWebhookListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -6151,6 +6207,9 @@ type ClientWithResponsesInterface interface {
 	// TenantMemberListWithResponse request
 	TenantMemberListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantMemberListResponse, error)
 
+	// TenantMemberDeleteWithResponse request
+	TenantMemberDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantMemberDeleteResponse, error)
+
 	// SlackWebhookListWithResponse request
 	SlackWebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookListResponse, error)
 
@@ -7117,6 +7176,31 @@ func (r TenantMemberListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantMemberListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantMemberDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON204      *TenantMember
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantMemberDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantMemberDeleteResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8435,6 +8519,15 @@ func (c *ClientWithResponses) TenantMemberListWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseTenantMemberListResponse(rsp)
+}
+
+// TenantMemberDeleteWithResponse request returning *TenantMemberDeleteResponse
+func (c *ClientWithResponses) TenantMemberDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantMemberDeleteResponse, error) {
+	rsp, err := c.TenantMemberDelete(ctx, tenant, member, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantMemberDeleteResponse(rsp)
 }
 
 // SlackWebhookListWithResponse request returning *SlackWebhookListResponse
@@ -10214,6 +10307,53 @@ func ParseTenantMemberListResponse(rsp *http.Response) (*TenantMemberListRespons
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantMemberDeleteResponse parses an HTTP response from a TenantMemberDeleteWithResponse call
+func ParseTenantMemberDeleteResponse(rsp *http.Response) (*TenantMemberDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantMemberDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 204:
+		var dest TenantMember
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON204 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

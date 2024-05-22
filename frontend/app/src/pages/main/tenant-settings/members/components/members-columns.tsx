@@ -1,11 +1,14 @@
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
-import { TenantMember } from '@/lib/api';
+import api, { TenantMember, queries } from '@/lib/api';
 import { capitalize } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
 import { useOutletContext } from 'react-router-dom';
-import { UserContextType } from '@/lib/outlet';
+import { TenantContextType, UserContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/molecules/relative-date';
+import { useMutation } from '@tanstack/react-query';
+import { useApiError } from '@/lib/hooks';
+import queryClient from '@/query-client';
 
 export const columns = ({
   onChangePasswordClick,
@@ -69,16 +72,46 @@ function MemberActions({
   onChangePasswordClick: (row: TenantMember) => void;
 }) {
   const { user } = useOutletContext<UserContextType>();
+  const { tenant } = useOutletContext<TenantContextType>();
+
+  const { handleApiError } = useApiError({});
+
   const actions = [];
 
-  if (user.hasPassword) {
+  const isCurrent = row.original.user.email !== user.email;
+
+  if (user.hasPassword && !isCurrent) {
     actions.push({
       label: 'Change Password',
       onClick: () => onChangePasswordClick(row.original),
     });
   }
 
-  if (user.metadata.id === row.original.metadata.id) {
+  const deleteUserMutation = useMutation({
+    mutationKey: ['tenant-member:delete'],
+    mutationFn: async (data: TenantMember) => {
+      await api.tenantMemberDelete(tenant.metadata.id, data.metadata.id);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queries.members.list(tenant.metadata.id).queryKey,
+      });
+    },
+    onError: handleApiError,
+  });
+
+  if (isCurrent) {
+    actions.push({
+      label: 'Remove',
+      onClick: async () => {
+        if (window.confirm('Are you sure you want to remove this member?')) {
+          await deleteUserMutation.mutateAsync(row.original);
+        }
+      },
+    });
+  }
+
+  if (actions.length === 0) {
     return <></>;
   }
 
