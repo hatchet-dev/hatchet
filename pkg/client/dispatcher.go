@@ -91,6 +91,9 @@ type Action struct {
 
 	// the action type
 	ActionType ActionType
+
+	// the count of the retry attempt
+	RetryCount int32
 }
 
 type WorkerActionListener interface {
@@ -332,6 +335,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 				ActionId:         assignedAction.ActionId,
 				ActionType:       actionType,
 				ActionPayload:    []byte(unquoted),
+				RetryCount:       assignedAction.RetryCount,
 			}
 		}
 	}()
