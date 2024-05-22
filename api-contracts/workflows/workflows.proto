@@ -61,8 +61,8 @@ message CreateWorkflowStepOpts {
     repeated string parents = 5; // (optional) the step parents. if none are passed in, this is a root step
     string user_data = 6; // (optional) the custom step user data, assuming string representation of JSON
     int32 retries = 7; // (optional) the number of retries for the step, default 0
-    string retry_delay = 8; // (optional) the delay between retries, default 0
-    string retry_delay_strategy = 9; // (optional) the delay strategy between retries, default "fixed"
+    optional string retry_delay = 8; // (optional) the delay between retries, default 0
+    optional string retry_delay_strategy = 9; // (optional) the delay strategy between retries, default "fixed"
     repeated CreateStepRateLimit rate_limits = 10; // (optional) the rate limits for the step
 }
 
