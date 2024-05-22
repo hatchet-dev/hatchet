@@ -470,7 +470,7 @@ members:
       - Tenant
 member:
   delete:
-    x-resources: ["tenant", "member"]
+    x-resources: ["tenant"]
     description: Delete a member from a tenant
     operationId: tenant-member:delete
     parameters:

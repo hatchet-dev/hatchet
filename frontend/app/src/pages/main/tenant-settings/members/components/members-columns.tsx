@@ -9,6 +9,8 @@ import RelativeDate from '@/components/molecules/relative-date';
 import { useMutation } from '@tanstack/react-query';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
+import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
+import { useState } from 'react';
 
 export const columns = ({
   onChangePasswordClick,
@@ -74,6 +76,9 @@ function MemberActions({
   const { user } = useOutletContext<UserContextType>();
   const { tenant } = useOutletContext<TenantContextType>();
 
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleteLoading, setIsDeleteLoading] = useState(false);
+
   const { handleApiError } = useApiError({});
 
   const actions = [];
@@ -92,10 +97,15 @@ function MemberActions({
     mutationFn: async (data: TenantMember) => {
       await api.tenantMemberDelete(tenant.metadata.id, data.metadata.id);
     },
+    onMutate: () => {
+      setIsDeleteLoading(true);
+    },
     onSuccess: async () => {
+      setIsDeleteLoading(false);
       await queryClient.invalidateQueries({
         queryKey: queries.members.list(tenant.metadata.id).queryKey,
       });
+      setIsDeleteConfirmOpen(false);
     },
     onError: handleApiError,
   });
@@ -104,9 +114,7 @@ function MemberActions({
     actions.push({
       label: 'Remove',
       onClick: async () => {
-        if (window.confirm('Are you sure you want to remove this member?')) {
-          await deleteUserMutation.mutateAsync(row.original);
-        }
+        setIsDeleteConfirmOpen(true);
       },
     });
   }
@@ -115,5 +123,22 @@ function MemberActions({
     return <></>;
   }
 
-  return <DataTableRowActions row={row} actions={actions} />;
+  return (
+    <>
+      <ConfirmDialog
+        isOpen={isDeleteConfirmOpen}
+        title={'Remove member'}
+        description={`Are you sure you want to remove ${row.original.user.name} <${row.original.user.email}> from the tenant?`}
+        submitLabel={'Remove'}
+        onSubmit={() => {
+          deleteUserMutation.mutate(row.original);
+        }}
+        onCancel={function (): void {
+          setIsDeleteConfirmOpen(false);
+        }}
+        isLoading={isDeleteLoading}
+      />
+      <DataTableRowActions row={row} actions={actions} />
+    </>
+  );
 }
