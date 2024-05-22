@@ -809,6 +809,9 @@ type Worker struct {
 	// LastHeartbeatAt The time this worker last sent a heartbeat.
 	LastHeartbeatAt *time.Time `json:"lastHeartbeatAt,omitempty"`
 
+	// LastListenerEstablished The time this worker last sent a heartbeat.
+	LastListenerEstablished *time.Time `json:"lastListenerEstablished,omitempty"`
+
 	// MaxRuns The maximum number of runs this worker can execute concurrently.
 	MaxRuns  *int            `json:"maxRuns,omitempty"`
 	Metadata APIResourceMeta `json:"metadata"`

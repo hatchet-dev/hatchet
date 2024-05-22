@@ -952,16 +952,17 @@ type UserSession struct {
 }
 
 type Worker struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	TenantId        pgtype.UUID      `json:"tenantId"`
-	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
-	Name            string           `json:"name"`
-	DispatcherId    pgtype.UUID      `json:"dispatcherId"`
-	MaxRuns         pgtype.Int4      `json:"maxRuns"`
-	IsActive        bool             `json:"isActive"`
+	ID                      pgtype.UUID      `json:"id"`
+	CreatedAt               pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt               pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt               pgtype.Timestamp `json:"deletedAt"`
+	TenantId                pgtype.UUID      `json:"tenantId"`
+	LastHeartbeatAt         pgtype.Timestamp `json:"lastHeartbeatAt"`
+	Name                    string           `json:"name"`
+	DispatcherId            pgtype.UUID      `json:"dispatcherId"`
+	MaxRuns                 pgtype.Int4      `json:"maxRuns"`
+	IsActive                bool             `json:"isActive"`
+	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 }
 
 type WorkerSemaphore struct {

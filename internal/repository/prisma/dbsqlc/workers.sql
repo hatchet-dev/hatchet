@@ -42,7 +42,8 @@ SELECT
     w."id" AS "id",
     w."tenantId" AS "tenantId",
     w."dispatcherId" AS "dispatcherId",
-    w."isActive" AS "isActive"
+    w."isActive" AS "isActive",
+    w."lastListenerEstablished" AS "lastListenerEstablished"
 FROM
     "Worker" w
 WHERE
@@ -162,4 +163,17 @@ DELETE FROM
     "Worker"
 WHERE
     "id" = @id::uuid
+RETURNING *;
+
+-- name: UpdateWorkerActiveStatus :one
+UPDATE "Worker"
+SET
+    "isActive" = @isActive::boolean,
+    "lastListenerEstablished" = sqlc.narg('lastListenerEstablished')::timestamp
+WHERE
+    "id" = @id::uuid
+    AND (
+        "lastListenerEstablished" IS NULL
+        OR "lastListenerEstablished" <= sqlc.narg('lastListenerEstablished')::timestamp
+        )
 RETURNING *;

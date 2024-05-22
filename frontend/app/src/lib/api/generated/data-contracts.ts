@@ -734,6 +734,12 @@ export interface Worker {
    * @example "2022-12-13T20:06:48.888Z"
    */
   lastHeartbeatAt?: string;
+  /**
+   * The time this worker last sent a heartbeat.
+   * @format date-time
+   * @example "2022-12-13T20:06:48.888Z"
+   */
+  lastListenerEstablished?: string;
   /** The actions this worker can perform. */
   actions?: string[];
   /** The recent step runs for this worker. */
