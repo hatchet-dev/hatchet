@@ -295,6 +295,8 @@ INSERT INTO "Step" (
     "timeout",
     "customUserData",
     "retries",
+    "retryDelay",
+    "retryDelayStrategy",
     "scheduleTimeout"
 ) VALUES (
     $1::uuid,
@@ -308,23 +310,27 @@ INSERT INTO "Step" (
     $9::text,
     coalesce($10::jsonb, '{}'),
     coalesce($11::integer, 0),
-    coalesce($12::text, '5m')
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "scheduleTimeout"
+    $12::text,
+    $13::"RetryDelayStrategy",
+    coalesce($14::text, '5m')
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "scheduleTimeout", "retryDelay", "retryDelayStrategy"
 `
 
 type CreateStepParams struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	Deletedat       pgtype.Timestamp `json:"deletedat"`
-	Readableid      string           `json:"readableid"`
-	Tenantid        pgtype.UUID      `json:"tenantid"`
-	Jobid           pgtype.UUID      `json:"jobid"`
-	Actionid        string           `json:"actionid"`
-	Timeout         pgtype.Text      `json:"timeout"`
-	CustomUserData  []byte           `json:"customUserData"`
-	Retries         pgtype.Int4      `json:"retries"`
-	ScheduleTimeout pgtype.Text      `json:"scheduleTimeout"`
+	ID                 pgtype.UUID            `json:"id"`
+	CreatedAt          pgtype.Timestamp       `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp       `json:"updatedAt"`
+	Deletedat          pgtype.Timestamp       `json:"deletedat"`
+	Readableid         string                 `json:"readableid"`
+	Tenantid           pgtype.UUID            `json:"tenantid"`
+	Jobid              pgtype.UUID            `json:"jobid"`
+	Actionid           string                 `json:"actionid"`
+	Timeout            pgtype.Text            `json:"timeout"`
+	CustomUserData     []byte                 `json:"customUserData"`
+	Retries            pgtype.Int4            `json:"retries"`
+	RetryDelay         pgtype.Text            `json:"retryDelay"`
+	RetryDelayStrategy NullRetryDelayStrategy `json:"retryDelayStrategy"`
+	ScheduleTimeout    pgtype.Text            `json:"scheduleTimeout"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -340,6 +346,8 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.Timeout,
 		arg.CustomUserData,
 		arg.Retries,
+		arg.RetryDelay,
+		arg.RetryDelayStrategy,
 		arg.ScheduleTimeout,
 	)
 	var i Step
@@ -356,6 +364,8 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.CustomUserData,
 		&i.Retries,
 		&i.ScheduleTimeout,
+		&i.RetryDelay,
+		&i.RetryDelayStrategy,
 	)
 	return &i, err
 }

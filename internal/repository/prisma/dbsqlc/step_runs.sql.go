@@ -451,7 +451,9 @@ SELECT
     wv."id" AS "workflowVersionId",
     w."name" AS "workflowName",
     w."id" AS "workflowId",
-    a."actionId" AS "actionId"
+    a."actionId" AS "actionId",
+    s."retryDelay" AS "stepRetryDelay",
+    s."retryDelayStrategy" AS "stepRetryDelayStrategy"
 FROM
     "StepRun" sr
 JOIN
@@ -484,23 +486,25 @@ type GetStepRunForEngineParams struct {
 }
 
 type GetStepRunForEngineRow struct {
-	StepRun             StepRun     `json:"step_run"`
-	JobRunLookupData    []byte      `json:"jobRunLookupData"`
-	JobRunId            pgtype.UUID `json:"jobRunId"`
-	WorkflowRunId       pgtype.UUID `json:"workflowRunId"`
-	StepId              pgtype.UUID `json:"stepId"`
-	StepRetries         int32       `json:"stepRetries"`
-	StepTimeout         pgtype.Text `json:"stepTimeout"`
-	StepScheduleTimeout string      `json:"stepScheduleTimeout"`
-	StepReadableId      pgtype.Text `json:"stepReadableId"`
-	StepCustomUserData  []byte      `json:"stepCustomUserData"`
-	JobName             string      `json:"jobName"`
-	JobId               pgtype.UUID `json:"jobId"`
-	JobKind             JobKind     `json:"jobKind"`
-	WorkflowVersionId   pgtype.UUID `json:"workflowVersionId"`
-	WorkflowName        string      `json:"workflowName"`
-	WorkflowId          pgtype.UUID `json:"workflowId"`
-	ActionId            string      `json:"actionId"`
+	StepRun                StepRun                `json:"step_run"`
+	JobRunLookupData       []byte                 `json:"jobRunLookupData"`
+	JobRunId               pgtype.UUID            `json:"jobRunId"`
+	WorkflowRunId          pgtype.UUID            `json:"workflowRunId"`
+	StepId                 pgtype.UUID            `json:"stepId"`
+	StepRetries            int32                  `json:"stepRetries"`
+	StepTimeout            pgtype.Text            `json:"stepTimeout"`
+	StepScheduleTimeout    string                 `json:"stepScheduleTimeout"`
+	StepReadableId         pgtype.Text            `json:"stepReadableId"`
+	StepCustomUserData     []byte                 `json:"stepCustomUserData"`
+	JobName                string                 `json:"jobName"`
+	JobId                  pgtype.UUID            `json:"jobId"`
+	JobKind                JobKind                `json:"jobKind"`
+	WorkflowVersionId      pgtype.UUID            `json:"workflowVersionId"`
+	WorkflowName           string                 `json:"workflowName"`
+	WorkflowId             pgtype.UUID            `json:"workflowId"`
+	ActionId               string                 `json:"actionId"`
+	StepRetryDelay         pgtype.Text            `json:"stepRetryDelay"`
+	StepRetryDelayStrategy NullRetryDelayStrategy `json:"stepRetryDelayStrategy"`
 }
 
 func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepRunForEngineParams) ([]*GetStepRunForEngineRow, error) {
@@ -556,6 +560,8 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.WorkflowName,
 			&i.WorkflowId,
 			&i.ActionId,
+			&i.StepRetryDelay,
+			&i.StepRetryDelayStrategy,
 		); err != nil {
 			return nil, err
 		}

@@ -14,6 +14,9 @@ CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED',
 CREATE TYPE "LogLineLevel" AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
 
 -- CreateEnum
+CREATE TYPE "RetryDelayStrategy" AS ENUM ('EXPONENTIAL', 'FIXED');
+
+-- CreateEnum
 CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER');
 
 -- CreateEnum
@@ -315,6 +318,8 @@ CREATE TABLE "Step" (
     "customUserData" JSONB,
     "retries" INTEGER NOT NULL DEFAULT 0,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
+    "retryDelay" TEXT,
+    "retryDelayStrategy" "RetryDelayStrategy",
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );

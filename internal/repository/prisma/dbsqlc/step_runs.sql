@@ -27,7 +27,9 @@ SELECT
     wv."id" AS "workflowVersionId",
     w."name" AS "workflowName",
     w."id" AS "workflowId",
-    a."actionId" AS "actionId"
+    a."actionId" AS "actionId",
+    s."retryDelay" AS "stepRetryDelay",
+    s."retryDelayStrategy" AS "stepRetryDelayStrategy"
 FROM
     "StepRun" sr
 JOIN

@@ -823,6 +823,20 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 			}
 		}
 
+		var retryDelay pgtype.Text
+		if stepOpts.RetryDelay != nil {
+			retryDelay = sqlchelpers.TextFromStr(*stepOpts.RetryDelay)
+		}
+
+		var retryDelayStrategy dbsqlc.NullRetryDelayStrategy
+
+		if stepOpts.RetryDelayStrategy != nil {
+			retryDelayStrategy = dbsqlc.NullRetryDelayStrategy{
+				RetryDelayStrategy: dbsqlc.RetryDelayStrategy(*stepOpts.RetryDelayStrategy), // TODO this pattern is not clear to me...
+				Valid:              true,
+			}
+		}
+
 		// upsert the action
 		_, err := r.queries.UpsertAction(
 			ctx,
@@ -838,14 +852,16 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 		}
 
 		createStepParams := dbsqlc.CreateStepParams{
-			ID:             sqlchelpers.UUIDFromStr(stepId),
-			Tenantid:       tenantId,
-			Jobid:          sqlchelpers.UUIDFromStr(jobId),
-			Actionid:       stepOpts.Action,
-			Timeout:        timeout,
-			Readableid:     stepOpts.ReadableId,
-			CustomUserData: customUserData,
-			Retries:        retries,
+			ID:                 sqlchelpers.UUIDFromStr(stepId),
+			Tenantid:           tenantId,
+			Jobid:              sqlchelpers.UUIDFromStr(jobId),
+			Actionid:           stepOpts.Action,
+			Timeout:            timeout,
+			Readableid:         stepOpts.ReadableId,
+			CustomUserData:     customUserData,
+			Retries:            retries,
+			RetryDelay:         retryDelay,
+			RetryDelayStrategy: retryDelayStrategy,
 		}
 
 		if opts.ScheduleTimeout != nil {

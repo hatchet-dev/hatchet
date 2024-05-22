@@ -229,6 +229,48 @@ func (ns NullLogLineLevel) Value() (driver.Value, error) {
 	return string(ns.LogLineLevel), nil
 }
 
+type RetryDelayStrategy string
+
+const (
+	RetryDelayStrategyEXPONENTIAL RetryDelayStrategy = "EXPONENTIAL"
+	RetryDelayStrategyFIXED       RetryDelayStrategy = "FIXED"
+)
+
+func (e *RetryDelayStrategy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RetryDelayStrategy(s)
+	case string:
+		*e = RetryDelayStrategy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RetryDelayStrategy: %T", src)
+	}
+	return nil
+}
+
+type NullRetryDelayStrategy struct {
+	RetryDelayStrategy RetryDelayStrategy `json:"RetryDelayStrategy"`
+	Valid              bool               `json:"valid"` // Valid is true if RetryDelayStrategy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRetryDelayStrategy) Scan(value interface{}) error {
+	if value == nil {
+		ns.RetryDelayStrategy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RetryDelayStrategy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRetryDelayStrategy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RetryDelayStrategy), nil
+}
+
 type StepRunEventReason string
 
 const (
@@ -746,18 +788,20 @@ type SlackAppWebhook struct {
 }
 
 type Step struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	ReadableId      pgtype.Text      `json:"readableId"`
-	TenantId        pgtype.UUID      `json:"tenantId"`
-	JobId           pgtype.UUID      `json:"jobId"`
-	ActionId        string           `json:"actionId"`
-	Timeout         pgtype.Text      `json:"timeout"`
-	CustomUserData  []byte           `json:"customUserData"`
-	Retries         int32            `json:"retries"`
-	ScheduleTimeout string           `json:"scheduleTimeout"`
+	ID                 pgtype.UUID            `json:"id"`
+	CreatedAt          pgtype.Timestamp       `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp       `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp       `json:"deletedAt"`
+	ReadableId         pgtype.Text            `json:"readableId"`
+	TenantId           pgtype.UUID            `json:"tenantId"`
+	JobId              pgtype.UUID            `json:"jobId"`
+	ActionId           string                 `json:"actionId"`
+	Timeout            pgtype.Text            `json:"timeout"`
+	CustomUserData     []byte                 `json:"customUserData"`
+	Retries            int32                  `json:"retries"`
+	ScheduleTimeout    string                 `json:"scheduleTimeout"`
+	RetryDelay         pgtype.Text            `json:"retryDelay"`
+	RetryDelayStrategy NullRetryDelayStrategy `json:"retryDelayStrategy"`
 }
 
 type StepOrder struct {

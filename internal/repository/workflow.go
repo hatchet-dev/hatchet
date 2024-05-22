@@ -121,6 +121,12 @@ type CreateWorkflowStepOpts struct {
 	// (optional) the step retry max
 	Retries *int `validate:"omitempty,min=0"`
 
+	// (optional) the step retry delay
+	RetryDelay *string `validate:"omitempty,duration"`
+
+	// (optional) the step retry delay strategy
+	RetryDelayStrategy *string `validate:"omitempty,oneof=FIXED EXPONENTIAL"`
+
 	// (optional) rate limits for this step
 	RateLimits []CreateWorkflowStepRateLimitOpts `validate:"dive"`
 }

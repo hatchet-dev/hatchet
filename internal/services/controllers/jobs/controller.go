@@ -381,16 +381,30 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 	inputBytes := stepRun.StepRun.Input
 	retryCount := int(stepRun.StepRun.RetryCount) + 1
 
+	var requeueAfter *time.Time
+
+	if stepRun.StepRetryDelay.Valid {
+		retryDelayStr := stepRun.StepRetryDelay.String
+		retryDelay, err := time.ParseDuration(retryDelayStr)
+		if err != nil {
+			return fmt.Errorf("could not parse retry delay: %w", err)
+		}
+
+		requeueAfterTime := time.Now().UTC().Add(retryDelay)
+		requeueAfter = &requeueAfterTime
+	}
+
 	// update step run
 	_, _, err = ec.repo.StepRun().UpdateStepRun(
 		ctx,
 		metadata.TenantId,
 		sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
 		&repository.UpdateStepRunOpts{
-			Input:      inputBytes,
-			Status:     repository.StepRunStatusPtr(db.StepRunStatusPending),
-			IsRerun:    true,
-			RetryCount: &retryCount,
+			Input:        inputBytes,
+			Status:       repository.StepRunStatusPtr(db.StepRunStatusPending),
+			IsRerun:      true,
+			RetryCount:   &retryCount,
+			RequeueAfter: requeueAfter,
 			Event: &repository.CreateStepRunEventOpts{
 				EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonRETRYING),
 				EventMessage: repository.StringPtr(

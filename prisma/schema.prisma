@@ -573,6 +573,13 @@ model Action {
   @@unique([tenantId, actionId])
 }
 
+enum RetryDelayStrategy {
+  // Exponential backoff
+  EXPONENTIAL
+  // Fixed delay
+  FIXED
+}
+
 model Step {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -598,6 +605,10 @@ model Step {
   timeout String?
 
   retries Int @default(0)
+
+  retryDelay String?
+
+  retryDelayStrategy RetryDelayStrategy?
 
   // customUserData is a JSON object that can be used to store arbitrary data for the step
   customUserData Json?

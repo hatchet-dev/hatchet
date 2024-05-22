@@ -230,6 +230,8 @@ INSERT INTO "Step" (
     "timeout",
     "customUserData",
     "retries",
+    "retryDelay",
+    "retryDelayStrategy",
     "scheduleTimeout"
 ) VALUES (
     @id::uuid,
@@ -243,6 +245,8 @@ INSERT INTO "Step" (
     sqlc.narg('timeout')::text,
     coalesce(sqlc.narg('customUserData')::jsonb, '{}'),
     coalesce(sqlc.narg('retries')::integer, 0),
+    sqlc.narg('retryDelay')::text,
+    sqlc.narg('retryDelayStrategy')::"RetryDelayStrategy",
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m')
 ) RETURNING *;
 
