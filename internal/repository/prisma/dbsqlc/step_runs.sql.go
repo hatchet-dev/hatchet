@@ -944,10 +944,7 @@ step_runs AS (
         ) OR (
             sr."status" = 'ASSIGNED'
             -- reassign if the run is stuck in assigned
-            AND (
-                sr."updatedAt" < NOW() - INTERVAL '30 seconds'
-                OR w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-            )
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ))
         AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
