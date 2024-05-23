@@ -323,6 +323,9 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		case <-ctx.Done():
 			s.l.Debug().Msgf("worker id %s has disconnected", request.WorkerId)
 
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+
 			_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
 
 			if err != nil {
