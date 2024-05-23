@@ -468,3 +468,55 @@ members:
     summary: List tenant members
     tags:
       - Tenant
+member:
+  delete:
+    x-resources: ["tenant"]
+    description: Delete a member from a tenant
+    operationId: tenant-member:delete
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The tenant member id
+        in: path
+        name: member
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "204":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TenantMember"
+        description: Successfully deleted the tenant members
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Delete a tenant member
+    tags:
+      - Tenant
