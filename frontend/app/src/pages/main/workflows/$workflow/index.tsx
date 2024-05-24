@@ -25,10 +25,9 @@ import { Button } from '@/components/ui/button';
 import { DeploymentSettingsForm } from './components/deployment-settings-form';
 import { useApiMetaIntegrations } from '@/lib/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DeleteWorkflowForm } from './components/delete-workflow-form';
-import { Dialog } from '@/components/ui/dialog';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
+import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -206,25 +205,20 @@ export default function ExpandedWorkflow() {
             >
               Delete Workflow
             </Button>
-            <Dialog
-              open={deleteWorkflow}
-              onOpenChange={(open) => {
-                if (!open) {
-                  setDeleteWorkflow(false);
-                }
+
+            <ConfirmDialog
+              title={`Delete workflow`}
+              description={`Are you sure you want to delete the workflow ${workflow.name}? This action cannot be undone, and will immediately prevent any services running with this workflow from executing steps.`}
+              submitLabel={'Delete'}
+              onSubmit={function (): void {
+                deleteWorkflowMutation.mutate();
               }}
-            >
-              <DeleteWorkflowForm
-                workflow={workflow}
-                onSubmit={() => {
-                  deleteWorkflowMutation.mutate();
-                }}
-                onCancel={() => {
-                  setDeleteWorkflow(false);
-                }}
-                isLoading={deleteWorkflowMutation.isPending}
-              />
-            </Dialog>
+              onCancel={function (): void {
+                setDeleteWorkflow(false);
+              }}
+              isLoading={deleteWorkflowMutation.isPending}
+              isOpen={deleteWorkflow}
+            />
           </TabsContent>
         </Tabs>
       </div>

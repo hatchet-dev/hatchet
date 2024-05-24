@@ -359,11 +359,10 @@ step_runs AS (
             sr."status" = 'ASSIGNED'
             -- reassign if the run is stuck in assigned
             AND (
-                sr."updatedAt" < NOW() - INTERVAL '30 seconds'
-                OR w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+              w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
                 OR w."webhook" = true
-            )
-        ))
+              )
+      ))
         AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
         AND NOT EXISTS (

@@ -1333,6 +1333,9 @@ type ServerInterface interface {
 	// List tenant members
 	// (GET /api/v1/tenants/{tenant}/members)
 	TenantMemberList(ctx echo.Context, tenant openapi_types.UUID) error
+	// Delete a tenant member
+	// (DELETE /api/v1/tenants/{tenant}/members/{member})
+	TenantMemberDelete(ctx echo.Context, tenant openapi_types.UUID, member openapi_types.UUID) error
 	// List Slack integrations
 	// (GET /api/v1/tenants/{tenant}/slack)
 	SlackWebhookList(ctx echo.Context, tenant openapi_types.UUID) error
@@ -2243,6 +2246,34 @@ func (w *ServerInterfaceWrapper) TenantMemberList(ctx echo.Context) error {
 	return err
 }
 
+// TenantMemberDelete converts echo context to params.
+func (w *ServerInterfaceWrapper) TenantMemberDelete(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	// ------------- Path parameter "member" -------------
+	var member openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "member", runtime.ParamLocationPath, ctx.Param("member"), &member)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter member: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.TenantMemberDelete(ctx, tenant, member)
+	return err
+}
+
 // SlackWebhookList converts echo context to params.
 func (w *ServerInterfaceWrapper) SlackWebhookList(ctx echo.Context) error {
 	var err error
@@ -3127,6 +3158,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.DELETE(baseURL+"/api/v1/tenants/:tenant/invites/:tenant-invite", wrapper.TenantInviteDelete)
 	router.PATCH(baseURL+"/api/v1/tenants/:tenant/invites/:tenant-invite", wrapper.TenantInviteUpdate)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/members", wrapper.TenantMemberList)
+	router.DELETE(baseURL+"/api/v1/tenants/:tenant/members/:member", wrapper.TenantMemberDelete)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/slack", wrapper.SlackWebhookList)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/slack/start", wrapper.UserUpdateSlackOauthStart)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/sns", wrapper.SnsList)
@@ -4434,6 +4466,51 @@ type TenantMemberList403JSONResponse APIError
 func (response TenantMemberList403JSONResponse) VisitTenantMemberListResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantMemberDeleteRequestObject struct {
+	Tenant openapi_types.UUID `json:"tenant"`
+	Member openapi_types.UUID `json:"member"`
+}
+
+type TenantMemberDeleteResponseObject interface {
+	VisitTenantMemberDeleteResponse(w http.ResponseWriter) error
+}
+
+type TenantMemberDelete204JSONResponse TenantMember
+
+func (response TenantMemberDelete204JSONResponse) VisitTenantMemberDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(204)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantMemberDelete400JSONResponse APIErrors
+
+func (response TenantMemberDelete400JSONResponse) VisitTenantMemberDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantMemberDelete403JSONResponse APIErrors
+
+func (response TenantMemberDelete403JSONResponse) VisitTenantMemberDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TenantMemberDelete404JSONResponse APIErrors
+
+func (response TenantMemberDelete404JSONResponse) VisitTenantMemberDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -5920,6 +5997,8 @@ type StrictServerInterface interface {
 
 	TenantMemberList(ctx echo.Context, request TenantMemberListRequestObject) (TenantMemberListResponseObject, error)
 
+	TenantMemberDelete(ctx echo.Context, request TenantMemberDeleteRequestObject) (TenantMemberDeleteResponseObject, error)
+
 	SlackWebhookList(ctx echo.Context, request SlackWebhookListRequestObject) (SlackWebhookListResponseObject, error)
 
 	UserUpdateSlackOauthStart(ctx echo.Context, request UserUpdateSlackOauthStartRequestObject) (UserUpdateSlackOauthStartResponseObject, error)
@@ -6927,6 +7006,32 @@ func (sh *strictHandler) TenantMemberList(ctx echo.Context, tenant openapi_types
 		return err
 	} else if validResponse, ok := response.(TenantMemberListResponseObject); ok {
 		return validResponse.VisitTenantMemberListResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// TenantMemberDelete operation middleware
+func (sh *strictHandler) TenantMemberDelete(ctx echo.Context, tenant openapi_types.UUID, member openapi_types.UUID) error {
+	var request TenantMemberDeleteRequestObject
+
+	request.Tenant = tenant
+	request.Member = member
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.TenantMemberDelete(ctx, request.(TenantMemberDeleteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TenantMemberDelete")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(TenantMemberDeleteResponseObject); ok {
+		return validResponse.VisitTenantMemberDeleteResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -8072,38 +8177,39 @@ var swaggerSpec = []string{
 	"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",
-	"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",
-	"3T79/wAAAP//cMR96cduAQA=",
+	"1/BM2D5zrgyXbs25dSffEi4n8mHjFnc01cvM4l/41+6OpqhRw8dadzSF7U4ZNN3RclrcjC4ox+t/F3+4",
+	"lAsEEghvhuNlU0CkoIYfQxWUy7bBJj7vvqjhxnl3HR3w5+DaV1BoJWPSwsZsTF6IUqO1sZ+FMqaktvpu",
+	"d2qKsE8dJ21Co0uo7goi7lGtUo0XLLWuG+r6OjBin1CAqZUdx+yryGa4PEnpwjOWQbwhEAtlmwN0yRDK",
+	"e75Gznz75rihjihHmTy8ClhZQDCVl4MwFgRTpJXy3E+tnqbhKC3OqAiB7cDadNAUil8qlktMtWs7OSzl",
+	"8MW4UPO/hSQuY7mTxXsni6uM4FQ2ujEDwKF+eufW4ggo8ldt4P/maLY4qbN7qisEv8cMbeU8R46uPVEN",
+	"Nd1q68HqJWBXgnNtlV1frQnkRy8161ojumiyzGoJdmaPfSv7yBhzo6UeneREPwBRAEN7jOYJpXCZUB5C",
+	"KNo6VKKVFerF0J0Eed0SZIoIdy1LESKIINw/HeOFYzSbGGVXDI0h61gTc806OPMwb96x8D5GgeM0klvV",
+	"4PjPnrsQT+Wblvu0F5pKFwNeGwMuciR3LlDyNdU+MCGaOZaq/wzpWAzbiZaX0w7kePHkLxjQNW8Sct+7",
+	"C8VeXyjULm1FajzG+B7ieotDGHqiWUN9na+8UWfeFwnra4UldSU/LMWmJAGWXnRZ35OlEC1PTP2fTfa3",
+	"Qt2DRoaQdQteszmusGDrw/saBl8x18rtWpNtO/OcmXMz3LR7kKlAU+vzcz/BDg+16++9kdJrjkZ1WCMX",
+	"Noj2DiDpWH1bABae3CRU+DltRWagc0UTbfPGvOP23f86vaxZIEyFjhdIt5M/JVd8ETtbl0DESZnmLd20",
+	"h06hzo/mTqXe/MHcjiccmaDRN3WqzOwTQINFuZ4YqTttX49vakv2Yw0XRCDD1YosnRtlnZVs3KicPyLC",
+	"/vWYAzyckkIxrmchuFqurqVdTDrEDGp8Jy70CBhBNmWSKUuNepuUq+Tgg7ueoRwU51t4V41zX6tx6iWP",
+	"2JxzSLOtPbRMzNsPp/6u7kTukKku2wcuAZghzXJvK4ElGn/VhfGO4DN4XIywSRfTduHa6xKmXcnMGtQ9",
+	"Q/3vzvQG29x2rgHcHLdkOxKQprhWARoj/SJjyu5tbO1f5Iyv9azvjsLuKNztUdidNtW7tZIizzhxlPDq",
+	"Tp6tnDwpgZj0gxRjuZT6Z7ZkQ491M6amfob0VA62RRrjKZjtiIpD3GUFvXxWkGsGLiPyErkVM3CrZDxH",
+	"dJFODkCS9AMQhpO64genMZPCFLZIuP7Mhz9JEp50fapmaJ3THMipd5/VrBZdl9hci9bNZrAXEaqy2H+U",
+	"DHEbIrdIm3tMmBujw63Q4H4S4LPpLY7nIdwOvfGhf3B6E+jbML3liPvh6K2pqHr++kexhjU3TDipl2wE",
+	"vYwi8fepirn24sZPVcLc5fLieqy6lTi30l4fBAFMaE1KJ//eriKs6ONvxxctBq8UMbX4j2uoT6y8K9Vd",
+	"n6jIkdRYqttOXxhyv3hNiiH73o6+RB9/W7lybPAN0JdYeUdfDYlqDElr0FcYz1FN5up5PCceijzAz8bD",
+	"GgXjnA+0pbLL7Ahm4+/oFVgnO08Yz+dw6qGu6Mt+mXeKxzqjGlc7ThjP45Q2MEOcUjduYEPtCY0yUDoi",
+	"fT02SEE9rmQrq+ouUNLiCqR1crsG6bV/eTcZk7VVAjdP2v4+pKOouxOtcyfSMdhMkgkg5DHGU7sslYX7",
+	"hST1VPs6kXqlxtyejnG6ANE8m2iflI2AQzbNENWJ81ckzgVZFSndgYkwnDNBhusufaIFqdVITvWnvrbB",
+	"NgqMfWIYhbzODfsq9HRFQq46jyhsvQ0PQ17e+mfwtMr0fJF4K1/2aEihN+iGIqXfMVVejFGbpLrjBzI2",
+	"XT9ijbijPZNOe1M4okXdiJ4inQqBi4jWLLfc7fmaLNDJKXrV/e0aLRSzPkt792/EOD7mkgHYlR/aj2dc",
+	"NIpZJ0ea1y53qZvixAktToH9Y4PNh6OuGYPanQbmsNP1SbzhTOiHKLo/EKE+NRZgFN17wBPNPAyTmCAa",
+	"45VHY41RrLwhbcMouhfhP6+KUTZ/d8wRMcow6ZoQHVp2YqdVNp2ZnEErObwKcXeMvvAxyrnaRElbEjUu",
+	"aVWMVIr5U5kgeICYmF4Q0U7gFmlU+yBfDOktIlGzUl7CPcdz/QxPM0BzHKcJT7LJQVAbZAWFd/odrgrA",
+	"vIQa8syMGElyXVLMvoisQirOMuP2LQksitF8XmeIvhYNPOBF8HG9Qovujx/tpcS6NrDLoTeccQsoSRl1",
+	"wGlPVP8CFBKa8RQi3gzyUv+2VMxc4O+5QifJQNvVNlXSS0X7dq/GudSPVA8/ddUj900kKhnUULeyqf5y",
+	"C7Eo+ZK41p1VHO8kEv8QjV+ROeVHkIlbljByU5+phnWyZq/Ur5wUt6R+KTnTn8IZipDyGbYROXnPttLn",
+	"LJ+zk0M/mBzS9vaZF0ONMjvhtIfCSd+g9eVUORJhAgGGOItE6BljEyB+UPIixaH/wfefbp/+fwAAAP//",
+	"ft0CAPdyAQA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
