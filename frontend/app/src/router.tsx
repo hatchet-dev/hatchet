@@ -210,6 +210,17 @@ const routes: RouteObject[] = [
                   ),
               },
               {
+                path: '/tenant-settings/webhooks',
+                lazy: async () =>
+                  import('./pages/main/tenant-settings/webhooks').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
                 path: '/tenant-settings/members',
                 lazy: async () =>
                   import('./pages/main/tenant-settings/members').then((res) => {

@@ -11,6 +11,9 @@ Tenant:
     analyticsOptOut:
       type: boolean
       description: Whether the tenant has opted out of analytics.
+    webhookSecret:
+      type: string
+      description: The webhook secret for the tenant.
   required:
     - metadata
     - name

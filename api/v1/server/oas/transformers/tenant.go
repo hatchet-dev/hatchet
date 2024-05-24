@@ -13,6 +13,7 @@ func ToTenant(tenant *db.TenantModel) *gen.Tenant {
 		Name:            tenant.Name,
 		Slug:            tenant.Slug,
 		AnalyticsOptOut: &tenant.AnalyticsOptOut,
+		WebhookSecret:   tenant.InnerTenant.WebhookSecret,
 	}
 }
 

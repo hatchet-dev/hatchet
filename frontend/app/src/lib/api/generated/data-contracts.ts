@@ -194,6 +194,8 @@ export interface Tenant {
   slug: string;
   /** Whether the tenant has opted out of analytics. */
   analyticsOptOut?: boolean;
+  /** The webhook secret for the tenant. */
+  webhookSecret?: string;
 }
 
 export interface TenantMember {

@@ -637,6 +637,9 @@ type Tenant struct {
 
 	// Slug The slug of the tenant.
 	Slug string `json:"slug"`
+
+	// WebhookSecret The webhook secret for the tenant.
+	WebhookSecret *string `json:"webhookSecret,omitempty"`
 }
 
 // TenantAlertEmailGroup defines model for TenantAlertEmailGroup.
