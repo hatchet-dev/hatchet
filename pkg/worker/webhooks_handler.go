@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -22,17 +21,11 @@ func (w *Worker) WebhookHandler(secret string) http.HandlerFunc {
 			panic(err)
 		}
 
-		log.Printf("got webhook request!")
-
 		expected := r.Header.Get("X-Hatchet-Signature")
 		actual, err := signature.Sign(string(data), secret)
 		if err != nil {
 			panic(fmt.Errorf("could not sign data: %w", err))
 		}
-
-		log.Printf("secret: %s", secret)
-		log.Printf("actual: %s", actual)
-		log.Printf("expected: %s", expected)
 
 		if expected != actual {
 			panic(fmt.Errorf("invalid webhook signature"))
@@ -42,9 +35,6 @@ func (w *Worker) WebhookHandler(secret string) http.HandlerFunc {
 		if err := json.Unmarshal(data, &event); err != nil {
 			panic(err)
 		}
-
-		indent, _ := json.MarshalIndent(event, "", "  ")
-		log.Printf("data: %s", string(indent))
 
 		action := &client.Action{
 			//WorkerId:         event.WorkerId,
@@ -59,7 +49,6 @@ func (w *Worker) WebhookHandler(secret string) http.HandlerFunc {
 			StepRunId:        event.StepRunId,
 			ActionId:         event.ActionId,
 			ActionPayload:    []byte(event.ActionPayload),
-			//ActionType:       event.ActionType,
 		}
 
 		timestamp := time.Now().UTC()
@@ -84,8 +73,6 @@ func (w *Worker) WebhookHandler(secret string) http.HandlerFunc {
 			panic(err)
 		}
 
-		log.Printf("got response from user: %+v", resp)
-
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte("OK"))
 
@@ -105,12 +92,10 @@ func (w *Worker) WebhookHandler(secret string) http.HandlerFunc {
 }
 
 func (w *Worker) webhookProcess(ctx HatchetContext) (interface{}, error) {
-	log.Printf("processing webhook")
 
 	var do Action
 	for _, action := range w.actions {
 		split := strings.Split(action.Name(), ":") // service:action
-		log.Printf("action: %s", split[1])
 		if split[1] == ctx.StepName() {
 			do = action
 			break
