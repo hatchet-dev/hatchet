@@ -962,9 +962,9 @@ type Worker struct {
 	Name                    string           `json:"name"`
 	DispatcherId            pgtype.UUID      `json:"dispatcherId"`
 	MaxRuns                 pgtype.Int4      `json:"maxRuns"`
-	Webhook                 bool             `json:"webhook"`
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
+	Webhook                 bool             `json:"webhook"`
 }
 
 type WorkerSemaphore struct {
@@ -1097,6 +1097,6 @@ type WorkflowVersion struct {
 	WorkflowId      pgtype.UUID      `json:"workflowId"`
 	Checksum        string           `json:"checksum"`
 	ScheduleTimeout string           `json:"scheduleTimeout"`
-	Webhook         pgtype.Text      `json:"webhook"`
 	OnFailureJobId  pgtype.UUID      `json:"onFailureJobId"`
+	Webhook         pgtype.Text      `json:"webhook"`
 }

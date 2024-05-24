@@ -554,9 +554,9 @@ CREATE TABLE "Worker" (
     "name" TEXT NOT NULL,
     "dispatcherId" UUID,
     "maxRuns" INTEGER,
-    "webhook" BOOLEAN NOT NULL DEFAULT false,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
+    "webhook" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
@@ -714,8 +714,8 @@ CREATE TABLE "WorkflowVersion" (
     "workflowId" UUID NOT NULL,
     "checksum" TEXT NOT NULL,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
-    "webhook" TEXT,
     "onFailureJobId" UUID,
+    "webhook" TEXT,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
