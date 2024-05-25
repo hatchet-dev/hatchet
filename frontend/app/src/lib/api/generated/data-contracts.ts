@@ -758,6 +758,8 @@ export interface Worker {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   dispatcherId?: string;
+  /** Whether this worker is a webhook worker */
+  webhook?: boolean;
 }
 
 export interface APIToken {

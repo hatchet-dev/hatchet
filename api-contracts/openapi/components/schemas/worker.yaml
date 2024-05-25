@@ -44,6 +44,9 @@ Worker:
       minLength: 36
       maxLength: 36
       format: uuid
+    webhook:
+      type: boolean
+      description: Whether this worker is a webhook worker
   required:
     - metadata
     - name

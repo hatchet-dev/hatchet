@@ -172,6 +172,11 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		Services:     svcs,
 	}
 
+	if opts.Webhook != nil {
+		// currently we use only one webhook worker per tenant
+		opts.Name = "webhooks"
+	}
+
 	if request.MaxRuns != nil {
 		mr := int(*request.MaxRuns)
 		opts.MaxRuns = &mr

@@ -824,6 +824,9 @@ type Worker struct {
 
 	// Status The status of the worker.
 	Status *WorkerStatus `json:"status,omitempty"`
+
+	// Webhook Whether this worker is a webhook worker
+	Webhook *bool `json:"webhook,omitempty"`
 }
 
 // WorkerStatus The status of the worker.

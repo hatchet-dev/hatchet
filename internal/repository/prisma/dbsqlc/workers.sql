@@ -22,7 +22,8 @@ WHERE
     )
     AND (
         sqlc.narg('lastHeartbeatAfter')::timestamp IS NULL OR
-        workers."lastHeartbeatAt" > sqlc.narg('lastHeartbeatAfter')::timestamp
+        workers."lastHeartbeatAt" > sqlc.narg('lastHeartbeatAfter')::timestamp OR
+        workers."webhook" = true
     )
     AND (
         sqlc.narg('assignable')::boolean IS NULL OR

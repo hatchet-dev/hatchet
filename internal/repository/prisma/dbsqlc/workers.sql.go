@@ -256,7 +256,8 @@ WHERE
     )
     AND (
         $3::timestamp IS NULL OR
-        workers."lastHeartbeatAt" > $3::timestamp
+        workers."lastHeartbeatAt" > $3::timestamp OR
+        workers."webhook" = true
     )
     AND (
         $4::boolean IS NULL OR
