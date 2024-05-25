@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -148,8 +149,19 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	log.Printf("create worker opts webhook %v", request.Webhook)
 
 	if request.Webhook != nil {
-		// TODO check if a webhook worker already exists, if so, return existing (for now)
-		_ = time.Now()
+		// check if a webhook worker already exists, if so, return existing (for now)
+		ww, err := s.repo.Worker().GetWebhookWorker(ctx, tenantId)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			// return the worker id to the worker
+			return &contracts.WorkerRegisterResponse{
+				TenantId:   tenantId,
+				WorkerId:   sqlchelpers.UUIDToStr(ww.ID),
+				WorkerName: ww.Name,
+			}, nil
+		}
 	}
 
 	opts := &repository.CreateWorkerOpts{

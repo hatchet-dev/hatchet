@@ -78,6 +78,8 @@ type WorkerEngineRepository interface {
 
 	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
 
+	GetWebhookWorker(ctx context.Context, tenantId string) (*dbsqlc.Worker, error)
+
 	ResolveWorkerSemaphoreSlots(ctx context.Context) (int64, error)
 
 	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error)

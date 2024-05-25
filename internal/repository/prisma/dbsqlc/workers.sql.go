@@ -121,6 +121,35 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*W
 	return &i, err
 }
 
+const getWebhookWorker = `-- name: GetWebhookWorker :one
+SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", webhook
+FROM
+    "Worker"
+WHERE
+    "tenantId" = $1::uuid
+    AND "webhook" = true
+`
+
+func (q *Queries) GetWebhookWorker(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*Worker, error) {
+	row := db.QueryRow(ctx, getWebhookWorker, tenantid)
+	var i Worker
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.LastHeartbeatAt,
+		&i.Name,
+		&i.DispatcherId,
+		&i.MaxRuns,
+		&i.IsActive,
+		&i.LastListenerEstablished,
+		&i.Webhook,
+	)
+	return &i, err
+}
+
 const getWorkerForEngine = `-- name: GetWorkerForEngine :one
 SELECT
     w."id" AS "id",

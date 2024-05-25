@@ -147,6 +147,10 @@ func (w *workerEngineRepository) GetWorkerForEngine(ctx context.Context, tenantI
 	})
 }
 
+func (w *workerEngineRepository) GetWebhookWorker(ctx context.Context, tenantId string) (*dbsqlc.Worker, error) {
+	return w.queries.GetWebhookWorker(ctx, w.pool, sqlchelpers.UUIDFromStr(tenantId))
+}
+
 func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId string, opts *repository.CreateWorkerOpts) (*dbsqlc.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err

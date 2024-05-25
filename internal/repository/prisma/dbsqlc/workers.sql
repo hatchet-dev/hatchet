@@ -181,3 +181,11 @@ WHERE
         OR "lastListenerEstablished" <= sqlc.narg('lastListenerEstablished')::timestamp
         )
 RETURNING *;
+
+-- name: GetWebhookWorker :one
+SELECT *
+FROM
+    "Worker"
+WHERE
+    "tenantId" = @tenantId::uuid
+    AND "webhook" = true;
