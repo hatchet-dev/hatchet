@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/randstr"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
@@ -161,6 +162,20 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			codes.InvalidArgument,
 			apiErrors.String(),
 		)
+	}
+
+	// if a webhook workflow is being created, but the tenant does not have a webhook secret, update it
+	if createOpts.Webhook != nil && !tenant.WebhookSecret.Valid {
+		secret, err := randstr.GenerateWebhookSecret()
+		if err != nil {
+			return nil, err
+		}
+		_, err = a.repo.Tenant().UpdateTenant(ctx, tenantId, &repository.UpdateTenantEngineOpts{
+			WebhookSecret: repository.StringPtr(secret),
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// determine if workflow already exists

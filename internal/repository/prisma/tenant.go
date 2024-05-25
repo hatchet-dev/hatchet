@@ -198,3 +198,27 @@ func (r *tenantEngineRepository) GetTenantByID(ctx context.Context, tenantId str
 		return r.queries.GetTenantByID(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 	})
 }
+
+func (r *tenantEngineRepository) UpdateTenant(ctx context.Context, tenantId string, opts *repository.UpdateTenantEngineOpts) (*dbsqlc.Tenant, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	params := dbsqlc.UpdateTenantParams{
+		ID: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	if opts.Name != nil {
+		params.Name = sqlchelpers.TextFromStr(*opts.Name)
+	}
+
+	if opts.AnalyticsOptOut != nil {
+		params.AnalyticsOptOut = sqlchelpers.BoolFromValue(opts.AnalyticsOptOut)
+	}
+
+	if opts.WebhookSecret != nil {
+		params.WebhookSecret = sqlchelpers.TextFromStr(*opts.WebhookSecret)
+	}
+
+	return r.queries.UpdateTenant(ctx, r.pool, params)
+}

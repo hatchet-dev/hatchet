@@ -40,7 +40,7 @@ type TenantAPIRepository interface {
 	// CreateTenant creates a new tenant.
 	CreateTenant(opts *CreateTenantOpts) (*db.TenantModel, error)
 
-	// CreateTenant creates a new tenant.
+	// CreateTenant updates an existing tenant.
 	UpdateTenant(tenantId string, opts *UpdateTenantOpts) (*db.TenantModel, error)
 
 	// GetTenantByID returns the tenant with the given id
@@ -71,10 +71,19 @@ type TenantAPIRepository interface {
 	DeleteTenantMember(memberId string) (*db.TenantMemberModel, error)
 }
 
+type UpdateTenantEngineOpts struct {
+	Name            *string
+	AnalyticsOptOut *bool
+	WebhookSecret   *string
+}
+
 type TenantEngineRepository interface {
 	// ListTenants lists all tenants in the instance
 	ListTenants(ctx context.Context) ([]*dbsqlc.Tenant, error)
 
 	// GetTenantByID returns the tenant with the given id
 	GetTenantByID(ctx context.Context, tenantId string) (*dbsqlc.Tenant, error)
+
+	// UpdateTenant updates an existing tenant
+	UpdateTenant(ctx context.Context, tenantId string, opts *UpdateTenantEngineOpts) (*dbsqlc.Tenant, error)
 }

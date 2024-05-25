@@ -173,6 +173,46 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 	return items, nil
 }
 
+const updateTenant = `-- name: UpdateTenant :one
+UPDATE
+    "Tenant" as tenants
+SET
+    "name" = COALESCE($1::text, "name"),
+    "analyticsOptOut" = COALESCE($2::boolean, "analyticsOptOut"),
+    "webhookSecret" = COALESCE($3::text, "webhookSecret")
+WHERE
+    "id" = $4::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "webhookSecret"
+`
+
+type UpdateTenantParams struct {
+	Name            pgtype.Text `json:"name"`
+	AnalyticsOptOut pgtype.Bool `json:"analyticsOptOut"`
+	WebhookSecret   pgtype.Text `json:"webhookSecret"`
+	ID              pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateTenant(ctx context.Context, db DBTX, arg UpdateTenantParams) (*Tenant, error) {
+	row := db.QueryRow(ctx, updateTenant,
+		arg.Name,
+		arg.AnalyticsOptOut,
+		arg.WebhookSecret,
+		arg.ID,
+	)
+	var i Tenant
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Name,
+		&i.Slug,
+		&i.AnalyticsOptOut,
+		&i.WebhookSecret,
+	)
+	return &i, err
+}
+
 const updateTenantAlertingSettings = `-- name: UpdateTenantAlertingSettings :one
 UPDATE
     "TenantAlertingSettings" as tenantAlertingSettings

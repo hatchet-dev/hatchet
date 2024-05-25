@@ -44,3 +44,14 @@ SET
 WHERE
     "tenantId" = sqlc.arg('tenantId')::uuid
 RETURNING *;
+
+-- name: UpdateTenant :one
+UPDATE
+    "Tenant" as tenants
+SET
+    "name" = COALESCE(sqlc.narg('name')::text, "name"),
+    "analyticsOptOut" = COALESCE(sqlc.narg('analyticsOptOut')::boolean, "analyticsOptOut"),
+    "webhookSecret" = COALESCE(sqlc.narg('webhookSecret')::text, "webhookSecret")
+WHERE
+    "id" = sqlc.arg('id')::uuid
+RETURNING *;
