@@ -27,11 +27,11 @@ export function AdditionalMetadata({ metadata }: { metadata: object }) {
                 className="mr-2 truncate cursor-default font-normal"
                 variant="secondary"
               >
-                {`${key}: ${value?.substring(0, 10)}${value.length > 10 ? '...' : ''}`}
+                {`${key}: ${JSON.stringify(value).substring(0, 10)}${value.length > 10 ? '...' : ''}`}
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
-              {key}: {value}
+              {key}: {JSON.stringify(value)}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
