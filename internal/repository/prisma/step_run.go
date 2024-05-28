@@ -643,7 +643,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 					return err
 				}
 
-				return fmt.Errorf("could not assign worker: %w", err)
+				return fmt.Errorf("could not assign worker for step run %s (step %s): %w", sqlchelpers.UUIDToStr(stepRun.StepRun.ID), stepRun.StepReadableId.String, err)
 			}
 
 			return nil
