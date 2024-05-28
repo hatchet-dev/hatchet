@@ -310,6 +310,8 @@ WITH valid_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        -- necessary becauseisActive is set to false immediately when the stream closes
+        AND w."isActive" = true
     GROUP BY
         w."id"
 ),
@@ -395,6 +397,8 @@ WITH valid_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        -- necessary becauseisActive is set to false immediately when the stream closes
+        AND w."isActive" = true
     GROUP BY
         w."id"
 ),
@@ -466,6 +470,8 @@ WITH valid_workers AS (
         w."tenantId" = @tenantId::uuid
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        -- necessary becauseisActive is set to false immediately when the stream closes
+        AND w."isActive" = true
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
@@ -500,6 +506,8 @@ WITH valid_workers AS (
         w."tenantId" = @tenantId::uuid
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        -- necessary becauseisActive is set to false immediately when the stream closes
+        AND w."isActive" = true
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
