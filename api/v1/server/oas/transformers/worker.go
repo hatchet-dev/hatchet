@@ -73,7 +73,7 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64, slots *int) *gen.Work
 
 	status := gen.ACTIVE
 
-	if worker.LastHeartbeatAt.Time.Add(4 * time.Second).Before(time.Now()) {
+	if worker.LastHeartbeatAt.Time.Add(5 * time.Second).Before(time.Now()) {
 		status = gen.INACTIVE
 	}
 
