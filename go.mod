@@ -98,7 +98,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/exaring/otelpgx v0.5.4
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/getsentry/sentry-go v0.27.0
+	github.com/getsentry/sentry-go v0.28.0
 	github.com/go-playground/validator/v10 v10.20.0
 	github.com/go-test/deep v1.1.0 // indirect
 	github.com/goccy/go-json v0.10.3
