@@ -225,6 +225,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 					_, err := s.repo.Worker().UpdateWorker(ctx, tenantId, request.WorkerId, &repository.UpdateWorkerOpts{
 						LastHeartbeatAt: &now,
+						IsActive:        repository.BoolPtr(true),
 					})
 
 					if err != nil {
@@ -361,7 +362,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	}
 
 	if worker.LastListenerEstablished.Valid && !worker.IsActive {
-		return nil, fmt.Errorf("Heartbeat rejected, worker stream is not active")
+		return nil, fmt.Errorf("Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
 	}
 
 	_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, req.WorkerId, &repository.UpdateWorkerOpts{
