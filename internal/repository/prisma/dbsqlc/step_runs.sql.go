@@ -12,11 +12,12 @@ import (
 )
 
 const acquireWorkerSemaphoreSlot = `-- name: AcquireWorkerSemaphoreSlot :one
-WITH valid_slots AS (
-    SELECT wss."id" AS "slotId", wss."workerId"
-    FROM "WorkerSemaphoreSlot" wss
-    JOIN "Worker" w ON wss."workerId" = w."id"
-    WHERE w."tenantId" = $2::uuid
+WITH valid_workers AS (
+    SELECT w."id", COUNT(wss."id") AS "slots"
+    FROM "Worker" w
+    JOIN "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
+    WHERE
+        w."tenantId" = $2::uuid
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
@@ -26,23 +27,15 @@ WITH valid_slots AS (
             INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
             WHERE "Action"."tenantId" = $2 AND "Action"."actionId" = $3::text
         )
-        AND wss."stepRunId" IS NULL
-        FOR UPDATE SKIP LOCKED
-),
-slot_counts AS (
-    SELECT "workerId", COUNT(*) AS "availableSlots"
-    FROM valid_slots
-    GROUP BY "workerId"
+    GROUP BY w."id"
 ),
 selected_slot AS (
-    SELECT "slotId", "workerId"
-    FROM valid_slots
-    ORDER BY (
-        SELECT "availableSlots"
-        FROM slot_counts
-        WHERE "workerId" = valid_slots."workerId"
-    ) DESC,
-    RANDOM()
+    SELECT wss."id" AS "slotId", wss."workerId" AS "workerId"
+    FROM "WorkerSemaphoreSlot" wss
+    JOIN valid_workers w ON wss."workerId" = w."id"
+    WHERE wss."stepRunId" IS NULL
+    ORDER BY w."slots" DESC, RANDOM()
+    FOR UPDATE SKIP LOCKED
     LIMIT 1
 )
 UPDATE "WorkerSemaphoreSlot"
