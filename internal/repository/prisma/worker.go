@@ -173,6 +173,11 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			Int32: int32(*opts.MaxRuns),
 			Valid: true,
 		}
+	} else {
+		createParams.MaxRuns = pgtype.Int4{
+			Int32: 100,
+			Valid: true,
+		}
 	}
 
 	worker, err := w.queries.CreateWorker(ctx, tx, createParams)
@@ -183,7 +188,10 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 
 	err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
 		Workerid: worker.ID,
-		MaxRuns:  worker.MaxRuns,
+		MaxRuns: pgtype.Int4{
+			Int32: worker.MaxRuns,
+			Valid: true,
+		},
 	})
 
 	if err != nil {

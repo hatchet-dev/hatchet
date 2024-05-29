@@ -171,4 +171,6 @@ type StepRunEngineRepository interface {
 	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error
 
 	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
+
+	ReleaseWorkerSemaphoreSlot(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.WorkerSemaphoreSlot, error)
 }

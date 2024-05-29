@@ -960,7 +960,7 @@ type Worker struct {
 	LastHeartbeatAt         pgtype.Timestamp `json:"lastHeartbeatAt"`
 	Name                    string           `json:"name"`
 	DispatcherId            pgtype.UUID      `json:"dispatcherId"`
-	MaxRuns                 pgtype.Int4      `json:"maxRuns"`
+	MaxRuns                 int32            `json:"maxRuns"`
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 }

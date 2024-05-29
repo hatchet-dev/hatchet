@@ -18,12 +18,6 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 		dispatcherUuid = uuid.MustParse(id)
 	}
 
-	var maxRuns int
-
-	if runs, ok := worker.MaxRuns(); ok {
-		maxRuns = runs
-	}
-
 	status := gen.ACTIVE
 
 	if lastHeartbeat, ok := worker.LastHeartbeatAt(); ok && lastHeartbeat.Add(4*time.Second).Before(time.Now()) {
@@ -35,7 +29,7 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 		Name:         worker.Name,
 		DispatcherId: &dispatcherUuid,
 		Status:       &status,
-		MaxRuns:      &maxRuns,
+		MaxRuns:      &worker.MaxRuns,
 	}
 
 	if lastHeartbeatAt, ok := worker.LastHeartbeatAt(); ok {
@@ -73,7 +67,7 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64, slots *int) *gen.Work
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
-	maxRuns := int(worker.MaxRuns.Int32)
+	maxRuns := int(worker.MaxRuns)
 
 	status := gen.ACTIVE
 

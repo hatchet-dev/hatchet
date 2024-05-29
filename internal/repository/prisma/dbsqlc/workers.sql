@@ -2,13 +2,11 @@
 SELECT
     sqlc.embed(workers),
     COUNT(runs."id") FILTER (WHERE runs."status" = 'RUNNING') AS "runningStepRuns",
-    ws."slots" AS "slots"
+    (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
 FROM
     "Worker" workers
 LEFT JOIN
     "StepRun" AS runs ON runs."workerId" = workers."id" AND runs."status" = 'RUNNING'
-JOIN
-    "WorkerSemaphore" AS ws ON ws."workerId" = workers."id"
 WHERE
     workers."tenantId" = @tenantId
     AND (
@@ -34,8 +32,13 @@ WHERE
         ))
     )
 GROUP BY
-    ws."slots",
+    -- ws."slots",
     workers."id";
+
+-- name: StubWorkerSemaphoreSlots :exec
+INSERT INTO "WorkerSemaphoreSlot" ("id", "workerId")
+SELECT gen_random_uuid(), @workerId::uuid
+FROM generate_series(1, sqlc.narg('maxRuns')::int);
 
 -- name: GetWorkerForEngine :one
 SELECT
@@ -69,15 +72,6 @@ INSERT INTO "Worker" (
     sqlc.narg('maxRuns')::int
 ) RETURNING *;
 
--- name: CreateWorkerSemaphore :one
-INSERT INTO "WorkerSemaphore" (
-    "workerId",
-    "slots"
-) VALUES (
-    @workerId::uuid,
-    COALESCE(sqlc.narg('maxRuns')::int, 100)
-) RETURNING *;
-
 -- name: UpdateWorker :one
 UPDATE
     "Worker"
@@ -90,31 +84,6 @@ SET
 WHERE
     "id" = @id::uuid
 RETURNING *;
-
-
--- name: ResolveWorkerSemaphoreSlots :execrows
-UPDATE "WorkerSemaphore" ws
-SET "slots" = COALESCE(w."maxRuns", 100) - COALESCE(
-    (
-        SELECT COUNT(*)
-        FROM "StepRun" sr
-        WHERE sr."status" IN ('RUNNING', 'ASSIGNED')
-            AND sr."semaphoreReleased" = FALSE
-            AND sr."workerId" = w."id"
-    ), 0
-)
-FROM "Worker" w
-WHERE ws."workerId" = w."id"
-    AND "slots" != COALESCE(w."maxRuns", 100) - COALESCE(
-        (
-            SELECT COUNT(*)
-            FROM "StepRun" sr
-            WHERE sr."status" IN ('RUNNING', 'ASSIGNED')
-                AND sr."semaphoreReleased" = FALSE
-                AND sr."workerId" = w."id"
-        ), 0
-    )
-    AND "lastHeartbeatAt" > (CURRENT_TIMESTAMP - INTERVAL '1 minute');
 
 -- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (
