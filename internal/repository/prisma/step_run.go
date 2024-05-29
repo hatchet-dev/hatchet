@@ -435,7 +435,10 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 			return fmt.Errorf("could not create step run event: %w", err)
 		}
 
-		_, err = s.ReleaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
+		_, err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
+			Steprunid: stepRun.StepRun.ID,
+			Tenantid:  stepRun.StepRun.TenantId,
+		})
 
 		if err != nil {
 			return fmt.Errorf("could not release worker semaphore slot: %w", err)
@@ -478,10 +481,10 @@ func (s *stepRunEngineRepository) releaseWorkerSemaphore(ctx context.Context, st
 
 		defer deferRollback(ctx, s.l, tx.Rollback)
 
-		tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
-		stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-
-		_, err = s.ReleaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
+		_, err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
+			Steprunid: stepRun.StepRun.ID,
+			Tenantid:  stepRun.StepRun.TenantId,
+		})
 
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("could not release previous worker semaphore: %w", err)
@@ -607,7 +610,6 @@ func (s *stepRunEngineRepository) deferredStepRunEvent(
 }
 
 func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (string, string, error) {
-
 	err := s.releaseWorkerSemaphore(ctx, stepRun)
 
 	if err != nil {
@@ -1327,7 +1329,7 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		})
 
-		if err != nil {
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("could not release worker semaphore: %w", err)
 		}
 	}
