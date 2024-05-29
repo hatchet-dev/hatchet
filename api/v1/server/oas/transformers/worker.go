@@ -46,9 +46,13 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 		res.LastListenerEstablished = &lastListenerEstablished
 	}
 
-	if semaphore, ok := worker.Semaphore(); ok {
-		res.AvailableRuns = &semaphore.Slots
+	numSlots := 0
+	for _, slot := range worker.Slots() {
+		if _, ok := slot.StepRunID(); !ok {
+			numSlots++
+		}
 	}
+	res.AvailableRuns = &numSlots
 
 	if worker.RelationsWorker.Actions != nil {
 		if actions := worker.Actions(); actions != nil {
@@ -77,13 +81,15 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64, slots *int) *gen.Work
 		status = gen.INACTIVE
 	}
 
+	availableRuns := maxRuns - *slots
+
 	res := &gen.Worker{
 		Metadata:      *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
 		Name:          worker.Name,
 		Status:        &status,
 		DispatcherId:  &dispatcherId,
 		MaxRuns:       &maxRuns,
-		AvailableRuns: slots,
+		AvailableRuns: &availableRuns,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {
