@@ -951,6 +951,15 @@ type UserSession struct {
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
 
+type WebhookWorker struct {
+	ID        pgtype.UUID      `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	Secret    string           `json:"secret"`
+	Url       string           `json:"url"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+}
+
 type Worker struct {
 	ID                      pgtype.UUID      `json:"id"`
 	CreatedAt               pgtype.Timestamp `json:"createdAt"`

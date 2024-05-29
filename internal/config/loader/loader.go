@@ -356,7 +356,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	var internalClient client.Client
 
-	if cf.Runtime.WorkerEnabled {
+	if os.Getenv("WORKER_ENABLED") == "true" { // TODO cf.Runtime.WorkerEnabled
 		// get the internal tenant or create if it doesn't exist
 		internalTenant, err := dc.APIRepository.Tenant().GetTenantBySlug("internal")
 

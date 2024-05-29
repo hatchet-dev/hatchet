@@ -19,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/heartbeat"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
+	"github.com/hatchet-dev/hatchet/internal/services/webhooks"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 )
 
@@ -281,6 +282,20 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 		teardown = append(teardown, Teardown{
 			name: "grpc",
+			fn:   cleanup,
+		})
+	}
+
+	if sc.HasService("webhookscontroller") {
+		wh := webhooks.New(sc)
+
+		cleanup, err := wh.Start()
+		if err != nil {
+			return fmt.Errorf("could not create webhook worker: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			name: "webhook worker",
 			fn:   cleanup,
 		})
 	}

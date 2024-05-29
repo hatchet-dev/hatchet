@@ -90,6 +90,19 @@ model UserSession {
   expiresAt DateTime
 }
 
+// WebhookWorker can be used to handle workflows via webhooks
+model WebhookWorker {
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  secret String
+  url    String
+
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
 // Tenant represents a unique tenant in the database. Each tenant-scoped resource should have the tenant as
 // an identifier, which makes tenant isolation easier.
 model Tenant {
@@ -136,6 +149,7 @@ model Tenant {
   alertEmailGroups          TenantAlertEmailGroup[]
   slackWebhooks             SlackAppWebhook[]
   alertingSettings          TenantAlertingSettings?
+  webhookWorkers            WebhookWorker[]
 }
 
 model TenantAlertingSettings {
