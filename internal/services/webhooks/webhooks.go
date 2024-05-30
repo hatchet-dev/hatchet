@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/webhook"
 )
@@ -32,24 +33,50 @@ func (c *WebhooksController) Start() (func() error, error) {
 
 	cl, err := client.New()
 	if err != nil {
-		panic(fmt.Errorf("could not create client: %w", err))
+		return nil, fmt.Errorf("could not create client: %w", err)
 	}
 
-	ww, err := webhook.NewWorker(webhook.WorkerOpts{
-		Secret:   "secret",
-		Url:      "http://localhost:8741",
-		TenantID: "707d0855-80ab-4e1f-a156-f1c4546cbf52",
-	}, cl)
+	tenants, err := c.sc.EngineRepository.Tenant().ListTenants(context.Background())
 	if err != nil {
-		panic(fmt.Errorf("could not create webhook worker: %w", err))
+		return nil, fmt.Errorf("could not list tenants: %w", err)
 	}
 
-	cleanup, err := ww.Start()
-	if err != nil {
-		panic(fmt.Errorf("could not start webhook worker: %w", err))
+	var cleanups []func() error
+
+	for _, tenant := range tenants {
+		wws, err := c.sc.EngineRepository.WebhookWorker().GetAllWebhookWorkers(context.Background(), sqlchelpers.UUIDToStr(tenant.ID))
+		if err != nil {
+			return nil, fmt.Errorf("could not get webhook workers: %w", err)
+		}
+
+		for _, ww := range wws {
+			ww, err := webhook.NewWorker(webhook.WorkerOpts{
+				Secret:   ww.Secret,
+				Url:      ww.Url,
+				TenantID: sqlchelpers.UUIDToStr(tenant.ID),
+			}, cl)
+			if err != nil {
+				panic(fmt.Errorf("could not create webhook worker: %w", err))
+			}
+
+			cleanup, err := ww.Start()
+			if err != nil {
+				panic(fmt.Errorf("could not start webhook worker: %w", err))
+			}
+
+			cleanups = append(cleanups, cleanup)
+		}
 	}
 
-	return cleanup, nil
+	return func() error {
+		for _, cleanup := range cleanups {
+			if err := cleanup(); err != nil {
+				return fmt.Errorf("could not cleanup webhook worker: %w", err)
+			}
+		}
+
+		return nil
+	}, nil
 }
 
 func (c *WebhooksController) setup() {

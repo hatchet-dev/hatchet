@@ -38,6 +38,7 @@ type EngineRepository interface {
 	StreamEvent() StreamEventsEngineRepository
 	Log() LogsEngineRepository
 	RateLimit() RateLimitEngineRepository
+	WebhookWorker() WebhookWorkerEngineRepository
 }
 
 func BoolPtr(b bool) *bool {
