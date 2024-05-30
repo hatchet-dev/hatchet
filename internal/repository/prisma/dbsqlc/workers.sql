@@ -85,6 +85,13 @@ WHERE
     "id" = @id::uuid
 RETURNING *;
 
+-- name: ResolveWorkerSemaphoreSlots :execrows
+UPDATE "WorkerSemaphoreSlot" wss
+SET "stepRunId" = null
+FROM "StepRun" sr
+WHERE wss."stepRunId" = sr."id"
+    AND sr."status" NOT IN ('RUNNING', 'ASSIGNED');
+
 -- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (
     "A",

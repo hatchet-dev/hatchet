@@ -221,6 +221,18 @@ func (t *TickerImpl) Start() (func() error, error) {
 		cancel()
 		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
 	}
+	// poll to resolve worker semaphore slots every 1 minute
+	_, err = t.s.NewJob(
+		gocron.DurationJob(time.Minute*1),
+		gocron.NewTask(
+			t.runWorkerSemaphoreSlotResolver(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule worker semaphore slot resolver polling: %w", err)
+	}
 
 	t.s.Start()
 
@@ -278,6 +290,25 @@ func (t *TickerImpl) runStreamEventCleanup(ctx context.Context) func() {
 
 		if err != nil {
 			t.l.Err(err).Msg("could not cleanup stream events")
+		}
+	}
+}
+
+func (t *TickerImpl) runWorkerSemaphoreSlotResolver(ctx context.Context) func() {
+	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		t.l.Debug().Msgf("ticker: resolving orphaned worker semaphore slots")
+
+		n, err := t.repo.Worker().ResolveWorkerSemaphoreSlots(ctx)
+
+		if n > 0 {
+			t.l.Warn().Msgf("resolved %d orphaned worker semaphore slots", n)
+		}
+
+		if err != nil {
+			t.l.Err(err).Msg("could ")
 		}
 	}
 }

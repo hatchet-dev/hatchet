@@ -261,6 +261,22 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 	return items, nil
 }
 
+const resolveWorkerSemaphoreSlots = `-- name: ResolveWorkerSemaphoreSlots :execrows
+UPDATE "WorkerSemaphoreSlot" wss
+SET "stepRunId" = null
+FROM "StepRun" sr
+WHERE wss."stepRunId" = sr."id"
+    AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
+`
+
+func (q *Queries) ResolveWorkerSemaphoreSlots(ctx context.Context, db DBTX) (int64, error) {
+	result, err := db.Exec(ctx, resolveWorkerSemaphoreSlots)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const stubWorkerSemaphoreSlots = `-- name: StubWorkerSemaphoreSlots :exec
 INSERT INTO "WorkerSemaphoreSlot" ("id", "workerId")
 SELECT gen_random_uuid(), $1::uuid
