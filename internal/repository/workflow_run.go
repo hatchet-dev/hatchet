@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -357,6 +358,8 @@ type WorkflowRunAPIRepository interface {
 
 	ListPullRequestsForWorkflowRun(tenantId, workflowRunId string, opts *ListPullRequestsForWorkflowRunOpts) ([]db.GithubPullRequestModel, error)
 }
+
+var ErrWorkflowRunNotFound = fmt.Errorf("workflow run not found")
 
 type WorkflowRunEngineRepository interface {
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
