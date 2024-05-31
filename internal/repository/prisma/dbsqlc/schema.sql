@@ -40,6 +40,7 @@ CREATE TABLE "APIToken" (
     "revoked" BOOLEAN NOT NULL DEFAULT false,
     "name" TEXT,
     "tenantId" UUID,
+    "nextAlertAt" TIMESTAMP(3),
 
     CONSTRAINT "APIToken_pkey" PRIMARY KEY ("id")
 );
