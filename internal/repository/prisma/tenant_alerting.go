@@ -147,10 +147,19 @@ func (r *tenantAlertingEngineRepository) GetTenantAlertingSettings(ctx context.C
 		return nil, err
 	}
 
+	groupsForSend := make([]*repository.TenantAlertEmailGroupForSend, 0)
+
 	emailGroups, err := r.queries.GetEmailGroups(ctx, tx, pgTenantId)
 
 	if err != nil {
 		return nil, err
+	}
+
+	for _, group := range emailGroups {
+		groupsForSend = append(groupsForSend, &repository.TenantAlertEmailGroupForSend{
+			TenantId: group.TenantId,
+			Emails:   group.Emails,
+		})
 	}
 
 	tenant, err := r.queries.GetTenantByID(ctx, tx, pgTenantId)
@@ -159,10 +168,27 @@ func (r *tenantAlertingEngineRepository) GetTenantAlertingSettings(ctx context.C
 		return nil, err
 	}
 
+	if tenant.AlertMemberEmails {
+		emails, err := r.queries.GetMemberEmailGroup(ctx, tx, pgTenantId)
+
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				r.l.Warn().Err(err).Msg("No valid member email group found for tenant")
+			} else {
+				return nil, err
+			}
+		} else {
+			groupsForSend = append(groupsForSend, &repository.TenantAlertEmailGroupForSend{
+				TenantId: tenant.ID,
+				Emails:   strings.Join(emails, ","),
+			})
+		}
+	}
+
 	return &repository.GetTenantAlertingSettingsResponse{
 		Settings:      settings,
 		SlackWebhooks: webhooks,
-		EmailGroups:   emailGroups,
+		EmailGroups:   groupsForSend,
 		Tenant:        tenant,
 	}, nil
 }

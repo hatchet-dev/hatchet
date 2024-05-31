@@ -36,6 +36,13 @@ FROM
 WHERE
     "tenantId" = sqlc.arg('tenantId')::uuid;
 
+-- name: GetMemberEmailGroup :many
+SELECT u."email"
+FROM "User" u
+JOIN "TenantMember" tm ON u."id" = tm."userId"
+WHERE u."emailVerified" = true
+AND tm."tenantId" = sqlc.arg('tenantId')::uuid;
+
 -- name: UpdateTenantAlertingSettings :one
 UPDATE
     "TenantAlertingSettings" as tenantAlertingSettings
