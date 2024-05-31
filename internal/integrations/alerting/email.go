@@ -42,7 +42,7 @@ func (t *TenantAlertManager) sendEmailExpiringTokenAlert(tenant *dbsqlc.Tenant, 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	subject := fmt.Sprintf("Hatchet token expiring in %s", payload.ExpiresAtRelativeDate)
+	subject := fmt.Sprintf("Hatchet token expiring %s", payload.ExpiresAtRelativeDate)
 
 	emails := strings.Split(emailGroup.Emails, ",")
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
