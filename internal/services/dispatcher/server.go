@@ -361,8 +361,14 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		return nil, err
 	}
 
+	// if we haven't seen the dispatcher for 6 seconds (one interval plus latency), reject the heartbeat as the client
+	// should reconnect
+	if worker.DispatcherLastHeartbeatAt.Time.Before(time.Now().Add(-6 * time.Second)) {
+		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
+	}
+
 	if worker.LastListenerEstablished.Valid && !worker.IsActive {
-		return nil, fmt.Errorf("Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
+		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
 	}
 
 	_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, req.WorkerId, &repository.UpdateWorkerOpts{
@@ -409,6 +415,21 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
+
+	// if the workflow run is in a final state, hang up the connection
+	workflowRun, err := s.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, request.WorkflowRunId)
+
+	if err != nil {
+		if errors.Is(err, repository.ErrWorkflowRunNotFound) {
+			return status.Errorf(codes.NotFound, "workflow run %s not found", request.WorkflowRunId)
+		}
+
+		return err
+	}
+
+	if repository.IsFinalWorkflowRunStatus(workflowRun.WorkflowRun.Status) {
+		return nil
+	}
 
 	wg := sync.WaitGroup{}
 

@@ -35,6 +35,7 @@ const (
 	postmarkAPIURL             = "https://api.postmarkapp.com"
 	userInviteTemplate         = "user-invitation"
 	workflowRunsFailedTemplate = "workflow-runs-failed"
+	tokenAlertExpiringTemplate = "token-expiring" // nolint: gosec
 )
 
 type sendEmailFromTemplateRequest struct {
@@ -59,6 +60,10 @@ func (c *PostmarkClient) SendTenantInviteEmail(ctx context.Context, to string, d
 
 func (c *PostmarkClient) SendWorkflowRunFailedAlerts(ctx context.Context, emails []string, data email.WorkflowRunsFailedEmailData) error {
 	return c.sendTemplateEmailBCC(ctx, strings.Join(emails, ","), workflowRunsFailedTemplate, data)
+}
+
+func (c *PostmarkClient) SendExpiringTokenEmail(ctx context.Context, emails []string, data email.ExpiringTokenEmailData) error {
+	return c.sendTemplateEmail(ctx, strings.Join(emails, ","), tokenAlertExpiringTemplate, data)
 }
 
 func (c *PostmarkClient) sendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData interface{}) error {

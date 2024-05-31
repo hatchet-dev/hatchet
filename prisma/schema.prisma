@@ -221,6 +221,9 @@ model APIToken {
   // whether the token has been revoked
   revoked Boolean @default(false)
 
+  // when to next alert about expiration
+  nextAlertAt DateTime?
+
   // an optional name for the token
   name String?
 

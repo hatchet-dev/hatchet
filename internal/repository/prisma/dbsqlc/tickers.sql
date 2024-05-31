@@ -258,3 +258,35 @@ WHERE
     alerts."id" = active_tenant_alerts."id" AND
     alerts."tenantId" IN (SELECT "tenantId" FROM failed_run_count_by_tenant WHERE "failedWorkflowRunCount" > 0)
 RETURNING alerts.*, active_tenant_alerts."lastAlertedAt" AS "prevLastAlertedAt";
+
+
+-- name: PollExpiringTokens :many
+WITH expiring_tokens AS (
+    SELECT
+        t0."id", t0."name", t0."expiresAt"
+    FROM
+        "APIToken" as t0
+    WHERE
+        t0."revoked" = false
+        AND t0."expiresAt" <= NOW() + INTERVAL '7 days'
+        AND t0."expiresAt" >= NOW()
+        AND (
+            t0."nextAlertAt" IS NULL OR
+            t0."nextAlertAt" <= NOW()
+        )
+    FOR UPDATE SKIP LOCKED
+    LIMIT 100
+)
+UPDATE
+    "APIToken" as t1
+SET
+    "nextAlertAt" = NOW() + INTERVAL '1 day'
+FROM
+    expiring_tokens
+WHERE
+    t1."id" = expiring_tokens."id"
+RETURNING
+    t1."id",
+    t1."name",
+    t1."tenantId",
+    t1."expiresAt";

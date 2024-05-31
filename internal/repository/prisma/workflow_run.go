@@ -160,7 +160,7 @@ func (w *workflowRunEngineRepository) GetWorkflowRunById(ctx context.Context, te
 	}
 
 	if len(runs) != 1 {
-		return nil, errors.New("workflow run not found")
+		return nil, repository.ErrWorkflowRunNotFound
 	}
 
 	return runs[0], nil

@@ -263,6 +263,70 @@ func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, tickerid pgtyp
 	return items, nil
 }
 
+const pollExpiringTokens = `-- name: PollExpiringTokens :many
+WITH expiring_tokens AS (
+    SELECT
+        t0."id", t0."name", t0."expiresAt"
+    FROM
+        "APIToken" as t0
+    WHERE
+        t0."revoked" = false
+        AND t0."expiresAt" <= NOW() + INTERVAL '7 days'
+        AND t0."expiresAt" >= NOW()
+        AND (
+            t0."nextAlertAt" IS NULL OR
+            t0."nextAlertAt" <= NOW()
+        )
+    FOR UPDATE SKIP LOCKED
+    LIMIT 100
+)
+UPDATE
+    "APIToken" as t1
+SET
+    "nextAlertAt" = NOW() + INTERVAL '1 day'
+FROM
+    expiring_tokens
+WHERE
+    t1."id" = expiring_tokens."id"
+RETURNING
+    t1."id",
+    t1."name",
+    t1."tenantId",
+    t1."expiresAt"
+`
+
+type PollExpiringTokensRow struct {
+	ID        pgtype.UUID      `json:"id"`
+	Name      pgtype.Text      `json:"name"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
+}
+
+func (q *Queries) PollExpiringTokens(ctx context.Context, db DBTX) ([]*PollExpiringTokensRow, error) {
+	rows, err := db.Query(ctx, pollExpiringTokens)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*PollExpiringTokensRow
+	for rows.Next() {
+		var i PollExpiringTokensRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.TenantId,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pollGetGroupKeyRuns = `-- name: PollGetGroupKeyRuns :many
 WITH getGroupKeyRunsToTimeout AS (
     SELECT

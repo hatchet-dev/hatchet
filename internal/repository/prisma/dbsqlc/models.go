@@ -503,13 +503,14 @@ func (ns NullWorkflowRunStatus) Value() (driver.Value, error) {
 }
 
 type APIToken struct {
-	ID        pgtype.UUID      `json:"id"`
-	CreatedAt pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
-	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
-	Revoked   bool             `json:"revoked"`
-	Name      pgtype.Text      `json:"name"`
-	TenantId  pgtype.UUID      `json:"tenantId"`
+	ID          pgtype.UUID      `json:"id"`
+	CreatedAt   pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
+	ExpiresAt   pgtype.Timestamp `json:"expiresAt"`
+	Revoked     bool             `json:"revoked"`
+	Name        pgtype.Text      `json:"name"`
+	TenantId    pgtype.UUID      `json:"tenantId"`
+	NextAlertAt pgtype.Timestamp `json:"nextAlertAt"`
 }
 
 type Action struct {
