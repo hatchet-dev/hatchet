@@ -416,6 +416,7 @@ CREATE TABLE "Tenant" (
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "analyticsOptOut" BOOLEAN NOT NULL DEFAULT false,
+    "alertMemberEmails" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
@@ -442,6 +443,8 @@ CREATE TABLE "TenantAlertingSettings" (
     "maxFrequency" TEXT NOT NULL DEFAULT '1h',
     "lastAlertedAt" TIMESTAMP(3),
     "tickerId" UUID,
+    "enableExpiringTokenAlerts" BOOLEAN NOT NULL DEFAULT true,
+    "enableWorkflowRunFailureAlerts" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "TenantAlertingSettings_pkey" PRIMARY KEY ("id")
 );
