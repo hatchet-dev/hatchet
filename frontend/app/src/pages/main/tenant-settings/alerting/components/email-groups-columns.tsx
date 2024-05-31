@@ -4,11 +4,16 @@ import { TenantAlertEmailGroup } from '@/lib/api';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
 import { Badge } from '@/components/ui/badge';
 import RelativeDate from '@/components/molecules/relative-date';
+import { Switch } from '@/components/ui/switch';
 
 export const columns = ({
+  alertTenantEmailsSet,
   onDeleteClick,
+  onToggleMembersClick,
 }: {
+  alertTenantEmailsSet: boolean;
   onDeleteClick: (row: TenantAlertEmailGroup) => void;
+  onToggleMembersClick: (val: boolean) => void;
 }): ColumnDef<TenantAlertEmailGroup>[] => {
   return [
     {
@@ -18,6 +23,11 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div>
+          {row.original.metadata.id == 'default' && (
+            <Badge className="mr-2" variant="secondary">
+              All Tenant Members
+            </Badge>
+          )}
           {row.original.emails.map((email, index) => (
             <Badge key={index} className="mr-2" variant="outline">
               {email}
@@ -35,23 +45,37 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div>
-          <RelativeDate date={row.original.metadata.createdAt} />
+          {row.original.metadata.id != 'default' && (
+            <RelativeDate date={row.original.metadata.createdAt} />
+          )}
         </div>
       ),
     },
     {
       id: 'actions',
-      cell: ({ row }) => (
-        <DataTableRowActions
-          row={row}
-          actions={[
-            {
-              label: 'Delete',
-              onClick: () => onDeleteClick(row.original),
-            },
-          ]}
-        />
-      ),
+      cell: ({ row }) =>
+        row.original.metadata.id != 'default' ? (
+          <DataTableRowActions
+            row={row}
+            actions={[
+              {
+                label: 'Delete',
+                onClick: () => onDeleteClick(row.original),
+              },
+            ]}
+          />
+        ) : (
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="eta"
+              checked={alertTenantEmailsSet}
+              aria-label="Toggle Member Email Alerts"
+              onClick={() => {
+                onToggleMembersClick(!alertTenantEmailsSet);
+              }}
+            />
+          </div>
+        ),
     },
   ];
 };
