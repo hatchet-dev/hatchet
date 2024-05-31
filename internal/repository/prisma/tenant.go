@@ -74,6 +74,7 @@ func (r *tenantAPIRepository) UpdateTenant(id string, opts *repository.UpdateTen
 	).Update(
 		db.Tenant.Name.SetIfPresent(opts.Name),
 		db.Tenant.AnalyticsOptOut.SetIfPresent(opts.AnalyticsOptOut),
+		db.Tenant.AlertMemberEmails.SetIfPresent(opts.AlertMemberEmails),
 	).Exec(context.Background())
 }
 

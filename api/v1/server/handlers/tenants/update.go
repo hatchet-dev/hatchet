@@ -26,6 +26,10 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		updateOpts.AnalyticsOptOut = request.Body.AnalyticsOptOut
 	}
 
+	if request.Body.AlertMemberEmails != nil {
+		updateOpts.AlertMemberEmails = request.Body.AlertMemberEmails
+	}
+
 	if request.Body.Name != nil {
 		updateOpts.Name = request.Body.Name
 	}
@@ -37,11 +41,16 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		return nil, err
 	}
 
-	if request.Body.MaxAlertingFrequency != nil {
+	if request.Body.MaxAlertingFrequency != nil ||
+		request.Body.EnableExpiringTokenAlerts != nil ||
+		request.Body.EnableWorkflowRunFailureAlerts != nil {
+
 		_, err = t.config.APIRepository.TenantAlertingSettings().UpsertTenantAlertingSettings(
 			tenant.ID,
 			&repository.UpsertTenantAlertingSettingsOpts{
-				MaxFrequency: request.Body.MaxAlertingFrequency,
+				MaxFrequency:                   request.Body.MaxAlertingFrequency,
+				EnableExpiringTokenAlerts:      request.Body.EnableExpiringTokenAlerts,
+				EnableWorkflowRunFailureAlerts: request.Body.EnableWorkflowRunFailureAlerts,
 			},
 		)
 

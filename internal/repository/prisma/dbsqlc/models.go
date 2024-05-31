@@ -848,13 +848,14 @@ type StreamEvent struct {
 }
 
 type Tenant struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	Name            string           `json:"name"`
-	Slug            string           `json:"slug"`
-	AnalyticsOptOut bool             `json:"analyticsOptOut"`
+	ID                pgtype.UUID      `json:"id"`
+	CreatedAt         pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt         pgtype.Timestamp `json:"deletedAt"`
+	Name              string           `json:"name"`
+	Slug              string           `json:"slug"`
+	AnalyticsOptOut   bool             `json:"analyticsOptOut"`
+	AlertMemberEmails bool             `json:"alertMemberEmails"`
 }
 
 type TenantAlertEmailGroup struct {
@@ -867,14 +868,16 @@ type TenantAlertEmailGroup struct {
 }
 
 type TenantAlertingSettings struct {
-	ID            pgtype.UUID      `json:"id"`
-	CreatedAt     pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt     pgtype.Timestamp `json:"deletedAt"`
-	TenantId      pgtype.UUID      `json:"tenantId"`
-	MaxFrequency  string           `json:"maxFrequency"`
-	LastAlertedAt pgtype.Timestamp `json:"lastAlertedAt"`
-	TickerId      pgtype.UUID      `json:"tickerId"`
+	ID                             pgtype.UUID      `json:"id"`
+	CreatedAt                      pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt                      pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt                      pgtype.Timestamp `json:"deletedAt"`
+	TenantId                       pgtype.UUID      `json:"tenantId"`
+	MaxFrequency                   string           `json:"maxFrequency"`
+	LastAlertedAt                  pgtype.Timestamp `json:"lastAlertedAt"`
+	TickerId                       pgtype.UUID      `json:"tickerId"`
+	EnableExpiringTokenAlerts      bool             `json:"enableExpiringTokenAlerts"`
+	EnableWorkflowRunFailureAlerts bool             `json:"enableWorkflowRunFailureAlerts"`
 }
 
 type TenantInviteLink struct {

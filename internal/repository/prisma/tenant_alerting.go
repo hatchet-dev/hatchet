@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -41,8 +42,12 @@ func (r *tenantAlertingAPIRepository) UpsertTenantAlertingSettings(tenantId stri
 			db.Tenant.ID.Equals(tenantId),
 		),
 		db.TenantAlertingSettings.MaxFrequency.SetIfPresent(opts.MaxFrequency),
+		db.TenantAlertingSettings.EnableExpiringTokenAlerts.SetIfPresent(opts.EnableExpiringTokenAlerts),
+		db.TenantAlertingSettings.EnableWorkflowRunFailureAlerts.SetIfPresent(opts.EnableWorkflowRunFailureAlerts),
 	).Update(
 		db.TenantAlertingSettings.MaxFrequency.SetIfPresent(opts.MaxFrequency),
+		db.TenantAlertingSettings.EnableExpiringTokenAlerts.SetIfPresent(opts.EnableExpiringTokenAlerts),
+		db.TenantAlertingSettings.EnableWorkflowRunFailureAlerts.SetIfPresent(opts.EnableWorkflowRunFailureAlerts),
 	).Exec(context.Background())
 }
 
