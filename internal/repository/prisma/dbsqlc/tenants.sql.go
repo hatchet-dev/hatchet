@@ -47,6 +47,34 @@ func (q *Queries) GetEmailGroups(ctx context.Context, db DBTX, tenantid pgtype.U
 	return items, nil
 }
 
+const getMemberEmailGroup = `-- name: GetMemberEmailGroup :many
+SELECT u."email"
+FROM "User" u
+JOIN "TenantMember" tm ON u."id" = tm."userId"
+WHERE u."emailVerified" = true
+AND tm."tenantId" = $1::uuid
+`
+
+func (q *Queries) GetMemberEmailGroup(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]string, error) {
+	rows, err := db.Query(ctx, getMemberEmailGroup, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var email string
+		if err := rows.Scan(&email); err != nil {
+			return nil, err
+		}
+		items = append(items, email)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSlackWebhooks = `-- name: GetSlackWebhooks :many
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", "tenantId", "teamId", "teamName", "channelId", "channelName", "webhookURL"
@@ -89,7 +117,7 @@ func (q *Queries) GetSlackWebhooks(ctx context.Context, db DBTX, tenantid pgtype
 
 const getTenantAlertingSettings = `-- name: GetTenantAlertingSettings :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId"
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId", "enableExpiringTokenAlerts", "enableWorkflowRunFailureAlerts"
 FROM
     "TenantAlertingSettings" as tenantAlertingSettings
 WHERE
@@ -108,13 +136,15 @@ func (q *Queries) GetTenantAlertingSettings(ctx context.Context, db DBTX, tenant
 		&i.MaxFrequency,
 		&i.LastAlertedAt,
 		&i.TickerId,
+		&i.EnableExpiringTokenAlerts,
+		&i.EnableWorkflowRunFailureAlerts,
 	)
 	return &i, err
 }
 
 const getTenantByID = `-- name: GetTenantByID :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut"
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails"
 FROM
     "Tenant" as tenants
 WHERE
@@ -132,13 +162,14 @@ func (q *Queries) GetTenantByID(ctx context.Context, db DBTX, id pgtype.UUID) (*
 		&i.Name,
 		&i.Slug,
 		&i.AnalyticsOptOut,
+		&i.AlertMemberEmails,
 	)
 	return &i, err
 }
 
 const listTenants = `-- name: ListTenants :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut"
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails"
 FROM
     "Tenant" as tenants
 `
@@ -160,6 +191,7 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 			&i.Name,
 			&i.Slug,
 			&i.AnalyticsOptOut,
+			&i.AlertMemberEmails,
 		); err != nil {
 			return nil, err
 		}
@@ -178,7 +210,7 @@ SET
     "lastAlertedAt" = COALESCE($1::timestamp, "lastAlertedAt")
 WHERE
     "tenantId" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId", "enableExpiringTokenAlerts", "enableWorkflowRunFailureAlerts"
 `
 
 type UpdateTenantAlertingSettingsParams struct {
@@ -198,6 +230,8 @@ func (q *Queries) UpdateTenantAlertingSettings(ctx context.Context, db DBTX, arg
 		&i.MaxFrequency,
 		&i.LastAlertedAt,
 		&i.TickerId,
+		&i.EnableExpiringTokenAlerts,
+		&i.EnableWorkflowRunFailureAlerts,
 	)
 	return &i, err
 }
