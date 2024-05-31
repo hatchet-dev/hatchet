@@ -105,7 +105,7 @@ func (t *TenantAlertManager) sendSlackExpiringTokenAlert(slackWebhook *dbsqlc.Sl
 func (t *TenantAlertManager) getSlackExpiringTokenTextAndBlocks(payload *alerttypes.ExpiringTokenItem) (string, *slack.Blocks) {
 	res := make([]slack.Block, 0)
 
-	headerText := fmt.Sprintf(":lock: Heads up! Your `%s` hatchet token will expire in %s", payload.TokenName, payload.ExpiresAtRelativeDate)
+	headerText := fmt.Sprintf(":lock: Heads up! Your `%s` hatchet token will expire %s", payload.TokenName, payload.ExpiresAtRelativeDate)
 
 	res = append(res, slack.NewSectionBlock(
 		slack.NewTextBlockObject(slack.MarkdownType, headerText, false, false),
