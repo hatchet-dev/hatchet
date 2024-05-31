@@ -5,6 +5,7 @@ import { DataTableRowActions } from '@/components/molecules/data-table/data-tabl
 import { Badge } from '@/components/ui/badge';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Switch } from '@/components/ui/switch';
+import { Label } from '@radix-ui/react-label';
 
 export const columns = ({
   alertTenantEmailsSet,
@@ -53,29 +54,35 @@ export const columns = ({
     },
     {
       id: 'actions',
-      cell: ({ row }) =>
-        row.original.metadata.id != 'default' ? (
-          <DataTableRowActions
-            row={row}
-            actions={[
-              {
-                label: 'Delete',
-                onClick: () => onDeleteClick(row.original),
-              },
-            ]}
-          />
-        ) : (
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="eta"
-              checked={alertTenantEmailsSet}
-              aria-label="Toggle Member Email Alerts"
-              onClick={() => {
-                onToggleMembersClick(!alertTenantEmailsSet);
-              }}
+      cell: ({ row }) => (
+        <div className="flex items-center space-x-2 justify-end">
+          {row.original.metadata.id != 'default' ? (
+            <DataTableRowActions
+              row={row}
+              actions={[
+                {
+                  label: 'Delete',
+                  onClick: () => onDeleteClick(row.original),
+                },
+              ]}
             />
-          </div>
-        ),
+          ) : (
+            <>
+              <Switch
+                id="eta"
+                checked={alertTenantEmailsSet}
+                aria-label="Toggle Member Email Alerts"
+                onClick={() => {
+                  onToggleMembersClick(!alertTenantEmailsSet);
+                }}
+              />
+              <Label htmlFor="eta">
+                {alertTenantEmailsSet ? 'Enabled' : 'Disabled'}
+              </Label>
+            </>
+          )}
+        </div>
+      ),
     },
   ];
 };
