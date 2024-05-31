@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 
 	"github.com/hatchet-dev/timediff"
@@ -65,13 +66,13 @@ func (t *TenantAlertManager) HandleAlert(tenantId string) error {
 			return err
 		}
 
-		return t.sendAlert(ctx, tenantAlerting, lastAlertedAt)
+		return t.sendWorkflowRunAlert(ctx, tenantAlerting, lastAlertedAt)
 	}
 
 	return nil
 }
 
-func (t *TenantAlertManager) SendAlert(tenantId string, prevLastAlertedAt time.Time) error {
+func (t *TenantAlertManager) SendWorkflowRunAlert(tenantId string, prevLastAlertedAt time.Time) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -82,10 +83,10 @@ func (t *TenantAlertManager) SendAlert(tenantId string, prevLastAlertedAt time.T
 		return err
 	}
 
-	return t.sendAlert(ctx, tenantAlerting, prevLastAlertedAt)
+	return t.sendWorkflowRunAlert(ctx, tenantAlerting, prevLastAlertedAt)
 }
 
-func (t *TenantAlertManager) sendAlert(ctx context.Context, tenantAlerting *repository.GetTenantAlertingSettingsResponse, prevLastAlertedAt time.Time) error {
+func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAlerting *repository.GetTenantAlertingSettingsResponse, prevLastAlertedAt time.Time) error {
 	// read in all failed workflow runs since the last alerted time, ordered by the most recent runs first
 	statuses := []db.WorkflowRunStatus{
 		db.WorkflowRunStatusFailed,
@@ -119,13 +120,13 @@ func (t *TenantAlertManager) sendAlert(ctx context.Context, tenantAlerting *repo
 
 	// iterate through possible alerters
 	for _, slackWebhook := range tenantAlerting.SlackWebhooks {
-		if innerErr := t.sendSlackAlert(slackWebhook, failedWorkflowRuns.Count, failedItems); innerErr != nil {
+		if innerErr := t.sendSlackWorkflowRunAlert(slackWebhook, failedWorkflowRuns.Count, failedItems); innerErr != nil {
 			err = multierror.Append(err, innerErr)
 		}
 	}
 
 	for _, emailGroup := range tenantAlerting.EmailGroups {
-		if innerErr := t.sendEmailAlert(tenantAlerting.Tenant, emailGroup, failedWorkflowRuns.Count, failedItems); innerErr != nil {
+		if innerErr := t.sendEmailWorkflowRunAlert(tenantAlerting.Tenant, emailGroup, failedWorkflowRuns.Count, failedItems); innerErr != nil {
 			err = multierror.Append(err, innerErr)
 		}
 	}
@@ -156,4 +157,44 @@ func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListW
 	}
 
 	return res
+}
+
+func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *dbsqlc.PollExpiringTokensRow) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// read in the tenant alerting settings and determine if we should alert
+	tenantAlerting, err := t.repo.TenantAlertingSettings().GetTenantAlertingSettings(ctx, tenantId)
+
+	if err != nil {
+		return err
+	}
+
+	payload := &alerttypes.ExpiringTokenItem{
+		TokenName:             token.Name.String,
+		ExpiresAtRelativeDate: timediff.TimeDiff(token.ExpiresAt.Time),
+		ExpiresAtAbsoluteDate: token.ExpiresAt.Time.Format("2006-01-02 15:04:05"),
+		Link:                  fmt.Sprintf("%s/tenant-settings/api-tokens?tenant=%s", t.serverURL, tenantId),
+	}
+
+	return t.sendExpiringTokenAlert(ctx, tenantAlerting, payload)
+}
+
+func (t *TenantAlertManager) sendExpiringTokenAlert(ctx context.Context, tenantAlerting *repository.GetTenantAlertingSettingsResponse, payload *alerttypes.ExpiringTokenItem) error {
+	var err error
+
+	// iterate through possible alerters
+	for _, slackWebhook := range tenantAlerting.SlackWebhooks {
+		if innerErr := t.sendSlackExpiringTokenAlert(slackWebhook, payload); innerErr != nil {
+			err = multierror.Append(err, innerErr)
+		}
+	}
+
+	for _, emailGroup := range tenantAlerting.EmailGroups {
+		if innerErr := t.sendEmailExpiringTokenAlert(tenantAlerting.Tenant, emailGroup, payload); innerErr != nil {
+			err = multierror.Append(err, innerErr)
+		}
+	}
+
+	return nil
 }
