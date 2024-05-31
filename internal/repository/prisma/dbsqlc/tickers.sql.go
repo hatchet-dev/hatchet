@@ -271,7 +271,7 @@ WITH expiring_tokens AS (
         "APIToken" as t0
     WHERE
         t0."revoked" = false
-        AND t0."expiresAt" <= NOW() + INTERVAL '1 year'
+        AND t0."expiresAt" <= NOW() + INTERVAL '7 days'
         AND (
             t0."nextAlertAt" IS NULL OR
             t0."nextAlertAt" <= NOW()
