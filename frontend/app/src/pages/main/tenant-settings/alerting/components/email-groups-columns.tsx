@@ -4,8 +4,6 @@ import { TenantAlertEmailGroup } from '@/lib/api';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
 import { Badge } from '@/components/ui/badge';
 import RelativeDate from '@/components/molecules/relative-date';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@radix-ui/react-label';
 
 export const columns = ({
   alertTenantEmailsSet,
@@ -53,34 +51,35 @@ export const columns = ({
       ),
     },
     {
-      id: 'actions',
+      id: 'enabled',
       cell: ({ row }) => (
         <div className="flex items-center space-x-2 justify-end">
-          {row.original.metadata.id != 'default' ? (
-            <DataTableRowActions
-              row={row}
-              actions={[
-                {
-                  label: 'Delete',
-                  onClick: () => onDeleteClick(row.original),
-                },
-              ]}
-            />
+          {row.original.metadata.id != 'default' || alertTenantEmailsSet ? (
+            <Badge variant="successful">Enabled</Badge>
           ) : (
-            <>
-              <Switch
-                id="eta"
-                checked={alertTenantEmailsSet}
-                aria-label="Toggle Member Email Alerts"
-                onClick={() => {
-                  onToggleMembersClick(!alertTenantEmailsSet);
-                }}
-              />
-              <Label htmlFor="eta">
-                {alertTenantEmailsSet ? 'Enabled' : 'Disabled'}
-              </Label>
-            </>
+            <Badge variant="destructive">Disabled</Badge>
           )}
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      cell: ({ row }) => (
+        <div className="flex items-center space-x-2 justify-end mr-4">
+          <DataTableRowActions
+            row={row}
+            actions={[
+              row.original.metadata.id != 'default'
+                ? {
+                    label: 'Delete',
+                    onClick: () => onDeleteClick(row.original),
+                  }
+                : {
+                    label: alertTenantEmailsSet ? 'Disable' : 'Enable',
+                    onClick: () => onToggleMembersClick(!alertTenantEmailsSet),
+                  },
+            ]}
+          />
         </div>
       ),
     },
