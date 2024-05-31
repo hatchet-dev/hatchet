@@ -50,9 +50,6 @@ func (worker *subscribedWorker) StartStepRun(
 
 	stepName := stepRun.StepReadableId.String
 
-	// add artificial latency of 80ms to simulate slow network
-	time.Sleep(80 * time.Millisecond)
-
 	return worker.stream.Send(&contracts.AssignedAction{
 		TenantId:      tenantId,
 		JobId:         sqlchelpers.UUIDToStr(stepRun.JobId),
