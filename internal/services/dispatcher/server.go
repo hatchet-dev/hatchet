@@ -361,6 +361,12 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		return nil, err
 	}
 
+	// if we haven't seen the dispatcher for 6 seconds (one interval plus latency), reject the heartbeat as the client
+	// should reconnect
+	if worker.DispatcherLastHeartbeatAt.Time.Before(time.Now().Add(-6 * time.Second)) {
+		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
+	}
+
 	if worker.LastListenerEstablished.Valid && !worker.IsActive {
 		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
 	}

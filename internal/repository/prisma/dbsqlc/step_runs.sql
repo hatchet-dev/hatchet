@@ -123,7 +123,11 @@ UPDATE
     "StepRun"
 SET
     "requeueAfter" = COALESCE(sqlc.narg('requeueAfter')::timestamp, "requeueAfter"),
-    "scheduleTimeoutAt" = COALESCE(sqlc.narg('scheduleTimeoutAt')::timestamp, "scheduleTimeoutAt"),
+    "scheduleTimeoutAt" = CASE
+        -- if this is a rerun, we clear the scheduleTimeoutAt
+        WHEN sqlc.narg('rerun')::boolean THEN NULL
+        ELSE COALESCE(sqlc.narg('scheduleTimeoutAt')::timestamp, "scheduleTimeoutAt")
+    END,
     "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
     "finishedAt" = CASE
         -- if this is a rerun, we clear the finishedAt

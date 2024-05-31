@@ -1564,16 +1564,20 @@ UPDATE
     "StepRun"
 SET
     "requeueAfter" = COALESCE($1::timestamp, "requeueAfter"),
-    "scheduleTimeoutAt" = COALESCE($2::timestamp, "scheduleTimeoutAt"),
-    "startedAt" = COALESCE($3::timestamp, "startedAt"),
+    "scheduleTimeoutAt" = CASE
+        -- if this is a rerun, we clear the scheduleTimeoutAt
+        WHEN $2::boolean THEN NULL
+        ELSE COALESCE($3::timestamp, "scheduleTimeoutAt")
+    END,
+    "startedAt" = COALESCE($4::timestamp, "startedAt"),
     "finishedAt" = CASE
         -- if this is a rerun, we clear the finishedAt
-        WHEN $4::boolean THEN NULL
+        WHEN $2::boolean THEN NULL
         ELSE  COALESCE($5::timestamp, "finishedAt")
     END,
     "status" = CASE
         -- if this is a rerun, we permit status updates
-        WHEN $4::boolean THEN COALESCE($6, "status")
+        WHEN $2::boolean THEN COALESCE($6, "status")
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
         ELSE COALESCE($6, "status")
@@ -1581,22 +1585,22 @@ SET
     "input" = COALESCE($7::jsonb, "input"),
     "output" = CASE
         -- if this is a rerun, we clear the output
-        WHEN $4::boolean THEN NULL
+        WHEN $2::boolean THEN NULL
         ELSE COALESCE($8::jsonb, "output")
     END,
     "error" = CASE
         -- if this is a rerun, we clear the error
-        WHEN $4::boolean THEN NULL
+        WHEN $2::boolean THEN NULL
         ELSE COALESCE($9::text, "error")
     END,
     "cancelledAt" = CASE
         -- if this is a rerun, we clear the cancelledAt
-        WHEN $4::boolean THEN NULL
+        WHEN $2::boolean THEN NULL
         ELSE COALESCE($10::timestamp, "cancelledAt")
     END,
     "cancelledReason" = CASE
         -- if this is a rerun, we clear the cancelledReason
-        WHEN $4::boolean THEN NULL
+        WHEN $2::boolean THEN NULL
         ELSE COALESCE($11::text, "cancelledReason")
     END,
     "retryCount" = COALESCE($12::int, "retryCount"),
@@ -1609,9 +1613,9 @@ RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun".
 
 type UpdateStepRunParams struct {
 	RequeueAfter      pgtype.Timestamp  `json:"requeueAfter"`
+	Rerun             pgtype.Bool       `json:"rerun"`
 	ScheduleTimeoutAt pgtype.Timestamp  `json:"scheduleTimeoutAt"`
 	StartedAt         pgtype.Timestamp  `json:"startedAt"`
-	Rerun             pgtype.Bool       `json:"rerun"`
 	FinishedAt        pgtype.Timestamp  `json:"finishedAt"`
 	Status            NullStepRunStatus `json:"status"`
 	Input             []byte            `json:"input"`
@@ -1628,9 +1632,9 @@ type UpdateStepRunParams struct {
 func (q *Queries) UpdateStepRun(ctx context.Context, db DBTX, arg UpdateStepRunParams) (*StepRun, error) {
 	row := db.QueryRow(ctx, updateStepRun,
 		arg.RequeueAfter,
+		arg.Rerun,
 		arg.ScheduleTimeoutAt,
 		arg.StartedAt,
-		arg.Rerun,
 		arg.FinishedAt,
 		arg.Status,
 		arg.Input,
