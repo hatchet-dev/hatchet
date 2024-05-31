@@ -51,26 +51,29 @@ WHERE w."lastHeartbeatAt" >= NOW() - INTERVAL '10 hours'
 ON CONFLICT DO NOTHING;
 
 -- -- Update a null slot for each step that is currently running or assigned
-WITH step_run_counts_per_worker AS (
-    SELECT "workerId", COUNT(*) AS "cnt"
-    FROM "StepRun"
-    WHERE "status" IN ('RUNNING', 'ASSIGNED')
-    GROUP BY "workerId"
-)
-UPDATE "WorkerSemaphoreSlot" wss
-SET "stepRunId" = wss3."srid"
-FROM (
-    SELECT DISTINCT sr."id" AS "srid", rns."id" AS "wssid"
-    FROM (
-        SELECT 
-            "id",
-            "workerId",
-            ROW_NUMBER() OVER (PARTITION BY "workerId") AS "rowNumber"
-        FROM "WorkerSemaphoreSlot" wss3
-        WHERE wss3."stepRunId" IS NULL
-    ) rns
-    JOIN step_run_counts_per_worker sr_counts ON sr_counts."workerId" = rns."workerId"
-    JOIN "StepRun" sr ON sr."workerId" = rns."workerId" AND sr."status" IN ('RUNNING', 'ASSIGNED')
-    WHERE rns."rowNumber" <= sr_counts."cnt"
-) wss3
-WHERE wss."id" = wss3."wssid";
+DO $$
+DECLARE
+    sr RECORD;
+    wss RECORD;
+BEGIN
+    -- Loop over each running or assigned step run
+    FOR sr IN 
+        SELECT "id", "workerId" 
+        FROM "StepRun"
+        WHERE "status" IN ('RUNNING', 'ASSIGNED')
+    LOOP
+        -- Find one available WorkerSemaphoreSlot for the current workerId
+        SELECT "id"
+        INTO wss
+        FROM "WorkerSemaphoreSlot"
+        WHERE "workerId" = sr."workerId" AND "stepRunId" IS NULL
+        LIMIT 1;
+        
+        -- If an available slot is found, update it with the stepRunId
+        IF wss.id IS NOT NULL THEN
+            UPDATE "WorkerSemaphoreSlot"
+            SET "stepRunId" = sr.id
+            WHERE "id" = wss.id;
+        END IF;
+    END LOOP;
+END $$;
