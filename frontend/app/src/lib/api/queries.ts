@@ -2,7 +2,7 @@ import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 
 import api from './api';
 import invariant from 'tiny-invariant';
-import { PullRequestState } from '.';
+import { PullRequestState, WebhookWorkerCreateRequest } from '.';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
@@ -206,6 +206,17 @@ export const queries = createQueryKeyStore({
         return res;
       },
       enabled: !!installation && !!repoOwner && !!repoName,
+    }),
+  },
+  webhookWorkers: {
+    list: (tenant: string) => ({
+      queryKey: ['webhook-worker:list', tenant],
+      queryFn: async () => (await api.webhookList(tenant)).data,
+    }),
+    create: (tenant: string, webhookWorker: WebhookWorkerCreateRequest) => ({
+      queryKey: ['webhook-worker:create', tenant, webhookWorker],
+      queryFn: async () =>
+        (await api.webhookCreate(tenant, webhookWorker)).data,
     }),
   },
 });

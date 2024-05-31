@@ -67,6 +67,8 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  WebhookWorkerCreateRequest,
+  WebhookWorkerListResponse,
   Worker,
   WorkerList,
   Workflow,
@@ -1590,6 +1592,39 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/github-app/installations/${ghInstallation}/repos/${ghRepoOwner}/${ghRepoName}/branches`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all webhooks
+   *
+   * @tags User
+   * @name WebhookList
+   * @summary Change user password
+   * @request GET:/api/v1/webhook-workers/{tenant}
+   * @secure
+   */
+  webhookList = (tenant: string, params: RequestParams = {}) =>
+    this.request<WebhookWorkerListResponse, APIErrors>({
+      path: `/api/v1/webhook-workers/${tenant}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Creates a webhook
+   *
+   * @name WebhookCreate
+   * @summary Create a webhook
+   * @request POST:/api/v1/webhook-workers/{tenant}/create
+   */
+  webhookCreate = (tenant: string, data: WebhookWorkerCreateRequest, params: RequestParams = {}) =>
+    this.request<User, APIErrors>({
+      path: `/api/v1/webhook-workers/${tenant}/create`,
+      method: "POST",
+      body: data,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });

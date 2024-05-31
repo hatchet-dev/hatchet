@@ -156,3 +156,7 @@ paths:
     $ref: "./paths/github-app/github-app.yaml#/repos"
   /api/v1/github-app/installations/{gh-installation}/repos/{gh-repo-owner}/{gh-repo-name}/branches:
     $ref: "./paths/github-app/github-app.yaml#/branches"
+  /api/v1/webhook-workers/{tenant}:
+    $ref: "./paths/webhook-worker/webhook-worker.yaml#/list"
+  /api/v1/webhook-workers/{tenant}/create:
+    $ref: "./paths/webhook-worker/webhook-worker.yaml#/create"

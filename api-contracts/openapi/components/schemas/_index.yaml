@@ -212,3 +212,11 @@ CreateSNSIntegrationRequest:
   $ref: "./sns.yaml#/CreateSNSIntegrationRequest"
 WorkflowMetrics:
   $ref: "./workflow.yaml#/WorkflowMetrics"
+WebhookWorker:
+  $ref: "./webhook_worker.yaml#/WebhookWorker"
+WebhookWorkerCreateRequest:
+  $ref: "./webhook_worker.yaml#/WebhookWorkerCreateRequest"
+WebhookWorkerCreateResponse:
+  $ref: "./webhook_worker.yaml#/WebhookWorkerCreateResponse"
+WebhookWorkerListResponse:
+  $ref: "./webhook_worker.yaml#/WebhookWorkerListResponse"

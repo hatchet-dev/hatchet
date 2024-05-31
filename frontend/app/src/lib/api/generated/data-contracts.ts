@@ -964,3 +964,25 @@ export interface WorkflowMetrics {
   /** The total number of concurrency group keys. */
   groupKeyCount?: number;
 }
+
+export interface WebhookWorker {
+  metadata: APIResourceMeta;
+  /** The webhook url. */
+  url: string;
+  /** The secret key for validation. */
+  secret: string;
+}
+
+export interface WebhookWorkerCreateRequest {
+  /** The webhook url. */
+  url: string;
+}
+
+export interface WebhookWorkerCreateResponse {
+  worker?: WebhookWorker;
+}
+
+export interface WebhookWorkerListResponse {
+  pagination?: PaginationResponse;
+  rows?: WebhookWorker[];
+}

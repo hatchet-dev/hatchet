@@ -795,6 +795,29 @@ type UserTenantPublic struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// WebhookWorker defines model for WebhookWorker.
+type WebhookWorker struct {
+	Metadata APIResourceMeta `json:"metadata"`
+
+	// Secret The secret key for validation.
+	Secret string `json:"secret"`
+
+	// Url The webhook url.
+	Url string `json:"url"`
+}
+
+// WebhookWorkerCreateRequest defines model for WebhookWorkerCreateRequest.
+type WebhookWorkerCreateRequest struct {
+	// Url The webhook url.
+	Url string `json:"url"`
+}
+
+// WebhookWorkerListResponse defines model for WebhookWorkerListResponse.
+type WebhookWorkerListResponse struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]WebhookWorker    `json:"rows,omitempty"`
+}
+
 // Worker defines model for Worker.
 type Worker struct {
 	// Actions The actions this worker can perform.
@@ -1217,6 +1240,9 @@ type UserUpdatePasswordJSONRequestBody = UserChangePasswordRequest
 // UserCreateJSONRequestBody defines body for UserCreate for application/json ContentType.
 type UserCreateJSONRequestBody = UserRegisterRequest
 
+// WebhookCreateJSONRequestBody defines body for WebhookCreate for application/json ContentType.
+type WebhookCreateJSONRequestBody = WebhookWorkerCreateRequest
+
 // WorkflowUpdateLinkGithubJSONRequestBody defines body for WorkflowUpdateLinkGithub for application/json ContentType.
 type WorkflowUpdateLinkGithubJSONRequestBody = LinkGithubRepositoryRequest
 
@@ -1530,6 +1556,14 @@ type ClientInterface interface {
 
 	// UserUpdateSlackOauthCallback request
 	UserUpdateSlackOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WebhookList request
+	WebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WebhookCreateWithBody request with any body
+	WebhookCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WebhookCreate(ctx context.Context, tenant openapi_types.UUID, body WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkerGet request
 	WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2558,6 +2592,42 @@ func (c *Client) UserCreate(ctx context.Context, body UserCreateJSONRequestBody,
 
 func (c *Client) UserUpdateSlackOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUserUpdateSlackOauthCallbackRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWebhookListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WebhookCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWebhookCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WebhookCreate(ctx context.Context, tenant openapi_types.UUID, body WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWebhookCreateRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5642,6 +5712,87 @@ func NewUserUpdateSlackOauthCallbackRequest(server string) (*http.Request, error
 	return req, nil
 }
 
+// NewWebhookListRequest generates requests for WebhookList
+func NewWebhookListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/webhook-workers/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewWebhookCreateRequest calls the generic WebhookCreate builder with application/json body
+func NewWebhookCreateRequest(server string, tenant openapi_types.UUID, body WebhookCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWebhookCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewWebhookCreateRequestWithBody generates requests for WebhookCreate with any type of body
+func NewWebhookCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/webhook-workers/%s/create", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewWorkerGetRequest generates requests for WorkerGet
 func NewWorkerGetRequest(server string, worker openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -6321,6 +6472,14 @@ type ClientWithResponsesInterface interface {
 
 	// UserUpdateSlackOauthCallbackWithResponse request
 	UserUpdateSlackOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateSlackOauthCallbackResponse, error)
+
+	// WebhookListWithResponse request
+	WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookListResponse, error)
+
+	// WebhookCreateWithBodyWithResponse request with any body
+	WebhookCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WebhookCreateResponse, error)
+
+	WebhookCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*WebhookCreateResponse, error)
 
 	// WorkerGetWithResponse request
 	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
@@ -7940,6 +8099,56 @@ func (r UserUpdateSlackOauthCallbackResponse) StatusCode() int {
 	return 0
 }
 
+type WebhookListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookWorkerListResponse
+	JSON400      *APIErrors
+	JSON401      *APIErrors
+	JSON405      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WebhookListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WebhookListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WebhookCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *User
+	JSON400      *APIErrors
+	JSON401      *APIErrors
+	JSON405      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WebhookCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WebhookCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkerGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -8874,6 +9083,32 @@ func (c *ClientWithResponses) UserUpdateSlackOauthCallbackWithResponse(ctx conte
 		return nil, err
 	}
 	return ParseUserUpdateSlackOauthCallbackResponse(rsp)
+}
+
+// WebhookListWithResponse request returning *WebhookListResponse
+func (c *ClientWithResponses) WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookListResponse, error) {
+	rsp, err := c.WebhookList(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWebhookListResponse(rsp)
+}
+
+// WebhookCreateWithBodyWithResponse request with arbitrary body returning *WebhookCreateResponse
+func (c *ClientWithResponses) WebhookCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WebhookCreateResponse, error) {
+	rsp, err := c.WebhookCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWebhookCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) WebhookCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*WebhookCreateResponse, error) {
+	rsp, err := c.WebhookCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWebhookCreateResponse(rsp)
 }
 
 // WorkerGetWithResponse request returning *WorkerGetResponse
@@ -11464,6 +11699,100 @@ func ParseUserUpdateSlackOauthCallbackResponse(rsp *http.Response) (*UserUpdateS
 	response := &UserUpdateSlackOauthCallbackResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseWebhookListResponse parses an HTTP response from a WebhookListWithResponse call
+func ParseWebhookListResponse(rsp *http.Response) (*WebhookListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WebhookListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookWorkerListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWebhookCreateResponse parses an HTTP response from a WebhookCreateWithResponse call
+func ParseWebhookCreateResponse(rsp *http.Response) (*WebhookCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WebhookCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest User
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
 	}
 
 	return response, nil

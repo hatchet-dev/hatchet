@@ -22,6 +22,7 @@ import (
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
+	webhookworker "github.com/hatchet-dev/hatchet/api/v1/server/handlers/webhook-worker"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workers"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workflows"
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
@@ -43,22 +44,24 @@ type apiService struct {
 	*githubapp.GithubAppService
 	*ingestors.IngestorsService
 	*slackapp.SlackAppService
+	*webhookworker.WebhookWorkersService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
 	return &apiService{
-		UserService:      users.NewUserService(config),
-		TenantService:    tenants.NewTenantService(config),
-		EventService:     events.NewEventService(config),
-		LogService:       logs.NewLogService(config),
-		WorkflowService:  workflows.NewWorkflowService(config),
-		WorkerService:    workers.NewWorkerService(config),
-		MetadataService:  metadata.NewMetadataService(config),
-		APITokenService:  apitokens.NewAPITokenService(config),
-		StepRunService:   stepruns.NewStepRunService(config),
-		GithubAppService: githubapp.NewGithubAppService(config),
-		IngestorsService: ingestors.NewIngestorsService(config),
-		SlackAppService:  slackapp.NewSlackAppService(config),
+		UserService:           users.NewUserService(config),
+		TenantService:         tenants.NewTenantService(config),
+		EventService:          events.NewEventService(config),
+		LogService:            logs.NewLogService(config),
+		WorkflowService:       workflows.NewWorkflowService(config),
+		WorkerService:         workers.NewWorkerService(config),
+		MetadataService:       metadata.NewMetadataService(config),
+		APITokenService:       apitokens.NewAPITokenService(config),
+		StepRunService:        stepruns.NewStepRunService(config),
+		GithubAppService:      githubapp.NewGithubAppService(config),
+		IngestorsService:      ingestors.NewIngestorsService(config),
+		SlackAppService:       slackapp.NewSlackAppService(config),
+		WebhookWorkersService: webhookworker.NewWebhookWorkersService(config),
 	}
 }
 

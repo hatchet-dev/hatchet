@@ -44,7 +44,7 @@ func (c *WebhooksController) Start() (func() error, error) {
 	var cleanups []func() error
 
 	for _, tenant := range tenants {
-		wws, err := c.sc.EngineRepository.WebhookWorker().GetAllWebhookWorkers(context.Background(), sqlchelpers.UUIDToStr(tenant.ID))
+		wws, err := c.sc.APIRepository.WebhookWorker().ListWebhookWorkers(context.Background(), sqlchelpers.UUIDToStr(tenant.ID))
 		if err != nil {
 			return nil, fmt.Errorf("could not get webhook workers: %w", err)
 		}
@@ -52,7 +52,7 @@ func (c *WebhooksController) Start() (func() error, error) {
 		for _, ww := range wws {
 			ww, err := webhook.NewWorker(webhook.WorkerOpts{
 				Secret:   ww.Secret,
-				Url:      ww.Url,
+				Url:      ww.URL,
 				TenantID: sqlchelpers.UUIDToStr(tenant.ID),
 			}, cl)
 			if err != nil {
