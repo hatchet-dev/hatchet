@@ -269,6 +269,7 @@ WITH expiring_tokens AS (
     WHERE
         t0."revoked" = false
         AND t0."expiresAt" <= NOW() + INTERVAL '7 days'
+        AND t0."expiresAt" >= NOW()
         AND (
             t0."nextAlertAt" IS NULL OR
             t0."nextAlertAt" <= NOW()
