@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/joho/godotenv"
 
+	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -24,7 +26,16 @@ func main() {
 		panic(err)
 	}
 
-	err = run(worker.WorkflowJob{
+	c, err := client.New()
+	if err != nil {
+		panic(fmt.Errorf("error creating client: %w", err))
+	}
+
+	if err := setup(c); err != nil {
+		panic(fmt.Errorf("error setting up webhook: %w", err))
+	}
+
+	err = run(c, worker.WorkflowJob{
 		Name:        "webhook",
 		Description: "webhook",
 		Steps: []*worker.WorkflowStep{

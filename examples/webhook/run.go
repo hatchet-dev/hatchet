@@ -8,17 +8,15 @@ import (
 	"net/http"
 	"time"
 
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-func run(job worker.WorkflowJob) error {
-	c, err := client.New()
-	if err != nil {
-		return fmt.Errorf("error creating client: %w", err)
-	}
-
+func run(c client.Client, job worker.WorkflowJob) error {
 	w, err := worker.NewWorker(
 		worker.WithClient(
 			c,
@@ -80,6 +78,26 @@ func run(job worker.WorkflowJob) error {
 			panic(fmt.Errorf("expected step run output to be valid, got %s", output))
 		}
 	})
+
+	return nil
+}
+
+func setup(c client.Client) error {
+	tenantId := openapi_types.UUID{}
+	if err := tenantId.Scan(c.TenantId()); err != nil {
+		return fmt.Errorf("error getting tenant id: %w", err)
+	}
+
+	res, err := c.API().WebhookCreate(context.Background(), tenantId, rest.WebhookCreateJSONRequestBody{
+		Url: "http://localhost:8741/webhook",
+	})
+	if err != nil {
+		return fmt.Errorf("error creating webhook worker: %w", err)
+	}
+
+	if res.StatusCode != 200 {
+		return fmt.Errorf("error creating webhook, failed with status code %d", res.StatusCode)
+	}
 
 	return nil
 }

@@ -11,11 +11,23 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/hatchet-dev/hatchet/internal/testutils"
+	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
 func TestWebhook(t *testing.T) {
 	testutils.Prepare(t)
+
+	c, err := client.New()
+	if err != nil {
+		panic(fmt.Errorf("error creating client: %w", err))
+	}
+
+	if err := setup(c); err != nil {
+		panic(fmt.Errorf("error setting up webhook: %w", err))
+	}
+
+	time.Sleep(time.Second * 30) // wait until webhook worker is registered
 
 	tests := []struct {
 		name string
@@ -65,7 +77,7 @@ func TestWebhook(t *testing.T) {
 			defer cancel()
 
 			events := make(chan string, 10)
-			err := run(tt.job(events))
+			err := run(c, tt.job(events))
 			if err != nil {
 				t.Fatalf("run() error = %s", err)
 			}
