@@ -23,8 +23,8 @@ create:
         content:
           application/json:
             schema:
-              $ref: "../../components/schemas/_index.yaml#/User"
-        description: Successfully logged in
+              $ref: "../../components/schemas/_index.yaml#/WebhookWorker"
+        description: Successfully created the webhook
       "400":
         content:
           application/json:

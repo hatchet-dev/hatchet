@@ -8127,7 +8127,7 @@ func (r WebhookListResponse) StatusCode() int {
 type WebhookCreateResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *User
+	JSON200      *WebhookWorker
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
@@ -11766,7 +11766,7 @@ func ParseWebhookCreateResponse(rsp *http.Response) (*WebhookCreateResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest User
+		var dest WebhookWorker
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

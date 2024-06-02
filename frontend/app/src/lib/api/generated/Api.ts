@@ -67,6 +67,7 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  WebhookWorker,
   WebhookWorkerCreateRequest,
   WebhookWorkerListResponse,
   Worker,
@@ -1620,7 +1621,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/webhook-workers/{tenant}/create
    */
   webhookCreate = (tenant: string, data: WebhookWorkerCreateRequest, params: RequestParams = {}) =>
-    this.request<User, APIErrors>({
+    this.request<WebhookWorker, APIErrors>({
       path: `/api/v1/webhook-workers/${tenant}/create`,
       method: "POST",
       body: data,
