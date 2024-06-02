@@ -51,7 +51,7 @@ func (c *WebhooksController) Start() (func() error, error) {
 					log.Printf("error checking webhooks: %v", err)
 				}
 			case <-ctx.Done():
-				break
+				return
 			}
 		}
 	}()
