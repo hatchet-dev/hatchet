@@ -44,13 +44,13 @@ func main() {
 				return &output{
 					Message: "hi from " + ctx.StepName(),
 				}, nil
-			}).SetName("step-one").SetTimeout("10s"),
+			}).SetName("webhook-step-one").SetTimeout("10s"),
 			worker.Fn(func(ctx worker.HatchetContext) (result *output, err error) {
 				log.Printf("step name: %s", ctx.StepName())
 				return &output{
 					Message: "hi from " + ctx.StepName(),
 				}, nil
-			}).SetName("step-one").SetTimeout("10s"),
+			}).SetName("webhook-step-one").SetTimeout("10s"),
 		},
 	})
 	if err != nil {

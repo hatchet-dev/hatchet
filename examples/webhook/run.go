@@ -74,7 +74,7 @@ func run(c client.Client, job worker.WorkflowJob) error {
 	time.Sleep(5 * time.Second)
 
 	verifyStepRuns(client, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
-		if string(output) != `{"message":"hi from step-one"}` && string(output) != `{"message":"hi from step-two"}` {
+		if string(output) != `{"message":"hi from webhook-step-one"}` && string(output) != `{"message":"hi from webhook-step-two"}` {
 			panic(fmt.Errorf("expected step run output to be valid, got %s", output))
 		}
 	})

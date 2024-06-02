@@ -17,8 +17,8 @@ func (w *Worker) StartWebhook() (func() error, error) {
 
 	// TODO get this from the database
 	actionNames := []string{
-		"default:step-one",
-		"default:step-two",
+		"default:webhook-step-one",
+		"default:webhook-step-two",
 	}
 
 	log.Printf("starting webhook worker for actions: %s", actionNames)

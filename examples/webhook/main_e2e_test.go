@@ -43,29 +43,29 @@ func TestWebhook(t *testing.T) {
 						worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
 							//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
 
-							events <- "step-one"
+							events <- "webhook-step-one"
 
 							return &output{
 								Message: "hi from " + ctx.StepName(),
 							}, nil
-						}).SetName("step-one").SetTimeout("60s"),
+						}).SetName("webhook-step-one").SetTimeout("60s"),
 						worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
 							var out output
-							if err := ctx.StepOutput("step-one", &out); err != nil {
+							if err := ctx.StepOutput("webhook-step-one", &out); err != nil {
 								panic(err)
 							}
-							if out.Message != "hi from step-one" {
+							if out.Message != "hi from webhook-step-one" {
 								panic(fmt.Errorf("expected step run output to be valid, got %s", out.Message))
 							}
 
-							events <- "step-two"
+							events <- "webhook-step-two"
 
 							//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
 
 							return &output{
 								Message: "hi from " + ctx.StepName(),
 							}, nil
-						}).SetName("step-two").SetTimeout("60s").AddParents("step-one"),
+						}).SetName("webhook-step-two").SetTimeout("60s").AddParents("webhook-step-one"),
 					},
 				}
 			},
@@ -94,8 +94,8 @@ func TestWebhook(t *testing.T) {
 			}
 
 			assert.Equal(t, []string{
-				"step-one",
-				"step-two",
+				"webhook-step-one",
+				"webhook-step-two",
 			}, items)
 		})
 	}
