@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/repository"
@@ -19,12 +20,15 @@ import (
 )
 
 type WebhooksController struct {
-	sc *server.ServerConfig
+	sc                  *server.ServerConfig
+	registeredWorkerIds map[string]bool
+	cleanups            []func() error
 }
 
 func New(sc *server.ServerConfig) *WebhooksController {
 	return &WebhooksController{
-		sc: sc,
+		sc:                  sc,
+		registeredWorkerIds: map[string]bool{},
 	}
 }
 
@@ -36,40 +40,26 @@ func (c *WebhooksController) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not create client: %w", err)
 	}
 
-	tenants, err := c.sc.EngineRepository.Tenant().ListTenants(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("could not list tenants: %w", err)
-	}
+	ctx, cancel := context.WithCancel(context.Background())
 
-	var cleanups []func() error
-
-	for _, tenant := range tenants {
-		wws, err := c.sc.APIRepository.WebhookWorker().ListWebhookWorkers(context.Background(), sqlchelpers.UUIDToStr(tenant.ID))
-		if err != nil {
-			return nil, fmt.Errorf("could not get webhook workers: %w", err)
-		}
-
-		for _, ww := range wws {
-			ww, err := webhook.NewWorker(webhook.WorkerOpts{
-				Secret:   ww.Secret,
-				Url:      ww.URL,
-				TenantID: sqlchelpers.UUIDToStr(tenant.ID),
-			}, cl)
-			if err != nil {
-				panic(fmt.Errorf("could not create webhook worker: %w", err))
+	ticker := time.NewTicker(30 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				if err := c.check(cl); err != nil {
+					log.Printf("error checking webhooks: %v", err)
+				}
+			case <-ctx.Done():
+				break
 			}
-
-			cleanup, err := ww.Start()
-			if err != nil {
-				panic(fmt.Errorf("could not start webhook worker: %w", err))
-			}
-
-			cleanups = append(cleanups, cleanup)
 		}
-	}
+	}()
 
 	return func() error {
-		for _, cleanup := range cleanups {
+		cancel()
+
+		for _, cleanup := range c.cleanups {
 			if err := cleanup(); err != nil {
 				return fmt.Errorf("could not cleanup webhook worker: %w", err)
 			}
@@ -77,6 +67,49 @@ func (c *WebhooksController) Start() (func() error, error) {
 
 		return nil
 	}, nil
+}
+
+func (c *WebhooksController) check(cl client.Client) error {
+	tenants, err := c.sc.EngineRepository.Tenant().ListTenants(context.Background())
+	if err != nil {
+		return fmt.Errorf("could not list tenants: %w", err)
+	}
+
+	for _, tenant := range tenants {
+		tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+		wws, err := c.sc.APIRepository.WebhookWorker().ListWebhookWorkers(context.Background(), tenantId)
+		if err != nil {
+			return fmt.Errorf("could not get webhook workers: %w", err)
+		}
+
+		for _, ww := range wws {
+			if _, ok := c.registeredWorkerIds[ww.ID]; ok {
+				continue
+			}
+			c.registeredWorkerIds[ww.ID] = true
+
+			log.Printf("starting webhook worker for tenant %s", tenantId)
+
+			ww, err := webhook.NewWorker(webhook.WorkerOpts{
+				Secret:   ww.Secret,
+				Url:      ww.URL,
+				TenantID: tenantId,
+			}, cl)
+			if err != nil {
+				return fmt.Errorf("could not create webhook worker: %w", err)
+			}
+
+			cleanup, err := ww.Start()
+			if err != nil {
+				return fmt.Errorf("could not start webhook worker: %w", err)
+			}
+
+			c.cleanups = append(c.cleanups, cleanup)
+		}
+	}
+
+	return nil
 }
 
 func (c *WebhooksController) setup() {
