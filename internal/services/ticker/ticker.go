@@ -222,6 +222,19 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
 	}
 
+	// poll for expiring tokens every 15 minutes
+	_, err = t.s.NewJob(
+		gocron.DurationJob(time.Minute*15),
+		gocron.NewTask(
+			t.runExpiringTokenAlerts(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
+	}
+
 	// poll to resolve worker semaphore slots every 1 minute
 	_, err = t.s.NewJob(
 		gocron.DurationJob(time.Minute*1),

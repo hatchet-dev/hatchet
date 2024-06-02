@@ -42,10 +42,13 @@ SELECT
     w."id" AS "id",
     w."tenantId" AS "tenantId",
     w."dispatcherId" AS "dispatcherId",
+    d."lastHeartbeatAt" AS "dispatcherLastHeartbeatAt",
     w."isActive" AS "isActive",
     w."lastListenerEstablished" AS "lastListenerEstablished"
 FROM
     "Worker" w
+LEFT JOIN
+    "Dispatcher" d ON w."dispatcherId" = d."id"
 WHERE
     w."tenantId" = @tenantId
     AND w."id" = @id;

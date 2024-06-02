@@ -104,3 +104,7 @@ func (t *tickerRepository) PollScheduledWorkflows(ctx context.Context, tickerId 
 func (t *tickerRepository) PollTenantAlerts(ctx context.Context, tickerId string) ([]*dbsqlc.PollTenantAlertsRow, error) {
 	return t.queries.PollTenantAlerts(ctx, t.pool, sqlchelpers.UUIDFromStr(tickerId))
 }
+
+func (t *tickerRepository) PollExpiringTokens(ctx context.Context) ([]*dbsqlc.PollExpiringTokensRow, error) {
+	return t.queries.PollExpiringTokens(ctx, t.pool)
+}

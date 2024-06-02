@@ -116,10 +116,13 @@ SELECT
     w."id" AS "id",
     w."tenantId" AS "tenantId",
     w."dispatcherId" AS "dispatcherId",
+    d."lastHeartbeatAt" AS "dispatcherLastHeartbeatAt",
     w."isActive" AS "isActive",
     w."lastListenerEstablished" AS "lastListenerEstablished"
 FROM
     "Worker" w
+LEFT JOIN
+    "Dispatcher" d ON w."dispatcherId" = d."id"
 WHERE
     w."tenantId" = $1
     AND w."id" = $2
@@ -131,11 +134,12 @@ type GetWorkerForEngineParams struct {
 }
 
 type GetWorkerForEngineRow struct {
-	ID                      pgtype.UUID      `json:"id"`
-	TenantId                pgtype.UUID      `json:"tenantId"`
-	DispatcherId            pgtype.UUID      `json:"dispatcherId"`
-	IsActive                bool             `json:"isActive"`
-	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
+	ID                        pgtype.UUID      `json:"id"`
+	TenantId                  pgtype.UUID      `json:"tenantId"`
+	DispatcherId              pgtype.UUID      `json:"dispatcherId"`
+	DispatcherLastHeartbeatAt pgtype.Timestamp `json:"dispatcherLastHeartbeatAt"`
+	IsActive                  bool             `json:"isActive"`
+	LastListenerEstablished   pgtype.Timestamp `json:"lastListenerEstablished"`
 }
 
 func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorkerForEngineParams) (*GetWorkerForEngineRow, error) {
@@ -145,6 +149,7 @@ func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorker
 		&i.ID,
 		&i.TenantId,
 		&i.DispatcherId,
+		&i.DispatcherLastHeartbeatAt,
 		&i.IsActive,
 		&i.LastListenerEstablished,
 	)
