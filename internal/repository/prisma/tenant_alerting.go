@@ -187,6 +187,12 @@ func (r *tenantAlertingEngineRepository) GetTenantAlertingSettings(ctx context.C
 		}
 	}
 
+	tx.Commit(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &repository.GetTenantAlertingSettingsResponse{
 		Settings:      settings,
 		SlackWebhooks: webhooks,
