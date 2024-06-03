@@ -44,9 +44,11 @@ async def stream(workflow_run_id: str):
 
     listener = workflow_run.stream()
 
+    # You can listen for all events for a workflow run
     async for event in listener:
         print(event.type, event.payload)
 
+    # Or await results from that run directly
     result = await workflow_run.result()
 
     print("result: " + json.dumps(result, indent=2))
