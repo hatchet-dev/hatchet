@@ -3,7 +3,6 @@ package alerting
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
@@ -23,12 +22,11 @@ func (t *TenantAlertManager) sendEmailWorkflowRunAlert(tenant *dbsqlc.Tenant, em
 		subject = fmt.Sprintf("%d Hatchet workflow failed", numFailed)
 	}
 
-	emails := strings.Split(emailGroup.Emails, ",")
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	return t.email.SendWorkflowRunFailedAlerts(
 		ctx,
-		emails,
+		emailGroup.Emails,
 		email.WorkflowRunsFailedEmailData{
 			TenantName:   tenant.Name,
 			Items:        failedRuns,
@@ -45,12 +43,11 @@ func (t *TenantAlertManager) sendEmailExpiringTokenAlert(tenant *dbsqlc.Tenant, 
 
 	subject := fmt.Sprintf("Hatchet token expiring %s", payload.ExpiresAtRelativeDate)
 
-	emails := strings.Split(emailGroup.Emails, ",")
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	return t.email.SendExpiringTokenEmail(
 		ctx,
-		emails,
+		emailGroup.Emails,
 		email.ExpiringTokenEmailData{
 			TenantName:            tenant.Name,
 			TokenName:             payload.TokenName,
