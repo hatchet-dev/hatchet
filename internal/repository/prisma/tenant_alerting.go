@@ -156,9 +156,11 @@ func (r *tenantAlertingEngineRepository) GetTenantAlertingSettings(ctx context.C
 	}
 
 	for _, group := range emailGroups {
+		emails := strings.Split(group.Emails, ",")
+
 		groupsForSend = append(groupsForSend, &repository.TenantAlertEmailGroupForSend{
 			TenantId: group.TenantId,
-			Emails:   group.Emails,
+			Emails:   emails,
 		})
 	}
 
@@ -180,9 +182,15 @@ func (r *tenantAlertingEngineRepository) GetTenantAlertingSettings(ctx context.C
 		} else {
 			groupsForSend = append(groupsForSend, &repository.TenantAlertEmailGroupForSend{
 				TenantId: tenant.ID,
-				Emails:   strings.Join(emails, ","),
+				Emails:   emails,
 			})
 		}
+	}
+
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return nil, err
 	}
 
 	return &repository.GetTenantAlertingSettingsResponse{
