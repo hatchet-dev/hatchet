@@ -134,6 +134,7 @@ model Tenant {
   rateLimits                RateLimit[]
   stepRateLimits            StepRateLimit[]
   alertEmailGroups          TenantAlertEmailGroup[]
+  // alertMemberEmails controls whether to send alert emails to tenant members in addition to the alert email groups
   alertMemberEmails         Boolean @default(true)
   slackWebhooks             SlackAppWebhook[]
   alertingSettings          TenantAlertingSettings?
