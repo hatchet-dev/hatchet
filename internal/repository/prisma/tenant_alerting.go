@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -41,8 +42,12 @@ func (r *tenantAlertingAPIRepository) UpsertTenantAlertingSettings(tenantId stri
 			db.Tenant.ID.Equals(tenantId),
 		),
 		db.TenantAlertingSettings.MaxFrequency.SetIfPresent(opts.MaxFrequency),
+		db.TenantAlertingSettings.EnableExpiringTokenAlerts.SetIfPresent(opts.EnableExpiringTokenAlerts),
+		db.TenantAlertingSettings.EnableWorkflowRunFailureAlerts.SetIfPresent(opts.EnableWorkflowRunFailureAlerts),
 	).Update(
 		db.TenantAlertingSettings.MaxFrequency.SetIfPresent(opts.MaxFrequency),
+		db.TenantAlertingSettings.EnableExpiringTokenAlerts.SetIfPresent(opts.EnableExpiringTokenAlerts),
+		db.TenantAlertingSettings.EnableWorkflowRunFailureAlerts.SetIfPresent(opts.EnableWorkflowRunFailureAlerts),
 	).Exec(context.Background())
 }
 
@@ -142,10 +147,21 @@ func (r *tenantAlertingEngineRepository) GetTenantAlertingSettings(ctx context.C
 		return nil, err
 	}
 
+	groupsForSend := make([]*repository.TenantAlertEmailGroupForSend, 0)
+
 	emailGroups, err := r.queries.GetEmailGroups(ctx, tx, pgTenantId)
 
 	if err != nil {
 		return nil, err
+	}
+
+	for _, group := range emailGroups {
+		emails := strings.Split(group.Emails, ",")
+
+		groupsForSend = append(groupsForSend, &repository.TenantAlertEmailGroupForSend{
+			TenantId: group.TenantId,
+			Emails:   emails,
+		})
 	}
 
 	tenant, err := r.queries.GetTenantByID(ctx, tx, pgTenantId)
@@ -154,10 +170,33 @@ func (r *tenantAlertingEngineRepository) GetTenantAlertingSettings(ctx context.C
 		return nil, err
 	}
 
+	if tenant.AlertMemberEmails {
+		emails, err := r.queries.GetMemberEmailGroup(ctx, tx, pgTenantId)
+
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				r.l.Warn().Err(err).Msg("No valid member email group found for tenant")
+			} else {
+				return nil, err
+			}
+		} else {
+			groupsForSend = append(groupsForSend, &repository.TenantAlertEmailGroupForSend{
+				TenantId: tenant.ID,
+				Emails:   emails,
+			})
+		}
+	}
+
+	tx.Commit(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &repository.GetTenantAlertingSettingsResponse{
 		Settings:      settings,
 		SlackWebhooks: webhooks,
-		EmailGroups:   emailGroups,
+		EmailGroups:   groupsForSend,
 		Tenant:        tenant,
 	}, nil
 }

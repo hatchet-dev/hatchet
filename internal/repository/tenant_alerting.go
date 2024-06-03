@@ -6,10 +6,14 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type UpsertTenantAlertingSettingsOpts struct {
-	MaxFrequency *string `validate:"omitnil,duration"`
+	MaxFrequency                   *string `validate:"omitnil,duration"`
+	EnableExpiringTokenAlerts      *bool   `validate:"omitnil"`
+	EnableWorkflowRunFailureAlerts *bool   `validate:"omitnil"`
 }
 
 type UpdateTenantAlertingSettingsOpts struct {
@@ -40,12 +44,17 @@ type TenantAlertingAPIRepository interface {
 	DeleteTenantAlertGroup(tenantId string, id string) error
 }
 
+type TenantAlertEmailGroupForSend struct {
+	TenantId pgtype.UUID `json:"tenantId"`
+	Emails []string `validate:"required,dive,email,max=255"`
+}
+
 type GetTenantAlertingSettingsResponse struct {
 	Settings *dbsqlc.TenantAlertingSettings
 
 	SlackWebhooks []*dbsqlc.SlackAppWebhook
 
-	EmailGroups []*dbsqlc.TenantAlertEmailGroup
+	EmailGroups []*TenantAlertEmailGroupForSend
 
 	Tenant *dbsqlc.Tenant
 }

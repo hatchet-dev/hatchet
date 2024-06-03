@@ -134,6 +134,8 @@ model Tenant {
   rateLimits                RateLimit[]
   stepRateLimits            StepRateLimit[]
   alertEmailGroups          TenantAlertEmailGroup[]
+  // alertMemberEmails controls whether to send alert emails to tenant members in addition to the alert email groups
+  alertMemberEmails         Boolean @default(true)
   slackWebhooks             SlackAppWebhook[]
   alertingSettings          TenantAlertingSettings?
 }
@@ -148,6 +150,10 @@ model TenantAlertingSettings {
   // the parent tenant
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @unique @db.Uuid
+
+  // workflow run failure alerts
+  enableWorkflowRunFailureAlerts Boolean @default(false)
+  enableExpiringTokenAlerts      Boolean @default(true)
 
   // the maximum alerting frequency
   maxFrequency String @default("1h")

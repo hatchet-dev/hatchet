@@ -87,6 +87,11 @@ func (t *TenantAlertManager) SendWorkflowRunAlert(tenantId string, prevLastAlert
 }
 
 func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAlerting *repository.GetTenantAlertingSettingsResponse, prevLastAlertedAt time.Time) error {
+
+	if !tenantAlerting.Settings.EnableWorkflowRunFailureAlerts {
+		return nil
+	}
+
 	// read in all failed workflow runs since the last alerted time, ordered by the most recent runs first
 	statuses := []db.WorkflowRunStatus{
 		db.WorkflowRunStatusFailed,
@@ -181,6 +186,11 @@ func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *dbsq
 }
 
 func (t *TenantAlertManager) sendExpiringTokenAlert(ctx context.Context, tenantAlerting *repository.GetTenantAlertingSettingsResponse, payload *alerttypes.ExpiringTokenItem) error {
+
+	if !tenantAlerting.Settings.EnableExpiringTokenAlerts {
+		return nil
+	}
+
 	var err error
 
 	// iterate through possible alerters

@@ -194,6 +194,8 @@ export interface Tenant {
   slug: string;
   /** Whether the tenant has opted out of analytics. */
   analyticsOptOut?: boolean;
+  /** Whether to alert tenant members. */
+  alertMemberEmails?: boolean;
 }
 
 export interface TenantMember {
@@ -231,6 +233,12 @@ export interface UpdateTenantInviteRequest {
 
 export interface TenantAlertingSettings {
   metadata: APIResourceMeta;
+  /** Whether to alert tenant members. */
+  alertMemberEmails?: boolean;
+  /** Whether to send alerts when workflow runs fail. */
+  enableWorkflowRunFailureAlerts?: boolean;
+  /** Whether to enable alerts when tokens are approaching expiration. */
+  enableExpiringTokenAlerts?: boolean;
   /** The max frequency at which to alert. */
   maxAlertingFrequency: string;
   /**
@@ -318,6 +326,12 @@ export interface UpdateTenantRequest {
   name?: string;
   /** Whether the tenant has opted out of analytics. */
   analyticsOptOut?: boolean;
+  /** Whether to alert tenant members. */
+  alertMemberEmails?: boolean;
+  /** Whether to send alerts when workflow runs fail. */
+  enableWorkflowRunFailureAlerts?: boolean;
+  /** Whether to enable alerts when tokens are approaching expiration. */
+  enableExpiringTokenAlerts?: boolean;
   /** The max frequency at which to alert. */
   maxAlertingFrequency?: string;
 }
