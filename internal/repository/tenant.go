@@ -22,6 +22,8 @@ type UpdateTenantOpts struct {
 	Name *string
 
 	AnalyticsOptOut *bool `validate:"omitempty"`
+
+	AlertMemberEmails *bool `validate:"omitempty"`
 }
 
 type CreateTenantMemberOpts struct {

@@ -628,6 +628,9 @@ type StepRunStatus string
 
 // Tenant defines model for Tenant.
 type Tenant struct {
+	// AlertMemberEmails Whether to alert tenant members.
+	AlertMemberEmails *bool `json:"alertMemberEmails,omitempty"`
+
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
 	AnalyticsOptOut *bool           `json:"analyticsOptOut,omitempty"`
 	Metadata        APIResourceMeta `json:"metadata"`
@@ -654,6 +657,15 @@ type TenantAlertEmailGroupList struct {
 
 // TenantAlertingSettings defines model for TenantAlertingSettings.
 type TenantAlertingSettings struct {
+	// AlertMemberEmails Whether to alert tenant members.
+	AlertMemberEmails *bool `json:"alertMemberEmails,omitempty"`
+
+	// EnableExpiringTokenAlerts Whether to enable alerts when tokens are approaching expiration.
+	EnableExpiringTokenAlerts *bool `json:"enableExpiringTokenAlerts,omitempty"`
+
+	// EnableWorkflowRunFailureAlerts Whether to send alerts when workflow runs fail.
+	EnableWorkflowRunFailureAlerts *bool `json:"enableWorkflowRunFailureAlerts,omitempty"`
+
 	// LastAlertedAt The last time an alert was sent.
 	LastAlertedAt *time.Time `json:"lastAlertedAt,omitempty"`
 
@@ -721,8 +733,17 @@ type UpdateTenantInviteRequest struct {
 
 // UpdateTenantRequest defines model for UpdateTenantRequest.
 type UpdateTenantRequest struct {
+	// AlertMemberEmails Whether to alert tenant members.
+	AlertMemberEmails *bool `json:"alertMemberEmails,omitempty"`
+
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
 	AnalyticsOptOut *bool `json:"analyticsOptOut,omitempty"`
+
+	// EnableExpiringTokenAlerts Whether to enable alerts when tokens are approaching expiration.
+	EnableExpiringTokenAlerts *bool `json:"enableExpiringTokenAlerts,omitempty"`
+
+	// EnableWorkflowRunFailureAlerts Whether to send alerts when workflow runs fail.
+	EnableWorkflowRunFailureAlerts *bool `json:"enableWorkflowRunFailureAlerts,omitempty"`
 
 	// MaxAlertingFrequency The max frequency at which to alert.
 	MaxAlertingFrequency *string `json:"maxAlertingFrequency,omitempty" validate:"omitnil,duration"`
