@@ -23,6 +23,9 @@ CREATE TABLE "WebhookWorkerWorkflow" (
 CREATE UNIQUE INDEX "WebhookWorker_id_key" ON "WebhookWorker"("id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WebhookWorker_url_key" ON "WebhookWorker"("url");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WebhookWorkerWorkflow_id_key" ON "WebhookWorkerWorkflow"("id");
 
 -- CreateIndex
