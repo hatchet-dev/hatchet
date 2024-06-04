@@ -104,3 +104,72 @@ func (t *tenantLimitRepository) MeterWorkflowRun(tenantId string) error {
 
 	return nil
 }
+
+var EVENT_RESOURCE = dbsqlc.NullLimitResource{
+	LimitResource: dbsqlc.LimitResourceEVENT,
+	Valid:         true,
+}
+
+func (t *tenantLimitRepository) createDefaultEventLimit(tenantId string) error {
+	const limitValue = 5000
+
+	_, err := t.queries.CreateTenantResourceLimit(context.Background(), t.pool, dbsqlc.CreateTenantResourceLimitParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Resource:   EVENT_RESOURCE,
+		LimitValue: sqlchelpers.ToInt(limitValue),
+		AlarmValue: sqlchelpers.ToInt(limitValue * .75),
+		Window:     sqlchelpers.TextFromStr("1 day"),
+	})
+
+	return err
+}
+
+func (t *tenantLimitRepository) CanCreateEvent(tenantId string) (bool, error) {
+	if !t.config.EnforceLimits {
+		return true, nil
+	}
+
+	limit, err := t.queries.GetTenantResourceLimit(context.Background(), t.pool, dbsqlc.GetTenantResourceLimitParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Resource: EVENT_RESOURCE,
+	})
+
+	if err == pgx.ErrNoRows {
+		t.l.Warn().Msg("no event tenant limit found, creating default limit")
+
+		err = t.createDefaultEventLimit(tenantId)
+
+		if err != nil {
+			return false, err
+		}
+
+		return true, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	if limit.Value >= limit.LimitValue {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (t *tenantLimitRepository) MeterEvent(tenantId string) error {
+	if !t.config.EnforceLimits {
+		return nil
+	}
+
+	_, err := t.queries.MeterTenantResource(context.Background(), t.pool, dbsqlc.MeterTenantResourceParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Resource: EVENT_RESOURCE,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

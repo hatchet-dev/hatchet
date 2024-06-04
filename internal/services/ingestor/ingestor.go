@@ -24,10 +24,11 @@ type Ingestor interface {
 type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
-	eventRepository       repository.EventEngineRepository
-	streamEventRepository repository.StreamEventsEngineRepository
-	logRepository         repository.LogsEngineRepository
-	mq                    msgqueue.MessageQueue
+	eventRepository        repository.EventEngineRepository
+	streamEventRepository  repository.StreamEventsEngineRepository
+	logRepository          repository.LogsEngineRepository
+	entitlementsRepository repository.EntitlementsRepository
+	mq                     msgqueue.MessageQueue
 }
 
 func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
@@ -48,6 +49,12 @@ func WithLogRepository(r repository.LogsEngineRepository) IngestorOptFunc {
 	}
 }
 
+func WithEntitlementsRepository(r repository.EntitlementsRepository) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.entitlementsRepository = r
+	}
+}
+
 func WithMessageQueue(mq msgqueue.MessageQueue) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.mq = mq
@@ -61,11 +68,13 @@ func defaultIngestorOpts() *IngestorOpts {
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
-	eventRepository       repository.EventEngineRepository
-	logRepository         repository.LogsEngineRepository
-	streamEventRepository repository.StreamEventsEngineRepository
-	mq                    msgqueue.MessageQueue
-	v                     validator.Validator
+	eventRepository        repository.EventEngineRepository
+	logRepository          repository.LogsEngineRepository
+	streamEventRepository  repository.StreamEventsEngineRepository
+	entitlementsRepository repository.EntitlementsRepository
+
+	mq msgqueue.MessageQueue
+	v  validator.Validator
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -92,17 +101,31 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}
 
 	return &IngestorImpl{
-		eventRepository:       opts.eventRepository,
-		streamEventRepository: opts.streamEventRepository,
-		logRepository:         opts.logRepository,
-		mq:                    opts.mq,
-		v:                     validator.NewDefaultValidator(),
+		eventRepository:        opts.eventRepository,
+		streamEventRepository:  opts.streamEventRepository,
+		entitlementsRepository: opts.entitlementsRepository,
+
+		logRepository: opts.logRepository,
+		mq:            opts.mq,
+		v:             validator.NewDefaultValidator(),
 	}, nil
 }
+
+var ErrResourceExhausted = fmt.Errorf("resource exhausted: cannot create event for tenant at this time")
 
 func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte, metadata *[]byte) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
+
+	canCreate, err := i.entitlementsRepository.TenantLimit().CanCreateEvent(tenantId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not check if tenant can create event: %w", err)
+	}
+
+	if !canCreate {
+		return nil, ErrResourceExhausted
+	}
 
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
 		TenantId:           tenantId,
@@ -126,12 +149,28 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
 	}
 
+	err = i.entitlementsRepository.TenantLimit().MeterEvent(tenantId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not meter event: %w", err)
+	}
+
 	return event, nil
 }
 
 func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
 	defer span.End()
+
+	canCreate, err := i.entitlementsRepository.TenantLimit().CanCreateEvent(tenantId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not check if tenant can create event: %w", err)
+	}
+
+	if !canCreate {
+		return nil, ErrResourceExhausted
+	}
 
 	replayedId := sqlchelpers.UUIDToStr(replayedEvent.ID)
 
@@ -151,6 +190,12 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string,
 
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
+	}
+
+	err = i.entitlementsRepository.TenantLimit().MeterEvent(tenantId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not meter event: %w", err)
 	}
 
 	return event, nil

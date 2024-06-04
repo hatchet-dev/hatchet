@@ -208,6 +208,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		ingestor.WithStreamEventsRepository(dc.EngineRepository.StreamEvent()),
 		ingestor.WithLogRepository(dc.EngineRepository.Log()),
 		ingestor.WithMessageQueue(mq),
+		ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
 	)
 
 	if err != nil {

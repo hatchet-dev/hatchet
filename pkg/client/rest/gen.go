@@ -7049,6 +7049,7 @@ type EventUpdateReplayResponse struct {
 	JSON200      *EventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -10125,6 +10126,13 @@ func ParseEventUpdateReplayResponse(rsp *http.Response) (*EventUpdateReplayRespo
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 

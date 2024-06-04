@@ -213,6 +213,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 				sc.EngineRepository.Log(),
 			),
 			ingestor.WithMessageQueue(sc.MessageQueue),
+			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 		if err != nil {
 			return fmt.Errorf("could not create ingestor: %w", err)

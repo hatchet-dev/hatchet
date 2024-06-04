@@ -936,9 +936,6 @@ CREATE UNIQUE INDEX "TenantMember_tenantId_userId_key" ON "TenantMember"("tenant
 CREATE UNIQUE INDEX "TenantResourceLimit_id_key" ON "TenantResourceLimit"("id" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TenantResourceLimit_tenantId_key" ON "TenantResourceLimit"("tenantId" ASC);
-
--- CreateIndex
 CREATE UNIQUE INDEX "TenantResourceLimit_tenantId_resource_key" ON "TenantResourceLimit"("tenantId" ASC, "resource" ASC);
 
 -- CreateIndex
