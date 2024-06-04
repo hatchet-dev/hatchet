@@ -306,29 +306,25 @@ WITH valid_workers AS (
     SELECT
         DISTINCT ON (w."id")
         w."id",
-        slots."remainingSlots" AS "slots"
+        COALESCE(w."maxRuns", 100) - COUNT(wss."id") AS "remainingSlots"
     FROM
         "Worker" w
-  LEFT JOIN (
-    SELECT wss."workerId", (COALESCE(w."maxRuns", 100) - COUNT(wss."id")) AS "remainingSlots"
-    FROM "WorkerSemaphoreSlot" wss
-    JOIN "Worker" w ON wss."workerId" = w."id"
-    WHERE wss."stepRunId" IS NULL
-    GROUP BY wss."workerId", w."maxRuns"
-  ) slots ON w."id" = slots."workerId"
+    LEFT JOIN
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
-        AND (slots."remainingSlots" IS NULL OR slots."remainingSlots" > 0)
     GROUP BY
-        w."id", slots."remainingSlots"
+        w."id", w."maxRuns"
+    HAVING
+        COALESCE(w."maxRuns", 100) - COUNT(wss."id") > 0
 ),
 -- Count the total number of slots across all workers
 total_max_runs AS (
     SELECT
-        SUM("slots") AS "totalMaxRuns"
+        SUM("remainingSlots") AS "totalMaxRuns"
     FROM
         valid_workers
 ),
@@ -356,7 +352,6 @@ step_runs AS (
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ) OR (
             sr."status" = 'ASSIGNED'
-            -- reassign if the run is stuck in assigned
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ))
         AND jr."status" = 'RUNNING'
@@ -397,32 +392,26 @@ RETURNING "StepRun"."id";
 -- name: ListStepRunsToRequeue :many
 WITH valid_workers AS (
     SELECT
-        DISTINCT ON (w."id")
         w."id",
-        slots."remainingSlots" AS "slots"
+        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") AS "remainingSlots"
     FROM
         "Worker" w
-  LEFT JOIN (
-    SELECT wss."workerId", (COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId")) AS "remainingSlots"
-    FROM "WorkerSemaphoreSlot" wss
-    JOIN "Worker" w ON wss."workerId" = w."id"
-    WHERE wss."stepRunId" IS NULL
-    GROUP BY wss."workerId", w."maxRuns"
-  ) slots ON w."id" = slots."workerId"
+    LEFT JOIN
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
     GROUP BY
-        w."id", slots."remainingSlots"
-
+        w."id", w."maxRuns"
+    HAVING
+        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") > 0
 ),
 -- Count the total number of maxRuns - runningStepRuns across all workers
 total_max_runs AS (
     SELECT
-        -- if maxRuns is null, then we assume the worker can run 100 step runs
-        SUM("slots") AS "totalMaxRuns"
+        SUM("remainingSlots") AS "totalMaxRuns"
     FROM
         valid_workers
 ),
