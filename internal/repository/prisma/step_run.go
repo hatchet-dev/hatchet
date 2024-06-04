@@ -318,12 +318,6 @@ var deadlockRetry = func(l *zerolog.Logger, f func() error) error {
 	}, 50*time.Millisecond, 200*time.Millisecond)
 }
 
-var serializeRetry = func(l *zerolog.Logger, f func() error) error {
-	return genericRetry(l.Warn(), 10, f, "serialization error", func(err error) (bool, error) {
-		return strings.Contains(err.Error(), "SQLSTATE 40001"), err
-	}, 0*time.Millisecond, 100*time.Millisecond)
-}
-
 var unassignedRetry = func(l *zerolog.Logger, f func() error) error {
 	return genericRetry(l.Debug(), 5, f, "unassigned", func(err error) (bool, error) {
 		var target *errNoWorkerWithSlots
@@ -619,25 +613,23 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 	var assigned *dbsqlc.AssignStepRunToWorkerRow
 
 	err = unassignedRetry(s.l, func() (err error) {
-		return serializeRetry(s.l, func() error {
-			assigned, err = s.assignStepRunToWorkerAttempt(ctx, stepRun)
+		assigned, err = s.assignStepRunToWorkerAttempt(ctx, stepRun)
 
-			if err != nil {
-				var target *errNoWorkerWithSlots
+		if err != nil {
+			var target *errNoWorkerWithSlots
 
-				if errors.As(err, &target) {
-					return err
-				}
-
-				if errors.Is(err, repository.ErrNoWorkerAvailable) {
-					return err
-				}
-
-				return fmt.Errorf("could not assign worker for step run %s (step %s): %w", sqlchelpers.UUIDToStr(stepRun.StepRun.ID), stepRun.StepReadableId.String, err)
+			if errors.As(err, &target) {
+				return err
 			}
 
-			return nil
-		})
+			if errors.Is(err, repository.ErrNoWorkerAvailable) {
+				return err
+			}
+
+			return fmt.Errorf("could not assign worker for step run %s (step %s): %w", sqlchelpers.UUIDToStr(stepRun.StepRun.ID), stepRun.StepReadableId.String, err)
+		}
+
+		return nil
 	})
 
 	if err != nil {
