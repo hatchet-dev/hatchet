@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -56,13 +55,7 @@ func (w *Worker) StartWebhook(id string) (func() error, error) {
 		return nil, fmt.Errorf("no actions found for webhook worker %s", id)
 	}
 
-	log.Printf("REGISTERING WORKFLOW ACTIONS: %v", actionNames)
-	log.Printf("REGISTERING WORKFLOW ACTIONS: %v", actionNames)
-	log.Printf("REGISTERING WORKFLOW ACTIONS: %v", actionNames)
-	log.Printf("REGISTERING WORKFLOW ACTIONS: %v", actionNames)
-	log.Printf("REGISTERING WORKFLOW ACTIONS: %v", actionNames)
-
-	log.Printf("starting webhook worker for actions: %s", actionNames)
+	w.l.Debug().Msgf("starting webhook worker for actions: %s", actionNames)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	listener, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
@@ -88,7 +81,7 @@ func (w *Worker) StartWebhook(id string) (func() error, error) {
 			select {
 			case action := <-actionCh:
 				go func(action *client.Action) {
-					err := w.sendWebhook(context.Background(), action)
+					err := w.sendWebhook(context.Background(), action, ww)
 
 					if err != nil {
 						w.l.Error().Err(err).Msgf("could not execute action: %s", action.ActionId)
@@ -121,30 +114,24 @@ func (w *Worker) StartWebhook(id string) (func() error, error) {
 	return cleanup, nil
 }
 
-func (w *Worker) sendWebhook(ctx context.Context, action *client.Action) error {
-	// TODO
-	webhookUrl := "http://localhost:8741/webhook"
-	webhookSecret := "secret"
-
+func (w *Worker) sendWebhook(ctx context.Context, action *client.Action, ww *db.WebhookWorkerModel) error {
 	body, err := json.Marshal(action)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", webhookUrl, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", ww.URL, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 
-	log.Printf("using secret: %s", webhookSecret)
-
-	sig, err := signature.Sign(string(body), webhookSecret)
+	sig, err := signature.Sign(string(body), ww.Secret)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("X-Hatchet-Signature", sig)
 
-	log.Printf("sending webhook to: %s", webhookUrl)
+	w.l.Debug().Msgf("sending webhook to: %s", ww.URL)
 
 	// nolint:gosec
 	resp, err := http.DefaultClient.Do(req)
