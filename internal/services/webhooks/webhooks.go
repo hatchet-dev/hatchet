@@ -92,10 +92,11 @@ func (c *WebhooksController) check(cl client.Client) error {
 			log.Printf("starting webhook worker for tenant %s", tenantId)
 
 			ww, err := webhook.NewWorker(webhook.WorkerOpts{
+				ID:       ww.ID,
 				Secret:   ww.Secret,
 				Url:      ww.URL,
 				TenantID: tenantId,
-			}, cl)
+			}, cl, nil) // TODO!
 			if err != nil {
 				return fmt.Errorf("could not create webhook worker: %w", err)
 			}

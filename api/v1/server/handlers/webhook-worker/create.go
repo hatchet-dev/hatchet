@@ -18,10 +18,16 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 		return nil, err
 	}
 
+	var wfs []string
+	for _, wf := range request.Body.Workflows {
+		wfs = append(wfs, wf.String())
+	}
+
 	ww, err := i.config.APIRepository.WebhookWorker().CreateWebhookWorker(ctx.Request().Context(), &repository.CreateWebhookWorkerOpts{
-		TenantId: tenant.ID,
-		URL:      request.Body.Url,
-		Secret:   secret,
+		TenantId:  tenant.ID,
+		URL:       request.Body.Url,
+		Secret:    secret,
+		Workflows: wfs,
 	})
 	if err != nil {
 		return nil, err

@@ -23,12 +23,6 @@ func TestWebhook(t *testing.T) {
 		panic(fmt.Errorf("error creating client: %w", err))
 	}
 
-	if err := setup(c); err != nil {
-		panic(fmt.Errorf("error setting up webhook: %w", err))
-	}
-
-	time.Sleep(time.Second * 30) // wait until webhook worker is registered
-
 	tests := []struct {
 		name string
 		job  func(events chan<- string) worker.WorkflowJob
@@ -73,11 +67,25 @@ func TestWebhook(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 
 			events := make(chan string, 10)
-			err := run(c, tt.job(events))
+			wf := tt.job(events)
+
+			w, err := worker.NewWorker(
+				worker.WithClient(
+					c,
+				),
+			)
+			if err != nil {
+				panic(fmt.Errorf("error creating worker: %w", err))
+			}
+
+			if err := initialize(w, wf); err != nil {
+				t.Fatalf("error initializing webhook: %v", err)
+			}
+			err = run(w, c)
 			if err != nil {
 				t.Fatalf("run() error = %s", err)
 			}

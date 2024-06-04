@@ -99,8 +99,21 @@ model WebhookWorker {
   secret String
   url    String
 
+  // TODO remove tenant ID as it is not needed
   tenantId String @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  webhookWorkerWorkflows WebhookWorkerWorkflow[]
+}
+
+model WebhookWorkerWorkflow {
+  id String @id @unique @default(uuid()) @db.Uuid
+
+  webhookWorker   WebhookWorker @relation(fields: [webhookWorkerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  webhookWorkerId String        @unique @db.Uuid
+
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workflowId String   @unique @db.Uuid
 }
 
 // Tenant represents a unique tenant in the database. Each tenant-scoped resource should have the tenant as
@@ -148,7 +161,7 @@ model Tenant {
   stepRateLimits            StepRateLimit[]
   alertEmailGroups          TenantAlertEmailGroup[]
   // alertMemberEmails controls whether to send alert emails to tenant members in addition to the alert email groups
-  alertMemberEmails         Boolean @default(true)
+  alertMemberEmails         Boolean                    @default(true)
   slackWebhooks             SlackAppWebhook[]
   alertingSettings          TenantAlertingSettings?
   webhookWorkers            WebhookWorker[]
@@ -327,8 +340,9 @@ model Workflow {
   versions WorkflowVersion[]
 
   // the tags for this workflow
-  tags             WorkflowTag[]
-  deploymentConfig WorkflowDeploymentConfig?
+  tags                   WorkflowTag[]
+  deploymentConfig       WorkflowDeploymentConfig?
+  webhookWorkerWorkflows WebhookWorkerWorkflow[]
 
   // workflow names are unique per tenant
   @@unique([tenantId, name])
@@ -1206,7 +1220,7 @@ model Worker {
   dispatcher   Dispatcher? @relation(fields: [dispatcherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   dispatcherId String?     @db.Uuid
 
-  maxRuns Int              @default(100)
+  maxRuns Int @default(100)
 
   services Service[]
 
@@ -1232,11 +1246,11 @@ model WorkerSemaphore {
   worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workerId String @unique @db.Uuid
   // keeps track of maxRuns - runningRuns on the worker
-  slots Int
+  slots    Int
 }
 
 model WorkerSemaphoreSlot {
-  id        String    @id @unique @default(uuid()) @db.Uuid
+  id String @id @unique @default(uuid()) @db.Uuid
 
   // the parent semaphore
   worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -1244,7 +1258,7 @@ model WorkerSemaphoreSlot {
 
   // the parent step run
   stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  stepRunId String?  @db.Uuid @unique
+  stepRunId String?  @unique @db.Uuid
 
   @@index([workerId])
 }

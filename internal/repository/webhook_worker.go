@@ -7,9 +7,10 @@ import (
 )
 
 type CreateWebhookWorkerOpts struct {
-	TenantId string `validate:"required,uuid"`
-	URL      string `validate:"required,url"`
-	Secret   string `validate:"required"`
+	TenantId  string   `validate:"required,uuid"`
+	URL       string   `validate:"required,url"`
+	Secret    string   `validate:"required"`
+	Workflows []string `validate:"required,dive,uuid"`
 }
 
 type WebhookWorkerRepository interface {

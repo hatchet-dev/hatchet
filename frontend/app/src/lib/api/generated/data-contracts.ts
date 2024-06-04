@@ -990,6 +990,7 @@ export interface WebhookWorker {
 export interface WebhookWorkerCreateRequest {
   /** The webhook url. */
   url: string;
+  workflows: string[];
 }
 
 export interface WebhookWorkerCreateResponse {

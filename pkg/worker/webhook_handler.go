@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -77,12 +78,18 @@ func (w *Worker) WebhookHandler(secret string) http.HandlerFunc {
 
 func (w *Worker) webhookProcess(ctx HatchetContext) (interface{}, error) {
 	var do Action
+	log.Printf("w.actions %+v", w.actions)
+	log.Printf("ctx.StepName() %+v", ctx.StepName())
 	for _, action := range w.actions {
 		split := strings.Split(action.Name(), ":") // service:action
 		if split[1] == ctx.StepName() {
 			do = action
 			break
 		}
+	}
+
+	if do == nil {
+		return nil, fmt.Errorf("fatal: could not find action for step run %s", ctx.StepName())
 	}
 
 	res := do.Run(ctx)

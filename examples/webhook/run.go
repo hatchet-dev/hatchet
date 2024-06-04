@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -16,26 +17,36 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-func run(c client.Client, job worker.WorkflowJob) error {
-	w, err := worker.NewWorker(
-		worker.WithClient(
-			c,
-		),
-	)
-	if err != nil {
-		return fmt.Errorf("error creating worker: %w", err)
-	}
-
-	client := db.NewClient()
-	if err := client.Connect(); err != nil {
-		panic(fmt.Errorf("error connecting to database: %w", err))
-	}
-	defer client.Disconnect()
-
-	err = w.On(worker.Events("user:create:webhook"), &job)
+func initialize(w *worker.Worker, job worker.WorkflowJob) error {
+	err := w.On(worker.Events("user:create:webhook"), &job)
 	if err != nil {
 		return fmt.Errorf("error registering webhook workflow: %w", err)
 	}
+
+	return nil
+}
+
+func run(w *worker.Worker, c client.Client) error {
+	prisma := db.NewClient()
+	if err := prisma.Connect(); err != nil {
+		panic(fmt.Errorf("error connecting to database: %w", err))
+	}
+	defer func(prisma *db.PrismaClient) {
+		_ = prisma.Disconnect()
+	}(prisma)
+
+	wf, err := prisma.Workflow.FindFirst(
+		db.Workflow.Name.Equals("simple-webhook"),
+	).Exec(context.Background())
+	if err != nil {
+		panic(fmt.Errorf("error finding webhook worker: %w", err))
+	}
+
+	if err := setup(c, wf.ID); err != nil {
+		panic(fmt.Errorf("error setting up webhook: %w", err))
+	}
+
+	time.Sleep(30 * time.Second)
 
 	go func() {
 		// create webserver to handle webhook requests
@@ -73,7 +84,7 @@ func run(c client.Client, job worker.WorkflowJob) error {
 
 	time.Sleep(5 * time.Second)
 
-	verifyStepRuns(client, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
+	verifyStepRuns(prisma, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
 		if string(output) != `{"message":"hi from webhook-step-one"}` && string(output) != `{"message":"hi from webhook-step-two"}` {
 			panic(fmt.Errorf("expected step run output to be valid, got %s", output))
 		}
@@ -82,7 +93,7 @@ func run(c client.Client, job worker.WorkflowJob) error {
 	return nil
 }
 
-func setup(c client.Client) error {
+func setup(c client.Client, wfId string) error {
 	tenantId := openapi_types.UUID{}
 	if err := tenantId.Scan(c.TenantId()); err != nil {
 		return fmt.Errorf("error getting tenant id: %w", err)
@@ -90,6 +101,9 @@ func setup(c client.Client) error {
 
 	res, err := c.API().WebhookCreate(context.Background(), tenantId, rest.WebhookCreateJSONRequestBody{
 		Url: "http://localhost:8741/webhook",
+		Workflows: []openapi_types.UUID{
+			uuid.MustParse(wfId),
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("error creating webhook worker: %w", err)

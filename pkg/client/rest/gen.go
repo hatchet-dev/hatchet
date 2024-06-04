@@ -830,7 +830,8 @@ type WebhookWorker struct {
 // WebhookWorkerCreateRequest defines model for WebhookWorkerCreateRequest.
 type WebhookWorkerCreateRequest struct {
 	// Url The webhook url.
-	Url string `json:"url"`
+	Url       string               `json:"url"`
+	Workflows []openapi_types.UUID `json:"workflows"`
 }
 
 // WebhookWorkerListResponse defines model for WebhookWorkerListResponse.

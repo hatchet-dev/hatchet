@@ -964,6 +964,12 @@ type WebhookWorker struct {
 	TenantId  pgtype.UUID      `json:"tenantId"`
 }
 
+type WebhookWorkerWorkflow struct {
+	ID              pgtype.UUID `json:"id"`
+	WebhookWorkerId pgtype.UUID `json:"webhookWorkerId"`
+	WorkflowId      pgtype.UUID `json:"workflowId"`
+}
+
 type Worker struct {
 	ID                      pgtype.UUID      `json:"id"`
 	CreatedAt               pgtype.Timestamp `json:"createdAt"`

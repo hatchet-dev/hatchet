@@ -31,11 +31,16 @@ func main() {
 		panic(fmt.Errorf("error creating client: %w", err))
 	}
 
-	if err := setup(c); err != nil {
-		panic(fmt.Errorf("error setting up webhook: %w", err))
+	w, err := worker.NewWorker(
+		worker.WithClient(
+			c,
+		),
+	)
+	if err != nil {
+		panic(fmt.Errorf("error creating worker: %w", err))
 	}
 
-	err = run(c, worker.WorkflowJob{
+	err = initialize(w, worker.WorkflowJob{
 		Name:        "webhook",
 		Description: "webhook",
 		Steps: []*worker.WorkflowStep{
@@ -53,6 +58,11 @@ func main() {
 			}).SetName("webhook-step-one").SetTimeout("10s"),
 		},
 	})
+	if err != nil {
+		panic(err)
+	}
+
+	err = run(w, c)
 	if err != nil {
 		panic(err)
 	}

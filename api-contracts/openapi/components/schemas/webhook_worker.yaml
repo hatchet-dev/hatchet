@@ -20,8 +20,16 @@ WebhookWorkerCreateRequest:
     url:
       type: string
       description: The webhook url.
+    workflows:
+      type: array
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
   required:
     - url
+    - workflows
   type: object
 
 WebhookWorkerCreateResponse:

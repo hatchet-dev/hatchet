@@ -35,11 +35,33 @@ func (r *webhookWorkerRepository) CreateWebhookWorker(ctx context.Context, opts 
 		return nil, err
 	}
 
-	return r.db.WebhookWorker.CreateOne(
+	ww, err := r.db.WebhookWorker.CreateOne(
 		db.WebhookWorker.Secret.Set(opts.Secret),
 		db.WebhookWorker.URL.Set(opts.URL),
 		db.WebhookWorker.Tenant.Link(
 			db.Tenant.ID.Equals(opts.TenantId),
 		),
 	).Exec(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var txn []db.PrismaTransaction
+	for _, workflow := range opts.Workflows {
+		tx := r.db.WebhookWorkerWorkflow.CreateOne(
+			db.WebhookWorkerWorkflow.WebhookWorker.Link(
+				db.WebhookWorker.ID.Equals(ww.ID),
+			),
+			db.WebhookWorkerWorkflow.Workflow.Link(
+				db.Workflow.ID.Equals(workflow),
+			),
+		).Tx()
+		txn = append(txn, tx)
+	}
+
+	if err := r.db.Prisma.Transaction(txn...).Exec(ctx); err != nil {
+		return nil, err
+	}
+
+	return ww, nil
 }
