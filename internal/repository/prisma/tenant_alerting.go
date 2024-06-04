@@ -187,7 +187,7 @@ func (r *tenantAlertingEngineRepository) GetTenantAlertingSettings(ctx context.C
 		}
 	}
 
-	tx.Commit(ctx)
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return nil, err

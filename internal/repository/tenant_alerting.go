@@ -46,7 +46,7 @@ type TenantAlertingAPIRepository interface {
 
 type TenantAlertEmailGroupForSend struct {
 	TenantId pgtype.UUID `json:"tenantId"`
-	Emails []string `validate:"required,dive,email,max=255"`
+	Emails   []string    `validate:"required,dive,email,max=255"`
 }
 
 type GetTenantAlertingSettingsResponse struct {
