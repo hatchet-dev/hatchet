@@ -42,6 +42,9 @@ ADD CONSTRAINT "WorkerSemaphoreSlot_stepRunId_fkey"
 FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id")
 ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- CreateIndex
+CREATE INDEX "WorkerSemaphoreSlot_workerId_idx" ON "WorkerSemaphoreSlot"("workerId");
+
 -- Create maxRun semaphore slots for each worker with a recent heartbeat
 INSERT INTO "WorkerSemaphoreSlot" ("id", "workerId")
 SELECT gen_random_uuid(), w.id
@@ -77,3 +80,4 @@ BEGIN
         END IF;
     END LOOP;
 END $$;
+
