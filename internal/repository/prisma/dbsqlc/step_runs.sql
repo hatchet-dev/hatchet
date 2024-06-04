@@ -319,7 +319,7 @@ WITH valid_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary becauseisActive is set to false immediately when the stream closes
+        -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
         AND (slots."remainingSlots" IS NULL OR slots."remainingSlots" > 0)
     GROUP BY
@@ -412,7 +412,7 @@ WITH valid_workers AS (
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary becauseisActive is set to false immediately when the stream closes
+        -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
     GROUP BY
         w."id", slots."remainingSlots"
