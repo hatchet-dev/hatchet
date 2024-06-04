@@ -40,3 +40,10 @@ SET
 WHERE "tenantId" = @tenantId::uuid
     AND "resource" = sqlc.narg('resource')::"LimitResource"
 RETURNING *;
+
+-- name: CountTenantWorkers :one
+SELECT COUNT(distinct id) AS "count"
+FROM "Worker"
+WHERE "tenantId" = @tenantId::uuid
+AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
+AND "isActive" = true;

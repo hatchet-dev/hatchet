@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countTenantWorkers = `-- name: CountTenantWorkers :one
+SELECT COUNT(distinct id) AS "count"
+FROM "Worker"
+WHERE "tenantId" = $1::uuid
+AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
+AND "isActive" = true
+`
+
+func (q *Queries) CountTenantWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int64, error) {
+	row := db.QueryRow(ctx, countTenantWorkers, tenantid)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createTenantResourceLimit = `-- name: CreateTenantResourceLimit :one
 INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "lastRefill")
 VALUES (gen_random_uuid(), $1::uuid, $2::"LimitResource", 0, $3::int, $4::int, $5::text, CURRENT_TIMESTAMP)

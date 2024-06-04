@@ -191,6 +191,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			dispatcher.WithMessageQueue(sc.MessageQueue),
 			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithLogger(sc.Logger),
+			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 		if err != nil {
 			return fmt.Errorf("could not create dispatcher: %w", err)

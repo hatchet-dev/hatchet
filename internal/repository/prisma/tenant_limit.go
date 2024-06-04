@@ -173,3 +173,63 @@ func (t *tenantLimitRepository) MeterEvent(tenantId string) error {
 
 	return nil
 }
+
+var WORKER_RESOURCE = dbsqlc.NullLimitResource{
+	LimitResource: dbsqlc.LimitResourceWORKER,
+	Valid:         true,
+}
+
+func (t *tenantLimitRepository) createDefaultWorkerLimit(tenantId string) error {
+	const limitValue = 4
+
+	_, err := t.queries.CreateTenantResourceLimit(context.Background(), t.pool, dbsqlc.CreateTenantResourceLimitParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Resource:   WORKER_RESOURCE,
+		LimitValue: sqlchelpers.ToInt(limitValue),
+		AlarmValue: sqlchelpers.ToInt(limitValue * .5),
+		Window:     sqlchelpers.TextFromStr("100 years"),
+	})
+
+	return err
+}
+
+func (t *tenantLimitRepository) CanCreateWorker(tenantId string) (bool, error) {
+	if !t.config.EnforceLimits {
+		return true, nil
+	}
+
+	limit, err := t.queries.GetTenantResourceLimit(context.Background(), t.pool, dbsqlc.GetTenantResourceLimitParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Resource: WORKER_RESOURCE,
+	})
+
+	if err == pgx.ErrNoRows {
+		t.l.Warn().Msg("no event tenant limit found, creating default limit")
+
+		err = t.createDefaultWorkerLimit(tenantId)
+
+		if err != nil {
+			return false, err
+		}
+
+		return true, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	count, err := t.queries.CountTenantWorkers(context.Background(), t.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return false, err
+	}
+
+	t.l.Debug().Int64("count", count).Int64("limit", int64(limit.LimitValue)).Msg("worker count")
+
+	if count >= int64(limit.LimitValue) {
+		return false, nil
+	}
+
+	return true, nil
+}

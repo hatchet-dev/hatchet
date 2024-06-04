@@ -143,8 +143,8 @@ model Tenant {
 
 enum LimitResource {
   WORKFLOW_RUN
-  STEP_RUN
   EVENT
+  WORKER
 }
 
 model TenantResourceLimit {

@@ -114,6 +114,16 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	s.l.Debug().Msgf("Received register request from ID %s with actions %v", request.WorkerName, request.Actions)
 
+	canCreate, err := s.entitlements.TenantLimit().CanCreateWorker(tenantId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not check if tenant can create worker: %w", err)
+	}
+
+	if !canCreate {
+		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: tenant worker limit exceeded")
+	}
+
 	svcs := request.Services
 
 	if len(svcs) == 0 {

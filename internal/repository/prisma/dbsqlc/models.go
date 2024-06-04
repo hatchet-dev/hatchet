@@ -189,8 +189,8 @@ type LimitResource string
 
 const (
 	LimitResourceWORKFLOWRUN LimitResource = "WORKFLOW_RUN"
-	LimitResourceSTEPRUN     LimitResource = "STEP_RUN"
 	LimitResourceEVENT       LimitResource = "EVENT"
+	LimitResourceWORKER      LimitResource = "WORKER"
 )
 
 func (e *LimitResource) Scan(src interface{}) error {
