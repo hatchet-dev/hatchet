@@ -375,20 +375,6 @@ var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg st
 	return nil
 }
 
-func (s *stepRunEngineRepository) ReleaseWorkerSemaphoreSlot(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.WorkerSemaphoreSlot, error) {
-	slot, err := s.queries.ReleaseWorkerSemaphoreSlot(ctx, s.pool, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("could not release worker semaphore slot: %w", err)
-	}
-
-	return slot, nil
-
-}
-
 func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string) error {
 	return deadlockRetry(s.l, func() error {
 		tx, err := s.pool.Begin(ctx)
