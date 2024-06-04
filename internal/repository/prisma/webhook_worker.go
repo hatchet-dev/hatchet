@@ -30,17 +30,22 @@ func (r *webhookWorkerRepository) ListWebhookWorkers(ctx context.Context, tenant
 	).Exec(ctx)
 }
 
-func (r *webhookWorkerRepository) CreateWebhookWorker(ctx context.Context, opts *repository.CreateWebhookWorkerOpts) (*db.WebhookWorkerModel, error) {
+func (r *webhookWorkerRepository) UpsertWebhookWorker(ctx context.Context, opts *repository.CreateWebhookWorkerOpts) (*db.WebhookWorkerModel, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	ww, err := r.db.WebhookWorker.CreateOne(
+	ww, err := r.db.WebhookWorker.UpsertOne(
+		db.WebhookWorker.URL.Equals(opts.URL),
+	).Create(
 		db.WebhookWorker.Secret.Set(opts.Secret),
 		db.WebhookWorker.URL.Set(opts.URL),
 		db.WebhookWorker.Tenant.Link(
 			db.Tenant.ID.Equals(opts.TenantId),
 		),
+	).Update(
+		db.WebhookWorker.Secret.Set(opts.Secret),
+		db.WebhookWorker.URL.Set(opts.URL),
 	).Exec(ctx)
 	if err != nil {
 		return nil, err

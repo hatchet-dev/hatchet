@@ -23,7 +23,7 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 		wfs = append(wfs, wf.String())
 	}
 
-	ww, err := i.config.APIRepository.WebhookWorker().CreateWebhookWorker(ctx.Request().Context(), &repository.CreateWebhookWorkerOpts{
+	ww, err := i.config.APIRepository.WebhookWorker().UpsertWebhookWorker(ctx.Request().Context(), &repository.CreateWebhookWorkerOpts{
 		TenantId:  tenant.ID,
 		URL:       request.Body.Url,
 		Secret:    secret,

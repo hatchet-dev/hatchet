@@ -97,7 +97,7 @@ model WebhookWorker {
   updatedAt DateTime @default(now()) @updatedAt
 
   secret String
-  url    String
+  url    String @unique
 
   // TODO remove tenant ID as it is not needed
   tenantId String @db.Uuid
