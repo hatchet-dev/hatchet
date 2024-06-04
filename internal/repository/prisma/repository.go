@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/cache"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -287,5 +288,31 @@ func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) reposito
 		streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 		log:            NewLogEngineRepository(pool, opts.v, opts.l),
 		rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
+	}
+}
+
+type entitlementRepository struct {
+	tenantLimit repository.TenantLimitRepository
+}
+
+func (r *entitlementRepository) TenantLimit() repository.TenantLimitRepository {
+	return r.tenantLimit
+}
+func NewEntitlementRepository(pool *pgxpool.Pool, s *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) repository.EntitlementsRepository {
+	opts := defaultPrismaRepositoryOpts()
+
+	for _, f := range fs {
+		f(opts)
+	}
+
+	newLogger := opts.l.With().Str("service", "database").Logger()
+	opts.l = &newLogger
+
+	if opts.cache == nil {
+		opts.cache = cache.New(1 * time.Millisecond)
+	}
+
+	return &entitlementRepository{
+		tenantLimit: NewTenantLimitRepository(pool, opts.v, opts.l, s),
 	}
 }

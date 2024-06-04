@@ -136,6 +136,41 @@ model Tenant {
   alertEmailGroups          TenantAlertEmailGroup[]
   slackWebhooks             SlackAppWebhook[]
   alertingSettings          TenantAlertingSettings?
+
+  limits                    TenantResourceLimit[]
+}
+
+
+enum LimitResource {
+  WORKFLOW_RUN
+  STEP_RUN
+  EVENT
+}
+
+model TenantResourceLimit {
+  id       String   @id @unique @default(uuid()) @db.Uuid
+
+  resource LimitResource
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @unique @db.Uuid
+
+  // The max number of requests allowed in the window
+  limitValue Int
+
+  // The max number before an alert is triggered
+  alarmValue Int?
+
+  // the current rate limit bucket value
+  value Int @default(0)
+
+  // the meter window
+  window String
+
+  // the time the rate limit was last refilled
+  lastRefill DateTime @default(now())
+
+  @@unique([tenantId, resource])
 }
 
 model TenantAlertingSettings {
@@ -158,6 +193,7 @@ model TenantAlertingSettings {
   ticker   Ticker? @relation(fields: [tickerId], references: [id])
   tickerId String? @db.Uuid
 }
+
 
 enum TenantMemberRole {
   OWNER

@@ -185,6 +185,49 @@ func (ns NullJobRunStatus) Value() (driver.Value, error) {
 	return string(ns.JobRunStatus), nil
 }
 
+type LimitResource string
+
+const (
+	LimitResourceWORKFLOWRUN LimitResource = "WORKFLOW_RUN"
+	LimitResourceSTEPRUN     LimitResource = "STEP_RUN"
+	LimitResourceEVENT       LimitResource = "EVENT"
+)
+
+func (e *LimitResource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LimitResource(s)
+	case string:
+		*e = LimitResource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LimitResource: %T", src)
+	}
+	return nil
+}
+
+type NullLimitResource struct {
+	LimitResource LimitResource `json:"LimitResource"`
+	Valid         bool          `json:"valid"` // Valid is true if LimitResource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLimitResource) Scan(value interface{}) error {
+	if value == nil {
+		ns.LimitResource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LimitResource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLimitResource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LimitResource), nil
+}
+
 type LogLineLevel string
 
 const (
@@ -895,6 +938,17 @@ type TenantMember struct {
 	TenantId  pgtype.UUID      `json:"tenantId"`
 	UserId    pgtype.UUID      `json:"userId"`
 	Role      TenantMemberRole `json:"role"`
+}
+
+type TenantResourceLimit struct {
+	ID         pgtype.UUID      `json:"id"`
+	Resource   LimitResource    `json:"resource"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	LimitValue int32            `json:"limitValue"`
+	AlarmValue pgtype.Int4      `json:"alarmValue"`
+	Value      int32            `json:"value"`
+	Window     string           `json:"window"`
+	LastRefill pgtype.Timestamp `json:"lastRefill"`
 }
 
 type TenantVcsProvider struct {

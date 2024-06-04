@@ -20,6 +20,18 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 	workflow := ctx.Get("workflow").(*db.WorkflowModel)
 
+	canCreate, err := t.config.EntitlementRepository.TenantLimit().CanCreateWorkflowRun(tenant.ID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !canCreate {
+		return gen.WorkflowRunCreate400JSONResponse( // TODO correct error code
+			apierrors.NewAPIErrors("workflow run limit reached"),
+		), nil
+	}
+
 	var workflowVersionId string
 
 	if request.Params.Version != nil {
@@ -96,6 +108,13 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 
 	if err != nil {
 		return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
+	}
+
+	// TODO defer
+	err = t.config.EntitlementRepository.TenantLimit().MeterWorkflowRun(workflow.TenantID)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not meter workflow run: %w", err)
 	}
 
 	res, err := transformers.ToWorkflowRun(workflowRun)

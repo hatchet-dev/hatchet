@@ -11,6 +11,9 @@ CREATE TYPE "JobKind" AS ENUM ('DEFAULT', 'ON_FAILURE');
 CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
 
 -- CreateEnum
+CREATE TYPE "LimitResource" AS ENUM ('WORKFLOW_RUN', 'STEP_RUN', 'EVENT');
+
+-- CreateEnum
 CREATE TYPE "LogLineLevel" AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
 
 -- CreateEnum
@@ -473,6 +476,20 @@ CREATE TABLE "TenantMember" (
 );
 
 -- CreateTable
+CREATE TABLE "TenantResourceLimit" (
+    "id" UUID NOT NULL,
+    "resource" "LimitResource" NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "limitValue" INTEGER NOT NULL,
+    "alarmValue" INTEGER,
+    "value" INTEGER NOT NULL DEFAULT 0,
+    "window" TEXT NOT NULL,
+    "lastRefill" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "TenantResourceLimit_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "TenantVcsProvider" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -916,6 +933,15 @@ CREATE UNIQUE INDEX "TenantMember_id_key" ON "TenantMember"("id" ASC);
 CREATE UNIQUE INDEX "TenantMember_tenantId_userId_key" ON "TenantMember"("tenantId" ASC, "userId" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "TenantResourceLimit_id_key" ON "TenantResourceLimit"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TenantResourceLimit_tenantId_key" ON "TenantResourceLimit"("tenantId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TenantResourceLimit_tenantId_resource_key" ON "TenantResourceLimit"("tenantId" ASC, "resource" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "TenantVcsProvider_id_key" ON "TenantVcsProvider"("id" ASC);
 
 -- CreateIndex
@@ -1211,6 +1237,9 @@ ALTER TABLE "TenantMember" ADD CONSTRAINT "TenantMember_tenantId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "TenantMember" ADD CONSTRAINT "TenantMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TenantResourceLimit" ADD CONSTRAINT "TenantResourceLimit_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TenantVcsProvider" ADD CONSTRAINT "TenantVcsProvider_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;

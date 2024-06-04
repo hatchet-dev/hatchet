@@ -25,6 +25,19 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	canCreate, err := a.entitlements.TenantLimit().CanCreateWorkflowRun(tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !canCreate {
+		return nil, status.Error(
+			codes.ResourceExhausted,
+			"workflow run limit exceeded",
+		)
+	}
+
 	isParentTriggered := req.ParentId != nil
 
 	// if there's a parent id passed in, we query for an existing workflow run which matches these params
@@ -136,6 +149,12 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 
 	if err != nil {
 		return nil, fmt.Errorf("could not queue workflow run: %w", err)
+	}
+
+	err = a.entitlements.TenantLimit().MeterWorkflowRun(tenantId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not meter workflow run: %w", err)
 	}
 
 	return &contracts.TriggerWorkflowResponse{

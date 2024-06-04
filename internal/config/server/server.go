@@ -79,6 +79,9 @@ type ConfigFileRuntime struct {
 
 	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
 	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
+
+	// Enforce limits controls whether the server enforces tenant limits
+	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
 }
 
 // Alerting options
@@ -341,6 +344,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.workerEnabled", "SERVER_WORKER_ENABLED")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
+	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")

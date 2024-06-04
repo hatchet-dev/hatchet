@@ -117,6 +117,18 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
+		canCreate, err := t.entitlements.TenantLimit().CanCreateWorkflowRun(tenantId)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not check tenant limit")
+			return
+		}
+
+		if !canCreate {
+			t.l.Debug().Msg("tenant limit reached")
+			return
+		}
+
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
 
 		workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
@@ -173,6 +185,13 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 
 		if err != nil {
 			t.l.Err(err).Msg("could not add workflow run queued task")
+			return
+		}
+
+		err = t.entitlements.TenantLimit().MeterWorkflowRun(tenantId)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not meter workflow run")
 			return
 		}
 

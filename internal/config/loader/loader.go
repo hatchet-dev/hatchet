@@ -86,7 +86,13 @@ func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
 		return nil, err
 	}
 
-	return GetDatabaseConfigFromConfigFile(cf)
+	scf, err := LoadServerConfigFile(configFileBytes...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return GetDatabaseConfigFromConfigFile(cf, &scf.Runtime)
 }
 
 // LoadServerConfig loads the server configuration
@@ -113,7 +119,7 @@ func (c *ConfigLoader) LoadServerConfig() (cleanup func() error, res *server.Ser
 	return GetServerConfigFromConfigfile(dc, cf)
 }
 
-func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Config, err error) {
+func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.ConfigFileRuntime) (res *database.Config, err error) {
 	l := logger.NewStdErr(&cf.Logger, "database")
 
 	databaseUrl := fmt.Sprintf(
@@ -164,9 +170,10 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 			ch.Stop()
 			return c.Prisma.Disconnect()
 		},
-		APIRepository:    prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
-		EngineRepository: prisma.NewEngineRepository(pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
-		Seed:             cf.Seed,
+		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
+		EngineRepository:      prisma.NewEngineRepository(pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
+		EntitlementRepository: prisma.NewEntitlementRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch)),
+		Seed:                  cf.Seed,
 	}, nil
 }
 

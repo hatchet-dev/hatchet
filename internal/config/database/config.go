@@ -47,6 +47,8 @@ type Config struct {
 
 	EngineRepository repository.EngineRepository
 
+	EntitlementRepository repository.EntitlementsRepository
+
 	Seed SeedConfigFile
 }
 

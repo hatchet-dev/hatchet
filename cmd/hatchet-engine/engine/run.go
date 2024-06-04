@@ -81,6 +81,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			ticker.WithRepository(sc.EngineRepository),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
+			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 
 		if err != nil {
@@ -102,6 +103,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			events.WithMessageQueue(sc.MessageQueue),
 			events.WithRepository(sc.EngineRepository),
 			events.WithLogger(sc.Logger),
+			events.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 		if err != nil {
 			return fmt.Errorf("could not create events controller: %w", err)
@@ -219,6 +221,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
 			admin.WithMessageQueue(sc.MessageQueue),
+			admin.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 		if err != nil {
 			return fmt.Errorf("could not create admin service: %w", err)
