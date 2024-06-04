@@ -829,8 +829,13 @@ type WebhookWorker struct {
 
 // WebhookWorkerCreateRequest defines model for WebhookWorkerCreateRequest.
 type WebhookWorkerCreateRequest struct {
+	// Secret The secret key for validation. If not provided, a random secret will be generated.
+	Secret *string `json:"secret,omitempty"`
+
 	// Url The webhook url.
-	Url       string               `json:"url"`
+	Url string `json:"url"`
+
+	// Workflows The workflows to register for this webhook worker.
 	Workflows []openapi_types.UUID `json:"workflows"`
 }
 

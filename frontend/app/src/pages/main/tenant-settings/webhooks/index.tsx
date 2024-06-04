@@ -20,7 +20,7 @@ export default function Webhooks() {
           </h2>
         </div>
         <p className="text-gray-700 dark:text-gray-300 my-4">
-          Settings and signing keys related to webhook workflows.
+          Assign webhook workers to workflows.
         </p>
         <Separator className="my-4" />
 

@@ -983,6 +983,9 @@ CREATE UNIQUE INDEX "UserSession_id_key" ON "UserSession"("id" ASC);
 CREATE UNIQUE INDEX "WebhookWorker_id_key" ON "WebhookWorker"("id" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WebhookWorker_url_key" ON "WebhookWorker"("url" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WebhookWorkerWorkflow_id_key" ON "WebhookWorkerWorkflow"("id" ASC);
 
 -- CreateIndex

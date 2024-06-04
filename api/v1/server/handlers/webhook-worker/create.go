@@ -13,9 +13,15 @@ import (
 func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.WebhookCreateRequestObject) (gen.WebhookCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	secret, err := randstr.GenerateWebhookSecret()
-	if err != nil {
-		return nil, err
+	var secret string
+	if request.Body.Secret == nil {
+		s, err := randstr.GenerateWebhookSecret()
+		if err != nil {
+			return nil, err
+		}
+		secret = s
+	} else {
+		secret = *request.Body.Secret
 	}
 
 	var wfs []string

@@ -99,11 +99,13 @@ func setup(c client.Client, wfId string) error {
 		return fmt.Errorf("error getting tenant id: %w", err)
 	}
 
+	secret := "secret"
 	res, err := c.API().WebhookCreate(context.Background(), tenantId, rest.WebhookCreateJSONRequestBody{
 		Url: "http://localhost:8741/webhook",
 		Workflows: []openapi_types.UUID{
 			uuid.MustParse(wfId),
 		},
+		Secret: &secret,
 	})
 	if err != nil {
 		return fmt.Errorf("error creating webhook worker: %w", err)

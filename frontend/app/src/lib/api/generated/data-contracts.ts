@@ -990,7 +990,13 @@ export interface WebhookWorker {
 export interface WebhookWorkerCreateRequest {
   /** The webhook url. */
   url: string;
+  /** The workflows to register for this webhook worker. */
   workflows: string[];
+  /**
+   * The secret key for validation. If not provided, a random secret will be generated.
+   * @minLength 32
+   */
+  secret?: string;
 }
 
 export interface WebhookWorkerCreateResponse {
