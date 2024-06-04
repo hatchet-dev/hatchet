@@ -27,8 +27,8 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 	}
 
 	if !canCreate {
-		return gen.WorkflowRunCreate400JSONResponse( // TODO correct error code
-			apierrors.NewAPIErrors("workflow run limit reached"),
+		return gen.WorkflowRunCreate429JSONResponse(
+			apierrors.NewAPIErrors("Workflow Run limit exceeded"),
 		), nil
 	}
 

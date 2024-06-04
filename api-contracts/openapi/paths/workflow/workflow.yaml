@@ -258,6 +258,12 @@ triggerWorkflow:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: A malformed or bad request
+      "429":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Resource limit exceeded
       "403":
         content:
           application/json:
