@@ -962,6 +962,9 @@ CREATE UNIQUE INDEX "WorkerSemaphoreSlot_id_key" ON "WorkerSemaphoreSlot"("id" A
 CREATE UNIQUE INDEX "WorkerSemaphoreSlot_stepRunId_key" ON "WorkerSemaphoreSlot"("stepRunId" ASC);
 
 -- CreateIndex
+CREATE INDEX "WorkerSemaphoreSlot_workerId_idx" ON "WorkerSemaphoreSlot"("workerId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Workflow_id_key" ON "Workflow"("id" ASC);
 
 -- CreateIndex
