@@ -30,6 +30,10 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	}
 	event, err := i.IngestEvent(ctx, tenantId, req.Key, []byte(req.Payload), &additionalMeta)
 
+	if err == ErrResourceExhausted {
+		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
+	}
+
 	if err != nil {
 		return nil, err
 	}
