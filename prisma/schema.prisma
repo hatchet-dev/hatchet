@@ -1206,6 +1206,19 @@ model Worker {
   groupKeyRuns GetGroupKeyRun[]
 
   slots WorkerSemaphoreSlot[]
+
+  // DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
+  semaphore WorkerSemaphore? // FIXME remove this in a few releases from v_0_30_1
+}
+
+// DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
+// FIXME remove in a future release
+model WorkerSemaphore {
+  // the parent worker
+  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workerId String @unique @db.Uuid
+  // keeps track of maxRuns - runningRuns on the worker
+  slots Int
 }
 
 model WorkerSemaphoreSlot {
