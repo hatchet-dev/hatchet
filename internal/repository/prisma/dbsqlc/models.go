@@ -969,6 +969,11 @@ type Worker struct {
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 }
 
+type WorkerSemaphore struct {
+	WorkerId pgtype.UUID `json:"workerId"`
+	Slots    int32       `json:"slots"`
+}
+
 type WorkerSemaphoreSlot struct {
 	ID        pgtype.UUID `json:"id"`
 	WorkerId  pgtype.UUID `json:"workerId"`

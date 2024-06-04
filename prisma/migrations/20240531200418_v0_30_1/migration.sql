@@ -3,8 +3,6 @@
 - Made the column `maxRuns` on table `Worker` required. This step will fail if there are existing NULL values in that column.
 */
 
--- DropForeignKey
-ALTER TABLE "WorkerSemaphore" DROP CONSTRAINT IF EXISTS "WorkerSemaphore_workerId_fkey";
 
 -- Update existing workers with NULL maxRuns to have a default value
 UPDATE "Worker" SET "maxRuns" = 100 WHERE "maxRuns" IS NULL;
@@ -12,9 +10,6 @@ UPDATE "Worker" SET "maxRuns" = 100 WHERE "maxRuns" IS NULL;
 -- AlterTable
 ALTER TABLE "Worker" ALTER COLUMN "maxRuns" SET NOT NULL,
                      ALTER COLUMN "maxRuns" SET DEFAULT 100;
-
--- DropTable
-DROP TABLE IF EXISTS "WorkerSemaphore";
 
 -- CreateTable
 CREATE TABLE IF NOT EXISTS "WorkerSemaphoreSlot" (
