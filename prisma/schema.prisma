@@ -1218,6 +1218,8 @@ model WorkerSemaphoreSlot {
   // the parent step run
   stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepRunId String?  @db.Uuid @unique
+
+  @@index([workerId])
 }
 
 model Service {
