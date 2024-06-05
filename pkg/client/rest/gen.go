@@ -670,6 +670,9 @@ type TenantAlertingSettings struct {
 	// EnableExpiringTokenAlerts Whether to enable alerts when tokens are approaching expiration.
 	EnableExpiringTokenAlerts *bool `json:"enableExpiringTokenAlerts,omitempty"`
 
+	// EnableTenantResourceLimitAlerts Whether to enable alerts when tenant resources are approaching limits.
+	EnableTenantResourceLimitAlerts *bool `json:"enableTenantResourceLimitAlerts,omitempty"`
+
 	// EnableWorkflowRunFailureAlerts Whether to send alerts when workflow runs fail.
 	EnableWorkflowRunFailureAlerts *bool `json:"enableWorkflowRunFailureAlerts,omitempty"`
 
@@ -777,6 +780,9 @@ type UpdateTenantRequest struct {
 
 	// EnableExpiringTokenAlerts Whether to enable alerts when tokens are approaching expiration.
 	EnableExpiringTokenAlerts *bool `json:"enableExpiringTokenAlerts,omitempty"`
+
+	// EnableTenantResourceLimitAlerts Whether to enable alerts when tenant resources are approaching limits.
+	EnableTenantResourceLimitAlerts *bool `json:"enableTenantResourceLimitAlerts,omitempty"`
 
 	// EnableWorkflowRunFailureAlerts Whether to send alerts when workflow runs fail.
 	EnableWorkflowRunFailureAlerts *bool `json:"enableWorkflowRunFailureAlerts,omitempty"`

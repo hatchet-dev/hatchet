@@ -33,6 +33,9 @@ TenantAlertingSettings:
     enableExpiringTokenAlerts:
       type: boolean
       description: Whether to enable alerts when tokens are approaching expiration.
+    enableTenantResourceLimitAlerts:
+      type: boolean
+      description: Whether to enable alerts when tenant resources are approaching limits.
     maxAlertingFrequency:
       type: string
       description: The max frequency at which to alert.
@@ -79,6 +82,9 @@ UpdateTenantRequest:
     enableExpiringTokenAlerts:
       type: boolean
       description: Whether to enable alerts when tokens are approaching expiration.
+    enableTenantResourceLimitAlerts:
+      type: boolean
+      description: Whether to enable alerts when tenant resources are approaching limits.
     maxAlertingFrequency:
       type: string
       description: The max frequency at which to alert.

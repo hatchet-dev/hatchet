@@ -269,6 +269,8 @@ export interface TenantAlertingSettings {
   enableWorkflowRunFailureAlerts?: boolean;
   /** Whether to enable alerts when tokens are approaching expiration. */
   enableExpiringTokenAlerts?: boolean;
+  /** Whether to enable alerts when tenant resources are approaching limits. */
+  enableTenantResourceLimitAlerts?: boolean;
   /** The max frequency at which to alert. */
   maxAlertingFrequency: string;
   /**
@@ -362,6 +364,8 @@ export interface UpdateTenantRequest {
   enableWorkflowRunFailureAlerts?: boolean;
   /** Whether to enable alerts when tokens are approaching expiration. */
   enableExpiringTokenAlerts?: boolean;
+  /** Whether to enable alerts when tenant resources are approaching limits. */
+  enableTenantResourceLimitAlerts?: boolean;
   /** The max frequency at which to alert. */
   maxAlertingFrequency?: string;
 }

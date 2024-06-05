@@ -189,8 +189,9 @@ model TenantAlertingSettings {
   tenantId String @unique @db.Uuid
 
   // workflow run failure alerts
-  enableWorkflowRunFailureAlerts Boolean @default(false)
-  enableExpiringTokenAlerts      Boolean @default(true)
+  enableWorkflowRunFailureAlerts         Boolean @default(false)
+  enableExpiringTokenAlerts              Boolean @default(true)
+  enableTenantResourceLimitAlerts        Boolean @default(true)
 
   // the maximum alerting frequency
   maxFrequency String @default("1h")

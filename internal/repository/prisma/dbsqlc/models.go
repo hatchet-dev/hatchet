@@ -911,16 +911,17 @@ type TenantAlertEmailGroup struct {
 }
 
 type TenantAlertingSettings struct {
-	ID                             pgtype.UUID      `json:"id"`
-	CreatedAt                      pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt                      pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt                      pgtype.Timestamp `json:"deletedAt"`
-	TenantId                       pgtype.UUID      `json:"tenantId"`
-	MaxFrequency                   string           `json:"maxFrequency"`
-	LastAlertedAt                  pgtype.Timestamp `json:"lastAlertedAt"`
-	TickerId                       pgtype.UUID      `json:"tickerId"`
-	EnableExpiringTokenAlerts      bool             `json:"enableExpiringTokenAlerts"`
-	EnableWorkflowRunFailureAlerts bool             `json:"enableWorkflowRunFailureAlerts"`
+	ID                              pgtype.UUID      `json:"id"`
+	CreatedAt                       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt                       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt                       pgtype.Timestamp `json:"deletedAt"`
+	TenantId                        pgtype.UUID      `json:"tenantId"`
+	MaxFrequency                    string           `json:"maxFrequency"`
+	LastAlertedAt                   pgtype.Timestamp `json:"lastAlertedAt"`
+	TickerId                        pgtype.UUID      `json:"tickerId"`
+	EnableExpiringTokenAlerts       bool             `json:"enableExpiringTokenAlerts"`
+	EnableWorkflowRunFailureAlerts  bool             `json:"enableWorkflowRunFailureAlerts"`
+	EnableTenantResourceLimitAlerts bool             `json:"enableTenantResourceLimitAlerts"`
 }
 
 type TenantInviteLink struct {

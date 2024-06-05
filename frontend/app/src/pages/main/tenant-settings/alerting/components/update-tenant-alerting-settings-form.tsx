@@ -20,6 +20,7 @@ const schema = z.object({
   maxAlertingFrequency: z.string(),
   enableWorkflowRunFailureAlerts: z.boolean().optional(),
   enableExpiringTokenAlerts: z.boolean().optional(),
+  enableTenantResourceLimitAlerts: z.boolean().optional(),
 });
 
 interface UpdateTenantAlertingSettingsProps {
@@ -40,6 +41,9 @@ export function UpdateTenantAlertingSettings({
 
   const [enabledExpiringTokenAlerting, setEnabledExpiringTokenAlerting] =
     useState(props.alertingSettings.enableExpiringTokenAlerts);
+
+  const [enableTenantResourceLimitAlerts, setEnableTenantResourceLimitAlerts] =
+    useState(props.alertingSettings.enableTenantResourceLimitAlerts);
 
   const {
     handleSubmit,
@@ -63,6 +67,7 @@ export function UpdateTenantAlertingSettings({
             ...d,
             enableWorkflowRunFailureAlerts: enabledWorkflowAlerting,
             enableExpiringTokenAlerts: enabledExpiringTokenAlerting,
+            enableTenantResourceLimitAlerts: enableTenantResourceLimitAlerts,
           });
         })}
         className={cn('grid gap-6', className)}
@@ -77,6 +82,20 @@ export function UpdateTenantAlertingSettings({
           />
           <Label htmlFor="eta" className="text-sm">
             Enable Expiring Token Alerts
+          </Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="atrl"
+            checked={enableTenantResourceLimitAlerts}
+            onClick={() => {
+              setEnableTenantResourceLimitAlerts(
+                (checkedState) => !checkedState,
+              );
+            }}
+          />
+          <Label htmlFor="atrl" className="text-sm">
+            Enable Tenant Resource Limit Alerts
           </Label>
         </div>
         <div className="flex items-center space-x-2">

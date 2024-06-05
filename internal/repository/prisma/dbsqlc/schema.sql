@@ -448,6 +448,7 @@ CREATE TABLE "TenantAlertingSettings" (
     "tickerId" UUID,
     "enableExpiringTokenAlerts" BOOLEAN NOT NULL DEFAULT true,
     "enableWorkflowRunFailureAlerts" BOOLEAN NOT NULL DEFAULT false,
+    "enableTenantResourceLimitAlerts" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "TenantAlertingSettings_pkey" PRIMARY KEY ("id")
 );

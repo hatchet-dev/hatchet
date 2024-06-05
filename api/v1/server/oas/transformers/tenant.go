@@ -21,10 +21,11 @@ func ToTenant(tenant *db.TenantModel) *gen.Tenant {
 
 func ToTenantAlertingSettings(alerting *db.TenantAlertingSettingsModel) *gen.TenantAlertingSettings {
 	res := &gen.TenantAlertingSettings{
-		Metadata:                       *toAPIMetadata(alerting.ID, alerting.CreatedAt, alerting.UpdatedAt),
-		MaxAlertingFrequency:           alerting.MaxFrequency,
-		EnableExpiringTokenAlerts:      &alerting.EnableExpiringTokenAlerts,
-		EnableWorkflowRunFailureAlerts: &alerting.EnableWorkflowRunFailureAlerts,
+		Metadata:                        *toAPIMetadata(alerting.ID, alerting.CreatedAt, alerting.UpdatedAt),
+		MaxAlertingFrequency:            alerting.MaxFrequency,
+		EnableExpiringTokenAlerts:       &alerting.EnableExpiringTokenAlerts,
+		EnableWorkflowRunFailureAlerts:  &alerting.EnableWorkflowRunFailureAlerts,
+		EnableTenantResourceLimitAlerts: &alerting.EnableTenantResourceLimitAlerts,
 	}
 
 	if lastAlertedAt, ok := alerting.LastAlertedAt(); ok {
