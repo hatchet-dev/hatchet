@@ -9,8 +9,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
 
-func (t *TenantAlertManager) sendSlackAlert(slackWebhook *dbsqlc.SlackAppWebhook, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {
-	headerText, blocks := t.getSlackTextAndBlocks(numFailed, failedRuns)
+func (t *TenantAlertManager) sendSlackWorkflowRunAlert(slackWebhook *dbsqlc.SlackAppWebhook, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {
+	headerText, blocks := t.getSlackWorkflowRunTextAndBlocks(numFailed, failedRuns)
 
 	// decrypt the webhook url
 	whDecrypted, err := t.enc.Decrypt(slackWebhook.WebhookURL, "incoming_webhook_url")
@@ -31,7 +31,7 @@ func (t *TenantAlertManager) sendSlackAlert(slackWebhook *dbsqlc.SlackAppWebhook
 	return nil
 }
 
-func (t *TenantAlertManager) getSlackTextAndBlocks(numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) (string, *slack.Blocks) {
+func (t *TenantAlertManager) getSlackWorkflowRunTextAndBlocks(numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) (string, *slack.Blocks) {
 	res := make([]slack.Block, 0)
 
 	headerText := fmt.Sprintf("%d Hatchet workflows failed:", numFailed)
@@ -74,6 +74,66 @@ func (t *TenantAlertManager) getSlackTextAndBlocks(numFailed int, failedRuns []a
 			buttonAccessory,
 		))
 	}
+
+	return headerText, &slack.Blocks{
+		BlockSet: res,
+	}
+}
+
+func (t *TenantAlertManager) sendSlackExpiringTokenAlert(slackWebhook *dbsqlc.SlackAppWebhook, payload *alerttypes.ExpiringTokenItem) error {
+	headerText, blocks := t.getSlackExpiringTokenTextAndBlocks(payload)
+
+	// decrypt the webhook url
+	whDecrypted, err := t.enc.Decrypt(slackWebhook.WebhookURL, "incoming_webhook_url")
+
+	if err != nil {
+		return err
+	}
+
+	err = slack.PostWebhook(string(whDecrypted), &slack.WebhookMessage{
+		Text:   headerText,
+		Blocks: blocks,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (t *TenantAlertManager) getSlackExpiringTokenTextAndBlocks(payload *alerttypes.ExpiringTokenItem) (string, *slack.Blocks) {
+	res := make([]slack.Block, 0)
+
+	headerText := fmt.Sprintf(":lock: Heads up! Your `%s` hatchet token will expire `%s`", payload.TokenName, payload.ExpiresAtRelativeDate)
+
+	res = append(res, slack.NewSectionBlock(
+		slack.NewTextBlockObject(slack.MarkdownType, headerText, false, false),
+		nil,
+		nil,
+	))
+
+	buttonAccessory := slack.NewAccessory(
+		slack.NewButtonBlockElement(
+			"Manage Tokens",
+			payload.TokenName,
+			slack.NewTextBlockObject(slack.PlainTextType, "Manage Tokens", true, false),
+		),
+	)
+
+	buttonAccessory.ButtonElement.URL = payload.Link
+	buttonAccessory.ButtonElement.ActionID = "button-action"
+
+	res = append(res, slack.NewSectionBlock(
+		slack.NewTextBlockObject(
+			slack.MarkdownType,
+			"Once expired, any workers or clients using this token will no longer be able to connect to Hatchet.",
+			false,
+			false,
+		),
+		nil,
+		buttonAccessory,
+	))
 
 	return headerText, &slack.Blocks{
 		BlockSet: res,

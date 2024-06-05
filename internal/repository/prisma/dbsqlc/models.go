@@ -546,13 +546,14 @@ func (ns NullWorkflowRunStatus) Value() (driver.Value, error) {
 }
 
 type APIToken struct {
-	ID        pgtype.UUID      `json:"id"`
-	CreatedAt pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
-	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
-	Revoked   bool             `json:"revoked"`
-	Name      pgtype.Text      `json:"name"`
-	TenantId  pgtype.UUID      `json:"tenantId"`
+	ID          pgtype.UUID      `json:"id"`
+	CreatedAt   pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
+	ExpiresAt   pgtype.Timestamp `json:"expiresAt"`
+	Revoked     bool             `json:"revoked"`
+	Name        pgtype.Text      `json:"name"`
+	TenantId    pgtype.UUID      `json:"tenantId"`
+	NextAlertAt pgtype.Timestamp `json:"nextAlertAt"`
 }
 
 type Action struct {
@@ -890,13 +891,14 @@ type StreamEvent struct {
 }
 
 type Tenant struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	Name            string           `json:"name"`
-	Slug            string           `json:"slug"`
-	AnalyticsOptOut bool             `json:"analyticsOptOut"`
+	ID                pgtype.UUID      `json:"id"`
+	CreatedAt         pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt         pgtype.Timestamp `json:"deletedAt"`
+	Name              string           `json:"name"`
+	Slug              string           `json:"slug"`
+	AnalyticsOptOut   bool             `json:"analyticsOptOut"`
+	AlertMemberEmails bool             `json:"alertMemberEmails"`
 }
 
 type TenantAlertEmailGroup struct {
@@ -909,14 +911,16 @@ type TenantAlertEmailGroup struct {
 }
 
 type TenantAlertingSettings struct {
-	ID            pgtype.UUID      `json:"id"`
-	CreatedAt     pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt     pgtype.Timestamp `json:"deletedAt"`
-	TenantId      pgtype.UUID      `json:"tenantId"`
-	MaxFrequency  string           `json:"maxFrequency"`
-	LastAlertedAt pgtype.Timestamp `json:"lastAlertedAt"`
-	TickerId      pgtype.UUID      `json:"tickerId"`
+	ID                             pgtype.UUID      `json:"id"`
+	CreatedAt                      pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt                      pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt                      pgtype.Timestamp `json:"deletedAt"`
+	TenantId                       pgtype.UUID      `json:"tenantId"`
+	MaxFrequency                   string           `json:"maxFrequency"`
+	LastAlertedAt                  pgtype.Timestamp `json:"lastAlertedAt"`
+	TickerId                       pgtype.UUID      `json:"tickerId"`
+	EnableExpiringTokenAlerts      bool             `json:"enableExpiringTokenAlerts"`
+	EnableWorkflowRunFailureAlerts bool             `json:"enableWorkflowRunFailureAlerts"`
 }
 
 type TenantInviteLink struct {
@@ -1014,14 +1018,15 @@ type Worker struct {
 	LastHeartbeatAt         pgtype.Timestamp `json:"lastHeartbeatAt"`
 	Name                    string           `json:"name"`
 	DispatcherId            pgtype.UUID      `json:"dispatcherId"`
-	MaxRuns                 pgtype.Int4      `json:"maxRuns"`
+	MaxRuns                 int32            `json:"maxRuns"`
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 }
 
-type WorkerSemaphore struct {
-	WorkerId pgtype.UUID `json:"workerId"`
-	Slots    int32       `json:"slots"`
+type WorkerSemaphoreSlot struct {
+	ID        pgtype.UUID `json:"id"`
+	WorkerId  pgtype.UUID `json:"workerId"`
+	StepRunId pgtype.UUID `json:"stepRunId"`
 }
 
 type Workflow struct {

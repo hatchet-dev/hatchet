@@ -1,0 +1,97 @@
+# Spawning Workflow Runs
+
+There are two ways to run a workflow directly in Hatchet (without an event or schedule): using `admin.run_workflow` or `spawn_workflow` to create a child workflow within a step.
+
+## `admin.run_workflow`
+
+The `admin.run_workflow` method (or `admin.aio.run_workflow` for an async method) is used to run a workflow directly which isn't meant to be a child workflow. This method returns a reference to the workflow which can be used for streaming results from the workflow or awaiting a result. For example, assuming that you have a workflow named `ManualTriggerWorkflow`:
+
+```py
+workflow_run = hatchet.admin.run_workflow(
+    "ManualTriggerWorkflow",
+    {"test": "test"},
+    options={"additional_metadata": {"hello": "there"}},
+)
+
+print(f"spawned workflow run: {workflow_run.workflow_run_id}")
+
+listener = workflow_run.stream()
+
+async for event in listener:
+    print(event.type, event.payload)
+
+result = await workflow_run.result()
+
+print("result: " + json.dumps(result, indent=2))
+```
+
+You can retrieve a reference to this workflow from a different method (for example, a handler) by using the `workflow_run_id` attribute of the `workflow_run` object. For example, using FastAPI to create a trigger and print the results of the workflow run:
+
+```py
+@app.get("/trigger")
+async def trigger():
+    workflow_run = await hatchet.admin.aio.run_workflow(
+        "ManualTriggerWorkflow",
+        {"test": "test"},
+        options={"additional_metadata": {"hello": "there"}},
+    )
+
+    return {"workflow_run_id": workflow_run.workflow_run_id}
+
+@app.get("/workflow-run/{workflow_run_id}")
+async def stream(workflow_run_id: str):
+    workflow_run = await hatchet.admin.aio.get_workflow_run(workflow_run_id)
+
+    listener = workflow_run.stream()
+
+    # You can listen for all events for a workflow run
+    async for event in listener:
+        print(event.type, event.payload)
+
+    # Or await results from that run directly
+    result = await workflow_run.result()
+
+    print("result: " + json.dumps(result, indent=2))
+```
+
+## `spawn_workflow`
+
+The `spawn_workflow` method is used to spawn a child workflow within a step. This method returns a reference to the workflow which can be used for streaming results from the workflow or awaiting a result. For example:
+
+```py
+@hatchet.workflow(on_events=["parent:create"])
+class Parent:
+    @hatchet.step(timeout="5m")
+    async def spawn(self, context: Context):
+        print("spawning child")
+
+        results = []
+
+        for i in range(100):
+            results.append(
+                (
+                    await context.aio.spawn_workflow(
+                        "Child", {"a": str(i)}, key=f"child{i}"
+                    )
+                ).result()
+            )
+
+        result = await asyncio.gather(*results)
+        print(f"results {result}")
+
+        return {"results": result}
+
+
+@hatchet.workflow(on_events=["child:create"], schedule_timeout="5s")
+class Child:
+    @hatchet.step()
+    async def process(self, context: Context):
+        a = context.workflow_input()["a"]
+        print(f"child process {a}")
+        return {"status": "success " + a}
+
+    @hatchet.step()
+    async def process2(self, context: Context):
+        print("child process2")
+        return {"status2": "success"}
+```

@@ -62,28 +62,6 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 	return &i, err
 }
 
-const createWorkerSemaphore = `-- name: CreateWorkerSemaphore :one
-INSERT INTO "WorkerSemaphore" (
-    "workerId",
-    "slots"
-) VALUES (
-    $1::uuid,
-    COALESCE($2::int, 100)
-) RETURNING "workerId", slots
-`
-
-type CreateWorkerSemaphoreParams struct {
-	Workerid pgtype.UUID `json:"workerid"`
-	MaxRuns  pgtype.Int4 `json:"maxRuns"`
-}
-
-func (q *Queries) CreateWorkerSemaphore(ctx context.Context, db DBTX, arg CreateWorkerSemaphoreParams) (*WorkerSemaphore, error) {
-	row := db.QueryRow(ctx, createWorkerSemaphore, arg.Workerid, arg.MaxRuns)
-	var i WorkerSemaphore
-	err := row.Scan(&i.WorkerId, &i.Slots)
-	return &i, err
-}
-
 const deleteWorker = `-- name: DeleteWorker :one
 DELETE FROM
     "Worker"
@@ -202,13 +180,11 @@ const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished",
     COUNT(runs."id") FILTER (WHERE runs."status" = 'RUNNING') AS "runningStepRuns",
-    ws."slots" AS "slots"
+    (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
 FROM
     "Worker" workers
 LEFT JOIN
     "StepRun" AS runs ON runs."workerId" = workers."id" AND runs."status" = 'RUNNING'
-JOIN
-    "WorkerSemaphore" AS ws ON ws."workerId" = workers."id"
 WHERE
     workers."tenantId" = $1
     AND (
@@ -234,7 +210,7 @@ WHERE
         ))
     )
 GROUP BY
-    ws."slots",
+    -- ws."slots",
     workers."id"
 `
 
@@ -248,7 +224,7 @@ type ListWorkersWithStepCountParams struct {
 type ListWorkersWithStepCountRow struct {
 	Worker          Worker `json:"worker"`
 	RunningStepRuns int64  `json:"runningStepRuns"`
-	Slots           int32  `json:"slots"`
+	Slots           int64  `json:"slots"`
 }
 
 func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg ListWorkersWithStepCountParams) ([]*ListWorkersWithStepCountRow, error) {
@@ -291,28 +267,11 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 }
 
 const resolveWorkerSemaphoreSlots = `-- name: ResolveWorkerSemaphoreSlots :execrows
-UPDATE "WorkerSemaphore" ws
-SET "slots" = COALESCE(w."maxRuns", 100) - COALESCE(
-    (
-        SELECT COUNT(*)
-        FROM "StepRun" sr
-        WHERE sr."status" IN ('RUNNING', 'ASSIGNED')
-            AND sr."semaphoreReleased" = FALSE
-            AND sr."workerId" = w."id"
-    ), 0
-)
-FROM "Worker" w
-WHERE ws."workerId" = w."id"
-    AND "slots" != COALESCE(w."maxRuns", 100) - COALESCE(
-        (
-            SELECT COUNT(*)
-            FROM "StepRun" sr
-            WHERE sr."status" IN ('RUNNING', 'ASSIGNED')
-                AND sr."semaphoreReleased" = FALSE
-                AND sr."workerId" = w."id"
-        ), 0
-    )
-    AND "lastHeartbeatAt" > (CURRENT_TIMESTAMP - INTERVAL '1 minute')
+UPDATE "WorkerSemaphoreSlot" wss
+SET "stepRunId" = null
+FROM "StepRun" sr
+WHERE wss."stepRunId" = sr."id"
+    AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
 `
 
 func (q *Queries) ResolveWorkerSemaphoreSlots(ctx context.Context, db DBTX) (int64, error) {
@@ -321,6 +280,22 @@ func (q *Queries) ResolveWorkerSemaphoreSlots(ctx context.Context, db DBTX) (int
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const stubWorkerSemaphoreSlots = `-- name: StubWorkerSemaphoreSlots :exec
+INSERT INTO "WorkerSemaphoreSlot" ("id", "workerId")
+SELECT gen_random_uuid(), $1::uuid
+FROM generate_series(1, $2::int)
+`
+
+type StubWorkerSemaphoreSlotsParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	MaxRuns  pgtype.Int4 `json:"maxRuns"`
+}
+
+func (q *Queries) StubWorkerSemaphoreSlots(ctx context.Context, db DBTX, arg StubWorkerSemaphoreSlotsParams) error {
+	_, err := db.Exec(ctx, stubWorkerSemaphoreSlots, arg.Workerid, arg.MaxRuns)
+	return err
 }
 
 const updateWorker = `-- name: UpdateWorker :one

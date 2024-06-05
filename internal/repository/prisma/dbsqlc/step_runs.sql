@@ -306,23 +306,25 @@ WITH valid_workers AS (
     SELECT
         DISTINCT ON (w."id")
         w."id",
-        COALESCE(SUM(ws."slots"), 100) AS "slots"
+        COALESCE(w."maxRuns", 100) - COUNT(wss."id") AS "remainingSlots"
     FROM
         "Worker" w
     LEFT JOIN
-        "WorkerSemaphore" ws ON ws."workerId" = w."id"
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary becauseisActive is set to false immediately when the stream closes
+        -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
     GROUP BY
-        w."id"
+        w."id", w."maxRuns"
+    HAVING
+        COALESCE(w."maxRuns", 100) - COUNT(wss."id") > 0
 ),
 -- Count the total number of slots across all workers
 total_max_runs AS (
     SELECT
-        SUM("slots") AS "totalMaxRuns"
+        SUM("remainingSlots") AS "totalMaxRuns"
     FROM
         valid_workers
 ),
@@ -350,7 +352,6 @@ step_runs AS (
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ) OR (
             sr."status" = 'ASSIGNED'
-            -- reassign if the run is stuck in assigned
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ))
         AND jr."status" = 'RUNNING'
@@ -391,26 +392,26 @@ RETURNING "StepRun"."id";
 -- name: ListStepRunsToRequeue :many
 WITH valid_workers AS (
     SELECT
-        DISTINCT ON (w."id")
         w."id",
-        COALESCE(SUM(ws."slots"), 100) AS "slots"
+        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") AS "remainingSlots"
     FROM
         "Worker" w
     LEFT JOIN
-        "WorkerSemaphore" ws ON w."id" = ws."workerId"
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary becauseisActive is set to false immediately when the stream closes
+        -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
     GROUP BY
-        w."id"
+        w."id", w."maxRuns"
+    HAVING
+        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") > 0
 ),
 -- Count the total number of maxRuns - runningStepRuns across all workers
 total_max_runs AS (
     SELECT
-        -- if maxRuns is null, then we assume the worker can run 100 step runs
-        SUM("slots") AS "totalMaxRuns"
+        SUM("remainingSlots") AS "totalMaxRuns"
     FROM
         valid_workers
 ),
@@ -462,120 +463,26 @@ WHERE
     "StepRun"."id" = locked_step_runs."id"
 RETURNING "StepRun"."id";
 
--- name: GetTotalSlots :many
-WITH valid_workers AS (
-    SELECT
-        w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
-    FROM
-        "Worker" w
-    LEFT JOIN
-        "WorkerSemaphore" ws ON w."id" = ws."workerId"
-    WHERE
-        w."tenantId" = @tenantId::uuid
-        AND w."dispatcherId" IS NOT NULL
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary becauseisActive is set to false immediately when the stream closes
-        AND w."isActive" = true
-        AND w."id" IN (
-            SELECT "_ActionToWorker"."B"
-            FROM "_ActionToWorker"
-            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = @tenantId AND "Action"."actionId" = @actionId::text
-        )
-        AND (
-            ws."workerId" IS NULL OR
-            ws."slots" > 0
-        )
-    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM()
-),
-total_slots AS (
-    SELECT
-        COALESCE(SUM(vw."slots"), 0) AS "totalSlots"
-    FROM
-        valid_workers vw
-)
-SELECT ts."totalSlots"::int, vw."id", vw."slots"
-FROM valid_workers vw
-LEFT JOIN total_slots ts ON true;
-
 -- name: AssignStepRunToWorker :one
-WITH valid_workers AS (
-    SELECT
-        w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
-    FROM
-        "Worker" w
-    LEFT JOIN
-        "WorkerSemaphore" ws ON w."id" = ws."workerId"
-    WHERE
-        w."tenantId" = @tenantId::uuid
-        AND w."dispatcherId" IS NOT NULL
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary becauseisActive is set to false immediately when the stream closes
-        AND w."isActive" = true
-        AND w."id" IN (
-            SELECT "_ActionToWorker"."B"
-            FROM "_ActionToWorker"
-            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = @tenantId AND "Action"."actionId" = @actionId::text
-        )
-        AND (
-            ws."workerId" IS NULL OR
-            ws."slots" > 0
-        )
-    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM()
-), total_slots AS (
-    SELECT
-        COALESCE(SUM(vw."slots"), 0) AS "totalSlots"
-    FROM
-        valid_workers vw
-), selected_worker AS (
-    SELECT
-        *
-    FROM
-        valid_workers vw
-    LIMIT 1
-),
-step_run AS (
-    SELECT
-        "id", "workerId"
-    FROM
-        "StepRun"
-    WHERE
-        "id" = @stepRunId::uuid AND
-        "tenantId" = @tenantId::uuid AND
-        "status" = 'PENDING_ASSIGNMENT' AND
-        EXISTS (SELECT 1 FROM selected_worker)
-    FOR UPDATE
-),
-update_step_run AS (
-    UPDATE
-        "StepRun"
-    SET
-        "status" = 'ASSIGNED',
-        "workerId" = (
-            SELECT "id"
-            FROM selected_worker
-            LIMIT 1
-        ),
-        "tickerId" = NULL,
-        "updatedAt" = CURRENT_TIMESTAMP,
-        "timeoutAt" = CASE
-            WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
-                CURRENT_TIMESTAMP + convert_duration_to_interval(sqlc.narg('stepTimeout')::text)
-            ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
-        END
-    WHERE
-        "id" = @stepRunId::uuid AND
-        "tenantId" = @tenantId::uuid AND
-        "status" = 'PENDING_ASSIGNMENT' AND
-        EXISTS (SELECT 1 FROM selected_worker)
-    RETURNING
-        "StepRun"."id", "StepRun"."workerId",
-        (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId"
-)
-SELECT ts."totalSlots"::int, usr."id", usr."workerId", usr."dispatcherId"
-FROM total_slots ts
-LEFT JOIN update_step_run usr ON true;
+UPDATE
+    "StepRun"
+SET
+    "status" = 'ASSIGNED',
+    "workerId" = @workerId::uuid,
+    "tickerId" = NULL,
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "timeoutAt" = CASE
+        WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
+            CURRENT_TIMESTAMP + convert_duration_to_interval(sqlc.narg('stepTimeout')::text)
+        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+    END
+WHERE
+    "id" = @stepRunId::uuid AND
+    "tenantId" = @tenantId::uuid AND
+    "status" = 'PENDING_ASSIGNMENT'
+RETURNING
+    "StepRun"."id", "StepRun"."workerId",
+    (SELECT "dispatcherId" FROM "Worker" WHERE "id" = @workerId::uuid) AS "dispatcherId";
 
 -- name: RefreshTimeoutBy :one
 UPDATE
@@ -593,39 +500,49 @@ WHERE
     "tenantId" = @tenantId::uuid
 RETURNING *;
 
--- name: UpdateWorkerSemaphore :one
-WITH step_run AS (
-    SELECT
-        "id", "workerId"
-    FROM
-        "StepRun"
-    WHERE
-        "id" = @stepRunId::uuid AND
-        "tenantId" = @tenantId::uuid
-), worker AS (
-    SELECT
-        "id",
-        "maxRuns"
-    FROM
-        "Worker"
-    WHERE
-        "id" = (SELECT "workerId" FROM step_run)
+-- name: ReleaseWorkerSemaphoreSlot :one
+WITH step_run as (
+  SELECT "workerId"
+  FROM "StepRun"
+  WHERE "id" = @stepRunId::uuid AND "tenantId" = @tenantId::uuid
 )
-UPDATE
-    "WorkerSemaphore" ws
-SET
-    -- This shouldn't happen, but we set guardrails to prevent negative slots or slots over
-    -- the worker's maxRuns
-    "slots" = CASE
-        WHEN (ws."slots" + @inc::int) < 0 THEN 0
-        WHEN (ws."slots" + @inc::int) > COALESCE(worker."maxRuns", 100) THEN COALESCE(worker."maxRuns", 100)
-        ELSE (ws."slots" + @inc::int)
-    END
-FROM
-    worker
-WHERE
-    ws."workerId" = worker."id"
-RETURNING ws.*;
+UPDATE "WorkerSemaphoreSlot"
+    SET "stepRunId" = NULL
+WHERE "stepRunId" = @stepRunId::uuid
+  AND "workerId" = (SELECT "workerId" FROM step_run)
+RETURNING *;
+
+-- name: AcquireWorkerSemaphoreSlot :one
+WITH valid_workers AS (
+    SELECT w."id", COUNT(wss."id") AS "slots"
+    FROM "Worker" w
+    JOIN "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+        AND w."id" IN (
+            SELECT "_ActionToWorker"."B"
+            FROM "_ActionToWorker"
+            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
+            WHERE "Action"."tenantId" = @tenantId AND "Action"."actionId" = @actionId::text
+        )
+    GROUP BY w."id"
+),
+selected_slot AS (
+    SELECT wss."id" AS "slotId", wss."workerId" AS "workerId"
+    FROM "WorkerSemaphoreSlot" wss
+    JOIN valid_workers w ON wss."workerId" = w."id"
+    WHERE wss."stepRunId" IS NULL
+    ORDER BY w."slots" DESC, RANDOM()
+    FOR UPDATE SKIP LOCKED
+    LIMIT 1
+)
+UPDATE "WorkerSemaphoreSlot"
+SET "stepRunId" = @stepRunId::uuid
+WHERE "id" = (SELECT "slotId" FROM selected_slot)
+RETURNING *;
 
 -- name: CreateStepRunEvent :exec
 WITH input_values AS (

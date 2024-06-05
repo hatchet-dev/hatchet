@@ -3,5 +3,6 @@
   "creating-a-workflow": "Creating a Workflow",
   "creating-a-worker": "Creating a Worker",
   "pushing-events": "Pushing Events",
-  "api": "API"
+  "spawning-workflow-runs": "Spawning Workflow Runs",
+  "api": "REST API"
 }

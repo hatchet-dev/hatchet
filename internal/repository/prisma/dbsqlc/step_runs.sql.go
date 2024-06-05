@@ -11,6 +11,52 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acquireWorkerSemaphoreSlot = `-- name: AcquireWorkerSemaphoreSlot :one
+WITH valid_workers AS (
+    SELECT w."id", COUNT(wss."id") AS "slots"
+    FROM "Worker" w
+    JOIN "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
+    WHERE
+        w."tenantId" = $2::uuid
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+        AND w."id" IN (
+            SELECT "_ActionToWorker"."B"
+            FROM "_ActionToWorker"
+            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
+            WHERE "Action"."tenantId" = $2 AND "Action"."actionId" = $3::text
+        )
+    GROUP BY w."id"
+),
+selected_slot AS (
+    SELECT wss."id" AS "slotId", wss."workerId" AS "workerId"
+    FROM "WorkerSemaphoreSlot" wss
+    JOIN valid_workers w ON wss."workerId" = w."id"
+    WHERE wss."stepRunId" IS NULL
+    ORDER BY w."slots" DESC, RANDOM()
+    FOR UPDATE SKIP LOCKED
+    LIMIT 1
+)
+UPDATE "WorkerSemaphoreSlot"
+SET "stepRunId" = $1::uuid
+WHERE "id" = (SELECT "slotId" FROM selected_slot)
+RETURNING id, "workerId", "stepRunId"
+`
+
+type AcquireWorkerSemaphoreSlotParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+	Actionid  string      `json:"actionid"`
+}
+
+func (q *Queries) AcquireWorkerSemaphoreSlot(ctx context.Context, db DBTX, arg AcquireWorkerSemaphoreSlotParams) (*WorkerSemaphoreSlot, error) {
+	row := db.QueryRow(ctx, acquireWorkerSemaphoreSlot, arg.Steprunid, arg.Tenantid, arg.Actionid)
+	var i WorkerSemaphoreSlot
+	err := row.Scan(&i.ID, &i.WorkerId, &i.StepRunId)
+	return &i, err
+}
+
 const archiveStepRunResultFromStepRun = `-- name: ArchiveStepRunResultFromStepRun :one
 WITH step_run_data AS (
     SELECT
@@ -96,94 +142,35 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 }
 
 const assignStepRunToWorker = `-- name: AssignStepRunToWorker :one
-WITH valid_workers AS (
-    SELECT
-        w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
-    FROM
-        "Worker" w
-    LEFT JOIN
-        "WorkerSemaphore" ws ON w."id" = ws."workerId"
-    WHERE
-        w."tenantId" = $1::uuid
-        AND w."dispatcherId" IS NOT NULL
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary becauseisActive is set to false immediately when the stream closes
-        AND w."isActive" = true
-        AND w."id" IN (
-            SELECT "_ActionToWorker"."B"
-            FROM "_ActionToWorker"
-            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = $1 AND "Action"."actionId" = $2::text
-        )
-        AND (
-            ws."workerId" IS NULL OR
-            ws."slots" > 0
-        )
-    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM()
-), total_slots AS (
-    SELECT
-        COALESCE(SUM(vw."slots"), 0) AS "totalSlots"
-    FROM
-        valid_workers vw
-), selected_worker AS (
-    SELECT
-        id, "dispatcherId", slots
-    FROM
-        valid_workers vw
-    LIMIT 1
-),
-step_run AS (
-    SELECT
-        "id", "workerId"
-    FROM
-        "StepRun"
-    WHERE
-        "id" = $3::uuid AND
-        "tenantId" = $1::uuid AND
-        "status" = 'PENDING_ASSIGNMENT' AND
-        EXISTS (SELECT 1 FROM selected_worker)
-    FOR UPDATE
-),
-update_step_run AS (
-    UPDATE
-        "StepRun"
-    SET
-        "status" = 'ASSIGNED',
-        "workerId" = (
-            SELECT "id"
-            FROM selected_worker
-            LIMIT 1
-        ),
-        "tickerId" = NULL,
-        "updatedAt" = CURRENT_TIMESTAMP,
-        "timeoutAt" = CASE
-            WHEN $4::text IS NOT NULL THEN
-                CURRENT_TIMESTAMP + convert_duration_to_interval($4::text)
-            ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
-        END
-    WHERE
-        "id" = $3::uuid AND
-        "tenantId" = $1::uuid AND
-        "status" = 'PENDING_ASSIGNMENT' AND
-        EXISTS (SELECT 1 FROM selected_worker)
-    RETURNING
-        "StepRun"."id", "StepRun"."workerId",
-        (SELECT "dispatcherId" FROM selected_worker) AS "dispatcherId"
-)
-SELECT ts."totalSlots"::int, usr."id", usr."workerId", usr."dispatcherId"
-FROM total_slots ts
-LEFT JOIN update_step_run usr ON true
+UPDATE
+    "StepRun"
+SET
+    "status" = 'ASSIGNED',
+    "workerId" = $1::uuid,
+    "tickerId" = NULL,
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "timeoutAt" = CASE
+        WHEN $2::text IS NOT NULL THEN
+            CURRENT_TIMESTAMP + convert_duration_to_interval($2::text)
+        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+    END
+WHERE
+    "id" = $3::uuid AND
+    "tenantId" = $4::uuid AND
+    "status" = 'PENDING_ASSIGNMENT'
+RETURNING
+    "StepRun"."id", "StepRun"."workerId",
+    (SELECT "dispatcherId" FROM "Worker" WHERE "id" = $1::uuid) AS "dispatcherId"
 `
 
 type AssignStepRunToWorkerParams struct {
-	Tenantid    pgtype.UUID `json:"tenantid"`
-	Actionid    string      `json:"actionid"`
-	Steprunid   pgtype.UUID `json:"steprunid"`
+	Workerid    pgtype.UUID `json:"workerid"`
 	StepTimeout pgtype.Text `json:"stepTimeout"`
+	Steprunid   pgtype.UUID `json:"steprunid"`
+	Tenantid    pgtype.UUID `json:"tenantid"`
 }
 
 type AssignStepRunToWorkerRow struct {
-	TsTotalSlots int32       `json:"ts_totalSlots"`
 	ID           pgtype.UUID `json:"id"`
 	WorkerId     pgtype.UUID `json:"workerId"`
 	DispatcherId pgtype.UUID `json:"dispatcherId"`
@@ -191,18 +178,13 @@ type AssignStepRunToWorkerRow struct {
 
 func (q *Queries) AssignStepRunToWorker(ctx context.Context, db DBTX, arg AssignStepRunToWorkerParams) (*AssignStepRunToWorkerRow, error) {
 	row := db.QueryRow(ctx, assignStepRunToWorker,
-		arg.Tenantid,
-		arg.Actionid,
-		arg.Steprunid,
+		arg.Workerid,
 		arg.StepTimeout,
+		arg.Steprunid,
+		arg.Tenantid,
 	)
 	var i AssignStepRunToWorkerRow
-	err := row.Scan(
-		&i.TsTotalSlots,
-		&i.ID,
-		&i.WorkerId,
-		&i.DispatcherId,
-	)
+	err := row.Scan(&i.ID, &i.WorkerId, &i.DispatcherId)
 	return &i, err
 }
 
@@ -568,74 +550,6 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 	return items, nil
 }
 
-const getTotalSlots = `-- name: GetTotalSlots :many
-WITH valid_workers AS (
-    SELECT
-        w."id", w."dispatcherId", COALESCE(ws."slots", 100) AS "slots"
-    FROM
-        "Worker" w
-    LEFT JOIN
-        "WorkerSemaphore" ws ON w."id" = ws."workerId"
-    WHERE
-        w."tenantId" = $1::uuid
-        AND w."dispatcherId" IS NOT NULL
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary becauseisActive is set to false immediately when the stream closes
-        AND w."isActive" = true
-        AND w."id" IN (
-            SELECT "_ActionToWorker"."B"
-            FROM "_ActionToWorker"
-            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = $1 AND "Action"."actionId" = $2::text
-        )
-        AND (
-            ws."workerId" IS NULL OR
-            ws."slots" > 0
-        )
-    ORDER BY ws."slots" DESC NULLS FIRST, RANDOM()
-),
-total_slots AS (
-    SELECT
-        COALESCE(SUM(vw."slots"), 0) AS "totalSlots"
-    FROM
-        valid_workers vw
-)
-SELECT ts."totalSlots"::int, vw."id", vw."slots"
-FROM valid_workers vw
-LEFT JOIN total_slots ts ON true
-`
-
-type GetTotalSlotsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Actionid string      `json:"actionid"`
-}
-
-type GetTotalSlotsRow struct {
-	TsTotalSlots int32       `json:"ts_totalSlots"`
-	ID           pgtype.UUID `json:"id"`
-	Slots        int32       `json:"slots"`
-}
-
-func (q *Queries) GetTotalSlots(ctx context.Context, db DBTX, arg GetTotalSlotsParams) ([]*GetTotalSlotsRow, error) {
-	rows, err := db.Query(ctx, getTotalSlots, arg.Tenantid, arg.Actionid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*GetTotalSlotsRow
-	for rows.Next() {
-		var i GetTotalSlotsRow
-		if err := rows.Scan(&i.TsTotalSlots, &i.ID, &i.Slots); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listNonFinalChildStepRuns = `-- name: ListNonFinalChildStepRuns :many
 WITH RECURSIVE currStepRun AS (
     SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased"
@@ -903,22 +817,24 @@ WITH valid_workers AS (
     SELECT
         DISTINCT ON (w."id")
         w."id",
-        COALESCE(SUM(ws."slots"), 100) AS "slots"
+        COALESCE(w."maxRuns", 100) - COUNT(wss."id") AS "remainingSlots"
     FROM
         "Worker" w
     LEFT JOIN
-        "WorkerSemaphore" ws ON ws."workerId" = w."id"
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
     WHERE
         w."tenantId" = $1::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary becauseisActive is set to false immediately when the stream closes
+        -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
     GROUP BY
-        w."id"
+        w."id", w."maxRuns"
+    HAVING
+        COALESCE(w."maxRuns", 100) - COUNT(wss."id") > 0
 ),
 total_max_runs AS (
     SELECT
-        SUM("slots") AS "totalMaxRuns"
+        SUM("remainingSlots") AS "totalMaxRuns"
     FROM
         valid_workers
 ),
@@ -946,7 +862,6 @@ step_runs AS (
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ) OR (
             sr."status" = 'ASSIGNED'
-            -- reassign if the run is stuck in assigned
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ))
         AND jr."status" = 'RUNNING'
@@ -1009,25 +924,25 @@ func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, tenantid 
 const listStepRunsToRequeue = `-- name: ListStepRunsToRequeue :many
 WITH valid_workers AS (
     SELECT
-        DISTINCT ON (w."id")
         w."id",
-        COALESCE(SUM(ws."slots"), 100) AS "slots"
+        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") AS "remainingSlots"
     FROM
         "Worker" w
     LEFT JOIN
-        "WorkerSemaphore" ws ON w."id" = ws."workerId"
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
     WHERE
         w."tenantId" = $1::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary becauseisActive is set to false immediately when the stream closes
+        -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
     GROUP BY
-        w."id"
+        w."id", w."maxRuns"
+    HAVING
+        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") > 0
 ),
 total_max_runs AS (
     SELECT
-        -- if maxRuns is null, then we assume the worker can run 100 step runs
-        SUM("slots") AS "totalMaxRuns"
+        SUM("remainingSlots") AS "totalMaxRuns"
     FROM
         valid_workers
 ),
@@ -1156,6 +1071,31 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 		&i.RetryCount,
 		&i.SemaphoreReleased,
 	)
+	return &i, err
+}
+
+const releaseWorkerSemaphoreSlot = `-- name: ReleaseWorkerSemaphoreSlot :one
+WITH step_run as (
+  SELECT "workerId"
+  FROM "StepRun"
+  WHERE "id" = $1::uuid AND "tenantId" = $2::uuid
+)
+UPDATE "WorkerSemaphoreSlot"
+    SET "stepRunId" = NULL
+WHERE "stepRunId" = $1::uuid
+  AND "workerId" = (SELECT "workerId" FROM step_run)
+RETURNING id, "workerId", "stepRunId"
+`
+
+type ReleaseWorkerSemaphoreSlotParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) ReleaseWorkerSemaphoreSlot(ctx context.Context, db DBTX, arg ReleaseWorkerSemaphoreSlotParams) (*WorkerSemaphoreSlot, error) {
+	row := db.QueryRow(ctx, releaseWorkerSemaphoreSlot, arg.Steprunid, arg.Tenantid)
+	var i WorkerSemaphoreSlot
+	err := row.Scan(&i.ID, &i.WorkerId, &i.StepRunId)
 	return &i, err
 }
 
@@ -1739,52 +1679,4 @@ func (q *Queries) UpdateStepRunOverridesData(ctx context.Context, db DBTX, arg U
 	var input []byte
 	err := row.Scan(&input)
 	return input, err
-}
-
-const updateWorkerSemaphore = `-- name: UpdateWorkerSemaphore :one
-WITH step_run AS (
-    SELECT
-        "id", "workerId"
-    FROM
-        "StepRun"
-    WHERE
-        "id" = $2::uuid AND
-        "tenantId" = $3::uuid
-), worker AS (
-    SELECT
-        "id",
-        "maxRuns"
-    FROM
-        "Worker"
-    WHERE
-        "id" = (SELECT "workerId" FROM step_run)
-)
-UPDATE
-    "WorkerSemaphore" ws
-SET
-    -- This shouldn't happen, but we set guardrails to prevent negative slots or slots over
-    -- the worker's maxRuns
-    "slots" = CASE
-        WHEN (ws."slots" + $1::int) < 0 THEN 0
-        WHEN (ws."slots" + $1::int) > COALESCE(worker."maxRuns", 100) THEN COALESCE(worker."maxRuns", 100)
-        ELSE (ws."slots" + $1::int)
-    END
-FROM
-    worker
-WHERE
-    ws."workerId" = worker."id"
-RETURNING ws."workerId", ws.slots
-`
-
-type UpdateWorkerSemaphoreParams struct {
-	Inc       int32       `json:"inc"`
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
-}
-
-func (q *Queries) UpdateWorkerSemaphore(ctx context.Context, db DBTX, arg UpdateWorkerSemaphoreParams) (*WorkerSemaphore, error) {
-	row := db.QueryRow(ctx, updateWorkerSemaphore, arg.Inc, arg.Steprunid, arg.Tenantid)
-	var i WorkerSemaphore
-	err := row.Scan(&i.WorkerId, &i.Slots)
-	return &i, err
 }
