@@ -3,6 +3,13 @@ import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card.tsx';
+import CopyToClipboard from '@/components/ui/copy-to-clipboard';
 
 export default function Webhooks() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -33,7 +40,21 @@ export default function Webhooks() {
           {listWebhookWorkersQuery.data?.rows?.map((worker) => (
             <div key={worker.metadata!.id}>
               <div className="flex flex-row justify-between items-center">
-                <div className="text-sm">{worker.url}</div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{worker.metadata.id}</CardTitle>
+                    <CardDescription>
+                      <div className="text-sm mt-2">{worker.url}</div>
+
+                      <div className="flex items-center gap-2 mt-2">
+                        <pre className="text-xs">
+                          {worker.secret.slice(0, 4)}****
+                        </pre>
+                        <CopyToClipboard text={worker.secret} />
+                      </div>
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
               </div>
             </div>
           ))}
