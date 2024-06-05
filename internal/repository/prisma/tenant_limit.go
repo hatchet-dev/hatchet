@@ -34,6 +34,11 @@ func NewTenantLimitRepository(pool *pgxpool.Pool, v validator.Validator, l *zero
 	}
 }
 
+func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Context) error {
+	_, err := t.queries.ResolveAllLimitsIfWindowPassed(ctx, t.pool)
+	return err
+}
+
 func (t *tenantLimitRepository) CreateTenantDefaultLimits(tenantId string) error {
 	err := t.createDefaultWorkflowRunLimit(tenantId)
 

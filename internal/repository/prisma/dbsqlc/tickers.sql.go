@@ -665,6 +665,111 @@ func (q *Queries) PollTenantAlerts(ctx context.Context, db DBTX, tickerid pgtype
 	return items, nil
 }
 
+const pollTenantResourceLimitAlerts = `-- name: PollTenantResourceLimitAlerts :many
+WITH alerting_resource_limits AS (
+    SELECT
+        rl."id" AS "resourceLimitId",
+        rl."tenantId",
+        rl."resource",
+        rl."limitValue",
+        rl."alarmValue",
+        rl."value",
+        rl."window",
+        rl."lastRefill",
+        CASE
+            WHEN rl."value" >= rl."limitValue" THEN 'Exhausted'
+            WHEN rl."alarmValue" IS NOT NULL AND rl."value" >= rl."alarmValue" THEN 'Alarm'
+        END AS "alertType"
+    FROM
+        "TenantResourceLimit" AS rl
+    JOIN
+        "TenantAlertingSettings" AS ta
+    ON
+        ta."tenantId" = rl."tenantId"::uuid
+    WHERE
+        ta."enableTenantResourceLimitAlerts" = true
+        AND (
+            (rl."alarmValue" IS NOT NULL AND rl."value" >= rl."alarmValue")
+            OR rl."value" >= rl."limitValue"
+        )
+    FOR UPDATE SKIP LOCKED
+),
+new_alerts AS (
+    SELECT
+        arl."resourceLimitId",
+        arl."tenantId",
+        arl."resource",
+        arl."alertType",
+        arl."value",
+        arl."limitValue" AS "limit",
+        EXISTS (
+            SELECT 1
+            FROM "TenantResourceLimitAlert" AS trla
+            WHERE trla."resourceLimitId" = arl."resourceLimitId"
+            AND trla."alertType" = arl."alertType"::"TenantResourceLimitAlertType"
+            AND trla."createdAt" >= NOW() - arl."window"::INTERVAL
+        ) AS "existingAlert"
+    FROM
+        alerting_resource_limits AS arl
+)
+INSERT INTO "TenantResourceLimitAlert" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "resourceLimitId",
+    "resource",
+    "alertType",
+    "value",
+    "limit",
+    "tenantId"
+)
+SELECT
+    gen_random_uuid(),
+    NOW(),
+    NOW(),
+    na."resourceLimitId",
+    na."resource",
+    na."alertType"::"TenantResourceLimitAlertType",
+    na."value",
+    na."limit",
+    na."tenantId"
+FROM
+    new_alerts AS na
+WHERE
+    na."existingAlert" = false
+RETURNING id, "createdAt", "updatedAt", "resourceLimitId", resource, "alertType", value, "limit", "tenantId"
+`
+
+func (q *Queries) PollTenantResourceLimitAlerts(ctx context.Context, db DBTX) ([]*TenantResourceLimitAlert, error) {
+	rows, err := db.Query(ctx, pollTenantResourceLimitAlerts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*TenantResourceLimitAlert
+	for rows.Next() {
+		var i TenantResourceLimitAlert
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ResourceLimitId,
+			&i.Resource,
+			&i.AlertType,
+			&i.Value,
+			&i.Limit,
+			&i.TenantId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setTickersInactive = `-- name: SetTickersInactive :many
 UPDATE
     "Ticker" as tickers

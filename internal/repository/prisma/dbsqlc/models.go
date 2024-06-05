@@ -459,6 +459,48 @@ func (ns NullTenantMemberRole) Value() (driver.Value, error) {
 	return string(ns.TenantMemberRole), nil
 }
 
+type TenantResourceLimitAlertType string
+
+const (
+	TenantResourceLimitAlertTypeAlarm     TenantResourceLimitAlertType = "Alarm"
+	TenantResourceLimitAlertTypeExhausted TenantResourceLimitAlertType = "Exhausted"
+)
+
+func (e *TenantResourceLimitAlertType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TenantResourceLimitAlertType(s)
+	case string:
+		*e = TenantResourceLimitAlertType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TenantResourceLimitAlertType: %T", src)
+	}
+	return nil
+}
+
+type NullTenantResourceLimitAlertType struct {
+	TenantResourceLimitAlertType TenantResourceLimitAlertType `json:"TenantResourceLimitAlertType"`
+	Valid                        bool                         `json:"valid"` // Valid is true if TenantResourceLimitAlertType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTenantResourceLimitAlertType) Scan(value interface{}) error {
+	if value == nil {
+		ns.TenantResourceLimitAlertType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TenantResourceLimitAlertType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TenantResourceLimitAlertType), nil
+}
+
 type VcsProvider string
 
 const (
@@ -956,6 +998,18 @@ type TenantResourceLimit struct {
 	LastRefill pgtype.Timestamp `json:"lastRefill"`
 	CreatedAt  pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
+}
+
+type TenantResourceLimitAlert struct {
+	ID              pgtype.UUID                  `json:"id"`
+	CreatedAt       pgtype.Timestamp             `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp             `json:"updatedAt"`
+	ResourceLimitId pgtype.UUID                  `json:"resourceLimitId"`
+	Resource        LimitResource                `json:"resource"`
+	AlertType       TenantResourceLimitAlertType `json:"alertType"`
+	Value           int32                        `json:"value"`
+	Limit           int32                        `json:"limit"`
+	TenantId        pgtype.UUID                  `json:"tenantId"`
 }
 
 type TenantVcsProvider struct {

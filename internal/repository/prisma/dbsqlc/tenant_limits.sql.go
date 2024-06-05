@@ -197,3 +197,61 @@ func (q *Queries) MeterTenantResource(ctx context.Context, db DBTX, arg MeterTen
 	)
 	return &i, err
 }
+
+const resolveAllLimitsIfWindowPassed = `-- name: ResolveAllLimitsIfWindowPassed :many
+WITH resolved_limits AS (
+    UPDATE "TenantResourceLimit"
+    SET
+        "value" = 0, -- Reset value to 0
+        "lastRefill" = CURRENT_TIMESTAMP -- Update lastRefill timestamp
+    WHERE
+        ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL)
+    RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt"
+)
+SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt"
+FROM resolved_limits
+`
+
+type ResolveAllLimitsIfWindowPassedRow struct {
+	ID         pgtype.UUID      `json:"id"`
+	Resource   LimitResource    `json:"resource"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	LimitValue int32            `json:"limitValue"`
+	AlarmValue pgtype.Int4      `json:"alarmValue"`
+	Value      int32            `json:"value"`
+	Window     pgtype.Text      `json:"window"`
+	LastRefill pgtype.Timestamp `json:"lastRefill"`
+	CreatedAt  pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
+}
+
+func (q *Queries) ResolveAllLimitsIfWindowPassed(ctx context.Context, db DBTX) ([]*ResolveAllLimitsIfWindowPassedRow, error) {
+	rows, err := db.Query(ctx, resolveAllLimitsIfWindowPassed)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ResolveAllLimitsIfWindowPassedRow
+	for rows.Next() {
+		var i ResolveAllLimitsIfWindowPassedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Resource,
+			&i.TenantId,
+			&i.LimitValue,
+			&i.AlarmValue,
+			&i.Value,
+			&i.Window,
+			&i.LastRefill,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -1,6 +1,10 @@
 package repository
 
-import "github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+import (
+	"context"
+
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+)
 
 type TenantLimitConfig struct {
 	EnforceLimits bool
@@ -26,4 +30,7 @@ type TenantLimitRepository interface {
 
 	// Create new Tenant Resource Limits for a tenant
 	CreateTenantDefaultLimits(tenantId string) error
+
+	// Resolve the tenant's resource limits
+	ResolveAllTenantResourceLimits(ctx context.Context) error
 }

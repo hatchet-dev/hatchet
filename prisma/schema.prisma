@@ -140,6 +140,7 @@ model Tenant {
   alertingSettings          TenantAlertingSettings?
 
   limits                    TenantResourceLimit[]
+  limitAlerts               TenantResourceLimitAlert[]
 }
 
 
@@ -174,7 +175,36 @@ model TenantResourceLimit {
   // the time the rate limit was last refilled
   lastRefill DateTime @default(now())
 
+  alerts TenantResourceLimitAlert[]
+
   @@unique([tenantId, resource])
+}
+
+enum TenantResourceLimitAlertType {
+  Alarm
+  Exhausted
+}
+
+model TenantResourceLimitAlert {
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  resourceLimit   TenantResourceLimit @relation(fields: [resourceLimitId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  resourceLimitId String @db.Uuid
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  resource LimitResource
+
+  alertType TenantResourceLimitAlertType
+
+  // the current value of the resource limit at the time of the alert
+  value Int
+
+  // the limit at the time of the alert
+  limit Int
 }
 
 model TenantAlertingSettings {

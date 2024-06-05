@@ -2,6 +2,19 @@
 SELECT * FROM "TenantResourceLimit"
 WHERE "tenantId" = @tenantId::uuid;
 
+-- name: ResolveAllLimitsIfWindowPassed :many
+WITH resolved_limits AS (
+    UPDATE "TenantResourceLimit"
+    SET
+        "value" = 0, -- Reset value to 0
+        "lastRefill" = CURRENT_TIMESTAMP -- Update lastRefill timestamp
+    WHERE
+        ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL)
+    RETURNING *
+)
+SELECT *
+FROM resolved_limits;
+
 -- name: GetTenantResourceLimit :one
 WITH updated AS (
     UPDATE "TenantResourceLimit"
