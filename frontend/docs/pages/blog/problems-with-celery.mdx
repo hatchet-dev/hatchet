@@ -29,7 +29,7 @@ Most people run into the a common set of issues when implementing Celery in a mo
 
 ### **No asyncio support**
 
-Celery doesn't support running async functions as task out of the box, and also doesn't allow created tasks to be awaited. Instead, you'll have to rely on workarounds like polling for a task result or [converting async methods to synchronous ones](https://github.com/celery/celery/issues/6552#issuecomment-1870832344).
+Celery doesn't support running async functions as tasks out of the box, and also doesn't allow created tasks to be awaited. Instead, you'll have to rely on workarounds like polling for a task result or [converting async methods to synchronous ones](https://github.com/celery/celery/issues/6552#issuecomment-1870832344).
 
 This becomes a significant problem when using Celery for i/o bound tasks which [would benefit from asyncio](http://masnun.rocks/2016/10/06/async-python-the-different-forms-of-concurrency/). Given that a very common use-case nowadays is to call external LLMs via a long-lived API call, the lack of `asyncio` support in Celery is a major drawback.
 
