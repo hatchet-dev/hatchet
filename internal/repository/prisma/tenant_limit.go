@@ -34,6 +34,24 @@ func NewTenantLimitRepository(pool *pgxpool.Pool, v validator.Validator, l *zero
 	}
 }
 
+func (t *tenantLimitRepository) CreateTenantDefaultLimits(tenantId string) error {
+	err := t.createDefaultWorkflowRunLimit(tenantId)
+
+	if err != nil {
+		return err
+	}
+
+	err = t.createDefaultEventLimit(tenantId)
+
+	if err != nil {
+		return err
+	}
+
+	err = t.createDefaultWorkerLimit(tenantId)
+
+	return err
+}
+
 var WORKFLOW_RESOURCE = dbsqlc.NullLimitResource{
 	LimitResource: dbsqlc.LimitResourceWORKFLOWRUN,
 	Valid:         true,
@@ -66,15 +84,13 @@ func (t *tenantLimitRepository) GetLimits(tenantId string) ([]*dbsqlc.TenantReso
 	return limits, nil
 }
 
-func (t *tenantLimitRepository) createDefaultWorkflowLimit(tenantId string) error {
-	const limitValue = 10000
-
+func (t *tenantLimitRepository) createDefaultWorkflowRunLimit(tenantId string) error {
 	_, err := t.queries.CreateTenantResourceLimit(context.Background(), t.pool, dbsqlc.CreateTenantResourceLimitParams{
 		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
 		Resource:   WORKFLOW_RESOURCE,
-		LimitValue: sqlchelpers.ToInt(limitValue),
-		AlarmValue: sqlchelpers.ToInt(limitValue * .75),
-		Window:     sqlchelpers.TextFromStr("1 day"),
+		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultWorkflowRunLimit)),
+		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultWorkflowRunAlarmLimit)),
+		Window:     sqlchelpers.TextFromStr(t.config.Limits.DefaultWorkflowRunWindow.String()),
 	})
 
 	return err
@@ -95,7 +111,7 @@ func (t *tenantLimitRepository) CanCreateWorkflowRun(tenantId string) (bool, err
 	if err == pgx.ErrNoRows {
 		t.l.Warn().Msg("no workflow run tenant limit found, creating default limit")
 
-		err = t.createDefaultWorkflowLimit(tenantId)
+		err = t.createDefaultWorkflowRunLimit(tenantId)
 
 		if err != nil {
 			return false, err
@@ -138,14 +154,13 @@ var EVENT_RESOURCE = dbsqlc.NullLimitResource{
 }
 
 func (t *tenantLimitRepository) createDefaultEventLimit(tenantId string) error {
-	const limitValue = 5000
 
 	_, err := t.queries.CreateTenantResourceLimit(context.Background(), t.pool, dbsqlc.CreateTenantResourceLimitParams{
 		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
 		Resource:   EVENT_RESOURCE,
-		LimitValue: sqlchelpers.ToInt(limitValue),
-		AlarmValue: sqlchelpers.ToInt(limitValue * .75),
-		Window:     sqlchelpers.TextFromStr("1 day"),
+		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultEventLimit)),
+		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultEventAlarmLimit)),
+		Window:     sqlchelpers.TextFromStr(t.config.Limits.DefaultEventWindow.String()),
 	})
 
 	return err
@@ -207,14 +222,12 @@ var WORKER_RESOURCE = dbsqlc.NullLimitResource{
 }
 
 func (t *tenantLimitRepository) createDefaultWorkerLimit(tenantId string) error {
-	const limitValue = 4
 
 	_, err := t.queries.CreateTenantResourceLimit(context.Background(), t.pool, dbsqlc.CreateTenantResourceLimitParams{
 		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
 		Resource:   WORKER_RESOURCE,
-		LimitValue: sqlchelpers.ToInt(limitValue),
-		AlarmValue: sqlchelpers.ToInt(limitValue * .5),
-		Window:     sqlchelpers.TextFromStr("100 years"),
+		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultWorkerLimit)),
+		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultWorkerAlarmLimit)),
 	})
 
 	return err

@@ -51,7 +51,7 @@ export const columns = (): ColumnDef<TenantResourceLimit>[] => {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Current Value" />
       ),
-      cell: ({ row }) => <div>{row.original.value}</div>,
+      cell: ({ row }) => <div>{row.original.value.toLocaleString()}</div>,
       enableSorting: false,
       enableHiding: false,
     },
@@ -60,7 +60,7 @@ export const columns = (): ColumnDef<TenantResourceLimit>[] => {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Limit Value" />
       ),
-      cell: ({ row }) => <div>{row.original.limitValue}</div>,
+      cell: ({ row }) => <div>{row.original.limitValue.toLocaleString()}</div>,
       enableSorting: false,
       enableHiding: false,
     },
@@ -69,7 +69,13 @@ export const columns = (): ColumnDef<TenantResourceLimit>[] => {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Alarm Value" />
       ),
-      cell: ({ row }) => <div>{row.original.alarmValue}</div>,
+      cell: ({ row }) => (
+        <div>
+          {row.original.alarmValue
+            ? row.original.alarmValue.toLocaleString()
+            : 'N/A'}
+        </div>
+      ),
       enableSorting: false,
       enableHiding: false,
     },

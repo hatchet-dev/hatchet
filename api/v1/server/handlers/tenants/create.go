@@ -48,6 +48,12 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		return nil, err
 	}
 
+	err = t.config.EntitlementRepository.TenantLimit().CreateTenantDefaultLimits(tenant.ID)
+
+	if err != nil {
+		return nil, err
+	}
+
 	// add the user as an owner of the tenant
 	_, err = t.config.APIRepository.Tenant().CreateTenantMember(tenant.ID, &repository.CreateTenantMemberOpts{
 		UserId: user.ID,

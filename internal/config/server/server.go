@@ -82,6 +82,21 @@ type ConfigFileRuntime struct {
 
 	// Enforce limits controls whether the server enforces tenant limits
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
+
+	Limits LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
+}
+
+type LimitConfigFile struct {
+	DefaultWorkflowRunLimit      int           `mapstructure:"defaultWorkflowRunLimit" json:"defaultWorkflowRunLimit,omitempty" default:"10000"`
+	DefaultWorkflowRunAlarmLimit int           `mapstructure:"defaultWorkflowRunAlarmLimit" json:"defaultWorkflowRunAlarmLimit,omitempty" default:"7500"`
+	DefaultWorkflowRunWindow     time.Duration `mapstructure:"defaultWorkflowRunWindow" json:"defaultWorkflowRunWindow,omitempty" default:"24h"`
+
+	DefaultWorkerLimit      int `mapstructure:"defaultWorkerLimit" json:"defaultWorkerLimit,omitempty" default:"2"`
+	DefaultWorkerAlarmLimit int `mapstructure:"defaultWorkerAlarmLimit" json:"defaultWorkerAlarmLimit,omitempty" default:"1"`
+
+	DefaultEventLimit      int           `mapstructure:"defaultEventLimit" json:"defaultEventLimit,omitempty" default:"10000"`
+	DefaultEventAlarmLimit int           `mapstructure:"defaultEventAlarmLimit" json:"defaultEventAlarmLimit,omitempty" default:"7500"`
+	DefaultEventWindow     time.Duration `mapstructure:"defaultEventWindow" json:"defaultEventWindow,omitempty" default:"24h"`
 }
 
 // Alerting options
@@ -345,6 +360,16 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
+
+	// limit options
+	_ = v.BindEnv("limits.defaultWorkflowRunLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT")
+	_ = v.BindEnv("limits.defaultWorkflowRunAlertLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_ALERT_LIMIT")
+	_ = v.BindEnv("limits.defaultWorkflowRunWindow", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_WINDOW")
+	_ = v.BindEnv("limits.defaultWorkerLimit", "SERVER_LIMITS_DEFAULT_WORKER_LIMIT")
+	_ = v.BindEnv("limits.defaultWorkerAlertLimit", "SERVER_LIMITS_DEFAULT_WORKER_ALERT_LIMIT")
+	_ = v.BindEnv("limits.defaultEventLimit", "SERVER_LIMITS_DEFAULT_EVENT_LIMIT")
+	_ = v.BindEnv("limits.defaultEventAlertLimit", "SERVER_LIMITS_DEFAULT_EVENT_ALERT_LIMIT")
+	_ = v.BindEnv("limits.defaultEventWindow", "SERVER_LIMITS_DEFAULT_EVENT_WINDOW")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")

@@ -23,4 +23,7 @@ type TenantLimitRepository interface {
 
 	// CanCreateWorker checks if the tenant can create a new worker
 	CanCreateWorker(tenantId string) (bool, error)
+
+	// Create new Tenant Resource Limits for a tenant
+	CreateTenantDefaultLimits(tenantId string) error
 }
