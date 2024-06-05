@@ -253,7 +253,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 	// poll for tenant resource limit alerts every 15 minutes
 	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Second*15),
+		gocron.DurationJob(time.Minute*15),
 		gocron.NewTask(
 			t.runTenantResourceLimitAlerts(ctx),
 		),
