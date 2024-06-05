@@ -6,6 +6,18 @@ if [ -z "$DATABASE_URL" ]; then
   exit 1
 fi
 
+# Wait up to 30 seconds for the database to be ready
+echo "Waiting for database to be ready..."
+timeout 30s bash -c '
+until psql "$DATABASE_URL" -c "\q" 2>/dev/null; do
+  sleep 1
+done
+'
+if [ $? -eq 124 ]; then
+  echo "Timed out waiting for the database to be ready"
+  exit 1
+fi
+
 # Check for prisma migrations
 MIGRATION_NAME=$(psql "$DATABASE_URL" -t -c "SELECT migration_name FROM _prisma_migrations ORDER BY started_at DESC LIMIT 1;" 2>/dev/null | xargs)
 
