@@ -4,7 +4,7 @@ jobs:
   generate:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +37,7 @@ jobs:
 
       - name: Generate
         run: |
-          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet' sh ./hack/db/atlas-apply.sh
+          sh ./hack/db/atlas-apply.sh
           task generate-all
 
       - name: Check for diff
@@ -74,7 +74,7 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
       - uses: actions/checkout@v4
@@ -126,7 +126,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
       - uses: actions/checkout@v4
@@ -186,7 +186,7 @@ jobs:
 
       - name: Generate
         run: |
-          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet' sh ./hack/db/atlas-apply.sh
+          sh ./hack/db/atlas-apply.sh
           task generate-all
           task generate-certs
           task generate-local-encryption-keys
@@ -214,7 +214,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
       - uses: actions/checkout@v4
@@ -265,7 +265,7 @@ jobs:
 
       - name: Generate
         run: |
-          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet' sh ./hack/db/atlas-apply.sh
+          sh ./hack/db/atlas-apply.sh
           task generate-all
           task generate-certs
           task generate-local-encryption-keys
