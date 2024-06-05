@@ -230,6 +230,17 @@ const routes: RouteObject[] = [
                   ),
               },
               {
+                path: '/tenant-settings/resource-limits',
+                lazy: async () =>
+                  import('./pages/main/tenant-settings/resource-limits').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
                 path: '/tenant-settings/ingestors',
                 lazy: async () =>
                   import('./pages/main/tenant-settings/ingestors').then(

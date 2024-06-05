@@ -86,6 +86,55 @@ UpdateTenantRequest:
         validate: "omitnil,duration"
   type: object
 
+TenantResource:
+  enum:
+    - "WORKER"
+    - "EVENT"
+    - "WORKFLOW_RUN"
+  type: string
+
+TenantResourceLimit:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    resource:
+      $ref: "#/TenantResource"
+      description: The resource associated with this limit.
+    limitValue:
+      type: integer
+      description: The limit associated with this limit.
+    alarmValue:
+      type: integer
+      description: The alarm value associated with this limit to warn of approaching limit value.
+    value:
+      type: integer
+      description: The current value associated with this limit.
+    window:
+      type: string
+      description: The meter window for the limit. (i.e. 1 day, 1 week, 1 month)
+    lastRefill:
+      type: string
+      description: The last time the limit was refilled.
+      format: date-time
+  required:
+    - metadata
+    - tenantId
+    - resource
+    - limitValue
+    - value
+  type: object
+
+TenantResourcePolicy:
+  properties:
+    limits:
+      type: array
+      items:
+        $ref: "#/TenantResourceLimit"
+      description: A list of resource limits for the tenant.
+  required:
+    - limits
+  type: object
+
 TenantMember:
   properties:
     metadata:

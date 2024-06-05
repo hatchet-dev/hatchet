@@ -951,8 +951,10 @@ type TenantResourceLimit struct {
 	LimitValue int32            `json:"limitValue"`
 	AlarmValue pgtype.Int4      `json:"alarmValue"`
 	Value      int32            `json:"value"`
-	Window     string           `json:"window"`
+	Window     pgtype.Text      `json:"window"`
 	LastRefill pgtype.Timestamp `json:"lastRefill"`
+	CreatedAt  pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
 }
 
 type TenantVcsProvider struct {

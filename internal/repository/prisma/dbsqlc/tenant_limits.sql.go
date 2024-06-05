@@ -29,7 +29,7 @@ func (q *Queries) CountTenantWorkers(ctx context.Context, db DBTX, tenantid pgty
 const createTenantResourceLimit = `-- name: CreateTenantResourceLimit :one
 INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "lastRefill")
 VALUES (gen_random_uuid(), $1::uuid, $2::"LimitResource", 0, $3::int, $4::int, $5::text, CURRENT_TIMESTAMP)
-RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill"
+RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt"
 `
 
 type CreateTenantResourceLimitParams struct {
@@ -58,6 +58,8 @@ func (q *Queries) CreateTenantResourceLimit(ctx context.Context, db DBTX, arg Cr
 		&i.Value,
 		&i.Window,
 		&i.LastRefill,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return &i, err
 }
@@ -69,13 +71,13 @@ WITH updated AS (
         "value" = 0, -- Reset to 0 if the window has passed
         "lastRefill" = CURRENT_TIMESTAMP -- Update lastRefill if the window has passed
     WHERE "tenantId" = $1::uuid
-      AND NOW() - "lastRefill" >= "window"::INTERVAL
+      AND (("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL) OR "window" IS NULL OR "window" = '')
       AND "resource" = $2::"LimitResource"
-    RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill"
+    RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt"
 )
-SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill" FROM updated
+SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt" FROM updated
 UNION ALL
-SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill" FROM "TenantResourceLimit"
+SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt" FROM "TenantResourceLimit"
 WHERE "tenantId" = $1::uuid
     AND "resource" = $2::"LimitResource"
     AND NOT EXISTS (SELECT 1 FROM updated)
@@ -93,8 +95,10 @@ type GetTenantResourceLimitRow struct {
 	LimitValue int32            `json:"limitValue"`
 	AlarmValue pgtype.Int4      `json:"alarmValue"`
 	Value      int32            `json:"value"`
-	Window     string           `json:"window"`
+	Window     pgtype.Text      `json:"window"`
 	LastRefill pgtype.Timestamp `json:"lastRefill"`
+	CreatedAt  pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
 }
 
 func (q *Queries) GetTenantResourceLimit(ctx context.Context, db DBTX, arg GetTenantResourceLimitParams) (*GetTenantResourceLimitRow, error) {
@@ -109,28 +113,66 @@ func (q *Queries) GetTenantResourceLimit(ctx context.Context, db DBTX, arg GetTe
 		&i.Value,
 		&i.Window,
 		&i.LastRefill,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return &i, err
+}
+
+const listTenantResourceLimits = `-- name: ListTenantResourceLimits :many
+SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt" FROM "TenantResourceLimit"
+WHERE "tenantId" = $1::uuid
+`
+
+func (q *Queries) ListTenantResourceLimits(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*TenantResourceLimit, error) {
+	rows, err := db.Query(ctx, listTenantResourceLimits, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*TenantResourceLimit
+	for rows.Next() {
+		var i TenantResourceLimit
+		if err := rows.Scan(
+			&i.ID,
+			&i.Resource,
+			&i.TenantId,
+			&i.LimitValue,
+			&i.AlarmValue,
+			&i.Value,
+			&i.Window,
+			&i.LastRefill,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const meterTenantResource = `-- name: MeterTenantResource :one
 UPDATE "TenantResourceLimit"
 SET
     "value" = CASE
-        WHEN NOW() - "lastRefill" >= "window"::INTERVAL THEN
+        WHEN ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL) THEN
             0 -- Refill to 0 since the window has passed
         ELSE
             "value" + 1 -- Increment the current value within the window
     END,
     "lastRefill" = CASE
-        WHEN NOW() - "lastRefill" >= "window"::INTERVAL THEN
+        WHEN ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL) THEN
             CURRENT_TIMESTAMP -- Update lastRefill if the window has passed
         ELSE
             "lastRefill" -- Keep the lastRefill unchanged if within the window
     END
 WHERE "tenantId" = $1::uuid
     AND "resource" = $2::"LimitResource"
-RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill"
+RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt"
 `
 
 type MeterTenantResourceParams struct {
@@ -150,6 +192,8 @@ func (q *Queries) MeterTenantResource(ctx context.Context, db DBTX, arg MeterTen
 		&i.Value,
 		&i.Window,
 		&i.LastRefill,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return &i, err
 }

@@ -39,6 +39,33 @@ var WORKFLOW_RESOURCE = dbsqlc.NullLimitResource{
 	Valid:         true,
 }
 
+func (t *tenantLimitRepository) GetLimits(tenantId string) ([]*dbsqlc.TenantResourceLimit, error) {
+	if !t.config.EnforceLimits {
+		return []*dbsqlc.TenantResourceLimit{}, nil
+	}
+
+	limits, err := t.queries.ListTenantResourceLimits(context.Background(), t.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, err
+	}
+
+	// patch custom worker limits
+	for _, limit := range limits {
+
+		if limit.Resource == dbsqlc.LimitResourceWORKER {
+			workerCount, err := t.queries.CountTenantWorkers(context.Background(), t.pool, sqlchelpers.UUIDFromStr(tenantId))
+			if err != nil {
+				return nil, err
+			}
+			limit.Value = int32(workerCount)
+		}
+
+	}
+
+	return limits, nil
+}
+
 func (t *tenantLimitRepository) createDefaultWorkflowLimit(tenantId string) error {
 	const limitValue = 10000
 

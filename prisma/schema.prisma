@@ -151,6 +151,8 @@ enum LimitResource {
 
 model TenantResourceLimit {
   id       String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
 
   resource LimitResource
 
@@ -167,7 +169,7 @@ model TenantResourceLimit {
   value Int @default(0)
 
   // the meter window
-  window String
+  window String?
 
   // the time the rate limit was last refilled
   lastRefill DateTime @default(now())

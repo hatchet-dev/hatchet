@@ -1,10 +1,14 @@
 package repository
 
+import "github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+
 type TenantLimitConfig struct {
 	EnforceLimits bool
 }
 
 type TenantLimitRepository interface {
+	GetLimits(tenantId string) ([]*dbsqlc.TenantResourceLimit, error)
+
 	// CanCreateWorkflowRun checks if the tenant can create a new workflow run
 	CanCreateWorkflowRun(tenantId string) (bool, error)
 

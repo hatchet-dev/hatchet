@@ -58,6 +58,7 @@ import {
   TenantInviteList,
   TenantMember,
   TenantMemberList,
+  TenantResourcePolicy,
   TriggerWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
@@ -391,6 +392,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   alertEmailGroupList = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantAlertEmailGroupList, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/alerting-email-groups`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets the resource policy for a tenant
+   *
+   * @tags Tenant
+   * @name TenantResourcePolicyGet
+   * @summary Create tenant alert email group
+   * @request GET:/api/v1/tenants/{tenant}/resource-policy
+   * @secure
+   */
+  tenantResourcePolicyGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantResourcePolicy, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/resource-policy`,
       method: "GET",
       secure: true,
       format: "json",

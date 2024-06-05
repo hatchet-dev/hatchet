@@ -487,8 +487,10 @@ CREATE TABLE "TenantResourceLimit" (
     "limitValue" INTEGER NOT NULL,
     "alarmValue" INTEGER,
     "value" INTEGER NOT NULL DEFAULT 0,
-    "window" TEXT NOT NULL,
+    "window" TEXT,
     "lastRefill" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "TenantResourceLimit_pkey" PRIMARY KEY ("id")
 );

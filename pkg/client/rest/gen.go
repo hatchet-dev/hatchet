@@ -111,6 +111,13 @@ const (
 	OWNER  TenantMemberRole = "OWNER"
 )
 
+// Defines values for TenantResource.
+const (
+	EVENT       TenantResource = "EVENT"
+	WORKER      TenantResource = "WORKER"
+	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
+)
+
 // Defines values for WorkerStatus.
 const (
 	ACTIVE   WorkerStatus = "ACTIVE"
@@ -713,6 +720,35 @@ type TenantMemberList struct {
 
 // TenantMemberRole defines model for TenantMemberRole.
 type TenantMemberRole string
+
+// TenantResource defines model for TenantResource.
+type TenantResource string
+
+// TenantResourceLimit defines model for TenantResourceLimit.
+type TenantResourceLimit struct {
+	// AlarmValue The alarm value associated with this limit to warn of approaching limit value.
+	AlarmValue *int `json:"alarmValue,omitempty"`
+
+	// LastRefill The last time the limit was refilled.
+	LastRefill *time.Time `json:"lastRefill,omitempty"`
+
+	// LimitValue The limit associated with this limit.
+	LimitValue int             `json:"limitValue"`
+	Metadata   APIResourceMeta `json:"metadata"`
+	Resource   TenantResource  `json:"resource"`
+
+	// Value The current value associated with this limit.
+	Value int `json:"value"`
+
+	// Window The meter window for the limit. (i.e. 1 day, 1 week, 1 month)
+	Window *string `json:"window,omitempty"`
+}
+
+// TenantResourcePolicy defines model for TenantResourcePolicy.
+type TenantResourcePolicy struct {
+	// Limits A list of resource limits for the tenant.
+	Limits []TenantResourceLimit `json:"limits"`
+}
 
 // TriggerWorkflowRunRequest defines model for TriggerWorkflowRunRequest.
 type TriggerWorkflowRunRequest struct {
@@ -1443,6 +1479,9 @@ type ClientInterface interface {
 	// TenantMemberDelete request
 	TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// TenantResourcePolicyGet request
+	TenantResourcePolicyGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SlackWebhookList request
 	SlackWebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2111,6 +2150,18 @@ func (c *Client) TenantMemberList(ctx context.Context, tenant openapi_types.UUID
 
 func (c *Client) TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantMemberDeleteRequest(c.Server, tenant, member)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantResourcePolicyGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantResourcePolicyGetRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -4333,6 +4384,40 @@ func NewTenantMemberDeleteRequest(server string, tenant openapi_types.UUID, memb
 	return req, nil
 }
 
+// NewTenantResourcePolicyGetRequest generates requests for TenantResourcePolicyGet
+func NewTenantResourcePolicyGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/resource-policy", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewSlackWebhookListRequest generates requests for SlackWebhookList
 func NewSlackWebhookListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -6234,6 +6319,9 @@ type ClientWithResponsesInterface interface {
 	// TenantMemberDeleteWithResponse request
 	TenantMemberDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantMemberDeleteResponse, error)
 
+	// TenantResourcePolicyGetWithResponse request
+	TenantResourcePolicyGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantResourcePolicyGetResponse, error)
+
 	// SlackWebhookListWithResponse request
 	SlackWebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookListResponse, error)
 
@@ -7226,6 +7314,30 @@ func (r TenantMemberDeleteResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantMemberDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantResourcePolicyGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantResourcePolicy
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantResourcePolicyGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantResourcePolicyGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8554,6 +8666,15 @@ func (c *ClientWithResponses) TenantMemberDeleteWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseTenantMemberDeleteResponse(rsp)
+}
+
+// TenantResourcePolicyGetWithResponse request returning *TenantResourcePolicyGetResponse
+func (c *ClientWithResponses) TenantResourcePolicyGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantResourcePolicyGetResponse, error) {
+	rsp, err := c.TenantResourcePolicyGet(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantResourcePolicyGetResponse(rsp)
 }
 
 // SlackWebhookListWithResponse request returning *SlackWebhookListResponse
@@ -10387,6 +10508,46 @@ func ParseTenantMemberDeleteResponse(rsp *http.Response) (*TenantMemberDeleteRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantResourcePolicyGetResponse parses an HTTP response from a TenantResourcePolicyGetWithResponse call
+func ParseTenantResourcePolicyGetResponse(rsp *http.Response) (*TenantResourcePolicyGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantResourcePolicyGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantResourcePolicy
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
