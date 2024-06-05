@@ -38,7 +38,13 @@ func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
 
 	runner := run.NewAPIServer(sc)
 
-	apiCleanup, err := runner.Run()
+	e, err := runner.GetEchoServer()
+
+	if err != nil {
+		return err
+	}
+
+	apiCleanup, err := runner.RunWithServer(e)
 	if err != nil {
 		return fmt.Errorf("error starting API server: %w", err)
 	}
