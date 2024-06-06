@@ -3,7 +3,11 @@ package alerting
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
@@ -68,14 +72,17 @@ func (t *TenantAlertManager) sendEmailTenantResourceLimitAlert(tenant *dbsqlc.Te
 	var summary string
 	var summary2 string
 
+	resource := strings.ReplaceAll(strings.ToLower(payload.Resource), "_", " ")
+	resource = cases.Title(language.English).String(resource)
+
 	if payload.AlertType == string(dbsqlc.TenantResourceLimitAlertTypeAlarm) {
-		subject = fmt.Sprintf("Hatchet Limit Alarm! `%s` resource is at %d%% of its limit (%d/%d)", payload.Resource, payload.Percentage, payload.CurrentValue, payload.LimitValue)
+		subject = fmt.Sprintf("%s has exhausted %d%% of its limit (%d/%d)", resource, payload.Percentage, payload.CurrentValue, payload.LimitValue)
 		summary = "We're sending you this alert because a resource on your Hatchet tenant is approaching its usage limit."
 		summary2 = "Once the limit is reached, any further resource usage will be denied."
 	}
 
 	if payload.AlertType == string(dbsqlc.TenantResourceLimitAlertTypeExhausted) {
-		subject = fmt.Sprintf("Hatchet Limit Exhausted! `%s` resource is at 100%% of its limit (%d/%d)", payload.Resource, payload.CurrentValue, payload.LimitValue)
+		subject = fmt.Sprintf("%s has exhausted 100%% of its limit (%d/%d)", payload.Resource, payload.CurrentValue, payload.LimitValue)
 		summary = "We're sending you this alert because a resource on your Hatchet tenant has exhausted its usage limit."
 		summary2 = "Any further resource usage will be denied until the limit is increased."
 	}

@@ -103,35 +103,36 @@ func (t *tenantLimitRepository) createDefaultEventLimit(ctx context.Context, ten
 	return err
 }
 
-func (t *tenantLimitRepository) createDefaultCronLimit(ctx context.Context, tenantId string) error {
+// func (t *tenantLimitRepository) createDefaultCronLimit(ctx context.Context, tenantId string) error {
 
-	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Resource: dbsqlc.NullLimitResource{
-			LimitResource: dbsqlc.LimitResourceCRON,
-			Valid:         true,
-		},
-		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultCronLimit)),
-		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultCronAlarmLimit)),
-	})
+// 	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
+// 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+// 		Resource: dbsqlc.NullLimitResource{
+// 			LimitResource: dbsqlc.LimitResourceCRON,
+// 			Valid:         true,
+// 		},
+// 		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultCronLimit)),
+// 		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultCronAlarmLimit)),
+// 	})
 
-	return err
-}
+// 	return err
+// }
 
-func (t *tenantLimitRepository) createDefaultScheduleLimit(ctx context.Context, tenantId string) error {
+// func (t *tenantLimitRepository) createDefaultScheduleLimit(ctx context.Context, tenantId string) error {
 
-	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Resource: dbsqlc.NullLimitResource{
-			LimitResource: dbsqlc.LimitResourceSCHEDULE,
-			Valid:         true,
-		},
-		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultScheduleLimit)),
-		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultScheduleAlarmLimit)),
-	})
+// 	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
+// 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+// 		Resource: dbsqlc.NullLimitResource{
+// 			LimitResource: dbsqlc.LimitResourceSCHEDULE,
+// 			Valid:         true,
+// 		},
+// 		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultScheduleLimit)),
+// 		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultScheduleAlarmLimit)),
+// 	})
 
-	return err
-}
+// 	return err
+// }
+
 func (t *tenantLimitRepository) createDefaultWorkerLimit(ctx context.Context, tenantId string) error {
 
 	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
