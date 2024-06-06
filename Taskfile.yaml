@@ -57,7 +57,9 @@ tasks:
       - sudo sh ./hack/dev/manage-hosts.sh add 127.0.0.1 app.dev.hatchet-tools.com
   prisma-migrate:
     cmds:
-      - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev --skip-generate
+      - task: generate-sqlc
+      - sh ./hack/dev/atlas-migrate.sh {{.CLI_ARGS}}
+      - DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable' sh ./hack/db/atlas-apply.sh
   prisma-push:
     cmds:
       - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go db push
@@ -84,6 +86,10 @@ tasks:
   start-ngrok:
     cmds:
       - ngrok http 8080
+  start-lite:
+    cmds:
+      - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev --skip-generate
+      - sh ./hack/dev/start-lite.sh
   generate-all:
     cmds:
       - task: install-dependencies
@@ -130,7 +136,9 @@ tasks:
       - sh ./generate.sh
   generate-sqlc:
     cmds:
-      - npx --yes prisma migrate diff --from-empty --to-schema-datasource prisma/schema.prisma --script > internal/repository/prisma/dbsqlc/schema.sql
+      - DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/shadow' npx --yes prisma migrate dev --skip-generate
+      - DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/shadow' npx --yes prisma migrate diff --from-empty --to-schema-datasource prisma/schema.prisma --script > sql/schema/schema.sql
+      - cp sql/schema/schema.sql internal/repository/prisma/dbsqlc/schema.sql
       - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0 generate --file internal/repository/prisma/dbsqlc/sqlc.yaml
   lint:
     cmds:

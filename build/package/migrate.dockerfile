@@ -1,17 +1,14 @@
-# Base Go environment
-# -------------------
-FROM golang:1.21-alpine as base
-WORKDIR /hatchet
+FROM alpine as deployment
 
-# curl is needed for things like signaling cloudsql proxy container to stop after a migration
-RUN apk update && apk add --no-cache curl
+# install bash via apk
+RUN apk update && apk add --no-cache bash gcc musl-dev openssl bash ca-certificates curl postgresql-client
 
-COPY go.mod go.sum ./
+RUN curl -sSf https://atlasgo.sh | sh
 
-RUN go mod download
+COPY ./hack/db/atlas-apply.sh ./atlas-apply.sh
+COPY ./sql/migrations ./sql/migrations
 
-RUN go run github.com/steebchen/prisma-client-go prefetch
+RUN chmod +x ./atlas-apply.sh
 
-COPY /prisma ./prisma
-
-CMD go run github.com/steebchen/prisma-client-go migrate deploy
+# Run the entrypoint script
+CMD ["./atlas-apply.sh"]

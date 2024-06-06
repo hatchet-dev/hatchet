@@ -149,11 +149,12 @@ func (t *Message) TenantID() string {
 type AckHook func(task *Message) error
 
 type MessageQueue interface {
-	// AddMessage adds a task to the queue. Implementations should ensure that Start().
+	// AddMessage adds a task to the queue
 	AddMessage(ctx context.Context, queue Queue, task *Message) error
 
-	// Subscribe subscribes to the task queue.
-	Subscribe(queueType Queue, preAck AckHook, postAck AckHook) (func() error, error)
+	// Subscribe subscribes to the task queue. It returns a cleanup function that should be called when the
+	// subscription is no longer needed.
+	Subscribe(queue Queue, preAck AckHook, postAck AckHook) (func() error, error)
 
 	// RegisterTenant registers a new pub/sub mechanism for a tenant. This should be called when a
 	// new tenant is created. If this is not called, implementors should ensure that there's a check
