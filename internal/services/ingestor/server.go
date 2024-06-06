@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
@@ -30,7 +31,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	}
 	event, err := i.IngestEvent(ctx, tenantId, req.Key, []byte(req.Payload), &additionalMeta)
 
-	if err == ErrResourceExhausted {
+	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
 	}
 

@@ -112,8 +112,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}, nil
 }
 
-var ErrResourceExhausted = fmt.Errorf("resource exhausted: cannot create event for tenant at this time")
-
 func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte, metadata *[]byte) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
@@ -126,7 +124,7 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 	})
 
 	if err == metered.ErrResourceExhausted {
-		return nil, ErrResourceExhausted
+		return nil, metered.ErrResourceExhausted
 	}
 
 	if err != nil {
@@ -162,7 +160,7 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string,
 	})
 
 	if err == metered.ErrResourceExhausted {
-		return nil, ErrResourceExhausted
+		return nil, metered.ErrResourceExhausted
 	}
 
 	if err != nil {

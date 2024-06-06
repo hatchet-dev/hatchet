@@ -7,9 +7,9 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 )
 
 func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpdateReplayRequestObject) (gen.EventUpdateReplayResponseObject, error) {
@@ -36,7 +36,7 @@ func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpda
 
 		newEvent, err := t.config.Ingestor.IngestReplayedEvent(ctx.Request().Context(), tenant.ID, event)
 
-		if err == ingestor.ErrResourceExhausted {
+		if err == metered.ErrResourceExhausted {
 			return gen.EventUpdateReplay429JSONResponse(
 				apierrors.NewAPIErrors("Event limit exceeded"),
 			), nil
