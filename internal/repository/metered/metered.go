@@ -3,22 +3,26 @@ package metered
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/cache"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
 
 type Metered struct {
 	entitlements repository.EntitlementsRepository
 	l            *zerolog.Logger
+	c            cache.Cacheable
 }
 
 func NewMetered(entitlements repository.EntitlementsRepository, l *zerolog.Logger) *Metered {
 	return &Metered{
 		entitlements: entitlements,
 		l:            l,
+		c:            cache.New(time.Second * 30),
 	}
 }
 
@@ -26,13 +30,32 @@ var ErrResourceExhausted = fmt.Errorf("resource exhausted")
 
 func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitResource, tenantId string, f func() (*T, error)) (*T, error) {
 
-	canCreate, err := m.entitlements.TenantLimit().CanCreate(ctx, resource, tenantId)
+	var key = fmt.Sprintf("%s:%s", resource, tenantId)
 
-	if err != nil {
-		return nil, fmt.Errorf("could not check tenant limit: %w", err)
+	var canCreate *bool
+	var percent int
+
+	if hit, ok := m.c.Get(key); ok {
+		c := hit.(bool)
+		canCreate = &c
 	}
 
-	if !canCreate {
+	if canCreate == nil {
+		c, percent, err := m.entitlements.TenantLimit().CanCreate(ctx, resource, tenantId)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not check tenant limit: %w", err)
+		}
+
+		canCreate = &c
+
+		if percent <= 50 || percent >= 100 {
+			m.c.Set(key, c)
+		}
+
+	}
+
+	if !*canCreate {
 		return nil, ErrResourceExhausted
 	}
 
@@ -43,7 +66,11 @@ func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitRe
 	}
 
 	deferredMeter := func() {
-		_, err := m.entitlements.TenantLimit().Meter(ctx, resource, tenantId)
+		limit, err := m.entitlements.TenantLimit().Meter(ctx, resource, tenantId)
+
+		if percent <= 50 || percent >= 100 {
+			m.c.Set(key, limit.Value < limit.LimitValue)
+		}
 
 		// TODO: we should probably publish an event here if limits are exhausted to notify immediately
 

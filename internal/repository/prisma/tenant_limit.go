@@ -179,10 +179,10 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 	return limits, nil
 }
 
-func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.LimitResource, tenantId string) (bool, error) {
+func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.LimitResource, tenantId string) (bool, int, error) {
 
 	if !t.config.EnforceLimits {
-		return true, nil
+		return true, 0, nil
 	}
 
 	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool, dbsqlc.GetTenantResourceLimitParams{
@@ -199,14 +199,14 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 		err = t.CreateTenantDefaultLimits(ctx, tenantId)
 
 		if err != nil {
-			return false, err
+			return false, 0, err
 		}
 
-		return true, nil
+		return true, 0, nil
 	}
 
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 
 	var value = limit.Value
@@ -214,19 +214,23 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 	// patch custom worker limits aggregate methods
 	if resource == dbsqlc.LimitResourceWORKER {
 		count, err := t.queries.CountTenantWorkers(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+		value = int32(count)
 
 		if err != nil {
-			return false, err
+			return false, 0, err
 		}
 
-		value = int32(count)
 	}
 
 	if value >= limit.LimitValue {
-		return false, nil
+		return false, 100, nil
 	}
 
-	return true, nil
+	return true, calcPercent(value, limit.LimitValue), nil
+}
+
+func calcPercent(value int32, limit int32) int {
+	return int((float64(value) / float64(limit)) * 100)
 }
 
 func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.LimitResource, tenantId string) (*dbsqlc.TenantResourceLimit, error) {
