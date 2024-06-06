@@ -486,6 +486,8 @@ CREATE TABLE "TenantMember" (
 -- CreateTable
 CREATE TABLE "TenantResourceLimit" (
     "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "resource" "LimitResource" NOT NULL,
     "tenantId" UUID NOT NULL,
     "limitValue" INTEGER NOT NULL,
@@ -493,8 +495,6 @@ CREATE TABLE "TenantResourceLimit" (
     "value" INTEGER NOT NULL DEFAULT 0,
     "window" TEXT,
     "lastRefill" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "customValueMeter" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "TenantResourceLimit_pkey" PRIMARY KEY ("id")
@@ -506,11 +506,11 @@ CREATE TABLE "TenantResourceLimitAlert" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "resourceLimitId" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
     "resource" "LimitResource" NOT NULL,
     "alertType" "TenantResourceLimitAlertType" NOT NULL,
     "value" INTEGER NOT NULL,
     "limit" INTEGER NOT NULL,
-    "tenantId" UUID NOT NULL,
 
     CONSTRAINT "TenantResourceLimitAlert_pkey" PRIMARY KEY ("id")
 );

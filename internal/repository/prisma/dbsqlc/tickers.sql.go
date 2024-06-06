@@ -737,7 +737,7 @@ FROM
     new_alerts AS na
 WHERE
     na."existingAlert" = false
-RETURNING id, "createdAt", "updatedAt", "resourceLimitId", resource, "alertType", value, "limit", "tenantId"
+RETURNING id, "createdAt", "updatedAt", "resourceLimitId", "tenantId", resource, "alertType", value, "limit"
 `
 
 func (q *Queries) PollTenantResourceLimitAlerts(ctx context.Context, db DBTX) ([]*TenantResourceLimitAlert, error) {
@@ -754,11 +754,11 @@ func (q *Queries) PollTenantResourceLimitAlerts(ctx context.Context, db DBTX) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ResourceLimitId,
+			&i.TenantId,
 			&i.Resource,
 			&i.AlertType,
 			&i.Value,
 			&i.Limit,
-			&i.TenantId,
 		); err != nil {
 			return nil, err
 		}

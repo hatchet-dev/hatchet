@@ -991,6 +991,8 @@ type TenantMember struct {
 
 type TenantResourceLimit struct {
 	ID               pgtype.UUID      `json:"id"`
+	CreatedAt        pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
 	Resource         LimitResource    `json:"resource"`
 	TenantId         pgtype.UUID      `json:"tenantId"`
 	LimitValue       int32            `json:"limitValue"`
@@ -998,8 +1000,6 @@ type TenantResourceLimit struct {
 	Value            int32            `json:"value"`
 	Window           pgtype.Text      `json:"window"`
 	LastRefill       pgtype.Timestamp `json:"lastRefill"`
-	CreatedAt        pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
 	CustomValueMeter bool             `json:"customValueMeter"`
 }
 
@@ -1008,11 +1008,11 @@ type TenantResourceLimitAlert struct {
 	CreatedAt       pgtype.Timestamp             `json:"createdAt"`
 	UpdatedAt       pgtype.Timestamp             `json:"updatedAt"`
 	ResourceLimitId pgtype.UUID                  `json:"resourceLimitId"`
+	TenantId        pgtype.UUID                  `json:"tenantId"`
 	Resource        LimitResource                `json:"resource"`
 	AlertType       TenantResourceLimitAlertType `json:"alertType"`
 	Value           int32                        `json:"value"`
 	Limit           int32                        `json:"limit"`
-	TenantId        pgtype.UUID                  `json:"tenantId"`
 }
 
 type TenantVcsProvider struct {
