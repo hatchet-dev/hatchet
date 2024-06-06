@@ -7,6 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
@@ -117,22 +118,16 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
-	canCreate, err := i.entitlementsRepository.TenantLimit().CanCreateEvent(tenantId)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not check if tenant can create event: %w", err)
-	}
-
-	if !canCreate {
-		return nil, ErrResourceExhausted
-	}
-
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
 		TenantId:           tenantId,
 		Key:                key,
 		Data:               data,
 		AdditionalMetadata: *metadata,
 	})
+
+	if err == metered.ErrResourceExhausted {
+		return nil, ErrResourceExhausted
+	}
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create event: %w", err)
@@ -149,28 +144,12 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
 	}
 
-	err = i.entitlementsRepository.TenantLimit().MeterEvent(tenantId)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not meter event: %w", err)
-	}
-
 	return event, nil
 }
 
 func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
 	defer span.End()
-
-	canCreate, err := i.entitlementsRepository.TenantLimit().CanCreateEvent(tenantId)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not check if tenant can create event: %w", err)
-	}
-
-	if !canCreate {
-		return nil, ErrResourceExhausted
-	}
 
 	replayedId := sqlchelpers.UUIDToStr(replayedEvent.ID)
 
@@ -182,6 +161,10 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string,
 		ReplayedEvent:      &replayedId,
 	})
 
+	if err == metered.ErrResourceExhausted {
+		return nil, ErrResourceExhausted
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("could not create event: %w", err)
 	}
@@ -190,12 +173,6 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string,
 
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
-	}
-
-	err = i.entitlementsRepository.TenantLimit().MeterEvent(tenantId)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not meter event: %w", err)
 	}
 
 	return event, nil

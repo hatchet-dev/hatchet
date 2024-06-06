@@ -104,19 +104,6 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		// TODO limit
-		canCreate, err := t.entitlements.TenantLimit().CanCreateWorkflowRun(tenantId)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not check tenant limit")
-			return
-		}
-
-		if !canCreate {
-			t.l.Debug().Msg("ticker: tenant workflow run limit reached")
-			return
-		}
-
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
 
 		workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
@@ -152,13 +139,6 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 			return
 		}
 
-		// TODO defer
-		err = t.entitlements.TenantLimit().MeterWorkflowRun(tenantId)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not meter workflow run")
-			return
-		}
 	}
 }
 

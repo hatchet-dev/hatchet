@@ -19,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -114,16 +115,6 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	s.l.Debug().Msgf("Received register request from ID %s with actions %v", request.WorkerName, request.Actions)
 
-	canCreate, err := s.entitlements.TenantLimit().CanCreateWorker(tenantId)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not check if tenant can create worker: %w", err)
-	}
-
-	if !canCreate {
-		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: tenant worker limit exceeded")
-	}
-
 	svcs := request.Services
 
 	if len(svcs) == 0 {
@@ -150,6 +141,10 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	// create a worker in the database
 	worker, err := s.repo.Worker().CreateNewWorker(ctx, tenantId, opts)
+
+	if err == metered.ErrResourceExhausted {
+		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: tenant worker limit exceeded")
+	}
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not create worker for tenant %s", tenantId)

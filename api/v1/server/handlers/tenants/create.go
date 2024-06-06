@@ -1,6 +1,7 @@
 package tenants
 
 import (
+	"context"
 	"errors"
 
 	"github.com/labstack/echo/v4"
@@ -48,7 +49,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		return nil, err
 	}
 
-	err = t.config.EntitlementRepository.TenantLimit().CreateTenantDefaultLimits(tenant.ID)
+	err = t.config.EntitlementRepository.TenantLimit().CreateTenantDefaultLimits(context.Background(), tenant.ID)
 
 	if err != nil {
 		return nil, err

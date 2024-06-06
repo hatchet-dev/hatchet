@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 )
@@ -19,18 +20,6 @@ import (
 func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.WorkflowRunCreateRequestObject) (gen.WorkflowRunCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 	workflow := ctx.Get("workflow").(*db.WorkflowModel)
-
-	canCreate, err := t.config.EntitlementRepository.TenantLimit().CanCreateWorkflowRun(tenant.ID)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if !canCreate {
-		return gen.WorkflowRunCreate429JSONResponse(
-			apierrors.NewAPIErrors("Workflow Run limit exceeded"),
-		), nil
-	}
 
 	var workflowVersionId string
 
@@ -95,6 +84,12 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 
 	workflowRun, err := t.config.APIRepository.WorkflowRun().CreateNewWorkflowRun(ctx.Request().Context(), tenant.ID, createOpts)
 
+	if err == metered.ErrResourceExhausted {
+		return gen.WorkflowRunCreate429JSONResponse(
+			apierrors.NewAPIErrors("Workflow Run limit exceeded"),
+		), nil
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("could not create workflow run: %w", err)
 	}
@@ -108,13 +103,6 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 
 	if err != nil {
 		return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
-	}
-
-	// TODO defer
-	err = t.config.EntitlementRepository.TenantLimit().MeterWorkflowRun(workflow.TenantID)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not meter workflow run: %w", err)
 	}
 
 	res, err := transformers.ToWorkflowRun(workflowRun)

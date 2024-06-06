@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/cache"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 )
@@ -37,9 +38,10 @@ type apiRepository struct {
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
 
 type PrismaRepositoryOpts struct {
-	v     validator.Validator
-	l     *zerolog.Logger
-	cache cache.Cacheable
+	v       validator.Validator
+	l       *zerolog.Logger
+	cache   cache.Cacheable
+	metered *metered.Metered
 }
 
 func defaultPrismaRepositoryOpts() *PrismaRepositoryOpts {
@@ -66,6 +68,12 @@ func WithCache(cache cache.Cacheable) PrismaRepositoryOpt {
 	}
 }
 
+func WithMetered(metered *metered.Metered) PrismaRepositoryOpt {
+	return func(opts *PrismaRepositoryOpts) {
+		opts.metered = metered
+	}
+}
+
 func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) repository.APIRepository {
 	opts := defaultPrismaRepositoryOpts()
 
@@ -88,14 +96,14 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		tenantAlerting: NewTenantAlertingAPIRepository(client, opts.v, opts.cache),
 		tenantInvite:   NewTenantInviteRepository(client, opts.v),
 		workflow:       NewWorkflowRepository(client, pool, opts.v, opts.l),
-		workflowRun:    NewWorkflowRunRepository(client, pool, opts.v, opts.l),
+		workflowRun:    NewWorkflowRunRepository(client, pool, opts.v, opts.l, opts.metered),
 		jobRun:         NewJobRunAPIRepository(client, pool, opts.v, opts.l),
 		stepRun:        NewStepRunAPIRepository(client, pool, opts.v, opts.l),
 		github:         NewGithubRepository(client, opts.v),
 		step:           NewStepRepository(client, opts.v),
 		slack:          NewSlackRepository(client, opts.v),
 		sns:            NewSNSRepository(client, opts.v),
-		worker:         NewWorkerAPIRepository(client, pool, opts.v, opts.l),
+		worker:         NewWorkerAPIRepository(client, pool, opts.v, opts.l, opts.metered),
 		userSession:    NewUserSessionRepository(client, opts.v),
 		user:           NewUserRepository(client, opts.v),
 		health:         NewHealthAPIRepository(client, pool),
@@ -275,14 +283,14 @@ func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) reposito
 		health:         NewHealthEngineRepository(pool),
 		apiToken:       NewEngineTokenRepository(pool, opts.v, opts.l, opts.cache),
 		dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
-		event:          NewEventEngineRepository(pool, opts.v, opts.l),
+		event:          NewEventEngineRepository(pool, opts.v, opts.l, opts.metered),
 		getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 		jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
 		stepRun:        NewStepRunEngineRepository(pool, opts.v, opts.l),
 		tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 		tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
 		ticker:         NewTickerRepository(pool, opts.v, opts.l),
-		worker:         NewWorkerEngineRepository(pool, opts.v, opts.l),
+		worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
 		workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l),
 		workflowRun:    NewWorkflowRunEngineRepository(pool, opts.v, opts.l),
 		streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),

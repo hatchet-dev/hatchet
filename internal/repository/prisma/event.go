@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
@@ -197,9 +198,10 @@ type eventEngineRepository struct {
 	v       validator.Validator
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
+	m       *metered.Metered
 }
 
-func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.EventEngineRepository {
+func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.EventEngineRepository {
 	queries := dbsqlc.New()
 
 	return &eventEngineRepository{
@@ -207,6 +209,7 @@ func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zero
 		v:       v,
 		queries: queries,
 		l:       l,
+		m:       m,
 	}
 }
 
@@ -215,36 +218,39 @@ func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId,
 }
 
 func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*dbsqlc.Event, error) {
-	ctx, span := telemetry.NewSpan(ctx, "db-create-event")
-	defer span.End()
+	return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, func() (*dbsqlc.Event, error) {
 
-	if err := r.v.Validate(opts); err != nil {
-		return nil, err
-	}
+		ctx, span := telemetry.NewSpan(ctx, "db-create-event")
+		defer span.End()
 
-	createParams := dbsqlc.CreateEventParams{
-		ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
-		Key:                opts.Key,
-		Tenantid:           sqlchelpers.UUIDFromStr(opts.TenantId),
-		Data:               opts.Data,
-		Additionalmetadata: opts.AdditionalMetadata,
-	}
+		if err := r.v.Validate(opts); err != nil {
+			return nil, err
+		}
 
-	if opts.ReplayedEvent != nil {
-		createParams.ReplayedFromId = sqlchelpers.UUIDFromStr(*opts.ReplayedEvent)
-	}
+		createParams := dbsqlc.CreateEventParams{
+			ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
+			Key:                opts.Key,
+			Tenantid:           sqlchelpers.UUIDFromStr(opts.TenantId),
+			Data:               opts.Data,
+			Additionalmetadata: opts.AdditionalMetadata,
+		}
 
-	e, err := r.queries.CreateEvent(
-		ctx,
-		r.pool,
-		createParams,
-	)
+		if opts.ReplayedEvent != nil {
+			createParams.ReplayedFromId = sqlchelpers.UUIDFromStr(*opts.ReplayedEvent)
+		}
 
-	if err != nil {
-		return nil, fmt.Errorf("could not create event: %w", err)
-	}
+		e, err := r.queries.CreateEvent(
+			ctx,
+			r.pool,
+			createParams,
+		)
 
-	return e, nil
+		if err != nil {
+			return nil, fmt.Errorf("could not create event: %w", err)
+		}
+
+		return e, nil
+	})
 }
 
 func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.Event, error) {

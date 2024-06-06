@@ -14,6 +14,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -24,19 +25,6 @@ import (
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	canCreate, err := a.entitlements.TenantLimit().CanCreateWorkflowRun(tenantId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if !canCreate {
-		return nil, status.Error(
-			codes.ResourceExhausted,
-			"workflow run limit exceeded",
-		)
-	}
 
 	isParentTriggered := req.ParentId != nil
 
@@ -82,6 +70,13 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		tenantId,
 		req.Name,
 	)
+
+	if err == metered.ErrResourceExhausted {
+		return nil, status.Error(
+			codes.ResourceExhausted,
+			"workflow run limit exceeded",
+		)
+	}
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -149,12 +144,6 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 
 	if err != nil {
 		return nil, fmt.Errorf("could not queue workflow run: %w", err)
-	}
-
-	err = a.entitlements.TenantLimit().MeterWorkflowRun(tenantId)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not meter workflow run: %w", err)
 	}
 
 	return &contracts.TriggerWorkflowResponse{

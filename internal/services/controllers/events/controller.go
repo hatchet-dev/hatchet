@@ -194,16 +194,6 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 
 		g.Go(func() error {
 
-			canCreate, err := ec.entitlements.TenantLimit().CanCreateWorkflowRun(tenantId)
-
-			if err != nil {
-				return fmt.Errorf("could not check if tenant can create workflow run: %w", err)
-			}
-
-			if !canCreate {
-				return fmt.Errorf("resource exhausted: tenant cannot create workflow run")
-			}
-
 			// create a new workflow run in the database
 			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(eventId, workflowCp, data, additionalMetadata)
 
@@ -229,13 +219,6 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 
 			if err != nil {
 				return fmt.Errorf("could not add workflow run queued task: %w", err)
-			}
-
-			// TODO defer
-			err = ec.entitlements.TenantLimit().MeterWorkflowRun(tenantId)
-
-			if err != nil {
-				return fmt.Errorf("could not meter workflow run: %w", err)
 			}
 
 			return nil
