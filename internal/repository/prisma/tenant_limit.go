@@ -53,17 +53,19 @@ func (t *tenantLimitRepository) CreateTenantDefaultLimits(ctx context.Context, t
 		return err
 	}
 
-	err = t.createDefaultCronLimit(ctx, tenantId)
+	// TODO: implement cron limits
+	// err = t.createDefaultCronLimit(ctx, tenantId)
 
-	if err != nil {
-		return err
-	}
+	// if err != nil {
+	// 	return err
+	// }
 
-	err = t.createDefaultScheduleLimit(ctx, tenantId)
+	// TODO: implement schedule limits
+	// err = t.createDefaultScheduleLimit(ctx, tenantId)
 
-	if err != nil {
-		return err
-	}
+	// if err != nil {
+	// 	return err
+	// }
 
 	err = t.createDefaultWorkerLimit(ctx, tenantId)
 

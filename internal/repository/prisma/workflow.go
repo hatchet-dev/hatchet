@@ -738,23 +738,15 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 
 	for _, cronTrigger := range opts.CronTriggers {
 
-		_, err = metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceCRON, sqlchelpers.UUIDToStr(tenantId), func() (*string, error) {
-			_, err := r.queries.CreateWorkflowTriggerCronRef(
-				ctx,
-				tx,
-				dbsqlc.CreateWorkflowTriggerCronRefParams{
-					Workflowtriggersid: sqlcWorkflowTriggers.ID,
-					Crontrigger:        cronTrigger,
-					Input:              opts.CronInput,
-				},
-			)
-
-			if err != nil {
-				return nil, err
-			}
-
-			return nil, nil
-		})
+		_, err := r.queries.CreateWorkflowTriggerCronRef(
+			ctx,
+			tx,
+			dbsqlc.CreateWorkflowTriggerCronRefParams{
+				Workflowtriggersid: sqlcWorkflowTriggers.ID,
+				Crontrigger:        cronTrigger,
+				Input:              opts.CronInput,
+			},
+		)
 
 		if err != nil {
 			return "", err
@@ -763,22 +755,14 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 	}
 
 	for _, scheduledTrigger := range opts.ScheduledTriggers {
-		_, err = metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceSCHEDULE, sqlchelpers.UUIDToStr(tenantId), func() (*string, error) {
-			_, err := r.queries.CreateWorkflowTriggerScheduledRef(
-				ctx,
-				tx,
-				dbsqlc.CreateWorkflowTriggerScheduledRefParams{
-					Workflowversionid: sqlcWorkflowVersion.ID,
-					Scheduledtrigger:  sqlchelpers.TimestampFromTime(scheduledTrigger),
-				},
-			)
-
-			if err != nil {
-				return nil, err
-			}
-
-			return nil, nil
-		})
+		_, err := r.queries.CreateWorkflowTriggerScheduledRef(
+			ctx,
+			tx,
+			dbsqlc.CreateWorkflowTriggerScheduledRefParams{
+				Workflowversionid: sqlcWorkflowVersion.ID,
+				Scheduledtrigger:  sqlchelpers.TimestampFromTime(scheduledTrigger),
+			},
+		)
 
 		if err != nil {
 			return "", err
