@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -232,6 +233,10 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 
 	if err != nil {
 		return nil, err
+	}
+
+	if ns := h.client().Namespace(); ns != "" && !strings.HasPrefix(workflowName, ns) {
+		workflowName = fmt.Sprintf("%s%s", ns, workflowName)
 	}
 
 	workflowRunId, err := h.client().Admin().RunChildWorkflow(

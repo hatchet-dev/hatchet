@@ -5,6 +5,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
@@ -16,19 +17,19 @@ func (g *SlackAppService) UserUpdateSlackOauthStart(ctx echo.Context, _ gen.User
 	oauth, ok := g.config.AdditionalOAuthConfigs["slack"]
 
 	if !ok {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, nil, "Slack OAuth is not configured on this Hatchet instance.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, nil, "Slack OAuth is not configured on this Hatchet instance.")
 	}
 
 	sh := authn.NewSessionHelpers(g.config)
 
 	if err := sh.SaveKV(ctx, "tenant", tenant.ID); err != nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
 	}
 
 	state, err := sh.SaveOAuthState(ctx, "slack")
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
 	}
 
 	url := oauth.AuthCodeURL(state, oauth2.AccessTypeOffline)

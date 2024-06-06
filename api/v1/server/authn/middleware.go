@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
@@ -82,13 +83,13 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error getting session")
 
-		return GetRedirectWithError(c, a.l, err, "Could not log in. Please try again and make sure cookies are enabled.")
+		return redirect.GetRedirectWithError(c, a.l, err, "Could not log in. Please try again and make sure cookies are enabled.")
 	}
 
 	if auth, ok := session.Values["authenticated"].(bool); ok && auth {
 		a.l.Debug().Msgf("user was authenticated when no security schemes permit auth")
 
-		return GetRedirectNoError(c, a.config.Runtime.ServerURL)
+		return redirect.GetRedirectNoError(c, a.config.Runtime.ServerURL)
 	}
 
 	// set unauthenticated session in context

@@ -120,3 +120,39 @@ jobs:
       - name: Push to GHCR
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}
+  build-push-hatchet-lite:
+    name: hatchet-lite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Login to GHCR
+        id: login-ghcr
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            -t hatchet-lite-local:${{steps.tag_name.outputs.tag}} \
+            --build-arg SERVER_TARGET=lite \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            .
+
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            -t hatchet-admin-local:${{steps.tag_name.outputs.tag}} \
+            --build-arg SERVER_TARGET=admin \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            .
+
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+            -t ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}} \
+            --build-arg HATCHET_LITE_IMAGE=hatchet-lite-local:${{steps.tag_name.outputs.tag}} \
+            --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-local:${{steps.tag_name.outputs.tag}} \
+            .
+      - name: Push to GHCR
+        run: |
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}

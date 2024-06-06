@@ -4,6 +4,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 )
 
@@ -12,7 +13,7 @@ func (u *UserService) UserUpdateGoogleOauthStart(ctx echo.Context, _ gen.UserUpd
 	state, err := authn.NewSessionHelpers(u.config).SaveOAuthState(ctx, "google")
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
+		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
 	}
 
 	url := u.config.Auth.GoogleOAuthConfig.AuthCodeURL(state)

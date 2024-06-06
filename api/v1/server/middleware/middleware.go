@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/labstack/echo/v4"
+
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 )
 
 type SecurityRequirement interface {
@@ -173,8 +176,14 @@ func (m *MiddlewareHandler) Middleware() (echo.MiddlewareFunc, error) {
 				m.cache.Add(getCacheKey(req), routeInfo)
 			}
 
-			for _, m := range m.mws {
-				if err := m(routeInfo)(c); err != nil {
+			for _, middlewareFunc := range m.mws {
+				if err := middlewareFunc(routeInfo)(c); err != nil {
+					// in the case of a redirect, we don't want to return an error but we want to stop the
+					// middleware chain
+					if errors.Is(err, redirect.ErrRedirect) {
+						return nil
+					}
+
 					return err
 				}
 			}
