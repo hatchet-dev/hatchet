@@ -8,6 +8,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -20,23 +21,23 @@ func (g *GithubAppService) UserUpdateGithubAppOauthCallback(ctx echo.Context, _ 
 	ghApp, err := GetGithubAppConfig(g.config)
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Github app is misconfigured on this Hatchet instance.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Github app is misconfigured on this Hatchet instance.")
 	}
 
 	isValid, isOAuthTriggered, err := authn.NewSessionHelpers(g.config).ValidateOAuthState(ctx, "github")
 
 	if err != nil || !isValid {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Github account. Please try again and make sure cookies are enabled.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Github account. Please try again and make sure cookies are enabled.")
 	}
 
 	token, err := ghApp.Exchange(context.Background(), ctx.Request().URL.Query().Get("code"))
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Forbidden")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Forbidden")
 	}
 
 	if !token.Valid() {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, fmt.Errorf("invalid token"), "Forbidden")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, fmt.Errorf("invalid token"), "Forbidden")
 	}
 
 	ghClient := github.NewClient(ghApp.Client(context.Background(), token))
@@ -48,7 +49,7 @@ func (g *GithubAppService) UserUpdateGithubAppOauthCallback(ctx echo.Context, _ 
 	}
 
 	if githubUser.ID == nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get Github user ID.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get Github user ID.")
 	}
 
 	expiresAt := token.Expiry
@@ -75,7 +76,7 @@ func (g *GithubAppService) UserUpdateGithubAppOauthCallback(ctx echo.Context, _ 
 	})
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Internal error.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Internal error.")
 	}
 
 	var url string

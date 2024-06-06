@@ -5,6 +5,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 )
 
@@ -13,13 +14,13 @@ func (g *GithubAppService) UserUpdateGithubAppOauthStart(ctx echo.Context, _ gen
 	ghApp, err := GetGithubAppConfig(g.config)
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Github app is misconfigured on this Hatchet instance.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Github app is misconfigured on this Hatchet instance.")
 	}
 
 	state, err := authn.NewSessionHelpers(g.config).SaveOAuthState(ctx, "github")
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
 	}
 
 	url := ghApp.AuthCodeURL(state, oauth2.AccessTypeOffline)

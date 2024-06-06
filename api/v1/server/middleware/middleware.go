@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -173,8 +174,14 @@ func (m *MiddlewareHandler) Middleware() (echo.MiddlewareFunc, error) {
 				m.cache.Add(getCacheKey(req), routeInfo)
 			}
 
-			for _, m := range m.mws {
-				if err := m(routeInfo)(c); err != nil {
+			for _, middlewareFunc := range m.mws {
+				if err := middlewareFunc(routeInfo)(c); err != nil {
+					// in the case of a redirect, we don't want to return an error but we want to stop the
+					// middleware chain
+					if errors.Is(err, redirect.ErrRedirect) {
+						return nil
+					}
+
 					return err
 				}
 			}
