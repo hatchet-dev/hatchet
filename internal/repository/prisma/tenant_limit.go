@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -52,13 +53,25 @@ func (t *tenantLimitRepository) CreateTenantDefaultLimits(ctx context.Context, t
 		return err
 	}
 
+	err = t.createDefaultCronLimit(ctx, tenantId)
+
+	if err != nil {
+		return err
+	}
+
+	err = t.createDefaultScheduleLimit(ctx, tenantId)
+
+	if err != nil {
+		return err
+	}
+
 	err = t.createDefaultWorkerLimit(ctx, tenantId)
 
 	return err
 }
 
 func (t *tenantLimitRepository) createDefaultWorkflowRunLimit(ctx context.Context, tenantId string) error {
-	_, err := t.queries.CreateTenantResourceLimit(ctx, t.pool, dbsqlc.CreateTenantResourceLimitParams{
+	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Resource: dbsqlc.NullLimitResource{
 			LimitResource: dbsqlc.LimitResourceWORKFLOWRUN,
@@ -74,7 +87,7 @@ func (t *tenantLimitRepository) createDefaultWorkflowRunLimit(ctx context.Contex
 
 func (t *tenantLimitRepository) createDefaultEventLimit(ctx context.Context, tenantId string) error {
 
-	_, err := t.queries.CreateTenantResourceLimit(ctx, t.pool, dbsqlc.CreateTenantResourceLimitParams{
+	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Resource: dbsqlc.NullLimitResource{
 			LimitResource: dbsqlc.LimitResourceEVENT,
@@ -88,9 +101,38 @@ func (t *tenantLimitRepository) createDefaultEventLimit(ctx context.Context, ten
 	return err
 }
 
+func (t *tenantLimitRepository) createDefaultCronLimit(ctx context.Context, tenantId string) error {
+
+	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Resource: dbsqlc.NullLimitResource{
+			LimitResource: dbsqlc.LimitResourceCRON,
+			Valid:         true,
+		},
+		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultCronLimit)),
+		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultCronAlarmLimit)),
+	})
+
+	return err
+}
+
+func (t *tenantLimitRepository) createDefaultScheduleLimit(ctx context.Context, tenantId string) error {
+
+	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Resource: dbsqlc.NullLimitResource{
+			LimitResource: dbsqlc.LimitResourceSCHEDULE,
+			Valid:         true,
+		},
+		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultScheduleLimit)),
+		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultScheduleAlarmLimit)),
+	})
+
+	return err
+}
 func (t *tenantLimitRepository) createDefaultWorkerLimit(ctx context.Context, tenantId string) error {
 
-	_, err := t.queries.CreateTenantResourceLimit(ctx, t.pool, dbsqlc.CreateTenantResourceLimitParams{
+	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Resource: dbsqlc.NullLimitResource{
 			LimitResource: dbsqlc.LimitResourceWORKER,
@@ -98,6 +140,10 @@ func (t *tenantLimitRepository) createDefaultWorkerLimit(ctx context.Context, te
 		},
 		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultWorkerLimit)),
 		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultWorkerAlarmLimit)),
+		CustomValueMeter: pgtype.Bool{
+			Bool:  true,
+			Valid: true,
+		},
 	})
 
 	return err
@@ -180,12 +226,12 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 	return true, nil
 }
 
-func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.LimitResource, tenantId string) error {
+func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.LimitResource, tenantId string) (*dbsqlc.TenantResourceLimit, error) {
 	if !t.config.EnforceLimits {
-		return nil
+		return nil, nil
 	}
 
-	_, err := t.queries.MeterTenantResource(ctx, t.pool, dbsqlc.MeterTenantResourceParams{
+	r, err := t.queries.MeterTenantResource(ctx, t.pool, dbsqlc.MeterTenantResourceParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Resource: dbsqlc.NullLimitResource{
 			LimitResource: resource,
@@ -194,8 +240,8 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.Limit
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return r, nil
 }

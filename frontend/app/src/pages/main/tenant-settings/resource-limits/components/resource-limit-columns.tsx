@@ -8,6 +8,8 @@ const resources: Record<TenantResource, string> = {
   [TenantResource.WORKER]: 'Concurrent Workers',
   [TenantResource.EVENT]: 'Events',
   [TenantResource.WORKFLOW_RUN]: 'Workflow Runs',
+  [TenantResource.CRON]: 'Cron Triggers',
+  [TenantResource.SCHEDULE]: 'Schedule Triggers',
 };
 
 const indicatorVariants = {

@@ -17,7 +17,7 @@ type TenantLimitRepository interface {
 	CanCreate(ctx context.Context, resource dbsqlc.LimitResource, tenantId string) (bool, error)
 
 	// MeterWorkflowRun increments the tenant's resource count
-	Meter(ctx context.Context, resource dbsqlc.LimitResource, tenantId string) error
+	Meter(ctx context.Context, resource dbsqlc.LimitResource, tenantId string) (*dbsqlc.TenantResourceLimit, error)
 
 	// Create new Tenant Resource Limits for a tenant
 	CreateTenantDefaultLimits(ctx context.Context, tenantId string) error

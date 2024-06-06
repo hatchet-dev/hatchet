@@ -191,6 +191,8 @@ const (
 	LimitResourceWORKFLOWRUN LimitResource = "WORKFLOW_RUN"
 	LimitResourceEVENT       LimitResource = "EVENT"
 	LimitResourceWORKER      LimitResource = "WORKER"
+	LimitResourceCRON        LimitResource = "CRON"
+	LimitResourceSCHEDULE    LimitResource = "SCHEDULE"
 )
 
 func (e *LimitResource) Scan(src interface{}) error {
@@ -988,16 +990,17 @@ type TenantMember struct {
 }
 
 type TenantResourceLimit struct {
-	ID         pgtype.UUID      `json:"id"`
-	Resource   LimitResource    `json:"resource"`
-	TenantId   pgtype.UUID      `json:"tenantId"`
-	LimitValue int32            `json:"limitValue"`
-	AlarmValue pgtype.Int4      `json:"alarmValue"`
-	Value      int32            `json:"value"`
-	Window     pgtype.Text      `json:"window"`
-	LastRefill pgtype.Timestamp `json:"lastRefill"`
-	CreatedAt  pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
+	ID               pgtype.UUID      `json:"id"`
+	Resource         LimitResource    `json:"resource"`
+	TenantId         pgtype.UUID      `json:"tenantId"`
+	LimitValue       int32            `json:"limitValue"`
+	AlarmValue       pgtype.Int4      `json:"alarmValue"`
+	Value            int32            `json:"value"`
+	Window           pgtype.Text      `json:"window"`
+	LastRefill       pgtype.Timestamp `json:"lastRefill"`
+	CreatedAt        pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
+	CustomValueMeter bool             `json:"customValueMeter"`
 }
 
 type TenantResourceLimitAlert struct {

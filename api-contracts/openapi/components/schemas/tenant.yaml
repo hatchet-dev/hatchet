@@ -97,6 +97,8 @@ TenantResource:
     - "WORKER"
     - "EVENT"
     - "WORKFLOW_RUN"
+    - "CRON"
+    - "SCHEDULE"
   type: string
 
 TenantResourceLimit:

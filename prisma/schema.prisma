@@ -148,6 +148,8 @@ enum LimitResource {
   WORKFLOW_RUN
   EVENT
   WORKER
+  CRON
+  SCHEDULE
 }
 
 model TenantResourceLimit {
@@ -174,6 +176,8 @@ model TenantResourceLimit {
 
   // the time the rate limit was last refilled
   lastRefill DateTime @default(now())
+
+  customValueMeter Boolean @default(false)
 
   alerts TenantResourceLimitAlert[]
 

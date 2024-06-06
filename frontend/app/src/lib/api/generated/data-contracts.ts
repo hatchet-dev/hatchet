@@ -223,6 +223,8 @@ export enum TenantResource {
   WORKER = "WORKER",
   EVENT = "EVENT",
   WORKFLOW_RUN = "WORKFLOW_RUN",
+  CRON = "CRON",
+  SCHEDULE = "SCHEDULE",
 }
 
 export interface TenantResourceLimit {

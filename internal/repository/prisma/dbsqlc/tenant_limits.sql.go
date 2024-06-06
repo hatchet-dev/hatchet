@@ -26,44 +26,6 @@ func (q *Queries) CountTenantWorkers(ctx context.Context, db DBTX, tenantid pgty
 	return count, err
 }
 
-const createTenantResourceLimit = `-- name: CreateTenantResourceLimit :one
-INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "lastRefill")
-VALUES (gen_random_uuid(), $1::uuid, $2::"LimitResource", 0, $3::int, $4::int, $5::text, CURRENT_TIMESTAMP)
-RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt"
-`
-
-type CreateTenantResourceLimitParams struct {
-	Tenantid   pgtype.UUID       `json:"tenantid"`
-	Resource   NullLimitResource `json:"resource"`
-	LimitValue pgtype.Int4       `json:"limitValue"`
-	AlarmValue pgtype.Int4       `json:"alarmValue"`
-	Window     pgtype.Text       `json:"window"`
-}
-
-func (q *Queries) CreateTenantResourceLimit(ctx context.Context, db DBTX, arg CreateTenantResourceLimitParams) (*TenantResourceLimit, error) {
-	row := db.QueryRow(ctx, createTenantResourceLimit,
-		arg.Tenantid,
-		arg.Resource,
-		arg.LimitValue,
-		arg.AlarmValue,
-		arg.Window,
-	)
-	var i TenantResourceLimit
-	err := row.Scan(
-		&i.ID,
-		&i.Resource,
-		&i.TenantId,
-		&i.LimitValue,
-		&i.AlarmValue,
-		&i.Value,
-		&i.Window,
-		&i.LastRefill,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
 const getTenantResourceLimit = `-- name: GetTenantResourceLimit :one
 WITH updated AS (
     UPDATE "TenantResourceLimit"
@@ -71,13 +33,14 @@ WITH updated AS (
         "value" = 0, -- Reset to 0 if the window has passed
         "lastRefill" = CURRENT_TIMESTAMP -- Update lastRefill if the window has passed
     WHERE "tenantId" = $1::uuid
-      AND (("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL) OR "window" IS NULL OR "window" = '')
+      AND (("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL))
       AND "resource" = $2::"LimitResource"
-    RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt"
+      AND "customValueMeter" = false
+    RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt", "customValueMeter"
 )
-SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt" FROM updated
+SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt", "customValueMeter" FROM updated
 UNION ALL
-SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt" FROM "TenantResourceLimit"
+SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt", "customValueMeter" FROM "TenantResourceLimit"
 WHERE "tenantId" = $1::uuid
     AND "resource" = $2::"LimitResource"
     AND NOT EXISTS (SELECT 1 FROM updated)
@@ -89,16 +52,17 @@ type GetTenantResourceLimitParams struct {
 }
 
 type GetTenantResourceLimitRow struct {
-	ID         pgtype.UUID      `json:"id"`
-	Resource   LimitResource    `json:"resource"`
-	TenantId   pgtype.UUID      `json:"tenantId"`
-	LimitValue int32            `json:"limitValue"`
-	AlarmValue pgtype.Int4      `json:"alarmValue"`
-	Value      int32            `json:"value"`
-	Window     pgtype.Text      `json:"window"`
-	LastRefill pgtype.Timestamp `json:"lastRefill"`
-	CreatedAt  pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
+	ID               pgtype.UUID      `json:"id"`
+	Resource         LimitResource    `json:"resource"`
+	TenantId         pgtype.UUID      `json:"tenantId"`
+	LimitValue       int32            `json:"limitValue"`
+	AlarmValue       pgtype.Int4      `json:"alarmValue"`
+	Value            int32            `json:"value"`
+	Window           pgtype.Text      `json:"window"`
+	LastRefill       pgtype.Timestamp `json:"lastRefill"`
+	CreatedAt        pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
+	CustomValueMeter bool             `json:"customValueMeter"`
 }
 
 func (q *Queries) GetTenantResourceLimit(ctx context.Context, db DBTX, arg GetTenantResourceLimitParams) (*GetTenantResourceLimitRow, error) {
@@ -115,12 +79,13 @@ func (q *Queries) GetTenantResourceLimit(ctx context.Context, db DBTX, arg GetTe
 		&i.LastRefill,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CustomValueMeter,
 	)
 	return &i, err
 }
 
 const listTenantResourceLimits = `-- name: ListTenantResourceLimits :many
-SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt" FROM "TenantResourceLimit"
+SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt", "customValueMeter" FROM "TenantResourceLimit"
 WHERE "tenantId" = $1::uuid
 `
 
@@ -144,6 +109,7 @@ func (q *Queries) ListTenantResourceLimits(ctx context.Context, db DBTX, tenanti
 			&i.LastRefill,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CustomValueMeter,
 		); err != nil {
 			return nil, err
 		}
@@ -159,7 +125,7 @@ const meterTenantResource = `-- name: MeterTenantResource :one
 UPDATE "TenantResourceLimit"
 SET
     "value" = CASE
-        WHEN ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL) THEN
+        WHEN ("customValueMeter" = true OR ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL)) THEN
             0 -- Refill to 0 since the window has passed
         ELSE
             "value" + 1 -- Increment the current value within the window
@@ -172,7 +138,7 @@ SET
     END
 WHERE "tenantId" = $1::uuid
     AND "resource" = $2::"LimitResource"
-RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt"
+RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt", "customValueMeter"
 `
 
 type MeterTenantResourceParams struct {
@@ -194,6 +160,7 @@ func (q *Queries) MeterTenantResource(ctx context.Context, db DBTX, arg MeterTen
 		&i.LastRefill,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CustomValueMeter,
 	)
 	return &i, err
 }
@@ -206,23 +173,24 @@ WITH resolved_limits AS (
         "lastRefill" = CURRENT_TIMESTAMP -- Update lastRefill timestamp
     WHERE
         ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL)
-    RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt"
+    RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt", "customValueMeter"
 )
-SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt"
+SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt", "customValueMeter"
 FROM resolved_limits
 `
 
 type ResolveAllLimitsIfWindowPassedRow struct {
-	ID         pgtype.UUID      `json:"id"`
-	Resource   LimitResource    `json:"resource"`
-	TenantId   pgtype.UUID      `json:"tenantId"`
-	LimitValue int32            `json:"limitValue"`
-	AlarmValue pgtype.Int4      `json:"alarmValue"`
-	Value      int32            `json:"value"`
-	Window     pgtype.Text      `json:"window"`
-	LastRefill pgtype.Timestamp `json:"lastRefill"`
-	CreatedAt  pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
+	ID               pgtype.UUID      `json:"id"`
+	Resource         LimitResource    `json:"resource"`
+	TenantId         pgtype.UUID      `json:"tenantId"`
+	LimitValue       int32            `json:"limitValue"`
+	AlarmValue       pgtype.Int4      `json:"alarmValue"`
+	Value            int32            `json:"value"`
+	Window           pgtype.Text      `json:"window"`
+	LastRefill       pgtype.Timestamp `json:"lastRefill"`
+	CreatedAt        pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
+	CustomValueMeter bool             `json:"customValueMeter"`
 }
 
 func (q *Queries) ResolveAllLimitsIfWindowPassed(ctx context.Context, db DBTX) ([]*ResolveAllLimitsIfWindowPassedRow, error) {
@@ -245,6 +213,7 @@ func (q *Queries) ResolveAllLimitsIfWindowPassed(ctx context.Context, db DBTX) (
 			&i.LastRefill,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CustomValueMeter,
 		); err != nil {
 			return nil, err
 		}
@@ -254,4 +223,71 @@ func (q *Queries) ResolveAllLimitsIfWindowPassed(ctx context.Context, db DBTX) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const selectOrInsertTenantResourceLimit = `-- name: SelectOrInsertTenantResourceLimit :one
+WITH existing AS (
+  SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt", "customValueMeter"
+  FROM "TenantResourceLimit"
+  WHERE "tenantId" = $1::uuid AND "resource" = $2::"LimitResource"
+)
+, insert_row AS (
+  INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "lastRefill", "customValueMeter")
+  SELECT gen_random_uuid(), $1::uuid, $2::"LimitResource", 0, $3::int, $4::int, $5::text, CURRENT_TIMESTAMP, $6::boolean
+  WHERE NOT EXISTS (SELECT 1 FROM existing)
+  RETURNING id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt", "customValueMeter"
+)
+SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt", "customValueMeter" FROM insert_row
+UNION ALL
+SELECT id, resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "createdAt", "updatedAt", "customValueMeter" FROM existing
+LIMIT 1
+`
+
+type SelectOrInsertTenantResourceLimitParams struct {
+	Tenantid         pgtype.UUID       `json:"tenantid"`
+	Resource         NullLimitResource `json:"resource"`
+	LimitValue       pgtype.Int4       `json:"limitValue"`
+	AlarmValue       pgtype.Int4       `json:"alarmValue"`
+	Window           pgtype.Text       `json:"window"`
+	CustomValueMeter pgtype.Bool       `json:"customValueMeter"`
+}
+
+type SelectOrInsertTenantResourceLimitRow struct {
+	ID               pgtype.UUID      `json:"id"`
+	Resource         LimitResource    `json:"resource"`
+	TenantId         pgtype.UUID      `json:"tenantId"`
+	LimitValue       int32            `json:"limitValue"`
+	AlarmValue       pgtype.Int4      `json:"alarmValue"`
+	Value            int32            `json:"value"`
+	Window           pgtype.Text      `json:"window"`
+	LastRefill       pgtype.Timestamp `json:"lastRefill"`
+	CreatedAt        pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
+	CustomValueMeter bool             `json:"customValueMeter"`
+}
+
+func (q *Queries) SelectOrInsertTenantResourceLimit(ctx context.Context, db DBTX, arg SelectOrInsertTenantResourceLimitParams) (*SelectOrInsertTenantResourceLimitRow, error) {
+	row := db.QueryRow(ctx, selectOrInsertTenantResourceLimit,
+		arg.Tenantid,
+		arg.Resource,
+		arg.LimitValue,
+		arg.AlarmValue,
+		arg.Window,
+		arg.CustomValueMeter,
+	)
+	var i SelectOrInsertTenantResourceLimitRow
+	err := row.Scan(
+		&i.ID,
+		&i.Resource,
+		&i.TenantId,
+		&i.LimitValue,
+		&i.AlarmValue,
+		&i.Value,
+		&i.Window,
+		&i.LastRefill,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CustomValueMeter,
+	)
+	return &i, err
 }

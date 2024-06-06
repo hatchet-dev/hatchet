@@ -113,7 +113,9 @@ const (
 
 // Defines values for TenantResource.
 const (
+	CRON        TenantResource = "CRON"
 	EVENT       TenantResource = "EVENT"
+	SCHEDULE    TenantResource = "SCHEDULE"
 	WORKER      TenantResource = "WORKER"
 	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
 )

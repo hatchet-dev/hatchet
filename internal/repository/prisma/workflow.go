@@ -13,6 +13,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
@@ -285,9 +286,10 @@ type workflowEngineRepository struct {
 	v       validator.Validator
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
+	m       *metered.Metered
 }
 
-func NewWorkflowEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowEngineRepository {
+func NewWorkflowEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workflowEngineRepository{
@@ -295,6 +297,7 @@ func NewWorkflowEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *z
 		queries: queries,
 		pool:    pool,
 		l:       l,
+		m:       m,
 	}
 }
 
@@ -734,30 +737,48 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 	}
 
 	for _, cronTrigger := range opts.CronTriggers {
-		_, err := r.queries.CreateWorkflowTriggerCronRef(
-			ctx,
-			tx,
-			dbsqlc.CreateWorkflowTriggerCronRefParams{
-				Workflowtriggersid: sqlcWorkflowTriggers.ID,
-				Crontrigger:        cronTrigger,
-				Input:              opts.CronInput,
-			},
-		)
+
+		_, err = metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceCRON, sqlchelpers.UUIDToStr(tenantId), func() (*string, error) {
+			_, err := r.queries.CreateWorkflowTriggerCronRef(
+				ctx,
+				tx,
+				dbsqlc.CreateWorkflowTriggerCronRefParams{
+					Workflowtriggersid: sqlcWorkflowTriggers.ID,
+					Crontrigger:        cronTrigger,
+					Input:              opts.CronInput,
+				},
+			)
+
+			if err != nil {
+				return nil, err
+			}
+
+			return nil, nil
+		})
 
 		if err != nil {
 			return "", err
 		}
+
 	}
 
 	for _, scheduledTrigger := range opts.ScheduledTriggers {
-		_, err := r.queries.CreateWorkflowTriggerScheduledRef(
-			ctx,
-			tx,
-			dbsqlc.CreateWorkflowTriggerScheduledRefParams{
-				Workflowversionid: sqlcWorkflowVersion.ID,
-				Scheduledtrigger:  sqlchelpers.TimestampFromTime(scheduledTrigger),
-			},
-		)
+		_, err = metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceSCHEDULE, sqlchelpers.UUIDToStr(tenantId), func() (*string, error) {
+			_, err := r.queries.CreateWorkflowTriggerScheduledRef(
+				ctx,
+				tx,
+				dbsqlc.CreateWorkflowTriggerScheduledRefParams{
+					Workflowversionid: sqlcWorkflowVersion.ID,
+					Scheduledtrigger:  sqlchelpers.TimestampFromTime(scheduledTrigger),
+				},
+			)
+
+			if err != nil {
+				return nil, err
+			}
+
+			return nil, nil
+		})
 
 		if err != nil {
 			return "", err

@@ -43,7 +43,9 @@ func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitRe
 	}
 
 	deferredMeter := func() {
-		err = m.entitlements.TenantLimit().Meter(ctx, resource, tenantId)
+		_, err := m.entitlements.TenantLimit().Meter(ctx, resource, tenantId)
+
+		// TODO: we should probably publish an event here if limits are exhausted to notify immediately
 
 		if err != nil {
 			m.l.Error().Err(err).Msg("could not meter resource")
