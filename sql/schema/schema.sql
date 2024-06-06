@@ -11,6 +11,9 @@ CREATE TYPE "JobKind" AS ENUM ('DEFAULT', 'ON_FAILURE');
 CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
 
 -- CreateEnum
+CREATE TYPE "LimitResource" AS ENUM ('WORKFLOW_RUN', 'EVENT', 'WORKER', 'CRON', 'SCHEDULE');
+
+-- CreateEnum
 CREATE TYPE "LogLineLevel" AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
 
 -- CreateEnum
@@ -24,6 +27,9 @@ CREATE TYPE "StepRunStatus" AS ENUM ('PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED'
 
 -- CreateEnum
 CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
+
+-- CreateEnum
+CREATE TYPE "TenantResourceLimitAlertType" AS ENUM ('Alarm', 'Exhausted');
 
 -- CreateEnum
 CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
@@ -445,6 +451,7 @@ CREATE TABLE "TenantAlertingSettings" (
     "tickerId" UUID,
     "enableExpiringTokenAlerts" BOOLEAN NOT NULL DEFAULT true,
     "enableWorkflowRunFailureAlerts" BOOLEAN NOT NULL DEFAULT false,
+    "enableTenantResourceLimitAlerts" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "TenantAlertingSettings_pkey" PRIMARY KEY ("id")
 );
@@ -474,6 +481,38 @@ CREATE TABLE "TenantMember" (
     "role" "TenantMemberRole" NOT NULL,
 
     CONSTRAINT "TenantMember_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TenantResourceLimit" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "resource" "LimitResource" NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "limitValue" INTEGER NOT NULL,
+    "alarmValue" INTEGER,
+    "value" INTEGER NOT NULL DEFAULT 0,
+    "window" TEXT,
+    "lastRefill" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "customValueMeter" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "TenantResourceLimit_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TenantResourceLimitAlert" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "resourceLimitId" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "resource" "LimitResource" NOT NULL,
+    "alertType" "TenantResourceLimitAlertType" NOT NULL,
+    "value" INTEGER NOT NULL,
+    "limit" INTEGER NOT NULL,
+
+    CONSTRAINT "TenantResourceLimitAlert_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -929,6 +968,15 @@ CREATE UNIQUE INDEX "TenantMember_id_key" ON "TenantMember"("id" ASC);
 CREATE UNIQUE INDEX "TenantMember_tenantId_userId_key" ON "TenantMember"("tenantId" ASC, "userId" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "TenantResourceLimit_id_key" ON "TenantResourceLimit"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TenantResourceLimit_tenantId_resource_key" ON "TenantResourceLimit"("tenantId" ASC, "resource" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TenantResourceLimitAlert_id_key" ON "TenantResourceLimitAlert"("id" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "TenantVcsProvider_id_key" ON "TenantVcsProvider"("id" ASC);
 
 -- CreateIndex
@@ -1233,6 +1281,15 @@ ALTER TABLE "TenantMember" ADD CONSTRAINT "TenantMember_tenantId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "TenantMember" ADD CONSTRAINT "TenantMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TenantResourceLimit" ADD CONSTRAINT "TenantResourceLimit_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TenantResourceLimitAlert" ADD CONSTRAINT "TenantResourceLimitAlert_resourceLimitId_fkey" FOREIGN KEY ("resourceLimitId") REFERENCES "TenantResourceLimit"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TenantResourceLimitAlert" ADD CONSTRAINT "TenantResourceLimitAlert_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TenantVcsProvider" ADD CONSTRAINT "TenantVcsProvider_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
