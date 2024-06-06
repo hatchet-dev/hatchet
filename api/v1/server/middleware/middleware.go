@@ -10,6 +10,8 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/labstack/echo/v4"
+
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 )
 
 type SecurityRequirement interface {
