@@ -18,8 +18,31 @@ if [ $? -eq 124 ]; then
   exit 1
 fi
 
+# Function to attempt a psql connection with the given DATABASE_URL
+attempt_psql_connection() {
+  local db_url=$1
+  psql "$db_url" -t -c "SELECT 1;" 2>/dev/null
+  return $?
+}
+
+# Check if sslmode is set in the DATABASE_URL
+if [[ ! "$DATABASE_URL" =~ sslmode ]]; then
+  # Attempt a secure psql connection first if sslmode is not set
+  SECURE_DB_URL="${DATABASE_URL}?sslmode=require"
+  attempt_psql_connection "$SECURE_DB_URL"
+  if [ $? -ne 0 ]; then
+    # If secure connection fails, use sslmode=disable
+    echo "Secure connection failed. Using sslmode=disable"
+
+    DATABASE_URL="${DATABASE_URL}?sslmode=disable"
+  else
+    DATABASE_URL="$SECURE_DB_URL"
+  fi
+fi
+
 # Check for prisma migrations
 MIGRATION_NAME=$(psql "$DATABASE_URL" -t -c "SELECT migration_name FROM _prisma_migrations ORDER BY started_at DESC LIMIT 1;" 2>/dev/null | xargs)
+MIGRATION_NAME=$(echo $MIGRATION_NAME | cut -d'_' -f1)
 
 if [ $? -eq 0 ] && [ -n "$MIGRATION_NAME" ]; then
   echo "Using existing prisma migration: $MIGRATION_NAME"
