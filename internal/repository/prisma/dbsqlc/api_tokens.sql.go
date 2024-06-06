@@ -26,7 +26,7 @@ INSERT INTO "APIToken" (
     $2::uuid,
     $3::text,
     $4::timestamp
-) RETURNING id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId"
+) RETURNING id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt"
 `
 
 type CreateAPITokenParams struct {
@@ -52,13 +52,14 @@ func (q *Queries) CreateAPIToken(ctx context.Context, db DBTX, arg CreateAPIToke
 		&i.Revoked,
 		&i.Name,
 		&i.TenantId,
+		&i.NextAlertAt,
 	)
 	return &i, err
 }
 
 const getAPITokenById = `-- name: GetAPITokenById :one
 SELECT
-    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId"
+    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt"
 FROM
     "APIToken"
 WHERE
@@ -76,6 +77,7 @@ func (q *Queries) GetAPITokenById(ctx context.Context, db DBTX, id pgtype.UUID) 
 		&i.Revoked,
 		&i.Name,
 		&i.TenantId,
+		&i.NextAlertAt,
 	)
 	return &i, err
 }

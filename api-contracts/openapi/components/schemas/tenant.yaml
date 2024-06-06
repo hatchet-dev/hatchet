@@ -11,6 +11,9 @@ Tenant:
     analyticsOptOut:
       type: boolean
       description: Whether the tenant has opted out of analytics.
+    alertMemberEmails:
+      type: boolean
+      description: Whether to alert tenant members.
   required:
     - metadata
     - name
@@ -21,6 +24,15 @@ TenantAlertingSettings:
   properties:
     metadata:
       $ref: "./metadata.yaml#/APIResourceMeta"
+    alertMemberEmails:
+      type: boolean
+      description: Whether to alert tenant members.
+    enableWorkflowRunFailureAlerts:
+      type: boolean
+      description: Whether to send alerts when workflow runs fail.
+    enableExpiringTokenAlerts:
+      type: boolean
+      description: Whether to enable alerts when tokens are approaching expiration.
     maxAlertingFrequency:
       type: string
       description: The max frequency at which to alert.
@@ -58,6 +70,15 @@ UpdateTenantRequest:
     analyticsOptOut:
       type: boolean
       description: Whether the tenant has opted out of analytics.
+    alertMemberEmails:
+      type: boolean
+      description: Whether to alert tenant members.
+    enableWorkflowRunFailureAlerts:
+      type: boolean
+      description: Whether to send alerts when workflow runs fail.
+    enableExpiringTokenAlerts:
+      type: boolean
+      description: Whether to enable alerts when tokens are approaching expiration.
     maxAlertingFrequency:
       type: string
       description: The max frequency at which to alert.

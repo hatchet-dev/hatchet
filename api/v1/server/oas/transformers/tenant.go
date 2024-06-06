@@ -9,17 +9,20 @@ import (
 
 func ToTenant(tenant *db.TenantModel) *gen.Tenant {
 	return &gen.Tenant{
-		Metadata:        *toAPIMetadata(tenant.ID, tenant.CreatedAt, tenant.UpdatedAt),
-		Name:            tenant.Name,
-		Slug:            tenant.Slug,
-		AnalyticsOptOut: &tenant.AnalyticsOptOut,
+		Metadata:          *toAPIMetadata(tenant.ID, tenant.CreatedAt, tenant.UpdatedAt),
+		Name:              tenant.Name,
+		Slug:              tenant.Slug,
+		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
+		AlertMemberEmails: &tenant.AlertMemberEmails,
 	}
 }
 
 func ToTenantAlertingSettings(alerting *db.TenantAlertingSettingsModel) *gen.TenantAlertingSettings {
 	res := &gen.TenantAlertingSettings{
-		Metadata:             *toAPIMetadata(alerting.ID, alerting.CreatedAt, alerting.UpdatedAt),
-		MaxAlertingFrequency: alerting.MaxFrequency,
+		Metadata:                       *toAPIMetadata(alerting.ID, alerting.CreatedAt, alerting.UpdatedAt),
+		MaxAlertingFrequency:           alerting.MaxFrequency,
+		EnableExpiringTokenAlerts:      &alerting.EnableExpiringTokenAlerts,
+		EnableWorkflowRunFailureAlerts: &alerting.EnableWorkflowRunFailureAlerts,
 	}
 
 	if lastAlertedAt, ok := alerting.LastAlertedAt(); ok {

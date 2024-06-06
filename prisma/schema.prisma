@@ -134,6 +134,8 @@ model Tenant {
   rateLimits                RateLimit[]
   stepRateLimits            StepRateLimit[]
   alertEmailGroups          TenantAlertEmailGroup[]
+  // alertMemberEmails controls whether to send alert emails to tenant members in addition to the alert email groups
+  alertMemberEmails         Boolean @default(true)
   slackWebhooks             SlackAppWebhook[]
   alertingSettings          TenantAlertingSettings?
 }
@@ -148,6 +150,10 @@ model TenantAlertingSettings {
   // the parent tenant
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @unique @db.Uuid
+
+  // workflow run failure alerts
+  enableWorkflowRunFailureAlerts Boolean @default(false)
+  enableExpiringTokenAlerts      Boolean @default(true)
 
   // the maximum alerting frequency
   maxFrequency String @default("1h")
@@ -220,6 +226,9 @@ model APIToken {
 
   // whether the token has been revoked
   revoked Boolean @default(false)
+
+  // when to next alert about expiration
+  nextAlertAt DateTime?
 
   // an optional name for the token
   name String?
@@ -1008,6 +1017,8 @@ model StepRun {
   // if the semaphore was released prior to terminal state
   semaphoreReleased Boolean @default(false)
 
+  semaphoreSlot WorkerSemaphoreSlot?
+
   archivedResults StepRunResultArchive[]
 
   streamEvents StreamEvent[]
@@ -1181,7 +1192,7 @@ model Worker {
   dispatcher   Dispatcher? @relation(fields: [dispatcherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   dispatcherId String?     @db.Uuid
 
-  maxRuns Int?
+  maxRuns Int              @default(100)
 
   services Service[]
 
@@ -1194,16 +1205,34 @@ model Worker {
   // the runs which retrieve the group keys
   groupKeyRuns GetGroupKeyRun[]
 
-  semaphore WorkerSemaphore?
+  slots WorkerSemaphoreSlot[]
+
+  // DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
+  semaphore WorkerSemaphore? // FIXME remove this in a few releases from v_0_30_1
 }
 
+// DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
+// FIXME remove in a future release
 model WorkerSemaphore {
   // the parent worker
   worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workerId String @unique @db.Uuid
-
   // keeps track of maxRuns - runningRuns on the worker
   slots Int
+}
+
+model WorkerSemaphoreSlot {
+  id        String    @id @unique @default(uuid()) @db.Uuid
+
+  // the parent semaphore
+  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workerId String @db.Uuid
+
+  // the parent step run
+  stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepRunId String?  @db.Uuid @unique
+
+  @@index([workerId])
 }
 
 model Service {

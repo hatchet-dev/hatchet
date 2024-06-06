@@ -263,6 +263,70 @@ func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, tickerid pgtyp
 	return items, nil
 }
 
+const pollExpiringTokens = `-- name: PollExpiringTokens :many
+WITH expiring_tokens AS (
+    SELECT
+        t0."id", t0."name", t0."expiresAt"
+    FROM
+        "APIToken" as t0
+    WHERE
+        t0."revoked" = false
+        AND t0."expiresAt" <= NOW() + INTERVAL '7 days'
+        AND t0."expiresAt" >= NOW()
+        AND (
+            t0."nextAlertAt" IS NULL OR
+            t0."nextAlertAt" <= NOW()
+        )
+    FOR UPDATE SKIP LOCKED
+    LIMIT 100
+)
+UPDATE
+    "APIToken" as t1
+SET
+    "nextAlertAt" = NOW() + INTERVAL '1 day'
+FROM
+    expiring_tokens
+WHERE
+    t1."id" = expiring_tokens."id"
+RETURNING
+    t1."id",
+    t1."name",
+    t1."tenantId",
+    t1."expiresAt"
+`
+
+type PollExpiringTokensRow struct {
+	ID        pgtype.UUID      `json:"id"`
+	Name      pgtype.Text      `json:"name"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
+}
+
+func (q *Queries) PollExpiringTokens(ctx context.Context, db DBTX) ([]*PollExpiringTokensRow, error) {
+	rows, err := db.Query(ctx, pollExpiringTokens)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*PollExpiringTokensRow
+	for rows.Next() {
+		var i PollExpiringTokensRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.TenantId,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pollGetGroupKeyRuns = `-- name: PollGetGroupKeyRuns :many
 WITH getGroupKeyRunsToTimeout AS (
     SELECT
@@ -512,7 +576,7 @@ func (q *Queries) PollStepRuns(ctx context.Context, db DBTX, tickerid pgtype.UUI
 const pollTenantAlerts = `-- name: PollTenantAlerts :many
 WITH active_tenant_alerts AS (
     SELECT
-        alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt", alerts."tenantId", alerts."maxFrequency", alerts."lastAlertedAt", alerts."tickerId"
+        alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt", alerts."tenantId", alerts."maxFrequency", alerts."lastAlertedAt", alerts."tickerId", alerts."enableExpiringTokenAlerts", alerts."enableWorkflowRunFailureAlerts"
     FROM
         "TenantAlertingSettings" as alerts
     WHERE
@@ -549,19 +613,21 @@ FROM
 WHERE
     alerts."id" = active_tenant_alerts."id" AND
     alerts."tenantId" IN (SELECT "tenantId" FROM failed_run_count_by_tenant WHERE "failedWorkflowRunCount" > 0)
-RETURNING alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt", alerts."tenantId", alerts."maxFrequency", alerts."lastAlertedAt", alerts."tickerId", active_tenant_alerts."lastAlertedAt" AS "prevLastAlertedAt"
+RETURNING alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt", alerts."tenantId", alerts."maxFrequency", alerts."lastAlertedAt", alerts."tickerId", alerts."enableExpiringTokenAlerts", alerts."enableWorkflowRunFailureAlerts", active_tenant_alerts."lastAlertedAt" AS "prevLastAlertedAt"
 `
 
 type PollTenantAlertsRow struct {
-	ID                pgtype.UUID      `json:"id"`
-	CreatedAt         pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt         pgtype.Timestamp `json:"deletedAt"`
-	TenantId          pgtype.UUID      `json:"tenantId"`
-	MaxFrequency      string           `json:"maxFrequency"`
-	LastAlertedAt     pgtype.Timestamp `json:"lastAlertedAt"`
-	TickerId          pgtype.UUID      `json:"tickerId"`
-	PrevLastAlertedAt pgtype.Timestamp `json:"prevLastAlertedAt"`
+	ID                             pgtype.UUID      `json:"id"`
+	CreatedAt                      pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt                      pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt                      pgtype.Timestamp `json:"deletedAt"`
+	TenantId                       pgtype.UUID      `json:"tenantId"`
+	MaxFrequency                   string           `json:"maxFrequency"`
+	LastAlertedAt                  pgtype.Timestamp `json:"lastAlertedAt"`
+	TickerId                       pgtype.UUID      `json:"tickerId"`
+	EnableExpiringTokenAlerts      bool             `json:"enableExpiringTokenAlerts"`
+	EnableWorkflowRunFailureAlerts bool             `json:"enableWorkflowRunFailureAlerts"`
+	PrevLastAlertedAt              pgtype.Timestamp `json:"prevLastAlertedAt"`
 }
 
 // Finds tenant alerts which haven't alerted since their frequency and assigns them to a ticker
@@ -583,6 +649,8 @@ func (q *Queries) PollTenantAlerts(ctx context.Context, db DBTX, tickerid pgtype
 			&i.MaxFrequency,
 			&i.LastAlertedAt,
 			&i.TickerId,
+			&i.EnableExpiringTokenAlerts,
+			&i.EnableWorkflowRunFailureAlerts,
 			&i.PrevLastAlertedAt,
 		); err != nil {
 			return nil, err

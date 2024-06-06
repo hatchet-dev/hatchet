@@ -18,12 +18,6 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 		dispatcherUuid = uuid.MustParse(id)
 	}
 
-	var maxRuns int
-
-	if runs, ok := worker.MaxRuns(); ok {
-		maxRuns = runs
-	}
-
 	status := gen.ACTIVE
 
 	if lastHeartbeat, ok := worker.LastHeartbeatAt(); ok && lastHeartbeat.Add(4*time.Second).Before(time.Now()) {
@@ -35,7 +29,7 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 		Name:         worker.Name,
 		DispatcherId: &dispatcherUuid,
 		Status:       &status,
-		MaxRuns:      &maxRuns,
+		MaxRuns:      &worker.MaxRuns,
 	}
 
 	if lastHeartbeatAt, ok := worker.LastHeartbeatAt(); ok {
@@ -46,9 +40,13 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 		res.LastListenerEstablished = &lastListenerEstablished
 	}
 
-	if semaphore, ok := worker.Semaphore(); ok {
-		res.AvailableRuns = &semaphore.Slots
+	numSlots := 0
+	for _, slot := range worker.Slots() {
+		if _, ok := slot.StepRunID(); !ok {
+			numSlots++
+		}
 	}
+	res.AvailableRuns = &numSlots
 
 	if worker.RelationsWorker.Actions != nil {
 		if actions := worker.Actions(); actions != nil {
@@ -69,13 +67,15 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64, slots *int) *gen.Work
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
-	maxRuns := int(worker.MaxRuns.Int32)
+	maxRuns := int(worker.MaxRuns)
 
 	status := gen.ACTIVE
 
-	if worker.LastHeartbeatAt.Time.Add(4 * time.Second).Before(time.Now()) {
+	if worker.LastHeartbeatAt.Time.Add(5 * time.Second).Before(time.Now()) {
 		status = gen.INACTIVE
 	}
+
+	availableRuns := maxRuns - *slots
 
 	res := &gen.Worker{
 		Metadata:      *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
@@ -83,7 +83,7 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64, slots *int) *gen.Work
 		Status:        &status,
 		DispatcherId:  &dispatcherId,
 		MaxRuns:       &maxRuns,
-		AvailableRuns: slots,
+		AvailableRuns: &availableRuns,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

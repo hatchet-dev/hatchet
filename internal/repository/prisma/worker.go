@@ -44,7 +44,7 @@ func (w *workerAPIRepository) GetWorkerById(workerId string) (*db.WorkerModel, e
 	).With(
 		db.Worker.Dispatcher.Fetch(),
 		db.Worker.Actions.Fetch(),
-		db.Worker.Semaphore.Fetch(),
+		db.Worker.Slots.Fetch(),
 	).Exec(context.Background())
 }
 
@@ -109,7 +109,7 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 		if errors.Is(err, pgx.ErrNoRows) {
 			workers = make([]*dbsqlc.ListWorkersWithStepCountRow, 0)
 		} else {
-			return nil, fmt.Errorf("could not list events: %w", err)
+			return nil, fmt.Errorf("could not list workers: %w", err)
 		}
 	}
 
@@ -168,16 +168,14 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 		Name:         opts.Name,
 	}
 
-	createSemParams := dbsqlc.CreateWorkerSemaphoreParams{}
-
 	if opts.MaxRuns != nil {
 		createParams.MaxRuns = pgtype.Int4{
 			Int32: int32(*opts.MaxRuns),
 			Valid: true,
 		}
-
-		createSemParams.MaxRuns = pgtype.Int4{
-			Int32: int32(*opts.MaxRuns),
+	} else {
+		createParams.MaxRuns = pgtype.Int4{
+			Int32: 100,
 			Valid: true,
 		}
 	}
@@ -188,12 +186,16 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 		return nil, fmt.Errorf("could not create worker: %w", err)
 	}
 
-	createSemParams.Workerid = worker.ID
-
-	_, err = w.queries.CreateWorkerSemaphore(ctx, tx, createSemParams)
+	err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
+		Workerid: worker.ID,
+		MaxRuns: pgtype.Int4{
+			Int32: worker.MaxRuns,
+			Valid: true,
+		},
+	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create worker semaphore: %w", err)
+		return nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
 	}
 
 	svcUUIDs := make([]pgtype.UUID, len(opts.Services))

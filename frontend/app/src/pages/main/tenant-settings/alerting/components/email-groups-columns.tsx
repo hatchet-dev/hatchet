@@ -6,9 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import RelativeDate from '@/components/molecules/relative-date';
 
 export const columns = ({
+  alertTenantEmailsSet,
   onDeleteClick,
+  onToggleMembersClick,
 }: {
+  alertTenantEmailsSet: boolean;
   onDeleteClick: (row: TenantAlertEmailGroup) => void;
+  onToggleMembersClick: (val: boolean) => void;
 }): ColumnDef<TenantAlertEmailGroup>[] => {
   return [
     {
@@ -18,6 +22,11 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div>
+          {row.original.metadata.id == 'default' && (
+            <Badge className="mr-2" variant="secondary">
+              All Tenant Members
+            </Badge>
+          )}
           {row.original.emails.map((email, index) => (
             <Badge key={index} className="mr-2" variant="outline">
               {email}
@@ -35,22 +44,43 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div>
-          <RelativeDate date={row.original.metadata.createdAt} />
+          {row.original.metadata.id != 'default' && (
+            <RelativeDate date={row.original.metadata.createdAt} />
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'enabled',
+      cell: ({ row }) => (
+        <div className="flex items-center space-x-2 justify-end">
+          {row.original.metadata.id != 'default' || alertTenantEmailsSet ? (
+            <Badge variant="successful">Enabled</Badge>
+          ) : (
+            <Badge variant="destructive">Disabled</Badge>
+          )}
         </div>
       ),
     },
     {
       id: 'actions',
       cell: ({ row }) => (
-        <DataTableRowActions
-          row={row}
-          actions={[
-            {
-              label: 'Delete',
-              onClick: () => onDeleteClick(row.original),
-            },
-          ]}
-        />
+        <div className="flex items-center space-x-2 justify-end mr-4">
+          <DataTableRowActions
+            row={row}
+            actions={[
+              row.original.metadata.id != 'default'
+                ? {
+                    label: 'Delete',
+                    onClick: () => onDeleteClick(row.original),
+                  }
+                : {
+                    label: alertTenantEmailsSet ? 'Disable' : 'Enable',
+                    onClick: () => onToggleMembersClick(!alertTenantEmailsSet),
+                  },
+            ]}
+          />
+        </div>
       ),
     },
   ];

@@ -1,5 +1,5 @@
 import { Separator } from '@/components/ui/separator';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api, {
@@ -109,6 +109,20 @@ function EmailGroupsList() {
   const [deleteEmailGroup, setDeleteEmailGroup] =
     useState<TenantAlertEmailGroup | null>(null);
 
+  const [isAlertMemberEmails, setIsAlertMemberEmails] = useState(
+    tenant.alertMemberEmails || false,
+  );
+
+  const { handleApiError } = useApiError({});
+
+  const updateMutation = useMutation({
+    mutationKey: ['tenant:update'],
+    mutationFn: async (data: UpdateTenantRequest) => {
+      await api.tenantUpdate(tenant.metadata.id, data);
+    },
+    onError: handleApiError,
+  });
+
   const listEmailGroupQuery = useQuery({
     ...queries.emailGroups.list(tenant.metadata.id),
   });
@@ -117,7 +131,31 @@ function EmailGroupsList() {
     onDeleteClick: (row) => {
       setDeleteEmailGroup(row);
     },
+    alertTenantEmailsSet: isAlertMemberEmails,
+    onToggleMembersClick: (value) => {
+      setIsAlertMemberEmails(value);
+      updateMutation.mutate({
+        alertMemberEmails: value,
+      });
+    },
   });
+
+  const groups: TenantAlertEmailGroup[] = useMemo(() => {
+    const customGroups = listEmailGroupQuery.data?.rows || [];
+
+    return [
+      {
+        // Special group for all tenant members
+        emails: [],
+        metadata: {
+          id: 'default',
+          createdAt: 'default',
+          updatedAt: 'default',
+        },
+      },
+      ...customGroups,
+    ];
+  }, [listEmailGroupQuery.data]);
 
   return (
     <div>
@@ -138,7 +176,7 @@ function EmailGroupsList() {
       <DataTable
         isLoading={listEmailGroupQuery.isLoading}
         columns={cols}
-        data={listEmailGroupQuery.data?.rows || []}
+        data={groups}
         filters={[]}
         getRowId={(row) => row.metadata.id}
       />
