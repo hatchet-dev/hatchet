@@ -59,7 +59,7 @@ tasks:
     cmds:
       - task: generate-sqlc
       - sh ./hack/dev/atlas-migrate.sh {{.CLI_ARGS}}
-      - DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable' sh ./hack/db/atlas-apply.sh
+      - DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet' sh ./hack/db/atlas-apply.sh
   prisma-push:
     cmds:
       - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go db push
