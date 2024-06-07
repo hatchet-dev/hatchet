@@ -41,6 +41,8 @@ type HatchetContext interface {
 
 	RefreshTimeout(incrementTimeoutBy string) error
 
+	RetryCount() int
+
 	client() client.Client
 
 	action() *client.Action
@@ -193,6 +195,10 @@ func (h *hatchetContext) StreamEvent(message []byte) {
 	if err != nil {
 		h.l.Err(err).Msg("could not put stream event")
 	}
+}
+
+func (h *hatchetContext) RetryCount() int {
+	return int(h.a.RetryCount)
 }
 
 func (h *hatchetContext) index() int {
