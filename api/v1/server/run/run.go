@@ -86,7 +86,7 @@ func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 	routes := e.Routes()
 
 	for _, route := range routes {
-		fmt.Println(route.Method, route.Path)
+		t.config.Logger.Debug().Msgf("registered route: %s %s", route.Method, route.Path)
 	}
 
 	go func() {
