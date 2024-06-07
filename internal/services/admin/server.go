@@ -131,6 +131,10 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 
 	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
+	if err == metered.ErrResourceExhausted {
+		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: workflow run limit exceeded for tenant")
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("could not create workflow run: %w", err)
 	}
