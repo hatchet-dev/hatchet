@@ -11,9 +11,10 @@ import (
 )
 
 type UpsertTenantAlertingSettingsOpts struct {
-	MaxFrequency                   *string `validate:"omitnil,duration"`
-	EnableExpiringTokenAlerts      *bool   `validate:"omitnil"`
-	EnableWorkflowRunFailureAlerts *bool   `validate:"omitnil"`
+	MaxFrequency                    *string `validate:"omitnil,duration"`
+	EnableExpiringTokenAlerts       *bool   `validate:"omitnil"`
+	EnableWorkflowRunFailureAlerts  *bool   `validate:"omitnil"`
+	EnableTenantResourceLimitAlerts *bool   `validate:"omitnil"`
 }
 
 type UpdateTenantAlertingSettingsOpts struct {

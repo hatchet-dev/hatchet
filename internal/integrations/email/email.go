@@ -30,6 +30,20 @@ type ExpiringTokenEmailData struct {
 	SettingsLink          string `json:"settings_link"`
 }
 
+type ResourceLimitAlertData struct {
+	Subject      string `json:"subject"`
+	Summary      string `json:"summary"`
+	Summary2     string `json:"summary2"`
+	TenantName   string `json:"tenant_name"`
+	Link         string `json:"link"`
+	Resource     string `json:"resource"`
+	AlertType    string `json:"alert_type"`
+	CurrentValue int    `json:"current_value"`
+	LimitValue   int    `json:"limit_value"`
+	Percentage   int    `json:"percentage"`
+	SettingsLink string `json:"settings_link"`
+}
+
 type EmailService interface {
 	// for clients to show email settings
 	IsValid() bool
@@ -37,6 +51,7 @@ type EmailService interface {
 	SendTenantInviteEmail(ctx context.Context, email string, data TenantInviteEmailData) error
 	SendWorkflowRunFailedAlerts(ctx context.Context, emails []string, data WorkflowRunsFailedEmailData) error
 	SendExpiringTokenEmail(ctx context.Context, emails []string, data ExpiringTokenEmailData) error
+	SendTenantResourceLimitAlert(ctx context.Context, emails []string, data ResourceLimitAlertData) error
 }
 
 type NoOpService struct{}
@@ -54,5 +69,9 @@ func (s *NoOpService) SendWorkflowRunFailedAlerts(ctx context.Context, emails []
 }
 
 func (s *NoOpService) SendExpiringTokenEmail(ctx context.Context, emails []string, data ExpiringTokenEmailData) error {
+	return nil
+}
+
+func (s *NoOpService) SendTenantResourceLimitAlert(ctx context.Context, emails []string, data ResourceLimitAlertData) error {
 	return nil
 }

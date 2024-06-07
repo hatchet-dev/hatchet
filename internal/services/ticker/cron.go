@@ -138,6 +138,7 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 			t.l.Err(err).Msg("could not add workflow run queued task")
 			return
 		}
+
 	}
 }
 

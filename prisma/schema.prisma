@@ -138,6 +138,77 @@ model Tenant {
   alertMemberEmails         Boolean                    @default(true)
   slackWebhooks             SlackAppWebhook[]
   alertingSettings          TenantAlertingSettings?
+
+  limits                    TenantResourceLimit[]
+  limitAlerts               TenantResourceLimitAlert[]
+}
+
+
+enum LimitResource {
+  WORKFLOW_RUN
+  EVENT
+  WORKER
+  CRON
+  SCHEDULE
+}
+
+model TenantResourceLimit {
+  id       String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+
+  resource LimitResource
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // The max number of requests allowed in the window
+  limitValue Int
+
+  // The max number before an alert is triggered
+  alarmValue Int?
+
+  // the current rate limit bucket value
+  value Int @default(0)
+
+  // the meter window
+  window String?
+
+  // the time the rate limit was last refilled
+  lastRefill DateTime @default(now())
+
+  customValueMeter Boolean @default(false)
+
+  alerts TenantResourceLimitAlert[]
+
+  @@unique([tenantId, resource])
+}
+
+enum TenantResourceLimitAlertType {
+  Alarm
+  Exhausted
+}
+
+model TenantResourceLimitAlert {
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  resourceLimit   TenantResourceLimit @relation(fields: [resourceLimitId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  resourceLimitId String @db.Uuid
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  resource LimitResource
+
+  alertType TenantResourceLimitAlertType
+
+  // the current value of the resource limit at the time of the alert
+  value Int
+
+  // the limit at the time of the alert
+  limit Int
 }
 
 model TenantAlertingSettings {
@@ -152,8 +223,9 @@ model TenantAlertingSettings {
   tenantId String @unique @db.Uuid
 
   // workflow run failure alerts
-  enableWorkflowRunFailureAlerts Boolean @default(false)
-  enableExpiringTokenAlerts      Boolean @default(true)
+  enableWorkflowRunFailureAlerts         Boolean @default(false)
+  enableExpiringTokenAlerts              Boolean @default(true)
+  enableTenantResourceLimitAlerts        Boolean @default(true)
 
   // the maximum alerting frequency
   maxFrequency String @default("1h")
@@ -164,6 +236,7 @@ model TenantAlertingSettings {
   ticker   Ticker? @relation(fields: [tickerId], references: [id])
   tickerId String? @db.Uuid
 }
+
 
 enum TenantMemberRole {
   OWNER

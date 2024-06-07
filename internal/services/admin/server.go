@@ -14,6 +14,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -70,6 +71,13 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		req.Name,
 	)
 
+	if err == metered.ErrResourceExhausted {
+		return nil, status.Error(
+			codes.ResourceExhausted,
+			"workflow run limit exceeded",
+		)
+	}
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, status.Error(
@@ -122,6 +130,10 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
+
+	if err == metered.ErrResourceExhausted {
+		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: workflow run limit exceeded for tenant")
+	}
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create workflow run: %w", err)

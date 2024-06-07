@@ -74,3 +74,46 @@ func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 		}
 	}
 }
+
+func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
+	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		t.l.Debug().Msg("ticker: resolving tenant resource limits")
+
+		err := t.entitlements.TenantLimit().ResolveAllTenantResourceLimits(ctx)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not resolve tenant resource limits")
+			return
+		}
+
+		t.l.Debug().Msg("ticker: polling tenant resource limit alerts")
+
+		alerts, err := t.repo.Ticker().PollTenantResourceLimitAlerts(ctx)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not poll tenant resource limit alerts")
+			return
+		}
+
+		t.l.Debug().Msgf("ticker: alerting %d tenant resource limit alerts", len(alerts))
+
+		for _, alert := range alerts {
+			tenantId := sqlchelpers.UUIDToStr(alert.TenantId)
+
+			t.l.Debug().Msgf("ticker: handling tenant resource limit alert for tenant %s", tenantId)
+
+			innerErr := t.ta.SendTenantResourceLimitAlert(tenantId, alert)
+
+			if innerErr != nil {
+				err = multierror.Append(err, innerErr)
+			}
+		}
+
+		if err != nil {
+			t.l.Err(err).Msg("could not handle tenant resource limit alerts")
+		}
+	}
+}

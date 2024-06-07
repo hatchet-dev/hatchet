@@ -40,9 +40,12 @@ if [[ ! "$DATABASE_URL" =~ sslmode ]]; then
   fi
 fi
 
+echo "DATABASE_URL: $DATABASE_URL"
 # Check for prisma migrations
 MIGRATION_NAME=$(psql "$DATABASE_URL" -t -c "SELECT migration_name FROM _prisma_migrations ORDER BY started_at DESC LIMIT 1;" 2>/dev/null | xargs)
 MIGRATION_NAME=$(echo $MIGRATION_NAME | cut -d'_' -f1)
+
+echo "Migration name: $MIGRATION_NAME"
 
 if [ $? -eq 0 ] && [ -n "$MIGRATION_NAME" ]; then
   echo "Using existing prisma migration: $MIGRATION_NAME"

@@ -32,6 +32,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/repository/cache"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
@@ -86,7 +87,13 @@ func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
 		return nil, err
 	}
 
-	return GetDatabaseConfigFromConfigFile(cf)
+	scf, err := LoadServerConfigFile(configFileBytes...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return GetDatabaseConfigFromConfigFile(cf, &scf.Runtime)
 }
 
 // LoadServerConfig loads the server configuration
@@ -113,7 +120,7 @@ func (c *ConfigLoader) LoadServerConfig() (cleanup func() error, res *server.Ser
 	return GetServerConfigFromConfigfile(dc, cf)
 }
 
-func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Config, err error) {
+func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.ConfigFileRuntime) (res *database.Config, err error) {
 	l := logger.NewStdErr(&cf.Logger, "database")
 
 	databaseUrl := fmt.Sprintf(
@@ -159,14 +166,20 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile) (res *database.Con
 
 	ch := cache.New(cf.CacheDuration)
 
+	entitlementRepo := prisma.NewEntitlementRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch))
+
+	meter := metered.NewMetered(entitlementRepo, &l)
+
 	return &database.Config{
 		Disconnect: func() error {
 			ch.Stop()
+			meter.Stop()
 			return c.Prisma.Disconnect()
 		},
-		APIRepository:    prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
-		EngineRepository: prisma.NewEngineRepository(pool, prisma.WithLogger(&l), prisma.WithCache(ch)),
-		Seed:             cf.Seed,
+		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
+		EngineRepository:      prisma.NewEngineRepository(pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
+		EntitlementRepository: entitlementRepo,
+		Seed:                  cf.Seed,
 	}, nil
 }
 
@@ -201,6 +214,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		ingestor.WithStreamEventsRepository(dc.EngineRepository.StreamEvent()),
 		ingestor.WithLogRepository(dc.EngineRepository.Log()),
 		ingestor.WithMessageQueue(mq),
+		ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
 	)
 
 	if err != nil {

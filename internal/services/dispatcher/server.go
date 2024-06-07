@@ -19,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -142,6 +143,10 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	// create a worker in the database
 	worker, err := s.repo.Worker().CreateNewWorker(ctx, tenantId, opts)
+
+	if err == metered.ErrResourceExhausted {
+		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: tenant worker limit exceeded")
+	}
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not create worker for tenant %s", tenantId)

@@ -22,8 +22,11 @@ type EventsController interface {
 }
 
 type EventsControllerImpl struct {
-	mq   msgqueue.MessageQueue
-	l    *zerolog.Logger
+	mq msgqueue.MessageQueue
+	l  *zerolog.Logger
+
+	entitlements repository.EntitlementsRepository
+
 	repo repository.EngineRepository
 	dv   datautils.DataDecoderValidator
 }
@@ -31,10 +34,11 @@ type EventsControllerImpl struct {
 type EventsControllerOpt func(*EventsControllerOpts)
 
 type EventsControllerOpts struct {
-	mq   msgqueue.MessageQueue
-	l    *zerolog.Logger
-	repo repository.EngineRepository
-	dv   datautils.DataDecoderValidator
+	mq           msgqueue.MessageQueue
+	l            *zerolog.Logger
+	entitlements repository.EntitlementsRepository
+	repo         repository.EngineRepository
+	dv           datautils.DataDecoderValidator
 }
 
 func defaultEventsControllerOpts() *EventsControllerOpts {
@@ -63,6 +67,12 @@ func WithRepository(r repository.EngineRepository) EventsControllerOpt {
 	}
 }
 
+func WithEntitlementsRepository(r repository.EntitlementsRepository) EventsControllerOpt {
+	return func(opts *EventsControllerOpts) {
+		opts.entitlements = r
+	}
+}
+
 func WithDataDecoderValidator(dv datautils.DataDecoderValidator) EventsControllerOpt {
 	return func(opts *EventsControllerOpts) {
 		opts.dv = dv
@@ -84,14 +94,19 @@ func New(fs ...EventsControllerOpt) (*EventsControllerImpl, error) {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
+	if opts.entitlements == nil {
+		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
+	}
+
 	newLogger := opts.l.With().Str("service", "events-controller").Logger()
 	opts.l = &newLogger
 
 	return &EventsControllerImpl{
-		mq:   opts.mq,
-		l:    opts.l,
-		repo: opts.repo,
-		dv:   opts.dv,
+		mq:           opts.mq,
+		l:            opts.l,
+		repo:         opts.repo,
+		entitlements: opts.entitlements,
+		dv:           opts.dv,
 	}, nil
 }
 
@@ -178,6 +193,7 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 		workflowCp := workflowVersion
 
 		g.Go(func() error {
+
 			// create a new workflow run in the database
 			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(eventId, workflowCp, data, additionalMetadata)
 
@@ -192,7 +208,7 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 			}
 
 			// send to workflow processing queue
-			return ec.mq.AddMessage(
+			err = ec.mq.AddMessage(
 				context.Background(),
 				msgqueue.WORKFLOW_PROCESSING_QUEUE,
 				tasktypes.WorkflowRunQueuedToTask(
@@ -200,6 +216,12 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 					workflowRunId,
 				),
 			)
+
+			if err != nil {
+				return fmt.Errorf("could not add workflow run queued task: %w", err)
+			}
+
+			return nil
 		})
 	}
 

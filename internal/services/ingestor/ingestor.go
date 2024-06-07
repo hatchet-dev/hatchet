@@ -7,6 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
@@ -24,10 +25,11 @@ type Ingestor interface {
 type IngestorOptFunc func(*IngestorOpts)
 
 type IngestorOpts struct {
-	eventRepository       repository.EventEngineRepository
-	streamEventRepository repository.StreamEventsEngineRepository
-	logRepository         repository.LogsEngineRepository
-	mq                    msgqueue.MessageQueue
+	eventRepository        repository.EventEngineRepository
+	streamEventRepository  repository.StreamEventsEngineRepository
+	logRepository          repository.LogsEngineRepository
+	entitlementsRepository repository.EntitlementsRepository
+	mq                     msgqueue.MessageQueue
 }
 
 func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
@@ -48,6 +50,12 @@ func WithLogRepository(r repository.LogsEngineRepository) IngestorOptFunc {
 	}
 }
 
+func WithEntitlementsRepository(r repository.EntitlementsRepository) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.entitlementsRepository = r
+	}
+}
+
 func WithMessageQueue(mq msgqueue.MessageQueue) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.mq = mq
@@ -61,11 +69,13 @@ func defaultIngestorOpts() *IngestorOpts {
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
-	eventRepository       repository.EventEngineRepository
-	logRepository         repository.LogsEngineRepository
-	streamEventRepository repository.StreamEventsEngineRepository
-	mq                    msgqueue.MessageQueue
-	v                     validator.Validator
+	eventRepository        repository.EventEngineRepository
+	logRepository          repository.LogsEngineRepository
+	streamEventRepository  repository.StreamEventsEngineRepository
+	entitlementsRepository repository.EntitlementsRepository
+
+	mq msgqueue.MessageQueue
+	v  validator.Validator
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -92,11 +102,13 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}
 
 	return &IngestorImpl{
-		eventRepository:       opts.eventRepository,
-		streamEventRepository: opts.streamEventRepository,
-		logRepository:         opts.logRepository,
-		mq:                    opts.mq,
-		v:                     validator.NewDefaultValidator(),
+		eventRepository:        opts.eventRepository,
+		streamEventRepository:  opts.streamEventRepository,
+		entitlementsRepository: opts.entitlementsRepository,
+
+		logRepository: opts.logRepository,
+		mq:            opts.mq,
+		v:             validator.NewDefaultValidator(),
 	}, nil
 }
 
@@ -110,6 +122,10 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 		Data:               data,
 		AdditionalMetadata: *metadata,
 	})
+
+	if err == metered.ErrResourceExhausted {
+		return nil, metered.ErrResourceExhausted
+	}
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create event: %w", err)
@@ -142,6 +158,10 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string,
 		AdditionalMetadata: replayedEvent.AdditionalMetadata,
 		ReplayedEvent:      &replayedId,
 	})
+
+	if err == metered.ErrResourceExhausted {
+		return nil, metered.ErrResourceExhausted
+	}
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create event: %w", err)

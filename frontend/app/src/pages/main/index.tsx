@@ -78,7 +78,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
         className,
       )}
     >
-      <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full pb-16 md:pb-0">
+      <div className="flex flex-col justify-between items-start space-y-4 px-4 py-4 h-full pb-16 md:pb-4">
         <div className="grow w-full">
           <div className="py-2">
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
@@ -147,6 +147,12 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/members"
                     name="Members"
+                  />,
+                  <SidebarButtonSecondary
+                    key={4}
+                    onNavLinkClick={onNavLinkClick}
+                    to="/tenant-settings/resource-limits"
+                    name="Resource Limits"
                   />,
                   <SidebarButtonSecondary
                     key={4}

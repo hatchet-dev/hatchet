@@ -16,17 +16,19 @@ type AdminService interface {
 type AdminServiceImpl struct {
 	contracts.UnimplementedWorkflowServiceServer
 
-	repo repository.EngineRepository
-	mq   msgqueue.MessageQueue
-	v    validator.Validator
+	entitlements repository.EntitlementsRepository
+	repo         repository.EngineRepository
+	mq           msgqueue.MessageQueue
+	v            validator.Validator
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
 
 type AdminServiceOpts struct {
-	repo repository.EngineRepository
-	mq   msgqueue.MessageQueue
-	v    validator.Validator
+	entitlements repository.EntitlementsRepository
+	repo         repository.EngineRepository
+	mq           msgqueue.MessageQueue
+	v            validator.Validator
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
@@ -40,6 +42,12 @@ func defaultAdminServiceOpts() *AdminServiceOpts {
 func WithRepository(r repository.EngineRepository) AdminServiceOpt {
 	return func(opts *AdminServiceOpts) {
 		opts.repo = r
+	}
+}
+
+func WithEntitlementsRepository(r repository.EntitlementsRepository) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.entitlements = r
 	}
 }
 
@@ -71,8 +79,9 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	}
 
 	return &AdminServiceImpl{
-		repo: opts.repo,
-		mq:   opts.mq,
-		v:    opts.v,
+		repo:         opts.repo,
+		entitlements: opts.entitlements,
+		mq:           opts.mq,
+		v:            opts.v,
 	}, nil
 }

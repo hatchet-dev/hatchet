@@ -576,7 +576,7 @@ func (q *Queries) PollStepRuns(ctx context.Context, db DBTX, tickerid pgtype.UUI
 const pollTenantAlerts = `-- name: PollTenantAlerts :many
 WITH active_tenant_alerts AS (
     SELECT
-        alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt", alerts."tenantId", alerts."maxFrequency", alerts."lastAlertedAt", alerts."tickerId", alerts."enableExpiringTokenAlerts", alerts."enableWorkflowRunFailureAlerts"
+        alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt", alerts."tenantId", alerts."maxFrequency", alerts."lastAlertedAt", alerts."tickerId", alerts."enableExpiringTokenAlerts", alerts."enableWorkflowRunFailureAlerts", alerts."enableTenantResourceLimitAlerts"
     FROM
         "TenantAlertingSettings" as alerts
     WHERE
@@ -613,21 +613,22 @@ FROM
 WHERE
     alerts."id" = active_tenant_alerts."id" AND
     alerts."tenantId" IN (SELECT "tenantId" FROM failed_run_count_by_tenant WHERE "failedWorkflowRunCount" > 0)
-RETURNING alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt", alerts."tenantId", alerts."maxFrequency", alerts."lastAlertedAt", alerts."tickerId", alerts."enableExpiringTokenAlerts", alerts."enableWorkflowRunFailureAlerts", active_tenant_alerts."lastAlertedAt" AS "prevLastAlertedAt"
+RETURNING alerts.id, alerts."createdAt", alerts."updatedAt", alerts."deletedAt", alerts."tenantId", alerts."maxFrequency", alerts."lastAlertedAt", alerts."tickerId", alerts."enableExpiringTokenAlerts", alerts."enableWorkflowRunFailureAlerts", alerts."enableTenantResourceLimitAlerts", active_tenant_alerts."lastAlertedAt" AS "prevLastAlertedAt"
 `
 
 type PollTenantAlertsRow struct {
-	ID                             pgtype.UUID      `json:"id"`
-	CreatedAt                      pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt                      pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt                      pgtype.Timestamp `json:"deletedAt"`
-	TenantId                       pgtype.UUID      `json:"tenantId"`
-	MaxFrequency                   string           `json:"maxFrequency"`
-	LastAlertedAt                  pgtype.Timestamp `json:"lastAlertedAt"`
-	TickerId                       pgtype.UUID      `json:"tickerId"`
-	EnableExpiringTokenAlerts      bool             `json:"enableExpiringTokenAlerts"`
-	EnableWorkflowRunFailureAlerts bool             `json:"enableWorkflowRunFailureAlerts"`
-	PrevLastAlertedAt              pgtype.Timestamp `json:"prevLastAlertedAt"`
+	ID                              pgtype.UUID      `json:"id"`
+	CreatedAt                       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt                       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt                       pgtype.Timestamp `json:"deletedAt"`
+	TenantId                        pgtype.UUID      `json:"tenantId"`
+	MaxFrequency                    string           `json:"maxFrequency"`
+	LastAlertedAt                   pgtype.Timestamp `json:"lastAlertedAt"`
+	TickerId                        pgtype.UUID      `json:"tickerId"`
+	EnableExpiringTokenAlerts       bool             `json:"enableExpiringTokenAlerts"`
+	EnableWorkflowRunFailureAlerts  bool             `json:"enableWorkflowRunFailureAlerts"`
+	EnableTenantResourceLimitAlerts bool             `json:"enableTenantResourceLimitAlerts"`
+	PrevLastAlertedAt               pgtype.Timestamp `json:"prevLastAlertedAt"`
 }
 
 // Finds tenant alerts which haven't alerted since their frequency and assigns them to a ticker
@@ -651,7 +652,113 @@ func (q *Queries) PollTenantAlerts(ctx context.Context, db DBTX, tickerid pgtype
 			&i.TickerId,
 			&i.EnableExpiringTokenAlerts,
 			&i.EnableWorkflowRunFailureAlerts,
+			&i.EnableTenantResourceLimitAlerts,
 			&i.PrevLastAlertedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pollTenantResourceLimitAlerts = `-- name: PollTenantResourceLimitAlerts :many
+WITH alerting_resource_limits AS (
+    SELECT
+        rl."id" AS "resourceLimitId",
+        rl."tenantId",
+        rl."resource",
+        rl."limitValue",
+        rl."alarmValue",
+        rl."value",
+        rl."window",
+        rl."lastRefill",
+        CASE
+            WHEN rl."value" >= rl."limitValue" THEN 'Exhausted'
+            WHEN rl."alarmValue" IS NOT NULL AND rl."value" >= rl."alarmValue" THEN 'Alarm'
+        END AS "alertType"
+    FROM
+        "TenantResourceLimit" AS rl
+    JOIN
+        "TenantAlertingSettings" AS ta
+    ON
+        ta."tenantId" = rl."tenantId"::uuid
+    WHERE
+        ta."enableTenantResourceLimitAlerts" = true
+        AND (
+            (rl."alarmValue" IS NOT NULL AND rl."value" >= rl."alarmValue")
+            OR rl."value" >= rl."limitValue"
+        )
+    FOR UPDATE SKIP LOCKED
+),
+new_alerts AS (
+    SELECT
+        arl."resourceLimitId",
+        arl."tenantId",
+        arl."resource",
+        arl."alertType",
+        arl."value",
+        arl."limitValue" AS "limit",
+        EXISTS (
+            SELECT 1
+            FROM "TenantResourceLimitAlert" AS trla
+            WHERE trla."resourceLimitId" = arl."resourceLimitId"
+            AND trla."alertType" = arl."alertType"::"TenantResourceLimitAlertType"
+            AND trla."createdAt" >= NOW() - arl."window"::INTERVAL
+        ) AS "existingAlert"
+    FROM
+        alerting_resource_limits AS arl
+)
+INSERT INTO "TenantResourceLimitAlert" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "resourceLimitId",
+    "resource",
+    "alertType",
+    "value",
+    "limit",
+    "tenantId"
+)
+SELECT
+    gen_random_uuid(),
+    NOW(),
+    NOW(),
+    na."resourceLimitId",
+    na."resource",
+    na."alertType"::"TenantResourceLimitAlertType",
+    na."value",
+    na."limit",
+    na."tenantId"
+FROM
+    new_alerts AS na
+WHERE
+    na."existingAlert" = false
+RETURNING id, "createdAt", "updatedAt", "resourceLimitId", "tenantId", resource, "alertType", value, "limit"
+`
+
+func (q *Queries) PollTenantResourceLimitAlerts(ctx context.Context, db DBTX) ([]*TenantResourceLimitAlert, error) {
+	rows, err := db.Query(ctx, pollTenantResourceLimitAlerts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*TenantResourceLimitAlert
+	for rows.Next() {
+		var i TenantResourceLimitAlert
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ResourceLimitId,
+			&i.TenantId,
+			&i.Resource,
+			&i.AlertType,
+			&i.Value,
+			&i.Limit,
 		); err != nil {
 			return nil, err
 		}
