@@ -173,6 +173,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 	return &database.Config{
 		Disconnect: func() error {
 			ch.Stop()
+			meter.Stop()
 			return c.Prisma.Disconnect()
 		},
 		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),

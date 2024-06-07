@@ -18,6 +18,10 @@ type Metered struct {
 	c            cache.Cacheable
 }
 
+func (m *Metered) Stop() {
+	m.c.Stop()
+}
+
 func NewMetered(entitlements repository.EntitlementsRepository, l *zerolog.Logger) *Metered {
 	return &Metered{
 		entitlements: entitlements,
