@@ -68,7 +68,7 @@ func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitRe
 	deferredMeter := func() {
 		limit, err := m.entitlements.TenantLimit().Meter(ctx, resource, tenantId)
 
-		if limit != nil && percent <= 50 || percent >= 100 {
+		if limit != nil && (percent <= 50 || percent >= 100) {
 			m.c.Set(key, limit.Value < limit.LimitValue)
 		}
 
