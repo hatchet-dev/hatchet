@@ -73,6 +73,36 @@ func NewAPIServer(config *server.ServerConfig) *APIServer {
 }
 
 func (t *APIServer) Run() (func() error, error) {
+	e, err := t.GetEchoServer()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return t.RunWithServer(e)
+}
+
+func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
+	routes := e.Routes()
+
+	for _, route := range routes {
+		fmt.Println(route.Method, route.Path)
+	}
+
+	go func() {
+		if err := e.Start(fmt.Sprintf(":%d", t.config.Runtime.Port)); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			panic(err)
+		}
+	}()
+
+	cleanup := func() error {
+		return e.Shutdown(context.Background())
+	}
+
+	return cleanup, nil
+}
+
+func (t *APIServer) GetEchoServer() (*echo.Echo, error) {
 	oaspec, err := gen.GetSwagger()
 	if err != nil {
 		return nil, err
@@ -288,15 +318,5 @@ func (t *APIServer) Run() (func() error, error) {
 
 	gen.RegisterHandlers(e, myStrictApiHandler)
 
-	go func() {
-		if err := e.Start(fmt.Sprintf(":%d", t.config.Runtime.Port)); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			panic(err)
-		}
-	}()
-
-	cleanup := func() error {
-		return e.Shutdown(context.Background())
-	}
-
-	return cleanup, nil
+	return e, nil
 }

@@ -135,7 +135,7 @@ model Tenant {
   stepRateLimits            StepRateLimit[]
   alertEmailGroups          TenantAlertEmailGroup[]
   // alertMemberEmails controls whether to send alert emails to tenant members in addition to the alert email groups
-  alertMemberEmails         Boolean @default(true)
+  alertMemberEmails         Boolean                    @default(true)
   slackWebhooks             SlackAppWebhook[]
   alertingSettings          TenantAlertingSettings?
 }
@@ -1192,7 +1192,7 @@ model Worker {
   dispatcher   Dispatcher? @relation(fields: [dispatcherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   dispatcherId String?     @db.Uuid
 
-  maxRuns Int              @default(100)
+  maxRuns Int @default(100)
 
   services Service[]
 
@@ -1218,11 +1218,11 @@ model WorkerSemaphore {
   worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workerId String @unique @db.Uuid
   // keeps track of maxRuns - runningRuns on the worker
-  slots Int
+  slots    Int
 }
 
 model WorkerSemaphoreSlot {
-  id        String    @id @unique @default(uuid()) @db.Uuid
+  id String @id @unique @default(uuid()) @db.Uuid
 
   // the parent semaphore
   worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -1230,7 +1230,7 @@ model WorkerSemaphoreSlot {
 
   // the parent step run
   stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  stepRunId String?  @db.Uuid @unique
+  stepRunId String?  @unique @db.Uuid
 
   @@index([workerId])
 }

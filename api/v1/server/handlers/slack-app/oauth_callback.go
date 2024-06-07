@@ -7,6 +7,7 @@ import (
 	"github.com/slack-go/slack"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 )
@@ -16,7 +17,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 	oauth, ok := g.config.AdditionalOAuthConfigs["slack"]
 
 	if !ok {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, nil, "Slack OAuth is not configured on this Hatchet instance.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, nil, "Slack OAuth is not configured on this Hatchet instance.")
 	}
 
 	sh := authn.NewSessionHelpers(g.config)
@@ -24,7 +25,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 	tenantId, err := sh.GetKey(ctx, "tenant")
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
 	}
 
 	defer func() {
@@ -38,7 +39,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 	isValid, _, err := sh.ValidateOAuthState(ctx, "slack")
 
 	if err != nil || !isValid {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
 	}
 
 	resp, err := slack.GetOAuthV2ResponseContext(
@@ -51,13 +52,13 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 	)
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Forbidden")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Forbidden")
 	}
 
 	webhookURLEncrypted, err := g.config.Encryption.Encrypt([]byte(resp.IncomingWebhook.URL), "incoming_webhook_url")
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. An internal error occurred.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. An internal error occurred.")
 	}
 
 	_, err = g.config.APIRepository.Slack().UpsertSlackWebhook(
@@ -72,7 +73,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 	)
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. An internal error occurred.")
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. An internal error occurred.")
 	}
 
 	return gen.UserUpdateSlackOauthCallback302Response{
