@@ -46,8 +46,26 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Build lite
         run: |
-          docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=lite -t hatchet-lite-tmp
-          docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin -t hatchet-admin-tmp
-          docker build -f ./build/package/lite.dockerfile . --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp
+          docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=lite \
+            --platform linux/arm64,linux/amd64 \
+            -t hatchet-lite-tmp \
+            .
+
+          docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=admin \
+            --platform linux/arm64,linux/amd64 \
+            -t hatchet-admin-tmp \
+            .
+
+          docker build -f ./build/package/lite.dockerfile \
+            --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp \
+            --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp \
+            --platform linux/arm64,linux/amd64 \
+            .
