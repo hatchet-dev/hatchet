@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start RabbitMQ
-rabbitmq-server &
+docker-entrypoint.sh rabbitmq-server &
 
 # Wait for RabbitMQ to be ready
 until rabbitmqctl status; do
