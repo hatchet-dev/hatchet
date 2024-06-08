@@ -140,21 +140,21 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/servers.dockerfile \
             -t hatchet-lite-local:${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64,linux/amd64 \
             --build-arg SERVER_TARGET=lite \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             .
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/servers.dockerfile \
             -t hatchet-admin-local:${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64,linux/amd64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             .
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+          DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/lite.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64,linux/amd64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-local:${{steps.tag_name.outputs.tag}} \
