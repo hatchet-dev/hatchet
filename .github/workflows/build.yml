@@ -56,16 +56,19 @@ jobs:
             --build-arg SERVER_TARGET=lite \
             --platform linux/arm64,linux/amd64 \
             -t hatchet-lite-tmp \
+            --load \
             .
 
           DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --platform linux/arm64,linux/amd64 \
             -t hatchet-admin-tmp \
+            --load \
             .
 
           DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/lite.dockerfile \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp \
             --platform linux/arm64,linux/amd64 \
+            --load \
             .

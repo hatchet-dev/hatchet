@@ -145,6 +145,7 @@ jobs:
             --platform linux/arm64,linux/amd64 \
             --build-arg SERVER_TARGET=lite \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --load \
             .
 
           DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/servers.dockerfile \
@@ -152,6 +153,7 @@ jobs:
             --platform linux/arm64,linux/amd64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --load \
             .
 
           DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/lite.dockerfile \
@@ -159,6 +161,7 @@ jobs:
             --platform linux/arm64,linux/amd64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-local:${{steps.tag_name.outputs.tag}} \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-local:${{steps.tag_name.outputs.tag}} \
+            --load \
             .
       - name: Push to GHCR
         run: |
