@@ -52,44 +52,38 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Build lite
         run: |
-          DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --platform linux/arm64 \
             -t hatchet-lite-tmp:arm64 \
-            --load \
             .
 
-          DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --platform linux/arm64 \
             -t hatchet-admin-tmp:arm64 \
-            --load \
             .
 
-          DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/lite.dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:arm64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:arm64 \
             --platform linux/arm64 \
-            --load \
             .
 
-          DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --platform linux/amd64 \
             -t hatchet-lite-tmp:amd64 \
-            --load \
             .
 
-          DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --platform linux/amd64 \
             -t hatchet-admin-tmp:amd64 \
-            --load \
             .
 
-          DOCKER_BUILDKIT=1 docker buildx build -f ./build/package/lite.dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
             --platform linux/amd64 \
-            --load \
             .
