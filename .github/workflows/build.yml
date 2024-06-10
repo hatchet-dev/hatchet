@@ -41,13 +41,56 @@ jobs:
       - name: Build migrate
         run: docker build -f ./build/package/migrate.dockerfile .
 
-  lite:
+  lite-arm:
+    runs-on: hatchet-arm64-2
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Build lite
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=lite \
+            --platform linux/arm64 \
+            -t hatchet-lite-tmp:arm64 \
+            . &
+
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=admin \
+            --platform linux/arm64 \
+            -t hatchet-admin-tmp:arm64 \
+            . &
+
+          wait
+
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+            --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:arm64 \
+            --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:arm64 \
+            --platform linux/arm64 \
+            .
+
+  lite-amd:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
       - name: Build lite
         run: |
-          docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=lite -t hatchet-lite-tmp
-          docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin -t hatchet-admin-tmp
-          docker build -f ./build/package/lite.dockerfile . --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=lite \
+            --platform linux/amd64 \
+            -t hatchet-lite-tmp:amd64 \
+            . &
+
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=admin \
+            --platform linux/amd64 \
+            -t hatchet-admin-tmp:amd64 \
+            . &
+
+          wait
+
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+            --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
+            --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
+            --platform linux/amd64 \
+            .
