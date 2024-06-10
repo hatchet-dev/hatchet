@@ -879,8 +879,8 @@ type WebhookWorkerCreateRequest struct {
 	// Url The webhook url.
 	Url string `json:"url"`
 
-	// Workflows The workflows to register for this webhook worker.
-	Workflows []openapi_types.UUID `json:"workflows"`
+	// Workflows The workflow IDs or names to register for this webhook worker.
+	Workflows []string `json:"workflows"`
 }
 
 // WebhookWorkerListResponse defines model for WebhookWorkerListResponse.

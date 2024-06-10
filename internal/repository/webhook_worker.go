@@ -10,7 +10,7 @@ type CreateWebhookWorkerOpts struct {
 	TenantId  string `validate:"required,uuid"`
 	URL       string `validate:"required,url"`
 	Secret    string
-	Workflows []string `validate:"required,dive,uuid"`
+	Workflows []string `validate:"required"`
 }
 
 type WebhookWorkerRepository interface {
