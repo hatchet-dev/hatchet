@@ -42,12 +42,11 @@ jobs:
         run: docker build -f ./build/package/migrate.dockerfile .
 
   lite-arm:
-    runs-on: ubuntu-latest
+    runs-on:
+      labels: arm64
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
       - name: Build lite
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
