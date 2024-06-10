@@ -66,7 +66,7 @@ tasks:
       - task: generate-sqlc
   seed-dev:
     cmds:
-      - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev --skip-generate
+      - # sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate deploy --skip-generate
       - SEED_DEVELOPMENT=true sh ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
   start-dev:
     deps:

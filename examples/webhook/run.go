@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
@@ -102,8 +101,8 @@ func setup(c client.Client, wfId string) error {
 	secret := "secret"
 	res, err := c.API().WebhookCreate(context.Background(), tenantId, rest.WebhookCreateJSONRequestBody{
 		Url: "http://localhost:8741/webhook",
-		Workflows: []openapi_types.UUID{
-			uuid.MustParse(wfId),
+		Workflows: []string{
+			wfId,
 		},
 		Secret: &secret,
 	})
