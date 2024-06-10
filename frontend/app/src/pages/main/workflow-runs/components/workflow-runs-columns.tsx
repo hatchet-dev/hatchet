@@ -92,6 +92,29 @@ export const columns: ColumnDef<WorkflowRun>[] = [
     enableHiding: true,
   },
   {
+    accessorKey: 'Created at',
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="Created at"
+        className="whitespace-nowrap"
+      />
+    ),
+    cell: ({ row }) => {
+      return (
+        <div className="whitespace-nowrap">
+          {row.original.metadata.createdAt ? (
+            <RelativeDate date={row.original.metadata.createdAt} />
+          ) : (
+            'N/A'
+          )}
+        </div>
+      );
+    },
+    enableSorting: false,
+    enableHiding: true,
+  },
+  {
     accessorKey: 'Started at',
     header: ({ column }) => (
       <DataTableColumnHeader
