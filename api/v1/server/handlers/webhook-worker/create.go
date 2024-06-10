@@ -26,7 +26,7 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 
 	var wfs []string
 	for _, wf := range request.Body.Workflows {
-		wfs = append(wfs, wf)
+		wfs = append(wfs, wf.String())
 	}
 
 	ww, err := i.config.APIRepository.WebhookWorker().UpsertWebhookWorker(ctx.Request().Context(), &repository.CreateWebhookWorkerOpts{

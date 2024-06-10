@@ -22,9 +22,12 @@ WebhookWorkerCreateRequest:
       description: The webhook url.
     workflows:
       type: array
-      description: The workflow IDs or names to register for this webhook worker.
+      description: The workflows to register for this webhook worker.
       items:
         type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
     secret:
       type: string
       description: The secret key for validation. If not provided, a random secret will be generated.
