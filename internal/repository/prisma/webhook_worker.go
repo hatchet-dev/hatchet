@@ -53,14 +53,19 @@ func (r *webhookWorkerRepository) UpsertWebhookWorker(ctx context.Context, opts 
 
 	var txn []db.PrismaTransaction
 	for _, workflow := range opts.Workflows {
-		tx := r.db.WebhookWorkerWorkflow.CreateOne(
+		tx := r.db.WebhookWorkerWorkflow.UpsertOne(
+			db.WebhookWorkerWorkflow.WebhookWorkerIDWorkflowID(
+				db.WebhookWorkerWorkflow.WebhookWorkerID.Equals(ww.ID),
+				db.WebhookWorkerWorkflow.WorkflowID.Equals(workflow),
+			),
+		).Create(
 			db.WebhookWorkerWorkflow.WebhookWorker.Link(
 				db.WebhookWorker.ID.Equals(ww.ID),
 			),
 			db.WebhookWorkerWorkflow.Workflow.Link(
 				db.Workflow.ID.Equals(workflow),
 			),
-		).Tx()
+		).Update().Tx()
 		txn = append(txn, tx)
 	}
 
