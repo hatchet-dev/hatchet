@@ -19,10 +19,14 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 
 	limit := 50
 	offset := 0
+	orderDirection := "DESC"
+	orderBy := "createdAt"
 
 	listOpts := &repository.ListWorkflowRunsOpts{
-		Limit:  &limit,
-		Offset: &offset,
+		Limit:          &limit,
+		Offset:         &offset,
+		OrderBy:        &orderBy,
+		OrderDirection: &orderDirection,
 	}
 
 	if request.Params.Limit != nil {

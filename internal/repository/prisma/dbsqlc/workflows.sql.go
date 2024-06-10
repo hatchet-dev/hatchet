@@ -950,6 +950,14 @@ WHERE
         FROM "WorkflowTriggerEventRef" AS t3
         WHERE t3."eventKey" = $2 AND t3."parentId" IS NOT NULL
     ) AND j2.id IS NOT NULL)
+    AND "WorkflowVersion".id = (
+        -- confirm that the workflow version is the latest
+        SELECT wv2.id
+        FROM "WorkflowVersion" wv2
+        WHERE wv2."workflowId" = "WorkflowVersion"."workflowId"
+        ORDER BY wv2."order" DESC
+        LIMIT 1
+    )
 ORDER BY "WorkflowVersion"."workflowId", "WorkflowVersion"."order" DESC
 `
 
