@@ -938,10 +938,16 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 }
 
 const listWorkflowsForEvent = `-- name: ListWorkflowsForEvent :many
+WITH LatestWorkflowVersions AS (
+    SELECT DISTINCT ON ("workflowId") "id", "workflowId"
+    FROM "WorkflowVersion"
+    ORDER BY "workflowId", "order" DESC
+)
 SELECT DISTINCT ON ("WorkflowVersion"."workflowId") "WorkflowVersion".id
 FROM "WorkflowVersion"
 LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
 LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
+JOIN LatestWorkflowVersions AS l ON l."id" = "WorkflowVersion"."id"
 WHERE
     (j1."tenantId"::uuid = $1 AND j1.id IS NOT NULL)
     AND
