@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
 
@@ -74,4 +75,41 @@ func (r *webhookWorkerRepository) UpsertWebhookWorker(ctx context.Context, opts 
 	}
 
 	return ww, nil
+}
+
+func (r *webhookWorkerRepository) GetActionNames(ctx context.Context, webhookWorkerId string) ([]string, error) {
+	ww, err := r.db.WebhookWorker.FindUnique(db.WebhookWorker.ID.Equals(webhookWorkerId)).With(
+		db.WebhookWorker.WebhookWorkerWorkflows.Fetch().With(
+			db.WebhookWorkerWorkflow.Workflow.Fetch().With(
+				db.Workflow.Versions.Fetch().OrderBy(
+					db.WorkflowVersion.Order.Order(db.SortOrderDesc),
+				).Take(1).With(
+					db.WorkflowVersion.Jobs.Fetch().With(
+						db.Job.Steps.Fetch().With(
+							db.Step.Action.Fetch(),
+						),
+					),
+				),
+			),
+		),
+	).Exec(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not find webhook worker: %w", err)
+	}
+
+	var actionNames []string
+	for _, wwf := range ww.WebhookWorkerWorkflows() {
+		for _, version := range wwf.Workflow().Versions() {
+			for _, job := range version.Jobs() {
+				for _, step := range job.Steps() {
+					actionNames = append(actionNames, step.Action().ActionID)
+				}
+			}
+		}
+	}
+	if len(actionNames) == 0 {
+		return nil, fmt.Errorf("no actions found for webhook worker %s", webhookWorkerId)
+	}
+
+	return actionNames, nil
 }

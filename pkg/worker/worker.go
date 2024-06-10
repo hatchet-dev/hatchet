@@ -11,7 +11,6 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/logger"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
@@ -85,7 +84,7 @@ type Worker struct {
 
 	maxRuns *int
 
-	prisma *db.PrismaClient
+	initActionNames []string
 }
 
 type WorkerOpt func(*WorkerOpts)
@@ -99,7 +98,7 @@ type WorkerOpts struct {
 	alerter      errors.Alerter
 	maxRuns      *int
 
-	prisma *db.PrismaClient
+	actions []string
 }
 
 func defaultWorkerOpts() *WorkerOpts {
@@ -126,9 +125,9 @@ func WithLogLevel(lvl string) WorkerOpt {
 	}
 }
 
-func WithInternalPrisma(prisma *db.PrismaClient) WorkerOpt {
+func WithActions(actions []string) WorkerOpt {
 	return func(opts *WorkerOpts) {
-		opts.prisma = prisma
+		opts.actions = actions
 	}
 }
 
@@ -173,14 +172,14 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 	mws := newMiddlewares()
 
 	w := &Worker{
-		client:      opts.client,
-		name:        opts.name,
-		l:           opts.l,
-		actions:     map[string]Action{},
-		alerter:     opts.alerter,
-		middlewares: mws,
-		maxRuns:     opts.maxRuns,
-		prisma:      opts.prisma,
+		client:          opts.client,
+		name:            opts.name,
+		l:               opts.l,
+		actions:         map[string]Action{},
+		alerter:         opts.alerter,
+		middlewares:     mws,
+		maxRuns:         opts.maxRuns,
+		initActionNames: opts.actions,
 	}
 
 	mws.add(w.panicMiddleware)
