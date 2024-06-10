@@ -43,11 +43,11 @@ FROM base AS build-go
 
 ARG VERSION=v0.1.0-alpha.0
 
-# can be set to "api" or "engine"
+# can be set to "api", "engine", "admin" or "lite"
 ARG SERVER_TARGET
 
-# check if the target is empty or not set to api, engine, or admin
-RUN if [ -z "$SERVER_TARGET" ] || [ "$SERVER_TARGET" != "api" ] && [ "$SERVER_TARGET" != "engine" ] && [ "$SERVER_TARGET" != "admin" ]; then \
+# check if the target is empty or not set to api, engine, lite, or admin
+RUN if [ -z "$SERVER_TARGET" ] || [ "$SERVER_TARGET" != "api" ] && [ "$SERVER_TARGET" != "engine" ] && [ "$SERVER_TARGET" != "admin" ] && [ "$SERVER_TARGET" != "lite" ]; then \
     echo "SERVER_TARGET must be set to 'api', 'engine', or 'admin'"; \
     exit 1; \
     fi
@@ -67,7 +67,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # ----------------------
 FROM alpine AS deployment
 
-# can be set to "api" or "engine"
+# can be set to "api", "engine", "admin" or "lite"
 ARG SERVER_TARGET=engine
 
 WORKDIR /hatchet

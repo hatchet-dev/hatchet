@@ -35,12 +35,15 @@ type Dispatcher interface {
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
-	s            gocron.Scheduler
-	mq           msgqueue.MessageQueue
-	l            *zerolog.Logger
-	dv           datautils.DataDecoderValidator
-	v            validator.Validator
-	repo         repository.EngineRepository
+	s    gocron.Scheduler
+	mq   msgqueue.MessageQueue
+	l    *zerolog.Logger
+	dv   datautils.DataDecoderValidator
+	v    validator.Validator
+	repo repository.EngineRepository
+
+	entitlements repository.EntitlementsRepository
+
 	dispatcherId string
 	workers      *workers
 	a            *hatcheterrors.Wrapped
@@ -114,6 +117,7 @@ type DispatcherOpts struct {
 	l            *zerolog.Logger
 	dv           datautils.DataDecoderValidator
 	repo         repository.EngineRepository
+	entitlements repository.EntitlementsRepository
 	dispatcherId string
 	alerter      hatcheterrors.Alerter
 }
@@ -145,6 +149,12 @@ func WithAlerter(a hatcheterrors.Alerter) DispatcherOpt {
 func WithRepository(r repository.EngineRepository) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.repo = r
+	}
+}
+
+func WithEntitlementsRepository(r repository.EntitlementsRepository) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.entitlements = r
 	}
 }
 
@@ -181,6 +191,10 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
+	if opts.entitlements == nil {
+		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
+	}
+
 	newLogger := opts.l.With().Str("service", "dispatcher").Logger()
 	opts.l = &newLogger
 
@@ -200,6 +214,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		dv:           opts.dv,
 		v:            validator.NewDefaultValidator(),
 		repo:         opts.repo,
+		entitlements: opts.entitlements,
 		dispatcherId: opts.dispatcherId,
 		workers:      &workers{},
 		s:            s,

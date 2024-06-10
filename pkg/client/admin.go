@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -42,14 +43,17 @@ type adminClientImpl struct {
 	v validator.Validator
 
 	ctx *contextLoader
+
+	namespace string
 }
 
 func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts) AdminClient {
 	return &adminClientImpl{
-		client: admincontracts.NewWorkflowServiceClient(conn),
-		l:      opts.l,
-		v:      opts.v,
-		ctx:    opts.ctxLoader,
+		client:    admincontracts.NewWorkflowServiceClient(conn),
+		l:         opts.l,
+		v:         opts.v,
+		ctx:       opts.ctxLoader,
+		namespace: opts.namespace,
 	}
 }
 
@@ -167,6 +171,10 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 		return "", fmt.Errorf("could not marshal input: %w", err)
 	}
 
+	if a.namespace != "" && !strings.HasPrefix(workflowName, a.namespace) {
+		workflowName = fmt.Sprintf("%s%s", a.namespace, workflowName)
+	}
+
 	request := admincontracts.TriggerWorkflowRequest{
 		Name:  workflowName,
 		Input: string(inputBytes),
@@ -193,6 +201,10 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 
 	if err != nil {
 		return "", fmt.Errorf("could not marshal input: %w", err)
+	}
+
+	if a.namespace != "" && !strings.HasPrefix(workflowName, a.namespace) {
+		workflowName = fmt.Sprintf("%s%s", a.namespace, workflowName)
 	}
 
 	childIndex := int32(opts.ChildIndex)

@@ -40,3 +40,14 @@ jobs:
         uses: actions/checkout@v4
       - name: Build migrate
         run: docker build -f ./build/package/migrate.dockerfile .
+
+  lite:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Build lite
+        run: |
+          docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=lite -t hatchet-lite-tmp
+          docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin -t hatchet-admin-tmp
+          docker build -f ./build/package/lite.dockerfile . --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp

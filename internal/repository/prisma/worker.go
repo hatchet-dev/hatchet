@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
@@ -24,9 +25,10 @@ type workerAPIRepository struct {
 	v       validator.Validator
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
+	m       *metered.Metered
 }
 
-func NewWorkerAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkerAPIRepository {
+func NewWorkerAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkerAPIRepository {
 	queries := dbsqlc.New()
 
 	return &workerAPIRepository{
@@ -35,6 +37,7 @@ func NewWorkerAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v valid
 		v:       v,
 		queries: queries,
 		l:       l,
+		m:       m,
 	}
 }
 
@@ -127,9 +130,10 @@ type workerEngineRepository struct {
 	v       validator.Validator
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
+	m       *metered.Metered
 }
 
-func NewWorkerEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkerEngineRepository {
+func NewWorkerEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkerEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workerEngineRepository{
@@ -137,6 +141,7 @@ func NewWorkerEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zer
 		v:       v,
 		queries: queries,
 		l:       l,
+		m:       m,
 	}
 }
 
@@ -148,111 +153,113 @@ func (w *workerEngineRepository) GetWorkerForEngine(ctx context.Context, tenantI
 }
 
 func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId string, opts *repository.CreateWorkerOpts) (*dbsqlc.Worker, error) {
-	if err := w.v.Validate(opts); err != nil {
-		return nil, err
-	}
-
-	tx, err := w.pool.Begin(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer deferRollback(ctx, w.l, tx.Rollback)
-
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
-	createParams := dbsqlc.CreateWorkerParams{
-		Tenantid:     pgTenantId,
-		Dispatcherid: sqlchelpers.UUIDFromStr(opts.DispatcherId),
-		Name:         opts.Name,
-	}
-
-	if opts.MaxRuns != nil {
-		createParams.MaxRuns = pgtype.Int4{
-			Int32: int32(*opts.MaxRuns),
-			Valid: true,
+	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKER, tenantId, func() (*dbsqlc.Worker, error) {
+		if err := w.v.Validate(opts); err != nil {
+			return nil, err
 		}
-	} else {
-		createParams.MaxRuns = pgtype.Int4{
-			Int32: 100,
-			Valid: true,
+
+		tx, err := w.pool.Begin(ctx)
+
+		if err != nil {
+			return nil, err
 		}
-	}
 
-	worker, err := w.queries.CreateWorker(ctx, tx, createParams)
+		defer deferRollback(ctx, w.l, tx.Rollback)
 
-	if err != nil {
-		return nil, fmt.Errorf("could not create worker: %w", err)
-	}
+		pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
-		Workerid: worker.ID,
-		MaxRuns: pgtype.Int4{
-			Int32: worker.MaxRuns,
-			Valid: true,
-		},
-	})
+		createParams := dbsqlc.CreateWorkerParams{
+			Tenantid:     pgTenantId,
+			Dispatcherid: sqlchelpers.UUIDFromStr(opts.DispatcherId),
+			Name:         opts.Name,
+		}
 
-	if err != nil {
-		return nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
-	}
+		if opts.MaxRuns != nil {
+			createParams.MaxRuns = pgtype.Int4{
+				Int32: int32(*opts.MaxRuns),
+				Valid: true,
+			}
+		} else {
+			createParams.MaxRuns = pgtype.Int4{
+				Int32: 100,
+				Valid: true,
+			}
+		}
 
-	svcUUIDs := make([]pgtype.UUID, len(opts.Services))
+		worker, err := w.queries.CreateWorker(ctx, tx, createParams)
 
-	for i, svc := range opts.Services {
-		dbSvc, err := w.queries.UpsertService(ctx, tx, dbsqlc.UpsertServiceParams{
-			Name:     svc,
-			Tenantid: pgTenantId,
+		if err != nil {
+			return nil, fmt.Errorf("could not create worker: %w", err)
+		}
+
+		err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
+			Workerid: worker.ID,
+			MaxRuns: pgtype.Int4{
+				Int32: worker.MaxRuns,
+				Valid: true,
+			},
 		})
 
 		if err != nil {
-			return nil, fmt.Errorf("could not upsert service: %w", err)
+			return nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
 		}
 
-		svcUUIDs[i] = dbSvc.ID
-	}
+		svcUUIDs := make([]pgtype.UUID, len(opts.Services))
 
-	err = w.queries.LinkServicesToWorker(ctx, tx, dbsqlc.LinkServicesToWorkerParams{
-		Services: svcUUIDs,
-		Workerid: worker.ID,
-	})
+		for i, svc := range opts.Services {
+			dbSvc, err := w.queries.UpsertService(ctx, tx, dbsqlc.UpsertServiceParams{
+				Name:     svc,
+				Tenantid: pgTenantId,
+			})
 
-	if err != nil {
-		return nil, fmt.Errorf("could not link services to worker: %w", err)
-	}
+			if err != nil {
+				return nil, fmt.Errorf("could not upsert service: %w", err)
+			}
 
-	actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+			svcUUIDs[i] = dbSvc.ID
+		}
 
-	for i, action := range opts.Actions {
-		dbAction, err := w.queries.UpsertAction(ctx, tx, dbsqlc.UpsertActionParams{
-			Action:   action,
-			Tenantid: pgTenantId,
+		err = w.queries.LinkServicesToWorker(ctx, tx, dbsqlc.LinkServicesToWorkerParams{
+			Services: svcUUIDs,
+			Workerid: worker.ID,
 		})
 
 		if err != nil {
-			return nil, fmt.Errorf("could not upsert action: %w", err)
+			return nil, fmt.Errorf("could not link services to worker: %w", err)
 		}
 
-		actionUUIDs[i] = dbAction.ID
-	}
+		actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
 
-	err = w.queries.LinkActionsToWorker(ctx, tx, dbsqlc.LinkActionsToWorkerParams{
-		Actionids: actionUUIDs,
-		Workerid:  worker.ID,
+		for i, action := range opts.Actions {
+			dbAction, err := w.queries.UpsertAction(ctx, tx, dbsqlc.UpsertActionParams{
+				Action:   action,
+				Tenantid: pgTenantId,
+			})
+
+			if err != nil {
+				return nil, fmt.Errorf("could not upsert action: %w", err)
+			}
+
+			actionUUIDs[i] = dbAction.ID
+		}
+
+		err = w.queries.LinkActionsToWorker(ctx, tx, dbsqlc.LinkActionsToWorkerParams{
+			Actionids: actionUUIDs,
+			Workerid:  worker.ID,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not link actions to worker: %w", err)
+		}
+
+		err = tx.Commit(ctx)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not commit transaction: %w", err)
+		}
+
+		return worker, nil
 	})
-
-	if err != nil {
-		return nil, fmt.Errorf("could not link actions to worker: %w", err)
-	}
-
-	err = tx.Commit(ctx)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not commit transaction: %w", err)
-	}
-
-	return worker, nil
 }
 
 func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, workerId string, opts *repository.UpdateWorkerOpts) (*dbsqlc.Worker, error) {

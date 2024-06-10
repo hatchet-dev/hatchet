@@ -43,14 +43,16 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 
 	if request.Body.MaxAlertingFrequency != nil ||
 		request.Body.EnableExpiringTokenAlerts != nil ||
+		request.Body.EnableTenantResourceLimitAlerts != nil ||
 		request.Body.EnableWorkflowRunFailureAlerts != nil {
 
 		_, err = t.config.APIRepository.TenantAlertingSettings().UpsertTenantAlertingSettings(
 			tenant.ID,
 			&repository.UpsertTenantAlertingSettingsOpts{
-				MaxFrequency:                   request.Body.MaxAlertingFrequency,
-				EnableExpiringTokenAlerts:      request.Body.EnableExpiringTokenAlerts,
-				EnableWorkflowRunFailureAlerts: request.Body.EnableWorkflowRunFailureAlerts,
+				MaxFrequency:                    request.Body.MaxAlertingFrequency,
+				EnableExpiringTokenAlerts:       request.Body.EnableExpiringTokenAlerts,
+				EnableWorkflowRunFailureAlerts:  request.Body.EnableWorkflowRunFailureAlerts,
+				EnableTenantResourceLimitAlerts: request.Body.EnableTenantResourceLimitAlerts,
 			},
 		)
 

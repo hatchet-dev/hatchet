@@ -44,10 +44,12 @@ func (r *tenantAlertingAPIRepository) UpsertTenantAlertingSettings(tenantId stri
 		db.TenantAlertingSettings.MaxFrequency.SetIfPresent(opts.MaxFrequency),
 		db.TenantAlertingSettings.EnableExpiringTokenAlerts.SetIfPresent(opts.EnableExpiringTokenAlerts),
 		db.TenantAlertingSettings.EnableWorkflowRunFailureAlerts.SetIfPresent(opts.EnableWorkflowRunFailureAlerts),
+		db.TenantAlertingSettings.EnableTenantResourceLimitAlerts.SetIfPresent(opts.EnableTenantResourceLimitAlerts),
 	).Update(
 		db.TenantAlertingSettings.MaxFrequency.SetIfPresent(opts.MaxFrequency),
 		db.TenantAlertingSettings.EnableExpiringTokenAlerts.SetIfPresent(opts.EnableExpiringTokenAlerts),
 		db.TenantAlertingSettings.EnableWorkflowRunFailureAlerts.SetIfPresent(opts.EnableWorkflowRunFailureAlerts),
+		db.TenantAlertingSettings.EnableTenantResourceLimitAlerts.SetIfPresent(opts.EnableTenantResourceLimitAlerts),
 	).Exec(context.Background())
 }
 

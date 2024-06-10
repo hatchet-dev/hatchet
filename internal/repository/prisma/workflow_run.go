@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
@@ -27,9 +28,10 @@ type workflowRunAPIRepository struct {
 	v       validator.Validator
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
+	m       *metered.Metered
 }
 
-func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowRunAPIRepository {
+func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowRunAPIRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRunAPIRepository{
@@ -38,6 +40,7 @@ func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v val
 		pool:    pool,
 		queries: queries,
 		l:       l,
+		m:       m,
 	}
 }
 
@@ -58,27 +61,29 @@ func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(tenantId string, opts
 }
 
 func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*db.WorkflowRunModel, error) {
-	if err := w.v.Validate(opts); err != nil {
-		return nil, err
-	}
+	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*db.WorkflowRunModel, error) {
+		if err := w.v.Validate(opts); err != nil {
+			return nil, err
+		}
 
-	workflowRunId, err := createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
+		workflowRunId, err := createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
 
-	if err != nil {
-		return nil, err
-	}
+		if err != nil {
+			return nil, err
+		}
 
-	res, err := w.client.WorkflowRun.FindUnique(
-		db.WorkflowRun.ID.Equals(workflowRunId),
-	).With(
-		defaultWorkflowRunPopulator()...,
-	).Exec(context.Background())
+		res, err := w.client.WorkflowRun.FindUnique(
+			db.WorkflowRun.ID.Equals(workflowRunId),
+		).With(
+			defaultWorkflowRunPopulator()...,
+		).Exec(context.Background())
 
-	if err != nil {
-		return nil, err
-	}
+		if err != nil {
+			return nil, err
+		}
 
-	return res, nil
+		return res, nil
+	})
 }
 
 func (w *workflowRunAPIRepository) GetWorkflowRunById(tenantId, id string) (*db.WorkflowRunModel, error) {
@@ -134,9 +139,10 @@ type workflowRunEngineRepository struct {
 	v       validator.Validator
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
+	m       *metered.Metered
 }
 
-func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.WorkflowRunEngineRepository {
+func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRunEngineRepository{
@@ -144,6 +150,7 @@ func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l
 		pool:    pool,
 		queries: queries,
 		l:       l,
+		m:       m,
 	}
 }
 
@@ -217,11 +224,26 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 }
 
 func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {
-	if err := w.v.Validate(opts); err != nil {
+	id, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*string, error) {
+
+		if err := w.v.Validate(opts); err != nil {
+			return nil, err
+		}
+
+		id, err := createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &id, nil
+	})
+
+	if err != nil {
 		return "", err
 	}
 
-	return createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
+	return *id, nil
 }
 
 func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {

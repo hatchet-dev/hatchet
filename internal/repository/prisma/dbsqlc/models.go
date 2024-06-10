@@ -185,6 +185,51 @@ func (ns NullJobRunStatus) Value() (driver.Value, error) {
 	return string(ns.JobRunStatus), nil
 }
 
+type LimitResource string
+
+const (
+	LimitResourceWORKFLOWRUN LimitResource = "WORKFLOW_RUN"
+	LimitResourceEVENT       LimitResource = "EVENT"
+	LimitResourceWORKER      LimitResource = "WORKER"
+	LimitResourceCRON        LimitResource = "CRON"
+	LimitResourceSCHEDULE    LimitResource = "SCHEDULE"
+)
+
+func (e *LimitResource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LimitResource(s)
+	case string:
+		*e = LimitResource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LimitResource: %T", src)
+	}
+	return nil
+}
+
+type NullLimitResource struct {
+	LimitResource LimitResource `json:"LimitResource"`
+	Valid         bool          `json:"valid"` // Valid is true if LimitResource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLimitResource) Scan(value interface{}) error {
+	if value == nil {
+		ns.LimitResource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LimitResource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLimitResource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LimitResource), nil
+}
+
 type LogLineLevel string
 
 const (
@@ -414,6 +459,48 @@ func (ns NullTenantMemberRole) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.TenantMemberRole), nil
+}
+
+type TenantResourceLimitAlertType string
+
+const (
+	TenantResourceLimitAlertTypeAlarm     TenantResourceLimitAlertType = "Alarm"
+	TenantResourceLimitAlertTypeExhausted TenantResourceLimitAlertType = "Exhausted"
+)
+
+func (e *TenantResourceLimitAlertType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TenantResourceLimitAlertType(s)
+	case string:
+		*e = TenantResourceLimitAlertType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TenantResourceLimitAlertType: %T", src)
+	}
+	return nil
+}
+
+type NullTenantResourceLimitAlertType struct {
+	TenantResourceLimitAlertType TenantResourceLimitAlertType `json:"TenantResourceLimitAlertType"`
+	Valid                        bool                         `json:"valid"` // Valid is true if TenantResourceLimitAlertType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTenantResourceLimitAlertType) Scan(value interface{}) error {
+	if value == nil {
+		ns.TenantResourceLimitAlertType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TenantResourceLimitAlertType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TenantResourceLimitAlertType), nil
 }
 
 type VcsProvider string
@@ -868,16 +955,17 @@ type TenantAlertEmailGroup struct {
 }
 
 type TenantAlertingSettings struct {
-	ID                             pgtype.UUID      `json:"id"`
-	CreatedAt                      pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt                      pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt                      pgtype.Timestamp `json:"deletedAt"`
-	TenantId                       pgtype.UUID      `json:"tenantId"`
-	MaxFrequency                   string           `json:"maxFrequency"`
-	LastAlertedAt                  pgtype.Timestamp `json:"lastAlertedAt"`
-	TickerId                       pgtype.UUID      `json:"tickerId"`
-	EnableExpiringTokenAlerts      bool             `json:"enableExpiringTokenAlerts"`
-	EnableWorkflowRunFailureAlerts bool             `json:"enableWorkflowRunFailureAlerts"`
+	ID                              pgtype.UUID      `json:"id"`
+	CreatedAt                       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt                       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt                       pgtype.Timestamp `json:"deletedAt"`
+	TenantId                        pgtype.UUID      `json:"tenantId"`
+	MaxFrequency                    string           `json:"maxFrequency"`
+	LastAlertedAt                   pgtype.Timestamp `json:"lastAlertedAt"`
+	TickerId                        pgtype.UUID      `json:"tickerId"`
+	EnableExpiringTokenAlerts       bool             `json:"enableExpiringTokenAlerts"`
+	EnableWorkflowRunFailureAlerts  bool             `json:"enableWorkflowRunFailureAlerts"`
+	EnableTenantResourceLimitAlerts bool             `json:"enableTenantResourceLimitAlerts"`
 }
 
 type TenantInviteLink struct {
@@ -899,6 +987,32 @@ type TenantMember struct {
 	TenantId  pgtype.UUID      `json:"tenantId"`
 	UserId    pgtype.UUID      `json:"userId"`
 	Role      TenantMemberRole `json:"role"`
+}
+
+type TenantResourceLimit struct {
+	ID               pgtype.UUID      `json:"id"`
+	CreatedAt        pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
+	Resource         LimitResource    `json:"resource"`
+	TenantId         pgtype.UUID      `json:"tenantId"`
+	LimitValue       int32            `json:"limitValue"`
+	AlarmValue       pgtype.Int4      `json:"alarmValue"`
+	Value            int32            `json:"value"`
+	Window           pgtype.Text      `json:"window"`
+	LastRefill       pgtype.Timestamp `json:"lastRefill"`
+	CustomValueMeter bool             `json:"customValueMeter"`
+}
+
+type TenantResourceLimitAlert struct {
+	ID              pgtype.UUID                  `json:"id"`
+	CreatedAt       pgtype.Timestamp             `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp             `json:"updatedAt"`
+	ResourceLimitId pgtype.UUID                  `json:"resourceLimitId"`
+	TenantId        pgtype.UUID                  `json:"tenantId"`
+	Resource        LimitResource                `json:"resource"`
+	AlertType       TenantResourceLimitAlertType `json:"alertType"`
+	Value           int32                        `json:"value"`
+	Limit           int32                        `json:"limit"`
 }
 
 type TenantVcsProvider struct {

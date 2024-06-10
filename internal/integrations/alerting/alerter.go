@@ -208,3 +208,52 @@ func (t *TenantAlertManager) sendExpiringTokenAlert(ctx context.Context, tenantA
 
 	return nil
 }
+
+func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId string, alert *dbsqlc.TenantResourceLimitAlert) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// read in the tenant alerting settings and determine if we should alert
+	tenantAlerting, err := t.repo.TenantAlertingSettings().GetTenantAlertingSettings(ctx, tenantId)
+
+	if err != nil {
+		return err
+	}
+
+	percentage := int(float64(alert.Value) / float64(alert.Limit) * 100)
+
+	payload := &alerttypes.ResourceLimitAlert{
+		Link:         fmt.Sprintf("%s/tenant-settings/resource-limits?tenant=%s", t.serverURL, tenantId),
+		Resource:     string(alert.Resource),
+		AlertType:    string(alert.AlertType),
+		CurrentValue: int(alert.Value),
+		LimitValue:   int(alert.Limit),
+		Percentage:   percentage,
+	}
+
+	return t.sendTenantResourceLimitAlert(ctx, tenantAlerting, payload)
+}
+
+func (t *TenantAlertManager) sendTenantResourceLimitAlert(ctx context.Context, tenantAlerting *repository.GetTenantAlertingSettingsResponse, payload *alerttypes.ResourceLimitAlert) error {
+
+	if !tenantAlerting.Settings.EnableExpiringTokenAlerts {
+		return nil
+	}
+
+	var err error
+
+	// iterate through possible alerters
+	for _, slackWebhook := range tenantAlerting.SlackWebhooks {
+		if innerErr := t.sendSlackTenantResourceLimitAlert(slackWebhook, payload); innerErr != nil {
+			err = multierror.Append(err, innerErr)
+		}
+	}
+
+	for _, emailGroup := range tenantAlerting.EmailGroups {
+		if innerErr := t.sendEmailTenantResourceLimitAlert(tenantAlerting.Tenant, emailGroup, payload); innerErr != nil {
+			err = multierror.Append(err, innerErr)
+		}
+	}
+
+	return nil
+}

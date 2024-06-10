@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -39,6 +40,8 @@ type HatchetContext interface {
 	ReleaseSlot() error
 
 	RefreshTimeout(incrementTimeoutBy string) error
+
+	RetryCount() int
 
 	client() client.Client
 
@@ -194,6 +197,10 @@ func (h *hatchetContext) StreamEvent(message []byte) {
 	}
 }
 
+func (h *hatchetContext) RetryCount() int {
+	return int(h.a.RetryCount)
+}
+
 func (h *hatchetContext) index() int {
 	return h.i
 }
@@ -232,6 +239,10 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 
 	if err != nil {
 		return nil, err
+	}
+
+	if ns := h.client().Namespace(); ns != "" && !strings.HasPrefix(workflowName, ns) {
+		workflowName = fmt.Sprintf("%s%s", ns, workflowName)
 	}
 
 	workflowRunId, err := h.client().Admin().RunChildWorkflow(

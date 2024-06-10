@@ -41,6 +41,10 @@ type EngineRepository interface {
 	RateLimit() RateLimitEngineRepository
 }
 
+type EntitlementsRepository interface {
+	TenantLimit() TenantLimitRepository
+}
+
 func BoolPtr(b bool) *bool {
 	return &b
 }

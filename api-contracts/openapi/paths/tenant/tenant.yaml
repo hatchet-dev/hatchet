@@ -269,6 +269,45 @@ tenantAlertEmailGroups:
     summary: List tenant alert email groups
     tags:
       - Tenant
+
+tenantResourcePolicy:
+  get:
+    x-resources: ["tenant"]
+    description: Gets the resource policy for a tenant
+    operationId: tenant-resource-policy:get
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TenantResourcePolicy"
+        description: Successfully retrieved the tenant resource policy
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Create tenant alert email group
+    tags:
+      - Tenant
+
 invites:
   post:
     x-resources: ["tenant"]

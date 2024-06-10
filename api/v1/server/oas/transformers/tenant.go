@@ -5,6 +5,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 )
 
 func ToTenant(tenant *db.TenantModel) *gen.Tenant {
@@ -19,10 +21,11 @@ func ToTenant(tenant *db.TenantModel) *gen.Tenant {
 
 func ToTenantAlertingSettings(alerting *db.TenantAlertingSettingsModel) *gen.TenantAlertingSettings {
 	res := &gen.TenantAlertingSettings{
-		Metadata:                       *toAPIMetadata(alerting.ID, alerting.CreatedAt, alerting.UpdatedAt),
-		MaxAlertingFrequency:           alerting.MaxFrequency,
-		EnableExpiringTokenAlerts:      &alerting.EnableExpiringTokenAlerts,
-		EnableWorkflowRunFailureAlerts: &alerting.EnableWorkflowRunFailureAlerts,
+		Metadata:                        *toAPIMetadata(alerting.ID, alerting.CreatedAt, alerting.UpdatedAt),
+		MaxAlertingFrequency:            alerting.MaxFrequency,
+		EnableExpiringTokenAlerts:       &alerting.EnableExpiringTokenAlerts,
+		EnableWorkflowRunFailureAlerts:  &alerting.EnableWorkflowRunFailureAlerts,
+		EnableTenantResourceLimitAlerts: &alerting.EnableTenantResourceLimitAlerts,
 	}
 
 	if lastAlertedAt, ok := alerting.LastAlertedAt(); ok {
@@ -38,5 +41,37 @@ func ToTenantAlertEmailGroup(group *db.TenantAlertEmailGroupModel) *gen.TenantAl
 	return &gen.TenantAlertEmailGroup{
 		Metadata: *toAPIMetadata(group.ID, group.CreatedAt, group.UpdatedAt),
 		Emails:   emails,
+	}
+}
+
+func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit) *gen.TenantResourcePolicy {
+
+	limits := make([]gen.TenantResourceLimit, len(_limits))
+
+	for i, limit := range _limits {
+
+		var alarmValue int
+		if limit.AlarmValue.Valid {
+			alarmValue = int(limit.AlarmValue.Int32)
+		}
+
+		var window string
+		if limit.Window.Valid {
+			window = limit.Window.String
+		}
+
+		limits[i] = gen.TenantResourceLimit{
+			Metadata:   *toAPIMetadata(sqlchelpers.UUIDToStr(limit.ID), limit.CreatedAt.Time, limit.UpdatedAt.Time),
+			Resource:   gen.TenantResource(limit.Resource),
+			LimitValue: int(limit.LimitValue),
+			AlarmValue: &alarmValue,
+			Value:      int(limit.Value),
+			Window:     &window,
+			LastRefill: &limit.LastRefill.Time,
+		}
+	}
+
+	return &gen.TenantResourcePolicy{
+		Limits: limits,
 	}
 }

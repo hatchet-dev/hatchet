@@ -10,6 +10,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/repository"
@@ -21,37 +22,37 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 	isValid, _, err := authn.NewSessionHelpers(u.config).ValidateOAuthState(ctx, "github")
 
 	if err != nil || !isValid {
-		return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Could not log in. Please try again and make sure cookies are enabled.")
+		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Could not log in. Please try again and make sure cookies are enabled.")
 	}
 
 	token, err := u.config.Auth.GithubOAuthConfig.Exchange(context.Background(), ctx.Request().URL.Query().Get("code"))
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Forbidden")
+		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Forbidden")
 	}
 
 	if !token.Valid() {
-		return nil, authn.GetRedirectWithError(ctx, u.config.Logger, fmt.Errorf("invalid token"), "Forbidden")
+		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, fmt.Errorf("invalid token"), "Forbidden")
 	}
 
 	user, err := u.upsertGithubUserFromToken(u.config, token)
 
 	if err != nil {
 		if errors.Is(err, ErrGithubNotVerified) {
-			return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Please verify your email on Github.")
+			return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Please verify your email on Github.")
 		}
 
 		if errors.Is(err, ErrGithubNoEmail) {
-			return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Github user must have an email.")
+			return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Github user must have an email.")
 		}
 
-		return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
+		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
 
 	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, user)
 
 	if err != nil {
-		return nil, authn.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
+		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
 
 	return gen.UserUpdateGithubOauthCallback302Response{

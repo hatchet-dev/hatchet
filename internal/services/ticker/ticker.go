@@ -22,8 +22,11 @@ type Ticker interface {
 }
 
 type TickerImpl struct {
-	mq   msgqueue.MessageQueue
-	l    *zerolog.Logger
+	mq msgqueue.MessageQueue
+	l  *zerolog.Logger
+
+	entitlements repository.EntitlementsRepository
+
 	repo repository.EngineRepository
 	s    gocron.Scheduler
 	ta   *alerting.TenantAlertManager
@@ -39,11 +42,13 @@ type TickerImpl struct {
 type TickerOpt func(*TickerOpts)
 
 type TickerOpts struct {
-	mq       msgqueue.MessageQueue
-	l        *zerolog.Logger
-	repo     repository.EngineRepository
-	tickerId string
-	ta       *alerting.TenantAlertManager
+	mq msgqueue.MessageQueue
+	l  *zerolog.Logger
+
+	entitlements repository.EntitlementsRepository
+	repo         repository.EngineRepository
+	tickerId     string
+	ta           *alerting.TenantAlertManager
 
 	dv datautils.DataDecoderValidator
 }
@@ -66,6 +71,12 @@ func WithMessageQueue(mq msgqueue.MessageQueue) TickerOpt {
 func WithRepository(r repository.EngineRepository) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.repo = r
+	}
+}
+
+func WithEntitlementsRepository(r repository.EntitlementsRepository) TickerOpt {
+	return func(opts *TickerOpts) {
+		opts.entitlements = r
 	}
 }
 
@@ -96,6 +107,10 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
+	if opts.entitlements == nil {
+		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
+	}
+
 	if opts.ta == nil {
 		return nil, fmt.Errorf("tenant alerter is required. use WithTenantAlerter")
 	}
@@ -110,13 +125,14 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 	}
 
 	return &TickerImpl{
-		mq:       opts.mq,
-		l:        opts.l,
-		repo:     opts.repo,
-		s:        s,
-		dv:       opts.dv,
-		tickerId: opts.tickerId,
-		ta:       opts.ta,
+		mq:           opts.mq,
+		l:            opts.l,
+		repo:         opts.repo,
+		entitlements: opts.entitlements,
+		s:            s,
+		dv:           opts.dv,
+		tickerId:     opts.tickerId,
+		ta:           opts.ta,
 	}, nil
 }
 
@@ -233,6 +249,19 @@ func (t *TickerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
+	}
+
+	// poll for tenant resource limit alerts every 15 minutes
+	_, err = t.s.NewJob(
+		gocron.DurationJob(time.Minute*15),
+		gocron.NewTask(
+			t.runTenantResourceLimitAlerts(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule tenant resource limit alert polling: %w", err)
 	}
 
 	// poll to resolve worker semaphore slots every 1 minute

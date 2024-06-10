@@ -117,7 +117,7 @@ func (q *Queries) GetSlackWebhooks(ctx context.Context, db DBTX, tenantid pgtype
 
 const getTenantAlertingSettings = `-- name: GetTenantAlertingSettings :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId", "enableExpiringTokenAlerts", "enableWorkflowRunFailureAlerts"
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId", "enableExpiringTokenAlerts", "enableWorkflowRunFailureAlerts", "enableTenantResourceLimitAlerts"
 FROM
     "TenantAlertingSettings" as tenantAlertingSettings
 WHERE
@@ -138,6 +138,7 @@ func (q *Queries) GetTenantAlertingSettings(ctx context.Context, db DBTX, tenant
 		&i.TickerId,
 		&i.EnableExpiringTokenAlerts,
 		&i.EnableWorkflowRunFailureAlerts,
+		&i.EnableTenantResourceLimitAlerts,
 	)
 	return &i, err
 }
@@ -210,7 +211,7 @@ SET
     "lastAlertedAt" = COALESCE($1::timestamp, "lastAlertedAt")
 WHERE
     "tenantId" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId", "enableExpiringTokenAlerts", "enableWorkflowRunFailureAlerts"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId", "enableExpiringTokenAlerts", "enableWorkflowRunFailureAlerts", "enableTenantResourceLimitAlerts"
 `
 
 type UpdateTenantAlertingSettingsParams struct {
@@ -232,6 +233,7 @@ func (q *Queries) UpdateTenantAlertingSettings(ctx context.Context, db DBTX, arg
 		&i.TickerId,
 		&i.EnableExpiringTokenAlerts,
 		&i.EnableWorkflowRunFailureAlerts,
+		&i.EnableTenantResourceLimitAlerts,
 	)
 	return &i, err
 }

@@ -1,3 +1,5 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+
 # Retry Strategies in Hatchet: Simple Step Retry
 
 Hatchet provides a simple and effective way to handle failures in your workflow steps using the step-level retry configuration. This feature allows you to specify the number of times a step should be retried if it fails, helping to improve the reliability and resilience of your workflows.
@@ -38,6 +40,48 @@ You can add the `retries` property to any step in your workflow, and Hatchet wil
 It's important to note that step-level retries are not suitable for all types of failures. For example, if a step fails due to a programming error or an invalid configuration, retrying the step will likely not resolve the issue. In these cases, you should fix the underlying problem in your code or configuration rather than relying on retries.
 
 Additionally, if a step interacts with external services or databases, you should ensure that the operation is idempotent (i.e., can be safely repeated without changing the result) before enabling retries. Otherwise, retrying the step could lead to unintended side effects or inconsistencies in your data.
+
+## Accessing the Retry Count in a Step
+
+If you need to access the current retry count within a step, you can use the `retryCount` method available in the step context:
+
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+@hatchet.step(timeout='2s', retries=3)
+def step1(self, context: Context):
+    retry_count = context.retry_count()
+    print(f"Retry count: {retry_count}")
+    raise Exception("Step failed")
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+async function step(context: Context) {
+  const retryCount = context.retryCount();
+  console.log(`Retry count: ${retryCount}`);
+  throw new Error("Step failed");
+}
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+  count := ctx.RetryCount()
+
+  return &stepOneOutput{
+  Message: "Count is: " + strconv.Itoa(count),
+  }, nil
+}
+```
+
+  </Tabs.Tab>
+</Tabs>
 
 ## Conclusion
 

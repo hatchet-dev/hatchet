@@ -56,6 +56,8 @@ paths:
     $ref: "./paths/ingestors/ingestors.yaml#/snsIntegration"
   /api/v1/tenants/{tenant}/alerting-email-groups:
     $ref: "./paths/tenant/tenant.yaml#/tenantAlertEmailGroups"
+  /api/v1/tenants/{tenant}/resource-policy:
+    $ref: "./paths/tenant/tenant.yaml#/tenantResourcePolicy"
   /api/v1/alerting-email-groups/{alert-email-group}:
     $ref: "./paths/tenant/tenant.yaml#/alertEmailGroup"
   /api/v1/sns/{sns}:

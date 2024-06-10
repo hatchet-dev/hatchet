@@ -36,6 +36,12 @@ TenantMemberList:
   $ref: "./tenant.yaml#/TenantMemberList"
 TenantMemberRole:
   $ref: "./tenant.yaml#/TenantMemberRole"
+TenantResource:
+  $ref: "./tenant.yaml#/TenantResource"
+TenantResourceLimit:
+  $ref: "./tenant.yaml#/TenantResourceLimit"
+TenantResourcePolicy:
+  $ref: "./tenant.yaml#/TenantResourcePolicy"
 CreateTenantInviteRequest:
   $ref: "./tenant.yaml#/CreateTenantInviteRequest"
 UpdateTenantInviteRequest:
