@@ -1037,10 +1037,7 @@ CREATE UNIQUE INDEX "WebhookWorker_url_key" ON "WebhookWorker"("url" ASC);
 CREATE UNIQUE INDEX "WebhookWorkerWorkflow_id_key" ON "WebhookWorkerWorkflow"("id" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_key" ON "WebhookWorkerWorkflow"("webhookWorkerId" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "WebhookWorkerWorkflow_workflowId_key" ON "WebhookWorkerWorkflow"("workflowId" ASC);
+CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_workflowId_key" ON "WebhookWorkerWorkflow"("webhookWorkerId" ASC, "workflowId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);

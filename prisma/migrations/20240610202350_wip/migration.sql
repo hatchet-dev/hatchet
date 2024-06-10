@@ -29,10 +29,7 @@ CREATE UNIQUE INDEX "WebhookWorker_url_key" ON "WebhookWorker"("url");
 CREATE UNIQUE INDEX "WebhookWorkerWorkflow_id_key" ON "WebhookWorkerWorkflow"("id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_key" ON "WebhookWorkerWorkflow"("webhookWorkerId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "WebhookWorkerWorkflow_workflowId_key" ON "WebhookWorkerWorkflow"("workflowId");
+CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_workflowId_key" ON "WebhookWorkerWorkflow"("webhookWorkerId", "workflowId");
 
 -- AddForeignKey
 ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
