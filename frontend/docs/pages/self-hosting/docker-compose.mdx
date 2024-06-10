@@ -162,7 +162,7 @@ docker compose up
 
 Wait for the `hatchet-engine` and `hatchet-api` services to start.
 
-### Accessing Hatchet and Generating an API Token
+### Accessing Hatchet
 
 Once the Hatchet instance is running, you can access the Hatchet UI at [http://localhost:8080](http://localhost:8080).
 
@@ -173,23 +173,22 @@ Email: admin@example.com
 Password: Admin123!!
 ```
 
-You can generate an API token by logging in and navigating to the "General" settings page, clicking on the "API Tokens" tab, and then clicking "Create API Token".
-
-Alternatively, you can generate an API token from your terminal via:
-
-```
-export HATCHET_CLIENT_TOKEN="$(docker compose run --no-deps setup-config /hatchet/hatchet-admin token create --config /hatchet/config --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52 | xargs)"
-echo "generated token: $HATCHET_CLIENT_TOKEN"
-```
-
 ### Generate a `.env` file
 
-The examples below read from a `.env` file in the root of your project. This file should contain the following:
+You can generate a `.env` file as follows:
 
-```
-HATCHET_CLIENT_TOKEN=your-generated-token
+```sh
+cat <<EOF > .env
+HATCHET_CLIENT_TOKEN="$(docker compose run --no-deps setup-config /hatchet/hatchet-admin token create --config /hatchet/config --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52 | xargs)"
 HATCHET_CLIENT_TLS_STRATEGY=none
+EOF
 ```
+
+<Callout type="info" emoji="🪓">
+
+You can also generate an API token by logging in and navigating to the "General" settings page, clicking on the "API Tokens" tab, and then clicking "Create API Token".
+
+</Callout>
 
 ### Run your first worker
 
