@@ -121,7 +121,7 @@ jobs:
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-lite-amd:
-    name: hatchet-lite
+    name: hatchet-lite-amd
     runs-on: ubuntu-latest
     steps:
       - name: Get tag name
@@ -156,7 +156,7 @@ jobs:
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64 \
-            --platform linux/arm64,linux/amd64 \
+            --platform linux/amd64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
             .
@@ -164,7 +164,7 @@ jobs:
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-lite-arm:
-    name: hatchet-lite
+    name: hatchet-lite-arm
     runs-on: hatchet-arm64-2
     steps:
       - name: Get tag name
@@ -199,7 +199,7 @@ jobs:
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64 \
-            --platform linux/arm64,linux/amd64 \
+            --platform linux/arm64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:arm64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:arm64 \
             .
