@@ -364,16 +364,10 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
 ) RETURNING *;
 
 -- name: ListWorkflowsForEvent :many
-WITH LatestWorkflowVersions AS (
-    SELECT DISTINCT ON ("workflowId") "id", "workflowId"
-    FROM "WorkflowVersion"
-    ORDER BY "workflowId", "order" DESC
-)
 SELECT DISTINCT ON ("WorkflowVersion"."workflowId") "WorkflowVersion".id
 FROM "WorkflowVersion"
 LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
 LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
-JOIN LatestWorkflowVersions AS l ON l."id" = "WorkflowVersion"."id"
 WHERE
     (j1."tenantId"::uuid = @tenantId AND j1.id IS NOT NULL)
     AND
@@ -382,6 +376,14 @@ WHERE
         FROM "WorkflowTriggerEventRef" AS t3
         WHERE t3."eventKey" = @eventKey AND t3."parentId" IS NOT NULL
     ) AND j2.id IS NOT NULL)
+    AND "WorkflowVersion".id = (
+        -- confirm that the workflow version is the latest
+        SELECT wv2.id
+        FROM "WorkflowVersion" wv2
+        WHERE wv2."workflowId" = "WorkflowVersion"."workflowId"
+        ORDER BY wv2."order" DESC
+        LIMIT 1
+    )
 ORDER BY "WorkflowVersion"."workflowId", "WorkflowVersion"."order" DESC;
 
 -- name: GetWorkflowVersionForEngine :many
