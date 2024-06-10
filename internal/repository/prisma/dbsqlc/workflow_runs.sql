@@ -164,7 +164,8 @@ WHERE
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when @orderBy = 'createdAt DESC' then runs."createdAt" END DESC
+    case when @orderBy = 'createdAt DESC' then runs."createdAt" END DESC,
+    runs."id" ASC
 OFFSET
     COALESCE(sqlc.narg('offset'), 0)
 LIMIT

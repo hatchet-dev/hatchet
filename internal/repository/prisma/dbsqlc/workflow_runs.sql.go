@@ -778,7 +778,8 @@ WHERE
     )
 ORDER BY
     case when $13 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when $13 = 'createdAt DESC' then runs."createdAt" END DESC
+    case when $13 = 'createdAt DESC' then runs."createdAt" END DESC,
+    runs."id" ASC
 OFFSET
     COALESCE($14, 0)
 LIMIT
