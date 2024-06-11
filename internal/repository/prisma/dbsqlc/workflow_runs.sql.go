@@ -953,7 +953,7 @@ WITH workflow_runs AS (
 )
 UPDATE "WorkflowRun"
 SET
-    "status" = 'PENDING'
+    "status" = 'RUNNING'
 FROM
     eligible_runs
 WHERE
