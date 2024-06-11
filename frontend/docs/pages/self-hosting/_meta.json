@@ -4,6 +4,7 @@
         "type": "separator",
         "title": "Deploying"
     },
+    "hatchet-lite": "Hatchet Lite",
     "docker-compose": "Docker Compose",
     "kubernetes": "Kubernetes",
     "-- Managing Hatchet": {

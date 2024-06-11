@@ -1,8 +1,8 @@
-import { Tabs, Steps, Callout, FileTree } from "nextra/components";
+import { Tabs, Steps, Callout } from "nextra/components";
 
-# Docker Compose Deployment
+# Hatchet Lite Deployment
 
-This guide shows how to deploy Hatchet using Docker Compose for a production-ready deployment. If you'd like to get up and running quickly, you can also deploy Hatchet using the `hatchet-lite` image following the tutorial here: [Hatchet Lite Deployment](/self-hosting/hatchet-lite).
+To get up and running quickly, you can deploy via the `hatchet-lite` image. This image is designed for development and low-volume use-cases.
 
 <Steps>
 
@@ -10,160 +10,123 @@ This guide shows how to deploy Hatchet using Docker Compose for a production-rea
 
 This deployment requires [Docker](https://docs.docker.com/engine/install/) installed locally to work.
 
-### Create files
+### Getting Hatchet Lite Running
 
-We will be creating 2 files in the root of your repository:
+<Tabs items={['Without existing Postgres Instance', 'With existing Postgres Instance']}>
+  <Tabs.Tab>
+Copy the following `docker-compose.hatchet.yml` file to the root of your repository:
 
-<FileTree>
-  <FileTree.Folder name="root" defaultOpen>
-    <FileTree.File name="docker-compose.yml" />
-    <FileTree.File name="Caddyfile" />
-  </FileTree.Folder>
-</FileTree>
-
-```yaml filename="docker-compose.yml" copy
+```yaml filename="docker-compose.hatchet.yml" copy
 version: "3.8"
+name: hatchet-lite
 services:
   postgres:
     image: postgres:15.6
     command: postgres -c 'max_connections=200'
     restart: always
-    hostname: "postgres"
     environment:
       - POSTGRES_USER=hatchet
       - POSTGRES_PASSWORD=hatchet
       - POSTGRES_DB=hatchet
-    ports:
-      - "5435:5432"
     volumes:
-      - hatchet_postgres_data:/var/lib/postgresql/data
+      - hatchet_lite_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready", "-d", "hatchet"]
       interval: 10s
       timeout: 10s
       retries: 5
       start_period: 10s
-  rabbitmq:
-    image: "rabbitmq:3-management"
-    hostname: "rabbitmq"
+  hatchet-lite:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
     ports:
-      - "5673:5672" # RabbitMQ
-      - "15673:15672" # Management UI
-    environment:
-      RABBITMQ_DEFAULT_USER: "user"
-      RABBITMQ_DEFAULT_PASS: "password"
-    volumes:
-      - "hatchet_rabbitmq_data:/var/lib/rabbitmq"
-      - "hatchet_rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf" # Configuration file mount
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
-  migration:
-    image: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
-    environment:
-      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
+      - "8888:8888"
+      - "7077:7077"
     depends_on:
       postgres:
         condition: service_healthy
-  setup-config:
-    image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest
-    command: /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/config --overwrite=false
     environment:
-      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
+      RABBITMQ_DEFAULT_USER: "user"
+      RABBITMQ_DEFAULT_PASS: "password"
+      DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
       DATABASE_POSTGRES_PORT: "5432"
       DATABASE_POSTGRES_HOST: "postgres"
-      SERVER_TASKQUEUE_RABBITMQ_URL: amqp://user:password@rabbitmq:5672/
-      SERVER_AUTH_COOKIE_DOMAIN: localhost:8080
+      SERVER_TASKQUEUE_RABBITMQ_URL: amqp://user:password@localhost:5672/
+      SERVER_AUTH_COOKIE_DOMAIN: localhost
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
       SERVER_GRPC_INSECURE: "t"
       SERVER_GRPC_BROADCAST_ADDRESS: localhost:7077
+      SERVER_GRPC_PORT: "7077"
+      SERVER_URL: http://localhost:8888
+      SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
+      SERVER_LOGGER_LEVEL: warn
+      SERVER_LOGGER_FORMAT: console
+      DATABASE_LOGGER_LEVEL: warn
+      DATABASE_LOGGER_FORMAT: console
     volumes:
-      - hatchet_certs:/hatchet/certs
-      - hatchet_config:/hatchet/config
-    depends_on:
-      migration:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-  hatchet-engine:
-    image: ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest
-    command: /hatchet/hatchet-engine --config /hatchet/config
-    restart: on-failure
-    depends_on:
-      setup-config:
-        condition: service_completed_successfully
-      migration:
-        condition: service_completed_successfully
-    ports:
-      - "7077:7070"
-    environment:
-      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
-      SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
-      SERVER_GRPC_INSECURE: "t"
-    volumes:
-      - hatchet_certs:/hatchet/certs
-      - hatchet_config:/hatchet/config
-  hatchet-api:
-    image: ghcr.io/hatchet-dev/hatchet/hatchet-api:latest
-    command: /hatchet/hatchet-api --config /hatchet/config
-    restart: on-failure
-    depends_on:
-      setup-config:
-        condition: service_completed_successfully
-      migration:
-        condition: service_completed_successfully
-    environment:
-      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
-    volumes:
-      - hatchet_certs:/hatchet/certs
-      - hatchet_config:/hatchet/config
-  hatchet-frontend:
-    image: ghcr.io/hatchet-dev/hatchet/hatchet-frontend:latest
-  caddy:
-    image: caddy:2.7.6-alpine
-    ports:
-      - 8080:8080
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - "hatchet_lite_rabbitmq_data:/var/lib/rabbitmq/mnesia"
+      - "hatchet_lite_config:/config"
 
 volumes:
-  hatchet_postgres_data:
-  hatchet_rabbitmq_data:
-  hatchet_rabbitmq.conf:
-  hatchet_config:
-  hatchet_certs:
+  hatchet_lite_postgres_data:
+  hatchet_lite_rabbitmq_data:
+  hatchet_lite_config:
 ```
 
-```txt filename="Caddyfile" copy
-http://localhost:8080 {
-	handle /api/* {
-		reverse_proxy hatchet-api:8080
-	}
+Then run `docker-compose -f docker-compose.hatchet.yml up` to get the Hatchet Lite instance running.
 
-	handle /* {
-		reverse_proxy hatchet-frontend:80
-	}
-}
+      </Tabs.Tab>
+      <Tabs.Tab>
+
+Copy the following `docker-compose.hatchet.yml` file to the root of your repository:
+
+```yaml filename="docker-compose.hatchet.yml" copy
+version: "3.8"
+name: hatchet-lite
+services:
+  hatchet-lite:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+    ports:
+      - "8888:8888"
+      - "7077:7077"
+    ports:
+      - "8888:8888"
+      - "7077:7077"
+    environment:
+      RABBITMQ_DEFAULT_USER: "user"
+      RABBITMQ_DEFAULT_PASS: "password"
+      DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
+      DATABASE_POSTGRES_PORT: "5432"
+      DATABASE_POSTGRES_HOST: "postgres"
+      SERVER_TASKQUEUE_RABBITMQ_URL: amqp://user:password@localhost:5672/
+      SERVER_AUTH_COOKIE_DOMAIN: localhost
+      SERVER_AUTH_COOKIE_INSECURE: "t"
+      SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
+      SERVER_GRPC_INSECURE: "t"
+      SERVER_GRPC_BROADCAST_ADDRESS: localhost:7077
+      SERVER_GRPC_PORT: "7077"
+      SERVER_URL: http://localhost:8888
+      SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
+      SERVER_LOGGER_LEVEL: warn
+      SERVER_LOGGER_FORMAT: console
+      DATABASE_LOGGER_LEVEL: warn
+      DATABASE_LOGGER_FORMAT: console
+    volumes:
+      - "hatchet_lite_rabbitmq_data:/var/lib/rabbitmq"
+      - "hatchet_lite_config:/config"
+
+volumes:
+  hatchet_lite_rabbitmq_data:
+  hatchet_lite_config:
 ```
 
-### Get Hatchet up and running
+    </Tabs.Tab>
 
-To start the services, run the following command in the root of your repository:
+</Tabs>
 
-```bash
-docker compose up
-```
+### Accessing Hatchet Lite
 
-Wait for the `hatchet-engine` and `hatchet-api` services to start.
-
-### Accessing Hatchet
-
-Once the Hatchet instance is running, you can access the Hatchet UI at [http://localhost:8080](http://localhost:8080).
+Once the Hatchet Lite instance is running, you can access the Hatchet Lite UI at [http://localhost:8888](http://localhost:8888).
 
 By default, a user is created with the following credentials:
 
@@ -178,7 +141,7 @@ You can generate a `.env` file as follows:
 
 ```sh
 cat <<EOF > .env
-HATCHET_CLIENT_TOKEN="$(docker compose run --no-deps setup-config /hatchet/hatchet-admin token create --config /hatchet/config --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52 | xargs)"
+HATCHET_CLIENT_TOKEN="$(docker compose -f docker-compose.hatchet.yml exec hatchet-lite /hatchet-admin token create --config /config --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52 | xargs)"
 HATCHET_CLIENT_TLS_STRATEGY=none
 EOF
 ```
@@ -396,7 +359,3 @@ You can now trigger your first workflow by navigating to the `Workflows` tab, se
 That's it! You've successfully deployed Hatchet and run your first workflow.
 
 </Steps>
-
-## Next Steps
-
-Check out our SDKs to start running your application.
