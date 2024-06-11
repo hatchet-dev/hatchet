@@ -90,9 +90,6 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions) http.HandlerFunc
 			panic(err)
 		}
 
-		writer.WriteHeader(http.StatusOK)
-		_, _ = writer.Write([]byte("OK"))
-
 		timestamp = time.Now().UTC()
 		_, err = w.client.Dispatcher().SendStepActionEvent(context.TODO(),
 			&client.ActionEvent{
@@ -105,6 +102,9 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions) http.HandlerFunc
 		if err != nil {
 			panic(err)
 		}
+
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte("OK"))
 	}
 }
 
