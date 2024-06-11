@@ -42,3 +42,8 @@ jobs:
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}
           docker tag ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}} ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
+      - name: Pull and push hatchet-lite
+        run: |
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}
+          docker tag ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}} ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
