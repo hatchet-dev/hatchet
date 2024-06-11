@@ -26,7 +26,7 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
 
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest
+          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-api:latest
       - name: Pull and push hatchet-engine
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
