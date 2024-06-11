@@ -1,6 +1,11 @@
 on:
   release:
     types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to use for the release'
+        required: true
 name: Release
 jobs:
   push-hatchet-server:
@@ -10,7 +15,11 @@ jobs:
       - name: Get tag name
         id: tag_name
         run: |
-          tag=${GITHUB_TAG/refs\/tags\//}
+          if [ -z "${{ github.event.inputs.tag }}" ]; then
+            tag=${GITHUB_TAG/refs\/tags\//}
+          else
+            tag=${{ github.event.inputs.tag }}
+          fi
           echo ::set-output name=tag::$tag
         env:
           GITHUB_TAG: ${{ github.ref }}
