@@ -214,7 +214,7 @@ WITH valid_workers AS (
     SELECT
         DISTINCT ON (w."id")
         w."id",
-        COALESCE(w."maxRuns", 100) AS "remainingSlots"
+        100 AS "remainingSlots"
     FROM
         "Worker" w
     WHERE
@@ -222,7 +222,7 @@ WITH valid_workers AS (
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
     GROUP BY
-        w."id", w."maxRuns"
+        w."id"
 ),
 total_max_runs AS (
     SELECT
@@ -322,7 +322,7 @@ const listGetGroupKeyRunsToRequeue = `-- name: ListGetGroupKeyRunsToRequeue :man
 WITH valid_workers AS (
     SELECT
         w."id",
-        COALESCE(w."maxRuns", 100) AS "remainingSlots"
+        100 AS "remainingSlots"
     FROM
         "Worker" w
     WHERE
@@ -330,7 +330,7 @@ WITH valid_workers AS (
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
     GROUP BY
-        w."id", w."maxRuns"
+        w."id"
 ),
 total_max_runs AS (
     SELECT
