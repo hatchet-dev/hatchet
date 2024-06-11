@@ -41,12 +41,6 @@ func run(w *worker.Worker, c client.Client) error {
 		panic(fmt.Errorf("error finding webhook worker: %w", err))
 	}
 
-	if err := setup(c, wf.ID); err != nil {
-		panic(fmt.Errorf("error setting up webhook: %w", err))
-	}
-
-	time.Sleep(30 * time.Second)
-
 	go func() {
 		// create webserver to handle webhook requests
 		http.HandleFunc("/webhook", w.WebhookHttpHandler(worker.WebhookHandlerOptions{
@@ -59,6 +53,13 @@ func run(w *worker.Worker, c client.Client) error {
 			panic(err)
 		}
 	}()
+
+	if err := setup(c, wf.ID); err != nil {
+		panic(fmt.Errorf("error setting up webhook: %w", err))
+	}
+
+	time.Sleep(30 * time.Second)
+
 	log.Printf("pushing event")
 
 	testEvent := userCreateEvent{

@@ -19,7 +19,4 @@ type WebhookWorkerRepository interface {
 
 	// UpsertWebhookWorker creates a new webhook worker with the given options
 	UpsertWebhookWorker(ctx context.Context, opts *CreateWebhookWorkerOpts) (*db.WebhookWorkerModel, error)
-
-	// GetActionNames
-	GetActionNames(ctx context.Context, webhookWorkerId string) ([]string, error)
 }

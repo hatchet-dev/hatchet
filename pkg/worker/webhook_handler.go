@@ -17,8 +17,37 @@ type WebhookHandlerOptions struct {
 	Secret string
 }
 
+type HealthCheckResponse struct {
+	Actions []string `json:"actions"`
+}
+
 func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions) http.HandlerFunc {
 	return func(writer http.ResponseWriter, r *http.Request) {
+		// health check with actions
+		if r.Method == http.MethodGet {
+			var actions []string
+			for _, action := range w.actions {
+				actions = append(actions, action.Name())
+			}
+
+			res := HealthCheckResponse{
+				Actions: actions,
+			}
+			data, err := json.Marshal(res)
+			if err != nil {
+				panic(err)
+			}
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write(data)
+			return
+		}
+
+		if r.Method != http.MethodPost {
+			writer.WriteHeader(http.StatusMethodNotAllowed)
+			_, _ = writer.Write([]byte("Method not allowed"))
+			return
+		}
+
 		data, err := io.ReadAll(r.Body)
 		if err != nil {
 			panic(err)

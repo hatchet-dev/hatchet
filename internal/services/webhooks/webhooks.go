@@ -2,9 +2,12 @@ package webhooks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -84,35 +87,14 @@ func (c *WebhooksController) check(cl client.Client) error {
 		}
 
 		for _, ww := range wws {
-			if _, ok := c.registeredWorkerIds[ww.ID]; ok {
+			cleanup, err := c.run(tenantId, ww, cl)
+			if err != nil {
+				log.Printf("error running webhook worker: %v", err)
 				continue
 			}
-			c.registeredWorkerIds[ww.ID] = true
-
-			log.Printf("starting webhook worker for tenant %s", tenantId)
-
-			actionNames, err := c.sc.APIRepository.WebhookWorker().GetActionNames(context.Background(), ww.ID)
-			if err != nil {
-				return fmt.Errorf("could not get action names: %w", err)
+			if cleanup != nil {
+				c.cleanups = append(c.cleanups, cleanup)
 			}
-
-			ww, err := webhook.NewWorker(webhook.WorkerOpts{
-				ID:       ww.ID,
-				Secret:   ww.Secret,
-				URL:      ww.URL,
-				TenantID: tenantId,
-				Actions:  actionNames,
-			}, cl)
-			if err != nil {
-				return fmt.Errorf("could not create webhook worker: %w", err)
-			}
-
-			cleanup, err := ww.Start()
-			if err != nil {
-				return fmt.Errorf("could not start webhook worker: %w", err)
-			}
-
-			c.cleanups = append(c.cleanups, cleanup)
 		}
 	}
 
@@ -178,4 +160,69 @@ func (c *WebhooksController) setup() {
 	}
 
 	_ = os.Setenv("HATCHET_CLIENT_TOKEN", defaultTok)
+}
+
+type HealthCheckResponse struct {
+	Actions []string `json:"actions"`
+}
+
+func (c *WebhooksController) healthcheck(ww db.WebhookWorkerModel) (*HealthCheckResponse, error) {
+	req, err := http.NewRequest("GET", ww.URL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("could not create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("could not send request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed with status code %d", resp.StatusCode)
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("could not read response body: %w", err)
+	}
+
+	var res HealthCheckResponse
+	err = json.Unmarshal(body, &res)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal response body: %w", err)
+	}
+
+	return &res, nil
+}
+
+func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl client.Client) (func() error, error) {
+	h, err := c.healthcheck(ww)
+	if err != nil {
+		return nil, fmt.Errorf("could not check health of webhook worker: %w", err)
+	}
+
+	if _, ok := c.registeredWorkerIds[ww.ID]; ok {
+		return nil, nil
+	}
+	c.registeredWorkerIds[ww.ID] = true
+
+	w, err := webhook.NewWorker(webhook.WorkerOpts{
+		ID:       ww.ID,
+		Secret:   ww.Secret,
+		URL:      ww.URL,
+		TenantID: tenantId,
+		Actions:  h.Actions,
+	}, cl)
+	if err != nil {
+		return nil, fmt.Errorf("could not create webhook worker: %w", err)
+	}
+
+	cleanup, err := w.Start()
+	if err != nil {
+		return nil, fmt.Errorf("could not start webhook worker: %w", err)
+	}
+
+	return cleanup, nil
 }
