@@ -13,7 +13,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
-func (w *Worker) WebhookHandler(secret string) http.HandlerFunc {
+type WebhookHandlerOptions struct {
+	Secret string
+}
+
+func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions) http.HandlerFunc {
 	return func(writer http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -21,7 +25,7 @@ func (w *Worker) WebhookHandler(secret string) http.HandlerFunc {
 		}
 
 		expected := r.Header.Get("X-Hatchet-Signature")
-		actual, err := signature.Sign(string(data), secret)
+		actual, err := signature.Sign(string(data), opts.Secret)
 		if err != nil {
 			panic(fmt.Errorf("could not sign data: %w", err))
 		}

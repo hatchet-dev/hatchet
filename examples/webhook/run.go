@@ -49,7 +49,9 @@ func run(w *worker.Worker, c client.Client) error {
 
 	go func() {
 		// create webserver to handle webhook requests
-		http.HandleFunc("/webhook", w.WebhookHandler("secret"))
+		http.HandleFunc("/webhook", w.WebhookHttpHandler(worker.WebhookHandlerOptions{
+			Secret: "secret",
+		}))
 
 		port := "8741"
 		log.Printf("starting webhook server on port %s", port)
