@@ -163,7 +163,8 @@ func (c *WebhooksController) setup() {
 }
 
 type HealthCheckResponse struct {
-	Actions []string `json:"actions"`
+	Actions   []string `json:"actions"`
+	Workflows []string `json:"workflows"`
 }
 
 func (c *WebhooksController) healthcheck(ww db.WebhookWorkerModel) (*HealthCheckResponse, error) {
@@ -209,11 +210,12 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl c
 	c.registeredWorkerIds[ww.ID] = true
 
 	w, err := webhook.NewWorker(webhook.WorkerOpts{
-		ID:       ww.ID,
-		Secret:   ww.Secret,
-		URL:      ww.URL,
-		TenantID: tenantId,
-		Actions:  h.Actions,
+		ID:        ww.ID,
+		Secret:    ww.Secret,
+		URL:       ww.URL,
+		TenantID:  tenantId,
+		Actions:   h.Actions,
+		Workflows: h.Workflows,
 	}, cl)
 	if err != nil {
 		return nil, fmt.Errorf("could not create webhook worker: %w", err)

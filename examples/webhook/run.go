@@ -8,11 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	openapi_types "github.com/oapi-codegen/runtime/types"
-
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -26,17 +23,10 @@ func initialize(w *worker.Worker, job worker.WorkflowJob, event string) error {
 }
 
 func run(
-	prisma *db.PrismaClient,
+	w *worker.Worker,
 	port string,
 	handler func(w http.ResponseWriter, r *http.Request), c client.Client, workflow string, event string,
 ) error {
-	wf, err := prisma.Workflow.FindFirst(
-		db.Workflow.Name.Equals(workflow),
-	).Exec(context.Background())
-	if err != nil {
-		return fmt.Errorf("error finding webhook worker: %w", err)
-	}
-
 	// create webserver to handle webhook requests
 	mux := http.NewServeMux()
 
@@ -65,7 +55,11 @@ func run(
 		}
 	}()
 
-	if err := setup(port, c, wf.ID); err != nil {
+	secret := "secret"
+	if err := w.RegisterWebhook(worker.RegisterWebhookWorkerOpts{
+		URL:    fmt.Sprintf("http://localhost:%s/webhook", port),
+		Secret: &secret,
+	}); err != nil {
 		return fmt.Errorf("error setting up webhook: %w", err)
 	}
 
@@ -82,7 +76,7 @@ func run(
 	}
 
 	// push an event
-	err = c.Event().Push(
+	err := c.Event().Push(
 		context.Background(),
 		event,
 		testEvent,
@@ -96,31 +90,6 @@ func run(
 	//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusAssigned, nil)
 
 	time.Sleep(5 * time.Second)
-
-	return nil
-}
-
-func setup(port string, c client.Client, wfId string) error {
-	tenantId := openapi_types.UUID{}
-	if err := tenantId.Scan(c.TenantId()); err != nil {
-		return fmt.Errorf("error getting tenant id: %w", err)
-	}
-
-	secret := "secret"
-	res, err := c.API().WebhookCreate(context.Background(), tenantId, rest.WebhookCreateJSONRequestBody{
-		Url: fmt.Sprintf("http://localhost:%s/webhook", port),
-		Workflows: []string{
-			wfId,
-		},
-		Secret: &secret,
-	})
-	if err != nil {
-		return fmt.Errorf("error creating webhook worker: %w", err)
-	}
-
-	if res.StatusCode != 200 {
-		return fmt.Errorf("error creating webhook, failed with status code %d", res.StatusCode)
-	}
 
 	return nil
 }

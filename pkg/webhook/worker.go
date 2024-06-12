@@ -13,11 +13,12 @@ type WebhookWorker struct {
 }
 
 type WorkerOpts struct {
-	ID       string
-	Secret   string
-	URL      string
-	TenantID string
-	Actions  []string
+	ID        string
+	Secret    string
+	URL       string
+	TenantID  string
+	Actions   []string
+	Workflows []string
 }
 
 func NewWorker(opts WorkerOpts, client client.Client) (*WebhookWorker, error) {
@@ -29,7 +30,7 @@ func NewWorker(opts WorkerOpts, client client.Client) (*WebhookWorker, error) {
 
 func (w *WebhookWorker) Start() (func() error, error) {
 	r, err := worker.NewWorker(worker.WithClient(w.client),
-		worker.WithActions(w.opts.Actions),
+		worker.WithInternalData(w.opts.Actions, w.opts.Workflows),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not create webhook worker: %w", err)

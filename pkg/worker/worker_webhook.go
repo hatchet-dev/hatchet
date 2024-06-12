@@ -8,15 +8,46 @@ import (
 	"net/http"
 	"time"
 
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
 	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
-type WebhookWorkerOpts struct {
-	Secret string
+type RegisterWebhookWorkerOpts struct {
 	URL    string
+	Secret *string
 }
 
+func (w *Worker) RegisterWebhook(ww RegisterWebhookWorkerOpts) error {
+	tenantId := openapi_types.UUID{}
+	if err := tenantId.Scan(w.client.TenantId()); err != nil {
+		return fmt.Errorf("error getting tenant id: %w", err)
+	}
+
+	res, err := w.client.API().WebhookCreate(context.Background(), tenantId, rest.WebhookCreateJSONRequestBody{
+		Url:       ww.URL,
+		Workflows: &w.workflows,
+		Secret:    ww.Secret,
+	})
+	if err != nil {
+		return fmt.Errorf("error creating webhook worker: %w", err)
+	}
+
+	if res.StatusCode != 200 {
+		return fmt.Errorf("error creating webhook, failed with status code %d", res.StatusCode)
+	}
+
+	return nil
+}
+
+type WebhookWorkerOpts struct {
+	URL    string
+	Secret string
+}
+
+// TODO do not expose this to the end-user client somehow
 func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	listener, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{

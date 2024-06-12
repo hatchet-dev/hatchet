@@ -879,8 +879,8 @@ type WebhookWorkerCreateRequest struct {
 	// Url The webhook url.
 	Url string `json:"url"`
 
-	// Workflows The workflow IDs or names to register for this webhook worker.
-	Workflows []string `json:"workflows"`
+	// Workflows The workflow IDs or names to register for this webhook worker. If not provided, workflows will be automatically detected.
+	Workflows *[]string `json:"workflows,omitempty"`
 }
 
 // WebhookWorkerListResponse defines model for WebhookWorkerListResponse.

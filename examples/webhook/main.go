@@ -6,7 +6,6 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -26,16 +25,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	prisma := db.NewClient()
-	if err := prisma.Connect(); err != nil {
-		panic(fmt.Errorf("error connecting to database: %w", err))
-	}
-	defer func() {
-		if err := prisma.Disconnect(); err != nil {
-			panic(fmt.Errorf("error disconnecting from database: %w", err))
-		}
-	}()
 
 	c, err := client.New()
 	if err != nil {
@@ -79,7 +68,7 @@ func main() {
 		Secret: "secret",
 	})
 	port := "8741"
-	err = run(prisma, port, handler, c, workflow, event)
+	err = run(w, port, handler, c, workflow, event)
 	if err != nil {
 		panic(err)
 	}

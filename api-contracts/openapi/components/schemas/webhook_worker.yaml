@@ -22,7 +22,7 @@ WebhookWorkerCreateRequest:
       description: The webhook url.
     workflows:
       type: array
-      description: The workflow IDs or names to register for this webhook worker.
+      description: The workflow IDs or names to register for this webhook worker. If not provided, workflows will be automatically detected.
       items:
         type: string
     secret:
@@ -31,7 +31,6 @@ WebhookWorkerCreateRequest:
       minLength: 32
   required:
     - url
-    - workflows
   type: object
 
 WebhookWorkerCreateResponse:

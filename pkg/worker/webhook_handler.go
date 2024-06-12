@@ -18,7 +18,8 @@ type WebhookHandlerOptions struct {
 }
 
 type HealthCheckResponse struct {
-	Actions []string `json:"actions"`
+	Actions   []string `json:"actions"`
+	Workflows []string `json:"workflows"`
 }
 
 func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions) http.HandlerFunc {
@@ -31,7 +32,8 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions) http.HandlerFunc
 			}
 
 			res := HealthCheckResponse{
-				Actions: actions,
+				Actions:   actions,
+				Workflows: w.workflows,
 			}
 			data, err := json.Marshal(res)
 			if err != nil {

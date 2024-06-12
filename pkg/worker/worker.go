@@ -70,6 +70,8 @@ type Worker struct {
 
 	actions map[string]Action
 
+	workflows []string
+
 	l *zerolog.Logger
 
 	cancelMap sync.Map
@@ -98,7 +100,8 @@ type WorkerOpts struct {
 	alerter      errors.Alerter
 	maxRuns      *int
 
-	actions []string
+	actions   []string
+	workflows []string
 }
 
 func defaultWorkerOpts() *WorkerOpts {
@@ -125,9 +128,10 @@ func WithLogLevel(lvl string) WorkerOpt {
 	}
 }
 
-func WithActions(actions []string) WorkerOpt {
+func WithInternalData(actions []string, workflows []string) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.actions = actions
+		opts.workflows = workflows
 	}
 }
 
@@ -180,6 +184,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		middlewares:     mws,
 		maxRuns:         opts.maxRuns,
 		initActionNames: opts.actions,
+		workflows:       opts.workflows,
 	}
 
 	mws.add(w.panicMiddleware)
