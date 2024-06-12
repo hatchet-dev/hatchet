@@ -32,7 +32,6 @@ func TestWebhook(t *testing.T) {
 		{
 			name: "simple action",
 			job: func(t *testing.T) {
-				t.SkipNow()
 				events := make(chan string, 10)
 
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
