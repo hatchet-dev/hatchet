@@ -224,5 +224,55 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl c
 		return nil, fmt.Errorf("could not start webhook worker: %w", err)
 	}
 
-	return cleanup, nil
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		timer := time.NewTimer(10 * time.Second)
+		defer timer.Stop()
+
+		healthCheckErrors := 0
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+				if _, err := c.healthcheck(ww); err != nil {
+					healthCheckErrors++
+					if healthCheckErrors > 3 {
+						c.sc.Logger.Printf("webhook worker %s failed 3 health checks, marking as inactive", ww.ID)
+
+						isActive := false
+						_, err := c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, ww.ID, &repository.UpdateWorkerOpts{
+							IsActive: &isActive,
+						})
+						if err != nil {
+							c.sc.Logger.Err(fmt.Errorf("could not update worker: %v", err))
+						}
+					} else {
+						c.sc.Logger.Printf("webhook worker %s failed one health check, retrying...", ww.ID)
+					}
+					continue
+				}
+
+				if healthCheckErrors > 0 {
+					c.sc.Logger.Printf("webhook worker %s is healthy again", ww.ID)
+				}
+
+				isActive := true
+				_, err := c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, ww.ID, &repository.UpdateWorkerOpts{
+					IsActive: &isActive,
+				})
+				if err != nil {
+					c.sc.Logger.Err(fmt.Errorf("could not update worker: %v", err))
+				}
+
+				healthCheckErrors = 0
+			}
+		}
+	}()
+
+	return func() error {
+		cancel()
+		return cleanup()
+	}, nil
 }
