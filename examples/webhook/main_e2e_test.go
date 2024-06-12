@@ -25,12 +25,17 @@ func TestWebhook(t *testing.T) {
 
 	tests := []struct {
 		name string
-		job  func(events chan<- string) worker.WorkflowJob
+		job  func(t *testing.T)
 	}{
 		{
 			name: "simple action",
-			job: func(events chan<- string) worker.WorkflowJob {
-				return worker.WorkflowJob{
+			job: func(t *testing.T) {
+				events := make(chan string, 10)
+
+				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+				defer cancel()
+
+				wf := worker.WorkflowJob{
 					Name:        "simple-webhook",
 					Description: "simple webhook",
 					Steps: []*worker.WorkflowStep{
@@ -62,49 +67,45 @@ func TestWebhook(t *testing.T) {
 						}).SetName("webhook-step-two").SetTimeout("60s").AddParents("webhook-step-one"),
 					},
 				}
+
+				w, err := worker.NewWorker(
+					worker.WithClient(
+						c,
+					),
+				)
+				if err != nil {
+					panic(fmt.Errorf("error creating worker: %w", err))
+				}
+
+				if err := initialize(w, wf); err != nil {
+					t.Fatalf("error initializing webhook: %v", err)
+				}
+				err = run(w, c)
+				if err != nil {
+					t.Fatalf("run() error = %s", err)
+				}
+
+				var items []string
+			outer:
+				for {
+					select {
+					case item := <-events:
+						items = append(items, item)
+					case <-ctx.Done():
+						break outer
+					}
+				}
+
+				assert.Equal(t, []string{
+					"webhook-step-one",
+					"webhook-step-two",
+				}, items)
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-			defer cancel()
-
-			events := make(chan string, 10)
-			wf := tt.job(events)
-
-			w, err := worker.NewWorker(
-				worker.WithClient(
-					c,
-				),
-			)
-			if err != nil {
-				panic(fmt.Errorf("error creating worker: %w", err))
-			}
-
-			if err := initialize(w, wf); err != nil {
-				t.Fatalf("error initializing webhook: %v", err)
-			}
-			err = run(w, c)
-			if err != nil {
-				t.Fatalf("run() error = %s", err)
-			}
-
-			var items []string
-		outer:
-			for {
-				select {
-				case item := <-events:
-					items = append(items, item)
-				case <-ctx.Done():
-					break outer
-				}
-			}
-
-			assert.Equal(t, []string{
-				"webhook-step-one",
-				"webhook-step-two",
-			}, items)
+			tt.job(t)
 		})
 	}
 }
