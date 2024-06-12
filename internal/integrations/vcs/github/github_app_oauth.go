@@ -9,7 +9,7 @@ import (
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"golang.org/x/oauth2"
 
-	"github.com/hatchet-dev/hatchet/internal/auth/oauth"
+	"github.com/hatchet-dev/hatchet/pkg/auth/oauth"
 
 	githubsdk "github.com/google/go-github/v57/github"
 )
