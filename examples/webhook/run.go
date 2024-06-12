@@ -13,8 +13,23 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
+
+var prisma *db.PrismaClient
+
+func init() {
+	prisma = db.NewClient()
+	if err := prisma.Connect(); err != nil {
+		panic(fmt.Errorf("error connecting to database: %w", err))
+	}
+	cancel := cmdutils.InterruptChan()
+	go func(prisma *db.PrismaClient) {
+		<-cancel
+		_ = prisma.Disconnect()
+	}(prisma)
+}
 
 func initialize(w *worker.Worker, job worker.WorkflowJob) error {
 	err := w.On(worker.Events("user:create:webhook"), &job)
@@ -26,14 +41,6 @@ func initialize(w *worker.Worker, job worker.WorkflowJob) error {
 }
 
 func run(w *worker.Worker, c client.Client) error {
-	prisma := db.NewClient()
-	if err := prisma.Connect(); err != nil {
-		panic(fmt.Errorf("error connecting to database: %w", err))
-	}
-	defer func(prisma *db.PrismaClient) {
-		_ = prisma.Disconnect()
-	}(prisma)
-
 	wf, err := prisma.Workflow.FindFirst(
 		db.Workflow.Name.Equals("simple-webhook"),
 	).Exec(context.Background())
@@ -86,12 +93,6 @@ func run(w *worker.Worker, c client.Client) error {
 
 	time.Sleep(5 * time.Second)
 
-	verifyStepRuns(prisma, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
-		if string(output) != `{"message":"hi from webhook-step-one"}` && string(output) != `{"message":"hi from webhook-step-two"}` {
-			panic(fmt.Errorf("expected step run output to be valid, got %s", output))
-		}
-	})
-
 	return nil
 }
 
@@ -120,8 +121,8 @@ func setup(c client.Client, wfId string) error {
 	return nil
 }
 
-func verifyStepRuns(client *db.PrismaClient, tenantId string, jobRunStatus db.JobRunStatus, stepRunStatus db.StepRunStatus, check func(string)) {
-	events, err := client.Event.FindMany(
+func verifyStepRuns(tenantId string, jobRunStatus db.JobRunStatus, stepRunStatus db.StepRunStatus, check func(string)) {
+	events, err := prisma.Event.FindMany(
 		db.Event.TenantID.Equals(tenantId),
 		db.Event.Key.Equals("user:create:webhook"),
 	).With(

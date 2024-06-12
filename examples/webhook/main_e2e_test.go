@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
@@ -100,6 +101,12 @@ func TestWebhook(t *testing.T) {
 					"webhook-step-one",
 					"webhook-step-two",
 				}, items)
+
+				verifyStepRuns(c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
+					if string(output) != `{"message":"hi from webhook-step-one"}` && string(output) != `{"message":"hi from webhook-step-two"}` {
+						panic(fmt.Errorf("expected step run output to be valid, got %s", output))
+					}
+				})
 			},
 		},
 	}
