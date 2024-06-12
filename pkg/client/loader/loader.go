@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hatchet-dev/hatchet/internal/config/client"
-	"github.com/hatchet-dev/hatchet/internal/config/loader/loaderutils"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 )
 
 type ConfigLoader struct {

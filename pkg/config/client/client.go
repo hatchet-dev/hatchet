@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/hatchet-dev/hatchet/internal/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 )
 
 type ClientConfigFile struct {

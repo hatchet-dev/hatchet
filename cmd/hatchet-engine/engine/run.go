@@ -8,7 +8,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
@@ -20,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
 type Teardown struct {

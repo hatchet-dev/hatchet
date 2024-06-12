@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hatchet-dev/hatchet/internal/config/client"
-	"github.com/hatchet-dev/hatchet/internal/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 )
 
 func LoadClientTLSConfig(tlsConfig *client.ClientTLSConfigFile, serverName string) (*tls.Config, error) {

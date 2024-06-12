@@ -8,11 +8,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 type tenantLimitRepository struct {

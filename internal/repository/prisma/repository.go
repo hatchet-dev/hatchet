@@ -6,12 +6,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/config/server"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/cache"
 	"github.com/hatchet-dev/hatchet/internal/repository/metered"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 type apiRepository struct {

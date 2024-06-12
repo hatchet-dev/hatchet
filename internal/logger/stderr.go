@@ -6,7 +6,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 
 	"time"
 )

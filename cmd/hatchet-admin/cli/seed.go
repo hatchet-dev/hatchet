@@ -10,10 +10,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/spf13/cobra"
 
-	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
 // seedCmd seeds the database with initial data

@@ -3,8 +3,8 @@ package testutils
 import (
 	"testing"
 
-	"github.com/hatchet-dev/hatchet/internal/config/database"
-	"github.com/hatchet-dev/hatchet/internal/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/config/database"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
 func RunTestWithDatabase(t *testing.T, test func(config *database.Config) error) {

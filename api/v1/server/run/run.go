@@ -27,7 +27,7 @@ import (
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/internal/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 type apiService struct {
@@ -72,17 +72,23 @@ func NewAPIServer(config *server.ServerConfig) *APIServer {
 	}
 }
 
-func (t *APIServer) Run() (func() error, error) {
+type APIServerOpt func(e *echo.Echo, config *server.ServerConfig)
+
+func (t *APIServer) Run(opts ...APIServerOpt) (func() error, error) {
 	e, err := t.GetEchoServer()
 
 	if err != nil {
 		return nil, err
 	}
 
-	return t.RunWithServer(e)
+	return t.RunWithServer(e, opts...)
 }
 
-func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
+func (t *APIServer) RunWithServer(e *echo.Echo, opts ...APIServerOpt) (func() error, error) {
+	for _, opt := range opts {
+		opt(e, t.config)
+	}
+
 	routes := e.Routes()
 
 	for _, route := range routes {

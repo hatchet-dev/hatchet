@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/run"
-	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/services/worker"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
 func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
