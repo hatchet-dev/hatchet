@@ -746,7 +746,11 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 	servertel.WithStepRunModel(span, stepRun)
 
-	updateStepOpts := &repository.UpdateStepRunOpts{}
+	requeueAfterTime := time.Now().Add(4 * time.Second).UTC()
+
+	updateStepOpts := &repository.UpdateStepRunOpts{
+		RequeueAfter: &requeueAfterTime,
+	}
 
 	// set scheduling timeout
 	if scheduleTimeoutAt := stepRun.StepRun.ScheduleTimeoutAt.Time; scheduleTimeoutAt.IsZero() {
