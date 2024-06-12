@@ -4,8 +4,9 @@ datasource db {
 }
 
 generator go {
-  provider = "go run github.com/steebchen/prisma-client-go"
-  output   = "../pkg/repository/prisma/db"
+  provider         = "go run github.com/steebchen/prisma-client-go"
+  output           = "../pkg/repository/prisma/db"
+  disableGitignore = true
 }
 
 model User {
