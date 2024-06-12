@@ -24,6 +24,7 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
     (counts?.PENDING ?? 0) +
     (counts?.RUNNING ?? 0) +
     (counts?.SUCCEEDED ?? 0) +
+    (counts?.QUEUED ?? 0) +
     (counts?.FAILED ?? 0);
 
   const succeededPercentage = calculatePercentage(
