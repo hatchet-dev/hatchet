@@ -527,7 +527,7 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, repository.ErrNoWorkerAvailable
+			s.l.Warn().Err(err).Msg("no rows returned from worker assign")
 		}
 
 		return nil, fmt.Errorf("query to assign worker failed: %w", err)
