@@ -13,23 +13,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
-	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
-
-var prisma *db.PrismaClient
-
-func init() {
-	prisma = db.NewClient()
-	if err := prisma.Connect(); err != nil {
-		panic(fmt.Errorf("error connecting to database: %w", err))
-	}
-	cancel := cmdutils.InterruptChan()
-	go func(prisma *db.PrismaClient) {
-		<-cancel
-		_ = prisma.Disconnect()
-	}(prisma)
-}
 
 func initialize(w *worker.Worker, job worker.WorkflowJob, event string) error {
 	err := w.On(worker.Events(event), &job)
@@ -40,7 +25,10 @@ func initialize(w *worker.Worker, job worker.WorkflowJob, event string) error {
 	return nil
 }
 
-func run(handler func(w http.ResponseWriter, r *http.Request), c client.Client, workflow string, event string) error {
+func run(
+	prisma *db.PrismaClient,
+	handler func(w http.ResponseWriter, r *http.Request), c client.Client, workflow string, event string,
+) error {
 	wf, err := prisma.Workflow.FindFirst(
 		db.Workflow.Name.Equals(workflow),
 	).Exec(context.Background())
@@ -137,7 +125,7 @@ func setup(c client.Client, wfId string) error {
 	return nil
 }
 
-func verifyStepRuns(event string, tenantId string, jobRunStatus db.JobRunStatus, stepRunStatus db.StepRunStatus, check func(string)) {
+func verifyStepRuns(prisma *db.PrismaClient, event string, tenantId string, jobRunStatus db.JobRunStatus, stepRunStatus db.StepRunStatus, check func(string)) {
 	events, err := prisma.Event.FindMany(
 		db.Event.TenantID.Equals(tenantId),
 		db.Event.Key.Equals(event),

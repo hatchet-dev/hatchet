@@ -20,6 +20,16 @@ import (
 func TestWebhook(t *testing.T) {
 	testutils.Prepare(t)
 
+	prisma := db.NewClient()
+	if err := prisma.Connect(); err != nil {
+		panic(fmt.Errorf("error connecting to database: %w", err))
+	}
+	defer func() {
+		if err := prisma.Disconnect(); err != nil {
+			panic(fmt.Errorf("error disconnecting from database: %w", err))
+		}
+	}()
+
 	c, err := client.New()
 	if err != nil {
 		panic(fmt.Errorf("error creating client: %w", err))
@@ -87,7 +97,7 @@ func TestWebhook(t *testing.T) {
 				handler := w.WebhookHttpHandler(worker.WebhookHandlerOptions{
 					Secret: "secret",
 				})
-				err = run(handler, c, workflow, event)
+				err = run(prisma, handler, c, workflow, event)
 				if err != nil {
 					t.Fatalf("run() error = %s", err)
 				}
@@ -108,7 +118,7 @@ func TestWebhook(t *testing.T) {
 					"webhook-step-two",
 				}, items)
 
-				verifyStepRuns(event, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
+				verifyStepRuns(prisma, event, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
 					if string(output) != `{"message":"hi from webhook-step-one"}` && string(output) != `{"message":"hi from webhook-step-two"}` {
 						panic(fmt.Errorf("expected step run output to be valid, got %s", output))
 					}
@@ -152,12 +162,12 @@ func TestWebhook(t *testing.T) {
 					}
 					w.WriteHeader(http.StatusInternalServerError) // simulate a failure
 				}
-				err = run(handler, c, workflow, event)
+				err = run(prisma, handler, c, workflow, event)
 				if err != nil {
 					t.Fatalf("run() error = %s", err)
 				}
 
-				verifyStepRuns(event, c.TenantId(), db.JobRunStatusFailed, db.StepRunStatusFailed, nil)
+				verifyStepRuns(prisma, event, c.TenantId(), db.JobRunStatusFailed, db.StepRunStatusFailed, nil)
 			},
 		},
 	}
