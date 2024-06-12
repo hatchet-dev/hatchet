@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/client"
@@ -93,8 +94,13 @@ func (w *Worker) sendWebhook(ctx context.Context, action *client.Action, ww Webh
 
 	w.l.Debug().Msgf("sending webhook to: %s", ww.URL)
 
+	httpClient := &http.Client{
+		// use 10 minutes timeout
+		Timeout: time.Second * 600,
+	}
+
 	// nolint:gosec
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		if err := w.markFailed(action, fmt.Errorf("could not send webhook: %w", err)); err != nil {
 			return fmt.Errorf("could not send webhook and then could not send failed action event: %w", err)
