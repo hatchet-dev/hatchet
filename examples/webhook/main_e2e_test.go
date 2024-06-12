@@ -116,6 +116,51 @@ func TestWebhook(t *testing.T) {
 				})
 			},
 		},
+		{
+			name: "mark action as failed immediately if webhook fails",
+			job: func(t *testing.T) {
+				workflow := "simple-webhook-failure"
+				wf := worker.WorkflowJob{
+					Name:        workflow,
+					Description: workflow,
+					Steps: []*worker.WorkflowStep{
+						worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
+							return &output{
+								Message: "hi from " + ctx.StepName(),
+							}, nil
+						}).SetName("webhook-failure-step-one").SetTimeout("60s"),
+					},
+				}
+
+				w, err := worker.NewWorker(
+					worker.WithClient(
+						c,
+					),
+				)
+				if err != nil {
+					panic(fmt.Errorf("error creating worker: %w", err))
+				}
+
+				event := "user:create:webhook-failure"
+				if err := initialize(w, wf, event); err != nil {
+					t.Fatalf("error initializing webhook: %v", err)
+				}
+				handler := func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" {
+						w.WriteHeader(200)
+						_, _ = w.Write([]byte(fmt.Sprintf(`{"actions": ["default:%s"]}`, event)))
+						return
+					}
+					w.WriteHeader(http.StatusInternalServerError) // simulate a failure
+				}
+				err = run(handler, c, workflow, event)
+				if err != nil {
+					t.Fatalf("run() error = %s", err)
+				}
+
+				verifyStepRuns(event, c.TenantId(), db.JobRunStatusFailed, db.StepRunStatusFailed, nil)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

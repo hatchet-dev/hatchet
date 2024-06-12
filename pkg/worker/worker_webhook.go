@@ -96,14 +96,44 @@ func (w *Worker) sendWebhook(ctx context.Context, action *client.Action, ww Webh
 	// nolint:gosec
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		if err := w.markFailed(action, fmt.Errorf("could not send webhook: %w", err)); err != nil {
+			return fmt.Errorf("could not send webhook and then could not send failed action event: %w", err)
+		}
 		return err
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		// TODO!!! handle error
+		if err := w.markFailed(action, fmt.Errorf("webhook failed with status code %d", resp.StatusCode)); err != nil {
+			return fmt.Errorf("webhook failed with status code %d and then could not send failed action event: %w", resp.StatusCode, err)
+		}
 		return fmt.Errorf("webhook failed with status code %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (w *Worker) markFailed(action *client.Action, err error) error {
+	failureEvent := w.getActionEvent(action, client.ActionEventTypeFailed)
+
+	w.alerter.SendAlert(context.Background(), err, map[string]interface{}{
+		"actionId":      action.ActionId,
+		"workerId":      action.WorkerId,
+		"workflowRunId": action.WorkflowRunId,
+		"jobName":       action.JobName,
+		"actionType":    action.ActionType,
+	})
+
+	failureEvent.EventPayload = err.Error()
+
+	_, err = w.client.Dispatcher().SendStepActionEvent(
+		context.TODO(),
+		failureEvent,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not send action event: %w", err)
 	}
 
 	return nil
