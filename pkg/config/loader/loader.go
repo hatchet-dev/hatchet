@@ -176,6 +176,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 			meter.Stop()
 			return c.Prisma.Disconnect()
 		},
+		Pool:                  pool,
 		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
 		EngineRepository:      prisma.NewEngineRepository(pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
 		EntitlementRepository: entitlementRepo,

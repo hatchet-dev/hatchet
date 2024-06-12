@@ -3,6 +3,7 @@ package database
 import (
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/viper"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
@@ -42,6 +43,8 @@ type SeedConfigFile struct {
 
 type Config struct {
 	Disconnect func() error
+
+	Pool *pgxpool.Pool
 
 	APIRepository repository.APIRepository
 
