@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/tink-crypto/tink-go/jwt"
 
-	"github.com/hatchet-dev/hatchet/internal/encryption"
-	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type JWTManager interface {

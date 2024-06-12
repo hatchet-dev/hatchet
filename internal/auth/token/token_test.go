@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/hatchet-dev/hatchet/internal/auth/token"
-	"github.com/hatchet-dev/hatchet/internal/encryption"
-	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tests

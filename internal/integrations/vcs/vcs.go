@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/url"
 
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
 type VCSRepositoryKind string

@@ -7,8 +7,8 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/schema"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
 func (t *StepRunService) StepRunGetSchema(ctx echo.Context, request gen.StepRunGetSchemaRequestObject) (gen.StepRunGetSchemaResponseObject, error) {
