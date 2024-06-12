@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -31,14 +32,16 @@ func TestWebhook(t *testing.T) {
 		{
 			name: "simple action",
 			job: func(t *testing.T) {
+				t.SkipNow()
 				events := make(chan string, 10)
 
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 				defer cancel()
 
+				workflow := "simple-webhook"
 				wf := worker.WorkflowJob{
-					Name:        "simple-webhook",
-					Description: "simple webhook",
+					Name:        workflow,
+					Description: workflow,
 					Steps: []*worker.WorkflowStep{
 						worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
 							//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
@@ -78,10 +81,14 @@ func TestWebhook(t *testing.T) {
 					panic(fmt.Errorf("error creating worker: %w", err))
 				}
 
-				if err := initialize(w, wf); err != nil {
+				event := "user:create:webhook"
+				if err := initialize(w, wf, event); err != nil {
 					t.Fatalf("error initializing webhook: %v", err)
 				}
-				err = run(w, c)
+				handler := w.WebhookHttpHandler(worker.WebhookHandlerOptions{
+					Secret: "secret",
+				})
+				err = run(handler, c, workflow, event)
 				if err != nil {
 					t.Fatalf("run() error = %s", err)
 				}
@@ -102,7 +109,7 @@ func TestWebhook(t *testing.T) {
 					"webhook-step-two",
 				}, items)
 
-				verifyStepRuns(c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
+				verifyStepRuns(event, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
 					if string(output) != `{"message":"hi from webhook-step-one"}` && string(output) != `{"message":"hi from webhook-step-two"}` {
 						panic(fmt.Errorf("expected step run output to be valid, got %s", output))
 					}

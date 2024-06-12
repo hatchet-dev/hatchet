@@ -31,8 +31,8 @@ func init() {
 	}(prisma)
 }
 
-func initialize(w *worker.Worker, job worker.WorkflowJob) error {
-	err := w.On(worker.Events("user:create:webhook"), &job)
+func initialize(w *worker.Worker, job worker.WorkflowJob, event string) error {
+	err := w.On(worker.Events(event), &job)
 	if err != nil {
 		return fmt.Errorf("error registering webhook workflow: %w", err)
 	}
@@ -40,23 +40,39 @@ func initialize(w *worker.Worker, job worker.WorkflowJob) error {
 	return nil
 }
 
-func run(w *worker.Worker, c client.Client) error {
+func run(handler func(w http.ResponseWriter, r *http.Request), c client.Client, workflow string, event string) error {
 	wf, err := prisma.Workflow.FindFirst(
-		db.Workflow.Name.Equals("simple-webhook"),
+		db.Workflow.Name.Equals(workflow),
 	).Exec(context.Background())
 	if err != nil {
 		panic(fmt.Errorf("error finding webhook worker: %w", err))
 	}
 
-	go func() {
-		// create webserver to handle webhook requests
-		http.HandleFunc("/webhook", w.WebhookHttpHandler(worker.WebhookHandlerOptions{
-			Secret: "secret",
-		}))
+	// create webserver to handle webhook requests
+	mux := http.NewServeMux()
 
-		port := "8741"
-		log.Printf("starting webhook server on port %s", port)
-		if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	// Register the HelloHandler to the /hello route
+	mux.HandleFunc("/webhook", handler)
+
+	port := "8741"
+	// Create a custom server
+	server := &http.Server{
+		Addr:         ":" + port,
+		Handler:      mux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  15 * time.Second,
+	}
+
+	defer func(server *http.Server, ctx context.Context) {
+		err := server.Shutdown(ctx)
+		if err != nil {
+			panic(err)
+		}
+	}(server, context.Background())
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			panic(err)
 		}
 	}()
@@ -80,7 +96,7 @@ func run(w *worker.Worker, c client.Client) error {
 	// push an event
 	err = c.Event().Push(
 		context.Background(),
-		"user:create:webhook",
+		event,
 		testEvent,
 	)
 	if err != nil {
@@ -121,10 +137,10 @@ func setup(c client.Client, wfId string) error {
 	return nil
 }
 
-func verifyStepRuns(tenantId string, jobRunStatus db.JobRunStatus, stepRunStatus db.StepRunStatus, check func(string)) {
+func verifyStepRuns(event string, tenantId string, jobRunStatus db.JobRunStatus, stepRunStatus db.StepRunStatus, check func(string)) {
 	events, err := prisma.Event.FindMany(
 		db.Event.TenantID.Equals(tenantId),
-		db.Event.Key.Equals("user:create:webhook"),
+		db.Event.Key.Equals(event),
 	).With(
 		db.Event.WorkflowRuns.Fetch().With(
 			db.WorkflowRunTriggeredBy.Parent.Fetch().With(

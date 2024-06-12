@@ -40,9 +40,11 @@ func main() {
 		panic(fmt.Errorf("error creating worker: %w", err))
 	}
 
+	workflow := "webhook"
+	event := "user:create:webhook"
 	err = initialize(w, worker.WorkflowJob{
-		Name:        "webhook",
-		Description: "webhook",
+		Name:        workflow,
+		Description: workflow,
 		Steps: []*worker.WorkflowStep{
 			worker.Fn(func(ctx worker.HatchetContext) (result *output, err error) {
 				log.Printf("step name: %s", ctx.StepName())
@@ -57,12 +59,15 @@ func main() {
 				}, nil
 			}).SetName("webhook-step-one").SetTimeout("10s"),
 		},
-	})
+	}, event)
 	if err != nil {
 		panic(err)
 	}
 
-	err = run(w, c)
+	handler := w.WebhookHttpHandler(worker.WebhookHandlerOptions{
+		Secret: "secret",
+	})
+	err = run(handler, c, workflow, event)
 	if err != nil {
 		panic(err)
 	}
