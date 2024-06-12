@@ -78,7 +78,8 @@ func main() {
 	handler := w.WebhookHttpHandler(worker.WebhookHandlerOptions{
 		Secret: "secret",
 	})
-	err = run(prisma, handler, c, workflow, event)
+	port := "8741"
+	err = run(prisma, port, handler, c, workflow, event)
 	if err != nil {
 		panic(err)
 	}

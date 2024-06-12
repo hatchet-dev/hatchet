@@ -27,13 +27,14 @@ func initialize(w *worker.Worker, job worker.WorkflowJob, event string) error {
 
 func run(
 	prisma *db.PrismaClient,
+	port string,
 	handler func(w http.ResponseWriter, r *http.Request), c client.Client, workflow string, event string,
 ) error {
 	wf, err := prisma.Workflow.FindFirst(
 		db.Workflow.Name.Equals(workflow),
 	).Exec(context.Background())
 	if err != nil {
-		panic(fmt.Errorf("error finding webhook worker: %w", err))
+		return fmt.Errorf("error finding webhook worker: %w", err)
 	}
 
 	// create webserver to handle webhook requests
@@ -42,7 +43,6 @@ func run(
 	// Register the HelloHandler to the /hello route
 	mux.HandleFunc("/webhook", handler)
 
-	port := "8741"
 	// Create a custom server
 	server := &http.Server{
 		Addr:         ":" + port,
@@ -65,8 +65,8 @@ func run(
 		}
 	}()
 
-	if err := setup(c, wf.ID); err != nil {
-		panic(fmt.Errorf("error setting up webhook: %w", err))
+	if err := setup(port, c, wf.ID); err != nil {
+		return fmt.Errorf("error setting up webhook: %w", err)
 	}
 
 	time.Sleep(30 * time.Second)
@@ -88,7 +88,7 @@ func run(
 		testEvent,
 	)
 	if err != nil {
-		panic(fmt.Errorf("error pushing event: %w", err))
+		return fmt.Errorf("error pushing event: %w", err)
 	}
 
 	// TODO test for assigned status before it is started
@@ -100,7 +100,7 @@ func run(
 	return nil
 }
 
-func setup(c client.Client, wfId string) error {
+func setup(port string, c client.Client, wfId string) error {
 	tenantId := openapi_types.UUID{}
 	if err := tenantId.Scan(c.TenantId()); err != nil {
 		return fmt.Errorf("error getting tenant id: %w", err)
@@ -108,7 +108,7 @@ func setup(c client.Client, wfId string) error {
 
 	secret := "secret"
 	res, err := c.API().WebhookCreate(context.Background(), tenantId, rest.WebhookCreateJSONRequestBody{
-		Url: "http://localhost:8741/webhook",
+		Url: fmt.Sprintf("http://localhost:%s/webhook", port),
 		Workflows: []string{
 			wfId,
 		},

@@ -97,7 +97,7 @@ func TestWebhook(t *testing.T) {
 				handler := w.WebhookHttpHandler(worker.WebhookHandlerOptions{
 					Secret: "secret",
 				})
-				err = run(prisma, handler, c, workflow, event)
+				err = run(prisma, "8742", handler, c, workflow, event)
 				if err != nil {
 					t.Fatalf("run() error = %s", err)
 				}
@@ -162,7 +162,7 @@ func TestWebhook(t *testing.T) {
 					}
 					w.WriteHeader(http.StatusInternalServerError) // simulate a failure
 				}
-				err = run(prisma, handler, c, workflow, event)
+				err = run(prisma, "8743", handler, c, workflow, event)
 				if err != nil {
 					t.Fatalf("run() error = %s", err)
 				}
