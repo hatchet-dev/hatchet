@@ -38,9 +38,15 @@ func (r *streamEventEngineRepository) PutStreamEvent(ctx context.Context, tenant
 		return nil, err
 	}
 
+	message := opts.Message
+
+	if message == nil {
+		message = []byte("")
+	}
+
 	createParams := dbsqlc.CreateStreamEventParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Message:   opts.Message,
+		Message:   message,
 		Steprunid: sqlchelpers.UUIDFromStr(opts.StepRunId),
 	}
 

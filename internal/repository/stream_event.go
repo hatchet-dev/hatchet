@@ -15,7 +15,7 @@ type CreateStreamEventOpts struct {
 	CreatedAt *time.Time
 
 	// (required) The message of the Stream Event.
-	Message []byte `validate:"required,min=1"`
+	Message []byte
 
 	// (optional) The metadata of the Stream Event.
 	Metadata []byte
