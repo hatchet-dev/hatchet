@@ -91,12 +91,18 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 		metadata = []byte(req.Metadata)
 	}
 
-	streamEvent, err := i.streamEventRepository.PutStreamEvent(ctx, tenantId, &repository.CreateStreamEventOpts{
+	opts := repository.CreateStreamEventOpts{
 		StepRunId: req.StepRunId,
 		CreatedAt: createdAt,
 		Message:   req.Message,
 		Metadata:  metadata,
-	})
+	}
+
+	if err := i.v.Validate(opts); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	streamEvent, err := i.streamEventRepository.PutStreamEvent(ctx, tenantId, &opts)
 
 	if err != nil {
 		return nil, err
