@@ -12,6 +12,8 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/config/server"
@@ -221,10 +223,14 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl c
 		return nil, fmt.Errorf("could not create webhook worker: %w", err)
 	}
 
+	var cleanups []func() error
+
 	cleanup, err := w.Start()
 	if err != nil {
 		return nil, fmt.Errorf("could not start webhook worker: %w", err)
 	}
+
+	cleanups = append(cleanups, cleanup)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -232,13 +238,17 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl c
 		timer := time.NewTimer(10 * time.Second)
 		defer timer.Stop()
 
+		wfsHashLast := hash(h.Workflows)
+		actionsHashLast := hash(h.Actions)
+
 		healthCheckErrors := 0
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				if _, err := c.healthcheck(ww); err != nil {
+				h, err := c.healthcheck(ww)
+				if err != nil {
 					healthCheckErrors++
 					if healthCheckErrors > 3 {
 						c.sc.Logger.Printf("webhook worker %s of tenant %s failed 3 health checks, marking as inactive", ww.ID, tenantId)
@@ -256,12 +266,39 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl c
 					continue
 				}
 
+				wfsHash := hash(h.Workflows)
+				actionsHash := hash(h.Actions)
+
+				log.Printf("wfsHash %s, wfsHashLast %s", wfsHash, wfsHashLast)
+				log.Printf("actionsHash %s, actionsHashLast %s", actionsHash, actionsHashLast)
+
+				if wfsHash != wfsHashLast || actionsHash != actionsHashLast {
+					// update the webhook workflow, and restart worker
+					log.Printf("webhook worker %s of tenant %s has changed, updating...", ww.ID, tenantId)
+					// TODO
+					for _, cleanup := range cleanups {
+						if err := cleanup(); err != nil {
+							c.sc.Logger.Err(fmt.Errorf("could not cleanup webhook worker: %v", err))
+						}
+					}
+
+					newCleanup, err := c.run(tenantId, ww, cl)
+					if err != nil {
+						c.sc.Logger.Err(fmt.Errorf("could not restart webhook worker: %v", err))
+					}
+					cleanups = []func() error{newCleanup}
+					return
+				}
+
+				wfsHashLast = wfsHash
+				actionsHashLast = actionsHash
+
 				if healthCheckErrors > 0 {
 					c.sc.Logger.Printf("webhook worker %s is healthy again", ww.ID)
 				}
 
 				isActive := true
-				_, err := c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, ww.ID, &repository.UpdateWorkerOpts{
+				_, err = c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, ww.ID, &repository.UpdateWorkerOpts{
 					IsActive: &isActive,
 				})
 				if err != nil {
@@ -275,6 +312,18 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl c
 
 	return func() error {
 		cancel()
-		return cleanup()
+		for _, cleanup := range cleanups {
+			if err := cleanup(); err != nil {
+				return fmt.Errorf("could not cleanup webhook worker: %w", err)
+			}
+		}
+
+		return nil
 	}, nil
+}
+
+func hash(s []string) string {
+	n := s
+	slices.Sort(n)
+	return strings.Join(n, ",")
 }
