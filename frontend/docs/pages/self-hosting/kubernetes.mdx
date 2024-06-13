@@ -68,7 +68,7 @@ To deploy `hatchet-stack`, run the following commands:
 
 ```sh
 helm repo add hatchet https://hatchet-dev.github.io/hatchet-charts
-helm install hatchet-stack hatchet/hatchet-stack --values hatchet-values.yaml --set api.replicaCount=0 --set engine.replicaCount=0 --set caddy.enabled=true
+helm install hatchet-stack hatchet/hatchet-stack --values hatchet-values.yaml --set api.replicaCount=0 --set engine.replicaCount=0
 helm upgrade hatchet-stack hatchet/hatchet-stack --values hatchet-values.yaml --set caddy.enabled=true
 ```
 
