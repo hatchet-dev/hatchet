@@ -1,16 +1,20 @@
 {
     "index": "Introduction",
-    "-- Deploying": {
+    "-- Docker": {
         "type": "separator",
-        "title": "Deploying"
+        "title": "Docker"
     },
     "hatchet-lite": "Hatchet Lite",
     "docker-compose": "Docker Compose",
-    "kubernetes": "Kubernetes",
+    "-- Kubernetes": {
+        "type": "separator",
+        "title": "Kubernetes"
+    },
+    "kubernetes-quickstart": "Quickstart",
+    "networking": "Networking",
     "-- Managing Hatchet": {
         "type": "separator",
         "title": "Managing Hatchet"
     },
-    "configuration-options": "Configuration Options",
-    "github-app-setup": "GitHub App Setup"
+    "configuration-options": "Configuration Options"
 }
