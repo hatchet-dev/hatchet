@@ -235,6 +235,10 @@ func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, err
 }
 
 func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error) {
+	if opts == nil {
+		opts = &SpawnWorkflowOpts{}
+	}
+
 	listener, err := h.saveOrLoadListener()
 
 	if err != nil {
