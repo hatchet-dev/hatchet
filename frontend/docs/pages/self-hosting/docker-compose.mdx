@@ -276,7 +276,9 @@ const workflow: Workflow = {
   ],
 };
 
-hatchet.run(workflow);
+const worker = hatchet.worker("my-worker");
+await worker.registerWorkflow(workflow);
+worker.start();
 ```
 
 Next, modify your `package.json` to include a script to start:
