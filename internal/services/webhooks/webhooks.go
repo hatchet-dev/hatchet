@@ -201,7 +201,7 @@ func (c *WebhooksController) healthcheck(ww db.WebhookWorkerModel) (*HealthCheck
 func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl client.Client) (func() error, error) {
 	h, err := c.healthcheck(ww)
 	if err != nil {
-		return nil, fmt.Errorf("could not check health of webhook worker: %w", err)
+		return nil, fmt.Errorf("webhook worker %s of tenant %s healthcheck failed: %w", ww.ID, tenantId, err)
 	}
 
 	if _, ok := c.registeredWorkerIds[ww.ID]; ok {
@@ -241,7 +241,7 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl c
 				if _, err := c.healthcheck(ww); err != nil {
 					healthCheckErrors++
 					if healthCheckErrors > 3 {
-						c.sc.Logger.Printf("webhook worker %s failed 3 health checks, marking as inactive", ww.ID)
+						c.sc.Logger.Printf("webhook worker %s of tenant %s failed 3 health checks, marking as inactive", ww.ID, tenantId)
 
 						isActive := false
 						_, err := c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, ww.ID, &repository.UpdateWorkerOpts{
@@ -251,7 +251,7 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl c
 							c.sc.Logger.Err(fmt.Errorf("could not update worker: %v", err))
 						}
 					} else {
-						c.sc.Logger.Printf("webhook worker %s failed one health check, retrying...", ww.ID)
+						c.sc.Logger.Printf("webhook worker %s of tenant %s failed one health check, retrying...", ww.ID, tenantId)
 					}
 					continue
 				}
