@@ -1,6 +1,6 @@
-import { Tabs, Steps } from "nextra/components";
+import { Tabs, Steps, Callout } from "nextra/components";
 
-# Kubernetes Deployment
+# Kubernetes Quickstart
 
 ## Prerequisites
 
@@ -26,7 +26,7 @@ randstring() {
 mkdir -p ./keys
 
 # Generate keysets using Docker
-docker run -v $(pwd)/keys:/hatchet/keys ghcr.io/hatchet-dev/hatchet/hatchet-admin:v0.11.3 /hatchet/hatchet-admin keyset create-local-keys --key-dir /hatchet/keys
+docker run -v $(pwd)/keys:/hatchet/keys ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest /hatchet/hatchet-admin keyset create-local-keys --key-dir /hatchet/keys
 
 # Read keysets from files
 SERVER_ENCRYPTION_MASTER_KEYSET=$(<./keys/master.key)
@@ -60,7 +60,10 @@ EOF
 rm -rf ./keys
 ```
 
-**Warning:** do not commit these keys to your Git repository, use `api.envFrom` or `engine.envFrom` to pull in values from a secret.
+<Callout type="warning">
+  **Warning:** do not commit these keys to your Git repository, use
+  `api.envFrom` or `engine.envFrom` to pull in values from a secret.
+</Callout>
 
 ### Deploy Hatchet
 
@@ -87,7 +90,7 @@ And then navigate to `http://localhost:8080` to see the Hatchet frontend running
 
 You can create a new user account by clicking the `Register` button on the Hatchet login screen, and then creating a new account and tenant.
 
-Next, navigate to your settings tab in the Hatchet dashboard. You should see a section called "API Keys". Click "Create API Key", input a name for the key and copy the key. Then copy the following environment variable:
+Next, navigate to your settings tab in the Hatchet dashboard. You should see a section called "API Keys". Click "Create API Key", input a name for the key and copy the key. Then copy the following environment variables into a `.env` file where you'd like to run your worker:
 
 ```
 HATCHET_CLIENT_TOKEN="<token>"
@@ -109,7 +112,7 @@ This will spin up the Hatchet engine service on `localhost:7070` which you can t
 
 ### Run your first worker
 
-<Tabs items={['Python', 'Typescript']}>
+<Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 Make sure you have the following dependencies installed:
 
@@ -217,8 +220,88 @@ Now to start the worker, in a new terminal run:
 npm run worker
 ```
 
-    </Tabs.Tab>
+  </Tabs.Tab>
+  <Tabs.Tab>
+  In a new Go project, copy the following code into a `main.go` file:
 
+```go filename="main.go" copy
+package main
+
+import (
+	"fmt"
+
+	"github.com/joho/godotenv"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	"github.com/hatchet-dev/hatchet/pkg/worker"
+)
+
+type stepOutput struct{}
+
+func main() {
+	err := godotenv.Load()
+	if err != nil {
+		panic(err)
+	}
+
+	c, err := client.New()
+
+	if err != nil {
+		panic(fmt.Sprintf("error creating client: %v", err))
+	}
+
+	w, err := worker.NewWorker(
+		worker.WithClient(
+			c,
+		),
+		worker.WithMaxRuns(1),
+	)
+	if err != nil {
+		panic(fmt.Sprintf("error creating worker: %v", err))
+	}
+
+	err = w.On(
+		worker.Events("simple"),
+		&worker.WorkflowJob{
+			Name:        "simple-workflow",
+			Description: "Simple one-step workflow.",
+			Steps: []*worker.WorkflowStep{
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
+					fmt.Println("executed step 1")
+
+					return &stepOutput{}, nil
+				},
+				).SetName("step-one"),
+			},
+		},
+	)
+	if err != nil {
+		panic(fmt.Sprintf("error registering workflow: %v", err))
+	}
+
+	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
+	defer cancel()
+
+	cleanup, err := w.Start()
+	if err != nil {
+		panic(fmt.Sprintf("error starting worker: %v", err))
+	}
+
+	<-interruptCtx.Done()
+	if err := cleanup(); err != nil {
+		panic(err)
+	}
+}
+```
+
+Next, run the following command to start the worker:
+
+```sh
+go run main.go
+```
+
+</Tabs.Tab>
 </Tabs>
 
 ### Run your first workflow

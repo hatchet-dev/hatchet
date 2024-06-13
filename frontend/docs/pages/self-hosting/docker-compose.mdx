@@ -4,6 +4,8 @@ import { Tabs, Steps, Callout, FileTree } from "nextra/components";
 
 This guide shows how to deploy Hatchet using Docker Compose for a production-ready deployment. If you'd like to get up and running quickly, you can also deploy Hatchet using the `hatchet-lite` image following the tutorial here: [Hatchet Lite Deployment](/self-hosting/hatchet-lite).
 
+## Quickstart
+
 <Steps>
 
 ### Prerequisites
@@ -399,6 +401,15 @@ That's it! You've successfully deployed Hatchet and run your first workflow.
 
 </Steps>
 
-## Next Steps
+## Connecting to the engine from within Docker
 
-Check out our SDKs to start running your application.
+If you're also running your worker application inside of `docker-compose`, you should modify the `SERVER_GRPC_BROADCAST_ADDRESS` environment variable in the `setup-config` service to use `host.docker.internal` as the hostname. For example:
+
+```yaml
+SERVER_GRPC_BROADCAST_ADDRESS: "host.docker.internal:7077"
+```
+
+<Callout type="info">
+  **Note:** modifying the GRPC broadcast address or server URL will require
+  re-issuing an API token.
+</Callout>
