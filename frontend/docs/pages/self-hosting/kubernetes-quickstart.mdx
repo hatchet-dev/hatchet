@@ -259,9 +259,7 @@ func main() {
 		panic(fmt.Sprintf("error creating worker: %v", err))
 	}
 
-	testSvc := w.NewService("test")
-
-	err = testSvc.On(
+	err = w.On(
 		worker.Events("simple"),
 		&worker.WorkflowJob{
 			Name:        "simple-workflow",
