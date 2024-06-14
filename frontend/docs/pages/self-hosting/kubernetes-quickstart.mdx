@@ -14,7 +14,7 @@ import { Tabs, Steps, Callout } from "nextra/components";
 
 There are 4 encryption secrets required for Hatchet to run which can be generated via the following bash script (requires `docker` and `openssl`):
 
-```sh filename=generate.sh copy
+```sh filename=generate-keys.sh copy
 #!/bin/bash
 
 # Define an alias for generating random strings. This needs to be a function in a script.
@@ -25,8 +25,23 @@ randstring() {
 # Create keys directory
 mkdir -p ./keys
 
+# Function to clean up the keys directory
+cleanup() {
+    rm -rf ./keys
+}
+
+# Register the cleanup function to be called on the EXIT signal
+trap cleanup EXIT
+
+# Check if Docker is installed
+if ! command -v docker &> /dev/null
+then
+    echo "Docker could not be found. Please install Docker."
+    exit 1
+fi
+
 # Generate keysets using Docker
-docker run -v $(pwd)/keys:/hatchet/keys ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest /hatchet/hatchet-admin keyset create-local-keys --key-dir /hatchet/keys
+docker run --user $(id -u):$(id -g) -v $(pwd)/keys:/hatchet/keys ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest /hatchet/hatchet-admin keyset create-local-keys --key-dir /hatchet/keys
 
 # Read keysets from files
 SERVER_ENCRYPTION_MASTER_KEYSET=$(<./keys/master.key)
@@ -55,9 +70,12 @@ engine:
     SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET: "$SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET"
     SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET: "$SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET"
 EOF
+```
 
-# Cleanup key directory
-rm -rf ./keys
+Run this script to generate the encryption keys and the `hatchet-values.yaml` file:
+
+```sh
+bash generate-keys.sh
 ```
 
 <Callout type="warning">
