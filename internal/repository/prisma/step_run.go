@@ -820,6 +820,20 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 				return err
 			}
 
+			// remove the previous step run result from the job lookup data
+			err = s.queries.UpdateJobRunLookupDataWithStepRun(
+				ctx,
+				tx,
+				dbsqlc.UpdateJobRunLookupDataWithStepRunParams{
+					Steprunid: sqlchelpers.UUIDFromStr(laterStepRunId),
+					Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+				},
+			)
+
+			if err != nil {
+				return err
+			}
+
 			// create a deferred event for each of these step runs
 			defer s.deferredStepRunEvent(
 				laterStepRunCp.ID,

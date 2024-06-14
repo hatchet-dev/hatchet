@@ -92,12 +92,22 @@ WITH readable_id AS (
 )
 UPDATE "JobRunLookupData"
 SET
-    "data" = jsonb_set(
-        "JobRunLookupData"."data",
-        ARRAY['steps', (SELECT "readableId" FROM readable_id)],
-        @jsonData::jsonb,
-        true
-    ),
+    "data" = CASE
+        WHEN @jsonData::jsonb IS NULL THEN
+            jsonb_set(
+                "data",
+                '{steps}',
+                ("data"->'steps') - (SELECT "readableId" FROM readable_id),
+                true
+            )
+        ELSE
+            jsonb_set(
+                "data",
+                ARRAY['steps', (SELECT "readableId" FROM readable_id)],
+                @jsonData::jsonb,
+                true
+            )
+    END,
     "updatedAt" = CURRENT_TIMESTAMP
 WHERE
     "jobRunId" = (
