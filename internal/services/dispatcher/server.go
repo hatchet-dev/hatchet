@@ -862,6 +862,11 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 				return nil, status.Errorf(codes.InvalidArgument, "Return value is an array, which is not supported")
 			}
 
+			// if the payload starts with a \", then it is a string which we don't currently support
+			if request.EventPayload[0] == '"' {
+				return nil, status.Errorf(codes.InvalidArgument, "Return value is a string, which is not supported")
+			}
+
 			return nil, status.Errorf(codes.InvalidArgument, "Return value is not a valid JSON object")
 		}
 	}
