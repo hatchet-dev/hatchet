@@ -1636,12 +1636,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @name WebhookCreate
    * @summary Create a webhook
    * @request POST:/api/v1/webhook-workers/{tenant}/create
+   * @secure
    */
   webhookCreate = (tenant: string, data: WebhookWorkerCreateRequest, params: RequestParams = {}) =>
     this.request<WebhookWorker, APIErrors>({
       path: `/api/v1/webhook-workers/${tenant}/create`,
       method: "POST",
       body: data,
+      secure: true,
       type: ContentType.Json,
       format: "json",
       ...params,

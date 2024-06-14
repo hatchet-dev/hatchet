@@ -43,7 +43,6 @@ create:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
-    security: []
     summary: Create a webhook
 list:
   get:
