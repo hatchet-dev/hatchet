@@ -27,7 +27,6 @@ func NewWorker(opts WorkerOpts) (*WebhookWorker, error) {
 	// TODO temp hack
 	_ = os.Setenv("HATCHET_CLIENT_TOKEN", opts.Token)
 	// client.WithToken(opts.Token),
-	_ = os.Setenv("HATCHET_CLIENT_TLS_STRATEGY", "none")
 
 	cl, err := client.New()
 	if err != nil {
