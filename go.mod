@@ -105,7 +105,7 @@ require (
 	github.com/goccy/go-json v0.10.3
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/schema v1.3.0
+	github.com/gorilla/schema v1.4.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
