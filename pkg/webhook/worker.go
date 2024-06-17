@@ -13,6 +13,7 @@ type WebhookWorker struct {
 }
 
 type WorkerOpts struct {
+	Token     string
 	ID        string
 	Secret    string
 	URL       string
@@ -21,10 +22,17 @@ type WorkerOpts struct {
 	Workflows []string
 }
 
-func NewWorker(opts WorkerOpts, client client.Client) (*WebhookWorker, error) {
+func NewWorker(opts WorkerOpts) (*WebhookWorker, error) {
+	cl, err := client.New(
+		client.WithToken(opts.Token),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("could not create client: %w", err)
+	}
+
 	return &WebhookWorker{
 		opts:   opts,
-		client: client,
+		client: cl,
 	}, nil
 }
 

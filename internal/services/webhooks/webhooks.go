@@ -15,7 +15,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/webhook"
 )
 
@@ -33,11 +32,6 @@ func New(sc *server.ServerConfig) *WebhooksController {
 }
 
 func (c *WebhooksController) Start() (func() error, error) {
-	cl, err := client.New()
-	if err != nil {
-		return nil, fmt.Errorf("could not create client: %w", err)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	ticker := time.NewTicker(30 * time.Second)
@@ -45,7 +39,7 @@ func (c *WebhooksController) Start() (func() error, error) {
 		for {
 			select {
 			case <-ticker.C:
-				if err := c.check(cl); err != nil {
+				if err := c.check(); err != nil {
 					log.Printf("error checking webhooks: %v", err)
 				}
 			case <-ctx.Done():
@@ -67,7 +61,7 @@ func (c *WebhooksController) Start() (func() error, error) {
 	}, nil
 }
 
-func (c *WebhooksController) check(cl client.Client) error {
+func (c *WebhooksController) check() error {
 	tenants, err := c.sc.EngineRepository.Tenant().ListTenants(context.Background())
 	if err != nil {
 		return fmt.Errorf("could not list tenants: %w", err)
@@ -76,13 +70,18 @@ func (c *WebhooksController) check(cl client.Client) error {
 	for _, tenant := range tenants {
 		tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+		token, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker")
+		if err != nil {
+			panic(fmt.Errorf("could not generate default token: %v", err))
+		}
+
 		wws, err := c.sc.APIRepository.WebhookWorker().ListWebhookWorkers(context.Background(), tenantId)
 		if err != nil {
 			return fmt.Errorf("could not get webhook workers: %w", err)
 		}
 
 		for _, ww := range wws {
-			cleanup, err := c.run(tenantId, ww, cl)
+			cleanup, err := c.run(tenantId, ww, token)
 			if err != nil {
 				log.Printf("error running webhook worker: %v", err)
 				continue
@@ -132,7 +131,7 @@ func (c *WebhooksController) healthcheck(ww db.WebhookWorkerModel) (*HealthCheck
 	return &res, nil
 }
 
-func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl client.Client) (func() error, error) {
+func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, token string) (func() error, error) {
 	h, err := c.healthcheck(ww)
 	if err != nil {
 		return nil, fmt.Errorf("webhook worker %s of tenant %s healthcheck failed: %w", ww.ID, tenantId, err)
@@ -144,13 +143,14 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl c
 	c.registeredWorkerIds[ww.ID] = true
 
 	w, err := webhook.NewWorker(webhook.WorkerOpts{
+		Token:     token,
 		ID:        ww.ID,
 		Secret:    ww.Secret,
 		URL:       ww.URL,
 		TenantID:  tenantId,
 		Actions:   h.Actions,
 		Workflows: h.Workflows,
-	}, cl)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create webhook worker: %w", err)
 	}
@@ -214,7 +214,7 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, cl c
 						}
 					}
 
-					newCleanup, err := c.run(tenantId, ww, cl)
+					newCleanup, err := c.run(tenantId, ww, token)
 					if err != nil {
 						c.sc.Logger.Err(fmt.Errorf("could not restart webhook worker: %v", err))
 					}
