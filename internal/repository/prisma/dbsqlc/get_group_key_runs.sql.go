@@ -132,7 +132,6 @@ const getGroupKeyRunForEngine = `-- name: GetGroupKeyRunForEngine :many
 SELECT
     DISTINCT ON (ggr."id")
     ggr.id, ggr."createdAt", ggr."updatedAt", ggr."deletedAt", ggr."tenantId", ggr."workerId", ggr."tickerId", ggr.status, ggr.input, ggr.output, ggr."requeueAfter", ggr.error, ggr."startedAt", ggr."finishedAt", ggr."timeoutAt", ggr."cancelledAt", ggr."cancelledReason", ggr."cancelledError", ggr."workflowRunId", ggr."scheduleTimeoutAt",
-    -- TODO: everything below this line is cacheable and should be moved to a separate query
     wr."id" AS "workflowRunId",
     wv."id" AS "workflowVersionId",
     wv."workflowId" AS "workflowId",
@@ -211,23 +210,71 @@ func (q *Queries) GetGroupKeyRunForEngine(ctx context.Context, db DBTX, arg GetG
 }
 
 const listGetGroupKeyRunsToReassign = `-- name: ListGetGroupKeyRunsToReassign :many
-SELECT
-    ggr.id, ggr."createdAt", ggr."updatedAt", ggr."deletedAt", ggr."tenantId", ggr."workerId", ggr."tickerId", ggr.status, ggr.input, ggr.output, ggr."requeueAfter", ggr.error, ggr."startedAt", ggr."finishedAt", ggr."timeoutAt", ggr."cancelledAt", ggr."cancelledReason", ggr."cancelledError", ggr."workflowRunId", ggr."scheduleTimeoutAt"
+WITH valid_workers AS (
+    SELECT
+        DISTINCT ON (w."id")
+        w."id",
+        100 AS "remainingSlots"
+    FROM
+        "Worker" w
+    WHERE
+        w."tenantId" = $1::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+    GROUP BY
+        w."id"
+),
+total_max_runs AS (
+    SELECT
+        SUM("remainingSlots") AS "totalMaxRuns"
+    FROM
+        valid_workers
+),
+limit_max_runs AS (
+    SELECT
+        GREATEST("totalMaxRuns", 100) AS "limitMaxRuns"
+    FROM
+        total_max_runs
+),
+group_key_runs AS (
+    SELECT
+        ggr.id, ggr."createdAt", ggr."updatedAt", ggr."deletedAt", ggr."tenantId", ggr."workerId", ggr."tickerId", ggr.status, ggr.input, ggr.output, ggr."requeueAfter", ggr.error, ggr."startedAt", ggr."finishedAt", ggr."timeoutAt", ggr."cancelledAt", ggr."cancelledReason", ggr."cancelledError", ggr."workflowRunId", ggr."scheduleTimeoutAt"
+    FROM
+        "GetGroupKeyRun" ggr
+    LEFT JOIN
+        "Worker" w ON ggr."workerId" = w."id"
+    WHERE
+        ggr."tenantId" = $1::uuid
+        AND ((
+            ggr."status" = 'RUNNING'
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        ) OR (
+            ggr."status" = 'ASSIGNED'
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        ))
+    ORDER BY
+        ggr."createdAt" ASC
+    LIMIT
+        (SELECT "limitMaxRuns" FROM limit_max_runs)
+),
+locked_group_key_runs AS (
+    SELECT
+        ggr."id", ggr."status", ggr."workerId"
+    FROM
+        group_key_runs ggr
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "GetGroupKeyRun"
+SET
+    "status" = 'PENDING_ASSIGNMENT',
+    "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
+    "updatedAt" = CURRENT_TIMESTAMP
 FROM
-    "GetGroupKeyRun" ggr
-LEFT JOIN
-    "Worker" w ON ggr."workerId" = w."id"
+    locked_group_key_runs
 WHERE
-    ggr."tenantId" = $1::uuid
-    AND ((
-        ggr."status" = 'RUNNING'
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
-    ) OR (
-        ggr."status" = 'ASSIGNED'
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '5 seconds'
-    ))
-ORDER BY
-    ggr."createdAt" ASC
+    "GetGroupKeyRun"."id" = locked_group_key_runs."id"
+RETURNING "GetGroupKeyRun".id, "GetGroupKeyRun"."createdAt", "GetGroupKeyRun"."updatedAt", "GetGroupKeyRun"."deletedAt", "GetGroupKeyRun"."tenantId", "GetGroupKeyRun"."workerId", "GetGroupKeyRun"."tickerId", "GetGroupKeyRun".status, "GetGroupKeyRun".input, "GetGroupKeyRun".output, "GetGroupKeyRun"."requeueAfter", "GetGroupKeyRun".error, "GetGroupKeyRun"."startedAt", "GetGroupKeyRun"."finishedAt", "GetGroupKeyRun"."timeoutAt", "GetGroupKeyRun"."cancelledAt", "GetGroupKeyRun"."cancelledReason", "GetGroupKeyRun"."cancelledError", "GetGroupKeyRun"."workflowRunId", "GetGroupKeyRun"."scheduleTimeoutAt"
 `
 
 func (q *Queries) ListGetGroupKeyRunsToReassign(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetGroupKeyRun, error) {
@@ -272,19 +319,59 @@ func (q *Queries) ListGetGroupKeyRunsToReassign(ctx context.Context, db DBTX, te
 }
 
 const listGetGroupKeyRunsToRequeue = `-- name: ListGetGroupKeyRunsToRequeue :many
-SELECT
-    ggr.id, ggr."createdAt", ggr."updatedAt", ggr."deletedAt", ggr."tenantId", ggr."workerId", ggr."tickerId", ggr.status, ggr.input, ggr.output, ggr."requeueAfter", ggr.error, ggr."startedAt", ggr."finishedAt", ggr."timeoutAt", ggr."cancelledAt", ggr."cancelledReason", ggr."cancelledError", ggr."workflowRunId", ggr."scheduleTimeoutAt"
+WITH valid_workers AS (
+    SELECT
+        w."id",
+        100 AS "remainingSlots"
+    FROM
+        "Worker" w
+    WHERE
+        w."tenantId" = $1::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+    GROUP BY
+        w."id"
+),
+total_max_runs AS (
+    SELECT
+        SUM("remainingSlots") AS "totalMaxRuns"
+    FROM
+        valid_workers
+),
+group_key_runs AS (
+    SELECT
+        ggr.id, ggr."createdAt", ggr."updatedAt", ggr."deletedAt", ggr."tenantId", ggr."workerId", ggr."tickerId", ggr.status, ggr.input, ggr.output, ggr."requeueAfter", ggr.error, ggr."startedAt", ggr."finishedAt", ggr."timeoutAt", ggr."cancelledAt", ggr."cancelledReason", ggr."cancelledError", ggr."workflowRunId", ggr."scheduleTimeoutAt"
+    FROM
+        "GetGroupKeyRun" ggr
+    LEFT JOIN
+        "Worker" w ON ggr."workerId" = w."id"
+    WHERE
+        ggr."tenantId" = $1::uuid
+        AND ggr."requeueAfter" < NOW()
+        AND (ggr."status" = 'PENDING' OR ggr."status" = 'PENDING_ASSIGNMENT')
+    ORDER BY
+        ggr."createdAt" ASC
+    LIMIT
+        COALESCE((SELECT "totalMaxRuns" FROM total_max_runs), 100)
+),
+locked_group_key_runs AS (
+    SELECT
+        ggr."id", ggr."status", ggr."workerId"
+    FROM
+        group_key_runs ggr
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "GetGroupKeyRun"
+SET
+    "status" = 'PENDING_ASSIGNMENT',
+    "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
+    "updatedAt" = CURRENT_TIMESTAMP
 FROM
-    "GetGroupKeyRun" ggr
-LEFT JOIN
-    "Worker" w ON ggr."workerId" = w."id"
+    locked_group_key_runs
 WHERE
-    ggr."tenantId" = $1::uuid
-    AND ggr."requeueAfter" < NOW()
-    AND ggr."workerId" IS NULL
-    AND (ggr."status" = 'PENDING' OR ggr."status" = 'PENDING_ASSIGNMENT')
-ORDER BY
-    ggr."createdAt" ASC
+    "GetGroupKeyRun"."id" = locked_group_key_runs."id"
+RETURNING "GetGroupKeyRun".id, "GetGroupKeyRun"."createdAt", "GetGroupKeyRun"."updatedAt", "GetGroupKeyRun"."deletedAt", "GetGroupKeyRun"."tenantId", "GetGroupKeyRun"."workerId", "GetGroupKeyRun"."tickerId", "GetGroupKeyRun".status, "GetGroupKeyRun".input, "GetGroupKeyRun".output, "GetGroupKeyRun"."requeueAfter", "GetGroupKeyRun".error, "GetGroupKeyRun"."startedAt", "GetGroupKeyRun"."finishedAt", "GetGroupKeyRun"."timeoutAt", "GetGroupKeyRun"."cancelledAt", "GetGroupKeyRun"."cancelledReason", "GetGroupKeyRun"."cancelledError", "GetGroupKeyRun"."workflowRunId", "GetGroupKeyRun"."scheduleTimeoutAt"
 `
 
 func (q *Queries) ListGetGroupKeyRunsToRequeue(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetGroupKeyRun, error) {

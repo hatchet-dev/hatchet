@@ -368,22 +368,22 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
 
 	// limit options
-	_ = v.BindEnv("limits.defaultWorkflowRunLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT")
-	_ = v.BindEnv("limits.defaultWorkflowRunAlertLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_ALERT_LIMIT")
-	_ = v.BindEnv("limits.defaultWorkflowRunWindow", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_WINDOW")
+	_ = v.BindEnv("runtime.limits.defaultWorkflowRunLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultWorkflowRunAlertLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_ALERT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultWorkflowRunWindow", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_WINDOW")
 
-	_ = v.BindEnv("limits.defaultWorkerLimit", "SERVER_LIMITS_DEFAULT_WORKER_LIMIT")
-	_ = v.BindEnv("limits.defaultWorkerAlertLimit", "SERVER_LIMITS_DEFAULT_WORKER_ALERT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultWorkerLimit", "SERVER_LIMITS_DEFAULT_WORKER_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultWorkerAlertLimit", "SERVER_LIMITS_DEFAULT_WORKER_ALERT_LIMIT")
 
-	_ = v.BindEnv("limits.defaultEventLimit", "SERVER_LIMITS_DEFAULT_EVENT_LIMIT")
-	_ = v.BindEnv("limits.defaultEventAlertLimit", "SERVER_LIMITS_DEFAULT_EVENT_ALERT_LIMIT")
-	_ = v.BindEnv("limits.defaultEventWindow", "SERVER_LIMITS_DEFAULT_EVENT_WINDOW")
+	_ = v.BindEnv("runtime.limits.defaultEventLimit", "SERVER_LIMITS_DEFAULT_EVENT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultEventAlertLimit", "SERVER_LIMITS_DEFAULT_EVENT_ALERT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultEventWindow", "SERVER_LIMITS_DEFAULT_EVENT_WINDOW")
 
-	_ = v.BindEnv("limits.defaultCronLimit", "SERVER_LIMITS_DEFAULT_CRON_LIMIT")
-	_ = v.BindEnv("limits.defaultCronAlertLimit", "SERVER_LIMITS_DEFAULT_CRON_ALERT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultCronLimit", "SERVER_LIMITS_DEFAULT_CRON_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultCronAlertLimit", "SERVER_LIMITS_DEFAULT_CRON_ALERT_LIMIT")
 
-	_ = v.BindEnv("limits.defaultScheduleLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT")
-	_ = v.BindEnv("limits.defaultScheduleAlertLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_ALERT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultScheduleLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultScheduleAlertLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_ALERT_LIMIT")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")

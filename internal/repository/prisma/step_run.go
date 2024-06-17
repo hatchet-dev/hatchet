@@ -527,7 +527,7 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, repository.ErrNoWorkerAvailable
+			s.l.Warn().Err(err).Msg("no rows returned from worker assign")
 		}
 
 		return nil, fmt.Errorf("query to assign worker failed: %w", err)
@@ -815,6 +815,20 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 			laterStepRunId := sqlchelpers.UUIDToStr(laterStepRun.ID)
 
 			err = s.archiveStepRunResult(ctx, tx, tenantId, laterStepRunId)
+
+			if err != nil {
+				return err
+			}
+
+			// remove the previous step run result from the job lookup data
+			err = s.queries.UpdateJobRunLookupDataWithStepRun(
+				ctx,
+				tx,
+				dbsqlc.UpdateJobRunLookupDataWithStepRunParams{
+					Steprunid: sqlchelpers.UUIDFromStr(laterStepRunId),
+					Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+				},
+			)
 
 			if err != nil {
 				return err

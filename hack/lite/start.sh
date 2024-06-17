@@ -1,13 +1,21 @@
 #!/bin/bash
 
-# Start RabbitMQ
-docker-entrypoint.sh rabbitmq-server &
+rabbitmq-server &
 
-# Wait for RabbitMQ to be ready
+# Wait up to 60 seconds for RabbitMQ to be ready
+echo "Waiting for RabbitMQ to be ready..."
+
+timeout 60s bash -c '
 until rabbitmqctl status; do
-  echo "Waiting for RabbitMQ to start..."
   sleep 2
+  echo "Waiting for RabbitMQ to start..."
 done
+'
+
+if [ $? -eq 124 ]; then
+  echo "Timed out waiting for the database to be ready"
+  exit 1
+fi
 
 # Run migration script
 ./atlas-apply.sh

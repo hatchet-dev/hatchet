@@ -25,7 +25,6 @@ RETURNING "GetGroupKeyRun".*;
 SELECT
     DISTINCT ON (ggr."id")
     sqlc.embed(ggr),
-    -- TODO: everything below this line is cacheable and should be moved to a separate query
     wr."id" AS "workflowRunId",
     wv."id" AS "workflowVersionId",
     wv."workflowId" AS "workflowId",
@@ -44,39 +43,128 @@ WHERE
     ggr."id" = ANY(@ids::uuid[]) AND
     ggr."tenantId" = @tenantId::uuid;
 
--- name: ListGetGroupKeyRunsToRequeue :many
-SELECT
-    ggr.*
-FROM
-    "GetGroupKeyRun" ggr
-LEFT JOIN
-    "Worker" w ON ggr."workerId" = w."id"
-WHERE
-    ggr."tenantId" = @tenantId::uuid
-    AND ggr."requeueAfter" < NOW()
-    AND ggr."workerId" IS NULL
-    AND (ggr."status" = 'PENDING' OR ggr."status" = 'PENDING_ASSIGNMENT')
-ORDER BY
-    ggr."createdAt" ASC;
-
 -- name: ListGetGroupKeyRunsToReassign :many
-SELECT
-    ggr.*
+WITH valid_workers AS (
+    SELECT
+        DISTINCT ON (w."id")
+        w."id",
+        100 AS "remainingSlots"
+    FROM
+        "Worker" w
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+    GROUP BY
+        w."id"
+),
+total_max_runs AS (
+    SELECT
+        SUM("remainingSlots") AS "totalMaxRuns"
+    FROM
+        valid_workers
+),
+limit_max_runs AS (
+    SELECT
+        GREATEST("totalMaxRuns", 100) AS "limitMaxRuns"
+    FROM
+        total_max_runs
+),
+group_key_runs AS (
+    SELECT
+        ggr.*
+    FROM
+        "GetGroupKeyRun" ggr
+    LEFT JOIN
+        "Worker" w ON ggr."workerId" = w."id"
+    WHERE
+        ggr."tenantId" = @tenantId::uuid
+        AND ((
+            ggr."status" = 'RUNNING'
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        ) OR (
+            ggr."status" = 'ASSIGNED'
+            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        ))
+    ORDER BY
+        ggr."createdAt" ASC
+    LIMIT
+        (SELECT "limitMaxRuns" FROM limit_max_runs)
+),
+locked_group_key_runs AS (
+    SELECT
+        ggr."id", ggr."status", ggr."workerId"
+    FROM
+        group_key_runs ggr
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "GetGroupKeyRun"
+SET
+    "status" = 'PENDING_ASSIGNMENT',
+    "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
+    "updatedAt" = CURRENT_TIMESTAMP
 FROM
-    "GetGroupKeyRun" ggr
-LEFT JOIN
-    "Worker" w ON ggr."workerId" = w."id"
+    locked_group_key_runs
 WHERE
-    ggr."tenantId" = @tenantId::uuid
-    AND ((
-        ggr."status" = 'RUNNING'
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '60 seconds'
-    ) OR (
-        ggr."status" = 'ASSIGNED'
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '5 seconds'
-    ))
-ORDER BY
-    ggr."createdAt" ASC;
+    "GetGroupKeyRun"."id" = locked_group_key_runs."id"
+RETURNING "GetGroupKeyRun".*;
+
+
+-- name: ListGetGroupKeyRunsToRequeue :many
+WITH valid_workers AS (
+    SELECT
+        w."id",
+        100 AS "remainingSlots"
+    FROM
+        "Worker" w
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+    GROUP BY
+        w."id"
+),
+total_max_runs AS (
+    SELECT
+        SUM("remainingSlots") AS "totalMaxRuns"
+    FROM
+        valid_workers
+),
+group_key_runs AS (
+    SELECT
+        ggr.*
+    FROM
+        "GetGroupKeyRun" ggr
+    LEFT JOIN
+        "Worker" w ON ggr."workerId" = w."id"
+    WHERE
+        ggr."tenantId" = @tenantId::uuid
+        AND ggr."requeueAfter" < NOW()
+        AND (ggr."status" = 'PENDING' OR ggr."status" = 'PENDING_ASSIGNMENT')
+    ORDER BY
+        ggr."createdAt" ASC
+    LIMIT
+        COALESCE((SELECT "totalMaxRuns" FROM total_max_runs), 100)
+),
+locked_group_key_runs AS (
+    SELECT
+        ggr."id", ggr."status", ggr."workerId"
+    FROM
+        group_key_runs ggr
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "GetGroupKeyRun"
+SET
+    "status" = 'PENDING_ASSIGNMENT',
+    "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
+    "updatedAt" = CURRENT_TIMESTAMP
+FROM
+    locked_group_key_runs
+WHERE
+    "GetGroupKeyRun"."id" = locked_group_key_runs."id"
+RETURNING "GetGroupKeyRun".*;
 
 -- name: AssignGetGroupKeyRunToWorker :one
 WITH get_group_key_run AS (

@@ -51,12 +51,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "26.1"
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -78,12 +72,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "26.1"
-
       - name: Install Task
         uses: arduino/setup-task@v2
 
@@ -111,7 +99,7 @@ jobs:
       - name: Generate
         run: |
           sh ./hack/db/atlas-apply.sh
-          task generate-all
+          task generate-go
           task generate-certs
           task generate-local-encryption-keys
 
@@ -132,12 +120,6 @@ jobs:
 
       - name: Install Task
         uses: arduino/setup-task@v2
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "26.1"
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -186,7 +168,7 @@ jobs:
       - name: Generate
         run: |
           sh ./hack/db/atlas-apply.sh
-          task generate-all
+          task generate-go
           task generate-certs
           task generate-local-encryption-keys
 
@@ -220,12 +202,6 @@ jobs:
 
       - name: Install Task
         uses: arduino/setup-task@v2
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "26.1"
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -265,7 +241,7 @@ jobs:
       - name: Generate
         run: |
           sh ./hack/db/atlas-apply.sh
-          task generate-all
+          task generate-go
           task generate-certs
           task generate-local-encryption-keys
 
