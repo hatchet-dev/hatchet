@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -32,6 +33,10 @@ func New(sc *server.ServerConfig) *WebhooksController {
 }
 
 func (c *WebhooksController) Start() (func() error, error) {
+	// TEMP test
+	_ = os.Setenv("SERVER_PORT", "8080")
+	_ = os.Setenv("SERVER_URL", "http://localhost:8080")
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	ticker := time.NewTicker(30 * time.Second)
