@@ -1170,7 +1170,8 @@ SET
     "output" = NULL,
     "error" = NULL,
     "cancelledAt" = NULL,
-    "cancelledReason" = NULL
+    "cancelledReason" = NULL,
+    "input" = NULL
 FROM
     childStepRuns csr
 WHERE
