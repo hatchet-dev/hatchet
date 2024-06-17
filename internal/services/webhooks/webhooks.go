@@ -8,9 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
-	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -36,22 +33,6 @@ func New(sc *server.ServerConfig) *WebhooksController {
 }
 
 func (c *WebhooksController) Start() (func() error, error) {
-	_, b, _, _ := runtime.Caller(0)
-	testPath := filepath.Dir(b)
-	baseDir := "../../.."
-
-	log.Printf("full dir: %s", path.Join(testPath, baseDir))
-
-	_ = os.Setenv("HATCHET_CLIENT_TLS_ROOT_CA_FILE", path.Join(testPath, baseDir, "hack/dev/certs/ca.cert"))
-	_ = os.Setenv("HATCHET_CLIENT_TLS_SERVER_NAME", "cluster")
-	_ = os.Setenv("SERVER_TLS_CERT_FILE", path.Join(testPath, baseDir, "hack/dev/certs/cluster.pem"))
-	_ = os.Setenv("SERVER_TLS_KEY_FILE", path.Join(testPath, baseDir, "hack/dev/certs/cluster.key"))
-	_ = os.Setenv("SERVER_TLS_ROOT_CA_FILE", path.Join(testPath, baseDir, "hack/dev/certs/ca.cert"))
-
-	_ = os.Setenv("SERVER_ENCRYPTION_MASTER_KEYSET_FILE", path.Join(testPath, baseDir, "hack/dev/encryption-keys/master.key"))
-	_ = os.Setenv("SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE", path.Join(testPath, baseDir, "hack/dev/encryption-keys/private_ec256.key"))
-	_ = os.Setenv("SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE", path.Join(testPath, baseDir, "hack/dev/encryption-keys/public_ec256.key"))
-
 	// TEMP test
 	_ = os.Setenv("SERVER_PORT", "8080")
 	_ = os.Setenv("SERVER_URL", "http://localhost:8080")
