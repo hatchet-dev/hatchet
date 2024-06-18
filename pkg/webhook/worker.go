@@ -2,7 +2,6 @@ package webhook
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
@@ -24,11 +23,9 @@ type WorkerOpts struct {
 }
 
 func NewWorker(opts WorkerOpts) (*WebhookWorker, error) {
-	// TODO temp hack
-	_ = os.Setenv("HATCHET_CLIENT_TOKEN", opts.Token)
-	// client.WithToken(opts.Token),
-
-	cl, err := client.New()
+	cl, err := client.New(
+		client.WithToken(opts.Token),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("could not create client: %w", err)
 	}
