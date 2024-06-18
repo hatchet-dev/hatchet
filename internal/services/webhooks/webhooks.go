@@ -143,13 +143,13 @@ func (c *WebhooksController) healthcheck(ww db.WebhookWorkerModel) (*HealthCheck
 	return &res, nil
 }
 
-func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, token string, h *HealthCheckResponse) (func() error, error) {
+func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorkerModel, token string, h *HealthCheckResponse) (func() error, error) {
 
-	w, err := webhook.NewWorker(webhook.WorkerOpts{
+	ww, err := webhook.NewWorker(webhook.WorkerOpts{
 		Token:     token,
-		ID:        ww.ID,
-		Secret:    ww.Secret,
-		URL:       ww.URL,
+		ID:        webhookWorker.ID,
+		Secret:    webhookWorker.Secret,
+		URL:       webhookWorker.URL,
 		TenantID:  tenantId,
 		Actions:   h.Actions,
 		Workflows: h.Workflows,
@@ -160,7 +160,7 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, toke
 
 	var cleanups []func() error
 
-	cleanup, err := w.Start()
+	cleanup, err := ww.Start()
 	if err != nil {
 		return nil, fmt.Errorf("could not start webhook worker: %w", err)
 	}
@@ -182,21 +182,21 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, toke
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				h, err := c.healthcheck(ww)
+				h, err := c.healthcheck(webhookWorker)
 				if err != nil {
 					healthCheckErrors++
 					if healthCheckErrors > 3 {
-						c.sc.Logger.Printf("webhook worker %s of tenant %s failed 3 health checks, marking as inactive", ww.ID, tenantId)
+						c.sc.Logger.Printf("webhook worker %s of tenant %s failed 3 health checks, marking as inactive", webhookWorker.ID, tenantId)
 
 						isActive := false
-						_, err := c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, ww.ID, &repository.UpdateWorkerOpts{
+						_, err := c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, webhookWorker.ID, &repository.UpdateWorkerOpts{
 							IsActive: &isActive,
 						})
 						if err != nil {
 							c.sc.Logger.Err(fmt.Errorf("could not update worker: %v", err))
 						}
 					} else {
-						c.sc.Logger.Printf("webhook worker %s of tenant %s failed one health check, retrying...", ww.ID, tenantId)
+						c.sc.Logger.Printf("webhook worker %s of tenant %s failed one health check, retrying...", webhookWorker.ID, tenantId)
 					}
 					continue
 				}
@@ -209,7 +209,7 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, toke
 
 				if wfsHash != wfsHashLast || actionsHash != actionsHashLast {
 					// update the webhook workflow, and restart worker
-					log.Printf("webhook worker %s of tenant %s has changed, updating...", ww.ID, tenantId)
+					log.Printf("webhook worker %s of tenant %s has changed, updating...", webhookWorker.ID, tenantId)
 					// TODO
 					for _, cleanup := range cleanups {
 						if err := cleanup(); err != nil {
@@ -217,13 +217,13 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, toke
 						}
 					}
 
-					h, err := c.healthcheck(ww)
+					h, err := c.healthcheck(webhookWorker)
 					if err != nil {
-						c.sc.Logger.Err(fmt.Errorf("webhook worker %s of tenant %s healthcheck failed: %v", ww.ID, tenantId, err))
+						c.sc.Logger.Err(fmt.Errorf("webhook worker %s of tenant %s healthcheck failed: %v", webhookWorker.ID, tenantId, err))
 						continue
 					}
 
-					newCleanup, err := c.run(tenantId, ww, token, h)
+					newCleanup, err := c.run(tenantId, webhookWorker, token, h)
 					if err != nil {
 						c.sc.Logger.Err(fmt.Errorf("could not restart webhook worker: %v", err))
 						continue
@@ -236,11 +236,11 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, toke
 				actionsHashLast = actionsHash
 
 				if healthCheckErrors > 0 {
-					c.sc.Logger.Printf("webhook worker %s is healthy again", ww.ID)
+					c.sc.Logger.Printf("webhook worker %s is healthy again", webhookWorker.ID)
 				}
 
 				isActive := true
-				_, err = c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, ww.ID, &repository.UpdateWorkerOpts{
+				_, err = c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, webhookWorker.ID, &repository.UpdateWorkerOpts{
 					IsActive: &isActive,
 				})
 				if err != nil {
