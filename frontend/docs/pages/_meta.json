@@ -5,7 +5,27 @@
     },
     "sdks": {
         "title": "SDK Reference",
-        "type": "page"
+        "type": "menu",
+        "items": {
+            "python": {
+                "title": "Python",
+                "href": "/sdks/python-sdk",
+                "type": "page",
+                "display": "hidden"
+            },
+            "typescript": {
+                "title": "TypeScript",
+                "href": "/sdks/typescript-sdk",
+                "type": "page",
+                "display": "hidden"
+            },
+            "golang": {
+                "title": "Golang",
+                "href": "/sdks/go-sdk",
+                "type": "page",
+                "display": "hidden"
+            }
+        }
     },
     "self-hosting": {
         "title": "Self Hosting",
@@ -13,7 +33,8 @@
     },
     "contributing": {
         "title": "Contributing",
-        "type": "page"
+        "type": "page",
+        "display": "hidden"
     },
     "launches": {
         "title": "Launches",
@@ -22,7 +43,6 @@
     },
     "blog": {
         "title": "Blog",
-        "display": "hidden",
         "type": "page"
     }
 }

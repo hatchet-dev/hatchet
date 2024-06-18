@@ -1,10 +1,8 @@
 {
-    "multi-tenant-queues": {
-        "title": "An unfair advantage: multi-tenant queues in Postgres",
-        "display": "hidden"
-    },
     "problems-with-celery": {
-        "title": "The problems with Celery",
-        "display": "hidden"
+        "title": "The problems with Celery"
+    },
+    "multi-tenant-queues": {
+        "title": "An unfair advantage: multi-tenant queues in Postgres"
     }
 }

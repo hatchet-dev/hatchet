@@ -1,4 +1,4 @@
-# Creating a Workflow
+# Workflow Configuration
 
 To create a workflow, simply create a new class and use the `hatchet.workflow` and `hatchet.step` decorators to define the structure of your workflow. For example, a simple 2-step workflow would look like:
 
@@ -23,6 +23,13 @@ class MyWorkflow:
 You'll notice that the workflow defines a workflow trigger (in this case, `on_events`), and the workflow definition. The workflow definition is a series of steps, which can be defined using the `hatchet.step` decorator. Each step must be a method on the class, and must accept a `context` argument. The `context` argument is a `Context` object, which contains information about the workflow, such as the input data and the output data of previous steps.
 
 To create multi-step workflows, you can use `parents` to define the steps which the current step depends on.
+
+## Workflow Triggers
+
+You can define the following automatic triggers for workflows:
+
+- `on_events`: Trigger the workflow when a specific event is sent to the Hatchet API. See the documentation for [running workflows via events](./run-workflow-events) for more information.
+- `on_crons`: Trigger the workflow on a cron schedule. See the documentation for [running workflows via cron schedules](./run-workflow-cron) for more information.
 
 ## Getting Access to the Input Data
 
@@ -82,28 +89,6 @@ As a quick rule of thumb:
 - If you are using `async/await`, use `async def` and ensure you are not blocking the event loop.
 - If you are running blocking code, use `def` and ensure you are not using third-party dependencies that expect a shared event loop.
 
-## Cron Schedules
-
-You can declare a cron schedule by passing `on_crons` to the `hatchet.workflow` decorator. For example, to trigger a workflow every 5 minutes, you can do the following:
-
-```py
-from hatchet_sdk import Hatchet
-
-hatchet = Hatchet()
-
-@hatchet.workflow(on_crons=["*/5 * * * *"])
-class MyWorkflow:
-    @hatchet.step()
-    def step1(self, context):
-        print("executed step1")
-        pass
-
-    @hatchet.step(parents=["step1"])
-    def step2(self, context):
-        print("executed step2")
-        pass
-```
-
 ## Timeouts
 
 **The default timeout on Hatchet is 60 seconds per step run**.
@@ -116,85 +101,6 @@ def step1(self, context):
     print("executed step1")
     pass
 ```
-
-## Concurrency Limits and Fairness
-
-By default, there are no concurrency limits for Hatchet workflows. Workflow runs are immediately executed as soon as they are triggered (by an event, cron, or schedule). However, you can enforce a concurrency limit by decorating a custom function with `hatchet.concurrency`. This function returns a **concurrency group key**, which is a string that is used to group concurrent executions. **Note that this function should not also be used as a `hatchet.step`.** For example, the following workflow will only allow 5 concurrent executions for any workflow execution of `ConcurrencyDemoWorkflow`, since the key is statically set to `concurrency-key`:
-
-```py
-from hatchet_sdk import ConcurrencyLimitStrategy
-
-@hatchet.workflow(on_events=["concurrency-test"])
-class ConcurrencyDemoWorkflow:
-    @hatchet.concurrency(max_runs=5, limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN)
-    def concurrency(self, context) -> str:
-        return "concurrency-key"
-
-    @hatchet.step()
-    def step1(self, context):
-        print("executed step1")
-        pass
-```
-
-### Use-Case: Enforcing Per-User Concurrency Limits
-
-You can use the custom concurrency function to enforce per-user concurrency limits. For example, the following workflow will only allow 1 concurrent execution per user:
-
-```py
-@hatchet.workflow(on_events=["concurrency-test"])
-class ConcurrencyDemoWorkflow:
-    @hatchet.concurrency(max_runs=1, limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN)
-    def concurrency(self, context) -> str:
-        return context.workflow_input()["user_id"]
-
-    @hatchet.step()
-    def step1(self, context):
-        print("executed step1")
-        pass
-```
-
-This same approach can be used for:
-
-- Setting concurrency for a specific user session by `session_id` (i.e. multiple chat messages sent)
-- Limiting data or document ingestion by setting an input hash or on-file key.
-- Rudimentary fairness rules by limiting groups per tenant to a certain number of concurrent executions.
-
-### Use-Case: Cancelling In-Progress Workflows
-
-You can use the custom concurrency function to cancel in-progress workflows. For example, the following workflow will cancel any in-progress workflows for a user if a new event is triggered:
-
-```py
-@hatchet.workflow(on_events=["concurrency-test"])
-class Concurrency
-    @hatchet.concurrency(max_runs=1, limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
-    def concurrency(self, context) -> str:
-        return context.workflow_input()["user_id"]
-
-    @hatchet.step()
-    def step1(self, context):
-        print("executed step1")
-        pass
-```
-
-## Logging
-
-Hatchet comes with a built-in logging view where you can push debug logs from your workflows. To use this, you can use the `context.log` method. For example:
-
-```py
-@hatchet.workflow(on_events=["user:create"],schedule_timeout="10m")
-class LoggingWorkflow:
-    @hatchet.step()
-    def logger(self, context : Context):
-
-        for i in range(1000):
-            context.log(f"Logging message {i}")
-
-        return {
-            "step1": "completed",
-        }
-```
-
-Each step is currently limited to 1000 log lines.
 
 ## Termination, Sleeps and Threads
 
