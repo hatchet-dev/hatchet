@@ -205,6 +205,8 @@ func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorker
 				actionsHash := hash(h.Actions)
 
 				if wfsHash != wfsHashLast || actionsHash != actionsHashLast {
+					c.sc.Logger.Debug().Msgf("webhook worker %s of tenant %s health check changed, updating", webhookWorker.ID, tenantId)
+
 					// update the webhook workflow, and restart worker
 					for _, cleanup := range cleanups {
 						if err := cleanup(); err != nil {
