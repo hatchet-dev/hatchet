@@ -26,22 +26,8 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions) http.HandlerFunc
 	return func(writer http.ResponseWriter, r *http.Request) {
 		// health check with actions
 		if r.Method == http.MethodGet {
-			var actions []string
-			for _, action := range w.actions {
-				actions = append(actions, action.Name())
-			}
-
-			res := HealthCheckResponse{
-				Actions:   actions,
-				Workflows: w.workflows,
-			}
-			data, err := json.Marshal(res)
-			if err != nil {
-				panic(err)
-			}
 			writer.WriteHeader(http.StatusOK)
-			_, _ = writer.Write(data)
-			return
+			_, _ = writer.Write([]byte("OK!"))
 		}
 
 		if r.Method != http.MethodPost {
@@ -63,6 +49,25 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions) http.HandlerFunc
 
 		if expected != actual {
 			panic(fmt.Errorf("invalid webhook signature"))
+		}
+
+		if r.Header.Get("X-Healthcheck") != "" {
+			var actions []string
+			for _, action := range w.actions {
+				actions = append(actions, action.Name())
+			}
+
+			res := HealthCheckResponse{
+				Actions:   actions,
+				Workflows: w.workflows,
+			}
+			data, err := json.Marshal(res)
+			if err != nil {
+				panic(err)
+			}
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write(data)
+			return
 		}
 
 		var action client.Action

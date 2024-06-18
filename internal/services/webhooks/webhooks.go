@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"slices"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/internal/whrequest"
 	"github.com/hatchet-dev/hatchet/pkg/webhook"
 )
 
@@ -95,7 +95,7 @@ func (c *WebhooksController) check() error {
 
 			cleanup, err := c.run(tenantId, ww, token, h)
 			if err != nil {
-				c.sc.Logger.Warn().Err(fmt.Errorf("error running webhook worker %s of tenant %s healthcheck: %v", ww.ID, tenantId, err))
+				c.sc.Logger.Error().Err(fmt.Errorf("error running webhook worker %s of tenant %s healthcheck: %v", ww.ID, tenantId, err))
 				continue
 			}
 			if cleanup != nil {
@@ -113,29 +113,19 @@ type HealthCheckResponse struct {
 }
 
 func (c *WebhooksController) healthcheck(ww db.WebhookWorkerModel) (*HealthCheckResponse, error) {
-	req, err := http.NewRequest("GET", ww.URL, nil)
+	resp, err := whrequest.Send(context.Background(), ww.URL, ww.Secret, struct {
+		Time time.Time `json:"time"`
+	}{
+		Time: time.Now(),
+	}, func(req *http.Request) {
+		req.Header.Set("X-Healthcheck", "true")
+	})
 	if err != nil {
-		return nil, fmt.Errorf("could not create request: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("could not send request: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("request failed with status code %d", resp.StatusCode)
-	}
-
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("could not read response body: %w", err)
+		return nil, fmt.Errorf("could not send healthcheck request: %w", err)
 	}
 
 	var res HealthCheckResponse
-	err = json.Unmarshal(body, &res)
+	err = json.Unmarshal(resp, &res)
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal response body: %w", err)
 	}
@@ -144,7 +134,6 @@ func (c *WebhooksController) healthcheck(ww db.WebhookWorkerModel) (*HealthCheck
 }
 
 func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorkerModel, token string, h *HealthCheckResponse) (func() error, error) {
-
 	ww, err := webhook.NewWorker(webhook.WorkerOpts{
 		Token:     token,
 		ID:        webhookWorker.ID,

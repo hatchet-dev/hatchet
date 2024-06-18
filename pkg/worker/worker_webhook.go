@@ -1,16 +1,13 @@
 package worker
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
-	"github.com/hatchet-dev/hatchet/internal/signature"
+	"github.com/hatchet-dev/hatchet/internal/whrequest"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
@@ -109,47 +106,13 @@ func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 func (w *Worker) sendWebhook(ctx context.Context, action *client.Action, ww WebhookWorkerOpts) error {
 	w.l.Debug().Msgf("action received from step run %s, sending webhook at %s", action.StepRunId, time.Now())
 
-	body, err := json.Marshal(action)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", ww.URL, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-
-	sig, err := signature.Sign(string(body), ww.Secret)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("X-Hatchet-Signature", sig)
-
-	w.l.Debug().Msgf("sending webhook to: %s", ww.URL)
-
-	httpClient := &http.Client{
-		// use 10 minutes timeout
-		Timeout: time.Second * 600,
-	}
-
-	// nolint:gosec
-	resp, err := httpClient.Do(req)
+	_, err := whrequest.Send(ctx, ww.URL, ww.Secret, action)
 	if err != nil {
 		w.l.Warn().Msgf("step run %s could not send webhook to %s: %s", action.StepRunId, ww.URL, err)
 		if err := w.markFailed(action, fmt.Errorf("could not send webhook: %w", err)); err != nil {
 			return fmt.Errorf("could not send webhook and then could not send failed action event: %w", err)
 		}
 		return err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		w.l.Warn().Msgf("step run %s could not send webhook to %s: code %d", action.StepRunId, ww.URL, resp.StatusCode)
-		if err := w.markFailed(action, fmt.Errorf("webhook failed with status code %d", resp.StatusCode)); err != nil {
-			return fmt.Errorf("webhook failed with status code %d and then could not send failed action event: %w", resp.StatusCode, err)
-		}
-		return fmt.Errorf("webhook failed with status code %d", resp.StatusCode)
 	}
 
 	return nil
