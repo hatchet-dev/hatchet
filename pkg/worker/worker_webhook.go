@@ -107,6 +107,8 @@ func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 }
 
 func (w *Worker) sendWebhook(ctx context.Context, action *client.Action, ww WebhookWorkerOpts) error {
+	w.l.Debug().Msgf("action received, sending webhook at %s", time.Now())
+
 	body, err := json.Marshal(action)
 	if err != nil {
 		return err
@@ -133,6 +135,7 @@ func (w *Worker) sendWebhook(ctx context.Context, action *client.Action, ww Webh
 	// nolint:gosec
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		w.l.Warn().Msgf("could not send webhook to %s: %s", ww.URL, err)
 		if err := w.markFailed(action, fmt.Errorf("could not send webhook: %w", err)); err != nil {
 			return fmt.Errorf("could not send webhook and then could not send failed action event: %w", err)
 		}
@@ -142,6 +145,7 @@ func (w *Worker) sendWebhook(ctx context.Context, action *client.Action, ww Webh
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		w.l.Warn().Msgf("could not send webhook to %s: code %d", ww.URL, resp.StatusCode)
 		if err := w.markFailed(action, fmt.Errorf("webhook failed with status code %d", resp.StatusCode)); err != nil {
 			return fmt.Errorf("webhook failed with status code %d and then could not send failed action event: %w", resp.StatusCode, err)
 		}
