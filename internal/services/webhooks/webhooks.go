@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -40,7 +39,7 @@ func (c *WebhooksController) Start() (func() error, error) {
 			select {
 			case <-ticker.C:
 				if err := c.check(); err != nil {
-					log.Printf("error checking webhooks: %v", err)
+					c.sc.Logger.Warn().Err(fmt.Errorf("error checking webhooks: %v", err))
 				}
 			case <-ctx.Done():
 				return
@@ -82,7 +81,7 @@ func (c *WebhooksController) check() error {
 
 			h, err := c.healthcheck(ww)
 			if err != nil {
-				log.Printf("webhook worker %s of tenant %s healthcheck failed: %v", ww.ID, tenantId, err)
+				c.sc.Logger.Warn().Err(fmt.Errorf("webhook worker %s of tenant %s healthcheck failed: %v", ww.ID, tenantId, err))
 				continue
 			}
 
@@ -95,7 +94,7 @@ func (c *WebhooksController) check() error {
 
 			cleanup, err := c.run(tenantId, ww, token, h)
 			if err != nil {
-				log.Printf("error running webhook worker: %v", err)
+				c.sc.Logger.Warn().Err(fmt.Errorf("error running webhook worker %s of tenant %s healthcheck: %v", ww.ID, tenantId, err))
 				continue
 			}
 			if cleanup != nil {
@@ -204,13 +203,8 @@ func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorker
 				wfsHash := hash(h.Workflows)
 				actionsHash := hash(h.Actions)
 
-				log.Printf("wfsHash %s, wfsHashLast %s", wfsHash, wfsHashLast)
-				log.Printf("actionsHash %s, actionsHashLast %s", actionsHash, actionsHashLast)
-
 				if wfsHash != wfsHashLast || actionsHash != actionsHashLast {
 					// update the webhook workflow, and restart worker
-					log.Printf("webhook worker %s of tenant %s has changed, updating...", webhookWorker.ID, tenantId)
-					// TODO
 					for _, cleanup := range cleanups {
 						if err := cleanup(); err != nil {
 							c.sc.Logger.Err(fmt.Errorf("could not cleanup webhook worker: %v", err))

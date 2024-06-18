@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"strconv"
 	"sync"
 	"time"
@@ -41,9 +40,6 @@ func (worker *subscribedWorker) StartStepRun(
 	tenantId string,
 	stepRun *dbsqlc.GetStepRunForEngineRow,
 ) error {
-	stepRunID := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-	log.Printf("starting step run %s at %s", stepRunID, time.Now())
-
 	ctx, span := telemetry.NewSpan(ctx, "start-step-run") // nolint:ineffassign
 	defer span.End()
 
