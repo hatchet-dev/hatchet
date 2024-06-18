@@ -226,9 +226,10 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, toke
 					newCleanup, err := c.run(tenantId, ww, token, h)
 					if err != nil {
 						c.sc.Logger.Err(fmt.Errorf("could not restart webhook worker: %v", err))
+						continue
 					}
 					cleanups = []func() error{newCleanup}
-					return
+					continue
 				}
 
 				wfsHashLast = wfsHash
