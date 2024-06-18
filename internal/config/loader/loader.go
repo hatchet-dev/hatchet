@@ -39,6 +39,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/analytics/posthog"
+	"github.com/hatchet-dev/hatchet/pkg/billing"
+	"github.com/hatchet-dev/hatchet/pkg/billing/lago"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
@@ -257,7 +259,22 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 			return nil, nil, fmt.Errorf("could not create posthog analytics: %w", err)
 		}
 	} else {
-		analyticsEmitter = analytics.NoOpAnalytics{} // TODO
+		analyticsEmitter = analytics.NoOpAnalytics{}
+	}
+
+	var billingClient billing.Billing
+
+	if cf.Billing.Lago.Enabled {
+		billingClient, err = lago.NewLagoBilling(&lago.LagoBillingOpts{
+			ApiKey:  cf.Billing.Lago.ApiKey,
+			BaseUrl: cf.Billing.Lago.BaseURL,
+		})
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create lago billing: %w", err)
+		}
+	} else {
+		billingClient = billing.NoOpBilling{}
 	}
 
 	var pylon server.PylonConfig
@@ -425,6 +442,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	return cleanup, &server.ServerConfig{
 		Alerter:                alerter,
 		Analytics:              analyticsEmitter,
+		Billing:                billingClient,
 		FePosthog:              feAnalyticsConfig,
 		Pylon:                  &pylon,
 		Runtime:                cf.Runtime,

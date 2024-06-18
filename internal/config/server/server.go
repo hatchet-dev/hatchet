@@ -20,6 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/billing"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 )
@@ -30,6 +31,8 @@ type ServerConfigFile struct {
 	Alerting AlertingConfigFile `mapstructure:"alerting" json:"alerting,omitempty"`
 
 	Analytics AnalyticsConfigFile `mapstructure:"analytics" json:"analytics,omitempty"`
+
+	Billing BillingConfigFile `mapstructure:"billing" json:"billing,omitempty"`
 
 	Pylon PylonConfig `mapstructure:"pylon" json:"pylon,omitempty"`
 
@@ -140,6 +143,21 @@ type PosthogConfigFile struct {
 
 	// FeApiHost is the frontend API host for the Posthog instance
 	FeApiHost string `mapstructure:"feApiHost" json:"feApiHost,omitempty"`
+}
+
+type BillingConfigFile struct {
+	Lago LagoConfigFile `mapstructure:"lago" json:"lago,omitempty"`
+}
+
+type LagoConfigFile struct {
+	// Enabled controls whether the Lago service is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+
+	// APIKey is the API key for the Lago instance
+	ApiKey string `mapstructure:"apiKey" json:"apiKey,omitempty"`
+
+	// BaseURL is the base URL for the Lago instance
+	BaseURL string `mapstructure:"baseUrl" json:"baseUrl,omitempty"`
 }
 
 // Encryption options
@@ -307,6 +325,8 @@ type ServerConfig struct {
 
 	Analytics analytics.Analytics
 
+	Billing billing.Billing
+
 	Pylon *PylonConfig
 
 	FePosthog *FePosthogConfig
@@ -401,6 +421,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("pylon.enabled", "SERVER_PYLON_ENABLED")
 	_ = v.BindEnv("pylon.appID", "SERVER_PYLON_APP_ID")
 	_ = v.BindEnv("pylon.secret", "SERVER_PYLON_SECRET")
+
+	// billing options
+	_ = v.BindEnv("billing.lago.enabled", "SERVER_BILLING_LAGO_ENABLED")
+	_ = v.BindEnv("billing.lago.apiKey", "SERVER_BILLING_LAGO_API_KEY")
+	_ = v.BindEnv("billing.lago.baseUrl", "SERVER_BILLING_LAGO_BASE_URL")
 
 	// encryption options
 	_ = v.BindEnv("encryption.masterKeyset", "SERVER_ENCRYPTION_MASTER_KEYSET")
