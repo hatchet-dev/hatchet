@@ -95,7 +95,7 @@ func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
 		return nil, err
 	}
 
-	return GetDatabaseConfigFromConfigFile(cf, &scf.Runtime)
+	return GetDatabaseConfigFromConfigFile(cf, &scf.Runtime, &scf.Billing)
 }
 
 // LoadServerConfig loads the server configuration
@@ -122,7 +122,7 @@ func (c *ConfigLoader) LoadServerConfig() (cleanup func() error, res *server.Ser
 	return GetServerConfigFromConfigfile(dc, cf)
 }
 
-func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.ConfigFileRuntime) (res *database.Config, err error) {
+func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.ConfigFileRuntime, bcf *server.BillingConfigFile) (res *database.Config, err error) {
 	l := logger.NewStdErr(&cf.Logger, "database")
 
 	databaseUrl := fmt.Sprintf(
@@ -170,7 +170,22 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	entitlementRepo := prisma.NewEntitlementRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch))
 
-	meter := metered.NewMetered(entitlementRepo, &l)
+	var billingClient billing.Billing
+
+	if bcf.Lago.Enabled {
+		billingClient, err = lago.NewLagoBilling(&lago.LagoBillingOpts{
+			ApiKey:  bcf.Lago.ApiKey,
+			BaseUrl: bcf.Lago.BaseURL,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create lago billing: %w", err)
+		}
+	} else {
+		billingClient = billing.NoOpBilling{}
+	}
+
+	meter := metered.NewMetered(entitlementRepo, &l, &billingClient)
 
 	return &database.Config{
 		Disconnect: func() error {

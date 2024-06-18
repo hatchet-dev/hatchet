@@ -218,13 +218,13 @@ func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId,
 }
 
 func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*dbsqlc.Event, error) {
-	return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, func() (*dbsqlc.Event, error) {
+	return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, func() (*string, *dbsqlc.Event, error) {
 
 		ctx, span := telemetry.NewSpan(ctx, "db-create-event")
 		defer span.End()
 
 		if err := r.v.Validate(opts); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		createParams := dbsqlc.CreateEventParams{
@@ -246,10 +246,12 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create event: %w", err)
+			return nil, nil, fmt.Errorf("could not create event: %w", err)
 		}
 
-		return e, nil
+		id := sqlchelpers.UUIDToStr(e.ID)
+
+		return &id, e, nil
 	})
 }
 

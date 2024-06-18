@@ -61,15 +61,15 @@ func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(tenantId string, opts
 }
 
 func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*db.WorkflowRunModel, error) {
-	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*db.WorkflowRunModel, error) {
+	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*string, *db.WorkflowRunModel, error) {
 		if err := w.v.Validate(opts); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		workflowRunId, err := createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
 
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		res, err := w.client.WorkflowRun.FindUnique(
@@ -79,10 +79,10 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 		).Exec(context.Background())
 
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		return res, nil
+		return &res.ID, res, nil
 	})
 }
 
@@ -224,19 +224,19 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 }
 
 func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {
-	id, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*string, error) {
+	id, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*string, *string, error) {
 
 		if err := w.v.Validate(opts); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		id, err := createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
 
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		return &id, nil
+		return &id, &id, nil
 	})
 
 	if err != nil {

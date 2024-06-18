@@ -1,20 +1,28 @@
 package lago
 
 import (
+	"context"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/getlago/lago-go-client"
+	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/config/shared"
+	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
 type LagoBilling struct {
 	client *lago.Client
+	l      *zerolog.Logger
 }
 
 type LagoBillingOpts struct {
 	ApiKey  string
 	BaseUrl string
+	Logger  shared.LoggerConfigFile
 }
 
 func NewLagoBilling(opts *LagoBillingOpts) (*LagoBilling, error) {
@@ -24,8 +32,11 @@ func NewLagoBilling(opts *LagoBillingOpts) (*LagoBilling, error) {
 
 	lagoClient := lago.New().SetBaseURL(opts.BaseUrl).SetApiKey(opts.ApiKey)
 
+	l := logger.NewStdErr(&opts.Logger, "billing")
+
 	return &LagoBilling{
 		client: lagoClient,
+		l:      &l,
 	}, nil
 }
 
@@ -68,6 +79,31 @@ func (l *LagoBilling) UpsertTenant(tenant db.TenantModel) error {
 	// if err != nil {
 	// 	return err
 	// }
+
+	return nil
+}
+
+func (l *LagoBilling) Enabled() bool {
+	return true
+}
+
+func (l *LagoBilling) MeterMetric(tenantId string, resource string, uniqueId string, limitVal *int32) error {
+
+	event := lago.EventInput{
+		TransactionID:          uniqueId,
+		ExternalSubscriptionID: tenantId,
+		Code:                   resource,
+		Timestamp:              strconv.FormatInt(time.Now().Unix(), 10),
+		Properties: map[string]interface{}{
+			"limit_val": limitVal,
+		},
+	}
+
+	_, err := l.client.Event().Create(context.Background(), &event)
+
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
