@@ -70,18 +70,30 @@ func (c *WebhooksController) check() error {
 	for _, tenant := range tenants {
 		tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-		token, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker")
-		if err != nil {
-			panic(fmt.Errorf("could not generate default token: %v", err))
-		}
-
 		wws, err := c.sc.APIRepository.WebhookWorker().ListWebhookWorkers(context.Background(), tenantId)
 		if err != nil {
 			return fmt.Errorf("could not get webhook workers: %w", err)
 		}
 
 		for _, ww := range wws {
-			cleanup, err := c.run(tenantId, ww, token)
+			if _, ok := c.registeredWorkerIds[ww.ID]; ok {
+				continue
+			}
+
+			h, err := c.healthcheck(ww)
+			if err != nil {
+				log.Printf("webhook worker %s of tenant %s healthcheck failed: %v", ww.ID, tenantId, err)
+				continue
+			}
+
+			c.registeredWorkerIds[ww.ID] = true
+
+			token, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker")
+			if err != nil {
+				panic(fmt.Errorf("could not generate default token: %v", err))
+			}
+
+			cleanup, err := c.run(tenantId, ww, token, h)
 			if err != nil {
 				log.Printf("error running webhook worker: %v", err)
 				continue
@@ -131,16 +143,7 @@ func (c *WebhooksController) healthcheck(ww db.WebhookWorkerModel) (*HealthCheck
 	return &res, nil
 }
 
-func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, token string) (func() error, error) {
-	h, err := c.healthcheck(ww)
-	if err != nil {
-		return nil, fmt.Errorf("webhook worker %s of tenant %s healthcheck failed: %w", ww.ID, tenantId, err)
-	}
-
-	if _, ok := c.registeredWorkerIds[ww.ID]; ok {
-		return nil, nil
-	}
-	c.registeredWorkerIds[ww.ID] = true
+func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, token string, h *HealthCheckResponse) (func() error, error) {
 
 	w, err := webhook.NewWorker(webhook.WorkerOpts{
 		Token:     token,
@@ -214,7 +217,13 @@ func (c *WebhooksController) run(tenantId string, ww db.WebhookWorkerModel, toke
 						}
 					}
 
-					newCleanup, err := c.run(tenantId, ww, token)
+					h, err := c.healthcheck(ww)
+					if err != nil {
+						c.sc.Logger.Err(fmt.Errorf("webhook worker %s of tenant %s healthcheck failed: %v", ww.ID, tenantId, err))
+						continue
+					}
+
+					newCleanup, err := c.run(tenantId, ww, token, h)
 					if err != nil {
 						c.sc.Logger.Err(fmt.Errorf("could not restart webhook worker: %v", err))
 					}
