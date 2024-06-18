@@ -66,7 +66,7 @@ type ClientOpts struct {
 	initWorkflows bool
 }
 
-func defaultClientOpts(cf *client.ClientConfigFile) *ClientOpts {
+func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 	var clientConfig *client.ClientConfig
 	var err error
 
@@ -75,13 +75,16 @@ func defaultClientOpts(cf *client.ClientConfigFile) *ClientOpts {
 	if cf == nil {
 		// read from environment variables and hostname by default
 
-		clientConfig, err = configLoader.LoadClientConfig()
+		clientConfig, err = configLoader.LoadClientConfig(token)
 
 		if err != nil {
 			panic(err)
 		}
 
 	} else {
+		if token != nil {
+			cf.Token = *token
+		}
 		clientConfig, err = loader.GetClientConfigFromConfigFile(cf)
 
 		if err != nil {
@@ -167,7 +170,16 @@ type sharedClientOpts struct {
 
 // New creates a new client instance.
 func New(fs ...ClientOpt) (Client, error) {
-	opts := defaultClientOpts(nil)
+	var token *string
+	initOpts := &ClientOpts{}
+	for _, f := range fs {
+		f(initOpts)
+	}
+	if initOpts.token != "" {
+		token = &initOpts.token
+	}
+
+	opts := defaultClientOpts(token, nil)
 
 	for _, f := range fs {
 		f(opts)
@@ -177,7 +189,7 @@ func New(fs ...ClientOpt) (Client, error) {
 }
 
 func NewFromConfigFile(cf *client.ClientConfigFile, fs ...ClientOpt) (Client, error) {
-	opts := defaultClientOpts(cf)
+	opts := defaultClientOpts(nil, cf)
 
 	for _, f := range fs {
 		f(opts)
