@@ -90,7 +90,8 @@ func (c *WebhooksController) check() error {
 
 			token, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker")
 			if err != nil {
-				panic(fmt.Errorf("could not generate default token: %v", err))
+				c.sc.Logger.Error().Err(fmt.Errorf("could not generate token for webhook worker %s of tenant %s: %w", ww.ID, tenantId, err))
+				continue
 			}
 
 			cleanup, err := c.run(tenantId, ww, token, h)
