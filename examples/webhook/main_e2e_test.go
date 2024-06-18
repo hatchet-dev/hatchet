@@ -155,8 +155,8 @@ func TestWebhook(t *testing.T) {
 					t.Fatalf("error initializing webhook: %v", err)
 				}
 				handler := func(w http.ResponseWriter, r *http.Request) {
-					if r.Method == "GET" {
-						w.WriteHeader(200)
+					if r.Header.Get("X-Healthcheck") != "" {
+						w.WriteHeader(http.StatusOK)
 						_, _ = w.Write([]byte(fmt.Sprintf(`{"actions": ["default:%s"]}`, "webhook-failure-step-one")))
 						return
 					}
