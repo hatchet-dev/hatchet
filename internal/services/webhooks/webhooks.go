@@ -42,6 +42,7 @@ func (c *WebhooksController) Start() (func() error, error) {
 					c.sc.Logger.Warn().Err(fmt.Errorf("error checking webhooks: %v", err))
 				}
 			case <-ctx.Done():
+				ticker.Stop()
 				return
 			}
 		}
