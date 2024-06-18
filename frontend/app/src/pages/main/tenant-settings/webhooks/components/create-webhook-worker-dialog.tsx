@@ -5,32 +5,13 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { z } from 'zod';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/loading';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover.tsx';
-import { CheckIcon, PlusCircledIcon } from '@radix-ui/react-icons';
-import { Separator } from '@/components/ui/separator.tsx';
-import { Badge } from '@/components/ui/badge.tsx';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from '@/components/ui/command.tsx';
-import { useEffect, useState } from 'react';
-import { Workflow } from '@/lib/api';
 
 const schema = z.object({
   name: z.string().min(1).max(255).optional(),
@@ -40,7 +21,6 @@ const schema = z.object({
 });
 
 interface CreateTokenDialogProps {
-  workflows: Workflow[];
   className?: string;
   token?: string;
   onSubmit: (opts: z.infer<typeof schema>) => void;
@@ -51,11 +31,9 @@ interface CreateTokenDialogProps {
 export function CreateWebhookWorkerDialog({
   className,
   token,
-  workflows,
   ...props
 }: CreateTokenDialogProps) {
   const {
-    control,
     register,
     handleSubmit,
     formState: { errors },
@@ -133,8 +111,6 @@ export function CreateWebhookWorkerDialog({
               )}
             </div>
 
-            <Select workflows={workflows} control={control} />
-
             <Button disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
               Create
@@ -143,111 +119,5 @@ export function CreateWebhookWorkerDialog({
         </form>
       </div>
     </DialogContent>
-  );
-}
-
-function Select({
-  workflows,
-  control,
-}: {
-  workflows: Workflow[];
-  control: any;
-}) {
-  const { replace } = useFieldArray({
-    control, // control props comes from useForm (optional: if you are using FormProvider)
-    name: 'workflows', // name of the field (required)
-  });
-
-  const [filterValue, setFilterValue] = useState<string[]>([]);
-  const selectedValues = new Set(filterValue);
-  const options = workflows.map((workflow) => ({
-    label: workflow.name,
-    value: workflow.metadata.id,
-  }));
-
-  useEffect(() => {
-    replace(filterValue);
-  }, [filterValue, replace]);
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 border-dashed">
-          <PlusCircledIcon className="mr-2 h-4 w-4" />
-          Workflows
-          {selectedValues?.size > 0 && (
-            <>
-              <Separator orientation="vertical" className="mx-2 h-4" />
-              <Badge
-                variant="secondary"
-                className="rounded-sm px-1 font-normal lg:hidden"
-              >
-                {selectedValues.size}
-              </Badge>
-              <div className="hidden space-x-1 lg:flex">
-                <Badge
-                  variant="secondary"
-                  className="rounded-sm px-1 font-normal"
-                >
-                  {selectedValues.size} selected
-                </Badge>
-              </div>
-            </>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-2" align="start">
-        <Command>
-          <CommandInput placeholder={'Workflows'} />
-          <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
-            <CommandGroup>
-              {options?.map((option) => {
-                const isSelected = selectedValues.has(option.value);
-                return (
-                  <CommandItem
-                    key={option.value}
-                    onSelect={() => {
-                      if (isSelected) {
-                        selectedValues.delete(option.value);
-                      } else {
-                        selectedValues.add(option.value);
-                      }
-                      const filterValues = Array.from(selectedValues);
-                      setFilterValue(filterValues);
-                    }}
-                  >
-                    <div
-                      className={cn(
-                        'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
-                        isSelected
-                          ? 'bg-primary text-primary-foreground'
-                          : 'opacity-50 [&_svg]:invisible',
-                      )}
-                    >
-                      <CheckIcon className={cn('h-4 w-4')} />
-                    </div>
-                    <span>{option.label}</span>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-            {selectedValues.size > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup>
-                  <CommandItem
-                    onSelect={() => setFilterValue([])}
-                    className="justify-center text-center"
-                  >
-                    Reset
-                  </CommandItem>
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
   );
 }

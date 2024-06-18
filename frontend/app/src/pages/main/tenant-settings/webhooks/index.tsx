@@ -105,11 +105,6 @@ function CreateWebhookWorker({
     setFieldErrors: setFieldErrors,
   });
 
-  const listWorkflowQuery = useQuery({
-    ...queries.workflows.list(tenant),
-    refetchInterval: 5000,
-  });
-
   const createWebhookWorkerMutation = useMutation({
     mutationKey: ['webhook-worker:create', tenant],
     mutationFn: async (data: WebhookWorkerCreateRequest) => {
@@ -126,7 +121,6 @@ function CreateWebhookWorker({
   return (
     <Dialog open={showTokenDialog} onOpenChange={setShowTokenDialog}>
       <CreateWebhookWorkerDialog
-        workflows={listWorkflowQuery.data?.rows || []}
         isLoading={createWebhookWorkerMutation.isPending}
         onSubmit={createWebhookWorkerMutation.mutate}
         token={generatedToken}
