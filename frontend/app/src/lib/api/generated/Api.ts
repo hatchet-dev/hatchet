@@ -58,6 +58,7 @@ import {
   TenantInviteList,
   TenantMember,
   TenantMemberList,
+  TenantQueueMetrics,
   TenantResourcePolicy,
   TriggerWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
@@ -825,6 +826,36 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Get the queue metrics for the tenant
+   *
+   * @tags Workflow
+   * @name TenantGetQueueMetrics
+   * @summary Get workflow metrics
+   * @request GET:/api/v1/tenants/{tenant}/queue-metrics
+   * @secure
+   */
+  tenantGetQueueMetrics = (
+    tenant: string,
+    query?: {
+      /** A list of workflow IDs to filter by */
+      workflows?: WorkflowID[];
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<TenantQueueMetrics, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/queue-metrics`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Lists all events for a tenant.
    *
    * @tags Event
@@ -1159,7 +1190,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   workflowGetMetrics = (
     workflow: string,
     query?: {
-      /** A status of workflow runs to filter by */
+      /** A status of workflow run statuses to filter by */
       status?: WorkflowRunStatus;
       /** A group key to filter metrics by */
       groupKey?: string;

@@ -96,6 +96,8 @@ paths:
     $ref: "./paths/api-tokens/api_tokens.yaml#/withTenant"
   /api/v1/api-tokens/{api-token}:
     $ref: "./paths/api-tokens/api_tokens.yaml#/revoke"
+  /api/v1/tenants/{tenant}/queue-metrics:
+    $ref: "./paths/tenant/tenant.yaml#/getQueueMetrics"
   /api/v1/tenants/{tenant}/events:
     $ref: "./paths/event/event.yaml#/withTenant"
   /api/v1/tenants/{tenant}/events/replay:
