@@ -115,7 +115,7 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 		return "", fmt.Errorf("failed to read token_id claim: %v", err)
 	}
 
-	// ensure the current server url and grpc broadcast address match the token, if present
+	// ensure the current server url matches the token, if present
 	if hasServerURL := verifiedJwt.HasStringClaim("server_url"); hasServerURL {
 		serverURL, err := verifiedJwt.StringClaim("server_url")
 
@@ -125,18 +125,6 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 
 		if serverURL != j.opts.ServerURL {
 			return "", fmt.Errorf("server_url claim does not match")
-		}
-	}
-
-	if hasGRPCBroadcastAddress := verifiedJwt.HasStringClaim("grpc_broadcast_address"); hasGRPCBroadcastAddress {
-		grpcBroadcastAddress, err := verifiedJwt.StringClaim("grpc_broadcast_address")
-
-		if err != nil {
-			return "", fmt.Errorf("failed to read grpc_broadcast_address claim: %v", err)
-		}
-
-		if grpcBroadcastAddress != j.opts.GRPCBroadcastAddress {
-			return "", fmt.Errorf("grpc_broadcast_address claim does not match")
 		}
 	}
 

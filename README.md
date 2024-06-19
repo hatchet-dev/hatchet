@@ -17,6 +17,8 @@
 [![GitHub Repo stars](https://img.shields.io/github/stars/hatchet-dev/hatchet?style=social)](https://github.com/hatchet-dev/hatchet)
 
   <p align="center">
+    <a href="https://cloud.onhatchet.run">Hatchet Cloud</a>
+    ·
     <a href="https://docs.hatchet.run">Documentation</a>
     ·
     <a href="https://hatchet.run">Website</a>
@@ -36,7 +38,7 @@ Hatchet replaces difficult to manage legacy queues or pub/sub systems so you can
 
 **What Makes Hatchet Great?**
 
-- ⚡️ **Ultra-low Latency and High Throughput Scheduling:** Hatchet is built on a low-latency queue (`25ms` average start), perfectly balancing real-time interaction capabilities with the reliability required for mission-critical tasks.
+- ⚡️ **Ultra-low Latency and High Throughput Scheduling:** Hatchet is built on a low-latency queue, perfectly balancing real-time interaction capabilities with the reliability required for mission-critical tasks.
 
 - ☮️ **Concurrency, Fairness, and Rate Limiting:** Implement FIFO, LIFO, Round Robin, and Priority Queues with Hatchet’s built-in strategies, designed to circumvent common scaling pitfalls with minimal configuration. [Read Docs →](https://docs.hatchet.run)
 
@@ -60,34 +62,32 @@ Hatchet replaces difficult to manage legacy queues or pub/sub systems so you can
 
 ## Quick Start
 
-Hatchet supports your technology stack with open-source SDKs for Python, Typescript, and Go. To get started, see the Hatchet documentation [here](https://docs.hatchet.run/home/quickstart/installation), or check out our quickstart repos:
+Hatchet is available as a cloud version or self-hosted. See the following docs to get up and running quickly:
 
-- [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
-- [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
-- [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
+- [Hatchet Cloud Quickstart](https://docs.hatchet.run/home/hatchet-cloud-quickstart)
+- [Hatchet Self-Hosted](https://docs.hatchet.run/self-hosting)
+
+Hatchet supports your technology stack with open-source SDKs for Python, Typescript, and Go. To get started, see the language-specific guides here:
+
+- [Python SDK Docs](https://docs.hatchet.run/sdks/python-sdk) | [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
+- [Typescript SDK Docs](https://docs.hatchet.run/sdks/typescript-sdk) | [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
+- [Go SDK Docs](https://docs.hatchet.run/sdks/go-sdk) | [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
 
 ### SDK repositories
 
-Hatchet comes with a native Go SDK. The following SDKs are also available:
+If you encounter any issues while using the SDKs, please submit an issue in the respective repository:
 
-- [Typescript SDK](https://github.com/hatchet-dev/hatchet-typescript)
 - [Python SDK](https://github.com/hatchet-dev/hatchet-python)
-
-If you encounter any issues with the SDKs, please submit an issue in the respective repository.
-
-#### Is there a managed cloud version of Hatchet?
-
-Yes, we are offering a have a cloud version to select companies while in beta who are helping to build and shape the product. Please [reach out](mailto:contact@hatchet.run) or [request access](https://hatchet.run/request-access) for more information.
-
-#### Is there a self-hosted version of Hatchet?
-
-Yes, instructions for self-hosting our open source docker containers can be found in our [documentation](https://docs.hatchet.run/self-hosting/docker-compose). Please [reach out](mailto:contact@hatchet.run) if you're interested in support.
+- [Typescript SDK](https://github.com/hatchet-dev/hatchet-typescript)
+- [Go SDK](https://github.com/hatchet-dev/hatchet)
 
 ## How does this compare to alternatives (Celery, BullMQ)?
 
 Why build another managed queue? We wanted to build something with the benefits of full transactional enqueueing - particularly for dependent, DAG-style execution - and felt strongly that Postgres solves for 99.9% of queueing use-cases better than most alternatives (Celery uses Redis or RabbitMQ as a broker, BullMQ uses Redis). Since the introduction of `SKIP LOCKED` and the milestones of recent PG releases (like active-active replication), it's becoming more feasible to horizontally scale Postgres across multiple regions and vertically scale to 10k TPS or more. Many queues (like BullMQ) are built on Redis and data loss can occur when suffering OOM if you're not careful, and using PG helps avoid an entire class of problems.
 
 We also wanted something that was significantly easier to use and debug for application developers. A lot of times the burden of building task observability falls on the infra/platform team (for example, asking the infra team to build a Grafana view for their tasks based on exported prom metrics). We're building this type of observability directly into Hatchet.
+
+For more information for why we built Hatchet, you can check out our writeup on Celery [here](https://docs.hatchet.run/blog/problems-with-celery).
 
 ## Issues
 

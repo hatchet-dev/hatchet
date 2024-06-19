@@ -15,7 +15,7 @@ type ConfigLoader struct {
 }
 
 // LoadClientConfig loads the client configuration
-func (c *ConfigLoader) LoadClientConfig() (res *client.ClientConfig, err error) {
+func (c *ConfigLoader) LoadClientConfig(token *string) (res *client.ClientConfig, err error) {
 	sharedFilePath := filepath.Join(c.directory, "client.yaml")
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
 
@@ -27,6 +27,10 @@ func (c *ConfigLoader) LoadClientConfig() (res *client.ClientConfig, err error) 
 
 	if err != nil {
 		return nil, err
+	}
+
+	if token != nil {
+		cf.Token = *token
 	}
 
 	return GetClientConfigFromConfigFile(cf)

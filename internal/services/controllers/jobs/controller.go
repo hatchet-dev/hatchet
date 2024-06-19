@@ -134,10 +134,12 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 
 	wg := sync.WaitGroup{}
 
+	startedAt := time.Now()
+
 	_, err := jc.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
-			jc.runStepRunRequeue(ctx),
+			jc.runStepRunRequeue(ctx, startedAt),
 		),
 	)
 
@@ -149,7 +151,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 	_, err = jc.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
-			jc.runStepRunReassign(ctx),
+			jc.runStepRunReassign(ctx, startedAt),
 		),
 	)
 
@@ -553,8 +555,13 @@ func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msg
 	return ec.queueStepRun(ctx, metadata.TenantId, metadata.StepId, payload.StepRunId)
 }
 
-func (jc *JobsControllerImpl) runStepRunRequeue(ctx context.Context) func() {
+func (jc *JobsControllerImpl) runStepRunRequeue(ctx context.Context, startedAt time.Time) func() {
 	return func() {
+		// if we are within 15 seconds of the started time, then we should not requeue step runs
+		if time.Since(startedAt) < 15*time.Second {
+			return
+		}
+
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 
@@ -632,8 +639,13 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 	return g.Wait()
 }
 
-func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context) func() {
+func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt time.Time) func() {
 	return func() {
+		// if we are within 15 seconds of the started time, then we should not reassign step runs
+		if time.Since(startedAt) < 15*time.Second {
+			return
+		}
+
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 

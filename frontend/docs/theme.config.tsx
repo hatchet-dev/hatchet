@@ -15,7 +15,7 @@ const config: DocsThemeConfig = {
   chat: {
     link: "https://discord.gg/ZMeUafwH89",
   },
-  docsRepositoryBase: "https://github.com/hatchet-dev/hatchet/frontend/docs",
+  docsRepositoryBase: "https://github.com/hatchet-dev/hatchet/blob/main/frontend/docs",
   feedback: {
     labels: "Feedback",
     useLink: (...args: unknown[]) =>

@@ -1,0 +1,18 @@
+# Running Workflows via Events
+
+For workflows with event triggers, you can push events to the Hatchet API with the `client.event.push` method:
+
+```py
+from hatchet_sdk import Hatchet
+
+hatchet = Hatchet()
+
+hatchet.client.event.push(
+    "user:create",
+    {
+        "test": "test"
+    }
+)
+```
+
+The event's input data will be passed to the workflow run as the input, and is retrievable via the `context.workflow_input()` method.

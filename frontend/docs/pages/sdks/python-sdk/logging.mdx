@@ -1,0 +1,102 @@
+import { FileTree } from "nextra/components";
+
+# Logging
+
+Hatchet comes with a built-in logging view where you can push debug logs from your workflows. This is useful for debugging and monitoring your workflows. You can use either Python's built-in `logging` package, or the `context.log` method for more control over the logs that are sent.
+
+## Using the built-in `logging` package
+
+You can pass a custom logger to the `Hatchet` class when initializing it. For example:
+
+```py
+import logging
+
+from hatchet_sdk import ClientConfig, Hatchet
+
+logging.basicConfig(level=logging.INFO)
+
+root_logger = logging.getLogger()
+
+hatchet = Hatchet(
+    debug=True,
+    config=ClientConfig(
+        logger=root_logger,
+    ),
+)
+
+@hatchet.workflow()
+class LoggingWorkflow:
+    @hatchet.step()
+    def step1(self, context: Context):
+        for i in range(12):
+            root_logger.info("executed step1 - {}".format(i))
+            time.sleep(1)
+        return {"status": "success"}
+```
+
+It's recommended that you pass the root logger to the `Hatchet` class, as this will ensure that all logs are captured by the Hatchet logger. If you have workflows defined in multiple files, they should be children of the root logger. For example, with the following file structure:
+
+<FileTree>
+  <FileTree.File name="client.py" />
+  <FileTree.File name="worker.py" />
+  <FileTree.Folder name="workflows" defaultOpen>
+    <FileTree.File name="my-workflow.py" />
+  </FileTree.Folder>
+</FileTree>
+
+You should pass the root logger to the `Hatchet` class in `client.py`:
+
+```py filename="client.py" copy
+import logging
+
+from hatchet_sdk import ClientConfig, Hatchet
+
+logging.basicConfig(level=logging.INFO)
+
+root_logger = logging.getLogger()
+
+hatchet = Hatchet(
+    debug=True,
+    config=ClientConfig(
+        logger=root_logger,
+    ),
+)
+```
+
+And then in `workflows/my-workflow.py`, you should create a child logger:
+
+```py filename="workflows/my-workflow.py" copy
+import logging
+from client import hatchet
+
+logger = logging.getLogger(__name__)
+
+@hatchet.workflow()
+class LoggingWorkflow:
+    @hatchet.step()
+    def step1(self, context: Context):
+        for i in range(12):
+            logger.info("executed step1 - {}".format(i))
+            time.sleep(1)
+        return {"status": "success"}
+```
+
+## Using the `context.log` method
+
+You can also use the `context.log` method to log messages from your workflows. This method is available on the `Context` object that is passed to each step in your workflow. For example:
+
+```py
+@hatchet.workflow(on_events=["user:create"],schedule_timeout="10m")
+class LoggingWorkflow:
+    @hatchet.step()
+    def logger(self, context : Context):
+
+        for i in range(1000):
+            context.log(f"Logging message {i}")
+
+        return {
+            "step1": "completed",
+        }
+```
+
+Each step is currently limited to 1000 log lines.

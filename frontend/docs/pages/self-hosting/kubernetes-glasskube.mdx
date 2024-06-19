@@ -1,11 +1,22 @@
-import { Tabs, Steps } from "nextra/components";
+import { Tabs, Steps, Callout } from "nextra/components";
 
-# Kubernetes Deployment
+# Kubernetes Deployment via Glasskube
 
 ## Prerequisites
 
 - A Kubernetes cluster currently set as the current context in `kubectl`
-- `kubectl` and `helm` installed
+- `docker`, `openssl`, `kubectl` and [`glasskube`](https://glasskube.dev) installed
+
+## What is Glasskube?
+
+[Glasskube](https://glasskube.dev) is an alternative package manager for Kubernetes and part of the CNCF landscape. Glasskube is designed as a Cloud Native application and every installed package is represented by a Custom Resource.
+
+<Callout type="info" emoji="🧊">
+
+[`glasskube/glasskube`](https://github.com/glasskube/glasskube/) is in active development, with _good first issues_
+available for new contributors.
+
+</Callout>
 
 ## Quickstart
 
@@ -25,8 +36,23 @@ randstring() {
 # Create keys directory
 mkdir -p ./keys
 
+# Function to clean up the keys directory
+cleanup() {
+    rm -rf ./keys
+}
+
+# Register the cleanup function to be called on the EXIT signal
+trap cleanup EXIT
+
+# Check if Docker is installed
+if ! command -v docker &> /dev/null
+then
+    echo "Docker could not be found. Please install Docker."
+    exit 1
+fi
+
 # Generate keysets using Docker
-docker run -v $(pwd)/keys:/hatchet/keys ghcr.io/hatchet-dev/hatchet/hatchet-admin:v0.11.3 /hatchet/hatchet-admin keyset create-local-keys --key-dir /hatchet/keys
+docker run --user $(id -u):$(id -g) -v $(pwd)/keys:/hatchet/keys ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest /hatchet/hatchet-admin keyset create-local-keys --key-dir /hatchet/keys
 
 # Read keysets from files
 SERVER_ENCRYPTION_MASTER_KEYSET=$(<./keys/master.key)
@@ -38,50 +64,69 @@ SERVER_AUTH_COOKIE_SECRET1=$(randstring 16)
 SERVER_AUTH_COOKIE_SECRET2=$(randstring 16)
 
 # Create the YAML file
-cat > hatchet-values.yaml <<EOF
-api:
-  enabled: true
-  env:
-    SERVER_AUTH_COOKIE_SECRETS: "$SERVER_AUTH_COOKIE_SECRET1 $SERVER_AUTH_COOKIE_SECRET2"
-    SERVER_ENCRYPTION_MASTER_KEYSET: "$SERVER_ENCRYPTION_MASTER_KEYSET"
-    SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET: "$SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET"
-    SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET: "$SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET"
-
-engine:
-  enabled: true
-  env:
-    SERVER_AUTH_COOKIE_SECRETS: "$SERVER_AUTH_COOKIE_SECRET1 $SERVER_AUTH_COOKIE_SECRET2"
-    SERVER_ENCRYPTION_MASTER_KEYSET: "$SERVER_ENCRYPTION_MASTER_KEYSET"
-    SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET: "$SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET"
-    SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET: "$SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET"
+cat > hatchet-secret.yaml <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hatchet-secret
+  namespace: hatchet
+stringData:
+  SERVER_AUTH_COOKIE_SECRETS: "$SERVER_AUTH_COOKIE_SECRET1 $SERVER_AUTH_COOKIE_SECRET2"
+  SERVER_ENCRYPTION_MASTER_KEYSET: "$SERVER_ENCRYPTION_MASTER_KEYSET"
+  SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET: "$SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET"
+  SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET: "$SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET"
 EOF
-
-# Cleanup key directory
-rm -rf ./keys
 ```
 
-**Warning:** do not commit these keys to your Git repository, use `api.envFrom` or `engine.envFrom` to pull in values from a secret.
+### Apply the secret
 
-### Deploy Hatchet
-
-To deploy `hatchet-stack`, run the following commands:
+To apply the secret run:
 
 ```sh
-helm repo add hatchet https://hatchet-dev.github.io/hatchet-charts
-helm install hatchet-stack hatchet/hatchet-stack --values hatchet-values.yaml --set api.replicaCount=0 --set engine.replicaCount=0 --set caddy.enabled=true
-helm upgrade hatchet-stack hatchet/hatchet-stack --values hatchet-values.yaml --set caddy.enabled=true
+kubectl create namespace hatchet
+kubectl apply -f hatchet-secret.yaml
 ```
 
-This default installation will run the Hatchet server as an internal service in the cluster and spins up a reverse proxy via `Caddy` to get local access. To view the Hatchet server, run the following command:
+### Install Hatchet
 
-```sh
-export NAMESPACE=default # TODO: replace with your namespace
-export POD_NAME=$(kubectl get pods --namespace $NAMESPACE -l "app=caddy" -o jsonpath="{.items[0].metadata.name}")
-export CONTAINER_PORT=$(kubectl get pod --namespace $NAMESPACE $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
-kubectl --namespace $NAMESPACE port-forward $POD_NAME 8080:$CONTAINER_PORT
-```
+<Tabs items={['CLI', 'GUI']}>
+    <Tabs.Tab>
 
-And then navigate to `http://localhost:8080` to see the Hatchet frontend running.
+        ```sh
+        glasskube install hatchet
+        ```
+
+        Make sure to set the api server and engine replica count to 0 and use the secret name you applied before (`hatchet-secret`).
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ```sh
+        glasskube serve
+        ```
+
+        You can now install Hatchet via the GUI. Make sure to follow the instructions in the UI.
+
+    </Tabs.Tab>
+
+</Tabs>
+
+### Open Hatchet
+
+<Tabs items={['CLI', 'GUI']}>
+    <Tabs.Tab>
+        ```sh
+        glasskube open hatchet
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+       You can simply use the "Open" button in the GUI.
+
+    </Tabs.Tab>
+
+</Tabs>
 
 ### Set up your Hatchet account
 
@@ -99,7 +144,7 @@ You will need this in the following example.
 ### Port forward to the Hatchet engine
 
 ```sh
-export NAMESPACE=default # TODO: replace with your namespace
+export NAMESPACE=hatchet # TODO: change if you modified the namespace
 export POD_NAME=$(kubectl get pods --namespace $NAMESPACE -l "app.kubernetes.io/name=hatchet-engine,app.kubernetes.io/instance=hatchet" -o jsonpath="{.items[0].metadata.name}")
 export CONTAINER_PORT=$(kubectl get pod --namespace $NAMESPACE $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
 kubectl --namespace $NAMESPACE port-forward $POD_NAME 7070:$CONTAINER_PORT
@@ -109,7 +154,7 @@ This will spin up the Hatchet engine service on `localhost:7070` which you can t
 
 ### Run your first worker
 
-<Tabs items={['Python', 'Typescript']}>
+<Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 Make sure you have the following dependencies installed:
 
@@ -194,7 +239,9 @@ const workflow: Workflow = {
   ],
 };
 
-hatchet.run(workflow);
+const worker = hatchet.worker("my-worker");
+await worker.registerWorkflow(workflow);
+worker.start();
 ```
 
 Next, modify your `package.json` to include a script to start:
@@ -215,8 +262,88 @@ Now to start the worker, in a new terminal run:
 npm run worker
 ```
 
-    </Tabs.Tab>
+  </Tabs.Tab>
+  <Tabs.Tab>
+  In a new Go project, copy the following code into a `main.go` file:
 
+```go filename="main.go" copy
+package main
+
+import (
+	"fmt"
+
+	"github.com/joho/godotenv"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	"github.com/hatchet-dev/hatchet/pkg/worker"
+)
+
+type stepOutput struct{}
+
+func main() {
+	err := godotenv.Load()
+	if err != nil {
+		panic(err)
+	}
+
+	c, err := client.New()
+
+	if err != nil {
+		panic(fmt.Sprintf("error creating client: %v", err))
+	}
+
+	w, err := worker.NewWorker(
+		worker.WithClient(
+			c,
+		),
+		worker.WithMaxRuns(1),
+	)
+	if err != nil {
+		panic(fmt.Sprintf("error creating worker: %v", err))
+	}
+
+	err = w.On(
+		worker.Events("simple"),
+		&worker.WorkflowJob{
+			Name:        "simple-workflow",
+			Description: "Simple one-step workflow.",
+			Steps: []*worker.WorkflowStep{
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
+					fmt.Println("executed step 1")
+
+					return &stepOutput{}, nil
+				},
+				).SetName("step-one"),
+			},
+		},
+	)
+	if err != nil {
+		panic(fmt.Sprintf("error registering workflow: %v", err))
+	}
+
+	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
+	defer cancel()
+
+	cleanup, err := w.Start()
+	if err != nil {
+		panic(fmt.Sprintf("error starting worker: %v", err))
+	}
+
+	<-interruptCtx.Done()
+	if err := cleanup(); err != nil {
+		panic(err)
+	}
+}
+```
+
+Next, run the following command to start the worker:
+
+```sh
+go run main.go
+```
+
+</Tabs.Tab>
 </Tabs>
 
 ### Run your first workflow
