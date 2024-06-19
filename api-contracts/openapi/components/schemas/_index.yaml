@@ -78,6 +78,8 @@ Event:
   $ref: "./event.yaml#/Event"
 EventData:
   $ref: "./event.yaml#/EventData"
+CreateEventRequest:
+  $ref: "./event.yaml#/CreateEventRequest"
 EventWorkflowRunSummary:
   $ref: "./event.yaml#/EventWorkflowRunSummary"
 EventOrderByField:
