@@ -73,16 +73,27 @@ func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.
 	}
 
 	var subscription = gen.TenantSubscription{
-		PlanCode: nil,
-		Status:   nil,
+		Plan:   nil,
+		Period: nil,
+		Status: nil,
 	}
 
 	if _sub != nil {
 		status := gen.TenantSubscriptionStatus(_sub.Status)
 
+		plan := string(_sub.Plan)
+
+		var period *string
+
+		if _sub.Period.Valid {
+			_period := string(_sub.Period.TenantSubscriptionPeriod)
+			period = &_period
+		}
+
 		subscription = gen.TenantSubscription{
-			PlanCode: &_sub.PlanCode,
-			Status:   &status,
+			Plan:   &plan,
+			Period: period,
+			Status: &status,
 		}
 	}
 

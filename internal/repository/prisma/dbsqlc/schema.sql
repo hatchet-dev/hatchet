@@ -32,6 +32,12 @@ CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
 CREATE TYPE "TenantResourceLimitAlertType" AS ENUM ('Alarm', 'Exhausted');
 
 -- CreateEnum
+CREATE TYPE "TenantSubscriptionPeriod" AS ENUM ('monthly', 'annual');
+
+-- CreateEnum
+CREATE TYPE "TenantSubscriptionPlanCodes" AS ENUM ('free', 'starter', 'growth', 'enterprise');
+
+-- CreateEnum
 CREATE TYPE "TenantSubscriptionStatus" AS ENUM ('active', 'pending', 'terminated', 'canceled');
 
 -- CreateEnum
@@ -521,8 +527,9 @@ CREATE TABLE "TenantResourceLimitAlert" (
 -- CreateTable
 CREATE TABLE "TenantSubscription" (
     "tenantId" UUID NOT NULL,
-    "planCode" TEXT NOT NULL,
     "status" "TenantSubscriptionStatus" NOT NULL,
+    "period" "TenantSubscriptionPeriod",
+    "plan" "TenantSubscriptionPlanCodes" NOT NULL DEFAULT 'free',
 
     CONSTRAINT "TenantSubscription_pkey" PRIMARY KEY ("tenantId")
 );

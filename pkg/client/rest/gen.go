@@ -785,9 +785,12 @@ type TenantResourcePolicy struct {
 
 // TenantSubscription defines model for TenantSubscription.
 type TenantSubscription struct {
-	// PlanCode The plan code associated with the tenant subscription.
-	PlanCode *string                   `json:"planCode,omitempty"`
-	Status   *TenantSubscriptionStatus `json:"status,omitempty"`
+	// Period The period associated with the tenant subscription.
+	Period *string `json:"period,omitempty"`
+
+	// Plan The plan code associated with the tenant subscription.
+	Plan   *string                   `json:"plan,omitempty"`
+	Status *TenantSubscriptionStatus `json:"status,omitempty"`
 }
 
 // TenantSubscriptionStatus defines model for TenantSubscriptionStatus.

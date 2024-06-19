@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/getlago/lago-go-client"
@@ -158,7 +159,7 @@ func (l *LagoBilling) GetSubscription(tenantId string) (*dbsqlc.TenantSubscripti
 	return sub, nil
 }
 
-func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts *billing.SubscriptionOpts) (*dbsqlc.TenantSubscription, error) {
+func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts billing.SubscriptionOpts) (*dbsqlc.TenantSubscription, error) {
 	ctx := context.Background()
 
 	_, lagoErr := l.UpsertTenant(tenant)
@@ -167,10 +168,20 @@ func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts *bill
 		return nil, lagoErr
 	}
 
+	planCode := string(opts.Plan)
+
+	if opts.Plan != dbsqlc.TenantSubscriptionPlanCodesFree && opts.Period == nil {
+		return nil, fmt.Errorf("period is required for non-free plans")
+	}
+
+	if opts.Period != nil {
+		planCode = fmt.Sprintf("%s:%s", string(opts.Plan), *opts.Period)
+	}
+
 	sub, subErr := l.client.Subscription().Create(ctx, &lago.SubscriptionInput{
 		ExternalCustomerID: tenant.ID,
 		ExternalID:         tenant.ID,
-		PlanCode:           opts.PlanCode,
+		PlanCode:           planCode,
 		BillingTime:        lago.Anniversary,
 	})
 
@@ -178,10 +189,26 @@ func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts *bill
 		return nil, subErr
 	}
 
+	planCodeParts := strings.Split(sub.PlanCode, ":")
+	plan := dbsqlc.TenantSubscriptionPlanCodes(planCodeParts[0])
+
+	period := dbsqlc.NullTenantSubscriptionPeriod{}
+
+	if len(planCodeParts) > 1 {
+		period = dbsqlc.NullTenantSubscriptionPeriod{
+			TenantSubscriptionPeriod: dbsqlc.TenantSubscriptionPeriod(planCodeParts[1]),
+			Valid:                    true,
+		}
+	}
+
 	_, s, err := l.e.TenantSubscription().UpsertSubscription(ctx,
 		dbsqlc.UpsertTenantSubscriptionParams{
 			Tenantid: sqlchelpers.UUIDFromStr(tenant.ID),
-			PlanCode: sqlchelpers.TextFromStr(sub.PlanCode),
+			Plan: dbsqlc.NullTenantSubscriptionPlanCodes{
+				TenantSubscriptionPlanCodes: plan,
+				Valid:                       true,
+			},
+			Period: period,
 			Status: dbsqlc.NullTenantSubscriptionStatus{
 				TenantSubscriptionStatus: dbsqlc.TenantSubscriptionStatus(sub.Status),
 				Valid:                    true,

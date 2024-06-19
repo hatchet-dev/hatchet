@@ -13,9 +13,7 @@ import (
 
 const getTenantSubscription = `-- name: GetTenantSubscription :one
 SELECT
-  "tenantId",
-  "planCode",
-  "status"
+  "tenantId", status, period, plan
 FROM
   "TenantSubscription"
 WHERE
@@ -25,36 +23,55 @@ WHERE
 func (q *Queries) GetTenantSubscription(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*TenantSubscription, error) {
 	row := db.QueryRow(ctx, getTenantSubscription, tenantid)
 	var i TenantSubscription
-	err := row.Scan(&i.TenantId, &i.PlanCode, &i.Status)
+	err := row.Scan(
+		&i.TenantId,
+		&i.Status,
+		&i.Period,
+		&i.Plan,
+	)
 	return &i, err
 }
 
 const upsertTenantSubscription = `-- name: UpsertTenantSubscription :one
 INSERT INTO "TenantSubscription" (
   "tenantId",
-  "planCode",
+  "plan",
+  "period",
   "status"
 )
 VALUES (
   $1::uuid,
-  $2::text,
-  $3::"TenantSubscriptionStatus"
+  $2::"TenantSubscriptionPlanCodes",
+  $3::"TenantSubscriptionPeriod",
+  $4::"TenantSubscriptionStatus"
 )
 ON CONFLICT ("tenantId") DO UPDATE SET
-  "planCode" = $2::text,
-  "status" = $3::"TenantSubscriptionStatus"
-RETURNING "tenantId", "planCode", status
+  "plan" = $2::"TenantSubscriptionPlanCodes",
+  "period" = $3::"TenantSubscriptionPeriod",
+  "status" = $4::"TenantSubscriptionStatus"
+RETURNING "tenantId", status, period, plan
 `
 
 type UpsertTenantSubscriptionParams struct {
-	Tenantid pgtype.UUID                  `json:"tenantid"`
-	PlanCode pgtype.Text                  `json:"planCode"`
-	Status   NullTenantSubscriptionStatus `json:"status"`
+	Tenantid pgtype.UUID                     `json:"tenantid"`
+	Plan     NullTenantSubscriptionPlanCodes `json:"plan"`
+	Period   NullTenantSubscriptionPeriod    `json:"period"`
+	Status   NullTenantSubscriptionStatus    `json:"status"`
 }
 
 func (q *Queries) UpsertTenantSubscription(ctx context.Context, db DBTX, arg UpsertTenantSubscriptionParams) (*TenantSubscription, error) {
-	row := db.QueryRow(ctx, upsertTenantSubscription, arg.Tenantid, arg.PlanCode, arg.Status)
+	row := db.QueryRow(ctx, upsertTenantSubscription,
+		arg.Tenantid,
+		arg.Plan,
+		arg.Period,
+		arg.Status,
+	)
 	var i TenantSubscription
-	err := row.Scan(&i.TenantId, &i.PlanCode, &i.Status)
+	err := row.Scan(
+		&i.TenantId,
+		&i.Status,
+		&i.Period,
+		&i.Plan,
+	)
 	return &i, err
 }

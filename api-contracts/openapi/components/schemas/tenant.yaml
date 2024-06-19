@@ -142,9 +142,12 @@ TenantSubscriptionStatus:
 
 TenantSubscription:
   properties:
-    planCode:
+    plan:
       type: string
       description: The plan code associated with the tenant subscription.
+    period:
+      type: string
+      description: The period associated with the tenant subscription.
     status:
       $ref: "#/TenantSubscriptionStatus"
       description: The status of the tenant subscription.

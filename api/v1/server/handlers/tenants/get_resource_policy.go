@@ -23,8 +23,9 @@ func (t *TenantService) TenantResourcePolicyGet(ctx echo.Context, request gen.Te
 	if t.config.Billing.Enabled() {
 		// subscription, err = t.config.EntitlementRepository.TenantSubscription().GetSubscription(context.Background(), tenant.ID)
 
-		// customer, err := t.config.Billing.UpsertTenantSubscription()(billing.CustomerOpts{
-		// 	Email: tenant.Email,
+		// _, err := t.config.Billing.UpsertTenantSubscription(*tenant, billing.SubscriptionOpts{
+		// 	Plan:   dbsqlc.TenantSubscriptionPlanCodesFree,
+		// 	Period: nil,
 		// })
 
 		methods, err = t.config.Billing.GetPaymentMethods(tenant.ID)

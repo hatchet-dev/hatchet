@@ -503,6 +503,92 @@ func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
 	return string(ns.TenantResourceLimitAlertType), nil
 }
 
+type TenantSubscriptionPeriod string
+
+const (
+	TenantSubscriptionPeriodMonthly TenantSubscriptionPeriod = "monthly"
+	TenantSubscriptionPeriodAnnual  TenantSubscriptionPeriod = "annual"
+)
+
+func (e *TenantSubscriptionPeriod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TenantSubscriptionPeriod(s)
+	case string:
+		*e = TenantSubscriptionPeriod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TenantSubscriptionPeriod: %T", src)
+	}
+	return nil
+}
+
+type NullTenantSubscriptionPeriod struct {
+	TenantSubscriptionPeriod TenantSubscriptionPeriod `json:"TenantSubscriptionPeriod"`
+	Valid                    bool                     `json:"valid"` // Valid is true if TenantSubscriptionPeriod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTenantSubscriptionPeriod) Scan(value interface{}) error {
+	if value == nil {
+		ns.TenantSubscriptionPeriod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TenantSubscriptionPeriod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTenantSubscriptionPeriod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TenantSubscriptionPeriod), nil
+}
+
+type TenantSubscriptionPlanCodes string
+
+const (
+	TenantSubscriptionPlanCodesFree       TenantSubscriptionPlanCodes = "free"
+	TenantSubscriptionPlanCodesStarter    TenantSubscriptionPlanCodes = "starter"
+	TenantSubscriptionPlanCodesGrowth     TenantSubscriptionPlanCodes = "growth"
+	TenantSubscriptionPlanCodesEnterprise TenantSubscriptionPlanCodes = "enterprise"
+)
+
+func (e *TenantSubscriptionPlanCodes) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TenantSubscriptionPlanCodes(s)
+	case string:
+		*e = TenantSubscriptionPlanCodes(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TenantSubscriptionPlanCodes: %T", src)
+	}
+	return nil
+}
+
+type NullTenantSubscriptionPlanCodes struct {
+	TenantSubscriptionPlanCodes TenantSubscriptionPlanCodes `json:"TenantSubscriptionPlanCodes"`
+	Valid                       bool                        `json:"valid"` // Valid is true if TenantSubscriptionPlanCodes is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTenantSubscriptionPlanCodes) Scan(value interface{}) error {
+	if value == nil {
+		ns.TenantSubscriptionPlanCodes, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TenantSubscriptionPlanCodes.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTenantSubscriptionPlanCodes) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TenantSubscriptionPlanCodes), nil
+}
+
 type TenantSubscriptionStatus string
 
 const (
@@ -1060,9 +1146,10 @@ type TenantResourceLimitAlert struct {
 }
 
 type TenantSubscription struct {
-	TenantId pgtype.UUID              `json:"tenantId"`
-	PlanCode string                   `json:"planCode"`
-	Status   TenantSubscriptionStatus `json:"status"`
+	TenantId pgtype.UUID                  `json:"tenantId"`
+	Status   TenantSubscriptionStatus     `json:"status"`
+	Period   NullTenantSubscriptionPeriod `json:"period"`
+	Plan     TenantSubscriptionPlanCodes  `json:"plan"`
 }
 
 type TenantVcsProvider struct {

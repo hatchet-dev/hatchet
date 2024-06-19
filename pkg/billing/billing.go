@@ -12,7 +12,8 @@ type CustomerOpts struct {
 }
 
 type SubscriptionOpts struct {
-	PlanCode string
+	Plan   dbsqlc.TenantSubscriptionPlanCodes
+	Period *string
 }
 
 type PaymentMethod struct {
@@ -25,7 +26,7 @@ type Billing interface {
 	Enabled() bool
 	GetPaymentMethods(tenantId string) ([]*PaymentMethod, error)
 	GetCheckoutLink(tenantId string) (*string, error)
-	UpsertTenantSubscription(tenant db.TenantModel, opts *SubscriptionOpts) (*dbsqlc.TenantSubscription, error)
+	UpsertTenantSubscription(tenant db.TenantModel, opts SubscriptionOpts) (*dbsqlc.TenantSubscription, error)
 	GetSubscription(tenantId string) (*dbsqlc.TenantSubscription, error)
 	MeterMetric(tenantId string, resource dbsqlc.LimitResource, uniqueId string, limitVal *int32) error
 }
@@ -44,7 +45,7 @@ func (a NoOpBilling) GetPaymentMethods(tenantId string) ([]*PaymentMethod, error
 	return nil, nil
 }
 
-func (a NoOpBilling) UpsertTenantSubscription(tenant db.TenantModel, opts *SubscriptionOpts) (*dbsqlc.TenantSubscription, error) {
+func (a NoOpBilling) UpsertTenantSubscription(tenant db.TenantModel, opts SubscriptionOpts) (*dbsqlc.TenantSubscription, error) {
 	return nil, nil
 }
 

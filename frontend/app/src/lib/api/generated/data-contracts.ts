@@ -260,7 +260,9 @@ export interface TenantResourcePolicy {
 
 export interface TenantSubscription {
   /** The plan code associated with the tenant subscription. */
-  planCode?: string;
+  plan?: string;
+  /** The period associated with the tenant subscription. */
+  period?: string;
   /** The status of the tenant subscription. */
   status?: TenantSubscriptionStatus;
 }

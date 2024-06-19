@@ -1,8 +1,6 @@
 -- name: GetTenantSubscription :one
 SELECT
-  "tenantId",
-  "planCode",
-  "status"
+  *
 FROM
   "TenantSubscription"
 WHERE
@@ -13,15 +11,18 @@ WHERE
 -- name: UpsertTenantSubscription :one
 INSERT INTO "TenantSubscription" (
   "tenantId",
-  "planCode",
+  "plan",
+  "period",
   "status"
 )
 VALUES (
   @tenantId::uuid,
-  sqlc.narg('planCode')::text,
+  sqlc.narg('plan')::"TenantSubscriptionPlanCodes",
+  sqlc.narg('period')::"TenantSubscriptionPeriod",
   sqlc.narg('status')::"TenantSubscriptionStatus"
 )
 ON CONFLICT ("tenantId") DO UPDATE SET
-  "planCode" = sqlc.narg('planCode')::text,
+  "plan" = sqlc.narg('plan')::"TenantSubscriptionPlanCodes",
+  "period" = sqlc.narg('period')::"TenantSubscriptionPeriod",
   "status" = sqlc.narg('status')::"TenantSubscriptionStatus"
 RETURNING *;
