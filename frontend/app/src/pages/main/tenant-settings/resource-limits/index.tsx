@@ -20,6 +20,9 @@ export default function ResourceLimits() {
 
   const billingEnabled = meta.data?.data.billing;
 
+  const hasPaymentMethods =
+    (resourcePolicyQuery.data?.paymentMethods?.length || 0) > 0;
+
   return (
     <div className="flex-grow h-full w-full">
       {billingEnabled && (
@@ -33,6 +36,7 @@ export default function ResourceLimits() {
           </div>
           <Separator className="my-4" />
           <PaymentMethods
+            hasMethods={hasPaymentMethods}
             manageLink={resourcePolicyQuery.data?.checkoutLink}
             methods={resourcePolicyQuery.data?.paymentMethods}
           />
