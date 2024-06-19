@@ -39,3 +39,4 @@ INSERT INTO "APIToken" (
     sqlc.narg('name')::text,
     @expiresAt::timestamp
 )
+RETURNING *;

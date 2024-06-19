@@ -593,6 +593,8 @@ CREATE TABLE "WebhookWorker" (
     "secret" TEXT NOT NULL,
     "url" TEXT NOT NULL,
     "tenantId" UUID NOT NULL,
+    "tokenId" UUID,
+    "tokenValue" TEXT,
 
     CONSTRAINT "WebhookWorker_pkey" PRIMARY KEY ("id")
 );
@@ -1338,6 +1340,9 @@ ALTER TABLE "UserSession" ADD CONSTRAINT "UserSession_userId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tokenId_fkey" FOREIGN KEY ("tokenId") REFERENCES "APIToken"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WebhookWorkerWorkflow" ADD CONSTRAINT "WebhookWorkerWorkflow_webhookWorkerId_fkey" FOREIGN KEY ("webhookWorkerId") REFERENCES "WebhookWorker"("id") ON DELETE CASCADE ON UPDATE CASCADE;

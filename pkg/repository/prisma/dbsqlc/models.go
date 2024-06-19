@@ -1070,12 +1070,14 @@ type UserSession struct {
 }
 
 type WebhookWorker struct {
-	ID        pgtype.UUID      `json:"id"`
-	CreatedAt pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
-	Secret    string           `json:"secret"`
-	Url       string           `json:"url"`
-	TenantId  pgtype.UUID      `json:"tenantId"`
+	ID         pgtype.UUID      `json:"id"`
+	CreatedAt  pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
+	Secret     string           `json:"secret"`
+	Url        string           `json:"url"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	TokenId    pgtype.UUID      `json:"tokenId"`
+	TokenValue pgtype.Text      `json:"tokenValue"`
 }
 
 type WebhookWorkerWorkflow struct {
