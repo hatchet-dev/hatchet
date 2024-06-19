@@ -20,8 +20,26 @@ export default function ResourceLimits() {
       <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <h2 className="text-2xl font-semibold leading-tight text-foreground">
-            Resource Limits
+            Billing and Limits
           </h2>
+        </div>
+      </div>
+      <Separator className="my-4" />
+      <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-row justify-between items-center">
+          <h3 className="text-xl font-semibold leading-tight text-foreground">
+            Subscription
+          </h3>
+        </div>
+        <p className="text-gray-700 dark:text-gray-300 my-4"></p>
+        {JSON.stringify(resourcePolicyQuery.data?.subscription)}
+      </div>
+      <Separator className="my-4" />
+      <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-row justify-between items-center">
+          <h3 className="text-xl font-semibold leading-tight text-foreground">
+            Resource Limits
+          </h3>
         </div>
         <p className="text-gray-700 dark:text-gray-300 my-4">
           Resource limits are used to control the usage of resources within a
@@ -33,8 +51,6 @@ export default function ResourceLimits() {
           if you need to adjust your limits.
         </p>
 
-        {JSON.stringify(resourcePolicyQuery.data?.subscription)}
-        <Separator className="my-4" />
         <DataTable
           isLoading={resourcePolicyQuery.isLoading}
           columns={cols}
