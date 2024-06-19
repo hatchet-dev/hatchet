@@ -574,17 +574,14 @@ getQueueMetrics:
           format: uuid
           minLength: 36
           maxLength: 36
-      - description: A list of workflow ids to include in the metrics
+      - description: A list of workflow IDs to filter by
         in: query
-        name: workflowIds
+        name: workflows
         required: false
         schema:
           type: array
           items:
-            type: string
-            format: uuid
-            minLength: 36
-            maxLength: 36
+            $ref: "../../components/schemas/_index.yaml#/WorkflowID"
       - description: A list of metadata key value pairs to filter by
         in: query
         name: additionalMetadata
@@ -599,7 +596,7 @@ getQueueMetrics:
         content:
           application/json:
             schema:
-              $ref: "../../components/schemas/_index.yaml#/WorkflowMetrics"
+              $ref: "../../components/schemas/_index.yaml#/TenantQueueMetrics"
         description: Successfully retrieved the workflow version metrics
       "400":
         content:

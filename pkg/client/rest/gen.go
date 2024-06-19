@@ -507,6 +507,18 @@ type PullRequest struct {
 // PullRequestState defines model for PullRequestState.
 type PullRequestState string
 
+// QueueMetrics defines model for QueueMetrics.
+type QueueMetrics struct {
+	// NumPending The number of items pending.
+	NumPending int `json:"numPending"`
+
+	// NumQueued The number of items in the queue.
+	NumQueued int `json:"numQueued"`
+
+	// NumRunning The number of items running.
+	NumRunning int `json:"numRunning"`
+}
+
 // RejectInviteRequest defines model for RejectInviteRequest.
 type RejectInviteRequest struct {
 	Invite string `json:"invite" validate:"required,uuid"`
@@ -725,6 +737,12 @@ type TenantMemberList struct {
 
 // TenantMemberRole defines model for TenantMemberRole.
 type TenantMemberRole string
+
+// TenantQueueMetrics defines model for TenantQueueMetrics.
+type TenantQueueMetrics struct {
+	Total    *QueueMetrics            `json:"total,omitempty"`
+	Workflow *map[string]QueueMetrics `json:"workflow,omitempty"`
+}
 
 // TenantResource defines model for TenantResource.
 type TenantResource string
@@ -1155,8 +1173,8 @@ type EventListParams struct {
 
 // TenantGetQueueMetricsParams defines parameters for TenantGetQueueMetrics.
 type TenantGetQueueMetricsParams struct {
-	// WorkflowIds A list of workflow ids to include in the metrics
-	WorkflowIds *[]openapi_types.UUID `form:"workflowIds,omitempty" json:"workflowIds,omitempty"`
+	// Workflows A list of workflow IDs to filter by
+	Workflows *[]WorkflowID `form:"workflows,omitempty" json:"workflows,omitempty"`
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
@@ -4445,9 +4463,9 @@ func NewTenantGetQueueMetricsRequest(server string, tenant openapi_types.UUID, p
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.WorkflowIds != nil {
+		if params.Workflows != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowIds", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflows", runtime.ParamLocationQuery, *params.Workflows); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -7430,7 +7448,7 @@ func (r TenantMemberDeleteResponse) StatusCode() int {
 type TenantGetQueueMetricsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *WorkflowMetrics
+	JSON200      *TenantQueueMetrics
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
@@ -10670,7 +10688,7 @@ func ParseTenantGetQueueMetricsResponse(rsp *http.Response) (*TenantGetQueueMetr
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest WorkflowMetrics
+		var dest TenantQueueMetrics
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

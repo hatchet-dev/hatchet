@@ -168,6 +168,142 @@ func (q *Queries) GetTenantByID(ctx context.Context, db DBTX, id pgtype.UUID) (*
 	return &i, err
 }
 
+const getTenantTotalQueueMetrics = `-- name: GetTenantTotalQueueMetrics :one
+WITH valid_workflow_runs AS (
+    SELECT
+        runs."id", workflow."id" as "workflowId", workflow."name" as "workflowName"
+    FROM
+        "WorkflowRun" as runs
+    LEFT JOIN
+        "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
+    LEFT JOIN
+        "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+    WHERE
+        -- status of the workflow run must be pending, queued or running
+        runs."status" IN ('PENDING', 'QUEUED', 'RUNNING') AND
+        runs."tenantId" = $1 AND
+        (
+            $2::jsonb IS NULL OR
+            runs."additionalMetadata" @> $2::jsonb
+        ) AND
+        (
+            $3::uuid[] IS NULL OR
+            workflow."id" = ANY($3::uuid[])
+        )
+)
+SELECT
+    -- count of step runs in a PENDING_ASSIGNMENT state
+    COUNT(stepRun."id") FILTER (WHERE stepRun."status" = 'PENDING_ASSIGNMENT') as "pendingAssignmentCount",
+    -- count of step runs in a PENDING state
+    COUNT(stepRun."id") FILTER (WHERE stepRun."status" = 'PENDING') as "pendingCount",
+    -- count of step runs in a RUNNING state
+    COUNT(stepRun."id") FILTER (WHERE stepRun."status" = 'RUNNING') as "runningCount"
+FROM
+    valid_workflow_runs as runs
+LEFT JOIN
+    "JobRun" as jobRun ON runs."id" = jobRun."workflowRunId"
+LEFT JOIN
+    "StepRun" as stepRun ON jobRun."id" = stepRun."jobRunId"
+`
+
+type GetTenantTotalQueueMetricsParams struct {
+	TenantId           pgtype.UUID   `json:"tenantId"`
+	AdditionalMetadata []byte        `json:"additionalMetadata"`
+	WorkflowIds        []pgtype.UUID `json:"workflowIds"`
+}
+
+type GetTenantTotalQueueMetricsRow struct {
+	PendingAssignmentCount int64 `json:"pendingAssignmentCount"`
+	PendingCount           int64 `json:"pendingCount"`
+	RunningCount           int64 `json:"runningCount"`
+}
+
+func (q *Queries) GetTenantTotalQueueMetrics(ctx context.Context, db DBTX, arg GetTenantTotalQueueMetricsParams) (*GetTenantTotalQueueMetricsRow, error) {
+	row := db.QueryRow(ctx, getTenantTotalQueueMetrics, arg.TenantId, arg.AdditionalMetadata, arg.WorkflowIds)
+	var i GetTenantTotalQueueMetricsRow
+	err := row.Scan(&i.PendingAssignmentCount, &i.PendingCount, &i.RunningCount)
+	return &i, err
+}
+
+const getTenantWorkflowQueueMetrics = `-- name: GetTenantWorkflowQueueMetrics :many
+WITH valid_workflow_runs AS (
+    SELECT
+        runs."id", workflow."id" as "workflowId", workflow."name" as "workflowName"
+    FROM
+        "WorkflowRun" as runs
+    LEFT JOIN
+        "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
+    LEFT JOIN
+        "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+    WHERE
+        -- status of the workflow run must be pending, queued or running
+        runs."status" IN ('PENDING', 'QUEUED', 'RUNNING') AND
+        runs."tenantId" = $1 AND
+        (
+            $2::jsonb IS NULL OR
+            runs."additionalMetadata" @> $2::jsonb
+        ) AND
+        (
+            $3::uuid[] IS NULL OR
+            workflow."id" = ANY($3::uuid[])
+        )
+)
+SELECT
+    runs."workflowId",
+    -- count of step runs in a PENDING_ASSIGNMENT state
+    COUNT(stepRun."id") FILTER (WHERE stepRun."status" = 'PENDING_ASSIGNMENT') as "pendingAssignmentCount",
+    -- count of step runs in a PENDING state
+    COUNT(stepRun."id") FILTER (WHERE stepRun."status" = 'PENDING') as "pendingCount",
+    -- count of step runs in a RUNNING state
+    COUNT(stepRun."id") FILTER (WHERE stepRun."status" = 'RUNNING') as "runningCount"
+FROM
+    valid_workflow_runs as runs
+LEFT JOIN
+    "JobRun" as jobRun ON runs."id" = jobRun."workflowRunId"
+LEFT JOIN
+    "StepRun" as stepRun ON jobRun."id" = stepRun."jobRunId"
+GROUP BY
+    runs."workflowId"
+`
+
+type GetTenantWorkflowQueueMetricsParams struct {
+	TenantId           pgtype.UUID   `json:"tenantId"`
+	AdditionalMetadata []byte        `json:"additionalMetadata"`
+	WorkflowIds        []pgtype.UUID `json:"workflowIds"`
+}
+
+type GetTenantWorkflowQueueMetricsRow struct {
+	WorkflowId             pgtype.UUID `json:"workflowId"`
+	PendingAssignmentCount int64       `json:"pendingAssignmentCount"`
+	PendingCount           int64       `json:"pendingCount"`
+	RunningCount           int64       `json:"runningCount"`
+}
+
+func (q *Queries) GetTenantWorkflowQueueMetrics(ctx context.Context, db DBTX, arg GetTenantWorkflowQueueMetricsParams) ([]*GetTenantWorkflowQueueMetricsRow, error) {
+	rows, err := db.Query(ctx, getTenantWorkflowQueueMetrics, arg.TenantId, arg.AdditionalMetadata, arg.WorkflowIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetTenantWorkflowQueueMetricsRow
+	for rows.Next() {
+		var i GetTenantWorkflowQueueMetricsRow
+		if err := rows.Scan(
+			&i.WorkflowId,
+			&i.PendingAssignmentCount,
+			&i.PendingCount,
+			&i.RunningCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTenants = `-- name: ListTenants :many
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails"

@@ -58,6 +58,7 @@ import {
   TenantInviteList,
   TenantMember,
   TenantMemberList,
+  TenantQueueMetrics,
   TenantResourcePolicy,
   TriggerWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
@@ -836,8 +837,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   tenantGetQueueMetrics = (
     tenant: string,
     query?: {
-      /** A list of workflow ids to include in the metrics */
-      workflowIds?: string[];
+      /** A list of workflow IDs to filter by */
+      workflows?: WorkflowID[];
       /**
        * A list of metadata key value pairs to filter by
        * @example ["key1:value1","key2:value2"]
@@ -846,7 +847,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     },
     params: RequestParams = {},
   ) =>
-    this.request<WorkflowMetrics, APIErrors>({
+    this.request<TenantQueueMetrics, APIErrors>({
       path: `/api/v1/tenants/${tenant}/queue-metrics`,
       method: "GET",
       query: query,
