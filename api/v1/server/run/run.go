@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
@@ -27,7 +28,7 @@ import (
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/internal/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 type apiService struct {
@@ -72,11 +73,36 @@ func NewAPIServer(config *server.ServerConfig) *APIServer {
 	}
 }
 
-func (t *APIServer) Run() (func() error, error) {
-	e, err := t.GetEchoServer()
+// APIServerExtensionOpt returns a spec and a way to register handlers with an echo group
+type APIServerExtensionOpt func(config *server.ServerConfig) (*openapi3.T, func(*echo.Group) error, error)
+
+func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
+	e, err := t.getCoreEchoService()
 
 	if err != nil {
 		return nil, err
+	}
+
+	for _, opt := range opts {
+		// extensions are implemented as their own echo group which validate against the
+		// extension's spec
+		g := e.Group("")
+
+		spec, f, err := opt(t.config)
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = t.registerSpec(g, spec)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if err := f(g); err != nil {
+			return nil, err
+		}
 	}
 
 	return t.RunWithServer(e)
@@ -102,14 +128,31 @@ func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 	return cleanup, nil
 }
 
-func (t *APIServer) GetEchoServer() (*echo.Echo, error) {
+func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	oaspec, err := gen.GetSwagger()
+
 	if err != nil {
 		return nil, err
 	}
 
 	e := echo.New()
 
+	g := e.Group("")
+
+	if err := t.registerSpec(g, oaspec); err != nil {
+		return nil, err
+	}
+
+	service := newAPIService(t.config)
+
+	myStrictApiHandler := gen.NewStrictHandler(service, []gen.StrictMiddlewareFunc{})
+
+	gen.RegisterHandlers(g, myStrictApiHandler)
+
+	return e, nil
+}
+
+func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) error {
 	// application middleware
 	populatorMW := populator.NewPopulator(t.config)
 
@@ -245,10 +288,10 @@ func (t *APIServer) GetEchoServer() (*echo.Echo, error) {
 	authnMW := authn.NewAuthN(t.config)
 	authzMW := authz.NewAuthZ(t.config)
 
-	mw, err := hatchetmiddleware.NewMiddlewareHandler(oaspec)
+	mw, err := hatchetmiddleware.NewMiddlewareHandler(spec)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	mw.Use(populatorMW.Middleware)
@@ -258,7 +301,7 @@ func (t *APIServer) GetEchoServer() (*echo.Echo, error) {
 	allHatchetMiddleware, err := mw.Middleware()
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	loggerMiddleware := middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
@@ -306,17 +349,11 @@ func (t *APIServer) GetEchoServer() (*echo.Echo, error) {
 	})
 
 	// register echo middleware
-	e.Use(
+	g.Use(
 		loggerMiddleware,
 		middleware.Recover(),
 		allHatchetMiddleware,
 	)
 
-	service := newAPIService(t.config)
-
-	myStrictApiHandler := gen.NewStrictHandler(service, []gen.StrictMiddlewareFunc{})
-
-	gen.RegisterHandlers(e, myStrictApiHandler)
-
-	return e, nil
+	return nil
 }

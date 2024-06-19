@@ -8,8 +8,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
-	"github.com/hatchet-dev/hatchet/internal/config/shared"
-	"github.com/hatchet-dev/hatchet/internal/logger"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
 var l zerolog.Logger

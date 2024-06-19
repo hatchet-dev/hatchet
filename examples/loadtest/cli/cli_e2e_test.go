@@ -11,9 +11,9 @@ import (
 
 	"go.uber.org/goleak"
 
-	"github.com/hatchet-dev/hatchet/internal/config/shared"
-	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/testutils"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
 func TestLoadCLI(t *testing.T) {

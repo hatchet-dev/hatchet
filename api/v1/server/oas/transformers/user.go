@@ -4,7 +4,7 @@ import (
 	"github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
 func ToUser(user *db.UserModel, hasPassword bool, hashedEmail *string) *gen.User {

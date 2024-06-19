@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type PushOpFunc func(*eventcontracts.PushEventRequest) error

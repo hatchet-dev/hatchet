@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
-	"github.com/hatchet-dev/hatchet/internal/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
 func SetupEngine(ctx context.Context, t *testing.T) {

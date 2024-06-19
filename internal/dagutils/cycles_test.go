@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
-	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 func TestHasCycle(t *testing.T) {

@@ -4,8 +4,9 @@ datasource db {
 }
 
 generator go {
-  provider = "go run github.com/steebchen/prisma-client-go"
-  output   = "../internal/repository/prisma/db"
+  provider         = "go run github.com/steebchen/prisma-client-go"
+  output           = "../pkg/repository/prisma/db"
+  disableGitignore = true
 }
 
 model User {
@@ -139,10 +140,9 @@ model Tenant {
   slackWebhooks             SlackAppWebhook[]
   alertingSettings          TenantAlertingSettings?
 
-  limits                    TenantResourceLimit[]
-  limitAlerts               TenantResourceLimitAlert[]
+  limits      TenantResourceLimit[]
+  limitAlerts TenantResourceLimitAlert[]
 }
-
 
 enum LimitResource {
   WORKFLOW_RUN
@@ -153,9 +153,9 @@ enum LimitResource {
 }
 
 model TenantResourceLimit {
-  id       String   @id @unique @default(uuid()) @db.Uuid
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now()) @updatedAt
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   resource LimitResource
 
@@ -195,9 +195,9 @@ model TenantResourceLimitAlert {
   updatedAt DateTime @default(now()) @updatedAt
 
   resourceLimit   TenantResourceLimit @relation(fields: [resourceLimitId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  resourceLimitId String @db.Uuid
+  resourceLimitId String              @db.Uuid
 
-  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   resource LimitResource
@@ -223,9 +223,9 @@ model TenantAlertingSettings {
   tenantId String @unique @db.Uuid
 
   // workflow run failure alerts
-  enableWorkflowRunFailureAlerts         Boolean @default(false)
-  enableExpiringTokenAlerts              Boolean @default(true)
-  enableTenantResourceLimitAlerts        Boolean @default(true)
+  enableWorkflowRunFailureAlerts  Boolean @default(false)
+  enableExpiringTokenAlerts       Boolean @default(true)
+  enableTenantResourceLimitAlerts Boolean @default(true)
 
   // the maximum alerting frequency
   maxFrequency String @default("1h")
@@ -236,7 +236,6 @@ model TenantAlertingSettings {
   ticker   Ticker? @relation(fields: [tickerId], references: [id])
   tickerId String? @db.Uuid
 }
-
 
 enum TenantMemberRole {
   OWNER

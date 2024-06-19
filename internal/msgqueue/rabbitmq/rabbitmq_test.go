@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hatchet-dev/hatchet/internal/encryption"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 )
 
 func TestMessageQueueIntegration(t *testing.T) {

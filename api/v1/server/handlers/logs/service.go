@@ -1,7 +1,7 @@
 package logs
 
 import (
-	"github.com/hatchet-dev/hatchet/internal/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 type LogService struct {
