@@ -1153,6 +1153,15 @@ type EventListParams struct {
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
+// TenantGetQueueMetricsParams defines parameters for TenantGetQueueMetrics.
+type TenantGetQueueMetricsParams struct {
+	// WorkflowIds A list of workflow ids to include in the metrics
+	WorkflowIds *[]openapi_types.UUID `form:"workflowIds,omitempty" json:"workflowIds,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+}
+
 // WorkflowRunListPullRequestsParams defines parameters for WorkflowRunListPullRequests.
 type WorkflowRunListPullRequestsParams struct {
 	// State The pull request state
@@ -1206,7 +1215,7 @@ type WorkflowRunGetMetricsParams struct {
 
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
 type WorkflowGetMetricsParams struct {
-	// Status A status of workflow runs to filter by
+	// Status A status of workflow run statuses to filter by
 	Status *WorkflowRunStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// GroupKey A group key to filter metrics by
@@ -1486,6 +1495,9 @@ type ClientInterface interface {
 
 	// TenantMemberDelete request
 	TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantGetQueueMetrics request
+	TenantGetQueueMetrics(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantResourcePolicyGet request
 	TenantResourcePolicyGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2158,6 +2170,18 @@ func (c *Client) TenantMemberList(ctx context.Context, tenant openapi_types.UUID
 
 func (c *Client) TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantMemberDeleteRequest(c.Server, tenant, member)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantGetQueueMetrics(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantGetQueueMetricsRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4392,6 +4416,78 @@ func NewTenantMemberDeleteRequest(server string, tenant openapi_types.UUID, memb
 	return req, nil
 }
 
+// NewTenantGetQueueMetricsRequest generates requests for TenantGetQueueMetrics
+func NewTenantGetQueueMetricsRequest(server string, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/queue-metrics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowIds", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewTenantResourcePolicyGetRequest generates requests for TenantResourcePolicyGet
 func NewTenantResourcePolicyGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -6327,6 +6423,9 @@ type ClientWithResponsesInterface interface {
 	// TenantMemberDeleteWithResponse request
 	TenantMemberDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantMemberDeleteResponse, error)
 
+	// TenantGetQueueMetricsWithResponse request
+	TenantGetQueueMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*TenantGetQueueMetricsResponse, error)
+
 	// TenantResourcePolicyGetWithResponse request
 	TenantResourcePolicyGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantResourcePolicyGetResponse, error)
 
@@ -7322,6 +7421,31 @@ func (r TenantMemberDeleteResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantMemberDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantGetQueueMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkflowMetrics
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantGetQueueMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantGetQueueMetricsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8674,6 +8798,15 @@ func (c *ClientWithResponses) TenantMemberDeleteWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseTenantMemberDeleteResponse(rsp)
+}
+
+// TenantGetQueueMetricsWithResponse request returning *TenantGetQueueMetricsResponse
+func (c *ClientWithResponses) TenantGetQueueMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*TenantGetQueueMetricsResponse, error) {
+	rsp, err := c.TenantGetQueueMetrics(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantGetQueueMetricsResponse(rsp)
 }
 
 // TenantResourcePolicyGetWithResponse request returning *TenantResourcePolicyGetResponse
@@ -10495,6 +10628,53 @@ func ParseTenantMemberDeleteResponse(rsp *http.Response) (*TenantMemberDeleteRes
 			return nil, err
 		}
 		response.JSON204 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantGetQueueMetricsResponse parses an HTTP response from a TenantGetQueueMetricsWithResponse call
+func ParseTenantGetQueueMetricsResponse(rsp *http.Response) (*TenantGetQueueMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantGetQueueMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkflowMetrics
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
