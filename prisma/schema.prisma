@@ -141,8 +141,27 @@ model Tenant {
 
   limits                    TenantResourceLimit[]
   limitAlerts               TenantResourceLimitAlert[]
+
+  subscription             TenantSubscription?
 }
 
+
+
+
+enum TenantSubscriptionStatus {
+  active
+  pending
+  terminated
+  canceled
+}
+
+model TenantSubscription {
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @id @db.Uuid @unique
+
+  planCode String
+  status   TenantSubscriptionStatus
+}
 
 enum LimitResource {
   WORKFLOW_RUN

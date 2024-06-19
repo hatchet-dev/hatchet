@@ -503,6 +503,50 @@ func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
 	return string(ns.TenantResourceLimitAlertType), nil
 }
 
+type TenantSubscriptionStatus string
+
+const (
+	TenantSubscriptionStatusActive     TenantSubscriptionStatus = "active"
+	TenantSubscriptionStatusPending    TenantSubscriptionStatus = "pending"
+	TenantSubscriptionStatusTerminated TenantSubscriptionStatus = "terminated"
+	TenantSubscriptionStatusCanceled   TenantSubscriptionStatus = "canceled"
+)
+
+func (e *TenantSubscriptionStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TenantSubscriptionStatus(s)
+	case string:
+		*e = TenantSubscriptionStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TenantSubscriptionStatus: %T", src)
+	}
+	return nil
+}
+
+type NullTenantSubscriptionStatus struct {
+	TenantSubscriptionStatus TenantSubscriptionStatus `json:"TenantSubscriptionStatus"`
+	Valid                    bool                     `json:"valid"` // Valid is true if TenantSubscriptionStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTenantSubscriptionStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.TenantSubscriptionStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TenantSubscriptionStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTenantSubscriptionStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TenantSubscriptionStatus), nil
+}
+
 type VcsProvider string
 
 const (
@@ -1013,6 +1057,12 @@ type TenantResourceLimitAlert struct {
 	AlertType       TenantResourceLimitAlertType `json:"alertType"`
 	Value           int32                        `json:"value"`
 	Limit           int32                        `json:"limit"`
+}
+
+type TenantSubscription struct {
+	TenantId pgtype.UUID              `json:"tenantId"`
+	PlanCode string                   `json:"planCode"`
+	Status   TenantSubscriptionStatus `json:"status"`
 }
 
 type TenantVcsProvider struct {

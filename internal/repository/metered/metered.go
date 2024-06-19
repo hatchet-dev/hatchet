@@ -89,7 +89,7 @@ func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitRe
 			return
 		}
 
-		err = (*m.b).MeterMetric(tenantId, string(resource), *id, &limit.Value)
+		err = (*m.b).MeterMetric(tenantId, resource, *id, &limit.Value)
 
 		if err != nil {
 			m.l.Error().Err(err).Msg("could not bill resource")

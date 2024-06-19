@@ -11,12 +11,17 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/config/shared"
 	"github.com/hatchet-dev/hatchet/internal/logger"
+	"github.com/hatchet-dev/hatchet/internal/repository"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/billing"
 )
 
 type LagoBilling struct {
 	client *lago.Client
 	l      *zerolog.Logger
+	e      repository.EntitlementsRepository
 }
 
 type LagoBillingOpts struct {
@@ -25,7 +30,7 @@ type LagoBillingOpts struct {
 	Logger  shared.LoggerConfigFile
 }
 
-func NewLagoBilling(opts *LagoBillingOpts) (*LagoBilling, error) {
+func NewLagoBilling(opts *LagoBillingOpts, e *repository.EntitlementsRepository) (*LagoBilling, error) {
 	if opts.ApiKey == "" || opts.BaseUrl == "" {
 		return nil, fmt.Errorf("api key and base url are required if lago is enabled")
 	}
@@ -37,62 +42,71 @@ func NewLagoBilling(opts *LagoBillingOpts) (*LagoBilling, error) {
 	return &LagoBilling{
 		client: lagoClient,
 		l:      &l,
+		e:      *e,
 	}, nil
-}
-
-func (l *LagoBilling) UpsertTenant(tenant db.TenantModel) error {
-	// customerInput := &lago.CustomerInput{
-	// 	ExternalID:              "5eb02857-a71e-4ea2-bcf9-57d3a41bc6ba",
-	// 	Name:                    "Gavin Belson",
-	// 	Email:                   "dinesh@piedpiper.test",
-	// 	AddressLine1:            "5230 Penfield Ave",
-	// 	AddressLine2:            "",
-	// 	City:                    "Woodland Hills",
-	// 	Country:                 "US",
-	// 	Currency:                "USD",
-	// 	State:                   "CA",
-	// 	Zipcode:                 "75001",
-	// 	LegalName:               "Coleman-Blair",
-	// 	LegalNumber:             "49-008-2965",
-	// 	TaxIdentificationNumber: "EU123456789",
-	// 	Phone:                   "+330100000000",
-	// 	Timezone:                "Europe/Paris",
-	// 	URL:                     "http://hooli.com",
-	// 	BillingConfiguration: &CustomerBillingConfigurationInput{
-	// 		InvoiceGracePeriod: 3,
-	// 		PaymentProvider:    lago.PaymentProviderStripe,
-	// 		ProviderCustomerID: "cus_123456789",
-	// 		SyncWithProvider:   true,
-	// 		DocumentLocale:     "fr",
-	// 	},
-	// 	Metadata: []*lago.CustomerMetadataInput{
-	// 		{
-	// 			Key:              "Purchase Order",
-	// 			Value:            "123456789",
-	// 			DisplayInInvoice: true,
-	// 		},
-	// 	},
-	// }
-
-	// customer, err := l.client.Customer().Create(customerInput)
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	return nil
 }
 
 func (l *LagoBilling) Enabled() bool {
 	return true
 }
 
-func (l *LagoBilling) MeterMetric(tenantId string, resource string, uniqueId string, limitVal *int32) error {
+func (l *LagoBilling) GetTenant(tenantId string) (*lago.Customer, error) {
+	customer, err := l.client.Customer().Get(context.Background(), tenantId)
 
+	if err != nil {
+		return nil, err
+	}
+
+	return customer, nil
+}
+
+func (l *LagoBilling) UpsertTenant(tenant db.TenantModel) (*lago.Customer, error) {
+	customer, err := l.client.Customer().Update(context.Background(), &lago.CustomerInput{
+		ExternalID: tenant.ID,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return customer, nil
+}
+
+func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts *billing.SubscriptionOpts) (*dbsqlc.TenantSubscription, error) {
+	ctx := context.Background()
+
+	sub, lagoErr := l.client.Subscription().Update(ctx, &lago.SubscriptionInput{
+		ExternalCustomerID: tenant.ID,
+		PlanCode:           opts.PlanCode,
+		BillingTime:        lago.Anniversary,
+	})
+
+	if lagoErr != nil {
+		return nil, lagoErr
+	}
+
+	_, s, err := l.e.TenantSubscription().UpsertSubscription(ctx,
+		dbsqlc.UpsertTenantSubscriptionParams{
+			Tenantid: sqlchelpers.UUIDFromStr(tenant.ID),
+			PlanCode: sqlchelpers.TextFromStr(sub.PlanCode),
+			Status: dbsqlc.NullTenantSubscriptionStatus{
+				TenantSubscriptionStatus: dbsqlc.TenantSubscriptionStatus(sub.Status),
+				Valid:                    true,
+			},
+		})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return s, nil
+}
+
+func (l *LagoBilling) MeterMetric(tenantId string, resource dbsqlc.LimitResource, uniqueId string, limitVal *int32) error {
 	event := lago.EventInput{
 		TransactionID:          uniqueId,
 		ExternalSubscriptionID: tenantId,
-		Code:                   resource,
+		Code:                   string(resource),
 		Timestamp:              strconv.FormatInt(time.Now().Unix(), 10),
 		Properties: map[string]interface{}{
 			"limit_val": limitVal,

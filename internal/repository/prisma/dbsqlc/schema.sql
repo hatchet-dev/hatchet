@@ -32,6 +32,9 @@ CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
 CREATE TYPE "TenantResourceLimitAlertType" AS ENUM ('Alarm', 'Exhausted');
 
 -- CreateEnum
+CREATE TYPE "TenantSubscriptionStatus" AS ENUM ('active', 'pending', 'terminated', 'canceled');
+
+-- CreateEnum
 CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
 
 -- CreateEnum
@@ -516,6 +519,15 @@ CREATE TABLE "TenantResourceLimitAlert" (
 );
 
 -- CreateTable
+CREATE TABLE "TenantSubscription" (
+    "tenantId" UUID NOT NULL,
+    "planCode" TEXT NOT NULL,
+    "status" "TenantSubscriptionStatus" NOT NULL,
+
+    CONSTRAINT "TenantSubscription_pkey" PRIMARY KEY ("tenantId")
+);
+
+-- CreateTable
 CREATE TABLE "TenantVcsProvider" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -977,6 +989,9 @@ CREATE UNIQUE INDEX "TenantResourceLimit_tenantId_resource_key" ON "TenantResour
 CREATE UNIQUE INDEX "TenantResourceLimitAlert_id_key" ON "TenantResourceLimitAlert"("id" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "TenantSubscription_tenantId_key" ON "TenantSubscription"("tenantId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "TenantVcsProvider_id_key" ON "TenantVcsProvider"("id" ASC);
 
 -- CreateIndex
@@ -1290,6 +1305,9 @@ ALTER TABLE "TenantResourceLimitAlert" ADD CONSTRAINT "TenantResourceLimitAlert_
 
 -- AddForeignKey
 ALTER TABLE "TenantResourceLimitAlert" ADD CONSTRAINT "TenantResourceLimitAlert_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TenantSubscription" ADD CONSTRAINT "TenantSubscription_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TenantVcsProvider" ADD CONSTRAINT "TenantVcsProvider_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
