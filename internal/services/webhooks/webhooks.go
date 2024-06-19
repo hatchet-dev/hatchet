@@ -111,6 +111,7 @@ func (c *WebhooksController) check() error {
 
 				// TODO encrypt the token!
 				_, err = c.sc.APIRepository.WebhookWorker().UpsertWebhookWorker(context.Background(), &repository.UpsertWebhookWorkerOpts{
+					Name:       ww.Name,
 					URL:        ww.URL,
 					Secret:     ww.Secret,
 					TenantId:   &tenantId,
@@ -171,7 +172,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorker
 		ID:        webhookWorker.ID,
 		Secret:    webhookWorker.Secret,
 		URL:       webhookWorker.URL,
-		Name:      *webhookWorker.InnerWebhookWorker.Name,
+		Name:      webhookWorker.Name,
 		TenantID:  tenantId,
 		Actions:   h.Actions,
 		Workflows: h.Workflows,

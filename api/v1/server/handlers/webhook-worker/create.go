@@ -31,6 +31,7 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 
 	ww, err := i.config.APIRepository.WebhookWorker().UpsertWebhookWorker(ctx.Request().Context(), &repository.UpsertWebhookWorkerOpts{
 		TenantId:  &tenant.ID,
+		Name:      request.Body.Name,
 		URL:       request.Body.Url,
 		Secret:    secret,
 		Workflows: wfs,
@@ -42,7 +43,7 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 	return gen.WebhookCreate200JSONResponse{
 		Url:    ww.URL,
 		Secret: ww.Secret,
-		//Name:   ww.Name, // TODO
+		Name:   ww.Name,
 		Metadata: gen.APIResourceMeta{
 			Id:        uuid.MustParse(ww.ID),
 			CreatedAt: ww.CreatedAt,

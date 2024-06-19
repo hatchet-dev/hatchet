@@ -39,12 +39,14 @@ func (r *webhookWorkerRepository) UpsertWebhookWorker(ctx context.Context, opts 
 	ww, err := r.db.WebhookWorker.UpsertOne(
 		db.WebhookWorker.URL.Equals(opts.URL),
 	).Create(
+		db.WebhookWorker.Name.Set(opts.Name),
 		db.WebhookWorker.Secret.Set(opts.Secret),
 		db.WebhookWorker.URL.Set(opts.URL),
 		db.WebhookWorker.Tenant.Link(
 			db.Tenant.ID.EqualsIfPresent(opts.TenantId),
 		),
 	).Update(
+		db.WebhookWorker.Name.Set(opts.Name),
 		db.WebhookWorker.Secret.Set(opts.Secret),
 		db.WebhookWorker.URL.Set(opts.URL),
 		db.WebhookWorker.TokenValue.SetIfPresent(opts.TokenValue),

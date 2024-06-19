@@ -55,8 +55,11 @@ export default function Webhooks() {
               <div className="flex flex-row justify-between items-center">
                 <Card>
                   <CardHeader>
-                    <CardTitle>{worker.metadata.id}</CardTitle>
+                    <CardTitle>{worker.name}</CardTitle>
                     <CardDescription>
+                      <div className="text-sm mt-2 font-mono">
+                        {worker.metadata.id}
+                      </div>
                       <div className="text-sm mt-2">{worker.url}</div>
 
                       <div className="flex items-center gap-2 mt-2">

@@ -8,6 +8,7 @@ import (
 func ToWebhookWorker(webhookWorker *db.WebhookWorkerModel) *gen.WebhookWorker {
 	return &gen.WebhookWorker{
 		Metadata: *toAPIMetadata(webhookWorker.ID, webhookWorker.CreatedAt, webhookWorker.UpdatedAt),
+		Name:     webhookWorker.Name,
 		Url:      webhookWorker.URL,
 		Secret:   webhookWorker.Secret,
 	}

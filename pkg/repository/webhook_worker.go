@@ -7,6 +7,7 @@ import (
 )
 
 type UpsertWebhookWorkerOpts struct {
+	Name       string
 	URL        string `validate:"required,url"`
 	Secret     string
 	TenantId   *string `validate:"uuid"`
