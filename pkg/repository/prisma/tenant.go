@@ -2,8 +2,10 @@ package prisma
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -16,16 +18,24 @@ import (
 )
 
 type tenantAPIRepository struct {
-	client *db.PrismaClient
-	v      validator.Validator
-	cache  cache.Cacheable
+	cache   cache.Cacheable
+	client  *db.PrismaClient
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	l       *zerolog.Logger
+	queries *dbsqlc.Queries
 }
 
-func NewTenantAPIRepository(client *db.PrismaClient, v validator.Validator, cache cache.Cacheable) repository.TenantAPIRepository {
+func NewTenantAPIRepository(pool *pgxpool.Pool, client *db.PrismaClient, v validator.Validator, l *zerolog.Logger, cache cache.Cacheable) repository.TenantAPIRepository {
+	queries := dbsqlc.New()
+
 	return &tenantAPIRepository{
-		client: client,
-		v:      v,
-		cache:  cache,
+		cache:   cache,
+		client:  client,
+		pool:    pool,
+		v:       v,
+		l:       l,
+		queries: queries,
 	}
 }
 
@@ -167,6 +177,82 @@ func (r *tenantAPIRepository) DeleteTenantMember(memberId string) (*db.TenantMem
 	return r.client.TenantMember.FindUnique(
 		db.TenantMember.ID.Equals(memberId),
 	).Delete().Exec(context.Background())
+}
+
+func (r *tenantAPIRepository) GetQueueMetrics(tenantId string, opts *repository.GetQueueMetricsOpts) (*repository.GetQueueMetricsResponse, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	totalParams := dbsqlc.GetTenantTotalQueueMetricsParams{
+		TenantId: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	workflowParams := dbsqlc.GetTenantWorkflowQueueMetricsParams{
+		TenantId: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	if opts.AdditionalMetadata != nil {
+		additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+		if err != nil {
+			return nil, err
+		}
+
+		totalParams.AdditionalMetadata = additionalMetadataBytes
+		workflowParams.AdditionalMetadata = additionalMetadataBytes
+	}
+
+	if opts.WorkflowIds != nil {
+		uuids := make([]pgtype.UUID, len(opts.WorkflowIds))
+
+		for i, id := range opts.WorkflowIds {
+			uuids[i] = sqlchelpers.UUIDFromStr(id)
+		}
+
+		workflowParams.WorkflowIds = uuids
+		totalParams.WorkflowIds = uuids
+	}
+
+	tx, err := r.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
+
+	// get the totals
+	total, err := r.queries.GetTenantTotalQueueMetrics(context.Background(), tx, totalParams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// get the workflow metrics
+	workflowMetrics, err := r.queries.GetTenantWorkflowQueueMetrics(context.Background(), tx, workflowParams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	workflowMetricsMap := make(map[string]repository.QueueMetric)
+
+	for _, metric := range workflowMetrics {
+		workflowMetricsMap[sqlchelpers.UUIDToStr(metric.WorkflowId)] = repository.QueueMetric{
+			PendingAssignment: int(metric.PendingAssignmentCount),
+			Pending:           int(metric.PendingCount),
+			Running:           int(metric.RunningCount),
+		}
+	}
+
+	return &repository.GetQueueMetricsResponse{
+		Total: repository.QueueMetric{
+			PendingAssignment: int(total.PendingAssignmentCount),
+			Pending:           int(total.PendingCount),
+			Running:           int(total.RunningCount),
+		},
+		ByWorkflowId: workflowMetricsMap,
+	}, nil
 }
 
 type tenantEngineRepository struct {

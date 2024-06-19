@@ -325,6 +325,21 @@ export interface TenantInviteList {
   rows?: TenantInvite[];
 }
 
+export interface QueueMetrics {
+  /** The number of items in the queue. */
+  numQueued: number;
+  /** The number of items running. */
+  numRunning: number;
+  /** The number of items pending. */
+  numPending: number;
+}
+
+export interface TenantQueueMetrics {
+  /** The total queue metrics. */
+  total?: QueueMetrics;
+  workflow?: Record<string, QueueMetrics>;
+}
+
 export interface AcceptInviteRequest {
   /**
    * @minLength 36

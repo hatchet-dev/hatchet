@@ -60,6 +60,10 @@ TenantInvite:
   $ref: "./tenant.yaml#/TenantInvite"
 TenantInviteList:
   $ref: "./tenant.yaml#/TenantInviteList"
+QueueMetrics:
+  $ref: "./tenant.yaml#/QueueMetrics"
+TenantQueueMetrics:
+  $ref: "./tenant.yaml#/TenantQueueMetrics"
 AcceptInviteRequest:
   $ref: "./user.yaml#/AcceptInviteRequest"
 RejectInviteRequest:
