@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type WorkflowEvent *dispatchercontracts.WorkflowEvent

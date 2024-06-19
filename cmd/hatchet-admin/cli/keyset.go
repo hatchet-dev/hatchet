@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hatchet-dev/hatchet/internal/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 )
 
 var (

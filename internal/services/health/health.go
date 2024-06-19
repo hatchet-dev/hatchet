@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type Health struct {

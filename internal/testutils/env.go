@@ -9,9 +9,9 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/hatchet-dev/hatchet/internal/config/loader"
-	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
 func Prepare(t *testing.T) {
