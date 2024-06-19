@@ -44,6 +44,8 @@ TenantResourcePolicy:
   $ref: "./tenant.yaml#/TenantResourcePolicy"
 TenantSubscription:
   $ref: "./tenant.yaml#/TenantSubscription"
+TenantPaymentMethod:
+  $ref: "./tenant.yaml#/TenantPaymentMethod"
 TenantSubscriptionStatus:
   $ref: "./tenant.yaml#/TenantSubscriptionStatus"
 CreateTenantInviteRequest:

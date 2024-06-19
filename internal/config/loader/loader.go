@@ -174,9 +174,13 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	if bcf.Lago.Enabled {
 		billingClient, err = lago.NewLagoBilling(&lago.LagoBillingOpts{
-			ApiKey:  bcf.Lago.ApiKey,
-			BaseUrl: bcf.Lago.BaseURL,
-		}, &entitlementRepo)
+			ApiKey:    bcf.Lago.ApiKey,
+			BaseUrl:   bcf.Lago.BaseURL,
+			StripeKey: bcf.Lago.StripeKey,
+		},
+			&entitlementRepo,
+			runtime.ServerURL,
+		)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not create lago billing: %w", err)
@@ -281,9 +285,10 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	if cf.Billing.Lago.Enabled {
 		billingClient, err = lago.NewLagoBilling(&lago.LagoBillingOpts{
-			ApiKey:  cf.Billing.Lago.ApiKey,
-			BaseUrl: cf.Billing.Lago.BaseURL,
-		}, &dc.EntitlementRepository)
+			ApiKey:    cf.Billing.Lago.ApiKey,
+			BaseUrl:   cf.Billing.Lago.BaseURL,
+			StripeKey: cf.Billing.Lago.StripeKey,
+		}, &dc.EntitlementRepository, cf.Runtime.ServerURL)
 
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not create lago billing: %w", err)

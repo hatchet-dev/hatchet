@@ -17,6 +17,8 @@ export interface APIMeta {
    */
   pylonAppId?: string;
   posthog?: APIMetaPosthog;
+  /** whether billing is enabled on the instance */
+  billing: boolean;
 }
 
 export interface APIMetaAuth {
@@ -247,6 +249,9 @@ export interface TenantResourceLimit {
 }
 
 export interface TenantResourcePolicy {
+  /** The link to checkout for the tenant. */
+  checkoutLink?: string;
+  paymentMethods?: TenantPaymentMethod[];
   /** The subscription associated with this policy. */
   subscription: TenantSubscription;
   /** A list of resource limits for the tenant. */
@@ -258,6 +263,15 @@ export interface TenantSubscription {
   planCode?: string;
   /** The status of the tenant subscription. */
   status?: TenantSubscriptionStatus;
+}
+
+export interface TenantPaymentMethod {
+  /** The last 4 digits of the card. */
+  last4: string;
+  /** The brand of the card. */
+  brand: string;
+  /** The expiration date of the card. */
+  expiration: string;
 }
 
 export enum TenantSubscriptionStatus {

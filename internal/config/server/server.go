@@ -158,6 +158,9 @@ type LagoConfigFile struct {
 
 	// BaseURL is the base URL for the Lago instance
 	BaseURL string `mapstructure:"baseUrl" json:"baseUrl,omitempty"`
+
+	// StripeKey is the Stripe key for the Lago instance
+	StripeKey string `mapstructure:"stripeKey" json:"stripeKey,omitempty"`
 }
 
 // Encryption options
@@ -426,6 +429,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("billing.lago.enabled", "SERVER_BILLING_LAGO_ENABLED")
 	_ = v.BindEnv("billing.lago.apiKey", "SERVER_BILLING_LAGO_API_KEY")
 	_ = v.BindEnv("billing.lago.baseUrl", "SERVER_BILLING_LAGO_BASE_URL")
+	_ = v.BindEnv("billing.lago.stripeKey", "SERVER_BILLING_LAGO_STRIPE_KEY")
 
 	// encryption options
 	_ = v.BindEnv("encryption.masterKeyset", "SERVER_ENCRYPTION_MASTER_KEYSET")

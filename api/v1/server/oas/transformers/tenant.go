@@ -7,6 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/billing"
 )
 
 func ToTenant(tenant *db.TenantModel) *gen.Tenant {
@@ -44,7 +45,7 @@ func ToTenantAlertEmailGroup(group *db.TenantAlertEmailGroupModel) *gen.TenantAl
 	}
 }
 
-func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.TenantSubscription) *gen.TenantResourcePolicy {
+func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.TenantSubscription, checkoutLink *string, _methods []*billing.PaymentMethod) *gen.TenantResourcePolicy {
 
 	limits := make([]gen.TenantResourceLimit, len(_limits))
 
@@ -71,13 +72,38 @@ func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.
 		}
 	}
 
-	status := gen.TenantSubscriptionStatus(_sub.Status)
+	var subscription = gen.TenantSubscription{
+		PlanCode: nil,
+		Status:   nil,
+	}
 
-	return &gen.TenantResourcePolicy{
-		Limits: limits,
-		Subscription: gen.TenantSubscription{
+	if _sub != nil {
+		status := gen.TenantSubscriptionStatus(_sub.Status)
+
+		subscription = gen.TenantSubscription{
 			PlanCode: &_sub.PlanCode,
 			Status:   &status,
-		},
+		}
+	}
+
+	methods := func() []gen.TenantPaymentMethod {
+		res := make([]gen.TenantPaymentMethod, len(_methods))
+
+		for i, method := range _methods {
+			res[i] = gen.TenantPaymentMethod{
+				Last4:      method.Last4,
+				Brand:      string(method.Brand),
+				Expiration: method.Expiration,
+			}
+		}
+
+		return res
+	}()
+
+	return &gen.TenantResourcePolicy{
+		Limits:         limits,
+		Subscription:   subscription,
+		CheckoutLink:   checkoutLink,
+		PaymentMethods: &methods,
 	}
 }

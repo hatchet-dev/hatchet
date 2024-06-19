@@ -174,7 +174,10 @@ type APIErrors struct {
 
 // APIMeta defines model for APIMeta.
 type APIMeta struct {
-	Auth    *APIMetaAuth    `json:"auth,omitempty"`
+	Auth *APIMetaAuth `json:"auth,omitempty"`
+
+	// Billing whether billing is enabled on the instance
+	Billing bool            `json:"billing"`
 	Posthog *APIMetaPosthog `json:"posthog,omitempty"`
 
 	// PylonAppId the Pylon app ID for usepylon.com chat support
@@ -734,6 +737,18 @@ type TenantMemberList struct {
 // TenantMemberRole defines model for TenantMemberRole.
 type TenantMemberRole string
 
+// TenantPaymentMethod defines model for TenantPaymentMethod.
+type TenantPaymentMethod struct {
+	// Brand The brand of the card.
+	Brand string `json:"brand"`
+
+	// Expiration The expiration date of the card.
+	Expiration string `json:"expiration"`
+
+	// Last4 The last 4 digits of the card.
+	Last4 string `json:"last4"`
+}
+
 // TenantResource defines model for TenantResource.
 type TenantResource string
 
@@ -759,9 +774,13 @@ type TenantResourceLimit struct {
 
 // TenantResourcePolicy defines model for TenantResourcePolicy.
 type TenantResourcePolicy struct {
+	// CheckoutLink The link to checkout for the tenant.
+	CheckoutLink *string `json:"checkoutLink,omitempty"`
+
 	// Limits A list of resource limits for the tenant.
-	Limits       []TenantResourceLimit `json:"limits"`
-	Subscription TenantSubscription    `json:"subscription"`
+	Limits         []TenantResourceLimit  `json:"limits"`
+	PaymentMethods *[]TenantPaymentMethod `json:"paymentMethods,omitempty"`
+	Subscription   TenantSubscription     `json:"subscription"`
 }
 
 // TenantSubscription defines model for TenantSubscription.

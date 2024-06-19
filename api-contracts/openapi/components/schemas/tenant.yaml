@@ -149,8 +149,31 @@ TenantSubscription:
       $ref: "#/TenantSubscriptionStatus"
       description: The status of the tenant subscription.
 
+TenantPaymentMethod:
+  properties:
+    last4:
+      type: string
+      description: The last 4 digits of the card.
+    brand:
+      type: string
+      description: The brand of the card.
+    expiration:
+      type: string
+      description: The expiration date of the card.
+  required:
+    - last4
+    - brand
+    - expiration
+
 TenantResourcePolicy:
   properties:
+    checkoutLink:
+      type: string
+      description: The link to checkout for the tenant.
+    paymentMethods:
+      type: array
+      items:
+        $ref: "#/TenantPaymentMethod"
     subscription:
       $ref: "#/TenantSubscription"
       description: The subscription associated with this policy.

@@ -18,6 +18,7 @@ func (t *TenantService) TenantResourcePolicyGet(ctx echo.Context, request gen.Te
 
 	var subscription *dbsqlc.TenantSubscription
 	var err error
+	var methods []*billing.PaymentMethod
 
 	if t.config.Billing.Enabled() {
 		// subscription, err = t.config.EntitlementRepository.TenantSubscription().GetSubscription(context.Background(), tenant.ID)
@@ -26,9 +27,13 @@ func (t *TenantService) TenantResourcePolicyGet(ctx echo.Context, request gen.Te
 		// 	Email: tenant.Email,
 		// })
 
-		subscription, err = t.config.Billing.UpsertTenantSubscription(*tenant, &billing.SubscriptionOpts{
-			PlanCode: "free",
-		})
+		methods, err = t.config.Billing.GetPaymentMethods(tenant.ID)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to get customer: %w", err)
+		}
+
+		subscription, err = t.config.Billing.GetSubscription(tenant.ID)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get subscription: %w", err)
@@ -41,7 +46,13 @@ func (t *TenantService) TenantResourcePolicyGet(ctx echo.Context, request gen.Te
 		return nil, err
 	}
 
+	checkoutLink, err := t.config.Billing.GetCheckoutLink(tenant.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get checkout link: %w", err)
+	}
+
 	return gen.TenantResourcePolicyGet200JSONResponse(
-		*transformers.ToTenantResourcePolicy(limits, subscription),
+		*transformers.ToTenantResourcePolicy(limits, subscription, checkoutLink, methods),
 	), nil
 }
