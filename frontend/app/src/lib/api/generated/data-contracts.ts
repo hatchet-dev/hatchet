@@ -406,6 +406,15 @@ export interface EventData {
   data: string;
 }
 
+export interface CreateEventRequest {
+  /** The key for the event. */
+  key: string;
+  /** The data for the event. */
+  data: object;
+  /** Additional metadata for the event. */
+  additionalMetadata?: object;
+}
+
 export interface EventWorkflowRunSummary {
   /**
    * The number of pending runs.

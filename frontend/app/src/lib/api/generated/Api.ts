@@ -16,11 +16,13 @@ import {
   AcceptInviteRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
+  CreateEventRequest,
   CreatePullRequestFromStepRun,
   CreateSNSIntegrationRequest,
   CreateTenantAlertEmailGroupRequest,
   CreateTenantInviteRequest,
   CreateTenantRequest,
+  Event,
   EventData,
   EventKey,
   EventKeyList,
@@ -902,6 +904,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       method: "GET",
       query: query,
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Creates a new event.
+   *
+   * @tags Event
+   * @name EventCreate
+   * @summary Create event
+   * @request POST:/api/v1/tenants/{tenant}/events
+   * @secure
+   */
+  eventCreate = (tenant: string, data: CreateEventRequest, params: RequestParams = {}) =>
+    this.request<Event, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/events`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });

@@ -236,6 +236,18 @@ type CreateAPITokenResponse struct {
 	Token string `json:"token"`
 }
 
+// CreateEventRequest defines model for CreateEventRequest.
+type CreateEventRequest struct {
+	// AdditionalMetadata Additional metadata for the event.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// Data The data for the event.
+	Data map[string]interface{} `json:"data"`
+
+	// Key The key for the event.
+	Key string `json:"key"`
+}
+
 // CreatePullRequestFromStepRun defines model for CreatePullRequestFromStepRun.
 type CreatePullRequestFromStepRun struct {
 	BranchName string `json:"branchName"`
@@ -1276,6 +1288,9 @@ type AlertEmailGroupCreateJSONRequestBody = CreateTenantAlertEmailGroupRequest
 // ApiTokenCreateJSONRequestBody defines body for ApiTokenCreate for application/json ContentType.
 type ApiTokenCreateJSONRequestBody = CreateAPITokenRequest
 
+// EventCreateJSONRequestBody defines body for EventCreate for application/json ContentType.
+type EventCreateJSONRequestBody = CreateEventRequest
+
 // EventUpdateReplayJSONRequestBody defines body for EventUpdateReplay for application/json ContentType.
 type EventUpdateReplayJSONRequestBody = ReplayEventRequest
 
@@ -1483,6 +1498,11 @@ type ClientInterface interface {
 
 	// EventList request
 	EventList(ctx context.Context, tenant openapi_types.UUID, params *EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EventCreateWithBody request with any body
+	EventCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	EventCreate(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EventKeyList request
 	EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2056,6 +2076,30 @@ func (c *Client) ApiTokenCreate(ctx context.Context, tenant openapi_types.UUID, 
 
 func (c *Client) EventList(ctx context.Context, tenant openapi_types.UUID, params *EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEventListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventCreate(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventCreateRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4098,6 +4142,53 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewEventCreateRequest calls the generic EventCreate builder with application/json body
+func NewEventCreateRequest(server string, tenant openapi_types.UUID, body EventCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEventCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewEventCreateRequestWithBody generates requests for EventCreate with any type of body
+func NewEventCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -6411,6 +6502,11 @@ type ClientWithResponsesInterface interface {
 	// EventListWithResponse request
 	EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *EventListParams, reqEditors ...RequestEditorFn) (*EventListResponse, error)
 
+	// EventCreateWithBodyWithResponse request with any body
+	EventCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventCreateResponse, error)
+
+	EventCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*EventCreateResponse, error)
+
 	// EventKeyListWithResponse request
 	EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventKeyListResponse, error)
 
@@ -7247,6 +7343,31 @@ func (r EventListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r EventListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EventCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Event
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON429      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r EventCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EventCreateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8720,6 +8841,23 @@ func (c *ClientWithResponses) EventListWithResponse(ctx context.Context, tenant 
 		return nil, err
 	}
 	return ParseEventListResponse(rsp)
+}
+
+// EventCreateWithBodyWithResponse request with arbitrary body returning *EventCreateResponse
+func (c *ClientWithResponses) EventCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventCreateResponse, error) {
+	rsp, err := c.EventCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) EventCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*EventCreateResponse, error) {
+	rsp, err := c.EventCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventCreateResponse(rsp)
 }
 
 // EventKeyListWithResponse request returning *EventKeyListResponse
@@ -10347,6 +10485,53 @@ func ParseEventListResponse(rsp *http.Response) (*EventListResponse, error) {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEventCreateResponse parses an HTTP response from a EventCreateWithResponse call
+func ParseEventCreateResponse(rsp *http.Response) (*EventCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EventCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Event
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 

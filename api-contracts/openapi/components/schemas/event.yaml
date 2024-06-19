@@ -30,6 +30,21 @@ EventData:
   required:
     - data
 
+CreateEventRequest:
+  properties:
+    key:
+      type: string
+      description: The key for the event.
+    data:
+      type: object
+      description: The data for the event.
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the event.
+  required:
+    - key
+    - data
+
 ReplayEventRequest:
   properties:
     eventIds:

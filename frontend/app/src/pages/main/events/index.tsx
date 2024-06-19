@@ -12,6 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api, {
+  CreateEventRequest,
   Event,
   EventOrderByDirection,
   EventOrderByField,
@@ -37,11 +38,13 @@ import { Button } from '@/components/ui/button';
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
+  PlusCircleIcon,
 } from '@heroicons/react/24/outline';
 import { useApiError } from '@/lib/hooks';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/molecules/relative-date';
+import { CreateEventForm } from './components/create-event-form';
 
 export default function Events() {
   return (
@@ -59,10 +62,19 @@ export default function Events() {
 
 function EventsTable() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
   const { tenant } = useOutletContext<TenantContextType>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
   const { handleApiError } = useApiError({});
+
+  const [createEventFieldErrors, setCreateEventFieldErrors] = useState<
+    Record<string, string>
+  >({});
+  const createEventApiError = useApiError({
+    setFieldErrors: setCreateEventFieldErrors,
+  });
+  const handleCreateEventApiError = createEventApiError.handleApiError;
 
   invariant(tenant);
 
@@ -241,6 +253,16 @@ function EventsTable() {
     onError: handleApiError,
   });
 
+  const createEventMutation = useMutation({
+    mutationKey: ['event:create', tenant.metadata.id],
+    mutationFn: async (input: CreateEventRequest) => {
+      const res = await api.eventCreate(tenant.metadata.id, input);
+
+      return res.data;
+    },
+    onError: handleCreateEventApiError,
+  });
+
   const {
     data: eventKeys,
     isLoading: eventKeysIsLoading,
@@ -337,6 +359,18 @@ function EventsTable() {
         className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
       />
     </Button>,
+    <Button
+      key="create-event"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        setShowCreateEvent(true);
+      }}
+      variant={'default'}
+      aria-label="Create new event"
+    >
+      <PlusCircleIcon className="h-4 w-4" />
+    </Button>,
   ];
 
   return (
@@ -350,6 +384,20 @@ function EventsTable() {
         }}
       >
         {selectedEvent && <ExpandedEventContent event={selectedEvent} />}
+      </Dialog>
+      <Dialog
+        open={showCreateEvent}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowCreateEvent(false);
+          }
+        }}
+      >
+        <CreateEventForm
+          onSubmit={createEventMutation.mutate}
+          isLoading={createEventMutation.isPending}
+          fieldErrors={createEventFieldErrors}
+        />
       </Dialog>
       <DataTable
         error={eventsError || eventKeysError || workflowKeysError}
