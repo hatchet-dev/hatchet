@@ -14,10 +14,9 @@ import { Spinner } from '@/components/ui/loading';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 
 const schema = z.object({
-  name: z.string().min(1).max(255).optional(),
+  name: z.string().min(1).max(255),
   url: z.string().url().min(1).max(255),
   secret: z.string().min(1).max(255).optional(),
-  workflows: z.array(z.string().uuid()),
 });
 
 interface CreateTokenDialogProps {
@@ -39,9 +38,7 @@ export function CreateWebhookWorkerDialog({
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      workflows: [],
-    },
+    defaultValues: {},
   });
 
   const nameError = errors.name?.message?.toString() || props.fieldErrors?.name;
@@ -84,7 +81,7 @@ export function CreateWebhookWorkerDialog({
               <Label htmlFor="name">Name</Label>
               <Input
                 {...register('name')}
-                id="api-token-name"
+                id="webhook-worker-name"
                 name="name"
                 placeholder="My Webhook Endpoint"
                 autoCapitalize="none"
@@ -99,7 +96,7 @@ export function CreateWebhookWorkerDialog({
               <Label htmlFor="url">URL</Label>
               <Input
                 {...register('url')}
-                id="api-token-url"
+                id="webhook-worker-url"
                 name="url"
                 placeholder="The Webhook URL"
                 autoCapitalize="none"

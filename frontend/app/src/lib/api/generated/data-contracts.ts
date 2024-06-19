@@ -1017,6 +1017,8 @@ export interface WorkflowMetrics {
 
 export interface WebhookWorker {
   metadata: APIResourceMeta;
+  /** The name of the webhook worker. */
+  name: string;
   /** The webhook url. */
   url: string;
   /** The secret key for validation. */
@@ -1024,6 +1026,8 @@ export interface WebhookWorker {
 }
 
 export interface WebhookWorkerCreateRequest {
+  /** The name of the webhook worker. */
+  name: string;
   /** The webhook url. */
   url: string;
   /** The workflow IDs or names to register for this webhook worker. If not provided, workflows will be automatically detected. */

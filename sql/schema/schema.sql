@@ -595,6 +595,7 @@ CREATE TABLE "WebhookWorker" (
     "tenantId" UUID NOT NULL,
     "tokenId" UUID,
     "tokenValue" TEXT,
+    "name" TEXT,
 
     CONSTRAINT "WebhookWorker_pkey" PRIMARY KEY ("id")
 );

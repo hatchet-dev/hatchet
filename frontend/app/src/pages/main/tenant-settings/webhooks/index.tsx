@@ -78,7 +78,7 @@ export default function Webhooks() {
               showTokenDialog={showTokenDialog}
               setShowTokenDialog={setShowTokenDialog}
               onSuccess={() => {
-                listWebhookWorkersQuery.refetch();
+                void listWebhookWorkersQuery.refetch();
               }}
             />
           )}

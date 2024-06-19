@@ -3,6 +3,9 @@ WebhookWorker:
   properties:
     metadata:
       $ref: "./metadata.yaml#/APIResourceMeta"
+    name:
+      type: string
+      description: The name of the webhook worker.
     url:
       type: string
       description: The webhook url.
@@ -11,12 +14,16 @@ WebhookWorker:
       description: The secret key for validation.
   required:
     - metadata
+    - name
     - url
     - secret
   type: object
 
 WebhookWorkerCreateRequest:
   properties:
+    name:
+      type: string
+      description: The name of the webhook worker.
     url:
       type: string
       description: The webhook url.
@@ -30,6 +37,7 @@ WebhookWorkerCreateRequest:
       description: The secret key for validation. If not provided, a random secret will be generated.
       minLength: 32
   required:
+    - name
     - url
   type: object
 

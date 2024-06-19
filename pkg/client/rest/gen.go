@@ -864,6 +864,9 @@ type UserTenantPublic struct {
 type WebhookWorker struct {
 	Metadata APIResourceMeta `json:"metadata"`
 
+	// Name The name of the webhook worker.
+	Name string `json:"name"`
+
 	// Secret The secret key for validation.
 	Secret string `json:"secret"`
 
@@ -873,6 +876,9 @@ type WebhookWorker struct {
 
 // WebhookWorkerCreateRequest defines model for WebhookWorkerCreateRequest.
 type WebhookWorkerCreateRequest struct {
+	// Name The name of the webhook worker.
+	Name string `json:"name"`
+
 	// Secret The secret key for validation. If not provided, a random secret will be generated.
 	Secret *string `json:"secret,omitempty"`
 

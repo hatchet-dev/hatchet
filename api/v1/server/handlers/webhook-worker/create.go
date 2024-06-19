@@ -42,6 +42,7 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 	return gen.WebhookCreate200JSONResponse{
 		Url:    ww.URL,
 		Secret: ww.Secret,
+		//Name:   ww.Name, // TODO
 		Metadata: gen.APIResourceMeta{
 			Id:        uuid.MustParse(ww.ID),
 			CreatedAt: ww.CreatedAt,

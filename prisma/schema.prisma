@@ -97,8 +97,9 @@ model WebhookWorker {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
+  name   String?
   secret String
-  url    String @unique
+  url    String  @unique
 
   // stores the encrypted hatchet auth token
   tokenValue String?

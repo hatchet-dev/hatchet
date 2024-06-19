@@ -171,6 +171,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorker
 		ID:        webhookWorker.ID,
 		Secret:    webhookWorker.Secret,
 		URL:       webhookWorker.URL,
+		Name:      *webhookWorker.InnerWebhookWorker.Name,
 		TenantID:  tenantId,
 		Actions:   h.Actions,
 		Workflows: h.Workflows,
