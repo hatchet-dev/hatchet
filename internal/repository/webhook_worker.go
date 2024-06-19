@@ -6,11 +6,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
 )
 
-type CreateWebhookWorkerOpts struct {
-	TenantId  string `validate:"required,uuid"`
-	URL       string `validate:"required,url"`
-	Secret    string
-	Workflows []string
+type UpsertWebhookWorkerOpts struct {
+	URL        string `validate:"required,url"`
+	Secret     string
+	TenantId   *string `validate:"uuid"`
+	Workflows  []string
+	TokenValue *string
+	TokenID    *string
 }
 
 type WebhookWorkerRepository interface {
@@ -18,5 +20,5 @@ type WebhookWorkerRepository interface {
 	ListWebhookWorkers(ctx context.Context, tenantId string) ([]db.WebhookWorkerModel, error)
 
 	// UpsertWebhookWorker creates a new webhook worker with the given options
-	UpsertWebhookWorker(ctx context.Context, opts *CreateWebhookWorkerOpts) (*db.WebhookWorkerModel, error)
+	UpsertWebhookWorker(ctx context.Context, opts *UpsertWebhookWorkerOpts) (*db.WebhookWorkerModel, error)
 }

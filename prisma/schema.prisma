@@ -99,6 +99,12 @@ model WebhookWorker {
   secret String
   url    String @unique
 
+  // stores the encrypted hatchet auth token
+  tokenValue String?
+
+  tokenId String?   @db.Uuid
+  token   APIToken? @relation(fields: [tokenId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
   // TODO remove tenant ID as it is not needed
   tenantId String @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -334,6 +340,8 @@ model APIToken {
 
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String? @db.Uuid
+
+  webhookWorkers WebhookWorker[]
 }
 
 // Event represents an event in the database.

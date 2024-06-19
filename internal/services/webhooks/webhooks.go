@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -39,7 +40,8 @@ func (c *WebhooksController) Start() (func() error, error) {
 			select {
 			case <-ticker.C:
 				if err := c.check(); err != nil {
-					c.sc.Logger.Warn().Err(fmt.Errorf("error checking webhooks: %v", err))
+					log.Printf("could not check webhooks: %v", err)
+					c.sc.Logger.Warn().Err(err).Msgf("error checking webhooks")
 				}
 			case <-ctx.Done():
 				ticker.Stop()
@@ -82,21 +84,50 @@ func (c *WebhooksController) check() error {
 
 			h, err := c.healthcheck(ww)
 			if err != nil {
-				c.sc.Logger.Warn().Err(fmt.Errorf("webhook worker %s of tenant %s healthcheck failed: %v", ww.ID, tenantId, err))
+				log.Printf("c.healthcheck could not check webhook health: %v", err)
+				c.sc.Logger.Warn().Err(err).Msgf("webhook worker %s of tenant %s healthcheck failed: %v", ww.ID, tenantId, err)
 				continue
 			}
 
 			c.registeredWorkerIds[ww.ID] = true
 
-			token, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker")
-			if err != nil {
-				c.sc.Logger.Error().Err(fmt.Errorf("could not generate token for webhook worker %s of tenant %s: %w", ww.ID, tenantId, err))
-				continue
+			var token string
+			if tokenValue, ok := ww.TokenValue(); ok {
+				// TODO remove this method
+				// token, err = c.sc.Auth.JWTManager.UpsertTenantToken(context.Background(), tenantId, "webhook-worker", tokenId)
+				// if err != nil {
+				//	c.sc.Logger.Error().Err(fmt.Errorf("could not generate token for webhook worker %s of tenant %s: %w", ww.ID, tenantId, err)).TODO()
+				//	continue
+				//}
+				// TODO decrypt the token!
+				token = tokenValue
+				log.Printf("using existing token %s", token)
+			} else {
+				tok, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker")
+				if err != nil {
+					c.sc.Logger.Error().Err(err).Msgf("could not generate token for webhook worker %s of tenant %s", ww.ID, tenantId)
+					continue
+				}
+
+				// TODO encrypt the token!
+				_, err = c.sc.APIRepository.WebhookWorker().UpsertWebhookWorker(context.Background(), &repository.UpsertWebhookWorkerOpts{
+					URL:        ww.URL,
+					Secret:     ww.Secret,
+					TenantId:   &tenantId,
+					TokenID:    &tok.TokenId,
+					TokenValue: &tok.Token,
+				})
+				if err != nil {
+					c.sc.Logger.Error().Err(err).Msgf("could not update webhook worker %s of tenant %s", ww.ID, tenantId)
+					continue
+				}
+
+				token = tok.Token
 			}
 
 			cleanup, err := c.run(tenantId, ww, token, h)
 			if err != nil {
-				c.sc.Logger.Error().Err(fmt.Errorf("error running webhook worker %s of tenant %s healthcheck: %v", ww.ID, tenantId, err))
+				c.sc.Logger.Error().Err(err).Msgf("error running webhook worker %s of tenant %s healthcheck", ww.ID, tenantId)
 				continue
 			}
 			if cleanup != nil {
@@ -183,7 +214,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorker
 							IsActive: &isActive,
 						})
 						if err != nil {
-							c.sc.Logger.Err(fmt.Errorf("could not update worker: %v", err))
+							c.sc.Logger.Err(err).Msgf("could not update worker")
 						}
 					} else {
 						c.sc.Logger.Printf("webhook worker %s of tenant %s failed one health check, retrying...", webhookWorker.ID, tenantId)
@@ -200,19 +231,19 @@ func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorker
 					// update the webhook workflow, and restart worker
 					for _, cleanup := range cleanups {
 						if err := cleanup(); err != nil {
-							c.sc.Logger.Err(fmt.Errorf("could not cleanup webhook worker: %v", err))
+							c.sc.Logger.Err(err).Msgf("could not cleanup webhook worker")
 						}
 					}
 
 					h, err := c.healthcheck(webhookWorker)
 					if err != nil {
-						c.sc.Logger.Err(fmt.Errorf("webhook worker %s of tenant %s healthcheck failed: %v", webhookWorker.ID, tenantId, err))
+						c.sc.Logger.Err(err).Msgf("webhook worker %s of tenant %s healthcheck failed: %v", webhookWorker.ID, tenantId, err)
 						continue
 					}
 
 					newCleanup, err := c.run(tenantId, webhookWorker, token, h)
 					if err != nil {
-						c.sc.Logger.Err(fmt.Errorf("could not restart webhook worker: %v", err))
+						c.sc.Logger.Err(err).Msgf("could not restart webhook worker")
 						continue
 					}
 					cleanups = []func() error{newCleanup}
@@ -231,7 +262,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorker
 					IsActive: &isActive,
 				})
 				if err != nil {
-					c.sc.Logger.Err(fmt.Errorf("could not update worker: %v", err))
+					c.sc.Logger.Err(err).Msgf("could not update worker")
 				}
 
 				healthCheckErrors = 0

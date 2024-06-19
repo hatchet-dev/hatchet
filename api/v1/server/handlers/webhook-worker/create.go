@@ -29,8 +29,8 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 		wfs = append(wfs, *request.Body.Workflows...)
 	}
 
-	ww, err := i.config.APIRepository.WebhookWorker().UpsertWebhookWorker(ctx.Request().Context(), &repository.CreateWebhookWorkerOpts{
-		TenantId:  tenant.ID,
+	ww, err := i.config.APIRepository.WebhookWorker().UpsertWebhookWorker(ctx.Request().Context(), &repository.UpsertWebhookWorkerOpts{
+		TenantId:  &tenant.ID,
 		URL:       request.Body.Url,
 		Secret:    secret,
 		Workflows: wfs,

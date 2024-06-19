@@ -393,7 +393,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 		internalClient, err = client.NewFromConfigFile(
 			&clientconfig.ClientConfigFile{
-				Token:    token,
+				Token:    token.Token,
 				HostPort: cf.Runtime.GRPCBroadcastAddress,
 			},
 		)

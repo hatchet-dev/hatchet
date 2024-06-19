@@ -78,7 +78,7 @@ func Prepare(t *testing.T) {
 		t.Fatalf("could not generate default token: %v", err)
 	}
 
-	_ = os.Setenv("HATCHET_CLIENT_TOKEN", defaultTok)
+	_ = os.Setenv("HATCHET_CLIENT_TOKEN", defaultTok.Token)
 
 	if err := serverConf.Disconnect(); err != nil {
 		t.Fatalf("could not disconnect from server: %v", err)
