@@ -88,7 +88,6 @@ export function CreateEventForm({ className, ...props }: CreateEventFormProps) {
                         }
 
                         try {
-                          JSON.parse(value);
                           field.onChange(JSON.parse(value));
                         } catch (e) {} // eslint-disable-line no-empty
                       }}
