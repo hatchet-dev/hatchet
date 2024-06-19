@@ -28,6 +28,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions) http.HandlerFunc
 		if r.Method == http.MethodGet {
 			writer.WriteHeader(http.StatusOK)
 			_, _ = writer.Write([]byte("OK!"))
+			return
 		}
 
 		if r.Method != http.MethodPost {
