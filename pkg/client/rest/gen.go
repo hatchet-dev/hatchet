@@ -1419,6 +1419,9 @@ type ClientInterface interface {
 	// ApiTokenUpdateRevoke request
 	ApiTokenUpdateRevoke(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// LagoMessageCreate request
+	LagoMessageCreate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// EventDataGet request
 	EventDataGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1731,6 +1734,18 @@ func (c *Client) AlertEmailGroupUpdate(ctx context.Context, alertEmailGroup open
 
 func (c *Client) ApiTokenUpdateRevoke(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewApiTokenUpdateRevokeRequest(c.Server, apiToken)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) LagoMessageCreate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewLagoMessageCreateRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -2961,6 +2976,33 @@ func NewApiTokenUpdateRevokeRequest(server string, apiToken openapi_types.UUID) 
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/api-tokens/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewLagoMessageCreateRequest generates requests for LagoMessageCreate
+func NewLagoMessageCreateRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/billing/lago/webhook")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6259,6 +6301,9 @@ type ClientWithResponsesInterface interface {
 	// ApiTokenUpdateRevokeWithResponse request
 	ApiTokenUpdateRevokeWithResponse(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*ApiTokenUpdateRevokeResponse, error)
 
+	// LagoMessageCreateWithResponse request
+	LagoMessageCreateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*LagoMessageCreateResponse, error)
+
 	// EventDataGetWithResponse request
 	EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error)
 
@@ -6615,6 +6660,29 @@ func (r ApiTokenUpdateRevokeResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ApiTokenUpdateRevokeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type LagoMessageCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r LagoMessageCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r LagoMessageCreateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8374,6 +8442,15 @@ func (c *ClientWithResponses) ApiTokenUpdateRevokeWithResponse(ctx context.Conte
 	return ParseApiTokenUpdateRevokeResponse(rsp)
 }
 
+// LagoMessageCreateWithResponse request returning *LagoMessageCreateResponse
+func (c *ClientWithResponses) LagoMessageCreateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*LagoMessageCreateResponse, error) {
+	rsp, err := c.LagoMessageCreate(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseLagoMessageCreateResponse(rsp)
+}
+
 // EventDataGetWithResponse request returning *EventDataGetResponse
 func (c *ClientWithResponses) EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error) {
 	rsp, err := c.EventDataGet(ctx, event, reqEditors...)
@@ -9271,6 +9348,39 @@ func ParseApiTokenUpdateRevokeResponse(rsp *http.Response) (*ApiTokenUpdateRevok
 	}
 
 	response := &ApiTokenUpdateRevokeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseLagoMessageCreateResponse parses an HTTP response from a LagoMessageCreateWithResponse call
+func ParseLagoMessageCreateResponse(rsp *http.Response) (*LagoMessageCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &LagoMessageCreateResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

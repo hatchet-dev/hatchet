@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	apitokens "github.com/hatchet-dev/hatchet/api/v1/server/handlers/api-tokens"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/billing"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
 	githubapp "github.com/hatchet-dev/hatchet/api/v1/server/handlers/github-app"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
@@ -34,6 +35,7 @@ type apiService struct {
 	*users.UserService
 	*tenants.TenantService
 	*events.EventService
+	*billing.BillingService
 	*logs.LogService
 	*workflows.WorkflowService
 	*workers.WorkerService
@@ -50,6 +52,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		UserService:      users.NewUserService(config),
 		TenantService:    tenants.NewTenantService(config),
 		EventService:     events.NewEventService(config),
+		BillingService:   billing.NewBillingService(config),
 		LogService:       logs.NewLogService(config),
 		WorkflowService:  workflows.NewWorkflowService(config),
 		WorkerService:    workers.NewWorkerService(config),

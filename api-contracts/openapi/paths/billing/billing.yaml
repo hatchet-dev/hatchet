@@ -1,0 +1,23 @@
+lagoWebhook:
+  post:
+    description: Receive a webhook message from Lago
+    operationId: lagoMessage:create
+    responses:
+      "200":
+        description: Successfully listed the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    security: []
+    summary: Receive a webhook message from Lago
+    tags:
+      - Billing

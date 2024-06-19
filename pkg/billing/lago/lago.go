@@ -2,6 +2,9 @@ package lago
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
@@ -27,6 +30,7 @@ type LagoBilling struct {
 	e         repository.EntitlementsRepository
 	stripe    *client.API
 	serverURL string
+	ApiKey    string
 }
 
 type LagoBillingOpts struct {
@@ -55,6 +59,7 @@ func NewLagoBilling(opts *LagoBillingOpts, e *repository.EntitlementsRepository,
 		e:         *e,
 		stripe:    stripe,
 		serverURL: serverUrl,
+		ApiKey:    opts.ApiKey,
 	}, nil
 }
 
@@ -189,7 +194,19 @@ func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts billi
 		return nil, subErr
 	}
 
-	planCodeParts := strings.Split(sub.PlanCode, ":")
+	s, err := l.HandleUpdateSubscription(tenant.ID, sub.PlanCode, string(sub.Status))
+
+	if err != nil {
+		return nil, err
+	}
+
+	return s, nil
+}
+
+func (l *LagoBilling) HandleUpdateSubscription(id string, planCode string, status string) (*dbsqlc.TenantSubscription, error) {
+	ctx := context.Background()
+
+	planCodeParts := strings.Split(planCode, ":")
 	plan := dbsqlc.TenantSubscriptionPlanCodes(planCodeParts[0])
 
 	period := dbsqlc.NullTenantSubscriptionPeriod{}
@@ -203,14 +220,14 @@ func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts billi
 
 	_, s, err := l.e.TenantSubscription().UpsertSubscription(ctx,
 		dbsqlc.UpsertTenantSubscriptionParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenant.ID),
+			Tenantid: sqlchelpers.UUIDFromStr(id),
 			Plan: dbsqlc.NullTenantSubscriptionPlanCodes{
 				TenantSubscriptionPlanCodes: plan,
 				Valid:                       true,
 			},
 			Period: period,
 			Status: dbsqlc.NullTenantSubscriptionStatus{
-				TenantSubscriptionStatus: dbsqlc.TenantSubscriptionStatus(sub.Status),
+				TenantSubscriptionStatus: dbsqlc.TenantSubscriptionStatus(status),
 				Valid:                    true,
 			},
 		})
@@ -240,4 +257,12 @@ func (l *LagoBilling) MeterMetric(tenantId string, resource dbsqlc.LimitResource
 	}
 
 	return nil
+}
+
+func (l *LagoBilling) VerifyHMACSignature(body []byte, signature string) bool {
+	h := hmac.New(sha256.New, []byte(l.ApiKey))
+	h.Write(body)
+	calcSig := h.Sum(nil)
+	base64Sig := base64.StdEncoding.EncodeToString(calcSig)
+	return signature == base64Sig
 }

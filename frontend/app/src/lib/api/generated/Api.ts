@@ -1611,4 +1611,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       format: "json",
       ...params,
     });
+  /**
+   * @description Receive a webhook message from Lago
+   *
+   * @tags Billing
+   * @name LagoMessageCreate
+   * @summary Receive a webhook message from Lago
+   * @request POST:/api/v1/billing/lago/webhook
+   */
+  lagoMessageCreate = (params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/billing/lago/webhook`,
+      method: "POST",
+      ...params,
+    });
 }

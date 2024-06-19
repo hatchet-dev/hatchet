@@ -29,30 +29,40 @@ type Billing interface {
 	UpsertTenantSubscription(tenant db.TenantModel, opts SubscriptionOpts) (*dbsqlc.TenantSubscription, error)
 	GetSubscription(tenantId string) (*dbsqlc.TenantSubscription, error)
 	MeterMetric(tenantId string, resource dbsqlc.LimitResource, uniqueId string, limitVal *int32) error
+	VerifyHMACSignature(body []byte, signature string) bool
+	HandleUpdateSubscription(id string, planCode string, status string) (*dbsqlc.TenantSubscription, error)
 }
 
 type NoOpBilling struct{}
 
-func (a NoOpBilling) Enabled() bool {
+func (b NoOpBilling) Enabled() bool {
 	return false
 }
 
-func (a NoOpBilling) GetSubscription(tenantId string) (*dbsqlc.TenantSubscription, error) {
+func (b NoOpBilling) GetSubscription(tenantId string) (*dbsqlc.TenantSubscription, error) {
 	return nil, nil
 }
 
-func (a NoOpBilling) GetPaymentMethods(tenantId string) ([]*PaymentMethod, error) {
+func (b NoOpBilling) GetPaymentMethods(tenantId string) ([]*PaymentMethod, error) {
 	return nil, nil
 }
 
-func (a NoOpBilling) UpsertTenantSubscription(tenant db.TenantModel, opts SubscriptionOpts) (*dbsqlc.TenantSubscription, error) {
+func (b NoOpBilling) UpsertTenantSubscription(tenant db.TenantModel, opts SubscriptionOpts) (*dbsqlc.TenantSubscription, error) {
 	return nil, nil
 }
 
-func (a NoOpBilling) MeterMetric(tenantId string, resource dbsqlc.LimitResource, uniqueId string, limitVal *int32) error {
+func (b NoOpBilling) MeterMetric(tenantId string, resource dbsqlc.LimitResource, uniqueId string, limitVal *int32) error {
 	return nil
 }
 
-func (a NoOpBilling) GetCheckoutLink(tenantId string) (*string, error) {
+func (b NoOpBilling) GetCheckoutLink(tenantId string) (*string, error) {
+	return nil, nil
+}
+
+func (b NoOpBilling) VerifyHMACSignature(body []byte, signature string) bool {
+	return false
+}
+
+func (b NoOpBilling) HandleUpdateSubscription(id string, planCode string, status string) (*dbsqlc.TenantSubscription, error) {
 	return nil, nil
 }
