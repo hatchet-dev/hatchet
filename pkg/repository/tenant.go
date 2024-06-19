@@ -35,6 +35,31 @@ type UpdateTenantMemberOpts struct {
 	Role *string `validate:"omitempty,oneof=OWNER ADMIN MEMBER"`
 }
 
+type GetQueueMetricsOpts struct {
+	// (optional) a list of workflow ids to filter by
+	WorkflowIds []string `validate:"omitempty,dive,uuid"`
+
+	// (optional) exact metadata to filter by
+	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+}
+
+type QueueMetric struct {
+	// the total number of PENDING_ASSIGNMENT step runs in the queue
+	PendingAssignment int `json:"pending_assignment"`
+
+	// the total number of PENDING step runs in the queue
+	Pending int `json:"pending"`
+
+	// the total number of RUNNING step runs in the queue
+	Running int `json:"running"`
+}
+
+type GetQueueMetricsResponse struct {
+	Total QueueMetric `json:"total"`
+
+	ByWorkflowId map[string]QueueMetric `json:"by_workflow"`
+}
+
 type TenantAPIRepository interface {
 	// CreateTenant creates a new tenant.
 	CreateTenant(opts *CreateTenantOpts) (*db.TenantModel, error)
@@ -68,6 +93,9 @@ type TenantAPIRepository interface {
 
 	// DeleteTenantMember deletes the tenant member with the given id
 	DeleteTenantMember(memberId string) (*db.TenantMemberModel, error)
+
+	// GetQueueMetrics returns the queue metrics for the given tenant
+	GetQueueMetrics(tenantId string, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
 }
 
 type TenantEngineRepository interface {

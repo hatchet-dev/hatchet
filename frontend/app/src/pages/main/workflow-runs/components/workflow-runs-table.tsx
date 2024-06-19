@@ -1,6 +1,6 @@
 import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
 import { columns } from './workflow-runs-columns';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   PaginationState,
@@ -13,7 +13,7 @@ import invariant from 'tiny-invariant';
 import api, { WorkflowRunStatus, queries } from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   FilterOption,
   ToolbarFilters,
@@ -42,18 +42,61 @@ export function WorkflowRunsTable({
   parentStepRunId,
   refetchInterval = 5000,
 }: WorkflowRunsTableProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [sorting, setSorting] = useState<SortingState>(() => {
+    const sortParam = searchParams.get('sort');
+    if (sortParam) {
+      return sortParam.split(',').map((param) => {
+        const [id, desc] = param.split(':');
+        return { id, desc: desc === 'desc' };
+      });
+    }
+    return [];
+  });
+
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
+    const filtersParam = searchParams.get('filters');
+    if (filtersParam) {
+      return JSON.parse(filtersParam);
+    }
+    return [];
+  });
+
   const [columnVisibility, setColumnVisibility] =
     useState<VisibilityState>(initColumnVisibility);
 
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 50,
+  const [pagination, setPagination] = useState<PaginationState>(() => {
+    const pageIndex = Number(searchParams.get('pageIndex')) || 0;
+    const pageSize = Number(searchParams.get('pageSize')) || 50;
+    return { pageIndex, pageSize };
   });
+
+  useEffect(() => {
+    const newSearchParams = new URLSearchParams(searchParams);
+    if (sorting.length) {
+      newSearchParams.set(
+        'sort',
+        sorting.map((s) => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(','),
+      );
+    } else {
+      newSearchParams.delete('sort');
+    }
+    if (columnFilters.length) {
+      newSearchParams.set('filters', JSON.stringify(columnFilters));
+    } else {
+      newSearchParams.delete('filters');
+    }
+    newSearchParams.set('pageIndex', pagination.pageIndex.toString());
+    newSearchParams.set('pageSize', pagination.pageSize.toString());
+
+    if (newSearchParams.toString() !== searchParams.toString()) {
+      setSearchParams(newSearchParams, { replace: true });
+    }
+  }, [sorting, columnFilters, pagination, setSearchParams, searchParams]);
+
   const [pageSize, setPageSize] = useState<number>(50);
 
   const offset = useMemo(() => {

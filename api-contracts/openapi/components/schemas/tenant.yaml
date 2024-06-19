@@ -304,3 +304,30 @@ TenantInviteList:
         $ref: "#/TenantInvite"
       type: array
       x-go-name: Rows
+
+QueueMetrics:
+  type: object
+  properties:
+    numQueued:
+      type: integer
+      description: The number of items in the queue.
+    numRunning:
+      type: integer
+      description: The number of items running.
+    numPending:
+      type: integer
+      description: The number of items pending.
+  required:
+    - numQueued
+    - numRunning
+    - numPending
+
+TenantQueueMetrics:
+  properties:
+    total:
+      $ref: "#/QueueMetrics"
+      description: The total queue metrics.
+    workflow:
+      type: object
+      additionalProperties:
+        $ref: "#/QueueMetrics"
