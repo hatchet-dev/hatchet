@@ -48,7 +48,7 @@ func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tes
 		}
 
 		// validate the token
-		newTenantId, err := jwtManager.ValidateTenantToken(context.Background(), token)
+		newTenantId, err := jwtManager.ValidateTenantToken(context.Background(), token.Token)
 
 		assert.NoError(t, err)
 		assert.Equal(t, tenantId, newTenantId)
@@ -89,7 +89,7 @@ func TestRevokeTenantToken(t *testing.T) {
 		}
 
 		// validate the token
-		_, err = jwtManager.ValidateTenantToken(context.Background(), token)
+		_, err = jwtManager.ValidateTenantToken(context.Background(), token.Token)
 
 		assert.NoError(t, err)
 
@@ -108,7 +108,7 @@ func TestRevokeTenantToken(t *testing.T) {
 		}
 
 		// validate the token again
-		_, err = jwtManager.ValidateTenantToken(context.Background(), token)
+		_, err = jwtManager.ValidateTenantToken(context.Background(), token.Token)
 
 		// error as the token was revoked
 		assert.Error(t, err)
@@ -149,7 +149,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 		}
 
 		// validate the token
-		_, err = jwtManager.ValidateTenantToken(context.Background(), token)
+		_, err = jwtManager.ValidateTenantToken(context.Background(), token.Token)
 
 		assert.NoError(t, err)
 
@@ -168,7 +168,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 		}
 
 		// validate the token again
-		_, err = jwtManager.ValidateTenantToken(context.Background(), token)
+		_, err = jwtManager.ValidateTenantToken(context.Background(), token.Token)
 
 		// no error as it is cached
 		assert.NoError(t, err)
