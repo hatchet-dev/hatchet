@@ -132,14 +132,35 @@ TenantResourceLimit:
     - value
   type: object
 
+TenantSubscriptionStatus:
+  enum:
+    - "active"
+    - "pending"
+    - "terminated"
+    - "canceled"
+  type: string
+
+TenantSubscription:
+  properties:
+    planCode:
+      type: string
+      description: The plan code associated with the tenant subscription.
+    status:
+      $ref: "#/TenantSubscriptionStatus"
+      description: The status of the tenant subscription.
+
 TenantResourcePolicy:
   properties:
+    subscription:
+      $ref: "#/TenantSubscription"
+      description: The subscription associated with this policy.
     limits:
       type: array
       items:
         $ref: "#/TenantResourceLimit"
       description: A list of resource limits for the tenant.
   required:
+    - subscription
     - limits
   type: object
 

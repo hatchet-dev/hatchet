@@ -120,6 +120,14 @@ const (
 	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
 )
 
+// Defines values for TenantSubscriptionStatus.
+const (
+	Active     TenantSubscriptionStatus = "active"
+	Canceled   TenantSubscriptionStatus = "canceled"
+	Pending    TenantSubscriptionStatus = "pending"
+	Terminated TenantSubscriptionStatus = "terminated"
+)
+
 // Defines values for WorkerStatus.
 const (
 	ACTIVE   WorkerStatus = "ACTIVE"
@@ -752,8 +760,19 @@ type TenantResourceLimit struct {
 // TenantResourcePolicy defines model for TenantResourcePolicy.
 type TenantResourcePolicy struct {
 	// Limits A list of resource limits for the tenant.
-	Limits []TenantResourceLimit `json:"limits"`
+	Limits       []TenantResourceLimit `json:"limits"`
+	Subscription TenantSubscription    `json:"subscription"`
 }
+
+// TenantSubscription defines model for TenantSubscription.
+type TenantSubscription struct {
+	// PlanCode The plan code associated with the tenant subscription.
+	PlanCode *string                   `json:"planCode,omitempty"`
+	Status   *TenantSubscriptionStatus `json:"status,omitempty"`
+}
+
+// TenantSubscriptionStatus defines model for TenantSubscriptionStatus.
+type TenantSubscriptionStatus string
 
 // TriggerWorkflowRunRequest defines model for TriggerWorkflowRunRequest.
 type TriggerWorkflowRunRequest struct {

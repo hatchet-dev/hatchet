@@ -40,9 +40,9 @@ VALUES (
   $2::text,
   $3::"TenantSubscriptionStatus"
 )
-ON CONFLICT (tenantId) DO UPDATE SET
-  "planCode" = EXCLUDED.planCode,
-  "status" = EXCLUDED.status
+ON CONFLICT ("tenantId") DO UPDATE SET
+  "planCode" = $2::text,
+  "status" = $3::"TenantSubscriptionStatus"
 RETURNING "tenantId", "planCode", status
 `
 

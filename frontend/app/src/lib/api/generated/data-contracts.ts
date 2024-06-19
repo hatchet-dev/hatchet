@@ -247,8 +247,24 @@ export interface TenantResourceLimit {
 }
 
 export interface TenantResourcePolicy {
+  /** The subscription associated with this policy. */
+  subscription: TenantSubscription;
   /** A list of resource limits for the tenant. */
   limits: TenantResourceLimit[];
+}
+
+export interface TenantSubscription {
+  /** The plan code associated with the tenant subscription. */
+  planCode?: string;
+  /** The status of the tenant subscription. */
+  status?: TenantSubscriptionStatus;
+}
+
+export enum TenantSubscriptionStatus {
+  Active = "active",
+  Pending = "pending",
+  Terminated = "terminated",
+  Canceled = "canceled",
 }
 
 export interface CreateTenantInviteRequest {

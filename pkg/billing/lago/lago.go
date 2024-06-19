@@ -75,14 +75,21 @@ func (l *LagoBilling) UpsertTenant(tenant db.TenantModel) (*lago.Customer, error
 func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts *billing.SubscriptionOpts) (*dbsqlc.TenantSubscription, error) {
 	ctx := context.Background()
 
-	sub, lagoErr := l.client.Subscription().Update(ctx, &lago.SubscriptionInput{
+	_, lagoErr := l.UpsertTenant(tenant)
+
+	if lagoErr != nil {
+		return nil, lagoErr
+	}
+
+	sub, subErr := l.client.Subscription().Create(ctx, &lago.SubscriptionInput{
 		ExternalCustomerID: tenant.ID,
+		ExternalID:         tenant.ID,
 		PlanCode:           opts.PlanCode,
 		BillingTime:        lago.Anniversary,
 	})
 
-	if lagoErr != nil {
-		return nil, lagoErr
+	if subErr != nil {
+		return nil, subErr
 	}
 
 	_, s, err := l.e.TenantSubscription().UpsertSubscription(ctx,
@@ -96,7 +103,7 @@ func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts *bill
 		})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to upsert subscription: %w", err)
 	}
 
 	return s, nil

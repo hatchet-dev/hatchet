@@ -32,6 +32,8 @@ export default function ResourceLimits() {
           </a>{' '}
           if you need to adjust your limits.
         </p>
+
+        {JSON.stringify(resourcePolicyQuery.data?.subscription)}
         <Separator className="my-4" />
         <DataTable
           isLoading={resourcePolicyQuery.isLoading}
