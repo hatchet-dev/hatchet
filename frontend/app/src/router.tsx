@@ -230,7 +230,7 @@ const routes: RouteObject[] = [
                   ),
               },
               {
-                path: '/tenant-settings/resource-limits',
+                path: '/tenant-settings/billing-and-limits',
                 lazy: async () =>
                   import('./pages/main/tenant-settings/resource-limits').then(
                     (res) => {

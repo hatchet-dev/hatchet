@@ -151,8 +151,8 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                   <SidebarButtonSecondary
                     key={4}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/resource-limits"
-                    name="Resource Limits"
+                    to="/tenant-settings/billing-and-limits"
+                    name="Billing & Limits"
                   />,
                   <SidebarButtonSecondary
                     key={4}
