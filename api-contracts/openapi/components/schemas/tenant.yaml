@@ -209,9 +209,6 @@ TenantPaymentMethod:
 
 TenantResourcePolicy:
   properties:
-    checkoutLink:
-      type: string
-      description: The link to checkout for the tenant.
     paymentMethods:
       type: array
       items:

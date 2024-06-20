@@ -10,6 +10,13 @@ import {
   FaCcJcb,
 } from 'react-icons/fa';
 import { IconType } from 'react-icons/lib';
+import api from '@/lib/api';
+import { TenantContextType } from '@/lib/outlet';
+import { useOutletContext } from 'react-router-dom';
+import { c } from 'node_modules/vite/dist/node/types.d-aGj9QkWt';
+import { useApiError } from '@/lib/hooks';
+import { useState } from 'react';
+import { Spinner } from '@/components/ui/loading';
 
 const ccIcons: Record<string, IconType> = {
   visa: FaCcVisa,
@@ -24,14 +31,28 @@ const ccIcons: Record<string, IconType> = {
 export interface PaymentMethodsProps {
   hasMethods?: boolean;
   methods?: TenantPaymentMethod[];
-  manageLink?: string;
 }
 
 export default function PaymentMethods({
   methods = [],
-  manageLink,
   hasMethods,
 }: PaymentMethodsProps) {
+  const { tenant } = useOutletContext<TenantContextType>();
+  const { handleApiError } = useApiError({});
+  const [loading, setLoading] = useState(false);
+
+  const manageClicked = async () => {
+    try {
+      setLoading(true);
+      const link = await api.billingPortalLinkGet(tenant.metadata.id);
+      window.open(link.data.url, '_blank');
+    } catch (e) {
+      handleApiError(e as any);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
       <div className="flex flex-row justify-between items-center">
@@ -56,13 +77,11 @@ export default function PaymentMethods({
               </div>
             );
           })}
-          {manageLink && (
-            <div className="mt-4">
-              <a href={manageLink} className="btn btn-primary">
-                Manage Payment Methods
-              </a>
-            </div>
-          )}
+          <div className="mt-4">
+            <Button onClick={manageClicked} variant="default">
+              {loading ? <Spinner /> : 'Manage Payment Methods'}
+            </Button>
+          </div>
         </>
       ) : (
         <div className="mt-4">
@@ -70,16 +89,11 @@ export default function PaymentMethods({
             No payment methods added. Payment method is required to upgrade your
             subscription.
           </p>
-          {manageLink && (
-            <div className="mt-4">
-              <Button
-                onClick={() => (window.location.href = manageLink)}
-                variant="default"
-              >
-                Add a Payment Method
-              </Button>
-            </div>
-          )}
+          <div className="mt-4">
+            <Button onClick={manageClicked} variant="default">
+              {loading ? <Spinner /> : 'Add a Payment Method'}
+            </Button>
+          </div>
         </div>
       )}
     </div>

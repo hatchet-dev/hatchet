@@ -249,8 +249,6 @@ export interface TenantResourceLimit {
 }
 
 export interface TenantResourcePolicy {
-  /** The link to checkout for the tenant. */
-  checkoutLink?: string;
   paymentMethods?: TenantPaymentMethod[];
   /** The subscription associated with this policy. */
   subscription: TenantSubscription;

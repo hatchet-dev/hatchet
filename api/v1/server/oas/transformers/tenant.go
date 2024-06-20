@@ -45,7 +45,7 @@ func ToTenantAlertEmailGroup(group *db.TenantAlertEmailGroupModel) *gen.TenantAl
 	}
 }
 
-func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.TenantSubscription, checkoutLink *string, _methods []*billing.PaymentMethod, _plans []*billing.Plan) *gen.TenantResourcePolicy {
+func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.TenantSubscription, _methods []*billing.PaymentMethod, _plans []*billing.Plan) *gen.TenantResourcePolicy {
 
 	limits := make([]gen.TenantResourceLimit, len(_limits))
 
@@ -137,7 +137,6 @@ func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.
 	return &gen.TenantResourcePolicy{
 		Limits:         limits,
 		Subscription:   subscription,
-		CheckoutLink:   checkoutLink,
 		PaymentMethods: &methods,
 		Plans:          &plans,
 	}

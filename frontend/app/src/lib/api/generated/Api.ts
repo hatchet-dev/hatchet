@@ -1698,4 +1698,27 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       format: "json",
       ...params,
     });
+  /**
+   * @description Get the billing portal link
+   *
+   * @tags Billing
+   * @name BillingPortalLinkGet
+   * @summary Create a link to the billing portal
+   * @request GET:/api/v1/billing/tenants/{tenant}/billing-portal-link
+   * @secure
+   */
+  billingPortalLinkGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<
+      {
+        /** The url to the billing portal */
+        url?: string;
+      },
+      APIErrors
+    >({
+      path: `/api/v1/billing/tenants/${tenant}/billing-portal-link`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
 }

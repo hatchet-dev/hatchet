@@ -822,9 +822,6 @@ type TenantResourceLimit struct {
 
 // TenantResourcePolicy defines model for TenantResourcePolicy.
 type TenantResourcePolicy struct {
-	// CheckoutLink The link to checkout for the tenant.
-	CheckoutLink *string `json:"checkoutLink,omitempty"`
-
 	// Limits A list of resource limits for the tenant.
 	Limits         []TenantResourceLimit  `json:"limits"`
 	PaymentMethods *[]TenantPaymentMethod `json:"paymentMethods,omitempty"`
@@ -1500,6 +1497,9 @@ type ClientInterface interface {
 	// LagoMessageCreate request
 	LagoMessageCreate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// BillingPortalLinkGet request
+	BillingPortalLinkGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SubscriptionUpsertWithBody request with any body
 	SubscriptionUpsertWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1837,6 +1837,18 @@ func (c *Client) ApiTokenUpdateRevoke(ctx context.Context, apiToken openapi_type
 
 func (c *Client) LagoMessageCreate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewLagoMessageCreateRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) BillingPortalLinkGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBillingPortalLinkGetRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -3164,6 +3176,40 @@ func NewLagoMessageCreateRequest(server string) (*http.Request, error) {
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewBillingPortalLinkGetRequest generates requests for BillingPortalLinkGet
+func NewBillingPortalLinkGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/billing/tenants/%s/billing-portal-link", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -6621,6 +6667,9 @@ type ClientWithResponsesInterface interface {
 	// LagoMessageCreateWithResponse request
 	LagoMessageCreateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*LagoMessageCreateResponse, error)
 
+	// BillingPortalLinkGetWithResponse request
+	BillingPortalLinkGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*BillingPortalLinkGetResponse, error)
+
 	// SubscriptionUpsertWithBodyWithResponse request with any body
 	SubscriptionUpsertWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscriptionUpsertResponse, error)
 
@@ -7013,6 +7062,33 @@ func (r LagoMessageCreateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r LagoMessageCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type BillingPortalLinkGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		// Url The url to the billing portal
+		Url *string `json:"url,omitempty"`
+	}
+	JSON400 *APIErrors
+	JSON403 *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r BillingPortalLinkGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BillingPortalLinkGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8855,6 +8931,15 @@ func (c *ClientWithResponses) LagoMessageCreateWithResponse(ctx context.Context,
 	return ParseLagoMessageCreateResponse(rsp)
 }
 
+// BillingPortalLinkGetWithResponse request returning *BillingPortalLinkGetResponse
+func (c *ClientWithResponses) BillingPortalLinkGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*BillingPortalLinkGetResponse, error) {
+	rsp, err := c.BillingPortalLinkGet(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBillingPortalLinkGetResponse(rsp)
+}
+
 // SubscriptionUpsertWithBodyWithResponse request with arbitrary body returning *SubscriptionUpsertResponse
 func (c *ClientWithResponses) SubscriptionUpsertWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscriptionUpsertResponse, error) {
 	rsp, err := c.SubscriptionUpsertWithBody(ctx, tenant, contentType, body, reqEditors...)
@@ -9833,6 +9918,49 @@ func ParseLagoMessageCreateResponse(rsp *http.Response) (*LagoMessageCreateRespo
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseBillingPortalLinkGetResponse parses an HTTP response from a BillingPortalLinkGetWithResponse call
+func ParseBillingPortalLinkGetResponse(rsp *http.Response) (*BillingPortalLinkGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BillingPortalLinkGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			// Url The url to the billing portal
+			Url *string `json:"url,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

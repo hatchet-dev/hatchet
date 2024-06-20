@@ -1,3 +1,44 @@
+billingPortalLink:
+  get:
+    x-resources: ["tenant"]
+    description: Get the billing portal link
+    operationId: billing-portal-link:get
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              properties:
+                url:
+                  type: string
+                  description: The url to the billing portal
+        description: Successfully created the portal link
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Create a link to the billing portal
+    tags:
+      - Billing
+
 subscription:
   patch:
     x-resources: ["tenant"]
@@ -40,6 +81,7 @@ subscription:
     summary: Create a new subscription
     tags:
       - Billing
+
 lagoWebhook:
   post:
     description: Receive a webhook message from Lago

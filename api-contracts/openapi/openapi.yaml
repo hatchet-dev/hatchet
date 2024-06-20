@@ -164,3 +164,5 @@ paths:
     $ref: "./paths/billing/billing.yaml#/lagoWebhook"
   /api/v1/billing/tenants/{tenant}/subscription:
     $ref: "./paths/billing/billing.yaml#/subscription"
+  /api/v1/billing/tenants/{tenant}/billing-portal-link:
+    $ref: "./paths/billing/billing.yaml#/billingPortalLink"
