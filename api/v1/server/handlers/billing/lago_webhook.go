@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
 )
 
 // Define the base struct for the common fields
@@ -71,12 +72,17 @@ func (b *BillingService) handleSubscriptionChange(subscription lago.Subscription
 
 	status := subscription.Status
 
-	// TODO handle next plan code
-	// nextPlanCode := subscription.NextPlanCode
-	// downgradePlanDate := subscription.DowngradePlanDate
-	// Also on termination, we need to handle downgrading limits
+	if status == lago.SubscriptionStatusTerminated && subscription.NextPlanCode != "" {
+		// Skip update for now as we'll capture on the actual plan active event
+		return nil
+	}
 
-	_, err := b.config.Billing.HandleUpdateSubscription(id, planCode, string(status))
+	if status == lago.SubscriptionStatusTerminated && subscription.NextPlanCode == "" {
+		planCode = string(dbsqlc.TenantSubscriptionPlanCodesFree)
+		status = lago.SubscriptionStatus(dbsqlc.TenantSubscriptionStatusActive)
+	}
+
+	_, err := b.config.Billing.HandleUpdateSubscription(id, planCode, string(status), "")
 
 	if err != nil {
 		return fmt.Errorf("error updating subscription: %v", err)

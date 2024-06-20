@@ -507,7 +507,7 @@ type TenantSubscriptionPeriod string
 
 const (
 	TenantSubscriptionPeriodMonthly TenantSubscriptionPeriod = "monthly"
-	TenantSubscriptionPeriodAnnual  TenantSubscriptionPeriod = "annual"
+	TenantSubscriptionPeriodYearly  TenantSubscriptionPeriod = "yearly"
 )
 
 func (e *TenantSubscriptionPeriod) Scan(src interface{}) error {
@@ -1150,6 +1150,7 @@ type TenantSubscription struct {
 	Status   TenantSubscriptionStatus     `json:"status"`
 	Period   NullTenantSubscriptionPeriod `json:"period"`
 	Plan     TenantSubscriptionPlanCodes  `json:"plan"`
+	Note     pgtype.Text                  `json:"note"`
 }
 
 type TenantVcsProvider struct {

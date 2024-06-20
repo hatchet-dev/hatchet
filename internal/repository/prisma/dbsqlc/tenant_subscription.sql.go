@@ -13,7 +13,7 @@ import (
 
 const getTenantSubscription = `-- name: GetTenantSubscription :one
 SELECT
-  "tenantId", status, period, plan
+  "tenantId", status, period, plan, note
 FROM
   "TenantSubscription"
 WHERE
@@ -28,6 +28,7 @@ func (q *Queries) GetTenantSubscription(ctx context.Context, db DBTX, tenantid p
 		&i.Status,
 		&i.Period,
 		&i.Plan,
+		&i.Note,
 	)
 	return &i, err
 }
@@ -37,19 +38,22 @@ INSERT INTO "TenantSubscription" (
   "tenantId",
   "plan",
   "period",
-  "status"
+  "status",
+  "note"
 )
 VALUES (
   $1::uuid,
   $2::"TenantSubscriptionPlanCodes",
   $3::"TenantSubscriptionPeriod",
-  $4::"TenantSubscriptionStatus"
+  $4::"TenantSubscriptionStatus",
+  $5::text
 )
 ON CONFLICT ("tenantId") DO UPDATE SET
   "plan" = $2::"TenantSubscriptionPlanCodes",
   "period" = $3::"TenantSubscriptionPeriod",
-  "status" = $4::"TenantSubscriptionStatus"
-RETURNING "tenantId", status, period, plan
+  "status" = $4::"TenantSubscriptionStatus",
+  "note" = $5::text
+RETURNING "tenantId", status, period, plan, note
 `
 
 type UpsertTenantSubscriptionParams struct {
@@ -57,6 +61,7 @@ type UpsertTenantSubscriptionParams struct {
 	Plan     NullTenantSubscriptionPlanCodes `json:"plan"`
 	Period   NullTenantSubscriptionPeriod    `json:"period"`
 	Status   NullTenantSubscriptionStatus    `json:"status"`
+	Note     pgtype.Text                     `json:"note"`
 }
 
 func (q *Queries) UpsertTenantSubscription(ctx context.Context, db DBTX, arg UpsertTenantSubscriptionParams) (*TenantSubscription, error) {
@@ -65,6 +70,7 @@ func (q *Queries) UpsertTenantSubscription(ctx context.Context, db DBTX, arg Ups
 		arg.Plan,
 		arg.Period,
 		arg.Status,
+		arg.Note,
 	)
 	var i TenantSubscription
 	err := row.Scan(
@@ -72,6 +78,7 @@ func (q *Queries) UpsertTenantSubscription(ctx context.Context, db DBTX, arg Ups
 		&i.Status,
 		&i.Period,
 		&i.Plan,
+		&i.Note,
 	)
 	return &i, err
 }

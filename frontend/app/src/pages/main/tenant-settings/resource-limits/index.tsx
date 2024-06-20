@@ -7,6 +7,7 @@ import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/resource-limit-columns';
 import PaymentMethods from './components/payment-methods';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import Subscription from './components/subscription';
 
 export default function ResourceLimits() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -41,15 +42,10 @@ export default function ResourceLimits() {
             methods={resourcePolicyQuery.data?.paymentMethods}
           />
           <Separator className="my-4" />
-          <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-row justify-between items-center">
-              <h3 className="text-xl font-semibold leading-tight text-foreground">
-                Subscription
-              </h3>
-            </div>
-            <p className="text-gray-700 dark:text-gray-300 my-4"></p>
-            {JSON.stringify(resourcePolicyQuery.data?.subscription)}
-          </div>
+          <Subscription
+            active={resourcePolicyQuery.data?.subscription}
+            plans={resourcePolicyQuery.data?.plans}
+          />
           <Separator className="my-4" />
         </>
       )}

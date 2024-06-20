@@ -22,6 +22,14 @@ type PaymentMethod struct {
 	Expiration string
 }
 
+type Plan struct {
+	PlanCode    string  `json:"plan_code"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	AmountCents int     `json:"amount_cents"`
+	Period      *string `json:"period,omitempty"`
+}
+
 type Billing interface {
 	Enabled() bool
 	GetPaymentMethods(tenantId string) ([]*PaymentMethod, error)
@@ -30,7 +38,8 @@ type Billing interface {
 	GetSubscription(tenantId string) (*dbsqlc.TenantSubscription, error)
 	MeterMetric(tenantId string, resource dbsqlc.LimitResource, uniqueId string, limitVal *int32) error
 	VerifyHMACSignature(body []byte, signature string) bool
-	HandleUpdateSubscription(id string, planCode string, status string) (*dbsqlc.TenantSubscription, error)
+	HandleUpdateSubscription(id string, planCode string, status string, note string) (*dbsqlc.TenantSubscription, error)
+	Plans() ([]*Plan, error)
 }
 
 type NoOpBilling struct{}
@@ -63,6 +72,10 @@ func (b NoOpBilling) VerifyHMACSignature(body []byte, signature string) bool {
 	return false
 }
 
-func (b NoOpBilling) HandleUpdateSubscription(id string, planCode string, status string) (*dbsqlc.TenantSubscription, error) {
+func (b NoOpBilling) HandleUpdateSubscription(id string, planCode string, status string, note string) (*dbsqlc.TenantSubscription, error) {
+	return nil, nil
+}
+
+func (b NoOpBilling) Plans() ([]*Plan, error) {
 	return nil, nil
 }

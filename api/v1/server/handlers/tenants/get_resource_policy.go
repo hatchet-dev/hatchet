@@ -53,7 +53,13 @@ func (t *TenantService) TenantResourcePolicyGet(ctx echo.Context, request gen.Te
 		return nil, fmt.Errorf("failed to get checkout link: %w", err)
 	}
 
+	plans, err := t.config.Billing.Plans()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get plans: %w", err)
+	}
+
 	return gen.TenantResourcePolicyGet200JSONResponse(
-		*transformers.ToTenantResourcePolicy(limits, subscription, checkoutLink, methods),
+		*transformers.ToTenantResourcePolicy(limits, subscription, checkoutLink, methods, plans),
 	), nil
 }

@@ -59,10 +59,12 @@ import {
   TenantMember,
   TenantMemberList,
   TenantResourcePolicy,
+  TenantSubscription,
   TriggerWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
   UpdateTenantRequest,
+  UpdateTenantSubscription,
   User,
   UserChangePasswordRequest,
   UserLoginRequest,
@@ -1623,6 +1625,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<void, APIErrors>({
       path: `/api/v1/billing/lago/webhook`,
       method: "POST",
+      ...params,
+    });
+  /**
+   * @description Update a subscription
+   *
+   * @tags Billing
+   * @name SubscriptionUpsert
+   * @summary Create a new subscription
+   * @request PATCH:/api/v1/billing/tenants/{tenant}/subscription
+   * @secure
+   */
+  subscriptionUpsert = (tenant: string, data: UpdateTenantSubscription, params: RequestParams = {}) =>
+    this.request<TenantSubscription, APIErrors>({
+      path: `/api/v1/billing/tenants/${tenant}/subscription`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
       ...params,
     });
 }

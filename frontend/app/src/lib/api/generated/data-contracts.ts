@@ -256,6 +256,28 @@ export interface TenantResourcePolicy {
   subscription: TenantSubscription;
   /** A list of resource limits for the tenant. */
   limits: TenantResourceLimit[];
+  /** A list of plans available for the tenant. */
+  plans?: SubscriptionPlan[];
+}
+
+export interface SubscriptionPlan {
+  /** The code of the plan. */
+  plan_code: string;
+  /** The name of the plan. */
+  name: string;
+  /** The description of the plan. */
+  description: string;
+  /** The price of the plan. */
+  amount_cents: number;
+  /** The period of the plan. */
+  period?: string;
+}
+
+export interface UpdateTenantSubscription {
+  /** The code of the plan. */
+  plan?: string;
+  /** The period of the plan. */
+  period?: string;
 }
 
 export interface TenantSubscription {
@@ -265,6 +287,8 @@ export interface TenantSubscription {
   period?: string;
   /** The status of the tenant subscription. */
   status?: TenantSubscriptionStatus;
+  /** A note associated with the tenant subscription. */
+  note?: string;
 }
 
 export interface TenantPaymentMethod {

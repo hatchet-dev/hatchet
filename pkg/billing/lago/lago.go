@@ -67,7 +67,7 @@ func (l *LagoBilling) Enabled() bool {
 	return true
 }
 
-func (l *LagoBilling) GetCustomer(tenantId string) (*lago.Customer, error) {
+func (l *LagoBilling) GetCustomer(tenantId string) (*lago.Customer, *lago.Error) {
 	c, err := l.client.Customer().Get(context.Background(), tenantId)
 
 	if err != nil {
@@ -81,6 +81,11 @@ func (l *LagoBilling) GetPaymentMethods(tenantId string) ([]*billing.PaymentMeth
 	c, err := l.GetCustomer(tenantId)
 
 	if err != nil {
+
+		if err.HTTPStatusCode == 404 {
+			return nil, nil
+		}
+
 		return nil, err
 	}
 
@@ -130,12 +135,16 @@ func (l *LagoBilling) UpsertTenant(tenant db.TenantModel) (*lago.Customer, error
 }
 
 func (l *LagoBilling) GetCheckoutLink(tenantId string) (*string, error) {
-	// link, err := l.client.Customer().CheckoutUrl(context.Background(), tenantId)
 
-	customer, err := l.GetCustomer(tenantId)
+	customer, lagoErr := l.GetCustomer(tenantId)
 
-	if err != nil {
-		return nil, err
+	if lagoErr != nil {
+
+		if lagoErr.HTTPStatusCode == 404 {
+			return nil, nil
+		}
+
+		return nil, lagoErr
 	}
 
 	returnUrl := fmt.Sprintf("%s/tenant-settings/billing-and-limits?tenant=%s", l.serverURL, tenantId)
@@ -167,10 +176,22 @@ func (l *LagoBilling) GetSubscription(tenantId string) (*dbsqlc.TenantSubscripti
 func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts billing.SubscriptionOpts) (*dbsqlc.TenantSubscription, error) {
 	ctx := context.Background()
 
-	_, lagoErr := l.UpsertTenant(tenant)
+	customer, lagoErr := l.GetCustomer(tenant.ID)
 
 	if lagoErr != nil {
-		return nil, lagoErr
+		if lagoErr.HTTPStatusCode == 404 {
+			customer = nil
+		} else {
+			return nil, lagoErr
+		}
+	}
+
+	if customer == nil {
+		_, err := l.UpsertTenant(tenant)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	planCode := string(opts.Plan)
@@ -194,7 +215,20 @@ func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts billi
 		return nil, subErr
 	}
 
-	s, err := l.HandleUpdateSubscription(tenant.ID, sub.PlanCode, string(sub.Status))
+	var note string
+
+	if sub.NextPlanCode != "" {
+
+		downgradeDate, err := time.Parse("2006-01-02", sub.DowngradePlanDate)
+		if err != nil {
+			return nil, err
+		}
+		formattedDate := downgradeDate.Format("January 2, 2006")
+
+		note = fmt.Sprintf("Downgrading to %s on %s", sub.NextPlanCode, formattedDate)
+	}
+
+	s, err := l.HandleUpdateSubscription(tenant.ID, sub.PlanCode, string(sub.Status), note)
 
 	if err != nil {
 		return nil, err
@@ -203,7 +237,7 @@ func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts billi
 	return s, nil
 }
 
-func (l *LagoBilling) HandleUpdateSubscription(id string, planCode string, status string) (*dbsqlc.TenantSubscription, error) {
+func (l *LagoBilling) HandleUpdateSubscription(id string, planCode string, status string, note string) (*dbsqlc.TenantSubscription, error) {
 	ctx := context.Background()
 
 	planCodeParts := strings.Split(planCode, ":")
@@ -230,6 +264,7 @@ func (l *LagoBilling) HandleUpdateSubscription(id string, planCode string, statu
 				TenantSubscriptionStatus: dbsqlc.TenantSubscriptionStatus(status),
 				Valid:                    true,
 			},
+			Note: sqlchelpers.TextFromStr(note),
 		})
 
 	if err != nil {
@@ -272,4 +307,30 @@ func (l *LagoBilling) VerifyHMACSignature(body []byte, signature string) bool {
 	calcSig := h.Sum(nil)
 	base64Sig := base64.StdEncoding.EncodeToString(calcSig)
 	return signature == base64Sig
+}
+
+func (l *LagoBilling) Plans() ([]*billing.Plan, error) {
+	plans, err := l.client.Plan().GetList(context.Background(), &lago.PlanListInput{
+		PerPage: 10,
+		Page:    1,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	var result []*billing.Plan
+
+	for _, plan := range plans.Plans {
+		p := string(plan.Interval)
+		result = append(result, &billing.Plan{
+			PlanCode:    plan.Code,
+			Name:        plan.Name,
+			Description: plan.Description,
+			AmountCents: plan.AmountCents,
+			Period:      &p,
+		})
+	}
+
+	return result, nil
 }

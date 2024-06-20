@@ -42,6 +42,10 @@ TenantResourceLimit:
   $ref: "./tenant.yaml#/TenantResourceLimit"
 TenantResourcePolicy:
   $ref: "./tenant.yaml#/TenantResourcePolicy"
+SubscriptionPlan:
+  $ref: "./tenant.yaml#/SubscriptionPlan"
+UpdateTenantSubscription:
+  $ref: "./tenant.yaml#/UpdateTenantSubscription"
 TenantSubscription:
   $ref: "./tenant.yaml#/TenantSubscription"
 TenantPaymentMethod:

@@ -151,6 +151,45 @@ TenantSubscription:
     status:
       $ref: "#/TenantSubscriptionStatus"
       description: The status of the tenant subscription.
+    note:
+      type: string
+      description: A note associated with the tenant subscription.
+
+SubscriptionPlan:
+  properties:
+    plan_code:
+      type: string
+      description: The code of the plan.
+    name:
+      type: string
+      description: The name of the plan.
+    description:
+      type: string
+      description: The description of the plan.
+    amount_cents:
+      type: integer
+      description: The price of the plan.
+    period:
+      type: string
+      description: The period of the plan.
+  required:
+    - plan_code
+    - name
+    - description
+    - amount_cents
+  type: object
+
+UpdateTenantSubscription:
+  properties:
+    plan:
+      type: string
+      description: The code of the plan.
+    period:
+      type: string
+      description: The period of the plan.
+  required:
+    - plan_code
+  type: object
 
 TenantPaymentMethod:
   properties:
@@ -185,6 +224,11 @@ TenantResourcePolicy:
       items:
         $ref: "#/TenantResourceLimit"
       description: A list of resource limits for the tenant.
+    plans:
+      type: array
+      items:
+        $ref: "#/SubscriptionPlan"
+      description: A list of plans available for the tenant.
   required:
     - subscription
     - limits

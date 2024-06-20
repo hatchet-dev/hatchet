@@ -164,16 +164,18 @@ enum TenantSubscriptionPlanCodes {
 
 enum TenantSubscriptionPeriod {
   monthly
-  annual
+  yearly
 }
 
 model TenantSubscription {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @id @db.Uuid @unique
 
-  plan TenantSubscriptionPlanCodes @default(free)
+  plan    TenantSubscriptionPlanCodes @default(free)
   period  TenantSubscriptionPeriod?
-  status   TenantSubscriptionStatus
+  status  TenantSubscriptionStatus
+
+  note String?
 }
 
 enum LimitResource {

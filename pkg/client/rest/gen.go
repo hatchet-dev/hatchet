@@ -646,6 +646,24 @@ type StepRunEventSeverity string
 // StepRunStatus defines model for StepRunStatus.
 type StepRunStatus string
 
+// SubscriptionPlan defines model for SubscriptionPlan.
+type SubscriptionPlan struct {
+	// AmountCents The price of the plan.
+	AmountCents int `json:"amount_cents"`
+
+	// Description The description of the plan.
+	Description string `json:"description"`
+
+	// Name The name of the plan.
+	Name string `json:"name"`
+
+	// Period The period of the plan.
+	Period *string `json:"period,omitempty"`
+
+	// PlanCode The code of the plan.
+	PlanCode string `json:"plan_code"`
+}
+
 // Tenant defines model for Tenant.
 type Tenant struct {
 	// AlertMemberEmails Whether to alert tenant members.
@@ -780,11 +798,17 @@ type TenantResourcePolicy struct {
 	// Limits A list of resource limits for the tenant.
 	Limits         []TenantResourceLimit  `json:"limits"`
 	PaymentMethods *[]TenantPaymentMethod `json:"paymentMethods,omitempty"`
-	Subscription   TenantSubscription     `json:"subscription"`
+
+	// Plans A list of plans available for the tenant.
+	Plans        *[]SubscriptionPlan `json:"plans,omitempty"`
+	Subscription TenantSubscription  `json:"subscription"`
 }
 
 // TenantSubscription defines model for TenantSubscription.
 type TenantSubscription struct {
+	// Note A note associated with the tenant subscription.
+	Note *string `json:"note,omitempty"`
+
 	// Period The period associated with the tenant subscription.
 	Period *string `json:"period,omitempty"`
 
@@ -835,6 +859,15 @@ type UpdateTenantRequest struct {
 
 	// Name The name of the tenant.
 	Name *string `json:"name,omitempty"`
+}
+
+// UpdateTenantSubscription defines model for UpdateTenantSubscription.
+type UpdateTenantSubscription struct {
+	// Period The period of the plan.
+	Period *string `json:"period,omitempty"`
+
+	// Plan The code of the plan.
+	Plan *string `json:"plan,omitempty"`
 }
 
 // User defines model for User.
@@ -1275,6 +1308,9 @@ type WorkflowVersionGetDefinitionParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
+// SubscriptionUpsertJSONRequestBody defines body for SubscriptionUpsert for application/json ContentType.
+type SubscriptionUpsertJSONRequestBody = UpdateTenantSubscription
+
 // StepRunUpdateCreatePrJSONRequestBody defines body for StepRunUpdateCreatePr for application/json ContentType.
 type StepRunUpdateCreatePrJSONRequestBody = CreatePullRequestFromStepRun
 
@@ -1421,6 +1457,11 @@ type ClientInterface interface {
 
 	// LagoMessageCreate request
 	LagoMessageCreate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SubscriptionUpsertWithBody request with any body
+	SubscriptionUpsertWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SubscriptionUpsert(ctx context.Context, tenant openapi_types.UUID, body SubscriptionUpsertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EventDataGet request
 	EventDataGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1746,6 +1787,30 @@ func (c *Client) ApiTokenUpdateRevoke(ctx context.Context, apiToken openapi_type
 
 func (c *Client) LagoMessageCreate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewLagoMessageCreateRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SubscriptionUpsertWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubscriptionUpsertRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SubscriptionUpsert(ctx context.Context, tenant openapi_types.UUID, body SubscriptionUpsertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubscriptionUpsertRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3016,6 +3081,53 @@ func NewLagoMessageCreateRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewSubscriptionUpsertRequest calls the generic SubscriptionUpsert builder with application/json body
+func NewSubscriptionUpsertRequest(server string, tenant openapi_types.UUID, body SubscriptionUpsertJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSubscriptionUpsertRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewSubscriptionUpsertRequestWithBody generates requests for SubscriptionUpsert with any type of body
+func NewSubscriptionUpsertRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/billing/tenants/%s/subscription", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -6304,6 +6416,11 @@ type ClientWithResponsesInterface interface {
 	// LagoMessageCreateWithResponse request
 	LagoMessageCreateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*LagoMessageCreateResponse, error)
 
+	// SubscriptionUpsertWithBodyWithResponse request with any body
+	SubscriptionUpsertWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscriptionUpsertResponse, error)
+
+	SubscriptionUpsertWithResponse(ctx context.Context, tenant openapi_types.UUID, body SubscriptionUpsertJSONRequestBody, reqEditors ...RequestEditorFn) (*SubscriptionUpsertResponse, error)
+
 	// EventDataGetWithResponse request
 	EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error)
 
@@ -6683,6 +6800,30 @@ func (r LagoMessageCreateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r LagoMessageCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SubscriptionUpsertResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantSubscription
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r SubscriptionUpsertResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SubscriptionUpsertResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8451,6 +8592,23 @@ func (c *ClientWithResponses) LagoMessageCreateWithResponse(ctx context.Context,
 	return ParseLagoMessageCreateResponse(rsp)
 }
 
+// SubscriptionUpsertWithBodyWithResponse request with arbitrary body returning *SubscriptionUpsertResponse
+func (c *ClientWithResponses) SubscriptionUpsertWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscriptionUpsertResponse, error) {
+	rsp, err := c.SubscriptionUpsertWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubscriptionUpsertResponse(rsp)
+}
+
+func (c *ClientWithResponses) SubscriptionUpsertWithResponse(ctx context.Context, tenant openapi_types.UUID, body SubscriptionUpsertJSONRequestBody, reqEditors ...RequestEditorFn) (*SubscriptionUpsertResponse, error) {
+	rsp, err := c.SubscriptionUpsert(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubscriptionUpsertResponse(rsp)
+}
+
 // EventDataGetWithResponse request returning *EventDataGetResponse
 func (c *ClientWithResponses) EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error) {
 	rsp, err := c.EventDataGet(ctx, event, reqEditors...)
@@ -9386,6 +9544,46 @@ func ParseLagoMessageCreateResponse(rsp *http.Response) (*LagoMessageCreateRespo
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSubscriptionUpsertResponse parses an HTTP response from a SubscriptionUpsertWithResponse call
+func ParseSubscriptionUpsertResponse(rsp *http.Response) (*SubscriptionUpsertResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SubscriptionUpsertResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantSubscription
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

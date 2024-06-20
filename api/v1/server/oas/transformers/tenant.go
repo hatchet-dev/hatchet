@@ -45,7 +45,7 @@ func ToTenantAlertEmailGroup(group *db.TenantAlertEmailGroupModel) *gen.TenantAl
 	}
 }
 
-func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.TenantSubscription, checkoutLink *string, _methods []*billing.PaymentMethod) *gen.TenantResourcePolicy {
+func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.TenantSubscription, checkoutLink *string, _methods []*billing.PaymentMethod, _plans []*billing.Plan) *gen.TenantResourcePolicy {
 
 	limits := make([]gen.TenantResourceLimit, len(_limits))
 
@@ -76,6 +76,7 @@ func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.
 		Plan:   nil,
 		Period: nil,
 		Status: nil,
+		Note:   nil,
 	}
 
 	if _sub != nil {
@@ -90,10 +91,16 @@ func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.
 			period = &_period
 		}
 
+		var note string
+		if _sub.Note.Valid {
+			note = _sub.Note.String
+		}
+
 		subscription = gen.TenantSubscription{
 			Plan:   &plan,
 			Period: period,
 			Status: &status,
+			Note:   &note,
 		}
 	}
 
@@ -111,10 +118,27 @@ func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit, _sub *dbsqlc.
 		return res
 	}()
 
+	plans := func() []gen.SubscriptionPlan {
+		res := make([]gen.SubscriptionPlan, len(_plans))
+
+		for i, plan := range _plans {
+			res[i] = gen.SubscriptionPlan{
+				PlanCode:    plan.PlanCode,
+				Name:        plan.Name,
+				Description: plan.Description,
+				AmountCents: plan.AmountCents,
+				Period:      plan.Period,
+			}
+		}
+
+		return res
+	}()
+
 	return &gen.TenantResourcePolicy{
 		Limits:         limits,
 		Subscription:   subscription,
 		CheckoutLink:   checkoutLink,
 		PaymentMethods: &methods,
+		Plans:          &plans,
 	}
 }
