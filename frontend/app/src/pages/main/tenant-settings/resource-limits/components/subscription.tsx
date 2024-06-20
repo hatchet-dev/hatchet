@@ -105,7 +105,22 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
           </Label>
         </div>
       </div>
-      <p className="text-gray-700 dark:text-gray-300 my-4"></p>
+      <p className="text-gray-700 dark:text-gray-300 my-4">
+        For plan details, please visit{' '}
+        <a
+          href="https://hatchet.run/pricing"
+          className="underline"
+          target="_blank"
+          rel="noreferrer"
+        >
+          our pricing page
+        </a>{' '}
+        or{' '}
+        <a href="https://hatchet.run/office-hours" className="underline">
+          contact us
+        </a>{' '}
+        if you have custom requirements.
+      </p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {sortedPlans?.map((plan, i) => (
           <div className="flex flex-col" key={i}>

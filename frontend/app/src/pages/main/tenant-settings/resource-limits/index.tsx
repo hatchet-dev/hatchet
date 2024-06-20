@@ -67,7 +67,7 @@ export default function ResourceLimits() {
         <p className="text-gray-700 dark:text-gray-300 my-4">
           Resource limits are used to control the usage of resources within a
           tenant. When a limit is reached, the system will take action based on
-          the limit type. Please{' '}
+          the limit type. Please upgrade your plan, or{' '}
           <a href="https://hatchet.run/office-hours" className="underline">
             contact us
           </a>{' '}
