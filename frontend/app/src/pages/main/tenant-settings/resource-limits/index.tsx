@@ -8,6 +8,7 @@ import { columns } from './components/resource-limit-columns';
 import PaymentMethods from './components/payment-methods';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import Subscription from './components/subscription';
+import { Spinner } from '@/components/ui/loading';
 
 export default function ResourceLimits() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -23,6 +24,14 @@ export default function ResourceLimits() {
 
   const hasPaymentMethods =
     (resourcePolicyQuery.data?.paymentMethods?.length || 0) > 0;
+
+  if (resourcePolicyQuery.isLoading) {
+    return (
+      <div className="flex-grow h-full w-full px-4 sm:px-6 lg:px-8">
+        <Spinner />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-grow h-full w-full">
