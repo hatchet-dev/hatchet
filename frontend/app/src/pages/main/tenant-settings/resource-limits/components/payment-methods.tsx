@@ -13,7 +13,6 @@ import { IconType } from 'react-icons/lib';
 import api from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
-import { c } from 'node_modules/vite/dist/node/types.d-aGj9QkWt';
 import { useApiError } from '@/lib/hooks';
 import { useState } from 'react';
 import { Spinner } from '@/components/ui/loading';
