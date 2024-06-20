@@ -207,42 +207,6 @@ oauth-callback-github:
     summary: Complete OAuth flow
     tags:
       - User
-oauth-start-github-app:
-  get:
-    description: Starts the OAuth flow
-    operationId: user:update:github-app-oauth-start
-    responses:
-      "302":
-        description: Successfully started the OAuth flow
-        headers:
-          location:
-            schema:
-              type: string
-    # Note that the security scheme requires cookies, because this endpoint is for linking
-    # a GitHub account to an existing user account.
-    security:
-      - cookieAuth: []
-    summary: Start OAuth flow
-    tags:
-      - User
-oauth-callback-github-app:
-  get:
-    description: Completes the OAuth flow
-    operationId: user:update:github-app-oauth-callback
-    responses:
-      "302":
-        description: Successfully completed the OAuth flow
-        headers:
-          location:
-            schema:
-              type: string
-    # Note that the security scheme requires cookies, because this endpoint is for linking
-    # a GitHub account to an existing user account.
-    security:
-      - cookieAuth: []
-    summary: Complete OAuth flow
-    tags:
-      - User
 oauth-start-slack:
   get:
     x-resources: ["tenant"]

@@ -1,6 +1,6 @@
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 
-import api from './api';
+import api, { cloudApi } from './api';
 import invariant from 'tiny-invariant';
 import { PullRequestState } from '.';
 
@@ -185,13 +185,13 @@ export const queries = createQueryKeyStore({
   github: {
     listInstallations: {
       queryKey: ['github-app:list:installations'],
-      queryFn: async () => (await api.githubAppListInstallations()).data,
+      queryFn: async () => (await cloudApi.githubAppListInstallations()).data,
     },
     listRepos: (installation?: string) => ({
       queryKey: ['github-app:list:repos', installation],
       queryFn: async () => {
         invariant(installation, 'Installation must be set');
-        const res = (await api.githubAppListRepos(installation)).data;
+        const res = (await cloudApi.githubAppListRepos(installation)).data;
         return res;
       },
       enabled: !!installation,
@@ -207,7 +207,11 @@ export const queries = createQueryKeyStore({
         invariant(repoOwner, 'Repo owner must be set');
         invariant(repoName, 'Repo name must be set');
         const res = (
-          await api.githubAppListBranches(installation, repoOwner, repoName)
+          await cloudApi.githubAppListBranches(
+            installation,
+            repoOwner,
+            repoName,
+          )
         ).data;
         return res;
       },

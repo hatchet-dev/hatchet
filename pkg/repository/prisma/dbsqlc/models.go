@@ -656,86 +656,6 @@ type GetGroupKeyRun struct {
 	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
 }
 
-type GithubAppInstallation struct {
-	ID                      pgtype.UUID      `json:"id"`
-	CreatedAt               pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt               pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt               pgtype.Timestamp `json:"deletedAt"`
-	GithubAppOAuthId        pgtype.UUID      `json:"githubAppOAuthId"`
-	InstallationId          int32            `json:"installationId"`
-	AccountName             string           `json:"accountName"`
-	AccountId               int32            `json:"accountId"`
-	AccountAvatarURL        pgtype.Text      `json:"accountAvatarURL"`
-	InstallationSettingsURL pgtype.Text      `json:"installationSettingsURL"`
-	Config                  []byte           `json:"config"`
-	TenantId                pgtype.UUID      `json:"tenantId"`
-	TenantVcsProviderId     pgtype.UUID      `json:"tenantVcsProviderId"`
-}
-
-type GithubAppInstallationToGithubWebhook struct {
-	A pgtype.UUID `json:"A"`
-	B pgtype.UUID `json:"B"`
-}
-
-type GithubAppOAuth struct {
-	ID           pgtype.UUID      `json:"id"`
-	CreatedAt    pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt    pgtype.Timestamp `json:"deletedAt"`
-	GithubUserID int32            `json:"githubUserID"`
-	AccessToken  []byte           `json:"accessToken"`
-	RefreshToken []byte           `json:"refreshToken"`
-	ExpiresAt    pgtype.Timestamp `json:"expiresAt"`
-}
-
-type GithubAppOAuthToUser struct {
-	A pgtype.UUID `json:"A"`
-	B pgtype.UUID `json:"B"`
-}
-
-type GithubPullRequest struct {
-	ID                    pgtype.UUID      `json:"id"`
-	CreatedAt             pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt             pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt             pgtype.Timestamp `json:"deletedAt"`
-	TenantId              pgtype.UUID      `json:"tenantId"`
-	RepositoryOwner       string           `json:"repositoryOwner"`
-	RepositoryName        string           `json:"repositoryName"`
-	PullRequestID         int32            `json:"pullRequestID"`
-	PullRequestTitle      string           `json:"pullRequestTitle"`
-	PullRequestNumber     int32            `json:"pullRequestNumber"`
-	PullRequestHeadBranch string           `json:"pullRequestHeadBranch"`
-	PullRequestBaseBranch string           `json:"pullRequestBaseBranch"`
-	PullRequestState      string           `json:"pullRequestState"`
-}
-
-type GithubPullRequestComment struct {
-	ID            pgtype.UUID      `json:"id"`
-	CreatedAt     pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt     pgtype.Timestamp `json:"deletedAt"`
-	TenantId      pgtype.UUID      `json:"tenantId"`
-	PullRequestID pgtype.UUID      `json:"pullRequestID"`
-	ModuleID      string           `json:"moduleID"`
-	CommentID     int32            `json:"commentID"`
-}
-
-type GithubPullRequestToWorkflowRun struct {
-	A pgtype.UUID `json:"A"`
-	B pgtype.UUID `json:"B"`
-}
-
-type GithubWebhook struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	TenantId        pgtype.UUID      `json:"tenantId"`
-	RepositoryOwner string           `json:"repositoryOwner"`
-	RepositoryName  string           `json:"repositoryName"`
-	SigningSecret   []byte           `json:"signingSecret"`
-}
-
 type Job struct {
 	ID                pgtype.UUID      `json:"id"`
 	CreatedAt         pgtype.Timestamp `json:"createdAt"`
@@ -1114,18 +1034,6 @@ type WorkflowConcurrency struct {
 	LimitStrategy         ConcurrencyLimitStrategy `json:"limitStrategy"`
 }
 
-type WorkflowDeploymentConfig struct {
-	ID                      pgtype.UUID      `json:"id"`
-	CreatedAt               pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt               pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt               pgtype.Timestamp `json:"deletedAt"`
-	WorkflowId              pgtype.UUID      `json:"workflowId"`
-	GitRepoName             string           `json:"gitRepoName"`
-	GitRepoOwner            string           `json:"gitRepoOwner"`
-	GitRepoBranch           string           `json:"gitRepoBranch"`
-	GithubAppInstallationId pgtype.UUID      `json:"githubAppInstallationId"`
-}
-
 type WorkflowRun struct {
 	CreatedAt          pgtype.Timestamp  `json:"createdAt"`
 	UpdatedAt          pgtype.Timestamp  `json:"updatedAt"`
@@ -1139,7 +1047,6 @@ type WorkflowRun struct {
 	ConcurrencyGroupId pgtype.Text       `json:"concurrencyGroupId"`
 	DisplayName        pgtype.Text       `json:"displayName"`
 	ID                 pgtype.UUID       `json:"id"`
-	GitRepoBranch      pgtype.Text       `json:"gitRepoBranch"`
 	ChildIndex         pgtype.Int4       `json:"childIndex"`
 	ChildKey           pgtype.Text       `json:"childKey"`
 	ParentId           pgtype.UUID       `json:"parentId"`

@@ -12,7 +12,6 @@ type APIRepository interface {
 	WorkflowRun() WorkflowRunAPIRepository
 	JobRun() JobRunAPIRepository
 	StepRun() StepRunAPIRepository
-	Github() GithubRepository
 	Slack() SlackRepository
 	SNS() SNSRepository
 	Step() StepRepository

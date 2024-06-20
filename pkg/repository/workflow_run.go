@@ -353,10 +353,6 @@ type WorkflowRunAPIRepository interface {
 
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(tenantId, runId string) (*db.WorkflowRunModel, error)
-
-	CreateWorkflowRunPullRequest(tenantId, workflowRunId string, opts *CreateWorkflowRunPullRequestOpts) (*db.GithubPullRequestModel, error)
-
-	ListPullRequestsForWorkflowRun(tenantId, workflowRunId string, opts *ListPullRequestsForWorkflowRunOpts) ([]db.GithubPullRequestModel, error)
 }
 
 var ErrWorkflowRunNotFound = fmt.Errorf("workflow run not found")
