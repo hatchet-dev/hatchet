@@ -322,14 +322,22 @@ func (l *LagoBilling) Plans() ([]*billing.Plan, error) {
 	var result []*billing.Plan
 
 	for _, plan := range plans.Plans {
-		p := string(plan.Interval)
-		result = append(result, &billing.Plan{
-			PlanCode:    plan.Code,
-			Name:        plan.Name,
-			Description: plan.Description,
-			AmountCents: plan.AmountCents,
-			Period:      &p,
-		})
+
+		// ONLY LIST PUBLIC PLANS
+		if strings.HasPrefix(plan.Code, string(dbsqlc.TenantSubscriptionPlanCodesFree)) ||
+			strings.HasPrefix(plan.Code, string(dbsqlc.TenantSubscriptionPlanCodesStarter)) ||
+			strings.HasPrefix(plan.Code, string(dbsqlc.TenantSubscriptionPlanCodesGrowth)) {
+
+			p := string(plan.Interval)
+
+			result = append(result, &billing.Plan{
+				PlanCode:    plan.Code,
+				Name:        plan.Name,
+				Description: plan.Description,
+				AmountCents: plan.AmountCents,
+				Period:      &p,
+			})
+		}
 	}
 
 	return result, nil
