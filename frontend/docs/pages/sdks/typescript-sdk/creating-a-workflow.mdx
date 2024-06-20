@@ -101,8 +101,7 @@ Remember, a step that depends on previous step data should include this dependen
 You can declare a cron schedule by defining `on_crons` in the `Workflow` object. For example, to trigger a workflow every 5 minutes, you can do the following:
 
 ```ts
-import Hatchet from "@hatchet-dev/typescript-sdk";
-import { Workflow } from "@hatchet/workflow";
+import Hatchet, { Workflow } from "@hatchet-dev/typescript-sdk";
 
 const hatchet = Hatchet.init();
 

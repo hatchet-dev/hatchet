@@ -27,7 +27,7 @@ To modify the input data for a step, simply edit the JSON representation of the 
 This feature provides a powerful way to handle complex retry scenarios and to test different input variations without needing to modify your workflow code or redeploy your application. For example, it is common for LLM applications to experiment with prompts or model configuration using this feature.
 
 ```typescript
-import { Step, Context } from "@hatchet/types";
+import { Step, Context } from "@hatchet-dev/typescript-sdk";
 
 interface MyStepInput {
   message: string;
