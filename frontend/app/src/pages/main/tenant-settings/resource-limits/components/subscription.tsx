@@ -35,6 +35,9 @@ const Subscription: React.FC<SubscriptionProps> = ({
 
   const manageClicked = async () => {
     try {
+      if (portalLoading) {
+        return;
+      }
       setPortalLoading(true);
       const link = await api.billingPortalLinkGet(tenant.metadata.id);
       window.open(link.data.url, '_blank');
