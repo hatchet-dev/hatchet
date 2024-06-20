@@ -229,6 +229,14 @@ func (w *Worker) NewService(name string) *Service {
 	return svc
 }
 
+func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
+	wf, ok := workflow.(*WorkflowJob)
+	if ok && wf.On == nil {
+		return fmt.Errorf("workflow must have an trigger defined via the `On` field")
+	}
+	return w.On(workflow.ToWorkflowTrigger(), workflow)
+}
+
 func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 	// get the default service
 	svc, ok := w.services.Load("default")
