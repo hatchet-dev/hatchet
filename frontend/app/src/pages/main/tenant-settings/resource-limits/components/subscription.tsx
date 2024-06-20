@@ -107,7 +107,7 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {sortedPlans?.map((plan, i) => (
           <div className="flex flex-col" key={i}>
-            {plan.plan_code}
+            <b>{plan.name}</b>
             <p>
               ${(plan.amount_cents / 100).toLocaleString()} billed {plan.period}
               *
