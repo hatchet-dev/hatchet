@@ -47,7 +47,6 @@ export default function ResourceLimits() {
           <Separator className="my-4" />
           <PaymentMethods
             hasMethods={hasPaymentMethods}
-            manageLink={resourcePolicyQuery.data?.checkoutLink}
             methods={resourcePolicyQuery.data?.paymentMethods}
           />
           <Separator className="my-4" />
