@@ -110,6 +110,7 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
             {plan.plan_code}
             <p>
               ${(plan.amount_cents / 100).toLocaleString()} billed {plan.period}
+              *
             </p>
             <Button
               disabled={
@@ -137,7 +138,11 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
           </div>
         ))}
       </div>
-      <p>{active?.note}</p>
+      {active?.note && <p className="mt-4">{active?.note}</p>}
+      <p className="text-sm text-gray-500 mt-4">
+        * subscription fee billed upfront {showAnnual ? 'yearly' : 'monthly'},
+        overages billed monthly in arrears
+      </p>
     </div>
   );
 };
