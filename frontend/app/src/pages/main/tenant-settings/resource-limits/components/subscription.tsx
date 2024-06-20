@@ -1,11 +1,14 @@
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/loading';
+import { Switch } from '@/components/ui/switch';
 import api, { SubscriptionPlan, TenantSubscription, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { TenantContextType } from '@/lib/outlet';
 import queryClient from '@/query-client';
 import { useMutation } from '@tanstack/react-query';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 
 interface SubscriptionProps {
@@ -17,6 +20,7 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
   // Implement the logic for the Subscription component here
 
   const [loading, setLoading] = useState<string>();
+  const [showAnnual, setShowAnnual] = useState<boolean>(false);
 
   const { tenant } = useOutletContext<TenantContextType>();
 
@@ -43,9 +47,21 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
     [active],
   );
 
+  useEffect(() => {
+    return setShowAnnual(active?.period?.includes('yearly') || false);
+  }, [active]);
+
   const sortedPlans = useMemo(() => {
-    return plans?.sort((a, b) => a.amount_cents - b.amount_cents);
-  }, [plans]);
+    return plans
+      ?.filter(
+        (v) =>
+          v.plan_code === 'free' ||
+          (showAnnual
+            ? v.period?.includes('yearly')
+            : v.period?.includes('monthly')),
+      )
+      .sort((a, b) => a.amount_cents - b.amount_cents);
+  }, [plans, showAnnual]);
 
   const isUpgrade = useCallback(
     (plan: SubscriptionPlan) => {
@@ -70,6 +86,22 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Subscription
         </h3>
+
+        <div className="flex gap-2">
+          <Switch
+            id="sa"
+            checked={showAnnual}
+            onClick={() => {
+              setShowAnnual((checkedState) => !checkedState);
+            }}
+          />
+          <Label htmlFor="sa" className="text-sm">
+            Annual Billing{' '}
+            <Badge variant="inProgress" className="ml-2">
+              Save up to 20%
+            </Badge>
+          </Label>
+        </div>
       </div>
       <p className="text-gray-700 dark:text-gray-300 my-4"></p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -77,7 +109,7 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
           <div className="flex flex-col" key={i}>
             {plan.plan_code}
             <p>
-              ${plan.amount_cents / 100} billed {plan.period}
+              ${(plan.amount_cents / 100).toLocaleString()} billed {plan.period}
             </p>
             <Button
               disabled={
