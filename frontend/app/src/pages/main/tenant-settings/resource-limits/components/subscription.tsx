@@ -1,10 +1,11 @@
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/loading';
 import api, { SubscriptionPlan, TenantSubscription, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { TenantContextType } from '@/lib/outlet';
 import queryClient from '@/query-client';
 import { useMutation } from '@tanstack/react-query';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 
 interface SubscriptionProps {
@@ -14,6 +15,9 @@ interface SubscriptionProps {
 
 const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
   // Implement the logic for the Subscription component here
+
+  const [loading, setLoading] = useState<string>();
+
   const { tenant } = useOutletContext<TenantContextType>();
 
   const { handleApiError } = useApiError({});
@@ -22,12 +26,14 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
     mutationKey: ['user:update:logout'],
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
       const [plan, period] = plan_code.split(':');
+      setLoading(plan_code);
       await api.subscriptionUpsert(tenant.metadata.id, { plan, period });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
         queryKey: queries.tenantResourcePolicy.get(tenant.metadata.id).queryKey,
       });
+      setLoading(undefined);
     },
     onError: handleApiError,
   });
@@ -74,7 +80,9 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
               ${plan.amount_cents / 100} billed {plan.period}
             </p>
             <Button
-              disabled={plan.plan_code === activePlanCode}
+              disabled={
+                plan.plan_code === activePlanCode || loading === plan.plan_code
+              }
               variant={
                 plan.plan_code !== activePlanCode ? 'default' : 'outline'
               }
@@ -84,11 +92,15 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
                 });
               }}
             >
-              {plan.plan_code === activePlanCode
-                ? 'Active'
-                : isUpgrade(plan)
-                  ? 'Upgrade'
-                  : 'Downgrade'}
+              {loading === plan.plan_code ? (
+                <Spinner />
+              ) : plan.plan_code === activePlanCode ? (
+                'Active'
+              ) : isUpgrade(plan) ? (
+                'Upgrade'
+              ) : (
+                'Downgrade'
+              )}
             </Button>
           </div>
         ))}
