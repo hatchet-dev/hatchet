@@ -47,8 +47,10 @@ func TestWebhook(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 				defer cancel()
 
+				event := "user:create:webhook"
 				workflow := "simple-webhook"
-				wf := worker.WorkflowJob{
+				wf := &worker.WorkflowJob{
+					On:          worker.Event(event),
 					Name:        workflow,
 					Description: workflow,
 					Steps: []*worker.WorkflowStep{
@@ -90,13 +92,9 @@ func TestWebhook(t *testing.T) {
 					panic(fmt.Errorf("error creating worker: %w", err))
 				}
 
-				event := "user:create:webhook"
-				if err := initialize(w, wf, event); err != nil {
-					t.Fatalf("error initializing webhook: %v", err)
-				}
 				handler := w.WebhookHttpHandler(worker.WebhookHandlerOptions{
 					Secret: "secret",
-				})
+				}, wf)
 				err = run(w, "8742", handler, c, workflow, event)
 				if err != nil {
 					t.Fatalf("run() error = %s", err)
@@ -129,7 +127,7 @@ func TestWebhook(t *testing.T) {
 			name: "mark action as failed immediately if webhook fails",
 			job: func(t *testing.T) {
 				workflow := "simple-webhook-failure"
-				wf := worker.WorkflowJob{
+				wf := &worker.WorkflowJob{
 					Name:        workflow,
 					Description: workflow,
 					Steps: []*worker.WorkflowStep{
@@ -151,8 +149,9 @@ func TestWebhook(t *testing.T) {
 				}
 
 				event := "user:create:webhook-failure"
-				if err := initialize(w, wf, event); err != nil {
-					t.Fatalf("error initializing webhook: %v", err)
+				err = w.On(worker.Events(event), wf)
+				if err != nil {
+					panic(fmt.Errorf("error registering webhook workflow: %w", err))
 				}
 				handler := func(w http.ResponseWriter, r *http.Request) {
 					if r.Header.Get("X-Healthcheck") != "" {

@@ -42,7 +42,7 @@ func main() {
 
 	workflow := "webhook"
 	event := "user:create:webhook"
-	err = initialize(w, worker.WorkflowJob{
+	wf := &worker.WorkflowJob{
 		Name:        workflow,
 		Description: workflow,
 		Steps: []*worker.WorkflowStep{
@@ -59,14 +59,11 @@ func main() {
 				}, nil
 			}).SetName("webhook-step-one").SetTimeout("10s"),
 		},
-	}, event)
-	if err != nil {
-		panic(err)
 	}
 
 	handler := w.WebhookHttpHandler(worker.WebhookHandlerOptions{
 		Secret: "secret",
-	})
+	}, wf)
 	port := "8741"
 	err = run(w, port, handler, c, workflow, event)
 	if err != nil {

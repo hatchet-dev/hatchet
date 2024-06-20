@@ -13,15 +13,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-func initialize(w *worker.Worker, job worker.WorkflowJob, event string) error {
-	err := w.On(worker.Events(event), &job)
-	if err != nil {
-		return fmt.Errorf("error registering webhook workflow: %w", err)
-	}
-
-	return nil
-}
-
 func run(
 	w *worker.Worker,
 	port string,

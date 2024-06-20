@@ -22,7 +22,7 @@ type HealthCheckResponse struct {
 	Workflows []string `json:"workflows"`
 }
 
-func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions) http.HandlerFunc {
+func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...workflowConverter) http.HandlerFunc {
 	return func(writer http.ResponseWriter, r *http.Request) {
 		// health check with actions
 		if r.Method == http.MethodGet {
@@ -56,6 +56,13 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions) http.HandlerFunc
 			var actions []string
 			for _, action := range w.actions {
 				actions = append(actions, action.Name())
+			}
+
+			for _, wf := range workflows {
+				err = w.RegisterWorkflow(wf)
+				if err != nil {
+					panic(err)
+				}
 			}
 
 			res := HealthCheckResponse{
