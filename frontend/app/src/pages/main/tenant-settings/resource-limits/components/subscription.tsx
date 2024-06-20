@@ -43,7 +43,10 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
   });
 
   const activePlanCode = useMemo(
-    () => [active?.plan, active?.period].filter((x) => !!x).join(':'),
+    () =>
+      active?.plan
+        ? [active.plan, active.period].filter((x) => !!x).join(':')
+        : 'free',
     [active],
   );
 
@@ -86,7 +89,6 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Subscription
         </h3>
-
         <div className="flex gap-2">
           <Switch
             id="sa"
