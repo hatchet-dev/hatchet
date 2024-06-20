@@ -236,6 +236,13 @@ func (l *LagoBilling) HandleUpdateSubscription(id string, planCode string, statu
 		return nil, fmt.Errorf("failed to upsert subscription: %w", err)
 	}
 
+	// Update Tenant Limits
+	err = l.e.TenantLimit().UpsertTenantLimits(ctx, id, &plan)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert default limits: %w", err)
+	}
+
 	return s, nil
 }
 

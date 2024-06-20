@@ -74,6 +74,7 @@ func (b *BillingService) handleSubscriptionChange(subscription lago.Subscription
 	// TODO handle next plan code
 	// nextPlanCode := subscription.NextPlanCode
 	// downgradePlanDate := subscription.DowngradePlanDate
+	// Also on termination, we need to handle downgrading limits
 
 	_, err := b.config.Billing.HandleUpdateSubscription(id, planCode, string(status))
 

@@ -49,7 +49,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		return nil, err
 	}
 
-	err = t.config.EntitlementRepository.TenantLimit().CreateTenantDefaultLimits(context.Background(), tenant.ID)
+	err = t.config.EntitlementRepository.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenant.ID, nil)
 
 	if err != nil {
 		return nil, err
