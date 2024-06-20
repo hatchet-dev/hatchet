@@ -41,7 +41,7 @@ func (w *WebhookWorker) Start() (func() error, error) {
 	r, err := worker.NewWorker(
 		worker.WithClient(w.client),
 		worker.WithInternalData(w.opts.Actions, w.opts.Workflows),
-		worker.WithName("Webhook_"+w.opts.Name),
+		worker.WithName("Webhook_"+w.opts.ID),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not create webhook worker: %w", err)
