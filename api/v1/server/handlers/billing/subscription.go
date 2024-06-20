@@ -7,33 +7,34 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/billing"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
-func (b *BillingService) BillingPortalLinkGet(ctx echo.Context, req gen.BillingPortalLinkGetRequestObject) (gen.BillingPortalLinkGetResponseObject, error) {
+func (b *BillingService) SubscriptionUpsert(ctx echo.Context, req gen.SubscriptionUpsertRequestObject) (gen.SubscriptionUpsertResponseObject, error) {
 
 	if !b.config.Billing.Enabled() {
-		return gen.BillingPortalLinkGet200JSONResponse{}, nil
+		return gen.SubscriptionUpsert200JSONResponse{}, nil
 	}
 
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 	tenantMember := ctx.Get("tenant-member").(*db.TenantMemberModel)
 
 	if tenantMember.Role != db.TenantMemberRoleOwner {
-		return gen.BillingPortalLinkGet403JSONResponse(
-			apierrors.NewAPIErrors("only tenant owners can get the billing portal link"),
+		return gen.SubscriptionUpsert403JSONResponse(
+			apierrors.NewAPIErrors("only tenant owners can update the subscription"),
 		), nil
 	}
 
-	link, err := b.config.Billing.GetCheckoutLink(tenant.ID)
+	_, err := b.config.Billing.UpsertTenantSubscription(*tenant, billing.SubscriptionOpts{
+		Plan:   dbsqlc.TenantSubscriptionPlanCodes(*req.Body.Plan),
+		Period: req.Body.Period,
+	})
 
 	if err != nil {
-		return nil, fmt.Errorf("getting billing portal link: %v", err)
+		return nil, fmt.Errorf("error updating subscription: %v", err)
 	}
 
-	return gen.BillingPortalLinkGetResponseObject(
-		&gen.BillingPortalLinkGet200JSONResponse{
-			Url: link,
-		},
-	), nil
+	return gen.SubscriptionUpsert200JSONResponse{}, nil
 }
