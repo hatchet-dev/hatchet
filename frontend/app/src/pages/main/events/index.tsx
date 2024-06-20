@@ -12,6 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api, {
+  CreateEventRequest,
   Event,
   EventOrderByDirection,
   EventOrderByField,
@@ -37,11 +38,13 @@ import { Button } from '@/components/ui/button';
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
+  PlusCircleIcon,
 } from '@heroicons/react/24/outline';
 import { useApiError } from '@/lib/hooks';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/molecules/relative-date';
+import { CreateEventForm } from './components/create-event-form';
 
 export default function Events() {
   return (
@@ -59,10 +62,19 @@ export default function Events() {
 
 function EventsTable() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
   const { tenant } = useOutletContext<TenantContextType>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
   const { handleApiError } = useApiError({});
+
+  const [createEventFieldErrors, setCreateEventFieldErrors] = useState<
+    Record<string, string>
+  >({});
+  const createEventApiError = useApiError({
+    setFieldErrors: setCreateEventFieldErrors,
+  });
+  const handleCreateEventApiError = createEventApiError.handleApiError;
 
   invariant(tenant);
 
@@ -86,17 +98,59 @@ function EventsTable() {
     }
   }, [selectedEvent, searchParams, setSearchParams]);
 
-  const [search, setSearch] = useState<string | undefined>(undefined);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [search, setSearch] = useState<string | undefined>(
+    searchParams.get('search') || undefined,
+  );
+  const [sorting, setSorting] = useState<SortingState>(() => {
+    const sortParam = searchParams.get('sort');
+    if (sortParam) {
+      const [id, desc] = sortParam.split(':');
+      return [{ id, desc: desc === 'desc' }];
+    }
+    return [];
+  });
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
+    const filtersParam = searchParams.get('filters');
+    if (filtersParam) {
+      return JSON.parse(filtersParam);
+    }
+    return [];
+  });
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 50,
+  const [pagination, setPagination] = useState<PaginationState>(() => {
+    const pageIndex = Number(searchParams.get('pageIndex')) || 0;
+    const pageSize = Number(searchParams.get('pageSize')) || 50;
+    return { pageIndex, pageSize };
   });
-  const [pageSize, setPageSize] = useState<number>(50);
+  const [pageSize, setPageSize] = useState<number>(
+    Number(searchParams.get('pageSize')) || 50,
+  );
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  useEffect(() => {
+    const newSearchParams = new URLSearchParams(searchParams);
+    if (search) {
+      newSearchParams.set('search', search);
+    } else {
+      newSearchParams.delete('search');
+    }
+    newSearchParams.set(
+      'sort',
+      sorting.map((s) => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(','),
+    );
+    newSearchParams.set('filters', JSON.stringify(columnFilters));
+    newSearchParams.set('pageIndex', pagination.pageIndex.toString());
+    newSearchParams.set('pageSize', pagination.pageSize.toString());
+    setSearchParams(newSearchParams);
+  }, [
+    search,
+    sorting,
+    columnFilters,
+    pagination,
+    setSearchParams,
+    searchParams,
+  ]);
 
   const orderByDirection = useMemo((): EventOrderByDirection | undefined => {
     if (!sorting.length) {
@@ -199,6 +253,20 @@ function EventsTable() {
     onError: handleApiError,
   });
 
+  const createEventMutation = useMutation({
+    mutationKey: ['event:create', tenant.metadata.id],
+    mutationFn: async (input: CreateEventRequest) => {
+      const res = await api.eventCreate(tenant.metadata.id, input);
+
+      return res.data;
+    },
+    onError: handleCreateEventApiError,
+    onSuccess: () => {
+      refetch();
+      setShowCreateEvent(false);
+    },
+  });
+
   const {
     data: eventKeys,
     isLoading: eventKeysIsLoading,
@@ -295,6 +363,18 @@ function EventsTable() {
         className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
       />
     </Button>,
+    <Button
+      key="create-event"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        setShowCreateEvent(true);
+      }}
+      variant={'default'}
+      aria-label="Create new event"
+    >
+      <PlusCircleIcon className="h-4 w-4" />
+    </Button>,
   ];
 
   return (
@@ -308,6 +388,20 @@ function EventsTable() {
         }}
       >
         {selectedEvent && <ExpandedEventContent event={selectedEvent} />}
+      </Dialog>
+      <Dialog
+        open={showCreateEvent}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowCreateEvent(false);
+          }
+        }}
+      >
+        <CreateEventForm
+          onSubmit={createEventMutation.mutate}
+          isLoading={createEventMutation.isPending}
+          fieldErrors={createEventFieldErrors}
+        />
       </Dialog>
       <DataTable
         error={eventsError || eventKeysError || workflowKeysError}

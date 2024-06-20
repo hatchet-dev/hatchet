@@ -9,8 +9,8 @@ import (
 	"github.com/steebchen/prisma-client-go/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
 var ErrNoInput = errors.New("no input found")

@@ -6,19 +6,19 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/repository"
-	"github.com/hatchet-dev/hatchet/internal/repository/metered"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/internal/validator"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type Ingestor interface {
 	contracts.EventsServiceServer
-	IngestEvent(ctx context.Context, tenantId, eventName string, data []byte, metadata *[]byte) (*dbsqlc.Event, error)
+	IngestEvent(ctx context.Context, tenantId, eventName string, data []byte, metadata []byte) (*dbsqlc.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
 }
 
@@ -112,7 +112,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}, nil
 }
 
-func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte, metadata *[]byte) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
@@ -120,7 +120,7 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 		TenantId:           tenantId,
 		Key:                key,
 		Data:               data,
-		AdditionalMetadata: *metadata,
+		AdditionalMetadata: metadata,
 	})
 
 	if err == metered.ErrResourceExhausted {

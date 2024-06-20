@@ -3,8 +3,8 @@ package billing
 import (
 	"github.com/stripe/stripe-go/v78"
 
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
 type CustomerOpts struct {

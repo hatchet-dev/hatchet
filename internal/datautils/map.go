@@ -8,9 +8,9 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/steebchen/prisma-client-go/runtime/types"
 
-	"github.com/hatchet-dev/hatchet/internal/logger"
-	"github.com/hatchet-dev/hatchet/internal/validator"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 func ToJSONMap(data interface{}) (map[string]interface{}, error) {

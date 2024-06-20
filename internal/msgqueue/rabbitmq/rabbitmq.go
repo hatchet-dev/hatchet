@@ -14,9 +14,9 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/encryption"
-	"github.com/hatchet-dev/hatchet/internal/logger"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
 const MAX_RETRY_COUNT = 15

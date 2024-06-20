@@ -70,6 +70,10 @@ TenantInvite:
   $ref: "./tenant.yaml#/TenantInvite"
 TenantInviteList:
   $ref: "./tenant.yaml#/TenantInviteList"
+QueueMetrics:
+  $ref: "./tenant.yaml#/QueueMetrics"
+TenantQueueMetrics:
+  $ref: "./tenant.yaml#/TenantQueueMetrics"
 AcceptInviteRequest:
   $ref: "./user.yaml#/AcceptInviteRequest"
 RejectInviteRequest:
@@ -84,6 +88,8 @@ Event:
   $ref: "./event.yaml#/Event"
 EventData:
   $ref: "./event.yaml#/EventData"
+CreateEventRequest:
+  $ref: "./event.yaml#/CreateEventRequest"
 EventWorkflowRunSummary:
   $ref: "./event.yaml#/EventWorkflowRunSummary"
 EventOrderByField:

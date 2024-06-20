@@ -305,17 +305,17 @@ cancelWorkflowRuns:
     responses:
       "200":
         content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  workflowRunIds:
-                      type: array
-                      items:
-                        type: string
-                        format: uuid
-                        minLength: 36
-                        maxLength: 36
+          application/json:
+            schema:
+              type: object
+              properties:
+                workflowRunIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                    minLength: 36
+                    maxLength: 36
         description: Successfully cancelled the workflow runs
       "400":
         content:
@@ -773,7 +773,7 @@ getMetrics:
           format: uuid
           minLength: 36
           maxLength: 36
-      - description: A status of workflow runs to filter by
+      - description: A status of workflow run statuses to filter by
         in: query
         name: status
         required: false

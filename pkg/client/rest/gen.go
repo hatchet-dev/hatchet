@@ -247,6 +247,18 @@ type CreateAPITokenResponse struct {
 	Token string `json:"token"`
 }
 
+// CreateEventRequest defines model for CreateEventRequest.
+type CreateEventRequest struct {
+	// AdditionalMetadata Additional metadata for the event.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// Data The data for the event.
+	Data map[string]interface{} `json:"data"`
+
+	// Key The key for the event.
+	Key string `json:"key"`
+}
+
 // CreatePullRequestFromStepRun defines model for CreatePullRequestFromStepRun.
 type CreatePullRequestFromStepRun struct {
 	BranchName string `json:"branchName"`
@@ -518,6 +530,18 @@ type PullRequest struct {
 // PullRequestState defines model for PullRequestState.
 type PullRequestState string
 
+// QueueMetrics defines model for QueueMetrics.
+type QueueMetrics struct {
+	// NumPending The number of items pending.
+	NumPending int `json:"numPending"`
+
+	// NumQueued The number of items in the queue.
+	NumQueued int `json:"numQueued"`
+
+	// NumRunning The number of items running.
+	NumRunning int `json:"numRunning"`
+}
+
 // RejectInviteRequest defines model for RejectInviteRequest.
 type RejectInviteRequest struct {
 	Invite string `json:"invite" validate:"required,uuid"`
@@ -765,6 +789,12 @@ type TenantPaymentMethod struct {
 
 	// Last4 The last 4 digits of the card.
 	Last4 string `json:"last4"`
+}
+
+// TenantQueueMetrics defines model for TenantQueueMetrics.
+type TenantQueueMetrics struct {
+	Total    *QueueMetrics            `json:"total,omitempty"`
+	Workflow *map[string]QueueMetrics `json:"workflow,omitempty"`
 }
 
 // TenantResource defines model for TenantResource.
@@ -1227,6 +1257,15 @@ type EventListParams struct {
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
+// TenantGetQueueMetricsParams defines parameters for TenantGetQueueMetrics.
+type TenantGetQueueMetricsParams struct {
+	// Workflows A list of workflow IDs to filter by
+	Workflows *[]WorkflowID `form:"workflows,omitempty" json:"workflows,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+}
+
 // WorkflowRunListPullRequestsParams defines parameters for WorkflowRunListPullRequests.
 type WorkflowRunListPullRequestsParams struct {
 	// State The pull request state
@@ -1280,7 +1319,7 @@ type WorkflowRunGetMetricsParams struct {
 
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
 type WorkflowGetMetricsParams struct {
-	// Status A status of workflow runs to filter by
+	// Status A status of workflow run statuses to filter by
 	Status *WorkflowRunStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// GroupKey A group key to filter metrics by
@@ -1325,6 +1364,9 @@ type AlertEmailGroupCreateJSONRequestBody = CreateTenantAlertEmailGroupRequest
 
 // ApiTokenCreateJSONRequestBody defines body for ApiTokenCreate for application/json ContentType.
 type ApiTokenCreateJSONRequestBody = CreateAPITokenRequest
+
+// EventCreateJSONRequestBody defines body for EventCreate for application/json ContentType.
+type EventCreateJSONRequestBody = CreateEventRequest
 
 // EventUpdateReplayJSONRequestBody defines body for EventUpdateReplay for application/json ContentType.
 type EventUpdateReplayJSONRequestBody = ReplayEventRequest
@@ -1542,6 +1584,11 @@ type ClientInterface interface {
 	// EventList request
 	EventList(ctx context.Context, tenant openapi_types.UUID, params *EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// EventCreateWithBody request with any body
+	EventCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	EventCreate(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// EventKeyList request
 	EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1571,6 +1618,9 @@ type ClientInterface interface {
 
 	// TenantMemberDelete request
 	TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantGetQueueMetrics request
+	TenantGetQueueMetrics(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantResourcePolicyGet request
 	TenantResourcePolicyGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2157,6 +2207,30 @@ func (c *Client) EventList(ctx context.Context, tenant openapi_types.UUID, param
 	return c.Client.Do(req)
 }
 
+func (c *Client) EventCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventCreate(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEventKeyListRequest(c.Server, tenant)
 	if err != nil {
@@ -2279,6 +2353,18 @@ func (c *Client) TenantMemberList(ctx context.Context, tenant openapi_types.UUID
 
 func (c *Client) TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantMemberDeleteRequest(c.Server, tenant, member)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantGetQueueMetrics(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantGetQueueMetricsRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4255,6 +4341,53 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 	return req, nil
 }
 
+// NewEventCreateRequest calls the generic EventCreate builder with application/json body
+func NewEventCreateRequest(server string, tenant openapi_types.UUID, body EventCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEventCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewEventCreateRequestWithBody generates requests for EventCreate with any type of body
+func NewEventCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewEventKeyListRequest generates requests for EventKeyList
 func NewEventKeyListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -4580,6 +4713,78 @@ func NewTenantMemberDeleteRequest(server string, tenant openapi_types.UUID, memb
 	}
 
 	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTenantGetQueueMetricsRequest generates requests for TenantGetQueueMetrics
+func NewTenantGetQueueMetricsRequest(server string, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/queue-metrics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Workflows != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflows", runtime.ParamLocationQuery, *params.Workflows); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -6500,6 +6705,11 @@ type ClientWithResponsesInterface interface {
 	// EventListWithResponse request
 	EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *EventListParams, reqEditors ...RequestEditorFn) (*EventListResponse, error)
 
+	// EventCreateWithBodyWithResponse request with any body
+	EventCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventCreateResponse, error)
+
+	EventCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*EventCreateResponse, error)
+
 	// EventKeyListWithResponse request
 	EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventKeyListResponse, error)
 
@@ -6529,6 +6739,9 @@ type ClientWithResponsesInterface interface {
 
 	// TenantMemberDeleteWithResponse request
 	TenantMemberDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantMemberDeleteResponse, error)
+
+	// TenantGetQueueMetricsWithResponse request
+	TenantGetQueueMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*TenantGetQueueMetricsResponse, error)
 
 	// TenantResourcePolicyGetWithResponse request
 	TenantResourcePolicyGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantResourcePolicyGetResponse, error)
@@ -7386,6 +7599,31 @@ func (r EventListResponse) StatusCode() int {
 	return 0
 }
 
+type EventCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Event
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON429      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r EventCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EventCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type EventKeyListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -7572,6 +7810,31 @@ func (r TenantMemberDeleteResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantMemberDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantGetQueueMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantQueueMetrics
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantGetQueueMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantGetQueueMetricsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8856,6 +9119,23 @@ func (c *ClientWithResponses) EventListWithResponse(ctx context.Context, tenant 
 	return ParseEventListResponse(rsp)
 }
 
+// EventCreateWithBodyWithResponse request with arbitrary body returning *EventCreateResponse
+func (c *ClientWithResponses) EventCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventCreateResponse, error) {
+	rsp, err := c.EventCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) EventCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*EventCreateResponse, error) {
+	rsp, err := c.EventCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventCreateResponse(rsp)
+}
+
 // EventKeyListWithResponse request returning *EventKeyListResponse
 func (c *ClientWithResponses) EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventKeyListResponse, error) {
 	rsp, err := c.EventKeyList(ctx, tenant, reqEditors...)
@@ -8950,6 +9230,15 @@ func (c *ClientWithResponses) TenantMemberDeleteWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseTenantMemberDeleteResponse(rsp)
+}
+
+// TenantGetQueueMetricsWithResponse request returning *TenantGetQueueMetricsResponse
+func (c *ClientWithResponses) TenantGetQueueMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*TenantGetQueueMetricsResponse, error) {
+	rsp, err := c.TenantGetQueueMetrics(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantGetQueueMetricsResponse(rsp)
 }
 
 // TenantResourcePolicyGetWithResponse request returning *TenantResourcePolicyGetResponse
@@ -10551,6 +10840,53 @@ func ParseEventListResponse(rsp *http.Response) (*EventListResponse, error) {
 	return response, nil
 }
 
+// ParseEventCreateResponse parses an HTTP response from a EventCreateWithResponse call
+func ParseEventCreateResponse(rsp *http.Response) (*EventCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EventCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Event
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseEventKeyListResponse parses an HTTP response from a EventKeyListWithResponse call
 func ParseEventKeyListResponse(rsp *http.Response) (*EventKeyListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -10844,6 +11180,53 @@ func ParseTenantMemberDeleteResponse(rsp *http.Response) (*TenantMemberDeleteRes
 			return nil, err
 		}
 		response.JSON204 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantGetQueueMetricsResponse parses an HTTP response from a TenantGetQueueMetricsWithResponse call
+func ParseTenantGetQueueMetricsResponse(rsp *http.Response) (*TenantGetQueueMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantGetQueueMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantQueueMetrics
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors

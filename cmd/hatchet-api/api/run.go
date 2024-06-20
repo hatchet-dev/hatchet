@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/run"
-	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/internal/services/worker"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
 func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
@@ -38,13 +38,11 @@ func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
 
 	runner := run.NewAPIServer(sc)
 
-	e, err := runner.GetEchoServer()
-
 	if err != nil {
 		return err
 	}
 
-	apiCleanup, err := runner.RunWithServer(e)
+	apiCleanup, err := runner.Run()
 	if err != nil {
 		return fmt.Errorf("error starting API server: %w", err)
 	}

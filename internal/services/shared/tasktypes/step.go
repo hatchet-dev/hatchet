@@ -3,9 +3,9 @@ package tasktypes
 import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 type StepRunTaskPayload struct {

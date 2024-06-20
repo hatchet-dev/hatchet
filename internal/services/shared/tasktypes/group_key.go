@@ -3,7 +3,7 @@ package tasktypes
 import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
 type GroupKeyActionAssignedTaskPayload struct {

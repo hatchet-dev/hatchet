@@ -10,8 +10,8 @@ import (
 	"context"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
-	"github.com/hatchet-dev/hatchet/internal/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
 var printVersion bool
