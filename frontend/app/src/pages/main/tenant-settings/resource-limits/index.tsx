@@ -51,6 +51,7 @@ export default function ResourceLimits() {
           />
           <Separator className="my-4" />
           <Subscription
+            hasPaymentMethods={hasPaymentMethods}
             active={resourcePolicyQuery.data?.subscription}
             plans={resourcePolicyQuery.data?.plans}
           />

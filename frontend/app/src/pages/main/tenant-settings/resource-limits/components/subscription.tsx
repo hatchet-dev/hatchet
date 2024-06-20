@@ -1,3 +1,4 @@
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -7,6 +8,7 @@ import api, { SubscriptionPlan, TenantSubscription, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { TenantContextType } from '@/lib/outlet';
 import queryClient from '@/query-client';
+import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { useMutation } from '@tanstack/react-query';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
@@ -14,17 +16,34 @@ import { useOutletContext } from 'react-router-dom';
 interface SubscriptionProps {
   active?: TenantSubscription;
   plans?: SubscriptionPlan[];
+  hasPaymentMethods?: boolean;
 }
 
-const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
+const Subscription: React.FC<SubscriptionProps> = ({
+  active,
+  plans,
+  hasPaymentMethods,
+}) => {
   // Implement the logic for the Subscription component here
 
   const [loading, setLoading] = useState<string>();
   const [showAnnual, setShowAnnual] = useState<boolean>(false);
 
   const { tenant } = useOutletContext<TenantContextType>();
-
   const { handleApiError } = useApiError({});
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const manageClicked = async () => {
+    try {
+      setPortalLoading(true);
+      const link = await api.billingPortalLinkGet(tenant.metadata.id);
+      window.open(link.data.url, '_blank');
+    } catch (e) {
+      handleApiError(e as any);
+    } finally {
+      setPortalLoading(false);
+    }
+  };
 
   const subscriptionMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -121,6 +140,20 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
         </a>{' '}
         if you have custom requirements.
       </p>
+      {!hasPaymentMethods && (
+        <Alert variant="destructive" className="mb-4">
+          <ExclamationTriangleIcon className="h-4 w-4" />
+          <AlertTitle className="font-semibold">No Payment Method.</AlertTitle>
+          <AlertDescription>
+            A payment method is required to upgrade your subscription, please{' '}
+            <a onClick={manageClicked} className="underline pointer" href="#">
+              add one
+            </a>{' '}
+            first.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {sortedPlans?.map((plan, i) => (
           <div className="flex flex-col" key={i}>
@@ -131,7 +164,9 @@ const Subscription: React.FC<SubscriptionProps> = ({ active, plans }) => {
             </p>
             <Button
               disabled={
-                plan.plan_code === activePlanCode || loading === plan.plan_code
+                !hasPaymentMethods ||
+                plan.plan_code === activePlanCode ||
+                loading === plan.plan_code
               }
               variant={
                 plan.plan_code !== activePlanCode ? 'default' : 'outline'
