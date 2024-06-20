@@ -134,20 +134,27 @@ func (l *LagoBilling) UpsertTenant(tenant db.TenantModel) (*lago.Customer, error
 	return customer, nil
 }
 
-func (l *LagoBilling) GetCheckoutLink(tenantId string) (*string, error) {
+func (l *LagoBilling) GetCheckoutLink(tenant db.TenantModel) (*string, error) {
 
-	customer, lagoErr := l.GetCustomer(tenantId)
+	customer, lagoErr := l.GetCustomer(tenant.ID)
 
 	if lagoErr != nil {
-
 		if lagoErr.HTTPStatusCode == 404 {
-			return nil, nil
+			customer = nil
+		} else {
+			return nil, lagoErr
 		}
-
-		return nil, lagoErr
 	}
 
-	returnUrl := fmt.Sprintf("%s/tenant-settings/billing-and-limits?tenant=%s", l.serverURL, tenantId)
+	if customer == nil {
+		_, err := l.UpsertTenant(tenant)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	returnUrl := fmt.Sprintf("%s/tenant-settings/billing-and-limits?tenant=%s", l.serverURL, tenant.ID)
 
 	res, err := l.stripe.BillingPortalSessions.New(&stripe.BillingPortalSessionParams{
 		Customer:  &customer.BillingConfiguration.ProviderCustomerID,
@@ -186,8 +193,10 @@ func (l *LagoBilling) UpsertTenantSubscription(tenant db.TenantModel, opts billi
 		}
 	}
 
+	var err error
+
 	if customer == nil {
-		_, err := l.UpsertTenant(tenant)
+		_, err = l.UpsertTenant(tenant)
 
 		if err != nil {
 			return nil, err

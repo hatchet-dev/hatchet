@@ -25,7 +25,7 @@ func (b *BillingService) BillingPortalLinkGet(ctx echo.Context, req gen.BillingP
 		), nil
 	}
 
-	link, err := b.config.Billing.GetCheckoutLink(tenant.ID)
+	link, err := b.config.Billing.GetCheckoutLink(*tenant)
 
 	if err != nil {
 		return nil, fmt.Errorf("getting billing portal link: %v", err)
