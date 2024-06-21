@@ -2,9 +2,9 @@ package webhooks
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -40,7 +40,6 @@ func (c *WebhooksController) Start() (func() error, error) {
 			select {
 			case <-ticker.C:
 				if err := c.check(); err != nil {
-					log.Printf("could not check webhooks: %v", err)
 					c.sc.Logger.Warn().Err(err).Msgf("error checking webhooks")
 				}
 			case <-ctx.Done():
@@ -84,7 +83,6 @@ func (c *WebhooksController) check() error {
 
 			h, err := c.healthcheck(ww)
 			if err != nil {
-				log.Printf("c.healthcheck could not check webhook health: %v", err)
 				c.sc.Logger.Warn().Err(err).Msgf("webhook worker %s of tenant %s healthcheck failed: %v", ww.ID, tenantId, err)
 				continue
 			}
@@ -93,15 +91,18 @@ func (c *WebhooksController) check() error {
 
 			var token string
 			if tokenValue, ok := ww.TokenValue(); ok {
-				// TODO remove this method
-				// token, err = c.sc.Auth.JWTManager.UpsertTenantToken(context.Background(), tenantId, "webhook-worker", tokenId)
-				// if err != nil {
-				//	c.sc.Logger.Error().Err(fmt.Errorf("could not generate token for webhook worker %s of tenant %s: %w", ww.ID, tenantId, err)).TODO()
-				//	continue
-				//}
-				// TODO decrypt the token!
-				token = tokenValue
-				log.Printf("using existing token %s", token)
+				tokenBytes, err := base64.StdEncoding.DecodeString(tokenValue)
+				if err != nil {
+					c.sc.Logger.Error().Err(err).Msgf("failed to decode access token: %s", err.Error())
+					continue
+				}
+				decTok, err := c.sc.Encryption.Decrypt(tokenBytes, "engine_webhook_worker_token")
+				if err != nil {
+					c.sc.Logger.Error().Err(err).Msgf("failed to encrypt access token: %s", err.Error())
+					continue
+				}
+
+				token = string(decTok)
 			} else {
 				tok, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker")
 				if err != nil {
@@ -109,14 +110,21 @@ func (c *WebhooksController) check() error {
 					continue
 				}
 
-				// TODO encrypt the token!
+				encTok, err := c.sc.Encryption.Encrypt([]byte(tok.Token), "engine_webhook_worker_token")
+				if err != nil {
+					c.sc.Logger.Error().Err(err).Msgf("failed to encrypt access token: %s", err.Error())
+					continue
+				}
+
+				encTokStr := base64.StdEncoding.EncodeToString(encTok)
+
 				_, err = c.sc.APIRepository.WebhookWorker().UpsertWebhookWorker(context.Background(), &repository.UpsertWebhookWorkerOpts{
 					Name:       ww.Name,
 					URL:        ww.URL,
 					Secret:     ww.Secret,
 					TenantId:   &tenantId,
 					TokenID:    &tok.TokenId,
-					TokenValue: &tok.Token,
+					TokenValue: &encTokStr,
 				})
 				if err != nil {
 					c.sc.Logger.Error().Err(err).Msgf("could not update webhook worker %s of tenant %s", ww.ID, tenantId)
