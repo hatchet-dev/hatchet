@@ -12,7 +12,8 @@ import (
 )
 
 const deleteWebhookWorker = `-- name: DeleteWebhookWorker :exec
-DELETE FROM "WebhookWorker"
+UPDATE "WebhookWorker"
+SET "deleted" = true
 WHERE
   "id" = $1::uuid
   and "tenantId" = $2::uuid
@@ -29,9 +30,9 @@ func (q *Queries) DeleteWebhookWorker(ctx context.Context, db DBTX, arg DeleteWe
 }
 
 const listWebhookWorkers = `-- name: ListWebhookWorkers :many
-SELECT id, "createdAt", "updatedAt", secret, url, "tenantId", "tokenId", "tokenValue", name
+SELECT id, "createdAt", "updatedAt", secret, url, "tenantId", "tokenId", "tokenValue", name, deleted
 FROM "WebhookWorker"
-WHERE "tenantId" = $1::uuid
+WHERE "tenantId" = $1::uuid AND "deleted" = false
 `
 
 func (q *Queries) ListWebhookWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*WebhookWorker, error) {
@@ -53,6 +54,7 @@ func (q *Queries) ListWebhookWorkers(ctx context.Context, db DBTX, tenantid pgty
 			&i.TokenId,
 			&i.TokenValue,
 			&i.Name,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
@@ -95,7 +97,7 @@ SET
     "name" = coalesce($1::text, excluded."name"),
     "secret" = coalesce($2::text, excluded."secret"),
     "url" = coalesce($3::text, excluded."url")
-RETURNING id, "createdAt", "updatedAt", secret, url, "tenantId", "tokenId", "tokenValue", name
+RETURNING id, "createdAt", "updatedAt", secret, url, "tenantId", "tokenId", "tokenValue", name, deleted
 `
 
 type UpsertWebhookWorkerParams struct {
@@ -127,6 +129,7 @@ func (q *Queries) UpsertWebhookWorker(ctx context.Context, db DBTX, arg UpsertWe
 		&i.TokenId,
 		&i.TokenValue,
 		&i.Name,
+		&i.Deleted,
 	)
 	return &i, err
 }

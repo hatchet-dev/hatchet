@@ -102,6 +102,7 @@ model WebhookWorker {
   url        String  @unique
   // stores the encrypted hatchet auth token
   tokenValue String?
+  deleted    Boolean @default(false)
 
   tokenId String?   @db.Uuid
   token   APIToken? @relation(fields: [tokenId], references: [id], onDelete: Cascade, onUpdate: Cascade)

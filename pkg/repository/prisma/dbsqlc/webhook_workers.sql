@@ -1,7 +1,7 @@
 -- name: ListWebhookWorkers :many
 SELECT *
 FROM "WebhookWorker"
-WHERE "tenantId" = @tenantId::uuid;
+WHERE "tenantId" = @tenantId::uuid AND "deleted" = false;
 
 
 -- name: UpsertWebhookWorker :one
@@ -38,7 +38,8 @@ SET
 RETURNING *;
 
 -- name: DeleteWebhookWorker :exec
-DELETE FROM "WebhookWorker"
+UPDATE "WebhookWorker"
+SET "deleted" = true
 WHERE
   "id" = @id::uuid
   and "tenantId" = @tenantId::uuid;

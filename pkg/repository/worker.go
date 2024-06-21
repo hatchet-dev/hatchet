@@ -73,6 +73,9 @@ type WorkerEngineRepository interface {
 	// DeleteWorker removes the worker from the database
 	DeleteWorker(ctx context.Context, tenantId, workerId string) error
 
+	// DeleteWorkersByName removes the worker from the database
+	DeleteWorkersByName(ctx context.Context, tenantId, name string) error
+
 	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
 
 	ResolveWorkerSemaphoreSlots(ctx context.Context) (int64, error)

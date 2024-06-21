@@ -1079,6 +1079,7 @@ type WebhookWorker struct {
 	TokenId    pgtype.UUID      `json:"tokenId"`
 	TokenValue pgtype.Text      `json:"tokenValue"`
 	Name       string           `json:"name"`
+	Deleted    bool             `json:"deleted"`
 }
 
 type WebhookWorkerWorkflow struct {

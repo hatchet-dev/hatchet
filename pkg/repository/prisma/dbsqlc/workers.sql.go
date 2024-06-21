@@ -64,9 +64,9 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 
 const deleteWorker = `-- name: DeleteWorker :one
 DELETE FROM
-    "Worker"
+  "Worker"
 WHERE
-    "id" = $1::uuid
+  "id" = $1::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished"
 `
 
@@ -87,6 +87,46 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*W
 		&i.LastListenerEstablished,
 	)
 	return &i, err
+}
+
+const deletesWorkerByName = `-- name: DeletesWorkerByName :many
+DELETE FROM
+  "Worker"
+WHERE
+  "name" = $1::text
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished"
+`
+
+func (q *Queries) DeletesWorkerByName(ctx context.Context, db DBTX, name string) ([]*Worker, error) {
+	rows, err := db.Query(ctx, deletesWorkerByName, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Worker
+	for rows.Next() {
+		var i Worker
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.LastHeartbeatAt,
+			&i.Name,
+			&i.DispatcherId,
+			&i.MaxRuns,
+			&i.IsActive,
+			&i.LastListenerEstablished,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkerForEngine = `-- name: GetWorkerForEngine :one

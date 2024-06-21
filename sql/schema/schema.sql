@@ -596,6 +596,7 @@ CREATE TABLE "WebhookWorker" (
     "tokenId" UUID,
     "tokenValue" TEXT,
     "name" TEXT NOT NULL,
+    "deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "WebhookWorker_pkey" PRIMARY KEY ("id")
 );

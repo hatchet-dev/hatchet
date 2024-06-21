@@ -139,9 +139,16 @@ ON CONFLICT DO NOTHING;
 
 -- name: DeleteWorker :one
 DELETE FROM
-    "Worker"
+  "Worker"
 WHERE
-    "id" = @id::uuid
+  "id" = @id::uuid
+RETURNING *;
+
+-- name: DeletesWorkerByName :many
+DELETE FROM
+  "Worker"
+WHERE
+  "name" = @name::text
 RETURNING *;
 
 -- name: UpdateWorkerActiveStatus :one
