@@ -73,6 +73,7 @@ import {
   UserTenantMembershipsList,
   WebhookWorker,
   WebhookWorkerCreateRequest,
+  WebhookWorkerDeleteRequest,
   WebhookWorkerListResponse,
   Worker,
   WorkerList,
@@ -1671,12 +1672,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @name WebhookList
    * @summary List webhooks
-   * @request GET:/api/v1/webhook-workers/{tenant}
+   * @request GET:/api/v1/webhook-workers/{tenant}/list
    * @secure
    */
   webhookList = (tenant: string, params: RequestParams = {}) =>
     this.request<WebhookWorkerListResponse, APIErrors>({
-      path: `/api/v1/webhook-workers/${tenant}`,
+      path: `/api/v1/webhook-workers/${tenant}/list`,
       method: "GET",
       secure: true,
       format: "json",
@@ -1698,6 +1699,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       secure: true,
       type: ContentType.Json,
       format: "json",
+      ...params,
+    });
+  /**
+   * @description Deletes a webhook
+   *
+   * @name WebhookDelete
+   * @summary Delete a webhook
+   * @request POST:/api/v1/webhook-workers/{tenant}/delete
+   * @secure
+   */
+  webhookDelete = (tenant: string, data: WebhookWorkerDeleteRequest, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/webhook-workers/${tenant}/delete`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
 }

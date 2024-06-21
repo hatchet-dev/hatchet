@@ -19,9 +19,9 @@ const schema = z.object({
   secret: z.string().min(1).max(255).optional(),
 });
 
-interface CreateTokenDialogProps {
+interface CreateWebhookWorkerDialogProps {
   className?: string;
-  token?: string;
+  secret?: string;
   onSubmit: (opts: z.infer<typeof schema>) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
@@ -29,9 +29,9 @@ interface CreateTokenDialogProps {
 
 export function CreateWebhookWorkerDialog({
   className,
-  token,
+  secret,
   ...props
-}: CreateTokenDialogProps) {
+}: CreateWebhookWorkerDialogProps) {
   const {
     register,
     handleSubmit,
@@ -44,7 +44,7 @@ export function CreateWebhookWorkerDialog({
   const nameError = errors.name?.message?.toString() || props.fieldErrors?.name;
   const urlError = errors.url?.message?.toString() || props.fieldErrors?.url;
 
-  if (token) {
+  if (secret) {
     return (
       <DialogContent className="w-fit max-w-[700px]">
         <DialogHeader>
@@ -58,7 +58,7 @@ export function CreateWebhookWorkerDialog({
           className="text-sm"
           wrapLines={false}
           maxWidth={'calc(700px - 4rem)'}
-          code={token}
+          code={secret}
           copy
         />
       </DialogContent>

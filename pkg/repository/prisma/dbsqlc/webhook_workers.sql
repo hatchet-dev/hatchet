@@ -36,3 +36,9 @@ SET
     "secret" = coalesce(sqlc.narg('secret')::text, excluded."secret"),
     "url" = coalesce(sqlc.narg('url')::text, excluded."url")
 RETURNING *;
+
+-- name: DeleteWebhookWorker :exec
+DELETE FROM "WebhookWorker"
+WHERE
+  "id" = @id::uuid
+  and "tenantId" = @tenantId::uuid;

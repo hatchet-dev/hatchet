@@ -1063,6 +1063,14 @@ export interface WebhookWorkerCreateRequest {
   secret?: string;
 }
 
+export interface WebhookWorkerDeleteRequest {
+  /**
+   * The webhook worker id.
+   * @format uuid
+   */
+  id: string;
+}
+
 export interface WebhookWorkerCreateResponse {
   worker?: WebhookWorker;
 }

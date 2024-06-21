@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteWebhookWorker = `-- name: DeleteWebhookWorker :exec
+DELETE FROM "WebhookWorker"
+WHERE
+  "id" = $1::uuid
+  and "tenantId" = $2::uuid
+`
+
+type DeleteWebhookWorkerParams struct {
+	ID       pgtype.UUID `json:"id"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) DeleteWebhookWorker(ctx context.Context, db DBTX, arg DeleteWebhookWorkerParams) error {
+	_, err := db.Exec(ctx, deleteWebhookWorker, arg.ID, arg.Tenantid)
+	return err
+}
+
 const listWebhookWorkers = `-- name: ListWebhookWorkers :many
 SELECT id, "createdAt", "updatedAt", secret, url, "tenantId", "tokenId", "tokenValue", name
 FROM "WebhookWorker"

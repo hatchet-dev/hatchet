@@ -22,4 +22,7 @@ type WebhookWorkerEngineRepository interface {
 
 	// UpsertWebhookWorker creates a new webhook worker with the given options
 	UpsertWebhookWorker(ctx context.Context, opts *UpsertWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error)
+
+	// DeleteWebhookWorker deletes a webhook worker with the given id and tenant id
+	DeleteWebhookWorker(ctx context.Context, id string, tenantId string) error
 }

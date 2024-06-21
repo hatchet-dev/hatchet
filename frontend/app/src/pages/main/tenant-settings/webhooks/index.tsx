@@ -2,7 +2,11 @@ import { Separator } from '@/components/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import api, { queries, WebhookWorkerCreateRequest } from '@/lib/api';
+import api, {
+  queries,
+  WebhookWorkerCreateRequest,
+  WebhookWorkerDeleteRequest,
+} from '@/lib/api';
 import {
   Card,
   CardDescription,
@@ -15,10 +19,19 @@ import { useState } from 'react';
 import { useApiError } from '@/lib/hooks.ts';
 import { Dialog } from '@/components/ui/dialog.tsx';
 import { CreateWebhookWorkerDialog } from '@/pages/main/tenant-settings/webhooks/components/create-webhook-worker-dialog.tsx';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu.tsx';
+import { BiDotsVertical } from 'react-icons/bi';
+import { DeleteWebhookWorkerDialog } from '@/pages/main/tenant-settings/webhooks/components/delete-webhook-worker-dialog.tsx';
 
 export default function Webhooks() {
   const { tenant } = useOutletContext<TenantContextType>();
-  const [showTokenDialog, setShowTokenDialog] = useState(false);
+  const [showCreateTokenDialog, setShowCreateTokenDialog] = useState(false);
+  const [showDeleteTokenDialog, setShowDeleteTokenDialog] = useState('');
 
   const listWebhookWorkersQuery = useQuery({
     ...queries.webhookWorkers.list(tenant.metadata.id),
@@ -34,7 +47,7 @@ export default function Webhooks() {
 
           <Button
             key="create-api-token"
-            onClick={() => setShowTokenDialog(true)}
+            onClick={() => setShowCreateTokenDialog(true)}
           >
             Create Webhook Endpoint
           </Button>
@@ -49,13 +62,34 @@ export default function Webhooks() {
             {listWebhookWorkersQuery.isLoading && 'Loading...'}
           </div>
           <div className="">{listWebhookWorkersQuery.isError && 'Error'}</div>
-
           {listWebhookWorkersQuery.data?.rows?.map((worker) => (
             <div key={worker.metadata!.id}>
               <div className="flex flex-row justify-between items-center">
                 <Card>
                   <CardHeader>
-                    <CardTitle>{worker.name}</CardTitle>
+                    <CardTitle className="flex items-center justify-between">
+                      {worker.name}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger>
+                          <Button
+                            aria-label="Workflow Actions"
+                            size="icon"
+                            variant="ghost"
+                          >
+                            <BiDotsVertical />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setShowDeleteTokenDialog(worker.metadata.id);
+                            }}
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </CardTitle>
                     <CardDescription>
                       <div className="text-sm mt-2 font-mono">
                         {worker.metadata.id}
@@ -75,32 +109,84 @@ export default function Webhooks() {
             </div>
           ))}
 
-          {showTokenDialog && (
-            <CreateWebhookWorker
-              tenant={tenant.metadata.id}
-              showTokenDialog={showTokenDialog}
-              setShowTokenDialog={setShowTokenDialog}
-              onSuccess={() => {
-                void listWebhookWorkersQuery.refetch();
-              }}
-            />
-          )}
+          <CreateWebhookWorker
+            tenant={tenant.metadata.id}
+            showDialog={showCreateTokenDialog}
+            setShowDialog={setShowCreateTokenDialog}
+            onSuccess={() => {
+              void listWebhookWorkersQuery.refetch();
+            }}
+          />
+
+          <DeleteWebhookWorker
+            tenant={tenant.metadata.id}
+            showDialog={showDeleteTokenDialog}
+            setShowDialog={setShowDeleteTokenDialog}
+            onSuccess={() => {
+              void listWebhookWorkersQuery.refetch();
+            }}
+          />
         </div>
       </div>
     </div>
   );
 }
 
-function CreateWebhookWorker({
+function DeleteWebhookWorker({
   tenant,
-  showTokenDialog,
-  setShowTokenDialog,
+  showDialog,
+  setShowDialog,
   onSuccess,
 }: {
   tenant: string;
   onSuccess: () => void;
-  showTokenDialog: boolean;
-  setShowTokenDialog: (show: boolean) => void;
+  showDialog: string;
+  setShowDialog: (show: string) => void;
+}) {
+  const { handleApiError } = useApiError({});
+
+  const deleteWebhookWorkerMutation = useMutation({
+    mutationKey: ['webhook-worker:delete', tenant],
+    mutationFn: async (data: WebhookWorkerDeleteRequest) => {
+      const res = await api.webhookDelete(tenant, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      onSuccess();
+    },
+    onError: handleApiError,
+  });
+
+  return (
+    <Dialog
+      open={!!showDialog}
+      onOpenChange={(open) => {
+        if (!open) {
+          setShowDialog('');
+        }
+      }}
+    >
+      <DeleteWebhookWorkerDialog
+        isLoading={deleteWebhookWorkerMutation.isPending}
+        onSubmit={() => {
+          deleteWebhookWorkerMutation.mutate({ id: showDialog });
+          setShowDialog('');
+        }}
+      />
+    </Dialog>
+  );
+}
+
+function CreateWebhookWorker({
+  tenant,
+  showDialog,
+  setShowDialog,
+  onSuccess,
+}: {
+  tenant: string;
+  onSuccess: () => void;
+  showDialog: boolean;
+  setShowDialog: (show: boolean) => void;
 }) {
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -122,11 +208,11 @@ function CreateWebhookWorker({
   });
 
   return (
-    <Dialog open={showTokenDialog} onOpenChange={setShowTokenDialog}>
+    <Dialog open={showDialog} onOpenChange={setShowDialog}>
       <CreateWebhookWorkerDialog
         isLoading={createWebhookWorkerMutation.isPending}
         onSubmit={createWebhookWorkerMutation.mutate}
-        token={generatedToken}
+        secret={generatedToken}
         fieldErrors={fieldErrors}
       />
     </Dialog>

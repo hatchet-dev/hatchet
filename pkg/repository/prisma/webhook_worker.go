@@ -56,3 +56,10 @@ func (r *webhookWorkerEngineRepository) UpsertWebhookWorker(ctx context.Context,
 
 	return r.queries.UpsertWebhookWorker(ctx, r.pool, params)
 }
+
+func (r *webhookWorkerEngineRepository) DeleteWebhookWorker(ctx context.Context, id string, tenantId string) error {
+	return r.queries.DeleteWebhookWorker(ctx, r.pool, dbsqlc.DeleteWebhookWorkerParams{
+		ID:       sqlchelpers.UUIDFromStr(id),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+}
