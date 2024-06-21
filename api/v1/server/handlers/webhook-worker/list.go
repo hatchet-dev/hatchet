@@ -13,7 +13,7 @@ import (
 func (s *WebhookWorkersService) WebhookList(ctx echo.Context, request gen.WebhookListRequestObject) (gen.WebhookListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	webhooks, err := s.config.APIRepository.WebhookWorker().ListWebhookWorkers(context.TODO(), tenant.ID)
+	webhooks, err := s.config.EngineRepository.WebhookWorker().ListWebhookWorkers(context.TODO(), tenant.ID)
 
 	if err != nil {
 		return nil, err
@@ -22,7 +22,7 @@ func (s *WebhookWorkersService) WebhookList(ctx echo.Context, request gen.Webhoo
 	rows := make([]gen.WebhookWorker, len(webhooks))
 
 	for i := range webhooks {
-		rows[i] = *transformers.ToWebhookWorker(&webhooks[i])
+		rows[i] = *transformers.ToWebhookWorker(webhooks[i])
 	}
 
 	return gen.WebhookList200JSONResponse(

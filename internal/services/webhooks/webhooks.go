@@ -13,7 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/whrequest"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/webhook"
 )
@@ -71,27 +71,28 @@ func (c *WebhooksController) check() error {
 	for _, tenant := range tenants {
 		tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-		wws, err := c.sc.APIRepository.WebhookWorker().ListWebhookWorkers(context.Background(), tenantId)
+		wws, err := c.sc.EngineRepository.WebhookWorker().ListWebhookWorkers(context.Background(), tenantId)
 		if err != nil {
 			return fmt.Errorf("could not get webhook workers: %w", err)
 		}
 
 		for _, ww := range wws {
-			if _, ok := c.registeredWorkerIds[ww.ID]; ok {
+			id := sqlchelpers.UUIDToStr(ww.ID)
+			if _, ok := c.registeredWorkerIds[id]; ok {
 				continue
 			}
 
 			h, err := c.healthcheck(ww)
 			if err != nil {
-				c.sc.Logger.Warn().Err(err).Msgf("webhook worker %s of tenant %s healthcheck failed: %v", ww.ID, tenantId, err)
+				c.sc.Logger.Warn().Err(err).Msgf("webhook worker %s of tenant %s healthcheck failed: %v", id, tenantId, err)
 				continue
 			}
 
-			c.registeredWorkerIds[ww.ID] = true
+			c.registeredWorkerIds[id] = true
 
 			var token string
-			if tokenValue, ok := ww.TokenValue(); ok {
-				tokenBytes, err := base64.StdEncoding.DecodeString(tokenValue)
+			if ww.TokenValue.Valid {
+				tokenBytes, err := base64.StdEncoding.DecodeString(ww.TokenValue.String)
 				if err != nil {
 					c.sc.Logger.Error().Err(err).Msgf("failed to decode access token: %s", err.Error())
 					continue
@@ -106,7 +107,7 @@ func (c *WebhooksController) check() error {
 			} else {
 				tok, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker")
 				if err != nil {
-					c.sc.Logger.Error().Err(err).Msgf("could not generate token for webhook worker %s of tenant %s", ww.ID, tenantId)
+					c.sc.Logger.Error().Err(err).Msgf("could not generate token for webhook worker %s of tenant %s", id, tenantId)
 					continue
 				}
 
@@ -118,16 +119,16 @@ func (c *WebhooksController) check() error {
 
 				encTokStr := base64.StdEncoding.EncodeToString(encTok)
 
-				_, err = c.sc.APIRepository.WebhookWorker().UpsertWebhookWorker(context.Background(), &repository.UpsertWebhookWorkerOpts{
+				_, err = c.sc.EngineRepository.WebhookWorker().UpsertWebhookWorker(context.Background(), &repository.UpsertWebhookWorkerOpts{
 					Name:       ww.Name,
-					URL:        ww.URL,
+					URL:        ww.Url,
 					Secret:     ww.Secret,
-					TenantId:   &tenantId,
+					TenantId:   tenantId,
 					TokenID:    &tok.TokenId,
 					TokenValue: &encTokStr,
 				})
 				if err != nil {
-					c.sc.Logger.Error().Err(err).Msgf("could not update webhook worker %s of tenant %s", ww.ID, tenantId)
+					c.sc.Logger.Error().Err(err).Msgf("could not update webhook worker %s of tenant %s", id, tenantId)
 					continue
 				}
 
@@ -136,7 +137,7 @@ func (c *WebhooksController) check() error {
 
 			cleanup, err := c.run(tenantId, ww, token, h)
 			if err != nil {
-				c.sc.Logger.Error().Err(err).Msgf("error running webhook worker %s of tenant %s healthcheck", ww.ID, tenantId)
+				c.sc.Logger.Error().Err(err).Msgf("error running webhook worker %s of tenant %s healthcheck", id, tenantId)
 				continue
 			}
 			if cleanup != nil {
@@ -153,8 +154,8 @@ type HealthCheckResponse struct {
 	Workflows []string `json:"workflows"`
 }
 
-func (c *WebhooksController) healthcheck(ww db.WebhookWorkerModel) (*HealthCheckResponse, error) {
-	resp, err := whrequest.Send(context.Background(), ww.URL, ww.Secret, struct {
+func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheckResponse, error) {
+	resp, err := whrequest.Send(context.Background(), ww.Url, ww.Secret, struct {
 		Time time.Time `json:"time"`
 	}{
 		Time: time.Now(),
@@ -174,12 +175,14 @@ func (c *WebhooksController) healthcheck(ww db.WebhookWorkerModel) (*HealthCheck
 	return &res, nil
 }
 
-func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorkerModel, token string, h *HealthCheckResponse) (func() error, error) {
+func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookWorker, token string, h *HealthCheckResponse) (func() error, error) {
+	id := sqlchelpers.UUIDToStr(webhookWorker.ID)
+
 	ww, err := webhook.NewWorker(webhook.WorkerOpts{
 		Token:     token,
-		ID:        webhookWorker.ID,
+		ID:        id,
 		Secret:    webhookWorker.Secret,
-		URL:       webhookWorker.URL,
+		URL:       webhookWorker.Url,
 		Name:      webhookWorker.Name,
 		TenantID:  tenantId,
 		Actions:   h.Actions,
@@ -217,17 +220,17 @@ func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorker
 				if err != nil {
 					healthCheckErrors++
 					if healthCheckErrors > 3 {
-						c.sc.Logger.Printf("webhook worker %s of tenant %s failed 3 health checks, marking as inactive", webhookWorker.ID, tenantId)
+						c.sc.Logger.Printf("webhook worker %s of tenant %s failed 3 health checks, marking as inactive", id, tenantId)
 
 						isActive := false
-						_, err := c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, webhookWorker.ID, &repository.UpdateWorkerOpts{
+						_, err := c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, id, &repository.UpdateWorkerOpts{
 							IsActive: &isActive,
 						})
 						if err != nil {
 							c.sc.Logger.Err(err).Msgf("could not update worker")
 						}
 					} else {
-						c.sc.Logger.Printf("webhook worker %s of tenant %s failed one health check, retrying...", webhookWorker.ID, tenantId)
+						c.sc.Logger.Printf("webhook worker %s of tenant %s failed one health check, retrying...", id, tenantId)
 					}
 					continue
 				}
@@ -236,7 +239,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorker
 				actionsHash := hash(h.Actions)
 
 				if wfsHash != wfsHashLast || actionsHash != actionsHashLast {
-					c.sc.Logger.Debug().Msgf("webhook worker %s of tenant %s health check changed, updating", webhookWorker.ID, tenantId)
+					c.sc.Logger.Debug().Msgf("webhook worker %s of tenant %s health check changed, updating", id, tenantId)
 
 					// update the webhook workflow, and restart worker
 					for _, cleanup := range cleanups {
@@ -247,7 +250,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorker
 
 					h, err := c.healthcheck(webhookWorker)
 					if err != nil {
-						c.sc.Logger.Err(err).Msgf("webhook worker %s of tenant %s healthcheck failed: %v", webhookWorker.ID, tenantId, err)
+						c.sc.Logger.Err(err).Msgf("webhook worker %s of tenant %s healthcheck failed: %v", id, tenantId, err)
 						continue
 					}
 
@@ -264,11 +267,11 @@ func (c *WebhooksController) run(tenantId string, webhookWorker db.WebhookWorker
 				actionsHashLast = actionsHash
 
 				if healthCheckErrors > 0 {
-					c.sc.Logger.Printf("webhook worker %s is healthy again", webhookWorker.ID)
+					c.sc.Logger.Printf("webhook worker %s is healthy again", id)
 				}
 
 				isActive := true
-				_, err = c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, webhookWorker.ID, &repository.UpdateWorkerOpts{
+				_, err = c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, id, &repository.UpdateWorkerOpts{
 					IsActive: &isActive,
 				})
 				if err != nil {

@@ -2,14 +2,19 @@ package transformers
 
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
-func ToWebhookWorker(webhookWorker *db.WebhookWorkerModel) *gen.WebhookWorker {
+func ToWebhookWorker(webhookWorker *dbsqlc.WebhookWorker) *gen.WebhookWorker {
 	return &gen.WebhookWorker{
-		Metadata: *toAPIMetadata(webhookWorker.ID, webhookWorker.CreatedAt, webhookWorker.UpdatedAt),
-		Name:     webhookWorker.Name,
-		Url:      webhookWorker.URL,
-		Secret:   webhookWorker.Secret,
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(webhookWorker.ID),
+			webhookWorker.CreatedAt.Time,
+			webhookWorker.UpdatedAt.Time,
+		),
+		Name:   webhookWorker.Name,
+		Url:    webhookWorker.Url,
+		Secret: webhookWorker.Secret,
 	}
 }
