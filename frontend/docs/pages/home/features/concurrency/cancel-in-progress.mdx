@@ -1,3 +1,5 @@
+import { Tabs } from "nextra/components";
+
 # The CANCEL_IN_PROGRESS Concurrency Limit Strategy in Hatchet
 
 Hatchet's `CANCEL_IN_PROGRESS` concurrency limit strategy is a powerful tool for managing resource contention in your workflows. This strategy allows you to cancel currently running workflow instances to free up slots for new instances when the concurrency limit is reached.
@@ -28,12 +30,30 @@ However, it's important to note that canceling a workflow instance may leave you
 
 To use the `CANCEL_IN_PROGRESS` concurrency limit strategy, define a `concurrency` configuration in your workflow definition:
 
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+from hatchet_sdk import ConcurrencyLimitStrategy
+ 
+@hatchet.workflow(on_events=["concurrency-test"])
+class ConcurrencyDemoWorkflow:
+    @hatchet.concurrency(max_runs=10, limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
+    def concurrency(self, context) -> str:
+        return context.workflow_input()["user_id"]
+    
+    @hatchet.step()
+    def step1(self, context):
+        print("executed step1")
+        pass
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
 ```typescript
-export const myWorkflow: Workflow = {
+export const concurrencyDemoWorkflow: Workflow = {
   id: "my-workflow",
-  description: "My workflow with CANCEL_IN_PROGRESS concurrency limit",
+  description: "My workflow with concurrency control",
   on: {
-    event: "my.event",
+    event: "concurrency-test",
   },
   steps: [
     // ...
@@ -46,6 +66,40 @@ export const myWorkflow: Workflow = {
   },
 };
 ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+import "github.com/hatchet-dev/hatchet/pkg/client/types"
+
+type MyUser struct {
+    UserId string `json:"user_id"`
+}
+ 
+func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
+	event := &MyEvent{}
+    err := ctx.WorkflowInput(event)
+ 
+    if err != nil {
+        return "", err
+    }
+ 
+    return event.UserId, nil
+}
+ 
+err = testSvc.On(
+    worker.Events("concurrency-test-event"),
+    &worker.WorkflowJob{
+        Name:        "concurrency-limit-per-user",
+        Description: "This limits concurrency to 1 run at a time per user.",
+        Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(10).LimitStrategy(types.CancelInProgress),
+        Steps: []*worker.WorkflowStep{
+            // your steps here...
+        },
+    },
+)
+```
+  </Tabs.Tab>
+</Tabs>
 
 In this example:
 

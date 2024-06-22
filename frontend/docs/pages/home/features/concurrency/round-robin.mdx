@@ -1,3 +1,5 @@
+import { Tabs } from "nextra/components";
+
 # The GROUP_ROUND_ROBIN Concurrency Limit Strategy in Hatchet
 
 Hatchet's `GROUP_ROUND_ROBIN` concurrency limit strategy is an advanced way to manage resource contention in your workflows while ensuring fair distribution of resources across different groups of tennants, users, or other concurrency key. This strategy allows you to process workflow instances in a round-robin fashion within each group, as defined by a key function.
@@ -22,18 +24,36 @@ The `GROUP_ROUND_ROBIN` strategy is particularly useful in scenarios where:
 - You want to process instances within each group in a round-robin fashion to minimize latency and ensure that no single instance within a group is starved for resources.
 - You have long-running workflow instances and want to avoid one group's instances monopolizing the available slots.
 
-Keep in mind that the `GROUP_ROUND_ROBIN` strategy may not be suitable for all use cases, especially those that require strict ordering or prioritization of the most recent events. Consider using a different concurrency limit strategy, such as [`QUEUE_NEWEST`](./queue-newest), if these requirements apply to your workflow.
+Keep in mind that the `GROUP_ROUND_ROBIN` strategy may not be suitable for all use cases, especially those that require strict ordering or prioritization of the most recent events.
 
 ## How to use GROUP_ROUND_ROBIN
 
 To use the `GROUP_ROUND_ROBIN` concurrency limit strategy, define a `concurrency` configuration in your workflow definition:
 
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+from hatchet_sdk import ConcurrencyLimitStrategy
+ 
+@hatchet.workflow(on_events=["concurrency-test"])
+class ConcurrencyDemoWorkflow:
+    @hatchet.concurrency(max_runs=10, limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN)
+    def concurrency(self, context) -> str:
+        return context.workflow_input()["user_id"]
+    
+    @hatchet.step()
+    def step1(self, context):
+        print("executed step1")
+        pass
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
 ```typescript
-export const myWorkflow: Workflow = {
+export const concurrencyDemoWorkflow: Workflow = {
   id: "my-workflow",
-  description: "My workflow with GROUP_ROUND_ROBIN concurrency limit",
+  description: "My workflow with GROUP_ROUND_ROBIN concurrency control",
   on: {
-    event: "my.event",
+    event: "concurrency-test",
   },
   steps: [
     // ...
@@ -46,6 +66,41 @@ export const myWorkflow: Workflow = {
   },
 };
 ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+import "github.com/hatchet-dev/hatchet/pkg/client/types"
+
+type MyUser struct {
+    UserId string `json:"user_id"`
+}
+ 
+func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
+	event := &MyEvent{}
+    err := ctx.WorkflowInput(event)
+ 
+    if err != nil {
+        return "", err
+    }
+ 
+    return event.UserId, nil
+}
+ 
+err = testSvc.On(
+    worker.Events("concurrency-test-event"),
+    &worker.WorkflowJob{
+        Name:        "concurrency-limit-per-user",
+        Description: "This limits concurrency to 1 run at a time per user.",
+        Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(10).LimitStrategy(types.GroupRoundRobin),
+        Steps: []*worker.WorkflowStep{
+            // your steps here...
+        },
+    },
+)
+```
+  </Tabs.Tab>
+</Tabs>
+
 
 In this example:
 
