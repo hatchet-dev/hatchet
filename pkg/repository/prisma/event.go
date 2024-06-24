@@ -199,6 +199,8 @@ type eventEngineRepository struct {
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 	m       *metered.Metered
+
+	callbacks []repository.Callback[*dbsqlc.Event]
 }
 
 func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.EventEngineRepository {
@@ -211,6 +213,14 @@ func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zero
 		l:       l,
 		m:       m,
 	}
+}
+
+func (r *eventEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.Event]) {
+	if r.callbacks == nil {
+		r.callbacks = make([]repository.Callback[*dbsqlc.Event], 0)
+	}
+
+	r.callbacks = append(r.callbacks, callback)
 }
 
 func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error) {
@@ -247,6 +257,10 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not create event: %w", err)
+		}
+
+		for _, cb := range r.callbacks {
+			cb.Do(e) // nolint: errcheck
 		}
 
 		id := sqlchelpers.UUIDToStr(e.ID)

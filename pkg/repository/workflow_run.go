@@ -342,7 +342,7 @@ type WorkflowRunMetricsCountOpts struct {
 }
 
 type WorkflowRunAPIRepository interface {
-	RegisterCallback(callback Callback[*db.WorkflowRunModel])
+	RegisterCreateCallback(callback Callback[*db.WorkflowRunModel])
 
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
@@ -360,6 +360,8 @@ type WorkflowRunAPIRepository interface {
 var ErrWorkflowRunNotFound = fmt.Errorf("workflow run not found")
 
 type WorkflowRunEngineRepository interface {
+	RegisterCreateCallback(callback Callback[*dbsqlc.GetWorkflowRunRow])
+
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
 
