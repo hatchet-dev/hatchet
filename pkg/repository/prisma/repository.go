@@ -300,16 +300,11 @@ func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) reposito
 }
 
 type entitlementRepository struct {
-	tenantLimit        repository.TenantLimitRepository
-	tenantSubscription repository.TenantSubscriptionRepository
+	tenantLimit repository.TenantLimitRepository
 }
 
 func (r *entitlementRepository) TenantLimit() repository.TenantLimitRepository {
 	return r.tenantLimit
-}
-
-func (r *entitlementRepository) TenantSubscription() repository.TenantSubscriptionRepository {
-	return r.tenantSubscription
 }
 
 func NewEntitlementRepository(pool *pgxpool.Pool, s *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) repository.EntitlementsRepository {
@@ -327,7 +322,6 @@ func NewEntitlementRepository(pool *pgxpool.Pool, s *server.ConfigFileRuntime, f
 	}
 
 	return &entitlementRepository{
-		tenantLimit:        NewTenantLimitRepository(pool, opts.v, opts.l, s),
-		tenantSubscription: NewTenantSubscriptionRepository(pool, opts.v, opts.l, s),
+		tenantLimit: NewTenantLimitRepository(pool, opts.v, opts.l, s),
 	}
 }

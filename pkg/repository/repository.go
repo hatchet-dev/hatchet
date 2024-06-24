@@ -42,7 +42,6 @@ type EngineRepository interface {
 
 type EntitlementsRepository interface {
 	TenantLimit() TenantLimitRepository
-	TenantSubscription() TenantSubscriptionRepository
 }
 
 func BoolPtr(b bool) *bool {
