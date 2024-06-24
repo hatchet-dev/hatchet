@@ -87,6 +87,7 @@ func (t *tenantLimitRepository) planLimitMap(plan *string) []repository.Limit {
 	}
 
 	if _, ok := (*t.plans)[*plan]; !ok {
+		t.l.Warn().Msgf("plan %s not found, using default limits", *plan)
 		return t.DefaultLimits()
 	}
 

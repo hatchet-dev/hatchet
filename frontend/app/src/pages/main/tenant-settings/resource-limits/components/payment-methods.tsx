@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/button';
-import { TenantPaymentMethod } from '@/lib/api';
 import {
   FaCcAmex,
   FaCcDiscover,
@@ -10,12 +9,13 @@ import {
   FaCcJcb,
 } from 'react-icons/fa';
 import { IconType } from 'react-icons/lib';
-import api from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useState } from 'react';
 import { Spinner } from '@/components/ui/loading';
+import { TenantPaymentMethod } from '@/lib/api/generated/cloud/data-contracts';
+import { cloudApi } from '@/lib/api/api';
 
 const ccIcons: Record<string, IconType> = {
   visa: FaCcVisa,
@@ -43,7 +43,7 @@ export default function PaymentMethods({
   const manageClicked = async () => {
     try {
       setLoading(true);
-      const link = await api.billingPortalLinkGet(tenant.metadata.id);
+      const link = await cloudApi.billingPortalLinkGet(tenant.metadata.id);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);

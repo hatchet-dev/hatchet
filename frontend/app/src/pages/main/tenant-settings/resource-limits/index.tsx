@@ -6,26 +6,30 @@ import { queries } from '@/lib/api';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/resource-limit-columns';
 import PaymentMethods from './components/payment-methods';
-import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import Subscription from './components/subscription';
 import { Spinner } from '@/components/ui/loading';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 
 export default function ResourceLimits() {
   const { tenant } = useOutletContext<TenantContextType>();
-  const meta = useApiMeta();
+  const cloudMeta = useCloudApiMeta();
 
   const resourcePolicyQuery = useQuery({
     ...queries.tenantResourcePolicy.get(tenant.metadata.id),
   });
 
+  const billingState = useQuery({
+    ...queries.cloud.billing(tenant.metadata.id),
+  });
+
   const cols = columns();
 
-  const billingEnabled = meta.data?.data.billing;
+  const billingEnabled = cloudMeta?.data.canBill;
 
   const hasPaymentMethods =
-    (resourcePolicyQuery.data?.paymentMethods?.length || 0) > 0;
+    (billingState.data?.paymentMethods?.length || 0) > 0;
 
-  if (resourcePolicyQuery.isLoading) {
+  if (resourcePolicyQuery.isLoading || billingState.isLoading) {
     return (
       <div className="flex-grow h-full w-full px-4 sm:px-6 lg:px-8">
         <Spinner />
@@ -47,13 +51,13 @@ export default function ResourceLimits() {
           <Separator className="my-4" />
           <PaymentMethods
             hasMethods={hasPaymentMethods}
-            methods={resourcePolicyQuery.data?.paymentMethods}
+            methods={billingState.data?.paymentMethods}
           />
           <Separator className="my-4" />
           <Subscription
             hasPaymentMethods={hasPaymentMethods}
-            active={resourcePolicyQuery.data?.subscription}
-            plans={resourcePolicyQuery.data?.plans}
+            active={billingState.data?.subscription}
+            plans={billingState.data?.plans}
           />
           <Separator className="my-4" />
         </>

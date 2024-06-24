@@ -21,7 +21,7 @@ import { Loading } from '@/components/ui/loading.tsx';
 import { useSidebar } from '@/components/sidebar-provider';
 import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
-import useApiMeta from '../auth/hooks/use-api-meta';
+import useCloudApiMeta from '../auth/hooks/use-cloud-api-meta';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -60,7 +60,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
 
-  const meta = useApiMeta();
+  const meta = useCloudApiMeta();
 
   const onNavLinkClick = useCallback(() => {
     if (window.innerWidth > 768) {
@@ -156,7 +156,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/billing-and-limits"
                     name={
-                      meta.data?.data.billing
+                      meta?.data.canBill
                         ? 'Billing & Limits'
                         : 'Resource Limits'
                     }

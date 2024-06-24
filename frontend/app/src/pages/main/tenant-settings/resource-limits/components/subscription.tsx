@@ -4,7 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/loading';
 import { Switch } from '@/components/ui/switch';
-import api, { SubscriptionPlan, TenantSubscription, queries } from '@/lib/api';
+import { queries } from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
+import {
+  TenantSubscription,
+  SubscriptionPlan,
+} from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { TenantContextType } from '@/lib/outlet';
 import queryClient from '@/query-client';
@@ -39,7 +44,7 @@ const Subscription: React.FC<SubscriptionProps> = ({
         return;
       }
       setPortalLoading(true);
-      const link = await api.billingPortalLinkGet(tenant.metadata.id);
+      const link = await cloudApi.billingPortalLinkGet(tenant.metadata.id);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
@@ -53,12 +58,19 @@ const Subscription: React.FC<SubscriptionProps> = ({
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
       const [plan, period] = plan_code.split(':');
       setLoading(plan_code);
-      await api.subscriptionUpsert(tenant.metadata.id, { plan, period });
+      await cloudApi.subscriptionUpsert(tenant.metadata.id, { plan, period });
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queries.tenantResourcePolicy.get(tenant.metadata.id).queryKey,
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queries.tenantResourcePolicy.get(tenant.metadata.id)
+            .queryKey,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queries.cloud.billing(tenant.metadata.id).queryKey,
+        }),
+      ]);
+
       setLoading(undefined);
     },
     onError: handleApiError,

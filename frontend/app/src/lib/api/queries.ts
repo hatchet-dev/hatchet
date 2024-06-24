@@ -9,6 +9,12 @@ type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
 
 export const queries = createQueryKeyStore({
+  cloud: {
+    billing: (tenant: string) => ({
+      queryKey: ['billing-state:get', tenant],
+      queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
+    }),
+  },
   user: {
     current: {
       queryKey: ['user:get'],

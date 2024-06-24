@@ -1,0 +1,22 @@
+import { cloudApi } from '@/lib/api/api';
+import { useApiError } from '@/lib/hooks';
+import { useQuery } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
+
+export default function useCloudApiMeta() {
+  const { handleApiError } = useApiError({});
+
+  const cloudMetaQuery = useQuery({
+    queryKey: ['cloud-metadata:get'],
+    queryFn: async () => {
+      const meta = await cloudApi.metadataGet();
+      return meta;
+    },
+  });
+
+  if (cloudMetaQuery.isError) {
+    handleApiError(cloudMetaQuery.error as AxiosError);
+  }
+
+  return cloudMetaQuery.data;
+}

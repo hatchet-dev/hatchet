@@ -188,17 +188,6 @@ const routes: RouteObject[] = [
                   }),
               },
               {
-                path: '/workers/managed-workers/create',
-                lazy: async () =>
-                  import('./pages/main/workers/managed-workers/create').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
                 path: '/tenant-settings/overview',
                 lazy: async () =>
                   import('./pages/main/tenant-settings/overview').then(
