@@ -2,7 +2,6 @@ package prisma
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -76,11 +75,6 @@ func (t *tenantLimitRepository) DefaultLimits() []repository.Limit {
 
 func (t *tenantLimitRepository) planLimitMap(plan *string) []repository.Limit {
 
-	fmt.Println(t.plans)
-	fmt.Println(plan)
-	fmt.Println(*plan)
-	fmt.Println("*****")
-
 	if t.plans == nil || plan == nil {
 		return t.DefaultLimits()
 	}
@@ -109,8 +103,6 @@ func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, 
 
 func (t *tenantLimitRepository) UpsertTenantLimits(ctx context.Context, tenantId string, plan *string) error {
 	planLimits := t.planLimitMap(plan)
-
-	fmt.Println(planLimits)
 
 	for _, limits := range planLimits {
 		err := t.patchTenantResourceLimit(ctx, tenantId, limits, true)
