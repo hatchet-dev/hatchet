@@ -13,6 +13,12 @@ type EncryptionService interface {
 	// For more information, see: https://developers.google.com/tink/client-side-encryption#kms_envelope_aead
 	Decrypt(ciphertext []byte, dataId string) ([]byte, error)
 
+	// EncryptString encrypts a string using base64 internally
+	EncryptString(plaintext string, dataId string) (string, error)
+
+	// DecryptString decrypts a string using base64 internally
+	DecryptString(ciphertext string, dataId string) (string, error)
+
 	// GetPrivateJWTHandle returns a private JWT handle. This is used to sign JWTs.
 	GetPrivateJWTHandle() *keyset.Handle
 

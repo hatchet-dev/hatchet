@@ -212,6 +212,26 @@ func (svc *localEncryptionService) Decrypt(ciphertext []byte, dataId string) ([]
 	return decrypt(svc.key, ciphertext, dataId)
 }
 
+func (svc *localEncryptionService) EncryptString(data string, dataId string) (string, error) {
+	b, err := encrypt(svc.key, []byte(data), dataId)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
+}
+
+func (svc *localEncryptionService) DecryptString(data string, dataId string) (string, error) {
+	plain, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return "", err
+	}
+	b, err := decrypt(svc.key, plain, dataId)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
 func (svc *localEncryptionService) GetPrivateJWTHandle() *keyset.Handle {
 	return svc.privateEc256Handle
 }
