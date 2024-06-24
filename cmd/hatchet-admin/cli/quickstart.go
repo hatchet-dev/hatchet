@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
 var certDir string
@@ -213,13 +214,13 @@ func setupCerts(generated *generatedConfigFiles) error {
 func generateKeys(generated *generatedConfigFiles) error {
 	color.New(color.FgGreen).Printf("Generating encryption keys for Hatchet server\n")
 
-	cookieHashKey, err := encryption.GenerateRandomBytes(8)
+	cookieHashKey, err := random.Generate(8)
 
 	if err != nil {
 		return fmt.Errorf("could not generate hash key for instance: %w", err)
 	}
 
-	cookieBlockKey, err := encryption.GenerateRandomBytes(8)
+	cookieBlockKey, err := random.Generate(8)
 
 	if err != nil {
 		return fmt.Errorf("could not generate block key for instance: %w", err)

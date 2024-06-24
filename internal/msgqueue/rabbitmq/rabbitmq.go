@@ -15,8 +15,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
 const MAX_RETRY_COUNT = 15
@@ -234,7 +234,7 @@ func (t *MessageQueueImpl) initQueue(sub session, q msgqueue.Queue) (string, err
 	name := q.Name()
 
 	if q.FanoutExchangeKey() != "" {
-		suffix, err := encryption.GenerateRandomBytes(4)
+		suffix, err := random.Generate(4)
 
 		if err != nil {
 			t.l.Error().Msgf("error generating random bytes: %v", err)

@@ -37,6 +37,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
@@ -379,7 +380,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 			return nil, nil, fmt.Errorf("could not get internal tenant: %w", err)
 		}
 
-		tokenSuffix, err := encryption.GenerateRandomBytes(4)
+		tokenSuffix, err := random.Generate(4)
 
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not generate token suffix: %w", err)
