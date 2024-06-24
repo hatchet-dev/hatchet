@@ -107,7 +107,6 @@ model WebhookWorker {
   tokenId String?   @db.Uuid
   token   APIToken? @relation(fields: [tokenId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  // TODO remove tenant ID as it is not needed
   tenantId String @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
