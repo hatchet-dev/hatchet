@@ -345,16 +345,3 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 
 	return res
 }
-
-func ToPullRequest(pr *db.GithubPullRequestModel) *gen.PullRequest {
-	return &gen.PullRequest{
-		PullRequestBaseBranch: pr.PullRequestBaseBranch,
-		PullRequestHeadBranch: pr.PullRequestHeadBranch,
-		PullRequestID:         pr.PullRequestID,
-		PullRequestNumber:     pr.PullRequestNumber,
-		PullRequestState:      gen.PullRequestState(pr.PullRequestState),
-		PullRequestTitle:      pr.PullRequestTitle,
-		RepositoryName:        pr.RepositoryName,
-		RepositoryOwner:       pr.RepositoryOwner,
-	}
-}

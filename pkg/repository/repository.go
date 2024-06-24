@@ -1,5 +1,7 @@
 package repository
 
+import "fmt"
+
 type APIRepository interface {
 	Health() HealthRepository
 	APIToken() APITokenRepository
@@ -12,7 +14,6 @@ type APIRepository interface {
 	WorkflowRun() WorkflowRunAPIRepository
 	JobRun() JobRunAPIRepository
 	StepRun() StepRunAPIRepository
-	Github() GithubRepository
 	Slack() SlackRepository
 	SNS() SNSRepository
 	Step() StepRepository
@@ -50,4 +51,19 @@ func BoolPtr(b bool) *bool {
 
 func StringPtr(s string) *string {
 	return &s
+}
+
+type Callback[T any] func(T) error
+
+func (c Callback[T]) Do(v T) (err error) {
+	// wrap in panic recover to avoid panics in the callback
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic in callback: %v", r)
+		}
+	}()
+
+	go c(v) // nolint: errcheck
+
+	return err
 }

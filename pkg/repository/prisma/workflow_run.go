@@ -29,6 +29,8 @@ type workflowRunAPIRepository struct {
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 	m       *metered.Metered
+
+	callbacks []repository.Callback[*db.WorkflowRunModel]
 }
 
 func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowRunAPIRepository {
@@ -42,6 +44,14 @@ func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v val
 		l:       l,
 		m:       m,
 	}
+}
+
+func (w *workflowRunAPIRepository) RegisterCallback(callback repository.Callback[*db.WorkflowRunModel]) {
+	if w.callbacks == nil {
+		w.callbacks = make([]repository.Callback[*db.WorkflowRunModel], 0)
+	}
+
+	w.callbacks = append(w.callbacks, callback)
 }
 
 func (w *workflowRunAPIRepository) ListWorkflowRuns(tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
@@ -82,6 +92,10 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 			return nil, nil, err
 		}
 
+		for _, cb := range w.callbacks {
+			cb.Do(res) // nolint: errcheck
+		}
+
 		return &res.ID, res, nil
 	})
 }
@@ -94,63 +108,26 @@ func (w *workflowRunAPIRepository) GetWorkflowRunById(tenantId, id string) (*db.
 	).Exec(context.Background())
 }
 
-func (s *workflowRunAPIRepository) CreateWorkflowRunPullRequest(tenantId, workflowRunId string, opts *repository.CreateWorkflowRunPullRequestOpts) (*db.GithubPullRequestModel, error) {
-	return s.client.GithubPullRequest.CreateOne(
-		db.GithubPullRequest.Tenant.Link(
-			db.Tenant.ID.Equals(tenantId),
-		),
-		db.GithubPullRequest.RepositoryOwner.Set(opts.RepositoryOwner),
-		db.GithubPullRequest.RepositoryName.Set(opts.RepositoryName),
-		db.GithubPullRequest.PullRequestID.Set(opts.PullRequestID),
-		db.GithubPullRequest.PullRequestTitle.Set(opts.PullRequestTitle),
-		db.GithubPullRequest.PullRequestNumber.Set(opts.PullRequestNumber),
-		db.GithubPullRequest.PullRequestHeadBranch.Set(opts.PullRequestHeadBranch),
-		db.GithubPullRequest.PullRequestBaseBranch.Set(opts.PullRequestBaseBranch),
-		db.GithubPullRequest.PullRequestState.Set(opts.PullRequestState),
-		db.GithubPullRequest.WorkflowRuns.Link(
-			db.WorkflowRun.ID.Equals(workflowRunId),
-		),
-	).Exec(context.Background())
-}
-
-func (s *workflowRunAPIRepository) ListPullRequestsForWorkflowRun(tenantId, workflowRunId string, opts *repository.ListPullRequestsForWorkflowRunOpts) ([]db.GithubPullRequestModel, error) {
-	if err := s.v.Validate(opts); err != nil {
-		return nil, err
-	}
-
-	optionals := []db.GithubPullRequestWhereParam{
-		db.GithubPullRequest.WorkflowRuns.Some(
-			db.WorkflowRun.ID.Equals(workflowRunId),
-			db.WorkflowRun.TenantID.Equals(tenantId),
-		),
-	}
-
-	if opts.State != nil {
-		optionals = append(optionals, db.GithubPullRequest.PullRequestState.Equals(*opts.State))
-	}
-
-	return s.client.GithubPullRequest.FindMany(
-		optionals...,
-	).Exec(context.Background())
-}
-
 type workflowRunEngineRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 	m       *metered.Metered
+
+	callbacks []repository.Callback[dbsqlc.GetWorkflowRunRow]
 }
 
-func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowRunEngineRepository {
+func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[dbsqlc.GetWorkflowRunRow]) repository.WorkflowRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRunEngineRepository{
-		v:       v,
-		pool:    pool,
-		queries: queries,
-		l:       l,
-		m:       m,
+		v:         v,
+		pool:      pool,
+		queries:   queries,
+		l:         l,
+		m:         m,
+		callbacks: cbs,
 	}
 }
 
