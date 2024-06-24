@@ -1,5 +1,5 @@
 import { Api } from './generated/Api';
-import { Api as CloudApi } from './cloud/Api';
+import { Api as CloudApi } from './generated/cloud/Api';
 import qs from 'qs';
 
 const api = new Api({

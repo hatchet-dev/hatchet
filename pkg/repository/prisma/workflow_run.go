@@ -29,6 +29,8 @@ type workflowRunAPIRepository struct {
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 	m       *metered.Metered
+
+	callbacks []repository.Callback[*db.WorkflowRunModel]
 }
 
 func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowRunAPIRepository {
@@ -42,6 +44,14 @@ func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v val
 		l:       l,
 		m:       m,
 	}
+}
+
+func (w *workflowRunAPIRepository) RegisterCallback(callback repository.Callback[*db.WorkflowRunModel]) {
+	if w.callbacks == nil {
+		w.callbacks = make([]repository.Callback[*db.WorkflowRunModel], 0)
+	}
+
+	w.callbacks = append(w.callbacks, callback)
 }
 
 func (w *workflowRunAPIRepository) ListWorkflowRuns(tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
@@ -82,6 +92,10 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 			return nil, err
 		}
 
+		for _, cb := range w.callbacks {
+			cb.Do(res) // nolint: errcheck
+		}
+
 		return res, nil
 	})
 }
@@ -100,17 +114,20 @@ type workflowRunEngineRepository struct {
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 	m       *metered.Metered
+
+	callbacks []repository.Callback[dbsqlc.GetWorkflowRunRow]
 }
 
-func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowRunEngineRepository {
+func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[dbsqlc.GetWorkflowRunRow]) repository.WorkflowRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRunEngineRepository{
-		v:       v,
-		pool:    pool,
-		queries: queries,
-		l:       l,
-		m:       m,
+		v:         v,
+		pool:      pool,
+		queries:   queries,
+		l:         l,
+		m:         m,
+		callbacks: cbs,
 	}
 }
 

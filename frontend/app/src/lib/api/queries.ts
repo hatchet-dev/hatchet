@@ -2,7 +2,6 @@ import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 
 import api, { cloudApi } from './api';
 import invariant from 'tiny-invariant';
-import { PullRequestState } from '.';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
@@ -118,32 +117,11 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await api.workflowRunGetMetrics(tenant, query)).data,
     }),
-    listPullRequests: (
-      tenant: string,
-      workflowRun: string,
-      query: {
-        state?: PullRequestState;
-      },
-    ) => ({
-      queryKey: [
-        'workflow-run:list:pull-requests',
-        tenant,
-        workflowRun,
-        query.state,
-      ],
-      queryFn: async () =>
-        (await api.workflowRunListPullRequests(tenant, workflowRun, query))
-          .data,
-    }),
   },
   stepRuns: {
     get: (tenant: string, stepRun: string) => ({
       queryKey: ['step-run:get', tenant, stepRun],
       queryFn: async () => (await api.stepRunGet(tenant, stepRun)).data,
-    }),
-    getDiff: (stepRun: string) => ({
-      queryKey: ['step-run:get:diff', stepRun],
-      queryFn: async () => (await api.stepRunGetDiff(stepRun)).data,
     }),
     getLogs: (stepRun: string, query: ListLogLineQuery) => ({
       queryKey: ['log-lines:list', stepRun],

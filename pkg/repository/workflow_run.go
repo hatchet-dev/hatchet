@@ -342,6 +342,8 @@ type WorkflowRunMetricsCountOpts struct {
 }
 
 type WorkflowRunAPIRepository interface {
+	RegisterCallback(callback Callback[*db.WorkflowRunModel])
+
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
 
