@@ -32,8 +32,6 @@ type Limits struct {
 	customValueMeter bool
 }
 
-type PlanLimitMap map[dbsqlc.TenantSubscriptionPlanCodes][]Limits
-
 func NewTenantLimitRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, s *server.ConfigFileRuntime) repository.TenantLimitRepository {
 	queries := dbsqlc.New()
 
@@ -51,96 +49,36 @@ func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Conte
 	return err
 }
 
-func (t *tenantLimitRepository) planLimitMap(plan dbsqlc.TenantSubscriptionPlanCodes) []Limits {
-	daily := time.Hour * 24
-	// monthly := daily * 30
+func (t *tenantLimitRepository) planLimitMap() []Limits {
 
-	planLimitMap := PlanLimitMap{
-		dbsqlc.TenantSubscriptionPlanCodesFree: {
-			{
-				resource:         dbsqlc.LimitResourceWORKFLOWRUN,
-				limit:            int32(t.config.Limits.DefaultWorkflowRunLimit),
-				alarm:            int32(t.config.Limits.DefaultWorkflowRunAlarmLimit),
-				window:           &t.config.Limits.DefaultWorkflowRunWindow,
-				customValueMeter: false,
-			},
-			{
-				resource:         dbsqlc.LimitResourceEVENT,
-				limit:            int32(t.config.Limits.DefaultEventLimit),
-				alarm:            int32(t.config.Limits.DefaultEventAlarmLimit),
-				window:           &t.config.Limits.DefaultEventWindow,
-				customValueMeter: false,
-			},
-			{
-				resource:         dbsqlc.LimitResourceWORKER,
-				limit:            int32(t.config.Limits.DefaultWorkerLimit),
-				alarm:            int32(t.config.Limits.DefaultWorkerAlarmLimit),
-				window:           nil,
-				customValueMeter: true,
-			},
+	return []Limits{
+		{
+			resource:         dbsqlc.LimitResourceWORKFLOWRUN,
+			limit:            int32(t.config.Limits.DefaultWorkflowRunLimit),
+			alarm:            int32(t.config.Limits.DefaultWorkflowRunAlarmLimit),
+			window:           &t.config.Limits.DefaultWorkflowRunWindow,
+			customValueMeter: false,
 		},
-		dbsqlc.TenantSubscriptionPlanCodesStarter: {
-			{
-				resource:         dbsqlc.LimitResourceWORKFLOWRUN,
-				limit:            10_000,
-				alarm:            7_500,
-				window:           &daily,
-				customValueMeter: false,
-			},
-			{
-				resource:         dbsqlc.LimitResourceEVENT,
-				limit:            10_000,
-				alarm:            7_500,
-				window:           &daily,
-				customValueMeter: false,
-			},
-			{
-				resource:         dbsqlc.LimitResourceWORKER,
-				limit:            8,
-				alarm:            4,
-				window:           nil,
-				customValueMeter: true,
-			},
+		{
+			resource:         dbsqlc.LimitResourceEVENT,
+			limit:            int32(t.config.Limits.DefaultEventLimit),
+			alarm:            int32(t.config.Limits.DefaultEventAlarmLimit),
+			window:           &t.config.Limits.DefaultEventWindow,
+			customValueMeter: false,
 		},
-		dbsqlc.TenantSubscriptionPlanCodesGrowth: {
-			{
-				resource:         dbsqlc.LimitResourceWORKFLOWRUN,
-				limit:            50_000,
-				alarm:            37_500,
-				window:           &daily,
-				customValueMeter: false,
-			},
-			{
-				resource:         dbsqlc.LimitResourceEVENT,
-				limit:            50_000,
-				alarm:            37_500,
-				window:           &daily,
-				customValueMeter: false,
-			},
-			{
-				resource:         dbsqlc.LimitResourceWORKER,
-				limit:            40,
-				alarm:            20,
-				window:           nil,
-				customValueMeter: true,
-			},
+		{
+			resource:         dbsqlc.LimitResourceWORKER,
+			limit:            int32(t.config.Limits.DefaultWorkerLimit),
+			alarm:            int32(t.config.Limits.DefaultWorkerAlarmLimit),
+			window:           nil,
+			customValueMeter: true,
 		},
 	}
-
-	if _, ok := planLimitMap[plan]; !ok {
-		plan = dbsqlc.TenantSubscriptionPlanCodesFree
-	}
-
-	return planLimitMap[plan]
 }
 
-func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, tenantId string, plan *dbsqlc.TenantSubscriptionPlanCodes) error {
-	if plan == nil {
-		_plan := dbsqlc.TenantSubscriptionPlanCodesFree
-		plan = &_plan
-	}
+func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, tenantId string) error {
 
-	planLimits := t.planLimitMap(*plan)
+	planLimits := t.planLimitMap()
 
 	for _, limits := range planLimits {
 		err := t.patchTenantResourceLimit(ctx, tenantId, limits, false)
@@ -152,13 +90,8 @@ func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, 
 	return nil
 }
 
-func (t *tenantLimitRepository) UpsertTenantLimits(ctx context.Context, tenantId string, plan *dbsqlc.TenantSubscriptionPlanCodes) error {
-	if plan == nil {
-		_plan := dbsqlc.TenantSubscriptionPlanCodesFree
-		plan = &_plan
-	}
-
-	planLimits := t.planLimitMap(*plan)
+func (t *tenantLimitRepository) UpsertTenantLimits(ctx context.Context, tenantId string) error {
+	planLimits := t.planLimitMap()
 
 	for _, limits := range planLimits {
 		err := t.patchTenantResourceLimit(ctx, tenantId, limits, true)
@@ -275,7 +208,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 		t.l.Warn().Msgf("no %s tenant limit found, creating default limit", string(resource))
 
 		// TODO get the correct plan
-		err = t.SelectOrInsertTenantLimits(ctx, tenantId, nil)
+		err = t.SelectOrInsertTenantLimits(ctx, tenantId)
 
 		if err != nil {
 			return false, 0, err
