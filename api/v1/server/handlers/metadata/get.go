@@ -32,19 +32,12 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		}
 	}
 
-	var billing = false
-
-	if u.config.Billing.Enabled() {
-		billing = true
-	}
-
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{
 			Schemes: &authTypes,
 		},
 		PylonAppId: &pylonAppID,
 		Posthog:    posthogConfig,
-		Billing:    billing,
 	}
 
 	return gen.MetadataGet200JSONResponse(meta), nil

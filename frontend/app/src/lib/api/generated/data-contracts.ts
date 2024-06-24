@@ -17,8 +17,6 @@ export interface APIMeta {
    */
   pylonAppId?: string;
   posthog?: APIMetaPosthog;
-  /** whether billing is enabled on the instance */
-  billing: boolean;
 }
 
 export interface APIMetaAuth {

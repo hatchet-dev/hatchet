@@ -7,7 +7,6 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/billing"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -17,19 +16,17 @@ type Metered struct {
 	entitlements repository.EntitlementsRepository
 	l            *zerolog.Logger
 	c            cache.Cacheable
-	b            *billing.Billing
 }
 
 func (m *Metered) Stop() {
 	m.c.Stop()
 }
 
-func NewMetered(entitlements repository.EntitlementsRepository, l *zerolog.Logger, b *billing.Billing) *Metered {
+func NewMetered(entitlements repository.EntitlementsRepository, l *zerolog.Logger) *Metered {
 	return &Metered{
 		entitlements: entitlements,
 		l:            l,
 		c:            cache.New(time.Second * 30),
-		b:            b,
 	}
 }
 
@@ -66,7 +63,7 @@ func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitRe
 		return nil, ErrResourceExhausted
 	}
 
-	id, res, err := f()
+	_, res, err := f()
 
 	if err != nil {
 		return nil, err
@@ -83,16 +80,6 @@ func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitRe
 
 		if err != nil {
 			m.l.Error().Err(err).Msg("could not meter resource")
-		}
-
-		if !(*m.b).Enabled() {
-			return
-		}
-
-		err = (*m.b).MeterMetric(tenantId, resource, *id, &limit.Value)
-
-		if err != nil {
-			m.l.Error().Err(err).Msg("could not bill resource")
 		}
 	}
 

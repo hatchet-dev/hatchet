@@ -28,8 +28,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/auth/oauth"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
-	"github.com/hatchet-dev/hatchet/pkg/billing"
-	"github.com/hatchet-dev/hatchet/pkg/billing/lago"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
@@ -95,7 +93,7 @@ func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
 		return nil, err
 	}
 
-	return GetDatabaseConfigFromConfigFile(cf, &scf.Runtime, &scf.Billing)
+	return GetDatabaseConfigFromConfigFile(cf, &scf.Runtime)
 }
 
 // LoadServerConfig loads the server configuration
@@ -122,7 +120,7 @@ func (c *ConfigLoader) LoadServerConfig() (cleanup func() error, res *server.Ser
 	return GetServerConfigFromConfigfile(dc, cf)
 }
 
-func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.ConfigFileRuntime, bcf *server.BillingConfigFile) (res *database.Config, err error) {
+func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.ConfigFileRuntime) (res *database.Config, err error) {
 	l := logger.NewStdErr(&cf.Logger, "database")
 
 	databaseUrl := fmt.Sprintf(
@@ -170,26 +168,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	entitlementRepo := prisma.NewEntitlementRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch))
 
-	var billingClient billing.Billing
-
-	if bcf.Lago.Enabled {
-		billingClient, err = lago.NewLagoBilling(&lago.LagoBillingOpts{
-			ApiKey:    bcf.Lago.ApiKey,
-			BaseUrl:   bcf.Lago.BaseURL,
-			StripeKey: bcf.Lago.StripeKey,
-		},
-			&entitlementRepo,
-			runtime.ServerURL,
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create lago billing: %w", err)
-		}
-	} else {
-		billingClient = billing.NoOpBilling{}
-	}
-
-	meter := metered.NewMetered(entitlementRepo, &l, &billingClient)
+	meter := metered.NewMetered(entitlementRepo, &l)
 
 	return &database.Config{
 		Disconnect: func() error {
@@ -280,22 +259,6 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		}
 	} else {
 		analyticsEmitter = analytics.NoOpAnalytics{}
-	}
-
-	var billingClient billing.Billing
-
-	if cf.Billing.Lago.Enabled {
-		billingClient, err = lago.NewLagoBilling(&lago.LagoBillingOpts{
-			ApiKey:    cf.Billing.Lago.ApiKey,
-			BaseUrl:   cf.Billing.Lago.BaseURL,
-			StripeKey: cf.Billing.Lago.StripeKey,
-		}, &dc.EntitlementRepository, cf.Runtime.ServerURL)
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not create lago billing: %w", err)
-		}
-	} else {
-		billingClient = billing.NoOpBilling{}
 	}
 
 	var pylon server.PylonConfig
@@ -463,7 +426,6 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	return cleanup, &server.ServerConfig{
 		Alerter:                alerter,
 		Analytics:              analyticsEmitter,
-		Billing:                billingClient,
 		FePosthog:              feAnalyticsConfig,
 		Pylon:                  &pylon,
 		Runtime:                cf.Runtime,

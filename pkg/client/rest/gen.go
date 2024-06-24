@@ -166,10 +166,7 @@ type APIErrors struct {
 
 // APIMeta defines model for APIMeta.
 type APIMeta struct {
-	Auth *APIMetaAuth `json:"auth,omitempty"`
-
-	// Billing whether billing is enabled on the instance
-	Billing bool            `json:"billing"`
+	Auth    *APIMetaAuth    `json:"auth,omitempty"`
 	Posthog *APIMetaPosthog `json:"posthog,omitempty"`
 
 	// PylonAppId the Pylon app ID for usepylon.com chat support
