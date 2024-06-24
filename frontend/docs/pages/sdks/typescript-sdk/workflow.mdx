@@ -103,7 +103,7 @@ const stepWithTimeout: Step = {
 
 ## Cancellations
 
-When a step is running and needs to be cancelled, Hatchet will send a cancellation signal to the step via it's context. For now, you must handle this signal to exit the step at a logical point:
+When a step is running and needs to be cancelled, Hatchet will send a cancellation signal to the step via it's context. This cancellation signal can be retrieved via `ctx.controller.signal` which returns an [`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController), and is used by many HTTP libraries to cancel active requests. You can also case on the `signal.aborted` property to check if the step has been cancelled. For example:
 
 ```ts
 {
