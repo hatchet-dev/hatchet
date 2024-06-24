@@ -1447,12 +1447,6 @@ type ClientInterface interface {
 	// UserGetCurrent request
 	UserGetCurrent(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UserUpdateGithubAppOauthCallback request
-	UserUpdateGithubAppOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UserUpdateGithubAppOauthStart request
-	UserUpdateGithubAppOauthStart(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// UserUpdateGithubOauthCallback request
 	UserUpdateGithubOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2224,30 +2218,6 @@ func (c *Client) WorkflowRunGetMetrics(ctx context.Context, tenant openapi_types
 
 func (c *Client) UserGetCurrent(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUserGetCurrentRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UserUpdateGithubAppOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUserUpdateGithubAppOauthCallbackRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UserUpdateGithubAppOauthStart(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUserUpdateGithubAppOauthStartRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -4893,60 +4863,6 @@ func NewUserGetCurrentRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewUserUpdateGithubAppOauthCallbackRequest generates requests for UserUpdateGithubAppOauthCallback
-func NewUserUpdateGithubAppOauthCallbackRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/users/github-app/callback")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUserUpdateGithubAppOauthStartRequest generates requests for UserUpdateGithubAppOauthStart
-func NewUserUpdateGithubAppOauthStartRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/users/github-app/start")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewUserUpdateGithubOauthCallbackRequest generates requests for UserUpdateGithubOauthCallback
 func NewUserUpdateGithubOauthCallbackRequest(server string) (*http.Request, error) {
 	var err error
@@ -5925,12 +5841,6 @@ type ClientWithResponsesInterface interface {
 
 	// UserGetCurrentWithResponse request
 	UserGetCurrentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserGetCurrentResponse, error)
-
-	// UserUpdateGithubAppOauthCallbackWithResponse request
-	UserUpdateGithubAppOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateGithubAppOauthCallbackResponse, error)
-
-	// UserUpdateGithubAppOauthStartWithResponse request
-	UserUpdateGithubAppOauthStartWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateGithubAppOauthStartResponse, error)
 
 	// UserUpdateGithubOauthCallbackWithResponse request
 	UserUpdateGithubOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateGithubOauthCallbackResponse, error)
@@ -7131,48 +7041,6 @@ func (r UserGetCurrentResponse) StatusCode() int {
 	return 0
 }
 
-type UserUpdateGithubAppOauthCallbackResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-}
-
-// Status returns HTTPResponse.Status
-func (r UserUpdateGithubAppOauthCallbackResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UserUpdateGithubAppOauthCallbackResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UserUpdateGithubAppOauthStartResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-}
-
-// Status returns HTTPResponse.Status
-func (r UserUpdateGithubAppOauthStartResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UserUpdateGithubAppOauthStartResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type UserUpdateGithubOauthCallbackResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -8162,24 +8030,6 @@ func (c *ClientWithResponses) UserGetCurrentWithResponse(ctx context.Context, re
 		return nil, err
 	}
 	return ParseUserGetCurrentResponse(rsp)
-}
-
-// UserUpdateGithubAppOauthCallbackWithResponse request returning *UserUpdateGithubAppOauthCallbackResponse
-func (c *ClientWithResponses) UserUpdateGithubAppOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateGithubAppOauthCallbackResponse, error) {
-	rsp, err := c.UserUpdateGithubAppOauthCallback(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUserUpdateGithubAppOauthCallbackResponse(rsp)
-}
-
-// UserUpdateGithubAppOauthStartWithResponse request returning *UserUpdateGithubAppOauthStartResponse
-func (c *ClientWithResponses) UserUpdateGithubAppOauthStartWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateGithubAppOauthStartResponse, error) {
-	rsp, err := c.UserUpdateGithubAppOauthStart(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUserUpdateGithubAppOauthStartResponse(rsp)
 }
 
 // UserUpdateGithubOauthCallbackWithResponse request returning *UserUpdateGithubOauthCallbackResponse
@@ -10250,38 +10100,6 @@ func ParseUserGetCurrentResponse(rsp *http.Response) (*UserGetCurrentResponse, e
 		}
 		response.JSON405 = &dest
 
-	}
-
-	return response, nil
-}
-
-// ParseUserUpdateGithubAppOauthCallbackResponse parses an HTTP response from a UserUpdateGithubAppOauthCallbackWithResponse call
-func ParseUserUpdateGithubAppOauthCallbackResponse(rsp *http.Response) (*UserUpdateGithubAppOauthCallbackResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UserUpdateGithubAppOauthCallbackResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	return response, nil
-}
-
-// ParseUserUpdateGithubAppOauthStartResponse parses an HTTP response from a UserUpdateGithubAppOauthStartWithResponse call
-func ParseUserUpdateGithubAppOauthStartResponse(rsp *http.Response) (*UserUpdateGithubAppOauthStartResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UserUpdateGithubAppOauthStartResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
 	}
 
 	return response, nil
