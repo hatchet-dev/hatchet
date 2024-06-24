@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/hatchet-dev/hatchet/internal/whrequest"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -76,86 +78,97 @@ func (c *WebhooksController) check() error {
 			return fmt.Errorf("could not get webhook workers: %w", err)
 		}
 
+		ec := errgroup.Group{}
+		ec.SetLimit(5)
 		for _, ww := range wws {
-			id := sqlchelpers.UUIDToStr(ww.ID)
-			if _, ok := c.registeredWorkerIds[id]; ok {
+			ec.Go(func() error {
+				id := sqlchelpers.UUIDToStr(ww.ID)
+				if _, ok := c.registeredWorkerIds[id]; ok {
+					if ww.Deleted {
+						c.sc.Logger.Debug().Msgf("webhook worker %s of tenant %s has been deleted", id, tenantId)
+						err := c.sc.EngineRepository.Worker().DeleteWorkersByName(context.Background(), tenantId, "Webhook_"+id)
+						if err != nil {
+							c.sc.Logger.Err(err).Msgf("could not delete worker")
+							return nil
+						}
+
+						delete(c.registeredWorkerIds, id)
+					}
+					return nil
+				}
+
 				if ww.Deleted {
-					c.sc.Logger.Debug().Msgf("webhook worker %s of tenant %s has been deleted", id, tenantId)
-					err := c.sc.EngineRepository.Worker().DeleteWorkersByName(context.Background(), tenantId, "Webhook_"+id)
+					return nil
+				}
+
+				h, err := c.healthcheck(ww)
+				if err != nil {
+					c.sc.Logger.Warn().Err(err).Msgf("webhook worker %s of tenant %s healthcheck failed: %v", id, tenantId, err)
+					return nil
+				}
+
+				c.registeredWorkerIds[id] = true
+
+				var token string
+				if ww.TokenValue.Valid {
+					tokenBytes, err := base64.StdEncoding.DecodeString(ww.TokenValue.String)
 					if err != nil {
-						return fmt.Errorf("could not delete worker: %w", err)
+						c.sc.Logger.Error().Err(err).Msgf("failed to decode access token: %s", err.Error())
+						return nil
+					}
+					decTok, err := c.sc.Encryption.Decrypt(tokenBytes, "engine_webhook_worker_token")
+					if err != nil {
+						c.sc.Logger.Error().Err(err).Msgf("failed to encrypt access token: %s", err.Error())
+						return nil
 					}
 
-					delete(c.registeredWorkerIds, id)
+					token = string(decTok)
+				} else {
+					tok, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker")
+					if err != nil {
+						c.sc.Logger.Error().Err(err).Msgf("could not generate token for webhook worker %s of tenant %s", id, tenantId)
+						return nil
+					}
+
+					encTok, err := c.sc.Encryption.Encrypt([]byte(tok.Token), "engine_webhook_worker_token")
+					if err != nil {
+						c.sc.Logger.Error().Err(err).Msgf("failed to encrypt access token: %s", err.Error())
+						return nil
+					}
+
+					encTokStr := base64.StdEncoding.EncodeToString(encTok)
+
+					_, err = c.sc.EngineRepository.WebhookWorker().UpsertWebhookWorker(context.Background(), &repository.UpsertWebhookWorkerOpts{
+						Name:       ww.Name,
+						URL:        ww.Url,
+						Secret:     ww.Secret,
+						TenantId:   tenantId,
+						TokenID:    &tok.TokenId,
+						TokenValue: &encTokStr,
+					})
+					if err != nil {
+						c.sc.Logger.Error().Err(err).Msgf("could not update webhook worker %s of tenant %s", id, tenantId)
+						return nil
+					}
+
+					token = tok.Token
 				}
-				continue
-			}
 
-			if ww.Deleted {
-				continue
-			}
-
-			h, err := c.healthcheck(ww)
-			if err != nil {
-				c.sc.Logger.Warn().Err(err).Msgf("webhook worker %s of tenant %s healthcheck failed: %v", id, tenantId, err)
-				continue
-			}
-
-			c.registeredWorkerIds[id] = true
-
-			var token string
-			if ww.TokenValue.Valid {
-				tokenBytes, err := base64.StdEncoding.DecodeString(ww.TokenValue.String)
+				cleanup, err := c.run(tenantId, ww, token, h)
 				if err != nil {
-					c.sc.Logger.Error().Err(err).Msgf("failed to decode access token: %s", err.Error())
-					continue
+					c.sc.Logger.Error().Err(err).Msgf("error running webhook worker %s of tenant %s healthcheck", id, tenantId)
+					return nil
 				}
-				decTok, err := c.sc.Encryption.Decrypt(tokenBytes, "engine_webhook_worker_token")
-				if err != nil {
-					c.sc.Logger.Error().Err(err).Msgf("failed to encrypt access token: %s", err.Error())
-					continue
+				if cleanup != nil {
+					c.cleanups = append(c.cleanups, cleanup)
 				}
 
-				token = string(decTok)
-			} else {
-				tok, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker")
-				if err != nil {
-					c.sc.Logger.Error().Err(err).Msgf("could not generate token for webhook worker %s of tenant %s", id, tenantId)
-					continue
-				}
+				return nil
+			})
+		}
 
-				encTok, err := c.sc.Encryption.Encrypt([]byte(tok.Token), "engine_webhook_worker_token")
-				if err != nil {
-					c.sc.Logger.Error().Err(err).Msgf("failed to encrypt access token: %s", err.Error())
-					continue
-				}
-
-				encTokStr := base64.StdEncoding.EncodeToString(encTok)
-
-				_, err = c.sc.EngineRepository.WebhookWorker().UpsertWebhookWorker(context.Background(), &repository.UpsertWebhookWorkerOpts{
-					Name:       ww.Name,
-					URL:        ww.Url,
-					Secret:     ww.Secret,
-					TenantId:   tenantId,
-					TokenID:    &tok.TokenId,
-					TokenValue: &encTokStr,
-				})
-				if err != nil {
-					c.sc.Logger.Error().Err(err).Msgf("could not update webhook worker %s of tenant %s", id, tenantId)
-					continue
-				}
-
-				token = tok.Token
-			}
-
-			cleanup, err := c.run(tenantId, ww, token, h)
-			if err != nil {
-				c.sc.Logger.Error().Err(err).Msgf("error running webhook worker %s of tenant %s healthcheck", id, tenantId)
-				continue
-			}
-			if cleanup != nil {
-				c.cleanups = append(c.cleanups, cleanup)
-			}
+		if err = ec.Wait(); err != nil {
+			panic(err) // the error group above is not expected to error
 		}
 	}
 
