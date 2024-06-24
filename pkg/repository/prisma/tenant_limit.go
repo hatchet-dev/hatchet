@@ -21,6 +21,7 @@ type tenantLimitRepository struct {
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 	config  *server.ConfigFileRuntime
+	plans   *repository.PlanLimitMap
 }
 
 func NewTenantLimitRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, s *server.ConfigFileRuntime) repository.TenantLimitRepository {
@@ -32,6 +33,7 @@ func NewTenantLimitRepository(pool *pgxpool.Pool, v validator.Validator, l *zero
 		pool:    pool,
 		l:       l,
 		config:  s,
+		plans:   nil,
 	}
 }
 
@@ -40,113 +42,130 @@ func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Conte
 	return err
 }
 
-func (t *tenantLimitRepository) CreateTenantDefaultLimits(ctx context.Context, tenantId string) error {
-	err := t.createDefaultWorkflowRunLimit(ctx, tenantId)
+func (t *tenantLimitRepository) SetPlanLimitMap(planLimitMap repository.PlanLimitMap) error {
+	return nil
+}
 
-	if err != nil {
+func (t *tenantLimitRepository) DefaultLimits() []repository.Limit {
+	return []repository.Limit{
+		{
+			Resource:         dbsqlc.LimitResourceWORKFLOWRUN,
+			Limit:            int32(t.config.Limits.DefaultWorkflowRunLimit),
+			Alarm:            int32(t.config.Limits.DefaultWorkflowRunAlarmLimit),
+			Window:           &t.config.Limits.DefaultWorkflowRunWindow,
+			CustomValueMeter: false,
+		},
+		{
+			Resource:         dbsqlc.LimitResourceEVENT,
+			Limit:            int32(t.config.Limits.DefaultEventLimit),
+			Alarm:            int32(t.config.Limits.DefaultEventAlarmLimit),
+			Window:           &t.config.Limits.DefaultEventWindow,
+			CustomValueMeter: false,
+		},
+		{
+			Resource:         dbsqlc.LimitResourceWORKER,
+			Limit:            int32(t.config.Limits.DefaultWorkerLimit),
+			Alarm:            int32(t.config.Limits.DefaultWorkerAlarmLimit),
+			Window:           nil,
+			CustomValueMeter: true,
+		},
+	}
+}
+
+func (t *tenantLimitRepository) planLimitMap(plan *string) []repository.Limit {
+	if t.plans == nil || plan == nil {
+		return t.DefaultLimits()
+	}
+
+	if _, ok := (*t.plans)[*plan]; !ok {
+		return t.DefaultLimits()
+	}
+
+	return (*t.plans)[*plan]
+}
+
+func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, tenantId string, plan *string) error {
+
+	planLimits := t.planLimitMap(plan)
+
+	for _, limits := range planLimits {
+		err := t.patchTenantResourceLimit(ctx, tenantId, limits, false)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (t *tenantLimitRepository) UpsertTenantLimits(ctx context.Context, tenantId string, plan *string) error {
+	planLimits := t.planLimitMap(plan)
+
+	for _, limits := range planLimits {
+		err := t.patchTenantResourceLimit(ctx, tenantId, limits, true)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, tenantId string, limits repository.Limit, upsert bool) error {
+
+	limit := pgtype.Int4{}
+
+	if limits.Limit >= 0 {
+		limit.Int32 = limits.Limit
+		limit.Valid = true
+	}
+
+	alarm := pgtype.Int4{}
+
+	if limits.Alarm >= 0 {
+		alarm.Int32 = limits.Alarm
+		alarm.Valid = true
+	}
+
+	window := pgtype.Text{}
+
+	if limits.Window != nil {
+		window.String = limits.Window.String()
+		window.Valid = true
+	}
+
+	cvm := pgtype.Bool{Bool: false, Valid: true}
+
+	if limits.CustomValueMeter {
+		cvm.Bool = true
+	}
+
+	if upsert {
+		_, err := t.queries.UpsertTenantResourceLimit(ctx, t.pool, dbsqlc.UpsertTenantResourceLimitParams{
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Resource: dbsqlc.NullLimitResource{
+				LimitResource: limits.Resource,
+				Valid:         true,
+			},
+			LimitValue:       limit,
+			AlarmValue:       alarm,
+			Window:           window,
+			CustomValueMeter: cvm,
+		})
+
 		return err
 	}
 
-	err = t.createDefaultEventLimit(ctx, tenantId)
-
-	if err != nil {
-		return err
-	}
-
-	// TODO: implement cron limits
-	// err = t.createDefaultCronLimit(ctx, tenantId)
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	// TODO: implement schedule limits
-	// err = t.createDefaultScheduleLimit(ctx, tenantId)
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	err = t.createDefaultWorkerLimit(ctx, tenantId)
-
-	return err
-}
-
-func (t *tenantLimitRepository) createDefaultWorkflowRunLimit(ctx context.Context, tenantId string) error {
 	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Resource: dbsqlc.NullLimitResource{
-			LimitResource: dbsqlc.LimitResourceWORKFLOWRUN,
+			LimitResource: limits.Resource,
 			Valid:         true,
 		},
-		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultWorkflowRunLimit)),
-		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultWorkflowRunAlarmLimit)),
-		Window:     sqlchelpers.TextFromStr(t.config.Limits.DefaultWorkflowRunWindow.String()),
-	})
-
-	return err
-}
-
-func (t *tenantLimitRepository) createDefaultEventLimit(ctx context.Context, tenantId string) error {
-
-	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Resource: dbsqlc.NullLimitResource{
-			LimitResource: dbsqlc.LimitResourceEVENT,
-			Valid:         true,
-		},
-		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultEventLimit)),
-		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultEventAlarmLimit)),
-		Window:     sqlchelpers.TextFromStr(t.config.Limits.DefaultEventWindow.String()),
-	})
-
-	return err
-}
-
-// func (t *tenantLimitRepository) createDefaultCronLimit(ctx context.Context, tenantId string) error {
-
-// 	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
-// 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-// 		Resource: dbsqlc.NullLimitResource{
-// 			LimitResource: dbsqlc.LimitResourceCRON,
-// 			Valid:         true,
-// 		},
-// 		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultCronLimit)),
-// 		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultCronAlarmLimit)),
-// 	})
-
-// 	return err
-// }
-
-// func (t *tenantLimitRepository) createDefaultScheduleLimit(ctx context.Context, tenantId string) error {
-
-// 	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
-// 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-// 		Resource: dbsqlc.NullLimitResource{
-// 			LimitResource: dbsqlc.LimitResourceSCHEDULE,
-// 			Valid:         true,
-// 		},
-// 		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultScheduleLimit)),
-// 		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultScheduleAlarmLimit)),
-// 	})
-
-// 	return err
-// }
-
-func (t *tenantLimitRepository) createDefaultWorkerLimit(ctx context.Context, tenantId string) error {
-
-	_, err := t.queries.SelectOrInsertTenantResourceLimit(ctx, t.pool, dbsqlc.SelectOrInsertTenantResourceLimitParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Resource: dbsqlc.NullLimitResource{
-			LimitResource: dbsqlc.LimitResourceWORKER,
-			Valid:         true,
-		},
-		LimitValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultWorkerLimit)),
-		AlarmValue: sqlchelpers.ToInt(int32(t.config.Limits.DefaultWorkerAlarmLimit)),
-		CustomValueMeter: pgtype.Bool{
-			Bool:  true,
-			Valid: true,
-		},
+		LimitValue:       limit,
+		AlarmValue:       alarm,
+		Window:           window,
+		CustomValueMeter: cvm,
 	})
 
 	return err
@@ -196,7 +215,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 	if err == pgx.ErrNoRows {
 		t.l.Warn().Msgf("no %s tenant limit found, creating default limit", string(resource))
 
-		err = t.CreateTenantDefaultLimits(ctx, tenantId)
+		err = t.SelectOrInsertTenantLimits(ctx, tenantId, nil)
 
 		if err != nil {
 			return false, 0, err

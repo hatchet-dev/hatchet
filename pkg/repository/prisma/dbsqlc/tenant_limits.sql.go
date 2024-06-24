@@ -291,3 +291,59 @@ func (q *Queries) SelectOrInsertTenantResourceLimit(ctx context.Context, db DBTX
 	)
 	return &i, err
 }
+
+const upsertTenantResourceLimit = `-- name: UpsertTenantResourceLimit :one
+INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "lastRefill", "customValueMeter")
+VALUES (
+  gen_random_uuid(),
+  $1::uuid,
+  $2::"LimitResource",
+  0,
+  $3::int,
+  $4::int,
+  $5::text,
+  CURRENT_TIMESTAMP,
+  COALESCE($6::boolean, false)
+)
+ON CONFLICT ("tenantId", "resource") DO UPDATE SET
+  "limitValue" = $3::int,
+  "alarmValue" = $4::int,
+  "window" = $5::text,
+  "customValueMeter" = COALESCE($6::boolean, false)
+RETURNING id, "createdAt", "updatedAt", resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "customValueMeter"
+`
+
+type UpsertTenantResourceLimitParams struct {
+	Tenantid         pgtype.UUID       `json:"tenantid"`
+	Resource         NullLimitResource `json:"resource"`
+	LimitValue       pgtype.Int4       `json:"limitValue"`
+	AlarmValue       pgtype.Int4       `json:"alarmValue"`
+	Window           pgtype.Text       `json:"window"`
+	CustomValueMeter pgtype.Bool       `json:"customValueMeter"`
+}
+
+func (q *Queries) UpsertTenantResourceLimit(ctx context.Context, db DBTX, arg UpsertTenantResourceLimitParams) (*TenantResourceLimit, error) {
+	row := db.QueryRow(ctx, upsertTenantResourceLimit,
+		arg.Tenantid,
+		arg.Resource,
+		arg.LimitValue,
+		arg.AlarmValue,
+		arg.Window,
+		arg.CustomValueMeter,
+	)
+	var i TenantResourceLimit
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Resource,
+		&i.TenantId,
+		&i.LimitValue,
+		&i.AlarmValue,
+		&i.Value,
+		&i.Window,
+		&i.LastRefill,
+		&i.CustomValueMeter,
+	)
+	return &i, err
+}

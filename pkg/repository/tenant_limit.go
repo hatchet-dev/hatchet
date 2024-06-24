@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
@@ -9,6 +10,16 @@ import (
 type TenantLimitConfig struct {
 	EnforceLimits bool
 }
+
+type Limit struct {
+	Resource         dbsqlc.LimitResource
+	Limit            int32
+	Alarm            int32
+	Window           *time.Duration
+	CustomValueMeter bool
+}
+
+type PlanLimitMap map[string][]Limit
 
 type TenantLimitRepository interface {
 	GetLimits(ctx context.Context, tenantId string) ([]*dbsqlc.TenantResourceLimit, error)
@@ -20,8 +31,16 @@ type TenantLimitRepository interface {
 	Meter(ctx context.Context, resource dbsqlc.LimitResource, tenantId string) (*dbsqlc.TenantResourceLimit, error)
 
 	// Create new Tenant Resource Limits for a tenant
-	CreateTenantDefaultLimits(ctx context.Context, tenantId string) error
+	SelectOrInsertTenantLimits(ctx context.Context, tenantId string, plan *string) error
+
+	// UpsertTenantLimits updates or inserts new tenant limits
+	UpsertTenantLimits(ctx context.Context, tenantId string, plan *string) error
 
 	// Resolve all tenant resource limits
 	ResolveAllTenantResourceLimits(ctx context.Context) error
+
+	// SetPlanLimitMap sets the plan limit map
+	SetPlanLimitMap(planLimitMap PlanLimitMap) error
+
+	DefaultLimits() []Limit
 }
