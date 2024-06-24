@@ -87,22 +87,22 @@ type ConfigFileRuntime struct {
 }
 
 type LimitConfigFile struct {
-	DefaultWorkflowRunLimit      int           `mapstructure:"defaultWorkflowRunLimit" json:"defaultWorkflowRunLimit,omitempty" default:"10000"`
-	DefaultWorkflowRunAlarmLimit int           `mapstructure:"defaultWorkflowRunAlarmLimit" json:"defaultWorkflowRunAlarmLimit,omitempty" default:"7500"`
+	DefaultWorkflowRunLimit      int           `mapstructure:"defaultWorkflowRunLimit" json:"defaultWorkflowRunLimit,omitempty" default:"1000"`
+	DefaultWorkflowRunAlarmLimit int           `mapstructure:"defaultWorkflowRunAlarmLimit" json:"defaultWorkflowRunAlarmLimit,omitempty" default:"750"`
 	DefaultWorkflowRunWindow     time.Duration `mapstructure:"defaultWorkflowRunWindow" json:"defaultWorkflowRunWindow,omitempty" default:"24h"`
 
 	DefaultWorkerLimit      int `mapstructure:"defaultWorkerLimit" json:"defaultWorkerLimit,omitempty" default:"4"`
 	DefaultWorkerAlarmLimit int `mapstructure:"defaultWorkerAlarmLimit" json:"defaultWorkerAlarmLimit,omitempty" default:"2"`
 
-	DefaultEventLimit      int           `mapstructure:"defaultEventLimit" json:"defaultEventLimit,omitempty" default:"10000"`
-	DefaultEventAlarmLimit int           `mapstructure:"defaultEventAlarmLimit" json:"defaultEventAlarmLimit,omitempty" default:"7500"`
+	DefaultEventLimit      int           `mapstructure:"defaultEventLimit" json:"defaultEventLimit,omitempty" default:"1000"`
+	DefaultEventAlarmLimit int           `mapstructure:"defaultEventAlarmLimit" json:"defaultEventAlarmLimit,omitempty" default:"750"`
 	DefaultEventWindow     time.Duration `mapstructure:"defaultEventWindow" json:"defaultEventWindow,omitempty" default:"24h"`
 
-	DefaultCronLimit      int `mapstructure:"defaultCronLimit" json:"defaultCronLimit,omitempty" default:"20"`
-	DefaultCronAlarmLimit int `mapstructure:"defaultCronAlarmLimit" json:"defaultCronAlarmLimit,omitempty" default:"15"`
+	DefaultCronLimit      int `mapstructure:"defaultCronLimit" json:"defaultCronLimit,omitempty" default:"5"`
+	DefaultCronAlarmLimit int `mapstructure:"defaultCronAlarmLimit" json:"defaultCronAlarmLimit,omitempty" default:"2"`
 
-	DefaultScheduleLimit      int `mapstructure:"defaultScheduleLimit" json:"defaultScheduleLimit,omitempty" default:"10000"`
-	DefaultScheduleAlarmLimit int `mapstructure:"defaultScheduleAlarmLimit" json:"defaultScheduleAlarmLimit,omitempty" default:"7500"`
+	DefaultScheduleLimit      int `mapstructure:"defaultScheduleLimit" json:"defaultScheduleLimit,omitempty" default:"1000"`
+	DefaultScheduleAlarmLimit int `mapstructure:"defaultScheduleAlarmLimit" json:"defaultScheduleAlarmLimit,omitempty" default:"750"`
 }
 
 // Alerting options

@@ -10,10 +10,10 @@
  */
 
 import {
+  AcceptInviteRequest,
   APIError,
   APIErrors,
   APIMeta,
-  AcceptInviteRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
   CreateEventRequest,
@@ -38,8 +38,8 @@ import {
   ListGithubBranchesResponse,
   ListGithubReposResponse,
   ListPullRequestsResponse,
-  ListSNSIntegrations,
   ListSlackWebhooks,
+  ListSNSIntegrations,
   LogLineLevelField,
   LogLineList,
   LogLineOrderByDirection,
@@ -79,10 +79,10 @@ import {
   WorkflowMetrics,
   WorkflowRun,
   WorkflowRunList,
-  WorkflowRunStatus,
-  WorkflowRunStatusList,
   WorkflowRunsCancelRequest,
   WorkflowRunsMetrics,
+  WorkflowRunStatus,
+  WorkflowRunStatusList,
   WorkflowVersion,
   WorkflowVersionDefinition,
 } from "./data-contracts";
