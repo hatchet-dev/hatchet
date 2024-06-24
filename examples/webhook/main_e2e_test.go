@@ -47,7 +47,7 @@ func TestWebhook(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 				defer cancel()
 
-				event := "user:create:webhook"
+				event := "user:webhook-simple"
 				workflow := "simple-webhook"
 				wf := &worker.WorkflowJob{
 					On:          worker.Event(event),
@@ -148,7 +148,7 @@ func TestWebhook(t *testing.T) {
 					panic(fmt.Errorf("error creating worker: %w", err))
 				}
 
-				event := "user:create:webhook-failure"
+				event := "user:create-webhook-failure"
 				err = w.On(worker.Events(event), wf)
 				if err != nil {
 					panic(fmt.Errorf("error registering webhook workflow: %w", err))
@@ -167,6 +167,112 @@ func TestWebhook(t *testing.T) {
 				}
 
 				verifyStepRuns(prisma, event, c.TenantId(), db.JobRunStatusFailed, db.StepRunStatusFailed, nil)
+			},
+		},
+		{
+			name: "register action",
+			job: func(t *testing.T) {
+				events := make(chan string, 10)
+
+				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+				defer cancel()
+
+				w, err := worker.NewWorker(
+					worker.WithClient(
+						c,
+					),
+				)
+				if err != nil {
+					panic(fmt.Errorf("error creating worker: %w", err))
+				}
+
+				testSvc := w.NewService("test")
+
+				err = testSvc.RegisterAction(func(ctx worker.HatchetContext) (*output, error) {
+					time.Sleep(5 * time.Second)
+
+					events <- "wha-webhook-action-1"
+
+					return &output{
+						Message: "hi from wha-webhook-action-1",
+					}, nil
+				}, worker.WithActionName("wha-webhook-action-1"))
+				if err != nil {
+					panic(err)
+				}
+
+				event := "user:wha-webhook-actions"
+
+				err = testSvc.On(
+					worker.Event(event),
+					testSvc.Call("wha-webhook-action-1"),
+				)
+
+				workflow := "wha-webhook-with-actions"
+				wf := &worker.WorkflowJob{
+					On:          worker.Event(event),
+					Name:        workflow,
+					Description: workflow,
+					Steps: []*worker.WorkflowStep{
+						worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
+							//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
+
+							events <- "wha-webhook-step-one"
+
+							return &output{
+								Message: "hi from " + ctx.StepName(),
+							}, nil
+						}).SetName("wha-webhook-step-one").SetTimeout("60s"),
+						worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
+							var out output
+							if err := ctx.StepOutput("wha-webhook-step-one", &out); err != nil {
+								panic(err)
+							}
+							if out.Message != "hi from wha-webhook-step-one" {
+								panic(fmt.Errorf("expected step run output to be valid, got %s", out.Message))
+							}
+
+							events <- "wha-webhook-step-two"
+
+							//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
+
+							return &output{
+								Message: "hi from " + ctx.StepName(),
+							}, nil
+						}).SetName("wha-webhook-step-two").SetTimeout("60s").AddParents("wha-webhook-step-one"),
+					},
+				}
+
+				handler := w.WebhookHttpHandler(worker.WebhookHandlerOptions{
+					Secret: "secret",
+				}, wf)
+				err = run(w, "8744", handler, c, workflow, event)
+				if err != nil {
+					t.Fatalf("run() error = %s", err)
+				}
+
+				var items []string
+			outer:
+				for {
+					select {
+					case item := <-events:
+						items = append(items, item)
+					case <-ctx.Done():
+						break outer
+					}
+				}
+
+				assert.Equal(t, []string{
+					"wha-webhook-step-one",
+					"wha-webhook-step-two",
+					"wha-webhook-action-1",
+				}, items)
+
+				verifyStepRuns(prisma, event, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
+					if string(output) != `{"message":"hi from wha-webhook-step-one"}` && string(output) != `{"message":"hi from wha-webhook-step-two"}` && string(output) != `{"message":"hi from wha-webhook-action-1"}` {
+						panic(fmt.Errorf("expected step run output to be valid, got %s", output))
+					}
+				})
 			},
 		},
 	}
