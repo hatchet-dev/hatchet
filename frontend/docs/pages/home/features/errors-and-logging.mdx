@@ -9,7 +9,7 @@ Hatchet automatically catches and handles uncaught errors that occur during work
 Here's an example of how an uncaught error thrown in a step's `run` function is handled:
 
 ```typescript
-import { Step, Context } from "@hatchet/types";
+import { Step, Context } from "@hatchet-dev/typescript-sdk";
 
 const myStep: Step<any, any> = async (context: Context<any>) => {
   // Step logic that may throw an error
@@ -34,7 +34,7 @@ In addition to automatic error handling for uncaught errors, Hatchet provides a 
 Here's an example of how to use `context.log()` to log information during step execution:
 
 ```typescript
-import { Step, Context } from "@hatchet/types";
+import { Step, Context } from "@hatchet-dev/typescript-sdk";
 
 const myStep: Step<any, any> = async (context: Context<any>) => {
   // Log information at various points in the step
