@@ -7,6 +7,7 @@ import (
 	"github.com/steebchen/prisma-client-go/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
@@ -46,7 +47,7 @@ func NewGithubWebhookCreateOpts(
 	repoOwner string,
 	repoName string,
 ) (opts *CreateGithubWebhookOpts, signingSecret string, err error) {
-	signingSecret, err = encryption.GenerateRandomBytes(16)
+	signingSecret, err = random.Generate(16)
 
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to generate signing secret: %s", err.Error())

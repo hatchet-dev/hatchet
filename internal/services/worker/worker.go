@@ -15,8 +15,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/vcsutils"
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -241,7 +241,7 @@ func (w *WorkerImpl) handleStartPullRequest(ctx worker.HatchetContext) error {
 				return true
 			})
 
-			prSuffix, err := encryption.GenerateRandomBytes(4)
+			prSuffix, err := random.Generate(4)
 
 			if err != nil {
 				return fmt.Errorf("could not generate random bytes: %w", err)
