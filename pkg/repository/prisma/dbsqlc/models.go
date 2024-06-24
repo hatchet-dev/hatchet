@@ -188,12 +188,11 @@ func (ns NullJobRunStatus) Value() (driver.Value, error) {
 type LimitResource string
 
 const (
-	LimitResourceWORKFLOWRUN  LimitResource = "WORKFLOW_RUN"
-	LimitResourceEVENT        LimitResource = "EVENT"
-	LimitResourceWORKER       LimitResource = "WORKER"
-	LimitResourceCRON         LimitResource = "CRON"
-	LimitResourceSCHEDULE     LimitResource = "SCHEDULE"
-	LimitResourceTENANTMEMBER LimitResource = "TENANT_MEMBER"
+	LimitResourceWORKFLOWRUN LimitResource = "WORKFLOW_RUN"
+	LimitResourceEVENT       LimitResource = "EVENT"
+	LimitResourceWORKER      LimitResource = "WORKER"
+	LimitResourceCRON        LimitResource = "CRON"
+	LimitResourceSCHEDULE    LimitResource = "SCHEDULE"
 )
 
 func (e *LimitResource) Scan(src interface{}) error {
