@@ -51,6 +51,26 @@ UNION ALL
 SELECT * FROM existing
 LIMIT 1;
 
+-- name: UpsertTenantResourceLimit :one
+INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "lastRefill", "customValueMeter")
+VALUES (
+  gen_random_uuid(),
+  @tenantId::uuid,
+  sqlc.narg('resource')::"LimitResource",
+  0,
+  sqlc.narg('limitValue')::int,
+  sqlc.narg('alarmValue')::int,
+  sqlc.narg('window')::text,
+  CURRENT_TIMESTAMP,
+  COALESCE(sqlc.narg('customValueMeter')::boolean, false)
+)
+ON CONFLICT ("tenantId", "resource") DO UPDATE SET
+  "limitValue" = sqlc.narg('limitValue')::int,
+  "alarmValue" = sqlc.narg('alarmValue')::int,
+  "window" = sqlc.narg('window')::text,
+  "customValueMeter" = COALESCE(sqlc.narg('customValueMeter')::boolean, false)
+RETURNING *;
+
 -- name: MeterTenantResource :one
 UPDATE "TenantResourceLimit"
 SET
