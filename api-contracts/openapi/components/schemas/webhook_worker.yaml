@@ -1,5 +1,4 @@
 WebhookWorker:
-  x-resources: ["tenant", "event"]
   properties:
     metadata:
       $ref: "./metadata.yaml#/APIResourceMeta"
@@ -39,16 +38,6 @@ WebhookWorkerCreateRequest:
   required:
     - name
     - url
-  type: object
-
-WebhookWorkerDeleteRequest:
-  properties:
-    id:
-      type: string
-      format: uuid
-      description: The webhook worker id.
-  required:
-    - id
   type: object
 
 WebhookWorkerCreateResponse:

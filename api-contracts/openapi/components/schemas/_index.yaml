@@ -228,8 +228,6 @@ WebhookWorker:
   $ref: "./webhook_worker.yaml#/WebhookWorker"
 WebhookWorkerCreateRequest:
   $ref: "./webhook_worker.yaml#/WebhookWorkerCreateRequest"
-WebhookWorkerDeleteRequest:
-  $ref: "./webhook_worker.yaml#/WebhookWorkerDeleteRequest"
 WebhookWorkerCreateResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerCreateResponse"
 WebhookWorkerListResponse:

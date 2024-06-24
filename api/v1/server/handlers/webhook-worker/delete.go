@@ -9,8 +9,9 @@ import (
 
 func (i *WebhookWorkersService) WebhookDelete(ctx echo.Context, request gen.WebhookDeleteRequestObject) (gen.WebhookDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
+	webhook := ctx.Get("webhook").(*db.WebhookWorkerModel)
 
-	err := i.config.EngineRepository.WebhookWorker().DeleteWebhookWorker(ctx.Request().Context(), request.Body.Id.String(), tenant.ID)
+	err := i.config.EngineRepository.WebhookWorker().DeleteWebhookWorker(ctx.Request().Context(), webhook.ID, tenant.ID)
 	if err != nil {
 		return nil, err
 	}

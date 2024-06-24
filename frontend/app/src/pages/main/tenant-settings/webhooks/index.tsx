@@ -2,11 +2,7 @@ import { Separator } from '@/components/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import api, {
-  queries,
-  WebhookWorkerCreateRequest,
-  WebhookWorkerDeleteRequest,
-} from '@/lib/api';
+import api, { queries, WebhookWorkerCreateRequest } from '@/lib/api';
 import {
   Card,
   CardDescription,
@@ -46,7 +42,7 @@ export default function Webhooks() {
           </h2>
 
           <Button
-            key="create-api-token"
+            key="create-webhook-worker"
             onClick={() => setShowCreateTokenDialog(true)}
           >
             Create Webhook Endpoint
@@ -119,7 +115,6 @@ export default function Webhooks() {
           />
 
           <DeleteWebhookWorker
-            tenant={tenant.metadata.id}
             showDialog={showDeleteTokenDialog}
             setShowDialog={setShowDeleteTokenDialog}
             onSuccess={() => {
@@ -133,12 +128,10 @@ export default function Webhooks() {
 }
 
 function DeleteWebhookWorker({
-  tenant,
   showDialog,
   setShowDialog,
   onSuccess,
 }: {
-  tenant: string;
   onSuccess: () => void;
   showDialog: string;
   setShowDialog: (show: string) => void;
@@ -146,9 +139,9 @@ function DeleteWebhookWorker({
   const { handleApiError } = useApiError({});
 
   const deleteWebhookWorkerMutation = useMutation({
-    mutationKey: ['webhook-worker:delete', tenant],
-    mutationFn: async (data: WebhookWorkerDeleteRequest) => {
-      const res = await api.webhookDelete(tenant, data);
+    mutationKey: ['webhook-worker:delete', showDialog],
+    mutationFn: async (id: string) => {
+      const res = await api.webhookDelete(id);
       return res.data;
     },
     onSuccess: () => {
@@ -169,7 +162,7 @@ function DeleteWebhookWorker({
       <DeleteWebhookWorkerDialog
         isLoading={deleteWebhookWorkerMutation.isPending}
         onSubmit={() => {
-          deleteWebhookWorkerMutation.mutate({ id: showDialog });
+          deleteWebhookWorkerMutation.mutate(showDialog);
           setShowDialog('');
         }}
       />

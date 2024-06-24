@@ -1,6 +1,47 @@
-create:
+webhookworkers:
+  get:
+    description: Lists all webhooks
+    summary: List webhooks
+    operationId: webhook:list
+    x-resources: ["tenant"]
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WebhookWorkerListResponse"
+        description: Successfully changed password
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
   post:
     description: Creates a webhook
+    summary: Create a webhook
     operationId: webhook:create
     x-resources: ["tenant"]
     parameters:
@@ -43,58 +84,16 @@ create:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
-    summary: Create a webhook
-delete:
-  post:
+webhookworker:
+  delete:
     description: Deletes a webhook
-    operationId: webhook:delete
-    x-resources: ["tenant"]
-    parameters:
-      - description: The tenant id
-        in: path
-        name: tenant
-        required: true
-        schema:
-          type: string
-          format: uuid
-          minLength: 36
-          maxLength: 36
-    requestBody:
-      content:
-        application/json:
-          schema:
-            $ref: "../../components/schemas/_index.yaml#/WebhookWorkerDeleteRequest"
-    responses:
-      "200":
-        description: Successfully created the webhook
-      "400":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: A malformed or bad request
-      "401":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: Unauthorized
-      "405":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: Method not allowed
     summary: Delete a webhook
-list:
-  get:
-    description: Lists all webhooks
-    operationId: webhook:list
-    x-resources: ["tenant"]
+    operationId: webhook:delete
+    x-resources: ["tenant", "webhook"]
     parameters:
-      - description: The tenant id
+      - description: The webhook id
         in: path
-        name: tenant
+        name: webhook
         required: true
         schema:
           type: string
@@ -103,11 +102,7 @@ list:
           maxLength: 36
     responses:
       "200":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/WebhookWorkerListResponse"
-        description: Successfully changed password
+        description: Successfully deleted the webhook
       "400":
         content:
           application/json:
@@ -126,4 +121,3 @@ list:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
-    summary: List webhooks

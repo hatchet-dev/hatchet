@@ -73,7 +73,6 @@ import {
   UserTenantMembershipsList,
   WebhookWorker,
   WebhookWorkerCreateRequest,
-  WebhookWorkerDeleteRequest,
   WebhookWorkerListResponse,
   Worker,
   WorkerList,
@@ -1672,12 +1671,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @name WebhookList
    * @summary List webhooks
-   * @request GET:/api/v1/webhook-workers/{tenant}/list
+   * @request GET:/api/v1/tenants/{tenant}/webhook-workers
    * @secure
    */
   webhookList = (tenant: string, params: RequestParams = {}) =>
     this.request<WebhookWorkerListResponse, APIErrors>({
-      path: `/api/v1/webhook-workers/${tenant}/list`,
+      path: `/api/v1/tenants/${tenant}/webhook-workers`,
       method: "GET",
       secure: true,
       format: "json",
@@ -1688,12 +1687,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @name WebhookCreate
    * @summary Create a webhook
-   * @request POST:/api/v1/webhook-workers/{tenant}/create
+   * @request POST:/api/v1/tenants/{tenant}/webhook-workers
    * @secure
    */
   webhookCreate = (tenant: string, data: WebhookWorkerCreateRequest, params: RequestParams = {}) =>
     this.request<WebhookWorker, APIErrors>({
-      path: `/api/v1/webhook-workers/${tenant}/create`,
+      path: `/api/v1/tenants/${tenant}/webhook-workers`,
       method: "POST",
       body: data,
       secure: true,
@@ -1706,16 +1705,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @name WebhookDelete
    * @summary Delete a webhook
-   * @request POST:/api/v1/webhook-workers/{tenant}/delete
+   * @request DELETE:/api/v1/tenants/webhook-workers/{webhook}
    * @secure
    */
-  webhookDelete = (tenant: string, data: WebhookWorkerDeleteRequest, params: RequestParams = {}) =>
+  webhookDelete = (webhook: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
-      path: `/api/v1/webhook-workers/${tenant}/delete`,
-      method: "POST",
-      body: data,
+      path: `/api/v1/tenants/webhook-workers/${webhook}`,
+      method: "DELETE",
       secure: true,
-      type: ContentType.Json,
       ...params,
     });
 }

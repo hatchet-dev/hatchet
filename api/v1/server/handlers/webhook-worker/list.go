@@ -10,10 +10,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
-func (s *WebhookWorkersService) WebhookList(ctx echo.Context, request gen.WebhookListRequestObject) (gen.WebhookListResponseObject, error) {
+func (i *WebhookWorkersService) WebhookList(ctx echo.Context, request gen.WebhookListRequestObject) (gen.WebhookListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	webhooks, err := s.config.EngineRepository.WebhookWorker().ListWebhookWorkers(context.TODO(), tenant.ID)
+	webhooks, err := i.config.EngineRepository.WebhookWorker().ListWebhookWorkers(context.TODO(), tenant.ID)
 
 	if err != nil {
 		return nil, err

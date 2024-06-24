@@ -288,6 +288,15 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) error {
 		return ghInstallation, "", nil
 	})
 
+	populatorMW.RegisterGetter("webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		webhookWorker, err := config.APIRepository.WebhookWorker().GetWebhookWorkerByID(id)
+		if err != nil {
+			return nil, "", err
+		}
+
+		return webhookWorker, webhookWorker.TenantID, nil
+	})
+
 	authnMW := authn.NewAuthN(t.config)
 	authzMW := authz.NewAuthZ(t.config)
 
