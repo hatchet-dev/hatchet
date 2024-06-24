@@ -13,6 +13,18 @@ func ToWebhookWorker(webhookWorker *dbsqlc.WebhookWorker) *gen.WebhookWorker {
 			webhookWorker.CreatedAt.Time,
 			webhookWorker.UpdatedAt.Time,
 		),
+		Name: webhookWorker.Name,
+		Url:  webhookWorker.Url,
+	}
+}
+
+func ToWebhookWorkerCreated(webhookWorker *dbsqlc.WebhookWorker) *gen.WebhookWorkerCreated {
+	return &gen.WebhookWorkerCreated{
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(webhookWorker.ID),
+			webhookWorker.CreatedAt.Time,
+			webhookWorker.UpdatedAt.Time,
+		),
 		Name:   webhookWorker.Name,
 		Url:    webhookWorker.Url,
 		Secret: webhookWorker.Secret,

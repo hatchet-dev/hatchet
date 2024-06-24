@@ -1045,6 +1045,14 @@ export interface WebhookWorker {
   name: string;
   /** The webhook url. */
   url: string;
+}
+
+export interface WebhookWorkerCreated {
+  metadata: APIResourceMeta;
+  /** The name of the webhook worker. */
+  name: string;
+  /** The webhook url. */
+  url: string;
   /** The secret key for validation. */
   secret: string;
 }
@@ -1064,7 +1072,7 @@ export interface WebhookWorkerCreateRequest {
 }
 
 export interface WebhookWorkerCreateResponse {
-  worker?: WebhookWorker;
+  worker?: WebhookWorkerCreated;
 }
 
 export interface WebhookWorkerListResponse {

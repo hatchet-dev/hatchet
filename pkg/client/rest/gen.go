@@ -897,9 +897,6 @@ type WebhookWorker struct {
 	// Name The name of the webhook worker.
 	Name string `json:"name"`
 
-	// Secret The secret key for validation.
-	Secret string `json:"secret"`
-
 	// Url The webhook url.
 	Url string `json:"url"`
 }
@@ -917,6 +914,20 @@ type WebhookWorkerCreateRequest struct {
 
 	// Workflows The workflow IDs or names to register for this webhook worker. If not provided, workflows will be automatically detected.
 	Workflows *[]string `json:"workflows,omitempty"`
+}
+
+// WebhookWorkerCreated defines model for WebhookWorkerCreated.
+type WebhookWorkerCreated struct {
+	Metadata APIResourceMeta `json:"metadata"`
+
+	// Name The name of the webhook worker.
+	Name string `json:"name"`
+
+	// Secret The secret key for validation.
+	Secret string `json:"secret"`
+
+	// Url The webhook url.
+	Url string `json:"url"`
 }
 
 // WebhookWorkerListResponse defines model for WebhookWorkerListResponse.
@@ -8084,7 +8095,7 @@ func (r WebhookListResponse) StatusCode() int {
 type WebhookCreateResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *WebhookWorker
+	JSON200      *WebhookWorkerCreated
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
@@ -11710,7 +11721,7 @@ func ParseWebhookCreateResponse(rsp *http.Response) (*WebhookCreateResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest WebhookWorker
+		var dest WebhookWorkerCreated
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

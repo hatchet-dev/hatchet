@@ -226,6 +226,8 @@ WorkflowMetrics:
   $ref: "./workflow.yaml#/WorkflowMetrics"
 WebhookWorker:
   $ref: "./webhook_worker.yaml#/WebhookWorker"
+WebhookWorkerCreated:
+  $ref: "./webhook_worker.yaml#/WebhookWorkerCreated"
 WebhookWorkerCreateRequest:
   $ref: "./webhook_worker.yaml#/WebhookWorkerCreateRequest"
 WebhookWorkerCreateResponse:

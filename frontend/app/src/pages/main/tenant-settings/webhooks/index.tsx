@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card.tsx';
-import CopyToClipboard from '@/components/ui/copy-to-clipboard';
 import { Button } from '@/components/ui/button.tsx';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks.ts';
@@ -91,13 +90,6 @@ export default function Webhooks() {
                         {worker.metadata.id}
                       </div>
                       <div className="text-sm mt-2">{worker.url}</div>
-
-                      <div className="flex items-center gap-2 mt-2">
-                        <pre className="text-xs">
-                          {worker.secret.slice(0, 4)}****
-                        </pre>
-                        <CopyToClipboard text={worker.secret} />
-                      </div>
                     </CardDescription>
                   </CardHeader>
                 </Card>

@@ -40,5 +40,5 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 		return nil, err
 	}
 
-	return gen.WebhookCreate200JSONResponse(*transformers.ToWebhookWorker(ww)), nil
+	return gen.WebhookCreate200JSONResponse(*transformers.ToWebhookWorkerCreated(ww)), nil
 }

@@ -64,7 +64,7 @@ webhookworkers:
         content:
           application/json:
             schema:
-              $ref: "../../components/schemas/_index.yaml#/WebhookWorker"
+              $ref: "../../components/schemas/_index.yaml#/WebhookWorkerCreated"
         description: Successfully created the webhook
       "400":
         content:
