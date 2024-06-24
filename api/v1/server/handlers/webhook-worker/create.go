@@ -5,7 +5,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/internal/randstr"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
@@ -15,7 +15,7 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 
 	var secret string
 	if request.Body.Secret == nil {
-		s, err := randstr.GenerateWebhookSecret()
+		s, err := random.GenerateWebhookSecret()
 		if err != nil {
 			return nil, err
 		}
