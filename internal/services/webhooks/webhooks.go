@@ -87,8 +87,6 @@ func (c *WebhooksController) check() error {
 					}
 
 					delete(c.registeredWorkerIds, id)
-
-					continue
 				}
 				continue
 			}
