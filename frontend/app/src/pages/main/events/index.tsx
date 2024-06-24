@@ -261,6 +261,10 @@ function EventsTable() {
       return res.data;
     },
     onError: handleCreateEventApiError,
+    onSuccess: () => {
+      refetch();
+      setShowCreateEvent(false);
+    },
   });
 
   const {
