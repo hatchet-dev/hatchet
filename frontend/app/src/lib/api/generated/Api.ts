@@ -10,10 +10,10 @@
  */
 
 import {
+  AcceptInviteRequest,
   APIError,
   APIErrors,
   APIMeta,
-  AcceptInviteRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
   CreateEventRequest,
@@ -38,8 +38,8 @@ import {
   ListGithubBranchesResponse,
   ListGithubReposResponse,
   ListPullRequestsResponse,
-  ListSNSIntegrations,
   ListSlackWebhooks,
+  ListSNSIntegrations,
   LogLineLevelField,
   LogLineList,
   LogLineOrderByDirection,
@@ -62,12 +62,10 @@ import {
   TenantMemberList,
   TenantQueueMetrics,
   TenantResourcePolicy,
-  TenantSubscription,
   TriggerWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
   UpdateTenantRequest,
-  UpdateTenantSubscription,
   User,
   UserChangePasswordRequest,
   UserLoginRequest,
@@ -81,10 +79,10 @@ import {
   WorkflowMetrics,
   WorkflowRun,
   WorkflowRunList,
-  WorkflowRunStatus,
-  WorkflowRunStatusList,
   WorkflowRunsCancelRequest,
   WorkflowRunsMetrics,
+  WorkflowRunStatus,
+  WorkflowRunStatusList,
   WorkflowVersion,
   WorkflowVersionDefinition,
 } from "./data-contracts";
@@ -1660,62 +1658,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<ListGithubBranchesResponse, APIErrors>({
       path: `/api/v1/github-app/installations/${ghInstallation}/repos/${ghRepoOwner}/${ghRepoName}/branches`,
-      method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Receive a webhook message from Lago
-   *
-   * @tags Billing
-   * @name LagoMessageCreate
-   * @summary Receive a webhook message from Lago
-   * @request POST:/api/v1/billing/lago/webhook
-   */
-  lagoMessageCreate = (params: RequestParams = {}) =>
-    this.request<void, APIErrors>({
-      path: `/api/v1/billing/lago/webhook`,
-      method: "POST",
-      ...params,
-    });
-  /**
-   * @description Update a subscription
-   *
-   * @tags Billing
-   * @name SubscriptionUpsert
-   * @summary Create a new subscription
-   * @request PATCH:/api/v1/billing/tenants/{tenant}/subscription
-   * @secure
-   */
-  subscriptionUpsert = (tenant: string, data: UpdateTenantSubscription, params: RequestParams = {}) =>
-    this.request<TenantSubscription, APIErrors>({
-      path: `/api/v1/billing/tenants/${tenant}/subscription`,
-      method: "PATCH",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Get the billing portal link
-   *
-   * @tags Billing
-   * @name BillingPortalLinkGet
-   * @summary Create a link to the billing portal
-   * @request GET:/api/v1/billing/tenants/{tenant}/billing-portal-link
-   * @secure
-   */
-  billingPortalLinkGet = (tenant: string, params: RequestParams = {}) =>
-    this.request<
-      {
-        /** The url to the billing portal */
-        url?: string;
-      },
-      APIErrors
-    >({
-      path: `/api/v1/billing/tenants/${tenant}/billing-portal-link`,
       method: "GET",
       secure: true,
       format: "json",

@@ -160,9 +160,3 @@ paths:
     $ref: "./paths/github-app/github-app.yaml#/repos"
   /api/v1/github-app/installations/{gh-installation}/repos/{gh-repo-owner}/{gh-repo-name}/branches:
     $ref: "./paths/github-app/github-app.yaml#/branches"
-  /api/v1/billing/lago/webhook:
-    $ref: "./paths/billing/billing.yaml#/lagoWebhook"
-  /api/v1/billing/tenants/{tenant}/subscription:
-    $ref: "./paths/billing/billing.yaml#/subscription"
-  /api/v1/billing/tenants/{tenant}/billing-portal-link:
-    $ref: "./paths/billing/billing.yaml#/billingPortalLink"

@@ -249,60 +249,8 @@ export interface TenantResourceLimit {
 }
 
 export interface TenantResourcePolicy {
-  paymentMethods?: TenantPaymentMethod[];
-  /** The subscription associated with this policy. */
-  subscription: TenantSubscription;
   /** A list of resource limits for the tenant. */
   limits: TenantResourceLimit[];
-  /** A list of plans available for the tenant. */
-  plans?: SubscriptionPlan[];
-}
-
-export interface SubscriptionPlan {
-  /** The code of the plan. */
-  plan_code: string;
-  /** The name of the plan. */
-  name: string;
-  /** The description of the plan. */
-  description: string;
-  /** The price of the plan. */
-  amount_cents: number;
-  /** The period of the plan. */
-  period?: string;
-}
-
-export interface UpdateTenantSubscription {
-  /** The code of the plan. */
-  plan?: string;
-  /** The period of the plan. */
-  period?: string;
-}
-
-export interface TenantSubscription {
-  /** The plan code associated with the tenant subscription. */
-  plan?: string;
-  /** The period associated with the tenant subscription. */
-  period?: string;
-  /** The status of the tenant subscription. */
-  status?: TenantSubscriptionStatus;
-  /** A note associated with the tenant subscription. */
-  note?: string;
-}
-
-export interface TenantPaymentMethod {
-  /** The last 4 digits of the card. */
-  last4: string;
-  /** The brand of the card. */
-  brand: string;
-  /** The expiration date of the card. */
-  expiration: string;
-}
-
-export enum TenantSubscriptionStatus {
-  Active = "active",
-  Pending = "pending",
-  Terminated = "terminated",
-  Canceled = "canceled",
 }
 
 export interface CreateTenantInviteRequest {

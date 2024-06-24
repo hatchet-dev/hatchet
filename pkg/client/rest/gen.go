@@ -120,14 +120,6 @@ const (
 	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
 )
 
-// Defines values for TenantSubscriptionStatus.
-const (
-	Active     TenantSubscriptionStatus = "active"
-	Canceled   TenantSubscriptionStatus = "canceled"
-	Pending    TenantSubscriptionStatus = "pending"
-	Terminated TenantSubscriptionStatus = "terminated"
-)
-
 // Defines values for WorkerStatus.
 const (
 	ACTIVE   WorkerStatus = "ACTIVE"
@@ -670,24 +662,6 @@ type StepRunEventSeverity string
 // StepRunStatus defines model for StepRunStatus.
 type StepRunStatus string
 
-// SubscriptionPlan defines model for SubscriptionPlan.
-type SubscriptionPlan struct {
-	// AmountCents The price of the plan.
-	AmountCents int `json:"amount_cents"`
-
-	// Description The description of the plan.
-	Description string `json:"description"`
-
-	// Name The name of the plan.
-	Name string `json:"name"`
-
-	// Period The period of the plan.
-	Period *string `json:"period,omitempty"`
-
-	// PlanCode The code of the plan.
-	PlanCode string `json:"plan_code"`
-}
-
 // Tenant defines model for Tenant.
 type Tenant struct {
 	// AlertMemberEmails Whether to alert tenant members.
@@ -779,18 +753,6 @@ type TenantMemberList struct {
 // TenantMemberRole defines model for TenantMemberRole.
 type TenantMemberRole string
 
-// TenantPaymentMethod defines model for TenantPaymentMethod.
-type TenantPaymentMethod struct {
-	// Brand The brand of the card.
-	Brand string `json:"brand"`
-
-	// Expiration The expiration date of the card.
-	Expiration string `json:"expiration"`
-
-	// Last4 The last 4 digits of the card.
-	Last4 string `json:"last4"`
-}
-
 // TenantQueueMetrics defines model for TenantQueueMetrics.
 type TenantQueueMetrics struct {
 	Total    *QueueMetrics            `json:"total,omitempty"`
@@ -823,29 +785,8 @@ type TenantResourceLimit struct {
 // TenantResourcePolicy defines model for TenantResourcePolicy.
 type TenantResourcePolicy struct {
 	// Limits A list of resource limits for the tenant.
-	Limits         []TenantResourceLimit  `json:"limits"`
-	PaymentMethods *[]TenantPaymentMethod `json:"paymentMethods,omitempty"`
-
-	// Plans A list of plans available for the tenant.
-	Plans        *[]SubscriptionPlan `json:"plans,omitempty"`
-	Subscription TenantSubscription  `json:"subscription"`
+	Limits []TenantResourceLimit `json:"limits"`
 }
-
-// TenantSubscription defines model for TenantSubscription.
-type TenantSubscription struct {
-	// Note A note associated with the tenant subscription.
-	Note *string `json:"note,omitempty"`
-
-	// Period The period associated with the tenant subscription.
-	Period *string `json:"period,omitempty"`
-
-	// Plan The plan code associated with the tenant subscription.
-	Plan   *string                   `json:"plan,omitempty"`
-	Status *TenantSubscriptionStatus `json:"status,omitempty"`
-}
-
-// TenantSubscriptionStatus defines model for TenantSubscriptionStatus.
-type TenantSubscriptionStatus string
 
 // TriggerWorkflowRunRequest defines model for TriggerWorkflowRunRequest.
 type TriggerWorkflowRunRequest struct {
@@ -886,15 +827,6 @@ type UpdateTenantRequest struct {
 
 	// Name The name of the tenant.
 	Name *string `json:"name,omitempty"`
-}
-
-// UpdateTenantSubscription defines model for UpdateTenantSubscription.
-type UpdateTenantSubscription struct {
-	// Period The period of the plan.
-	Period *string `json:"period,omitempty"`
-
-	// Plan The code of the plan.
-	Plan *string `json:"plan,omitempty"`
 }
 
 // User defines model for User.
@@ -1344,9 +1276,6 @@ type WorkflowVersionGetDefinitionParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
-// SubscriptionUpsertJSONRequestBody defines body for SubscriptionUpsert for application/json ContentType.
-type SubscriptionUpsertJSONRequestBody = UpdateTenantSubscription
-
 // StepRunUpdateCreatePrJSONRequestBody defines body for StepRunUpdateCreatePr for application/json ContentType.
 type StepRunUpdateCreatePrJSONRequestBody = CreatePullRequestFromStepRun
 
@@ -1493,17 +1422,6 @@ type ClientInterface interface {
 
 	// ApiTokenUpdateRevoke request
 	ApiTokenUpdateRevoke(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// LagoMessageCreate request
-	LagoMessageCreate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// BillingPortalLinkGet request
-	BillingPortalLinkGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// SubscriptionUpsertWithBody request with any body
-	SubscriptionUpsertWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	SubscriptionUpsert(ctx context.Context, tenant openapi_types.UUID, body SubscriptionUpsertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EventDataGet request
 	EventDataGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1825,54 +1743,6 @@ func (c *Client) AlertEmailGroupUpdate(ctx context.Context, alertEmailGroup open
 
 func (c *Client) ApiTokenUpdateRevoke(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewApiTokenUpdateRevokeRequest(c.Server, apiToken)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) LagoMessageCreate(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewLagoMessageCreateRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) BillingPortalLinkGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewBillingPortalLinkGetRequest(c.Server, tenant)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SubscriptionUpsertWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSubscriptionUpsertRequestWithBody(c.Server, tenant, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) SubscriptionUpsert(ctx context.Context, tenant openapi_types.UUID, body SubscriptionUpsertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSubscriptionUpsertRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3152,114 +3022,6 @@ func NewApiTokenUpdateRevokeRequest(server string, apiToken openapi_types.UUID) 
 	if err != nil {
 		return nil, err
 	}
-
-	return req, nil
-}
-
-// NewLagoMessageCreateRequest generates requests for LagoMessageCreate
-func NewLagoMessageCreateRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/billing/lago/webhook")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewBillingPortalLinkGetRequest generates requests for BillingPortalLinkGet
-func NewBillingPortalLinkGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/billing/tenants/%s/billing-portal-link", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewSubscriptionUpsertRequest calls the generic SubscriptionUpsert builder with application/json body
-func NewSubscriptionUpsertRequest(server string, tenant openapi_types.UUID, body SubscriptionUpsertJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewSubscriptionUpsertRequestWithBody(server, tenant, "application/json", bodyReader)
-}
-
-// NewSubscriptionUpsertRequestWithBody generates requests for SubscriptionUpsert with any type of body
-func NewSubscriptionUpsertRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/billing/tenants/%s/subscription", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -6664,17 +6426,6 @@ type ClientWithResponsesInterface interface {
 	// ApiTokenUpdateRevokeWithResponse request
 	ApiTokenUpdateRevokeWithResponse(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*ApiTokenUpdateRevokeResponse, error)
 
-	// LagoMessageCreateWithResponse request
-	LagoMessageCreateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*LagoMessageCreateResponse, error)
-
-	// BillingPortalLinkGetWithResponse request
-	BillingPortalLinkGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*BillingPortalLinkGetResponse, error)
-
-	// SubscriptionUpsertWithBodyWithResponse request with any body
-	SubscriptionUpsertWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscriptionUpsertResponse, error)
-
-	SubscriptionUpsertWithResponse(ctx context.Context, tenant openapi_types.UUID, body SubscriptionUpsertJSONRequestBody, reqEditors ...RequestEditorFn) (*SubscriptionUpsertResponse, error)
-
 	// EventDataGetWithResponse request
 	EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error)
 
@@ -7039,80 +6790,6 @@ func (r ApiTokenUpdateRevokeResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ApiTokenUpdateRevokeResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type LagoMessageCreateResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r LagoMessageCreateResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r LagoMessageCreateResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type BillingPortalLinkGetResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		// Url The url to the billing portal
-		Url *string `json:"url,omitempty"`
-	}
-	JSON400 *APIErrors
-	JSON403 *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r BillingPortalLinkGetResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r BillingPortalLinkGetResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type SubscriptionUpsertResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *TenantSubscription
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r SubscriptionUpsertResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r SubscriptionUpsertResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8922,41 +8599,6 @@ func (c *ClientWithResponses) ApiTokenUpdateRevokeWithResponse(ctx context.Conte
 	return ParseApiTokenUpdateRevokeResponse(rsp)
 }
 
-// LagoMessageCreateWithResponse request returning *LagoMessageCreateResponse
-func (c *ClientWithResponses) LagoMessageCreateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*LagoMessageCreateResponse, error) {
-	rsp, err := c.LagoMessageCreate(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseLagoMessageCreateResponse(rsp)
-}
-
-// BillingPortalLinkGetWithResponse request returning *BillingPortalLinkGetResponse
-func (c *ClientWithResponses) BillingPortalLinkGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*BillingPortalLinkGetResponse, error) {
-	rsp, err := c.BillingPortalLinkGet(ctx, tenant, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseBillingPortalLinkGetResponse(rsp)
-}
-
-// SubscriptionUpsertWithBodyWithResponse request with arbitrary body returning *SubscriptionUpsertResponse
-func (c *ClientWithResponses) SubscriptionUpsertWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscriptionUpsertResponse, error) {
-	rsp, err := c.SubscriptionUpsertWithBody(ctx, tenant, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSubscriptionUpsertResponse(rsp)
-}
-
-func (c *ClientWithResponses) SubscriptionUpsertWithResponse(ctx context.Context, tenant openapi_types.UUID, body SubscriptionUpsertJSONRequestBody, reqEditors ...RequestEditorFn) (*SubscriptionUpsertResponse, error) {
-	rsp, err := c.SubscriptionUpsert(ctx, tenant, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSubscriptionUpsertResponse(rsp)
-}
-
 // EventDataGetWithResponse request returning *EventDataGetResponse
 func (c *ClientWithResponses) EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error) {
 	rsp, err := c.EventDataGet(ctx, event, reqEditors...)
@@ -9885,122 +9527,6 @@ func ParseApiTokenUpdateRevokeResponse(rsp *http.Response) (*ApiTokenUpdateRevok
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseLagoMessageCreateResponse parses an HTTP response from a LagoMessageCreateWithResponse call
-func ParseLagoMessageCreateResponse(rsp *http.Response) (*LagoMessageCreateResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &LagoMessageCreateResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseBillingPortalLinkGetResponse parses an HTTP response from a BillingPortalLinkGetWithResponse call
-func ParseBillingPortalLinkGetResponse(rsp *http.Response) (*BillingPortalLinkGetResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &BillingPortalLinkGetResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			// Url The url to the billing portal
-			Url *string `json:"url,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseSubscriptionUpsertResponse parses an HTTP response from a SubscriptionUpsertWithResponse call
-func ParseSubscriptionUpsertResponse(rsp *http.Response) (*SubscriptionUpsertResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &SubscriptionUpsertResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TenantSubscription
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

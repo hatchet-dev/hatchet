@@ -132,102 +132,14 @@ TenantResourceLimit:
     - value
   type: object
 
-TenantSubscriptionStatus:
-  enum:
-    - "active"
-    - "pending"
-    - "terminated"
-    - "canceled"
-  type: string
-
-TenantSubscription:
-  properties:
-    plan:
-      type: string
-      description: The plan code associated with the tenant subscription.
-    period:
-      type: string
-      description: The period associated with the tenant subscription.
-    status:
-      $ref: "#/TenantSubscriptionStatus"
-      description: The status of the tenant subscription.
-    note:
-      type: string
-      description: A note associated with the tenant subscription.
-
-SubscriptionPlan:
-  properties:
-    plan_code:
-      type: string
-      description: The code of the plan.
-    name:
-      type: string
-      description: The name of the plan.
-    description:
-      type: string
-      description: The description of the plan.
-    amount_cents:
-      type: integer
-      description: The price of the plan.
-    period:
-      type: string
-      description: The period of the plan.
-  required:
-    - plan_code
-    - name
-    - description
-    - amount_cents
-  type: object
-
-UpdateTenantSubscription:
-  properties:
-    plan:
-      type: string
-      description: The code of the plan.
-    period:
-      type: string
-      description: The period of the plan.
-  required:
-    - plan_code
-  type: object
-
-TenantPaymentMethod:
-  properties:
-    last4:
-      type: string
-      description: The last 4 digits of the card.
-    brand:
-      type: string
-      description: The brand of the card.
-    expiration:
-      type: string
-      description: The expiration date of the card.
-  required:
-    - last4
-    - brand
-    - expiration
-
 TenantResourcePolicy:
   properties:
-    paymentMethods:
-      type: array
-      items:
-        $ref: "#/TenantPaymentMethod"
-    subscription:
-      $ref: "#/TenantSubscription"
-      description: The subscription associated with this policy.
     limits:
       type: array
       items:
         $ref: "#/TenantResourceLimit"
       description: A list of resource limits for the tenant.
-    plans:
-      type: array
-      items:
-        $ref: "#/SubscriptionPlan"
-      description: A list of plans available for the tenant.
   required:
-    - subscription
     - limits
   type: object
 
