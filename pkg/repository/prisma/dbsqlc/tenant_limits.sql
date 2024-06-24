@@ -71,7 +71,6 @@ ON CONFLICT ("tenantId", "resource") DO UPDATE SET
   "customValueMeter" = COALESCE(sqlc.narg('customValueMeter')::boolean, false)
 RETURNING *;
 
-
 -- name: MeterTenantResource :one
 UPDATE "TenantResourceLimit"
 SET
