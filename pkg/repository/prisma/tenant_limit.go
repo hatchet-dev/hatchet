@@ -3,7 +3,6 @@ package prisma
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -26,14 +25,6 @@ type tenantLimitRepository struct {
 	plans   *repository.PlanLimitMap
 }
 
-type Limits struct {
-	resource         dbsqlc.LimitResource
-	limit            int32
-	alarm            int32
-	window           *time.Duration
-	customValueMeter bool
-}
-
 func NewTenantLimitRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, s *server.ConfigFileRuntime) repository.TenantLimitRepository {
 	queries := dbsqlc.New()
 
@@ -53,6 +44,7 @@ func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Conte
 }
 
 func (t *tenantLimitRepository) SetPlanLimitMap(planLimitMap repository.PlanLimitMap) error {
+	t.plans = &planLimitMap
 	return nil
 }
 
