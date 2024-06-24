@@ -83,6 +83,12 @@ func (t *tenantLimitRepository) DefaultLimits() []repository.Limit {
 }
 
 func (t *tenantLimitRepository) planLimitMap(plan *string) []repository.Limit {
+
+	fmt.Println(t.plans)
+	fmt.Println(plan)
+	fmt.Println(*plan)
+	fmt.Println("*****")
+
 	if t.plans == nil || plan == nil {
 		return t.DefaultLimits()
 	}
