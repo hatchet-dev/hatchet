@@ -19,6 +19,7 @@ type APIRepository interface {
 	Worker() WorkerAPIRepository
 	UserSession() UserSessionRepository
 	User() UserRepository
+	WebhookWorker() WebhookWorkerRepository
 }
 
 type EngineRepository interface {

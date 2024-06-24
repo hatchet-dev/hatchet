@@ -33,6 +33,7 @@ type apiRepository struct {
 	userSession    repository.UserSessionRepository
 	user           repository.UserRepository
 	health         repository.HealthRepository
+	webhookWorker  repository.WebhookWorkerRepository
 }
 
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
@@ -107,6 +108,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		userSession:    NewUserSessionRepository(client, opts.v),
 		user:           NewUserRepository(client, opts.v),
 		health:         NewHealthAPIRepository(client, pool),
+		webhookWorker:  NewWebhookWorkerRepository(client, opts.v),
 	}
 }
 
@@ -180,6 +182,10 @@ func (r *apiRepository) UserSession() repository.UserSessionRepository {
 
 func (r *apiRepository) User() repository.UserRepository {
 	return r.user
+}
+
+func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {
+	return r.webhookWorker
 }
 
 type engineRepository struct {
