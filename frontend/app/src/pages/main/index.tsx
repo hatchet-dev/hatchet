@@ -201,7 +201,7 @@ function SidebarButtonPrimary({
       <Button
         variant="ghost"
         className={cn(
-          'w-full justify-start pl-2 cursor-default',
+          'w-full justify-start pl-2',
           selected && 'bg-slate-200 dark:bg-slate-800',
         )}
       >
@@ -245,7 +245,7 @@ function SidebarButtonSecondary({
         variant="ghost"
         size="sm"
         className={cn(
-          'w-[calc(100%-3px)] justify-start pl-3 pr-0 ml-1 mr-3 cursor-default my-[1px]',
+          'w-[calc(100%-3px)] justify-start pl-3 pr-0 ml-1 mr-3 my-[1px]',
           selected && 'bg-slate-200 dark:bg-slate-800',
         )}
       >
