@@ -235,7 +235,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 				if err != nil {
 					healthCheckErrors++
 					if healthCheckErrors > 3 {
-						c.sc.Logger.Printf("webhook worker %s of tenant %s failed 3 health checks, marking as inactive", id, tenantId)
+						c.sc.Logger.Warn().Msgf("webhook worker %s of tenant %s failed 3 health checks, marking as inactive", id, tenantId)
 
 						isActive := false
 						_, err := c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, id, &repository.UpdateWorkerOpts{
@@ -245,7 +245,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 							c.sc.Logger.Err(err).Msgf("could not update worker")
 						}
 					} else {
-						c.sc.Logger.Printf("webhook worker %s of tenant %s failed one health check, retrying...", id, tenantId)
+						c.sc.Logger.Warn().Msgf("webhook worker %s of tenant %s failed one health check, retrying...", id, tenantId)
 					}
 					continue
 				}

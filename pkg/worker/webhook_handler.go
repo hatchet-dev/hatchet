@@ -39,24 +39,36 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 
 		data, err := io.ReadAll(r.Body)
 		if err != nil {
-			panic(err)
+			w.l.Error().Err(err).Msg("error reading body")
+			writer.WriteHeader(http.StatusInternalServerError)
+			_, _ = writer.Write([]byte(err.Error()))
+			return
 		}
 
 		expected := r.Header.Get("X-Hatchet-Signature")
 		actual, err := signature.Sign(string(data), opts.Secret)
 		if err != nil {
-			panic(fmt.Errorf("could not sign data: %w", err))
+			w.l.Error().Err(err).Msg("error signing request")
+			writer.WriteHeader(http.StatusInternalServerError)
+			_, _ = writer.Write([]byte(err.Error()))
+			return
 		}
 
 		if expected != actual {
-			panic(fmt.Errorf("invalid webhook signature"))
+			w.l.Error().Err(fmt.Errorf("expected signature %s, got %s", expected, actual)).Msg("error in request signature")
+			writer.WriteHeader(http.StatusInternalServerError)
+			_, _ = writer.Write([]byte(err.Error()))
+			return
 		}
 
 		if r.Header.Get("X-Healthcheck") != "" {
 			for _, wf := range workflows {
 				err = w.RegisterWorkflow(wf)
 				if err != nil {
-					panic(err)
+					w.l.Error().Err(err).Msg("error registering workflow")
+					writer.WriteHeader(http.StatusInternalServerError)
+					_, _ = writer.Write([]byte(err.Error()))
+					return
 				}
 			}
 
@@ -80,7 +92,10 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 
 		var action client.Action
 		if err := json.Unmarshal(data, &action); err != nil {
-			panic(err)
+			w.l.Error().Err(err).Msg("error unmarshaling action")
+			writer.WriteHeader(http.StatusInternalServerError)
+			_, _ = writer.Write([]byte(err.Error()))
+			return
 		}
 
 		timestamp := time.Now().UTC()
@@ -92,17 +107,26 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 			},
 		)
 		if err != nil {
-			panic(err)
+			w.l.Error().Err(err).Msg("error dispatching event")
+			writer.WriteHeader(http.StatusInternalServerError)
+			_, _ = writer.Write([]byte(err.Error()))
+			return
 		}
 
 		ctx, err := newHatchetContext(context.TODO(), &action, w.client, w.l)
 		if err != nil {
-			panic(err)
+			w.l.Error().Err(err).Msg("error creating context")
+			writer.WriteHeader(http.StatusInternalServerError)
+			_, _ = writer.Write([]byte(err.Error()))
+			return
 		}
 		resp, err := w.webhookProcess(ctx)
 		if err != nil {
 			// TODO handle error gracefully and send a failed event
-			panic(err)
+			w.l.Error().Err(err).Msg("error processing request")
+			writer.WriteHeader(http.StatusInternalServerError)
+			_, _ = writer.Write([]byte(err.Error()))
+			return
 		}
 
 		timestamp = time.Now().UTC()
@@ -115,7 +139,10 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 			},
 		)
 		if err != nil {
-			panic(err)
+			w.l.Error().Err(err).Msg("error dispatching event")
+			writer.WriteHeader(http.StatusInternalServerError)
+			_, _ = writer.Write([]byte(err.Error()))
+			return
 		}
 
 		writer.WriteHeader(http.StatusOK)
