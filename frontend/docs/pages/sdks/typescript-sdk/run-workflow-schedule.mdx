@@ -16,6 +16,7 @@ hatchet.admin.scheduleWorkflow("workflowName", {
 
 This method takes the following parameters:
 
-- `workflowName` (**required**): The name of the workflow to trigger.
-- `schedules` (**required**): An array of `Date` objects representing the times at which the workflow should be scheduled to run.
-- TODO: Add input parameter
+- `workflowName` (**required**): The name of the workflow to schedule.
+- `options` (**optional**): an object with the following properties:
+  - `schedules` (**optional**): An array of `Date` objects representing the times at which the workflow should be scheduled to run.
+  - `input` (**optional**): The input to the workflow. This should be a JSON-serializable dict.

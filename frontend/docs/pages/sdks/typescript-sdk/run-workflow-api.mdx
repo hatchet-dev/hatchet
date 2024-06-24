@@ -1,3 +1,30 @@
 # Running Workflows via API
 
-TODO: holding off until we have `WorkflowRunRef` in place.
+Workflows can be triggered from the API by calling `runWorkflow`. This method is available on the `hatchet.admin` client:
+
+```ts filename="run-workflow.ts" copy
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+const workflowRun = hatchet.admin.runWorkflow(
+  "api-trigger-workflow",
+  {
+    test: "test",
+  },
+  {
+    additionalMetadata: {
+      hello: "moon",
+    },
+  },
+);
+```
+
+This method takes the following parameters:
+
+- `workflowName` (**string, required**): The name of the workflow to trigger.
+- `input` (**T, required**): The input to the workflow. This should be a JSON-serializable dict.
+- `options` (**optional**): Additional options to pass to the workflow. The current options are supported:
+  - `additionalMetadata`: A dict of key-value strings to attach to the workflow run. This metadata will be shown in the Hatchet UI and will be available in API endpoints for listing/filtering.
+
+For more information on how to interact with the return value of `runWorkflow`, see the documentation for [getting workflow run results](./get-workflow-results).

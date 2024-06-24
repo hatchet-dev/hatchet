@@ -1,3 +1,48 @@
 # Running Child Workflows
 
-TODO: holding off until we have `WorkflowRunRef` in place.
+Hatchet supports running child workflows from within a parent workflow. This allows you to create complex, dynamic workflows that don't map to the concept of a DAG.
+
+To run a child workflow, you can use the `context.spawnWorkflow` method. For example:
+
+```ts filename="child-workflow.ts" copy
+const parentWorkflow: Workflow = {
+  id: "parent-workflow",
+  description: "Example workflow for spawning child workflows",
+  on: {
+    event: "fanout:create",
+  },
+  steps: [
+    {
+      name: "parent-spawn",
+      timeout: "10s",
+      run: async (ctx) => {
+        const promises: Promise<string>[] = [];
+
+        for (let i = 0; i < 5; i++) {
+          promises.push(
+            ctx
+              .spawnWorkflow<string>("child-workflow", {
+                input: `child-input-${i}`,
+              })
+              .result(),
+          );
+        }
+
+        const results = await Promise.all(promises);
+
+        return {
+          results,
+        };
+      },
+    },
+  ],
+};
+```
+
+The `spawnWorkflow` method takes the following parameters:
+
+- `workflowName` (**string, required**): The name of the workflow to trigger.
+- `input` (**required**): The input to pass to the child workflow.
+- `key` (**string, optional**): A caching key for the child workflow. If this is not set, the child workflow will be cached on the index that it was triggered at. The cache is used on retries of the parent workflow so that child workflows which were already triggered are skipped.
+
+For more information on how to interact with the return value of `spawnWorkflow`, see the documentation for [getting workflow run results](./get-workflow-results).

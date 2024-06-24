@@ -25,11 +25,15 @@
   "run-workflow-events": "Event-Triggered Workflows",
   "run-workflow-cron": "Cron Workflows",
   "run-workflow-schedule": "Scheduled Workflows",
+  "--- Getting Workflow Results": {
+    "type": "separator",
+    "title": "Getting Workflow Results"
+  },
+  "get-workflow-results": "Getting Workflow Run Results",
   "--- Advanced": {
     "type": "separator",
     "title": "Advanced"
   },
   "fairness": "Concurrency and Fairness",
-  "logging": "Logging",
-  "api": "REST API"
+  "logging": "Logging"
 }
