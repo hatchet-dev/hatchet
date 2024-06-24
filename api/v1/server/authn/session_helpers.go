@@ -7,7 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
@@ -112,7 +112,7 @@ func (s *SessionHelpers) SaveOAuthState(
 	c echo.Context,
 	integration string,
 ) (string, error) {
-	state, err := encryption.GenerateRandomBytes(16)
+	state, err := random.Generate(16)
 
 	if err != nil {
 		return "", err
