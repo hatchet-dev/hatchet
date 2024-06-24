@@ -43,6 +43,25 @@ func TestEncryptDecrypt(t *testing.T) {
 	assert.Equal(t, plaintext, decryptedText)
 }
 
+func TestEncryptDecryptStringBase64(t *testing.T) {
+	aes256Gcm, privateEc256, publicEc256, _ := GenerateLocalKeys()
+	svc, _ := NewLocalEncryption(aes256Gcm, privateEc256, publicEc256)
+
+	plaintext := "test message"
+	dataID := "456"
+
+	// Encrypt
+	ciphertext, err := svc.EncryptString(plaintext, dataID)
+	assert.NoError(t, err)
+
+	// Decrypt
+	decryptedText, err := svc.DecryptString(ciphertext, dataID)
+	assert.NoError(t, err)
+
+	// Check if decrypted text matches original plaintext
+	assert.Equal(t, plaintext, decryptedText)
+}
+
 func TestDecryptWithInvalidKey(t *testing.T) {
 	aes256Gcm, privateEc256, publicEc256, _ := GenerateLocalKeys()
 	svc, _ := NewLocalEncryption(aes256Gcm, privateEc256, publicEc256)

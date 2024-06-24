@@ -23,7 +23,7 @@ type WorkerOpts struct {
 	Workflows []string
 }
 
-func NewWorker(opts WorkerOpts) (*WebhookWorker, error) {
+func New(opts WorkerOpts) (*WebhookWorker, error) {
 	cl, err := client.New(
 		client.WithToken(opts.Token),
 	)
