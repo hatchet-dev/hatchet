@@ -168,7 +168,12 @@ type HealthCheckResponse struct {
 }
 
 func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheckResponse, error) {
-	resp, err := whrequest.Send(context.Background(), ww.Url, ww.Secret, struct {
+	secret, err := c.sc.Encryption.DecryptString(ww.Secret, sqlchelpers.UUIDToStr(ww.TenantId))
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := whrequest.Send(context.Background(), ww.Url, secret, struct {
 		Time time.Time `json:"time"`
 	}{
 		Time: time.Now(),
@@ -191,10 +196,15 @@ func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheck
 func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookWorker, token string, h *HealthCheckResponse) (func() error, error) {
 	id := sqlchelpers.UUIDToStr(webhookWorker.ID)
 
-	ww, err := webhook.NewWorker(webhook.WorkerOpts{
+	secret, err := c.sc.Encryption.DecryptString(webhookWorker.Secret, sqlchelpers.UUIDToStr(webhookWorker.TenantId))
+	if err != nil {
+		return nil, fmt.Errorf("could not decrypt webhook secret: %w", err)
+	}
+
+	ww, err := webhook.New(webhook.WorkerOpts{
 		Token:     token,
 		ID:        id,
-		Secret:    webhookWorker.Secret,
+		Secret:    secret,
 		URL:       webhookWorker.Url,
 		Name:      webhookWorker.Name,
 		TenantID:  tenantId,
