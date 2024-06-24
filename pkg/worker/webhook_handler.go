@@ -53,16 +53,16 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 		}
 
 		if r.Header.Get("X-Healthcheck") != "" {
-			var actions []string
-			for _, action := range w.actions {
-				actions = append(actions, action.Name())
-			}
-
 			for _, wf := range workflows {
 				err = w.RegisterWorkflow(wf)
 				if err != nil {
 					panic(err)
 				}
+			}
+
+			var actions []string
+			for _, action := range w.actions {
+				actions = append(actions, action.Name())
 			}
 
 			res := HealthCheckResponse{
