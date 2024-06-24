@@ -40,7 +40,6 @@ export function StepRunPlayground({
   invariant(tenant);
 
   const [errors, setErrors] = useState<string[]>([]);
-  const [showPRDialog, setShowPRDialog] = useState(false);
 
   const { handleApiError } = useApiError({
     setErrors,
