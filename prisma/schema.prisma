@@ -143,40 +143,6 @@ model Tenant {
   limits                    TenantResourceLimit[]
   limitAlerts               TenantResourceLimitAlert[]
 
-  subscription             TenantSubscription?
-}
-
-
-
-
-enum TenantSubscriptionStatus {
-  active
-  pending
-  terminated
-  canceled
-}
-
-enum TenantSubscriptionPlanCodes {
-  free
-  starter
-  growth
-  enterprise
-}
-
-enum TenantSubscriptionPeriod {
-  monthly
-  yearly
-}
-
-model TenantSubscription {
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  tenantId String @id @db.Uuid @unique
-
-  plan    TenantSubscriptionPlanCodes @default(free)
-  period  TenantSubscriptionPeriod?
-  status  TenantSubscriptionStatus
-
-  note String?
 }
 
 enum LimitResource {

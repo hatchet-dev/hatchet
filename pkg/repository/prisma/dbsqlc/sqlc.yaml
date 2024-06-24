@@ -20,7 +20,6 @@ sql:
       - tenants.sql
       - rate_limits.sql
       - tenant_limits.sql
-      - tenant_subscription.sql
     schema:
       - schema.sql
     strict_order_by: false
