@@ -57,7 +57,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 		if expected != actual {
 			w.l.Error().Err(fmt.Errorf("expected signature %s, got %s", expected, actual)).Msg("error in request signature")
 			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = writer.Write([]byte(err.Error()))
+			_, _ = writer.Write([]byte("wrong signature"))
 			return
 		}
 
