@@ -45,6 +45,8 @@ type ServerConfigFile struct {
 
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
 
+	SecurityCheck SecurityCheckConfigFile `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
+
 	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
 
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
@@ -77,6 +79,11 @@ type ConfigFileRuntime struct {
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
 
 	Limits LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
+}
+
+type SecurityCheckConfigFile struct {
+	Enabled  bool   `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
+	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty" default:"https://security.onhatchet.run"`
 }
 
 type LimitConfigFile struct {
@@ -341,6 +348,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
+
+	// security check options
+	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
+	_ = v.BindEnv("securityCheck.endpoint", "SERVER_SECURITY_CHECK_ENDPOINT")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultWorkflowRunLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT")

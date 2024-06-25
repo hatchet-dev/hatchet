@@ -38,6 +38,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -247,6 +248,16 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		}
 	} else {
 		alerter = errors.NoOpAlerter{}
+	}
+
+	if cf.SecurityCheck.Enabled {
+		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
+			Enabled:  cf.SecurityCheck.Enabled,
+			Endpoint: cf.SecurityCheck.Endpoint,
+			L:        &l,
+		})
+
+		defer securityCheck.Check()
 	}
 
 	var analyticsEmitter analytics.Analytics
