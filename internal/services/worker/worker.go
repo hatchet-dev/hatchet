@@ -241,7 +241,7 @@ func (w *WorkerImpl) handleStartPullRequest(ctx worker.HatchetContext) error {
 				return true
 			})
 
-			prSuffix, err := random.Generate(4)
+			prSuffix, err := random.Generate(8)
 
 			if err != nil {
 				return fmt.Errorf("could not generate random bytes: %w", err)

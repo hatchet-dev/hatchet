@@ -47,7 +47,7 @@ func NewGithubWebhookCreateOpts(
 	repoOwner string,
 	repoName string,
 ) (opts *CreateGithubWebhookOpts, signingSecret string, err error) {
-	signingSecret, err = random.Generate(16)
+	signingSecret, err = random.Generate(32)
 
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to generate signing secret: %s", err.Error())
