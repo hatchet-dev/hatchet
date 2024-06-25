@@ -25,8 +25,8 @@ import (
 )
 
 type Teardown struct {
-	name string
-	fn   func() error
+	Name string
+	Fn   func() error
 }
 
 func init() {
@@ -60,14 +60,14 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	}
 
 	teardown = append(teardown, Teardown{
-		name: "server",
-		fn: func() error {
+		Name: "server",
+		Fn: func() error {
 			return serverCleanup()
 		},
 	})
 	teardown = append(teardown, Teardown{
-		name: "database",
-		fn: func() error {
+		Name: "database",
+		Fn: func() error {
 			return sc.Disconnect()
 		},
 	})
@@ -78,13 +78,13 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 	l.Debug().Msgf("waiting for all other services to gracefully exit...")
 	for i, t := range teardown {
-		l.Debug().Msgf("shutting down %s (%d/%d)", t.name, i+1, len(teardown))
-		err := t.fn()
+		l.Debug().Msgf("shutting down %s (%d/%d)", t.Name, i+1, len(teardown))
+		err := t.Fn()
 
 		if err != nil {
-			return fmt.Errorf("could not teardown %s: %w", t.name, err)
+			return fmt.Errorf("could not teardown %s: %w", t.Name, err)
 		}
-		l.Debug().Msgf("successfully shutdown %s (%d/%d)", t.name, i+1, len(teardown))
+		l.Debug().Msgf("successfully shutdown %s (%d/%d)", t.Name, i+1, len(teardown))
 	}
 	l.Debug().Msgf("all services have successfully gracefully exited")
 
@@ -116,8 +116,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		}
 
 		teardown = append(teardown, Teardown{
-			name: "health",
-			fn:   cleanup,
+			Name: "health",
+			Fn:   cleanup,
 		})
 	}
 
@@ -139,8 +139,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			return nil, fmt.Errorf("could not start ticker: %w", err)
 		}
 		teardown = append(teardown, Teardown{
-			name: "ticker",
-			fn:   cleanup,
+			Name: "ticker",
+			Fn:   cleanup,
 		})
 	}
 
@@ -160,8 +160,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			return nil, fmt.Errorf("could not start events controller: %w", err)
 		}
 		teardown = append(teardown, Teardown{
-			name: "events controller",
-			fn:   cleanup,
+			Name: "events controller",
+			Fn:   cleanup,
 		})
 	}
 
@@ -182,8 +182,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			return nil, fmt.Errorf("could not start jobs controller: %w", err)
 		}
 		teardown = append(teardown, Teardown{
-			name: "jobs controller",
-			fn:   cleanup,
+			Name: "jobs controller",
+			Fn:   cleanup,
 		})
 	}
 
@@ -204,8 +204,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			return nil, fmt.Errorf("could not start workflows controller: %w", err)
 		}
 		teardown = append(teardown, Teardown{
-			name: "workflows controller",
-			fn:   cleanup,
+			Name: "workflows controller",
+			Fn:   cleanup,
 		})
 	}
 
@@ -225,8 +225,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			return nil, fmt.Errorf("could not start heartbeater: %w", err)
 		}
 		teardown = append(teardown, Teardown{
-			name: "heartbeater",
-			fn:   cleanup,
+			Name: "heartbeater",
+			Fn:   cleanup,
 		})
 	}
 
@@ -332,8 +332,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		}
 
 		teardown = append(teardown, Teardown{
-			name: "grpc",
-			fn:   cleanup,
+			Name: "grpc",
+			Fn:   cleanup,
 		})
 	}
 
@@ -346,14 +346,14 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		}
 
 		teardown = append(teardown, Teardown{
-			name: "webhook worker",
-			fn:   cleanup,
+			Name: "webhook worker",
+			Fn:   cleanup,
 		})
 	}
 
 	teardown = append(teardown, Teardown{
-		name: "telemetry",
-		fn: func() error {
+		Name: "telemetry",
+		Fn: func() error {
 			return shutdown(ctx)
 		},
 	})
