@@ -37,15 +37,16 @@ from hatchet_sdk import ConcurrencyLimitStrategy
 
 @hatchet.workflow(on_events=["concurrency-test"])
 class ConcurrencyDemoWorkflow:
-    @hatchet.concurrency(max_runs=10, limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
-    def concurrency(self, context) -> str:
-        return context.workflow_input()["user_id"]
+@hatchet.concurrency(max_runs=10, limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
+def concurrency(self, context) -> str:
+return context.workflow_input()["user_id"]
 
     @hatchet.step()
     def step1(self, context):
         print("executed step1")
         pass
-```
+
+````
   </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
@@ -65,7 +66,8 @@ export const concurrencyDemoWorkflow: Workflow = {
     key: (ctx) => ctx.workflowInput().userId,
   },
 };
-```
+````
+
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
