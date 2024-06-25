@@ -24,22 +24,16 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 		secret = *request.Body.Secret
 	}
 
-	var wfs []string
-	if request.Body.Workflows != nil {
-		wfs = append(wfs, *request.Body.Workflows...)
-	}
-
 	encSecret, err := i.config.Encryption.EncryptString(secret, tenant.ID)
 	if err != nil {
 		return nil, err
 	}
 
 	ww, err := i.config.EngineRepository.WebhookWorker().UpsertWebhookWorker(ctx.Request().Context(), &repository.UpsertWebhookWorkerOpts{
-		TenantId:  tenant.ID,
-		Name:      request.Body.Name,
-		URL:       request.Body.Url,
-		Secret:    encSecret,
-		Workflows: wfs,
+		TenantId: tenant.ID,
+		Name:     request.Body.Name,
+		URL:      request.Body.Url,
+		Secret:   encSecret,
 	})
 	if err != nil {
 		return nil, err

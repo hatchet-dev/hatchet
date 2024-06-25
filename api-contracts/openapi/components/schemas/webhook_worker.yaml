@@ -43,11 +43,6 @@ WebhookWorkerCreateRequest:
     url:
       type: string
       description: The webhook url.
-    workflows:
-      type: array
-      description: The workflow IDs or names to register for this webhook worker. If not provided, workflows will be automatically detected.
-      items:
-        type: string
     secret:
       type: string
       description: The secret key for validation. If not provided, a random secret will be generated.

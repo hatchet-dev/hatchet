@@ -11,7 +11,6 @@ type UpsertWebhookWorkerOpts struct {
 	URL        string `validate:"required,url"`
 	Secret     string
 	TenantId   string `validate:"uuid"`
-	Workflows  []string
 	TokenValue *string
 	TokenID    *string
 }

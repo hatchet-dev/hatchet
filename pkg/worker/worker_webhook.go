@@ -24,9 +24,8 @@ func (w *Worker) RegisterWebhook(ww RegisterWebhookWorkerOpts) error {
 	}
 
 	res, err := w.client.API().WebhookCreate(context.Background(), tenantId, rest.WebhookCreateJSONRequestBody{
-		Url:       ww.URL,
-		Workflows: &w.workflows,
-		Secret:    ww.Secret,
+		Url:    ww.URL,
+		Secret: ww.Secret,
 	})
 	if err != nil {
 		return fmt.Errorf("error creating webhook worker: %w", err)

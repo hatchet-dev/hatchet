@@ -1062,8 +1062,6 @@ export interface WebhookWorkerCreateRequest {
   name: string;
   /** The webhook url. */
   url: string;
-  /** The workflow IDs or names to register for this webhook worker. If not provided, workflows will be automatically detected. */
-  workflows?: string[];
   /**
    * The secret key for validation. If not provided, a random secret will be generated.
    * @minLength 32
