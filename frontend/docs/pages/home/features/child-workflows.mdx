@@ -17,11 +17,11 @@ To loop through a list and create a new workflow per element in the list, you ca
 class Parent:
     @hatchet.step()
     def spawn(self, context: Context):
-        for i in range(10):  
+        for i in range(10):
           context.spawn_workflow(
             "Child", {"a": str(i)}, key=f"child{i}"
           )
- 
+
         return {}
 ```
   </Tabs.Tab>
@@ -93,7 +93,7 @@ class Parent:
     @hatchet.step(timeout="5m")
     async def spawn(self, context: Context):
         results = []
- 
+
         for i in range(10):
             results.append(
                 (

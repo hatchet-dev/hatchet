@@ -17,7 +17,7 @@ class MyWorkflow:
     def step1(self, context):
         print("executed step1")
         pass
- 
+
     @hatchet.step(parents=["step1"])
     def step2(self, context):
         print("executed step2")

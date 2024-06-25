@@ -34,13 +34,13 @@ To use the `GROUP_ROUND_ROBIN` concurrency limit strategy, define a `concurrency
   <Tabs.Tab>
 ```python
 from hatchet_sdk import ConcurrencyLimitStrategy
- 
+
 @hatchet.workflow(on_events=["concurrency-test"])
 class ConcurrencyDemoWorkflow:
     @hatchet.concurrency(max_runs=10, limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN)
     def concurrency(self, context) -> str:
         return context.workflow_input()["user_id"]
-    
+
     @hatchet.step()
     def step1(self, context):
         print("executed step1")
