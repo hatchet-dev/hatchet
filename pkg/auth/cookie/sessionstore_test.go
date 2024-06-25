@@ -6,16 +6,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
 func TestSessionStoreSave(t *testing.T) {
+	time.Sleep(10 * time.Second) // TODO temp hack for tenant non-upsert issue
 	testutils.RunTestWithDatabase(t, func(conf *database.Config) error {
 		const cookieName = "hatchet"
 
@@ -63,13 +65,13 @@ func TestSessionStoreGet(t *testing.T) {
 }
 
 func newSessionStore(t *testing.T, conf *database.Config, cookieName string) *cookie.UserSessionStore {
-	hashKey, err := encryption.GenerateRandomBytes(16)
+	hashKey, err := random.Generate(16)
 
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	blockKey, err := encryption.GenerateRandomBytes(16)
+	blockKey, err := random.Generate(16)
 
 	if err != nil {
 		t.Fatalf(err.Error())

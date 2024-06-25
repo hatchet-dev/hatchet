@@ -25,7 +25,6 @@ type apiRepository struct {
 	workflowRun    repository.WorkflowRunAPIRepository
 	jobRun         repository.JobRunAPIRepository
 	stepRun        repository.StepRunAPIRepository
-	github         repository.GithubRepository
 	step           repository.StepRepository
 	slack          repository.SlackRepository
 	sns            repository.SNSRepository
@@ -33,6 +32,7 @@ type apiRepository struct {
 	userSession    repository.UserSessionRepository
 	user           repository.UserRepository
 	health         repository.HealthRepository
+	webhookWorker  repository.WebhookWorkerRepository
 }
 
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
@@ -99,7 +99,6 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		workflowRun:    NewWorkflowRunRepository(client, pool, opts.v, opts.l, opts.metered),
 		jobRun:         NewJobRunAPIRepository(client, pool, opts.v, opts.l),
 		stepRun:        NewStepRunAPIRepository(client, pool, opts.v, opts.l),
-		github:         NewGithubRepository(client, opts.v),
 		step:           NewStepRepository(client, opts.v),
 		slack:          NewSlackRepository(client, opts.v),
 		sns:            NewSNSRepository(client, opts.v),
@@ -107,6 +106,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		userSession:    NewUserSessionRepository(client, opts.v),
 		user:           NewUserRepository(client, opts.v),
 		health:         NewHealthAPIRepository(client, pool),
+		webhookWorker:  NewWebhookWorkerRepository(client, opts.v),
 	}
 }
 
@@ -162,10 +162,6 @@ func (r *apiRepository) SNS() repository.SNSRepository {
 	return r.sns
 }
 
-func (r *apiRepository) Github() repository.GithubRepository {
-	return r.github
-}
-
 func (r *apiRepository) Step() repository.StepRepository {
 	return r.step
 }
@@ -180,6 +176,10 @@ func (r *apiRepository) UserSession() repository.UserSessionRepository {
 
 func (r *apiRepository) User() repository.UserRepository {
 	return r.user
+}
+
+func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {
+	return r.webhookWorker
 }
 
 type engineRepository struct {
@@ -199,6 +199,7 @@ type engineRepository struct {
 	streamEvent    repository.StreamEventsEngineRepository
 	log            repository.LogsEngineRepository
 	rateLimit      repository.RateLimitEngineRepository
+	webhookWorker  repository.WebhookWorkerEngineRepository
 }
 
 func (r *engineRepository) Health() repository.HealthRepository {
@@ -265,6 +266,10 @@ func (r *engineRepository) RateLimit() repository.RateLimitEngineRepository {
 	return r.rateLimit
 }
 
+func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineRepository {
+	return r.webhookWorker
+}
+
 func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) repository.EngineRepository {
 	opts := defaultPrismaRepositoryOpts()
 
@@ -296,6 +301,7 @@ func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) reposito
 		streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 		log:            NewLogEngineRepository(pool, opts.v, opts.l),
 		rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
+		webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
 	}
 }
 
@@ -306,6 +312,7 @@ type entitlementRepository struct {
 func (r *entitlementRepository) TenantLimit() repository.TenantLimitRepository {
 	return r.tenantLimit
 }
+
 func NewEntitlementRepository(pool *pgxpool.Pool, s *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) repository.EntitlementsRepository {
 	opts := defaultPrismaRepositoryOpts()
 

@@ -31,7 +31,7 @@ You can define the following automatic triggers for workflows:
 - `on_events`: Trigger the workflow when a specific event is sent to the Hatchet API. See the documentation for [running workflows via events](./run-workflow-events) for more information.
 - `on_crons`: Trigger the workflow on a cron schedule. See the documentation for [running workflows via cron schedules](./run-workflow-cron) for more information.
 
-## Getting Access to the Input Data
+## Retrieving Workflow Input Data
 
 You can get access to the workflow's input data, such as the event data or other specified input data, by using the `context.workflow_input()` method on the `context`. For example, given the following event:
 

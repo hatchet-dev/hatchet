@@ -1,0 +1,79 @@
+# Worker Configuration
+
+Workers can be created via the `hatchet.worker()` method, after [instantiating a `hatchet` instance](./client). The `hatchet.worker()` method takes the following arguments:
+
+- `name` (**required**): The name of the worker. This is used to identify the worker in the Hatchet UI.
+- `maxRuns`: The maximum number of concurrent step runs that the worker can run. If not set, it defaults to `100`. Note that this value is different from the number of concurrent runs per workflow.
+
+For example:
+
+```ts
+hatchet.worker("example-worker", 1); // this worker can run only 1 step at a time
+```
+
+## Registering Workflows
+
+Workers can register workflows by calling the `worker.registerWorkflow` method with a workflow class instance. There is no limit to the number of workflows which can be registered for each worker. For example:
+
+```ts
+import Hatchet, { Workflow } from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+const workflow1: Workflow = {
+  id: "workflow-1",
+  description: "Example workflow 1",
+  steps: [
+    {
+      name: "step-1-workflow-1",
+      timeout: "10s",
+      run: async (ctx) => {
+        console.log("step-1-workflow-1");
+        return {
+          "step-1-output": "results",
+        };
+      },
+    },
+  ],
+};
+
+const workflow2: Workflow = {
+  id: "workflow-2",
+  description: "Example workflow 2",
+  steps: [
+    {
+      name: "step-1-workflow-2",
+      timeout: "10s",
+      run: async (ctx) => {
+        console.log("step-1-workflow-2");
+        return {
+          "step-1-output": "results",
+        };
+      },
+    },
+  ],
+};
+
+async function main() {
+  const worker = await hatchet.worker("example-worker");
+  await worker.registerWorkflow(workflow1);
+  await worker.registerWorkflow(workflow2);
+  worker.start();
+}
+
+main();
+```
+
+## Starting a Worker
+
+Workers can be started by calling `worker.start`. We recommend that `worker.start` is the last call made when running a worker. For example:
+
+```ts
+async function main() {
+  const worker = await hatchet.worker("example-worker");
+  await worker.registerWorkflow(workflow1);
+  worker.start();
+}
+
+main();
+```

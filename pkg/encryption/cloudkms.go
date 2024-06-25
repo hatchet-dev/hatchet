@@ -2,6 +2,7 @@ package encryption
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/tink-crypto/tink-go-gcpkms/integration/gcpkms"
@@ -98,6 +99,26 @@ func (svc *cloudkmsEncryptionService) Encrypt(plaintext []byte, dataId string) (
 
 func (svc *cloudkmsEncryptionService) Decrypt(ciphertext []byte, dataId string) ([]byte, error) {
 	return decrypt(svc.key, ciphertext, dataId)
+}
+
+func (svc *cloudkmsEncryptionService) EncryptString(plaintext string, dataId string) (string, error) {
+	b, err := encrypt(svc.key, []byte(plaintext), dataId)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
+}
+
+func (svc *cloudkmsEncryptionService) DecryptString(ciphertext string, dataId string) (string, error) {
+	decoded, err := base64.StdEncoding.DecodeString(ciphertext)
+	if err != nil {
+		return "", err
+	}
+	b, err := decrypt(svc.key, decoded, dataId)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 func (svc *cloudkmsEncryptionService) GetPrivateJWTHandle() *keyset.Handle {

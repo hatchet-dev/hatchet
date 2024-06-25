@@ -20,6 +20,7 @@ sql:
       - tenants.sql
       - rate_limits.sql
       - tenant_limits.sql
+      - webhook_workers.sql
     schema:
       - schema.sql
     strict_order_by: false

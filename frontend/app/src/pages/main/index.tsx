@@ -21,6 +21,7 @@ import { Loading } from '@/components/ui/loading.tsx';
 import { useSidebar } from '@/components/sidebar-provider';
 import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import useCloudApiMeta from '../auth/hooks/use-cloud-api-meta';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -58,6 +59,8 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
+
+  const meta = useCloudApiMeta();
 
   const onNavLinkClick = useCallback(() => {
     if (window.innerWidth > 768) {
@@ -143,6 +146,12 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     name="API Tokens"
                   />,
                   <SidebarButtonSecondary
+                    key={2}
+                    onNavLinkClick={onNavLinkClick}
+                    to="/tenant-settings/webhooks"
+                    name="Webhooks"
+                  />,
+                  <SidebarButtonSecondary
                     key={3}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/members"
@@ -151,8 +160,12 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                   <SidebarButtonSecondary
                     key={4}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/resource-limits"
-                    name="Resource Limits"
+                    to="/tenant-settings/billing-and-limits"
+                    name={
+                      meta?.data.canBill
+                        ? 'Billing & Limits'
+                        : 'Resource Limits'
+                    }
                   />,
                   <SidebarButtonSecondary
                     key={4}
@@ -201,7 +214,7 @@ function SidebarButtonPrimary({
       <Button
         variant="ghost"
         className={cn(
-          'w-full justify-start pl-2 cursor-default',
+          'w-full justify-start pl-2',
           selected && 'bg-slate-200 dark:bg-slate-800',
         )}
       >
@@ -245,7 +258,7 @@ function SidebarButtonSecondary({
         variant="ghost"
         size="sm"
         className={cn(
-          'w-[calc(100%-3px)] justify-start pl-3 pr-0 ml-1 mr-3 cursor-default my-[1px]',
+          'w-[calc(100%-3px)] justify-start pl-3 pr-0 ml-1 mr-3 my-[1px]',
           selected && 'bg-slate-200 dark:bg-slate-800',
         )}
       >

@@ -486,7 +486,6 @@ export interface Workflow {
   lastRun?: WorkflowRun;
   /** The jobs of the workflow. */
   jobs?: Job[];
-  deployment?: WorkflowDeploymentConfig;
 }
 
 export interface WorkflowConcurrency {
@@ -499,23 +498,6 @@ export interface WorkflowConcurrency {
   limitStrategy: "CANCEL_IN_PROGRESS" | "DROP_NEWEST" | "QUEUE_NEWEST" | "GROUP_ROUND_ROBIN";
   /** An action which gets the concurrency group for the WorkflowRun. */
   getConcurrencyGroup: string;
-}
-
-export interface WorkflowDeploymentConfig {
-  metadata: APIResourceMeta;
-  /** The repository name. */
-  gitRepoName: string;
-  /** The repository owner. */
-  gitRepoOwner: string;
-  /** The repository branch. */
-  gitRepoBranch: string;
-  /** The Github App installation. */
-  githubAppInstallation?: GithubAppInstallation;
-  /**
-   * The id of the Github App installation.
-   * @format uuid
-   */
-  githubAppInstallationId: string;
 }
 
 export interface WorkflowVersionMeta {
@@ -875,47 +857,6 @@ export interface TriggerWorkflowRunRequest {
   additionalMetadata?: object;
 }
 
-export interface LinkGithubRepositoryRequest {
-  /**
-   * The repository name.
-   * @minLength 36
-   * @maxLength 36
-   */
-  installationId: string;
-  /** The repository name. */
-  gitRepoName: string;
-  /** The repository owner. */
-  gitRepoOwner: string;
-  /** The repository branch. */
-  gitRepoBranch: string;
-}
-
-export interface GithubBranch {
-  branch_name: string;
-  is_default: boolean;
-}
-
-export interface GithubRepo {
-  repo_owner: string;
-  repo_name: string;
-}
-
-export interface GithubAppInstallation {
-  metadata: APIResourceMeta;
-  installation_settings_url: string;
-  account_name: string;
-  account_avatar_url: string;
-}
-
-export interface ListGithubAppInstallationsResponse {
-  pagination: PaginationResponse;
-  rows: GithubAppInstallation[];
-}
-
-export type ListGithubReposResponse = GithubRepo[];
-
-export type ListGithubBranchesResponse = GithubBranch[];
-
 export interface CreatePullRequestFromStepRun {
   branchName: string;
 }
@@ -1037,4 +978,43 @@ export interface WorkflowMetrics {
   groupKeyRunsCount?: number;
   /** The total number of concurrency group keys. */
   groupKeyCount?: number;
+}
+
+export interface WebhookWorker {
+  metadata: APIResourceMeta;
+  /** The name of the webhook worker. */
+  name: string;
+  /** The webhook url. */
+  url: string;
+}
+
+export interface WebhookWorkerCreated {
+  metadata: APIResourceMeta;
+  /** The name of the webhook worker. */
+  name: string;
+  /** The webhook url. */
+  url: string;
+  /** The secret key for validation. */
+  secret: string;
+}
+
+export interface WebhookWorkerCreateRequest {
+  /** The name of the webhook worker. */
+  name: string;
+  /** The webhook url. */
+  url: string;
+  /**
+   * The secret key for validation. If not provided, a random secret will be generated.
+   * @minLength 32
+   */
+  secret?: string;
+}
+
+export interface WebhookWorkerCreateResponse {
+  worker?: WebhookWorkerCreated;
+}
+
+export interface WebhookWorkerListResponse {
+  pagination?: PaginationResponse;
+  rows?: WebhookWorker[];
 }

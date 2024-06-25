@@ -25,6 +25,6 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 
 	// This is the only time the token is sent over the API
 	return gen.ApiTokenCreate200JSONResponse{
-		Token: token,
+		Token: token.Token,
 	}, nil
 }

@@ -10,14 +10,13 @@
  */
 
 import {
+  AcceptInviteRequest,
   APIError,
   APIErrors,
   APIMeta,
-  AcceptInviteRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
   CreateEventRequest,
-  CreatePullRequestFromStepRun,
   CreateSNSIntegrationRequest,
   CreateTenantAlertEmailGroupRequest,
   CreateTenantInviteRequest,
@@ -30,22 +29,15 @@ import {
   EventOrderByDirection,
   EventOrderByField,
   EventSearch,
-  GetStepRunDiffResponse,
-  LinkGithubRepositoryRequest,
   ListAPIMetaIntegration,
   ListAPITokensResponse,
-  ListGithubAppInstallationsResponse,
-  ListGithubBranchesResponse,
-  ListGithubReposResponse,
-  ListPullRequestsResponse,
-  ListSNSIntegrations,
   ListSlackWebhooks,
+  ListSNSIntegrations,
   LogLineLevelField,
   LogLineList,
   LogLineOrderByDirection,
   LogLineOrderByField,
   LogLineSearch,
-  PullRequestState,
   RejectInviteRequest,
   ReplayEventRequest,
   RerunStepRunRequest,
@@ -71,6 +63,9 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  WebhookWorkerCreated,
+  WebhookWorkerCreateRequest,
+  WebhookWorkerListResponse,
   Worker,
   WorkerList,
   Workflow,
@@ -79,10 +74,10 @@ import {
   WorkflowMetrics,
   WorkflowRun,
   WorkflowRunList,
-  WorkflowRunStatus,
-  WorkflowRunStatusList,
   WorkflowRunsCancelRequest,
   WorkflowRunsMetrics,
+  WorkflowRunStatus,
+  WorkflowRunStatusList,
   WorkflowVersion,
   WorkflowVersionDefinition,
 } from "./data-contracts";
@@ -226,38 +221,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description Starts the OAuth flow
    *
    * @tags User
-   * @name UserUpdateGithubAppOauthStart
-   * @summary Start OAuth flow
-   * @request GET:/api/v1/users/github-app/start
-   * @secure
-   */
-  userUpdateGithubAppOauthStart = (params: RequestParams = {}) =>
-    this.request<any, void>({
-      path: `/api/v1/users/github-app/start`,
-      method: "GET",
-      secure: true,
-      ...params,
-    });
-  /**
-   * @description Completes the OAuth flow
-   *
-   * @tags User
-   * @name UserUpdateGithubAppOauthCallback
-   * @summary Complete OAuth flow
-   * @request GET:/api/v1/users/github-app/callback
-   * @secure
-   */
-  userUpdateGithubAppOauthCallback = (params: RequestParams = {}) =>
-    this.request<any, void>({
-      path: `/api/v1/users/github-app/callback`,
-      method: "GET",
-      secure: true,
-      ...params,
-    });
-  /**
-   * @description Starts the OAuth flow
-   *
-   * @tags User
    * @name UserUpdateSlackOauthStart
    * @summary Start OAuth flow
    * @request GET:/api/v1/tenants/{tenant}/slack/start
@@ -284,34 +247,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/users/slack/callback`,
       method: "GET",
       secure: true,
-      ...params,
-    });
-  /**
-   * @description Github App global webhook
-   *
-   * @tags Github
-   * @name GithubUpdateGlobalWebhook
-   * @summary Github app global webhook
-   * @request POST:/api/v1/github/webhook
-   */
-  githubUpdateGlobalWebhook = (params: RequestParams = {}) =>
-    this.request<void, APIErrors>({
-      path: `/api/v1/github/webhook`,
-      method: "POST",
-      ...params,
-    });
-  /**
-   * @description Github App tenant webhook
-   *
-   * @tags Github
-   * @name GithubUpdateTenantWebhook
-   * @summary Github app tenant webhook
-   * @request POST:/api/v1/github/webhook/{webhook}
-   */
-  githubUpdateTenantWebhook = (webhook: string, params: RequestParams = {}) =>
-    this.request<void, APIErrors>({
-      path: `/api/v1/github/webhook/${webhook}`,
-      method: "POST",
       ...params,
     });
   /**
@@ -1181,25 +1116,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Link a github repository to a workflow
-   *
-   * @tags Workflow
-   * @name WorkflowUpdateLinkGithub
-   * @summary Link github repository
-   * @request POST:/api/v1/workflows/{workflow}/link-github
-   * @secure
-   */
-  workflowUpdateLinkGithub = (workflow: string, data: LinkGithubRepositoryRequest, params: RequestParams = {}) =>
-    this.request<Workflow, APIErrors>({
-      path: `/api/v1/workflows/${workflow}/link-github`,
-      method: "POST",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      format: "json",
-      ...params,
-    });
-  /**
    * @description Get the metrics for a workflow version
    *
    * @tags Workflow
@@ -1223,25 +1139,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       method: "GET",
       query: query,
       secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Create a pull request for a workflow
-   *
-   * @tags Workflow
-   * @name StepRunUpdateCreatePr
-   * @summary Create pull request
-   * @request POST:/api/v1/step-runs/{step-run}/create-pr
-   * @secure
-   */
-  stepRunUpdateCreatePr = (stepRun: string, data: CreatePullRequestFromStepRun, params: RequestParams = {}) =>
-    this.request<CreatePullRequestFromStepRun, APIErrors>({
-      path: `/api/v1/step-runs/${stepRun}/create-pr`,
-      method: "POST",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
       format: "json",
       ...params,
     });
@@ -1282,23 +1179,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/step-runs/${stepRun}/logs`,
       method: "GET",
       query: query,
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Get the diff for a step run between the most recent run and the first run.
-   *
-   * @tags Workflow
-   * @name StepRunGetDiff
-   * @summary Get diff
-   * @request GET:/api/v1/step-runs/{step-run}/diff
-   * @secure
-   */
-  stepRunGetDiff = (stepRun: string, params: RequestParams = {}) =>
-    this.request<GetStepRunDiffResponse, APIErrors>({
-      path: `/api/v1/step-runs/${stepRun}/diff`,
-      method: "GET",
       secure: true,
       format: "json",
       ...params,
@@ -1478,32 +1358,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description List all pull requests for a workflow run
-   *
-   * @tags Workflow
-   * @name WorkflowRunListPullRequests
-   * @summary List pull requests
-   * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/prs
-   * @secure
-   */
-  workflowRunListPullRequests = (
-    tenant: string,
-    workflowRun: string,
-    query?: {
-      /** The pull request state */
-      state?: PullRequestState;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<ListPullRequestsResponse, APIErrors>({
-      path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/prs`,
-      method: "GET",
-      query: query,
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
    * @description Get a step run by id
    *
    * @tags Step Run
@@ -1608,59 +1462,52 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description List Github App installations
+   * @description Lists all webhooks
    *
-   * @tags Github
-   * @name GithubAppListInstallations
-   * @summary List Github App installations
-   * @request GET:/api/v1/github-app/installations
+   * @name WebhookList
+   * @summary List webhooks
+   * @request GET:/api/v1/tenants/{tenant}/webhook-workers
    * @secure
    */
-  githubAppListInstallations = (params: RequestParams = {}) =>
-    this.request<ListGithubAppInstallationsResponse, APIErrors>({
-      path: `/api/v1/github-app/installations`,
+  webhookList = (tenant: string, params: RequestParams = {}) =>
+    this.request<WebhookWorkerListResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/webhook-workers`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
     });
   /**
-   * @description List Github App repositories
+   * @description Creates a webhook
    *
-   * @tags Github
-   * @name GithubAppListRepos
-   * @summary List Github App repositories
-   * @request GET:/api/v1/github-app/installations/{gh-installation}/repos
+   * @name WebhookCreate
+   * @summary Create a webhook
+   * @request POST:/api/v1/tenants/{tenant}/webhook-workers
    * @secure
    */
-  githubAppListRepos = (ghInstallation: string, params: RequestParams = {}) =>
-    this.request<ListGithubReposResponse, APIErrors>({
-      path: `/api/v1/github-app/installations/${ghInstallation}/repos`,
-      method: "GET",
+  webhookCreate = (tenant: string, data: WebhookWorkerCreateRequest, params: RequestParams = {}) =>
+    this.request<WebhookWorkerCreated, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/webhook-workers`,
+      method: "POST",
+      body: data,
       secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });
   /**
-   * @description List Github App branches
+   * @description Deletes a webhook
    *
-   * @tags Github
-   * @name GithubAppListBranches
-   * @summary List Github App branches
-   * @request GET:/api/v1/github-app/installations/{gh-installation}/repos/{gh-repo-owner}/{gh-repo-name}/branches
+   * @name WebhookDelete
+   * @summary Delete a webhook
+   * @request DELETE:/api/v1/webhook-workers/{webhook}
    * @secure
    */
-  githubAppListBranches = (
-    ghInstallation: string,
-    ghRepoOwner: string,
-    ghRepoName: string,
-    params: RequestParams = {},
-  ) =>
-    this.request<ListGithubBranchesResponse, APIErrors>({
-      path: `/api/v1/github-app/installations/${ghInstallation}/repos/${ghRepoOwner}/${ghRepoName}/branches`,
-      method: "GET",
+  webhookDelete = (webhook: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/webhook-workers/${webhook}`,
+      method: "DELETE",
       secure: true,
-      format: "json",
       ...params,
     });
 }

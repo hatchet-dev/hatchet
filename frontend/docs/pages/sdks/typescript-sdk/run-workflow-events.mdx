@@ -1,0 +1,15 @@
+# Running Workflows via Events
+
+For workflows with event triggers, you can push events to the Hatchet API with the `hatchet.event.push` method:
+
+```ts
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+hatchet.event.push("user:create", {
+  test: "test",
+});
+```
+
+The event's input data will be passed to the workflow run as the input, and is retrievable via the `context.workflow_input()` method.

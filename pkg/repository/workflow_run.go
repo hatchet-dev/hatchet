@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
@@ -224,7 +224,7 @@ func GetCreateWorkflowRunOptsFromSchedule(
 }
 
 func getWorkflowRunDisplayName(workflowName string) string {
-	workflowSuffix, _ := encryption.GenerateRandomBytes(3)
+	workflowSuffix, _ := random.Generate(6)
 
 	return workflowName + "-" + workflowSuffix
 }
@@ -342,6 +342,8 @@ type WorkflowRunMetricsCountOpts struct {
 }
 
 type WorkflowRunAPIRepository interface {
+	RegisterCreateCallback(callback Callback[*db.WorkflowRunModel])
+
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
 
@@ -353,15 +355,13 @@ type WorkflowRunAPIRepository interface {
 
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(tenantId, runId string) (*db.WorkflowRunModel, error)
-
-	CreateWorkflowRunPullRequest(tenantId, workflowRunId string, opts *CreateWorkflowRunPullRequestOpts) (*db.GithubPullRequestModel, error)
-
-	ListPullRequestsForWorkflowRun(tenantId, workflowRunId string, opts *ListPullRequestsForWorkflowRunOpts) ([]db.GithubPullRequestModel, error)
 }
 
 var ErrWorkflowRunNotFound = fmt.Errorf("workflow run not found")
 
 type WorkflowRunEngineRepository interface {
+	RegisterCreateCallback(callback Callback[*dbsqlc.WorkflowRun])
+
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
 
