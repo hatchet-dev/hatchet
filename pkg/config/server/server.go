@@ -255,14 +255,14 @@ type ConfigFileAuthCookie struct {
 }
 
 type MessageQueueConfigFile struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
+
 	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required"`
 
 	RabbitMQ RabbitMQConfigFile `mapstructure:"rabbitmq" json:"rabbitmq,omitempty" validate:"required"`
 }
 
 type RabbitMQConfigFile struct {
-	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
-
 	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
 }
 

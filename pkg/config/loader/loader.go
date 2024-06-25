@@ -218,23 +218,25 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil
 	}
 
-	if cf.MessageQueue.RabbitMQ.Enabled {
+	var ing ingestor.Ingestor
+
+	if cf.MessageQueue.Enabled {
 		cleanup1, mq = rabbitmq.New(
 			rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 			rabbitmq.WithLogger(&l),
 		)
-	}
 
-	ingestor, err := ingestor.NewIngestor(
-		ingestor.WithEventRepository(dc.EngineRepository.Event()),
-		ingestor.WithStreamEventsRepository(dc.EngineRepository.StreamEvent()),
-		ingestor.WithLogRepository(dc.EngineRepository.Log()),
-		ingestor.WithMessageQueue(mq),
-		ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
-	)
+		ing, err = ingestor.NewIngestor(
+			ingestor.WithEventRepository(dc.EngineRepository.Event()),
+			ingestor.WithStreamEventsRepository(dc.EngineRepository.StreamEvent()),
+			ingestor.WithLogRepository(dc.EngineRepository.Log()),
+			ingestor.WithMessageQueue(mq),
+			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
+		)
 
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not create ingestor: %w", err)
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create ingestor: %w", err)
+		}
 	}
 
 	var alerter errors.Alerter
@@ -453,7 +455,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		TLSConfig:              tls,
 		SessionStore:           ss,
 		Validator:              validator.NewDefaultValidator(),
-		Ingestor:               ingestor,
+		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
 		VCSProviders:           vcsProviders,
 		InternalClient:         internalClient,
