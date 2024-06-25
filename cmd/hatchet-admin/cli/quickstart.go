@@ -214,13 +214,13 @@ func setupCerts(generated *generatedConfigFiles) error {
 func generateKeys(generated *generatedConfigFiles) error {
 	color.New(color.FgGreen).Printf("Generating encryption keys for Hatchet server\n")
 
-	cookieHashKey, err := random.Generate(8)
+	cookieHashKey, err := random.Generate(16)
 
 	if err != nil {
 		return fmt.Errorf("could not generate hash key for instance: %w", err)
 	}
 
-	cookieBlockKey, err := random.Generate(8)
+	cookieBlockKey, err := random.Generate(16)
 
 	if err != nil {
 		return fmt.Errorf("could not generate block key for instance: %w", err)

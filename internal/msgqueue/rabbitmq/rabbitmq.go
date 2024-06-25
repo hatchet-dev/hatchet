@@ -234,7 +234,7 @@ func (t *MessageQueueImpl) initQueue(sub session, q msgqueue.Queue) (string, err
 	name := q.Name()
 
 	if q.FanoutExchangeKey() != "" {
-		suffix, err := random.Generate(4)
+		suffix, err := random.Generate(8)
 
 		if err != nil {
 			t.l.Error().Msgf("error generating random bytes: %v", err)
