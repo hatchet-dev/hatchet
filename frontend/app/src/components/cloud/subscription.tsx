@@ -24,7 +24,7 @@ interface SubscriptionProps {
   hasPaymentMethods?: boolean;
 }
 
-const Subscription: React.FC<SubscriptionProps> = ({
+export const Subscription: React.FC<SubscriptionProps> = ({
   active,
   plans,
   hasPaymentMethods,
@@ -213,5 +213,3 @@ const Subscription: React.FC<SubscriptionProps> = ({
     </div>
   );
 };
-
-export default Subscription;

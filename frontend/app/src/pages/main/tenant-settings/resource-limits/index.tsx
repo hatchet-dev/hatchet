@@ -5,8 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/resource-limit-columns';
-import PaymentMethods from './components/payment-methods';
-import Subscription from './components/subscription';
+import { PaymentMethods, Subscription } from '@/components/cloud';
 import { Spinner } from '@/components/ui/loading';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 

@@ -32,7 +32,7 @@ export interface PaymentMethodsProps {
   methods?: TenantPaymentMethod[];
 }
 
-export default function PaymentMethods({
+export function PaymentMethods({
   methods = [],
   hasMethods,
 }: PaymentMethodsProps) {
