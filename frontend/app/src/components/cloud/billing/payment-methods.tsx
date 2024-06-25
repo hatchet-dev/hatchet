@@ -44,7 +44,9 @@ export function PaymentMethods({
     try {
       setLoading(true);
       const link = await cloudApi.billingPortalLinkGet(tenant.metadata.id);
-      window.open(link.data.url, '_blank');
+      if (link.data.url) {
+        window.location.href = link.data.url;
+      }
     } catch (e) {
       handleApiError(e as any);
     } finally {
