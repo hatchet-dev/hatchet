@@ -73,8 +73,8 @@ type WorkerEngineRepository interface {
 	// DeleteWorker removes the worker from the database
 	DeleteWorker(ctx context.Context, tenantId, workerId string) error
 
-	// DeleteWorkersByName removes the worker from the database
-	DeleteWorkersByName(ctx context.Context, tenantId, name string) error
+	// UpdateWorkersByName removes the worker from the database
+	UpdateWorkersByName(ctx context.Context, opts dbsqlc.UpdateWorkersByNameParams) error
 
 	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
 

@@ -343,9 +343,8 @@ func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, wor
 	return err
 }
 
-func (w *workerEngineRepository) DeleteWorkersByName(ctx context.Context, tenantId, name string) error {
-	_, err := w.queries.DeletesWorkerByName(ctx, w.pool, name)
-
+func (w *workerEngineRepository) UpdateWorkersByName(ctx context.Context, params dbsqlc.UpdateWorkersByNameParams) error {
+	_, err := w.queries.UpdateWorkersByName(ctx, w.pool, params)
 	return err
 }
 

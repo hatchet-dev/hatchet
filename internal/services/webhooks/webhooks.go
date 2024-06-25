@@ -87,9 +87,13 @@ func (c *WebhooksController) check() error {
 				if _, ok := c.registeredWorkerIds[id]; ok {
 					if ww.Deleted {
 						c.sc.Logger.Debug().Msgf("webhook worker %s of tenant %s has been deleted", id, tenantId)
-						err := c.sc.EngineRepository.Worker().DeleteWorkersByName(context.Background(), tenantId, "Webhook_"+id)
+						err := c.sc.EngineRepository.Worker().UpdateWorkersByName(context.Background(), dbsqlc.UpdateWorkersByNameParams{
+							Isactive: true,
+							Name:     "Webhook_" + id,
+							Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+						})
 						if err != nil {
-							c.sc.Logger.Err(err).Msgf("could not delete worker")
+							c.sc.Logger.Err(err).Msgf("could not delete webhook worker")
 							return nil
 						}
 

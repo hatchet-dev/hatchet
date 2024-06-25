@@ -144,10 +144,11 @@ WHERE
   "id" = @id::uuid
 RETURNING *;
 
--- name: DeletesWorkerByName :many
-DELETE FROM
-  "Worker"
+-- name: UpdateWorkersByName :many
+UPDATE "Worker"
+SET "isActive" = @isActive::boolean
 WHERE
+  "tenantId" = @tenantId::uuid AND
   "name" = @name::text
 RETURNING *;
 
