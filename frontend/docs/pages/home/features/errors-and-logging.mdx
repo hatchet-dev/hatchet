@@ -14,8 +14,8 @@ Here's an example of how an uncaught error thrown in a step's `run` function is 
 import { Step, Context } from "@hatchet-dev/typescript-sdk";
 
 const myStep: Step<any, any> = async (context: Context<any>) => {
-    // Step logic that may throw an error
-    throw new Error("Something went wrong!");
+  // Step logic that may throw an error
+  throw new Error("Something went wrong!");
 };
 
 export default myStep;
@@ -51,7 +51,8 @@ class LogDemoWorkflow:
         return {
           result
         }
-```
+
+````
   </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
@@ -70,7 +71,7 @@ const myStep: Step<any, any> = async (context: Context<any>) => {
 };
 
 export default myStep;
-```
+````
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -102,10 +103,10 @@ In this example, the step uses `context.log()` to log messages at different poin
 
 Logging information using `context.log()` is particularly useful for:
 
--   Tracking the progress of a step
--   Capturing important variable values or intermediate results
--   Providing additional context for understanding the step's behavior
--   Debugging and troubleshooting issues
+- Tracking the progress of a step
+- Capturing important variable values or intermediate results
+- Providing additional context for understanding the step's behavior
+- Debugging and troubleshooting issues
 
 By strategically placing log statements within your step code, you can gain valuable insights into the execution flow and identify potential problems more easily.
 
