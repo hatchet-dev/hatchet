@@ -1251,7 +1251,7 @@ SET
     "finishedAt" = NULL
 WHERE
     "id" = (SELECT "workflowRunId" FROM workflow_run_id)
-RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "gitRepoBranch", "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata"
+RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata"
 `
 
 func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, jobrunid pgtype.UUID) (*WorkflowRun, error) {
@@ -1270,7 +1270,6 @@ func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, jo
 		&i.ConcurrencyGroupId,
 		&i.DisplayName,
 		&i.ID,
-		&i.GitRepoBranch,
 		&i.ChildIndex,
 		&i.ChildKey,
 		&i.ParentId,

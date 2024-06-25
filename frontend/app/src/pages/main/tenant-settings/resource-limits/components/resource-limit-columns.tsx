@@ -32,6 +32,12 @@ export function LimitIndicator({ limit }: { limit: TenantResourceLimit }) {
   return <div className={cn(variant, 'rounded-full h-[6px] w-[6px]')} />;
 }
 
+const durationMap: Record<string, string> = {
+  '24h0m0s': 'Daily',
+  '168h0m0s': 'Weekly',
+  '720h0m0s': 'Monthly',
+};
+
 export const columns = (): ColumnDef<TenantResourceLimit>[] => {
   return [
     {
@@ -86,7 +92,13 @@ export const columns = (): ColumnDef<TenantResourceLimit>[] => {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Meter Window" />
       ),
-      cell: ({ row }) => <div>{row.original.window || 'N/A'}</div>,
+      cell: ({ row }) => (
+        <div>
+          {(row.original.window || '-') in durationMap
+            ? durationMap[row.original.window || '-']
+            : row.original.window}
+        </div>
+      ),
       enableSorting: false,
       enableHiding: false,
     },

@@ -1,10 +1,4 @@
-import api, {
-  PullRequestState,
-  StepRun,
-  StepRunStatus,
-  WorkflowRun,
-  queries,
-} from '@/lib/api';
+import api, { StepRun, StepRunStatus, WorkflowRun, queries } from '@/lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import invariant from 'tiny-invariant';
@@ -13,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
-import { GitHubLogoIcon, PlayIcon } from '@radix-ui/react-icons';
+import { PlayIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
 import { Loading } from '@/components/ui/loading';
@@ -25,7 +19,6 @@ import {
   TooltipContent,
 } from '@/components/ui/tooltip';
 import { VscNote, VscJson } from 'react-icons/vsc';
-import { CreatePRDialog } from './create-pr-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepRunLogs } from './step-run-logs';
 import { RunStatus } from '../../components/run-statuses';
@@ -47,7 +40,6 @@ export function StepRunPlayground({
   invariant(tenant);
 
   const [errors, setErrors] = useState<string[]>([]);
-  const [showPRDialog, setShowPRDialog] = useState(false);
 
   const { handleApiError } = useApiError({
     setErrors,
@@ -122,48 +114,6 @@ export function StepRunPlayground({
     ...queries.stepRuns.getSchema(
       stepRun?.tenantId || '',
       stepRun?.metadata.id || '',
-    ),
-    enabled: !!stepRun,
-    refetchInterval: () => {
-      if (stepRun?.status === StepRunStatus.RUNNING) {
-        return 1000;
-      }
-
-      return 5000;
-    },
-  });
-
-  const stepRunDiffQuery = useQuery({
-    ...queries.stepRuns.getDiff(stepRun?.metadata.id || ''),
-    enabled: !!stepRun && !!stepRun.input,
-    refetchInterval: () => {
-      if (stepRun?.status === StepRunStatus.RUNNING) {
-        return 1000;
-      }
-
-      return 5000;
-    },
-  });
-
-  const getWorkflowQuery = useQuery({
-    ...queries.workflows.get(workflowRun?.workflowVersion?.workflowId || ''),
-    enabled: !!workflowRun?.workflowVersion?.workflowId,
-    refetchInterval: () => {
-      if (stepRun?.status === StepRunStatus.RUNNING) {
-        return 1000;
-      }
-
-      return 5000;
-    },
-  });
-
-  const listPRsQuery = useQuery({
-    ...queries.workflowRuns.listPullRequests(
-      workflowRun.tenantId,
-      workflowRun.metadata.id,
-      {
-        state: PullRequestState.Open,
-      },
     ),
     enabled: !!stepRun,
     refetchInterval: () => {
@@ -294,10 +244,6 @@ export function StepRunPlayground({
   // Determine the appropriate shortcut based on the OS
   const shortcut = getOS() === 'MacOS' ? 'Cmd + Enter' : 'Ctrl + Enter';
 
-  const diffs = stepRunDiffQuery.data?.diffs || [];
-  const workflow = getWorkflowQuery.data;
-  const prs = listPRsQuery.data?.pullRequests || [];
-
   return (
     <div className="">
       {stepRun && (
@@ -350,42 +296,6 @@ export function StepRunPlayground({
                   <TooltipContent>{shortcut}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              {diffs.length > 0 &&
-                !!workflow?.deployment?.githubAppInstallationId &&
-                prs.length == 0 && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          className="w-fit"
-                          disabled={disabled}
-                          onClick={() => {
-                            setShowPRDialog(true);
-                          }}
-                        >
-                          <GitHubLogoIcon className={cn('h-4 w-4 mr-2')} />
-                          Create Pull Request
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        Create a new pull request to commit the changes that
-                        you've made in the playground.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              {prs.length > 0 && (
-                <a
-                  target="_blank"
-                  href={`https://github.com/${prs[0].repositoryOwner}/${prs[0].repositoryName}/pull/${prs[0].pullRequestNumber}`}
-                  rel="noreferrer"
-                >
-                  <Button className="w-fit" variant="ghost">
-                    <GitHubLogoIcon className={cn('h-4 w-4 mr-2')} />
-                    View Pull Request
-                  </Button>
-                </a>
-              )}
             </div>
           </div>
           <div className="flex flex-row gap-4 mt-4">
@@ -501,15 +411,6 @@ export function StepRunPlayground({
             />
           </div>
         )}
-      {stepRun && workflowRun?.workflowVersion?.workflowId && (
-        <CreatePRDialog
-          show={showPRDialog}
-          onClose={() => setShowPRDialog(false)}
-          diffs={diffs}
-          stepRun={stepRun}
-          workflowId={workflowRun?.workflowVersion?.workflowId}
-        />
-      )}
       {errors.length > 0 && <div className="mt-4"></div>}
     </div>
   );

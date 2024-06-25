@@ -212,8 +212,6 @@ type WorkflowAPIRepository interface {
 
 	// GetWorkflowVersionMetrics returns the metrics for a given workflow version.
 	GetWorkflowMetrics(tenantId, workflowId string, opts *GetWorkflowMetricsOpts) (*WorkflowMetrics, error)
-
-	UpsertWorkflowDeploymentConfig(workflowId string, opts *UpsertWorkflowDeploymentConfigOpts) (*db.WorkflowDeploymentConfigModel, error)
 }
 
 type WorkflowEngineRepository interface {

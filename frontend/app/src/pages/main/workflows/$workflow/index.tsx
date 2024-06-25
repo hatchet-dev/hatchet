@@ -9,7 +9,6 @@ import {
   useNavigate,
   useOutletContext,
   useParams,
-  useRevalidator,
 } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { WorkflowTags } from '../components/workflow-tags';
@@ -22,7 +21,6 @@ import WorkflowVisualizer from './components/workflow-visualizer';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { DeploymentSettingsForm } from './components/deployment-settings-form';
 import { useApiMetaIntegrations } from '@/lib/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
@@ -76,7 +74,6 @@ export default function ExpandedWorkflow() {
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
   const loaderData = useLoaderData() as Awaited<ReturnType<typeof loader>>;
-  const revalidator = useRevalidator();
   const navigate = useNavigate();
 
   const deleteWorkflowMutation = useMutation({
@@ -186,10 +183,6 @@ export default function ExpandedWorkflow() {
                   Deployment Settings
                 </h3>
                 <Separator className="hidden my-4" />
-                <DeploymentSettings
-                  workflow={workflow}
-                  refetch={revalidator.revalidate}
-                />
               </div>
             )}
             <h4 className="text-lg font-bold leading-tight text-foreground mt-8">
@@ -241,35 +234,5 @@ function RecentRunsList() {
         filterVisibility={{ Workflow: false }}
       />
     </>
-  );
-}
-
-function DeploymentSettings({
-  workflow,
-  refetch,
-}: {
-  workflow: Workflow;
-  refetch?: () => void;
-}) {
-  const [show, setShow] = useState(false);
-
-  return (
-    <div>
-      <Button
-        className="text-sm"
-        onClick={() => setShow(true)}
-        variant="outline"
-      >
-        Change settings
-      </Button>
-      <DeploymentSettingsForm
-        workflow={workflow}
-        show={show}
-        onClose={() => {
-          setShow(false);
-          refetch?.();
-        }}
-      />
-    </div>
   );
 }

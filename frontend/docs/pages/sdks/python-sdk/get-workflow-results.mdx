@@ -49,7 +49,7 @@ Note that the `result` method is an coroutine that must be awaited. It returns a
 
 ## Streaming Results
 
-It is also possible to stream the results of a workflow run as each step is executed. This can be done via the `stream` method on the `workflow_run_ref` object:
+It is also possible to stream the results of a workflow run as each step is executed. This can be done via the `stream` method on the `WorkflowRunRef` object:
 
 ```py filename="stream_workflow_run.py" copy
 from hatchet_sdk import Hatchet, ClientConfig

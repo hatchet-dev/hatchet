@@ -89,7 +89,7 @@ postgres-data
 rabbitmq.conf
 
 *encryption-keys
-generated/
+/generated/
 certs/
 
 openapitools.json
