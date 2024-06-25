@@ -3,8 +3,12 @@ CREATE TABLE "WebhookWorker" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "name" TEXT NOT NULL,
     "secret" TEXT NOT NULL,
     "url" TEXT NOT NULL,
+    "tokenValue" TEXT,
+    "deleted" BOOLEAN NOT NULL DEFAULT false,
+    "tokenId" UUID,
     "tenantId" UUID NOT NULL,
 
     CONSTRAINT "WebhookWorker_pkey" PRIMARY KEY ("id")
@@ -30,6 +34,9 @@ CREATE UNIQUE INDEX "WebhookWorkerWorkflow_id_key" ON "WebhookWorkerWorkflow"("i
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_workflowId_key" ON "WebhookWorkerWorkflow"("webhookWorkerId", "workflowId");
+
+-- AddForeignKey
+ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tokenId_fkey" FOREIGN KEY ("tokenId") REFERENCES "APIToken"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;

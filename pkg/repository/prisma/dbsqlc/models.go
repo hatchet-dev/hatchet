@@ -1073,13 +1073,13 @@ type WebhookWorker struct {
 	ID         pgtype.UUID      `json:"id"`
 	CreatedAt  pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
+	Name       string           `json:"name"`
 	Secret     string           `json:"secret"`
 	Url        string           `json:"url"`
-	TenantId   pgtype.UUID      `json:"tenantId"`
-	TokenId    pgtype.UUID      `json:"tokenId"`
 	TokenValue pgtype.Text      `json:"tokenValue"`
-	Name       string           `json:"name"`
 	Deleted    bool             `json:"deleted"`
+	TokenId    pgtype.UUID      `json:"tokenId"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
 }
 
 type WebhookWorkerWorkflow struct {

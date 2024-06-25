@@ -30,7 +30,7 @@ func (q *Queries) DeleteWebhookWorker(ctx context.Context, db DBTX, arg DeleteWe
 }
 
 const listWebhookWorkers = `-- name: ListWebhookWorkers :many
-SELECT id, "createdAt", "updatedAt", secret, url, "tenantId", "tokenId", "tokenValue", name, deleted
+SELECT id, "createdAt", "updatedAt", name, secret, url, "tokenValue", deleted, "tokenId", "tenantId"
 FROM "WebhookWorker"
 WHERE "tenantId" = $1::uuid AND "deleted" = false
 `
@@ -48,13 +48,13 @@ func (q *Queries) ListWebhookWorkers(ctx context.Context, db DBTX, tenantid pgty
 			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Name,
 			&i.Secret,
 			&i.Url,
-			&i.TenantId,
-			&i.TokenId,
 			&i.TokenValue,
-			&i.Name,
 			&i.Deleted,
+			&i.TokenId,
+			&i.TenantId,
 		); err != nil {
 			return nil, err
 		}
@@ -97,7 +97,7 @@ SET
     "name" = coalesce($1::text, excluded."name"),
     "secret" = coalesce($2::text, excluded."secret"),
     "url" = coalesce($3::text, excluded."url")
-RETURNING id, "createdAt", "updatedAt", secret, url, "tenantId", "tokenId", "tokenValue", name, deleted
+RETURNING id, "createdAt", "updatedAt", name, secret, url, "tokenValue", deleted, "tokenId", "tenantId"
 `
 
 type UpsertWebhookWorkerParams struct {
@@ -123,13 +123,13 @@ func (q *Queries) UpsertWebhookWorker(ctx context.Context, db DBTX, arg UpsertWe
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Name,
 		&i.Secret,
 		&i.Url,
-		&i.TenantId,
-		&i.TokenId,
 		&i.TokenValue,
-		&i.Name,
 		&i.Deleted,
+		&i.TokenId,
+		&i.TenantId,
 	)
 	return &i, err
 }

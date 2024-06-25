@@ -590,13 +590,13 @@ CREATE TABLE "WebhookWorker" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "name" TEXT NOT NULL,
     "secret" TEXT NOT NULL,
     "url" TEXT NOT NULL,
-    "tenantId" UUID NOT NULL,
-    "tokenId" UUID,
     "tokenValue" TEXT,
-    "name" TEXT NOT NULL,
     "deleted" BOOLEAN NOT NULL DEFAULT false,
+    "tokenId" UUID,
+    "tenantId" UUID NOT NULL,
 
     CONSTRAINT "WebhookWorker_pkey" PRIMARY KEY ("id")
 );
