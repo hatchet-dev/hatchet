@@ -115,10 +115,10 @@ type workflowRunEngineRepository struct {
 	l       *zerolog.Logger
 	m       *metered.Metered
 
-	callbacks []repository.Callback[*dbsqlc.GetWorkflowRunRow]
+	callbacks []repository.Callback[*string]
 }
 
-func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[*dbsqlc.GetWorkflowRunRow]) repository.WorkflowRunEngineRepository {
+func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[*string]) repository.WorkflowRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRunEngineRepository{
@@ -131,9 +131,9 @@ func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l
 	}
 }
 
-func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.GetWorkflowRunRow]) {
+func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository.Callback[*string]) {
 	if w.callbacks == nil {
-		w.callbacks = make([]repository.Callback[*dbsqlc.GetWorkflowRunRow], 0)
+		w.callbacks = make([]repository.Callback[*string], 0)
 	}
 
 	w.callbacks = append(w.callbacks, callback)
@@ -226,6 +226,10 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 
 	if err != nil {
 		return "", err
+	}
+
+	for _, cb := range w.callbacks {
+		cb.Do(id) // nolint: errcheck
 	}
 
 	return *id, nil
