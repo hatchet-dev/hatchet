@@ -1,6 +1,11 @@
 -- name: ListWebhookWorkers :many
 SELECT *
 FROM "WebhookWorker"
+WHERE "tenantId" = @tenantId::uuid;
+
+-- name: ListActiveWebhookWorkers :many
+SELECT *
+FROM "WebhookWorker"
 WHERE "tenantId" = @tenantId::uuid AND "deleted" = false;
 
 

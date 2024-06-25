@@ -29,10 +29,47 @@ func (q *Queries) DeleteWebhookWorker(ctx context.Context, db DBTX, arg DeleteWe
 	return err
 }
 
-const listWebhookWorkers = `-- name: ListWebhookWorkers :many
+const listActiveWebhookWorkers = `-- name: ListActiveWebhookWorkers :many
 SELECT id, "createdAt", "updatedAt", name, secret, url, "tokenValue", deleted, "tokenId", "tenantId"
 FROM "WebhookWorker"
 WHERE "tenantId" = $1::uuid AND "deleted" = false
+`
+
+func (q *Queries) ListActiveWebhookWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*WebhookWorker, error) {
+	rows, err := db.Query(ctx, listActiveWebhookWorkers, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WebhookWorker
+	for rows.Next() {
+		var i WebhookWorker
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.Secret,
+			&i.Url,
+			&i.TokenValue,
+			&i.Deleted,
+			&i.TokenId,
+			&i.TenantId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWebhookWorkers = `-- name: ListWebhookWorkers :many
+SELECT id, "createdAt", "updatedAt", name, secret, url, "tokenValue", deleted, "tokenId", "tenantId"
+FROM "WebhookWorker"
+WHERE "tenantId" = $1::uuid
 `
 
 func (q *Queries) ListWebhookWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*WebhookWorker, error) {

@@ -34,6 +34,10 @@ func (r *webhookWorkerEngineRepository) ListWebhookWorkers(ctx context.Context, 
 	return r.queries.ListWebhookWorkers(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 }
 
+func (r *webhookWorkerEngineRepository) ListActiveWebhookWorkers(ctx context.Context, tenantId string) ([]*dbsqlc.WebhookWorker, error) {
+	return r.queries.ListActiveWebhookWorkers(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
+}
+
 func (r *webhookWorkerEngineRepository) UpsertWebhookWorker(ctx context.Context, opts *repository.UpsertWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err

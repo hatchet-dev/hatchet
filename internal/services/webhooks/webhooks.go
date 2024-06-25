@@ -23,20 +23,21 @@ import (
 type WebhooksController struct {
 	sc                  *server.ServerConfig
 	registeredWorkerIds map[string]bool
-	cleanups            []func() error
+	cleanups            map[string]func() error
 }
 
 func New(sc *server.ServerConfig) *WebhooksController {
 	return &WebhooksController{
 		sc:                  sc,
 		registeredWorkerIds: map[string]bool{},
+		cleanups:            map[string]func() error{},
 	}
 }
 
 func (c *WebhooksController) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	go func() {
 		for {
 			select {
@@ -86,9 +87,15 @@ func (c *WebhooksController) check() error {
 				id := sqlchelpers.UUIDToStr(ww.ID)
 				if _, ok := c.registeredWorkerIds[id]; ok {
 					if ww.Deleted {
+						cleanup, ok := c.cleanups[id]
+						if ok {
+							if err := cleanup(); err != nil {
+								c.sc.Logger.Err(err).Msgf("error cleaning up webhook worker %s of tenant %s", id, tenantId)
+							}
+						}
 						c.sc.Logger.Debug().Msgf("webhook worker %s of tenant %s has been deleted", id, tenantId)
 						err := c.sc.EngineRepository.Worker().UpdateWorkersByName(context.Background(), dbsqlc.UpdateWorkersByNameParams{
-							Isactive: true,
+							Isactive: false,
 							Name:     "Webhook_" + id,
 							Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 						})
@@ -165,7 +172,7 @@ func (c *WebhooksController) check() error {
 					return nil
 				}
 				if cleanup != nil {
-					c.cleanups = append(c.cleanups, cleanup)
+					c.cleanups[id] = cleanup
 				}
 
 				return nil
@@ -199,7 +206,7 @@ func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheck
 		req.Header.Set("X-Healthcheck", "true")
 	})
 	if err != nil {
-		return nil, fmt.Errorf("could not send healthcheck request: %w", err)
+		return nil, fmt.Errorf("healthcheck request: %w", err)
 	}
 
 	var res HealthCheckResponse
@@ -245,9 +252,8 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		timer := time.NewTimer(10 * time.Second)
-		defer timer.Stop()
-
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
 		wfsHashLast := hash(h.Workflows)
 		actionsHashLast := hash(h.Actions)
 
@@ -256,16 +262,17 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 			select {
 			case <-ctx.Done():
 				return
-			case <-timer.C:
+			case <-ticker.C:
 				h, err := c.healthcheck(webhookWorker)
 				if err != nil {
 					healthCheckErrors++
 					if healthCheckErrors > 3 {
-						c.sc.Logger.Warn().Msgf("webhook worker %s of tenant %s failed 3 health checks, marking as inactive", id, tenantId)
+						c.sc.Logger.Warn().Msgf("webhook worker %s of tenant %s failed %d health checks, marking as inactive", id, tenantId, healthCheckErrors)
 
-						isActive := false
-						_, err := c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, id, &repository.UpdateWorkerOpts{
-							IsActive: &isActive,
+						err := c.sc.EngineRepository.Worker().UpdateWorkersByName(context.Background(), dbsqlc.UpdateWorkersByNameParams{
+							Isactive: false,
+							Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+							Name:     "Webhook_" + id,
 						})
 						if err != nil {
 							c.sc.Logger.Err(err).Msgf("could not update worker")
@@ -311,12 +318,14 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 					c.sc.Logger.Printf("webhook worker %s is healthy again", id)
 				}
 
-				isActive := true
-				_, err = c.sc.EngineRepository.Worker().UpdateWorker(context.Background(), tenantId, id, &repository.UpdateWorkerOpts{
-					IsActive: &isActive,
+				err = c.sc.EngineRepository.Worker().UpdateWorkersByName(context.Background(), dbsqlc.UpdateWorkersByNameParams{
+					Isactive: true,
+					Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+					Name:     "Webhook_" + id,
 				})
 				if err != nil {
 					c.sc.Logger.Err(err).Msgf("could not update worker")
+					continue
 				}
 
 				healthCheckErrors = 0
