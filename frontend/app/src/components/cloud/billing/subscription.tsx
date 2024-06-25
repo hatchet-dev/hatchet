@@ -125,7 +125,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     <>
       <ConfirmDialog
         isOpen={!!isChangeConfirmOpen}
-        title={'Change Plan'}
+        title={'Confirm Change Plan'}
         description={
           <>
             Are you sure you'd like to change to {isChangeConfirmOpen?.name}{' '}
