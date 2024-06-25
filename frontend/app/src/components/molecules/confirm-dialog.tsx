@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { Button, ButtonProps } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/loading.tsx';
 import {
   Dialog,
@@ -9,9 +9,10 @@ import {
 
 interface ConfirmDialogProps {
   title: string;
-  description: string;
+  description: string | JSX.Element;
 
   submitLabel: string;
+  submitVariant?: ButtonProps['variant'];
   cancelLabel?: string;
   className?: string;
   onSubmit: () => void;
@@ -25,6 +26,7 @@ export function ConfirmDialog({
   title,
   description,
   submitLabel,
+  submitVariant = 'destructive',
   cancelLabel = 'Cancel',
   isOpen,
   ...props
@@ -46,7 +48,7 @@ export function ConfirmDialog({
             >
               {cancelLabel}
             </Button>
-            <Button variant="destructive" onClick={props.onSubmit}>
+            <Button variant={submitVariant} onClick={props.onSubmit}>
               {props.isLoading && <Spinner />}
               {submitLabel}
             </Button>

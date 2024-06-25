@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/run"
-	"github.com/hatchet-dev/hatchet/internal/services/worker"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
@@ -16,25 +15,6 @@ func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
 	}
 
 	var teardown []func() error
-
-	if sc.InternalClient != nil {
-		w, err := worker.NewWorker(
-			worker.WithRepository(sc.APIRepository),
-			worker.WithClient(sc.InternalClient),
-			worker.WithVCSProviders(sc.VCSProviders),
-		)
-
-		if err != nil {
-			return fmt.Errorf("error creating worker: %w", err)
-		}
-
-		workerCleanup, err := w.Start()
-		if err != nil {
-			return fmt.Errorf("error starting worker: %w", err)
-		}
-
-		teardown = append(teardown, workerCleanup)
-	}
 
 	runner := run.NewAPIServer(sc)
 

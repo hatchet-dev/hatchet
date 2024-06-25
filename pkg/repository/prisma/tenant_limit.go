@@ -43,6 +43,7 @@ func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Conte
 }
 
 func (t *tenantLimitRepository) SetPlanLimitMap(planLimitMap repository.PlanLimitMap) error {
+	t.plans = &planLimitMap
 	return nil
 }
 
@@ -73,11 +74,13 @@ func (t *tenantLimitRepository) DefaultLimits() []repository.Limit {
 }
 
 func (t *tenantLimitRepository) planLimitMap(plan *string) []repository.Limit {
+
 	if t.plans == nil || plan == nil {
 		return t.DefaultLimits()
 	}
 
 	if _, ok := (*t.plans)[*plan]; !ok {
+		t.l.Warn().Msgf("plan %s not found, using default limits", *plan)
 		return t.DefaultLimits()
 	}
 

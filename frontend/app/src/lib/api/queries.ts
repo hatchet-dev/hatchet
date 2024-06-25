@@ -1,8 +1,7 @@
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 
-import api from './api';
+import api, { cloudApi } from './api';
 import invariant from 'tiny-invariant';
-import { PullRequestState } from '.';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
@@ -10,6 +9,12 @@ type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
 
 export const queries = createQueryKeyStore({
+  cloud: {
+    billing: (tenant: string) => ({
+      queryKey: ['billing-state:get', tenant],
+      queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
+    }),
+  },
   user: {
     current: {
       queryKey: ['user:get'],
@@ -118,32 +123,11 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await api.workflowRunGetMetrics(tenant, query)).data,
     }),
-    listPullRequests: (
-      tenant: string,
-      workflowRun: string,
-      query: {
-        state?: PullRequestState;
-      },
-    ) => ({
-      queryKey: [
-        'workflow-run:list:pull-requests',
-        tenant,
-        workflowRun,
-        query.state,
-      ],
-      queryFn: async () =>
-        (await api.workflowRunListPullRequests(tenant, workflowRun, query))
-          .data,
-    }),
   },
   stepRuns: {
     get: (tenant: string, stepRun: string) => ({
       queryKey: ['step-run:get', tenant, stepRun],
       queryFn: async () => (await api.stepRunGet(tenant, stepRun)).data,
-    }),
-    getDiff: (stepRun: string) => ({
-      queryKey: ['step-run:get:diff', stepRun],
-      queryFn: async () => (await api.stepRunGetDiff(stepRun)).data,
     }),
     getLogs: (stepRun: string, query: ListLogLineQuery) => ({
       queryKey: ['log-lines:list', stepRun],
@@ -185,13 +169,13 @@ export const queries = createQueryKeyStore({
   github: {
     listInstallations: {
       queryKey: ['github-app:list:installations'],
-      queryFn: async () => (await api.githubAppListInstallations()).data,
+      queryFn: async () => (await cloudApi.githubAppListInstallations()).data,
     },
     listRepos: (installation?: string) => ({
       queryKey: ['github-app:list:repos', installation],
       queryFn: async () => {
         invariant(installation, 'Installation must be set');
-        const res = (await api.githubAppListRepos(installation)).data;
+        const res = (await cloudApi.githubAppListRepos(installation)).data;
         return res;
       },
       enabled: !!installation,
@@ -207,7 +191,11 @@ export const queries = createQueryKeyStore({
         invariant(repoOwner, 'Repo owner must be set');
         invariant(repoName, 'Repo name must be set');
         const res = (
-          await api.githubAppListBranches(installation, repoOwner, repoName)
+          await cloudApi.githubAppListBranches(
+            installation,
+            repoOwner,
+            repoName,
+          )
         ).data;
         return res;
       },

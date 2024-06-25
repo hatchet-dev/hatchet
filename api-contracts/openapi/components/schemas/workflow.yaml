@@ -24,38 +24,10 @@ Workflow:
       items:
         $ref: "#/Job"
       description: The jobs of the workflow.
-    deployment:
-      $ref: "#/WorkflowDeploymentConfig"
   required:
     - metadata
     - name
   type: object
-WorkflowDeploymentConfig:
-  properties:
-    metadata:
-      $ref: "./metadata.yaml#/APIResourceMeta"
-    gitRepoName:
-      type: string
-      description: The repository name.
-    gitRepoOwner:
-      type: string
-      description: The repository owner.
-    gitRepoBranch:
-      type: string
-      description: The repository branch.
-    githubAppInstallation:
-      $ref: "./_index.yaml#/GithubAppInstallation"
-      description: The Github App installation.
-    githubAppInstallationId:
-      type: string
-      format: uuid
-      description: The id of the Github App installation.
-  required:
-    - metadata
-    - gitRepoName
-    - gitRepoOwner
-    - gitRepoBranch
-    - githubAppInstallationId
 
 WorkflowTag:
   type: object
