@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/hatchet-dev/hatchet/internal/whrequest"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -79,11 +77,9 @@ func (c *WebhooksController) check() error {
 			return fmt.Errorf("could not get webhook workers: %w", err)
 		}
 
-		ec := errgroup.Group{}
-		ec.SetLimit(5)
 		for _, ww := range wws {
 			ww := ww
-			ec.Go(func() error {
+			go func() {
 				id := sqlchelpers.UUIDToStr(ww.ID)
 				if _, ok := c.registeredWorkerIds[id]; ok {
 					if ww.Deleted {
@@ -101,22 +97,22 @@ func (c *WebhooksController) check() error {
 						})
 						if err != nil {
 							c.sc.Logger.Err(err).Msgf("could not delete webhook worker")
-							return nil
+							return
 						}
 
 						delete(c.registeredWorkerIds, id)
 					}
-					return nil
+					return
 				}
 
 				if ww.Deleted {
-					return nil
+					return
 				}
 
 				h, err := c.healthcheck(ww)
 				if err != nil {
 					c.sc.Logger.Warn().Err(err).Msgf("webhook worker %s of tenant %s healthcheck failed: %v", id, tenantId, err)
-					return nil
+					return
 				}
 
 				c.registeredWorkerIds[id] = true
@@ -126,12 +122,12 @@ func (c *WebhooksController) check() error {
 					tokenBytes, err := base64.StdEncoding.DecodeString(ww.TokenValue.String)
 					if err != nil {
 						c.sc.Logger.Error().Err(err).Msgf("failed to decode access token: %s", err.Error())
-						return nil
+						return
 					}
 					decTok, err := c.sc.Encryption.Decrypt(tokenBytes, "engine_webhook_worker_token")
 					if err != nil {
 						c.sc.Logger.Error().Err(err).Msgf("failed to encrypt access token: %s", err.Error())
-						return nil
+						return
 					}
 
 					token = string(decTok)
@@ -139,13 +135,13 @@ func (c *WebhooksController) check() error {
 					tok, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker")
 					if err != nil {
 						c.sc.Logger.Error().Err(err).Msgf("could not generate token for webhook worker %s of tenant %s", id, tenantId)
-						return nil
+						return
 					}
 
 					encTok, err := c.sc.Encryption.Encrypt([]byte(tok.Token), "engine_webhook_worker_token")
 					if err != nil {
 						c.sc.Logger.Error().Err(err).Msgf("failed to encrypt access token: %s", err.Error())
-						return nil
+						return
 					}
 
 					encTokStr := base64.StdEncoding.EncodeToString(encTok)
@@ -160,7 +156,7 @@ func (c *WebhooksController) check() error {
 					})
 					if err != nil {
 						c.sc.Logger.Error().Err(err).Msgf("could not update webhook worker %s of tenant %s", id, tenantId)
-						return nil
+						return
 					}
 
 					token = tok.Token
@@ -169,18 +165,12 @@ func (c *WebhooksController) check() error {
 				cleanup, err := c.run(tenantId, ww, token, h)
 				if err != nil {
 					c.sc.Logger.Error().Err(err).Msgf("error running webhook worker %s of tenant %s healthcheck", id, tenantId)
-					return nil
+					return
 				}
 				if cleanup != nil {
 					c.cleanups[id] = cleanup
 				}
-
-				return nil
-			})
-		}
-
-		if err = ec.Wait(); err != nil {
-			panic(err) // the error group above is not expected to error
+			}()
 		}
 	}
 
