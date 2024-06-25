@@ -261,6 +261,8 @@ type MessageQueueConfigFile struct {
 }
 
 type RabbitMQConfigFile struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
+
 	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
 }
 

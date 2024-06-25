@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
 	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/github"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -97,8 +98,10 @@ func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
 	return GetDatabaseConfigFromConfigFile(cf, &scf.Runtime)
 }
 
+type ServerConfigFileOverride func(*server.ServerConfigFile)
+
 // LoadServerConfig loads the server configuration
-func (c *ConfigLoader) LoadServerConfig() (cleanup func() error, res *server.ServerConfig, err error) {
+func (c *ConfigLoader) LoadServerConfig(overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
 	log.Printf("Loading server config from %s", c.directory)
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
 	log.Printf("Shared file path: %s", sharedFilePath)
@@ -116,6 +119,10 @@ func (c *ConfigLoader) LoadServerConfig() (cleanup func() error, res *server.Ser
 	cf, err := LoadServerConfigFile(configFileBytes...)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	for _, override := range overrides {
+		override(cf)
 	}
 
 	return GetServerConfigFromConfigfile(dc, cf)
@@ -206,10 +213,17 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil, nil, fmt.Errorf("could not create session store: %w", err)
 	}
 
-	cleanup1, mq := rabbitmq.New(
-		rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
-		rabbitmq.WithLogger(&l),
-	)
+	var mq msgqueue.MessageQueue
+	cleanup1 := func() error {
+		return nil
+	}
+
+	if cf.MessageQueue.RabbitMQ.Enabled {
+		cleanup1, mq = rabbitmq.New(
+			rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
+			rabbitmq.WithLogger(&l),
+		)
+	}
 
 	ingestor, err := ingestor.NewIngestor(
 		ingestor.WithEventRepository(dc.EngineRepository.Event()),
