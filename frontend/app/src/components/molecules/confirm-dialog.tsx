@@ -9,7 +9,7 @@ import {
 
 interface ConfirmDialogProps {
   title: string;
-  description: string;
+  description: string | JSX.Element;
 
   submitLabel: string;
   cancelLabel?: string;

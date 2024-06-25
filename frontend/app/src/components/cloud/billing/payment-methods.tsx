@@ -53,48 +53,52 @@ export function PaymentMethods({
   };
 
   return (
-    <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
-      <div className="flex flex-row justify-between items-center">
-        <h3 className="text-xl font-semibold leading-tight text-foreground">
-          Payment Methods
-        </h3>
-      </div>
-      {hasMethods ? (
-        <>
-          {methods.map((method, i) => {
-            const Icon =
-              method.brand in ccIcons ? ccIcons[method.brand] : ccIcons.generic;
-            return (
-              <div key={i} className="flex flex-row items-center gap-4 mb-4">
-                <Icon size={24} />
-                <div className="flex flex-col">
-                  <span>
-                    {method.brand.toUpperCase()} *** *** {method.last4}
-                  </span>
-                  <span>Expires {method.expiration}</span>
-                </div>
-              </div>
-            );
-          })}
-          <div className="mt-4">
-            <Button onClick={manageClicked} variant="default">
-              {loading ? <Spinner /> : 'Manage Payment Methods'}
-            </Button>
-          </div>
-        </>
-      ) : (
-        <div className="mt-4">
-          <p className="">
-            No payment methods added. Payment method is required to upgrade your
-            subscription.
-          </p>
-          <div className="mt-4">
-            <Button onClick={manageClicked} variant="default">
-              {loading ? <Spinner /> : 'Add a Payment Method'}
-            </Button>
-          </div>
+    <>
+      <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-row justify-between items-center">
+          <h3 className="text-xl font-semibold leading-tight text-foreground">
+            Payment Methods
+          </h3>
         </div>
-      )}
-    </div>
+        {hasMethods ? (
+          <>
+            {methods.map((method, i) => {
+              const Icon =
+                method.brand in ccIcons
+                  ? ccIcons[method.brand]
+                  : ccIcons.generic;
+              return (
+                <div key={i} className="flex flex-row items-center gap-4 mb-4">
+                  <Icon size={24} />
+                  <div className="flex flex-col">
+                    <span>
+                      {method.brand.toUpperCase()} *** *** {method.last4}
+                    </span>
+                    <span>Expires {method.expiration}</span>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="mt-4">
+              <Button onClick={manageClicked} variant="default">
+                {loading ? <Spinner /> : 'Manage Payment Methods'}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="mt-4">
+            <p className="">
+              No payment methods added. Payment method is required to upgrade
+              your subscription.
+            </p>
+            <div className="mt-4">
+              <Button onClick={manageClicked} variant="default">
+                {loading ? <Spinner /> : 'Add a Payment Method'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

@@ -1,3 +1,4 @@
+import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
   const [loading, setLoading] = useState<string>();
   const [showAnnual, setShowAnnual] = useState<boolean>(false);
+  const [isChangeConfirmOpen, setChangeConfirmOpen] = useState<
+    SubscriptionPlan | undefined
+  >(undefined);
 
   const { tenant } = useOutletContext<TenantContextType>();
   const { handleApiError } = useApiError({});
@@ -118,98 +122,121 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   );
 
   return (
-    <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
-      <div className="flex flex-row justify-between items-center">
-        <h3 className="text-xl font-semibold leading-tight text-foreground">
-          Subscription
-        </h3>
-        <div className="flex gap-2">
-          <Switch
-            id="sa"
-            checked={showAnnual}
-            onClick={() => {
-              setShowAnnual((checkedState) => !checkedState);
-            }}
-          />
-          <Label htmlFor="sa" className="text-sm">
-            Annual Billing{' '}
-            <Badge variant="inProgress" className="ml-2">
-              Save up to 20%
-            </Badge>
-          </Label>
-        </div>
-      </div>
-      <p className="text-gray-700 dark:text-gray-300 my-4">
-        For plan details, please visit{' '}
-        <a
-          href="https://hatchet.run/pricing"
-          className="underline"
-          target="_blank"
-          rel="noreferrer"
-        >
-          our pricing page
-        </a>{' '}
-        or{' '}
-        <a href="https://hatchet.run/office-hours" className="underline">
-          contact us
-        </a>{' '}
-        if you have custom requirements.
-      </p>
-      {!hasPaymentMethods && (
-        <Alert variant="destructive" className="mb-4">
-          <ExclamationTriangleIcon className="h-4 w-4" />
-          <AlertTitle className="font-semibold">No Payment Method.</AlertTitle>
-          <AlertDescription>
-            A payment method is required to upgrade your subscription, please{' '}
-            <a onClick={manageClicked} className="underline pointer" href="#">
-              add one
-            </a>{' '}
-            first.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {sortedPlans?.map((plan, i) => (
-          <div className="flex flex-col" key={i}>
-            <b>{plan.name}</b>
-            <p>
-              ${(plan.amount_cents / 100).toLocaleString()} billed {plan.period}
-              *
-            </p>
-            <Button
-              disabled={
-                !hasPaymentMethods ||
-                plan.plan_code === activePlanCode ||
-                loading === plan.plan_code
-              }
-              variant={
-                plan.plan_code !== activePlanCode ? 'default' : 'outline'
-              }
-              onClick={async () => {
-                await subscriptionMutation.mutateAsync({
-                  plan_code: plan.plan_code,
-                });
+    <>
+      <ConfirmDialog
+        isOpen={!!isChangeConfirmOpen}
+        title={'Change Plan'}
+        description={
+          <>
+            Are you sure you'd like to change to {isChangeConfirmOpen?.name}{' '}
+            plan?
+            <br />
+            Upgrades will be prorated and downgrades will take effect at the end
+            of the billing period.
+          </>
+        }
+        submitLabel={'Change Plan'}
+        onSubmit={async () => {
+          await subscriptionMutation.mutateAsync({
+            plan_code: isChangeConfirmOpen!.plan_code,
+          });
+          setLoading(undefined);
+          setChangeConfirmOpen(undefined);
+        }}
+        onCancel={() => setChangeConfirmOpen(undefined)}
+        isLoading={!!loading}
+      />
+      <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-row justify-between items-center">
+          <h3 className="text-xl font-semibold leading-tight text-foreground">
+            Subscription
+          </h3>
+          <div className="flex gap-2">
+            <Switch
+              id="sa"
+              checked={showAnnual}
+              onClick={() => {
+                setShowAnnual((checkedState) => !checkedState);
               }}
-            >
-              {loading === plan.plan_code ? (
-                <Spinner />
-              ) : plan.plan_code === activePlanCode ? (
-                'Active'
-              ) : isUpgrade(plan) ? (
-                'Upgrade'
-              ) : (
-                'Downgrade'
-              )}
-            </Button>
+            />
+            <Label htmlFor="sa" className="text-sm">
+              Annual Billing{' '}
+              <Badge variant="inProgress" className="ml-2">
+                Save up to 20%
+              </Badge>
+            </Label>
           </div>
-        ))}
+        </div>
+        <p className="text-gray-700 dark:text-gray-300 my-4">
+          For plan details, please visit{' '}
+          <a
+            href="https://hatchet.run/pricing"
+            className="underline"
+            target="_blank"
+            rel="noreferrer"
+          >
+            our pricing page
+          </a>{' '}
+          or{' '}
+          <a href="https://hatchet.run/office-hours" className="underline">
+            contact us
+          </a>{' '}
+          if you have custom requirements.
+        </p>
+        {!hasPaymentMethods && (
+          <Alert variant="destructive" className="mb-4">
+            <ExclamationTriangleIcon className="h-4 w-4" />
+            <AlertTitle className="font-semibold">
+              No Payment Method.
+            </AlertTitle>
+            <AlertDescription>
+              A payment method is required to upgrade your subscription, please{' '}
+              <a onClick={manageClicked} className="underline pointer" href="#">
+                add one
+              </a>{' '}
+              first.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {sortedPlans?.map((plan, i) => (
+            <div className="flex flex-col" key={i}>
+              <b>{plan.name}</b>
+              <p>
+                ${(plan.amount_cents / 100).toLocaleString()} billed{' '}
+                {plan.period}*
+              </p>
+              <Button
+                disabled={
+                  !hasPaymentMethods ||
+                  plan.plan_code === activePlanCode ||
+                  loading === plan.plan_code
+                }
+                variant={
+                  plan.plan_code !== activePlanCode ? 'default' : 'outline'
+                }
+                onClick={() => setChangeConfirmOpen(plan)}
+              >
+                {loading === plan.plan_code ? (
+                  <Spinner />
+                ) : plan.plan_code === activePlanCode ? (
+                  'Active'
+                ) : isUpgrade(plan) ? (
+                  'Upgrade'
+                ) : (
+                  'Downgrade'
+                )}
+              </Button>
+            </div>
+          ))}
+        </div>
+        {active?.note && <p className="mt-4">{active?.note}</p>}
+        <p className="text-sm text-gray-500 mt-4">
+          * subscription fee billed upfront {showAnnual ? 'yearly' : 'monthly'},
+          overages billed monthly in arrears
+        </p>
       </div>
-      {active?.note && <p className="mt-4">{active?.note}</p>}
-      <p className="text-sm text-gray-500 mt-4">
-        * subscription fee billed upfront {showAnnual ? 'yearly' : 'monthly'},
-        overages billed monthly in arrears
-      </p>
-    </div>
+    </>
   );
 };
