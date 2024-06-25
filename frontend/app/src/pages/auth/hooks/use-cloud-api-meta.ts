@@ -8,9 +8,15 @@ export default function useCloudApiMeta() {
 
   const cloudMetaQuery = useQuery({
     queryKey: ['cloud-metadata:get'],
+    retry: false,
     queryFn: async () => {
-      const meta = await cloudApi.metadataGet();
-      return meta;
+      try {
+        const meta = await cloudApi.metadataGet();
+        return meta;
+      } catch (e) {
+        console.error('Failed to get cloud metadata', e);
+        return null;
+      }
     },
   });
 

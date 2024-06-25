@@ -19,6 +19,7 @@ export default function ResourceLimits() {
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenant.metadata.id),
+    enabled: !!cloudMeta?.data.canBill,
   });
 
   const cols = columns();
