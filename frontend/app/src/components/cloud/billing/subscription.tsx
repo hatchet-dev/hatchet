@@ -2,6 +2,12 @@ import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/loading';
 import { Switch } from '@/components/ui/switch';
@@ -203,34 +209,45 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {sortedPlans?.map((plan, i) => (
-            <div className="flex flex-col" key={i}>
-              <b>{plan.name}</b>
-              <p>
-                ${(plan.amount_cents / 100).toLocaleString()} billed{' '}
-                {plan.period}*
-              </p>
-              <Button
-                disabled={
-                  !hasPaymentMethods ||
-                  plan.plan_code === activePlanCode ||
-                  loading === plan.plan_code
-                }
-                variant={
-                  plan.plan_code !== activePlanCode ? 'default' : 'outline'
-                }
-                onClick={() => setChangeConfirmOpen(plan)}
-              >
-                {loading === plan.plan_code ? (
-                  <Spinner />
-                ) : plan.plan_code === activePlanCode ? (
-                  'Active'
-                ) : isUpgrade(plan) ? (
-                  'Upgrade'
-                ) : (
-                  'Downgrade'
-                )}
-              </Button>
-            </div>
+            <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
+              <CardHeader>
+                <CardTitle className="tracking-wide text-sm">
+                  {plan.name}
+                </CardTitle>
+                <CardDescription className="py-4">
+                  $
+                  {(
+                    plan.amount_cents /
+                    100 /
+                    (plan.period == 'yearly' ? 12 : 1)
+                  ).toLocaleString()}{' '}
+                  per month billed {plan.period}*
+                </CardDescription>
+                <CardDescription>
+                  <Button
+                    disabled={
+                      !hasPaymentMethods ||
+                      plan.plan_code === activePlanCode ||
+                      loading === plan.plan_code
+                    }
+                    variant={
+                      plan.plan_code !== activePlanCode ? 'default' : 'outline'
+                    }
+                    onClick={() => setChangeConfirmOpen(plan)}
+                  >
+                    {loading === plan.plan_code ? (
+                      <Spinner />
+                    ) : plan.plan_code === activePlanCode ? (
+                      'Active'
+                    ) : isUpgrade(plan) ? (
+                      'Upgrade'
+                    ) : (
+                      'Downgrade'
+                    )}
+                  </Button>
+                </CardDescription>
+              </CardHeader>
+            </Card>
           ))}
         </div>
         {active?.note && <p className="mt-4">{active?.note}</p>}

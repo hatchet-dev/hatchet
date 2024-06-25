@@ -69,12 +69,12 @@ export function PaymentMethods({
                   : ccIcons.generic;
               return (
                 <div key={i} className="flex flex-row items-center gap-4 mb-4">
-                  <Icon size={24} />
-                  <div className="flex flex-col">
-                    <span>
-                      {method.brand.toUpperCase()} *** *** {method.last4}
-                    </span>
-                    <span>Expires {method.expiration}</span>
+                  <div className="flex flex-col mt-4 text-sm">
+                    <div className="flex flex-row gap-2 items-center">
+                      <Icon size={24} />
+                      {method.brand.toUpperCase()} *** *** {method.last4}{' '}
+                      (Expires {method.expiration})
+                    </div>
                   </div>
                 </div>
               );
