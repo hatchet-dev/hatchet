@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
@@ -51,7 +52,10 @@ func Prepare(t *testing.T) {
 	// read in the local config
 	configLoader := loader.NewConfigLoader(path.Join(testPath, baseDir, "generated"))
 
-	cleanup, serverConf, err := configLoader.LoadServerConfig()
+	cleanup, serverConf, err := configLoader.LoadServerConfig("", func(scf *server.ServerConfigFile) {
+		// disable security checks since we're not running the server
+		scf.SecurityCheck.Enabled = false
+	})
 	if err != nil {
 		t.Fatalf("could not load server config: %v", err)
 	}

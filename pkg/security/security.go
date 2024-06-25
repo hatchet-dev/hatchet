@@ -16,6 +16,7 @@ type DefaultSecurityCheck struct {
 	Enabled  bool
 	Endpoint string
 	L        *zerolog.Logger
+	Version  string
 }
 
 func NewSecurityCheck(opts *DefaultSecurityCheck) SecurityCheck {
@@ -23,6 +24,7 @@ func NewSecurityCheck(opts *DefaultSecurityCheck) SecurityCheck {
 		Enabled:  opts.Enabled,
 		Endpoint: opts.Endpoint,
 		L:        opts.L,
+		Version:  opts.Version,
 	}
 }
 
@@ -31,7 +33,7 @@ func (a DefaultSecurityCheck) Check() {
 		return
 	}
 
-	req := fmt.Sprintf("%s/check?version=%s", a.Endpoint, "0.1.0")
+	req := fmt.Sprintf("%s/check?version=%s&tag=%s", a.Endpoint, a.Version, "helloworld")
 
 	resp, err := http.Get(req) // #nosec
 
@@ -40,16 +42,20 @@ func (a DefaultSecurityCheck) Check() {
 	}
 	defer resp.Body.Close()
 
+	a.L.Debug().Msgf("Fetching Security Alerts for %s", a.Version)
+
 	if resp.StatusCode != http.StatusOK {
+		a.L.Debug().Msgf("Error Fetching Security Alerts: %d", resp.StatusCode)
 		return // Do nothing if the response status is not OK
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		a.L.Debug().Msg("No Security Alerts!")
 		return // Do nothing if there's an error reading the body
 	}
 
 	if len(body) > 0 {
-		a.L.Warn().Msgf("Security Alert:\n\n%s******************\n", body)
+		a.L.Error().Msgf("Security Alert:\n\n%s\n******************\n", body)
 	}
 }
