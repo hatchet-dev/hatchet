@@ -18,6 +18,7 @@ This simple retry mechanism can help to mitigate transient failures, such as net
 ## How to use step-level retries
 
 To enable retries for a step in your workflow, simply add the `retries` property to the step object in your workflow definition:
+
 <Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
@@ -31,11 +32,12 @@ def step1(self, context: Context):
 import { CreateStepSchema } from "@hatchet-dev/typescript-sdk";
 
 const step1: z.infer<typeof CreateStepSchema> = {
-  name: "step1",
-  timeout: "30s",
-  retries: 3,
+name: "step1",
+timeout: "30s",
+retries: 3,
 };
-```
+
+````
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
@@ -44,10 +46,10 @@ Steps: []*worker.WorkflowStep{
     continue
   }).SetName("step1").SetRetries(3).SetTimeout("30s"),
 },
-```
+````
+
   </Tabs.Tab>
 </Tabs>
-
 
 In this example:
 

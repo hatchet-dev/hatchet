@@ -29,7 +29,6 @@ To configure concurrency control for a workflow in Hatchet, you can add a `concu
   - [`GROUP_ROUND_ROBIN`](./round-robin): Distribute workflow instances across available slots in a round-robin fashion based on the `key` function.
 - `key` (required): A function that takes the workflow context and returns a string key. This key is used to group runs for the purpose of concurrency limiting. For example, you could use this to limit concurrency on a per-user basis.
 
-
 ### Setting concurrency on workers
 
 In addition to setting concurrency limits at the workflow level, you can also control concurrency at the worker level by passing the `maxRuns` option when creating a new `Worker` instance:

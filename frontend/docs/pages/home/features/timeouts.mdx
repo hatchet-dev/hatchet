@@ -13,17 +13,17 @@ There are two types of timeouts in Hatchet:
 
 In Hatchet, timeouts are specified using a string in the format `<number><unit>`, where `<number>` is an integer and `<unit>` is one of:
 
--   `s` for seconds
--   `m` for minutes
--   `h` for hours
--   `d` for days
+- `s` for seconds
+- `m` for minutes
+- `h` for hours
+- `d` for days
 
 For example:
 
--   `10s` means 10 seconds
--   `4m` means 4 minutes
--   `1h` means 1 hour
--   `2d` means 2 days
+- `10s` means 10 seconds
+- `4m` means 4 minutes
+- `1h` means 1 hour
+- `2d` means 2 days
 
 If no unit is specified, seconds are assumed.
 
@@ -117,9 +117,9 @@ worker.WorkflowJob{
 This would set a timeout of 30 seconds for this specific step. If the step takes longer than 30 seconds to complete, it will fail and the workflow will be cancelled.
 
 <Callout type="warning">
-    A timed out step does not gurantee that the step will be stopped
-    immediately. The step will be stopped as soon as the worker is able to stop
-    the step. See [cancellation](/features/cancellation) for more information.
+  A timed out step does not gurantee that the step will be stopped immediately.
+  The step will be stopped as soon as the worker is able to stop the step. See
+  [cancellation](/features/cancellation) for more information.
 </Callout>
 
 ## Refreshing Timeouts
@@ -183,10 +183,10 @@ The `refreshTimeout` function can be called multiple times within a step to furt
 
 Timeouts are useful in a variety of scenarios:
 
--   Ensuring workflows don't run indefinitely and consume unnecessary resources
--   Failing workflows early if a critical step takes too long
--   Keeping workflows responsive by ensuring individual steps complete in a timely manner
--   Preventing infinite loops or hung processes from blocking the entire system
+- Ensuring workflows don't run indefinitely and consume unnecessary resources
+- Failing workflows early if a critical step takes too long
+- Keeping workflows responsive by ensuring individual steps complete in a timely manner
+- Preventing infinite loops or hung processes from blocking the entire system
 
 For example, if you have a workflow that makes an external API call, you may want to set a timeout to ensure the workflow fails quickly if the API is unresponsive, rather than waiting indefinitely.
 
