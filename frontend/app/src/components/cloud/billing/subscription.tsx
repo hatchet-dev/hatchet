@@ -126,10 +126,12 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       <ConfirmDialog
         isOpen={!!isChangeConfirmOpen}
         title={'Confirm Change Plan'}
+        submitVariant="default"
         description={
           <>
             Are you sure you'd like to change to {isChangeConfirmOpen?.name}{' '}
             plan?
+            <br />
             <br />
             Upgrades will be prorated and downgrades will take effect at the end
             of the billing period.
