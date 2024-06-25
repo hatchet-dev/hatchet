@@ -20,7 +20,7 @@ This simple retry mechanism can help to mitigate transient failures, such as net
 To enable retries for a step in your workflow, simply add the `retries` property to the step object in your workflow definition:
 
 ```typescript
-import { CreateStepSchema } from "@hatchet/types";
+import { CreateStepSchema } from "@hatchet-dev/typescript-sdk";
 
 const myStep: z.infer<typeof CreateStepSchema> = {
   name: "my-step",
