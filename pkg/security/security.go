@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+
 	"github.com/rs/zerolog"
 )
 
