@@ -255,6 +255,8 @@ type ConfigFileAuthCookie struct {
 }
 
 type MessageQueueConfigFile struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
+
 	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required"`
 
 	RabbitMQ RabbitMQConfigFile `mapstructure:"rabbitmq" json:"rabbitmq,omitempty" validate:"required"`
