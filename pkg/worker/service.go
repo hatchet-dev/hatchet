@@ -22,6 +22,7 @@ func (s *Service) RegisterWorkflow(workflow workflowConverter) error {
 	return s.On(workflow.ToWorkflowTrigger(), workflow)
 }
 
+// Deprecated: Use RegisterWorkflow instead
 func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	namespace := s.worker.client.Namespace()
 

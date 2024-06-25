@@ -237,6 +237,7 @@ func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
 	return w.On(workflow.ToWorkflowTrigger(), workflow)
 }
 
+// Deprecated: Use RegisterWorkflow instead
 func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 	// get the default service
 	svc, ok := w.services.Load("default")
