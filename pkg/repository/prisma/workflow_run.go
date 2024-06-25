@@ -82,8 +82,10 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 			return nil, nil, err
 		}
 
+		id := sqlchelpers.UUIDToStr(workflowRunId.ID)
+
 		res, err := w.client.WorkflowRun.FindUnique(
-			db.WorkflowRun.ID.Equals(workflowRunId),
+			db.WorkflowRun.ID.Equals(id),
 		).With(
 			defaultWorkflowRunPopulator()...,
 		).Exec(context.Background())
@@ -115,10 +117,10 @@ type workflowRunEngineRepository struct {
 	l       *zerolog.Logger
 	m       *metered.Metered
 
-	callbacks []repository.Callback[*string]
+	callbacks []repository.Callback[*dbsqlc.WorkflowRun]
 }
 
-func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[*string]) repository.WorkflowRunEngineRepository {
+func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) repository.WorkflowRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRunEngineRepository{
@@ -131,9 +133,9 @@ func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l
 	}
 }
 
-func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository.Callback[*string]) {
+func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
 	if w.callbacks == nil {
-		w.callbacks = make([]repository.Callback[*string], 0)
+		w.callbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
 	}
 
 	w.callbacks = append(w.callbacks, callback)
@@ -209,19 +211,22 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 }
 
 func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {
-	id, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*string, *string, error) {
+
+	wfr, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*string, *dbsqlc.WorkflowRun, error) {
 
 		if err := w.v.Validate(opts); err != nil {
 			return nil, nil, err
 		}
 
-		id, err := createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
+		wfr, err := createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
 
 		if err != nil {
 			return nil, nil, err
 		}
 
-		return &id, &id, nil
+		id := sqlchelpers.UUIDToStr(wfr.ID)
+
+		return &id, wfr, nil
 	})
 
 	if err != nil {
@@ -229,10 +234,12 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 	}
 
 	for _, cb := range w.callbacks {
-		cb.Do(id) // nolint: errcheck
+		cb.Do(wfr) // nolint: errcheck
 	}
 
-	return *id, nil
+	id := sqlchelpers.UUIDToStr(wfr.ID)
+
+	return id, nil
 }
 
 func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
@@ -441,7 +448,7 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 	return workflowRunsCount, nil
 }
 
-func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {
+func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error) {
 	ctx, span := telemetry.NewSpan(ctx, "db-create-new-workflow-run")
 	defer span.End()
 
@@ -644,10 +651,10 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 	}()
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return sqlchelpers.UUIDToStr(sqlcWorkflowRun.ID), nil
+	return sqlcWorkflowRun, nil
 }
 
 func defaultWorkflowRunPopulator() []db.WorkflowRunRelationWith {

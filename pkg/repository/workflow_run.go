@@ -360,7 +360,7 @@ type WorkflowRunAPIRepository interface {
 var ErrWorkflowRunNotFound = fmt.Errorf("workflow run not found")
 
 type WorkflowRunEngineRepository interface {
-	RegisterCreateCallback(callback Callback[*string])
+	RegisterCreateCallback(callback Callback[*dbsqlc.WorkflowRun])
 
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
