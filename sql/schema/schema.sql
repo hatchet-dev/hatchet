@@ -506,6 +506,31 @@ CREATE TABLE "UserSession" (
 );
 
 -- CreateTable
+CREATE TABLE "WebhookWorker" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "name" TEXT NOT NULL,
+    "secret" TEXT NOT NULL,
+    "url" TEXT NOT NULL,
+    "tokenValue" TEXT,
+    "deleted" BOOLEAN NOT NULL DEFAULT false,
+    "tokenId" UUID,
+    "tenantId" UUID NOT NULL,
+
+    CONSTRAINT "WebhookWorker_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "WebhookWorkerWorkflow" (
+    "id" UUID NOT NULL,
+    "webhookWorkerId" UUID NOT NULL,
+    "workflowId" UUID NOT NULL,
+
+    CONSTRAINT "WebhookWorkerWorkflow_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Worker" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -866,6 +891,18 @@ CREATE UNIQUE INDEX "UserPassword_userId_key" ON "UserPassword"("userId" ASC);
 CREATE UNIQUE INDEX "UserSession_id_key" ON "UserSession"("id" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WebhookWorker_id_key" ON "WebhookWorker"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WebhookWorker_url_key" ON "WebhookWorker"("url" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WebhookWorkerWorkflow_id_key" ON "WebhookWorkerWorkflow"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_workflowId_key" ON "WebhookWorkerWorkflow"("webhookWorkerId" ASC, "workflowId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
 
 -- CreateIndex
@@ -1116,6 +1153,18 @@ ALTER TABLE "UserPassword" ADD CONSTRAINT "UserPassword_userId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "UserSession" ADD CONSTRAINT "UserSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tokenId_fkey" FOREIGN KEY ("tokenId") REFERENCES "APIToken"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WebhookWorkerWorkflow" ADD CONSTRAINT "WebhookWorkerWorkflow_webhookWorkerId_fkey" FOREIGN KEY ("webhookWorkerId") REFERENCES "WebhookWorker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WebhookWorkerWorkflow" ADD CONSTRAINT "WebhookWorkerWorkflow_workflowId_fkey" FOREIGN KEY ("workflowId") REFERENCES "Workflow"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dispatcherId") REFERENCES "Dispatcher"("id") ON DELETE SET NULL ON UPDATE CASCADE;

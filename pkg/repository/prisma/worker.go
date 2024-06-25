@@ -345,6 +345,11 @@ func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, wor
 	return err
 }
 
+func (w *workerEngineRepository) UpdateWorkersByName(ctx context.Context, params dbsqlc.UpdateWorkersByNameParams) error {
+	_, err := w.queries.UpdateWorkersByName(ctx, w.pool, params)
+	return err
+}
+
 func (w *workerEngineRepository) ResolveWorkerSemaphoreSlots(ctx context.Context) (int64, error) {
 	return w.queries.ResolveWorkerSemaphoreSlots(ctx, w.pool)
 }

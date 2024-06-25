@@ -40,3 +40,11 @@ func TestGenerateRandomString(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateWebhookSecret(t *testing.T) {
+	s, err := GenerateWebhookSecret()
+	if !assert.NoError(t, err) {
+		t.FailNow()
+	}
+	assert.Equalf(t, 32, len(s), "GenerateWebhookSecret length should be 32")
+}

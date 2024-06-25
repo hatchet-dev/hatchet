@@ -146,6 +146,12 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     name="API Tokens"
                   />,
                   <SidebarButtonSecondary
+                    key={2}
+                    onNavLinkClick={onNavLinkClick}
+                    to="/tenant-settings/webhooks"
+                    name="Webhooks"
+                  />,
+                  <SidebarButtonSecondary
                     key={3}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/members"

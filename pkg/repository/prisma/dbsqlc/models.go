@@ -989,6 +989,25 @@ type UserSession struct {
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
 
+type WebhookWorker struct {
+	ID         pgtype.UUID      `json:"id"`
+	CreatedAt  pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
+	Name       string           `json:"name"`
+	Secret     string           `json:"secret"`
+	Url        string           `json:"url"`
+	TokenValue pgtype.Text      `json:"tokenValue"`
+	Deleted    bool             `json:"deleted"`
+	TokenId    pgtype.UUID      `json:"tokenId"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+}
+
+type WebhookWorkerWorkflow struct {
+	ID              pgtype.UUID `json:"id"`
+	WebhookWorkerId pgtype.UUID `json:"webhookWorkerId"`
+	WorkflowId      pgtype.UUID `json:"workflowId"`
+}
+
 type Worker struct {
 	ID                      pgtype.UUID      `json:"id"`
 	CreatedAt               pgtype.Timestamp `json:"createdAt"`

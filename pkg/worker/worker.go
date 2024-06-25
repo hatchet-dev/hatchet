@@ -70,6 +70,8 @@ type Worker struct {
 
 	actions map[string]Action
 
+	workflows []string
+
 	l *zerolog.Logger
 
 	cancelMap sync.Map
@@ -83,6 +85,8 @@ type Worker struct {
 	middlewares *middlewares
 
 	maxRuns *int
+
+	initActionNames []string
 }
 
 type WorkerOpt func(*WorkerOpts)
@@ -95,6 +99,9 @@ type WorkerOpts struct {
 	integrations []integrations.Integration
 	alerter      errors.Alerter
 	maxRuns      *int
+
+	actions   []string
+	workflows []string
 }
 
 func defaultWorkerOpts() *WorkerOpts {
@@ -118,6 +125,13 @@ func WithLogLevel(lvl string) WorkerOpt {
 		}
 
 		opts.l = &logger
+	}
+}
+
+func WithInternalData(actions []string, workflows []string) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.actions = actions
+		opts.workflows = workflows
 	}
 }
 
@@ -162,13 +176,15 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 	mws := newMiddlewares()
 
 	w := &Worker{
-		client:      opts.client,
-		name:        opts.name,
-		l:           opts.l,
-		actions:     map[string]Action{},
-		alerter:     opts.alerter,
-		middlewares: mws,
-		maxRuns:     opts.maxRuns,
+		client:          opts.client,
+		name:            opts.name,
+		l:               opts.l,
+		actions:         map[string]Action{},
+		alerter:         opts.alerter,
+		middlewares:     mws,
+		maxRuns:         opts.maxRuns,
+		initActionNames: opts.actions,
+		workflows:       opts.workflows,
 	}
 
 	mws.add(w.panicMiddleware)
@@ -211,6 +227,14 @@ func (w *Worker) NewService(name string) *Service {
 	w.services.Store(namespaced, svc)
 
 	return svc
+}
+
+func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
+	wf, ok := workflow.(*WorkflowJob)
+	if ok && wf.On == nil {
+		return fmt.Errorf("workflow must have an trigger defined via the `On` field")
+	}
+	return w.On(workflow.ToWorkflowTrigger(), workflow)
 }
 
 func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {

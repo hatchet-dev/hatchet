@@ -32,6 +32,7 @@ type apiRepository struct {
 	userSession    repository.UserSessionRepository
 	user           repository.UserRepository
 	health         repository.HealthRepository
+	webhookWorker  repository.WebhookWorkerRepository
 }
 
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
@@ -105,6 +106,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		userSession:    NewUserSessionRepository(client, opts.v),
 		user:           NewUserRepository(client, opts.v),
 		health:         NewHealthAPIRepository(client, pool),
+		webhookWorker:  NewWebhookWorkerRepository(client, opts.v),
 	}
 }
 
@@ -176,6 +178,10 @@ func (r *apiRepository) User() repository.UserRepository {
 	return r.user
 }
 
+func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {
+	return r.webhookWorker
+}
+
 type engineRepository struct {
 	health         repository.HealthRepository
 	apiToken       repository.EngineTokenRepository
@@ -193,6 +199,7 @@ type engineRepository struct {
 	streamEvent    repository.StreamEventsEngineRepository
 	log            repository.LogsEngineRepository
 	rateLimit      repository.RateLimitEngineRepository
+	webhookWorker  repository.WebhookWorkerEngineRepository
 }
 
 func (r *engineRepository) Health() repository.HealthRepository {
@@ -259,6 +266,10 @@ func (r *engineRepository) RateLimit() repository.RateLimitEngineRepository {
 	return r.rateLimit
 }
 
+func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineRepository {
+	return r.webhookWorker
+}
+
 func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) repository.EngineRepository {
 	opts := defaultPrismaRepositoryOpts()
 
@@ -290,6 +301,7 @@ func NewEngineRepository(pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) reposito
 		streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 		log:            NewLogEngineRepository(pool, opts.v, opts.l),
 		rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
+		webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
 	}
 }
 

@@ -90,6 +90,40 @@ model UserSession {
   expiresAt DateTime
 }
 
+// WebhookWorker can be used to handle workflows via webhooks
+model WebhookWorker {
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  name       String
+  secret     String
+  url        String  @unique
+  // stores the encrypted hatchet auth token
+  tokenValue String?
+  deleted    Boolean @default(false)
+
+  tokenId String?   @db.Uuid
+  token   APIToken? @relation(fields: [tokenId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  webhookWorkerWorkflows WebhookWorkerWorkflow[]
+}
+
+model WebhookWorkerWorkflow {
+  id String @id @unique @default(uuid()) @db.Uuid
+
+  webhookWorker   WebhookWorker @relation(fields: [webhookWorkerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  webhookWorkerId String        @db.Uuid
+
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workflowId String   @db.Uuid
+
+  @@unique([webhookWorkerId, workflowId])
+}
+
 // Tenant represents a unique tenant in the database. Each tenant-scoped resource should have the tenant as
 // an identifier, which makes tenant isolation easier.
 model Tenant {
@@ -131,13 +165,12 @@ model Tenant {
   stepRateLimits      StepRateLimit[]
   alertEmailGroups    TenantAlertEmailGroup[]
   // alertMemberEmails controls whether to send alert emails to tenant members in addition to the alert email groups
-  alertMemberEmails   Boolean                  @default(true)
-  slackWebhooks       SlackAppWebhook[]
-  alertingSettings    TenantAlertingSettings?
-
+  alertMemberEmails         Boolean                    @default(true)
+  slackWebhooks             SlackAppWebhook[]
+  alertingSettings          TenantAlertingSettings?
   limits                    TenantResourceLimit[]
   limitAlerts               TenantResourceLimitAlert[]
-
+  webhookWorkers            WebhookWorker[]
 }
 
 enum LimitResource {
@@ -303,6 +336,8 @@ model APIToken {
 
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String? @db.Uuid
+
+  webhookWorkers WebhookWorker[]
 }
 
 // Event represents an event in the database.
@@ -381,7 +416,8 @@ model Workflow {
   versions WorkflowVersion[]
 
   // the tags for this workflow
-  tags WorkflowTag[]
+  tags                   WorkflowTag[]
+  webhookWorkerWorkflows WebhookWorkerWorkflow[]
 
   // workflow names are unique per tenant
   @@unique([tenantId, name])

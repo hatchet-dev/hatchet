@@ -65,9 +65,9 @@ func run(events chan<- string) (func() error, error) {
 
 	testSvc := w.NewService("test")
 
-	err = testSvc.On(
-		worker.Events("user:create:simple"),
+	err = testSvc.RegisterWorkflow(
 		&worker.WorkflowJob{
+			On:          worker.Events("user:create:simple"),
 			Name:        "simple",
 			Description: "This runs after an update to the user model.",
 			Concurrency: worker.Concurrency(getConcurrencyKey),

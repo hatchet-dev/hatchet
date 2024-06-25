@@ -29,9 +29,9 @@ func run(events chan<- string) (func() error, error) {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 
-	err = w.On(
-		worker.Events("user:create:cancellation"),
+	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
+			On:          worker.Events("user:create:cancellation"),
 			Name:        "cancellation",
 			Description: "cancellation",
 			Concurrency: worker.Concurrency(func(ctx worker.HatchetContext) (string, error) {

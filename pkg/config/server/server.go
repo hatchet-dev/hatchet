@@ -37,7 +37,7 @@ type ServerConfigFile struct {
 
 	MessageQueue MessageQueueConfigFile `mapstructure:"msgQueue" json:"msgQueue,omitempty"`
 
-	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"health\", \"ticker\", \"grpc\", \"eventscontroller\", \"jobscontroller\", \"workflowscontroller\", \"heartbeater\"]"`
+	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"health\", \"ticker\", \"grpc\", \"eventscontroller\", \"jobscontroller\", \"workflowscontroller\", \"webhookscontroller\", \"heartbeater\"]"`
 
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 
