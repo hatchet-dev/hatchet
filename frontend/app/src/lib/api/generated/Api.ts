@@ -1500,12 +1500,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @name WebhookDelete
    * @summary Delete a webhook
-   * @request DELETE:/api/v1/tenants/webhook-workers/{webhook}
+   * @request DELETE:/api/v1/webhook-workers/{webhook}
    * @secure
    */
   webhookDelete = (webhook: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
-      path: `/api/v1/tenants/webhook-workers/${webhook}`,
+      path: `/api/v1/webhook-workers/${webhook}`,
       method: "DELETE",
       secure: true,
       ...params,

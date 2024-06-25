@@ -1374,9 +1374,6 @@ type ClientInterface interface {
 
 	TenantCreate(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// WebhookDelete request
-	WebhookDelete(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// TenantUpdateWithBody request with any body
 	TenantUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1552,6 +1549,9 @@ type ClientInterface interface {
 
 	// UserUpdateSlackOauthCallback request
 	UserUpdateSlackOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WebhookDelete request
+	WebhookDelete(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkerGet request
 	WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1759,18 +1759,6 @@ func (c *Client) TenantCreateWithBody(ctx context.Context, contentType string, b
 
 func (c *Client) TenantCreate(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantCreateRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) WebhookDelete(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWebhookDeleteRequest(c.Server, webhook)
 	if err != nil {
 		return nil, err
 	}
@@ -2549,6 +2537,18 @@ func (c *Client) UserUpdateSlackOauthCallback(ctx context.Context, reqEditors ..
 	return c.Client.Do(req)
 }
 
+func (c *Client) WebhookDelete(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWebhookDeleteRequest(c.Server, webhook)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkerGetRequest(c.Server, worker)
 	if err != nil {
@@ -3255,40 +3255,6 @@ func NewTenantCreateRequestWithBody(server string, contentType string, body io.R
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewWebhookDeleteRequest generates requests for WebhookDelete
-func NewWebhookDeleteRequest(server string, webhook openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "webhook", runtime.ParamLocationPath, webhook)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/tenants/webhook-workers/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -5499,6 +5465,40 @@ func NewUserUpdateSlackOauthCallbackRequest(server string) (*http.Request, error
 	return req, nil
 }
 
+// NewWebhookDeleteRequest generates requests for WebhookDelete
+func NewWebhookDeleteRequest(server string, webhook openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "webhook", runtime.ParamLocationPath, webhook)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/webhook-workers/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWorkerGetRequest generates requests for WorkerGet
 func NewWorkerGetRequest(server string, worker openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -5943,9 +5943,6 @@ type ClientWithResponsesInterface interface {
 
 	TenantCreateWithResponse(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantCreateResponse, error)
 
-	// WebhookDeleteWithResponse request
-	WebhookDeleteWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookDeleteResponse, error)
-
 	// TenantUpdateWithBodyWithResponse request with any body
 	TenantUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantUpdateResponse, error)
 
@@ -6121,6 +6118,9 @@ type ClientWithResponsesInterface interface {
 
 	// UserUpdateSlackOauthCallbackWithResponse request
 	UserUpdateSlackOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateSlackOauthCallbackResponse, error)
+
+	// WebhookDeleteWithResponse request
+	WebhookDeleteWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookDeleteResponse, error)
 
 	// WorkerGetWithResponse request
 	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
@@ -6467,30 +6467,6 @@ func (r TenantCreateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantCreateResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type WebhookDeleteResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *APIErrors
-	JSON401      *APIErrors
-	JSON405      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r WebhookDeleteResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r WebhookDeleteResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -7645,6 +7621,30 @@ func (r UserUpdateSlackOauthCallbackResponse) StatusCode() int {
 	return 0
 }
 
+type WebhookDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON401      *APIErrors
+	JSON405      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WebhookDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WebhookDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkerGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -7958,15 +7958,6 @@ func (c *ClientWithResponses) TenantCreateWithResponse(ctx context.Context, body
 		return nil, err
 	}
 	return ParseTenantCreateResponse(rsp)
-}
-
-// WebhookDeleteWithResponse request returning *WebhookDeleteResponse
-func (c *ClientWithResponses) WebhookDeleteWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookDeleteResponse, error) {
-	rsp, err := c.WebhookDelete(ctx, webhook, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseWebhookDeleteResponse(rsp)
 }
 
 // TenantUpdateWithBodyWithResponse request with arbitrary body returning *TenantUpdateResponse
@@ -8529,6 +8520,15 @@ func (c *ClientWithResponses) UserUpdateSlackOauthCallbackWithResponse(ctx conte
 	return ParseUserUpdateSlackOauthCallbackResponse(rsp)
 }
 
+// WebhookDeleteWithResponse request returning *WebhookDeleteResponse
+func (c *ClientWithResponses) WebhookDeleteWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookDeleteResponse, error) {
+	rsp, err := c.WebhookDelete(ctx, webhook, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWebhookDeleteResponse(rsp)
+}
+
 // WorkerGetWithResponse request returning *WorkerGetResponse
 func (c *ClientWithResponses) WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error) {
 	rsp, err := c.WorkerGet(ctx, worker, reqEditors...)
@@ -9085,46 +9085,6 @@ func ParseTenantCreateResponse(rsp *http.Response) (*TenantCreateResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseWebhookDeleteResponse parses an HTTP response from a WebhookDeleteWithResponse call
-func ParseWebhookDeleteResponse(rsp *http.Response) (*WebhookDeleteResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &WebhookDeleteResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON405 = &dest
 
 	}
 
@@ -10988,6 +10948,46 @@ func ParseUserUpdateSlackOauthCallbackResponse(rsp *http.Response) (*UserUpdateS
 	response := &UserUpdateSlackOauthCallbackResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseWebhookDeleteResponse parses an HTTP response from a WebhookDeleteWithResponse call
+func ParseWebhookDeleteResponse(rsp *http.Response) (*WebhookDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WebhookDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
 	}
 
 	return response, nil
