@@ -15,16 +15,18 @@ type SecurityCheck interface {
 type DefaultSecurityCheck struct {
 	Enabled  bool
 	Endpoint string
-	L        *zerolog.Logger
+	Logger   *zerolog.Logger
 	Version  string
+	Repo     repository.SecurityCheckRepository
 }
 
-func NewSecurityCheck(opts *DefaultSecurityCheck) SecurityCheck {
+func NewSecurityCheck(opts *DefaultSecurityCheck, repo repository.SecurityCheckRepository) SecurityCheck {
 	return DefaultSecurityCheck{
 		Enabled:  opts.Enabled,
 		Endpoint: opts.Endpoint,
-		L:        opts.L,
+		Logger:   opts.Logger,
 		Version:  opts.Version,
+		Repo:     repo,
 	}
 }
 
@@ -33,29 +35,37 @@ func (a DefaultSecurityCheck) Check() {
 		return
 	}
 
-	req := fmt.Sprintf("%s/check?version=%s&tag=%s", a.Endpoint, a.Version, "helloworld")
+	a.Logger.Debug().Msgf("Fetching security alerts for version %s", a.Version)
 
-	resp, err := http.Get(req) // #nosec
-
+	ident, err := a.Repo.GetIdent()
 	if err != nil {
-		return // Do nothing if there's an error
+		a.Logger.Debug().Msgf("Error fetching security alerts: %s", err)
+		return
+	}
+
+	req := fmt.Sprintf("%s/check?version=%s&tag=%s", a.Endpoint, a.Version, ident)
+	resp, err := http.Get(req) // #nosec
+	if err != nil {
+		a.Logger.Debug().Msgf("Error making request to security endpoint: %s", err)
+		return
 	}
 	defer resp.Body.Close()
 
-	a.L.Debug().Msgf("Fetching Security Alerts for %s", a.Version)
-
 	if resp.StatusCode != http.StatusOK {
-		a.L.Debug().Msgf("Error Fetching Security Alerts: %d", resp.StatusCode)
-		return // Do nothing if the response status is not OK
+		a.Logger.Debug().Msgf("Unexpected status code from security endpoint: %d", resp.StatusCode)
+		return
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		a.L.Debug().Msg("No Security Alerts!")
-		return // Do nothing if there's an error reading the body
+		a.Logger.Debug().Msgf("Error reading response body: %s", err)
+		return
 	}
 
-	if len(body) > 0 {
-		a.L.Error().Msgf("Security Alert:\n\n%s\n******************\n", body)
+	if len(body) == 0 {
+		a.Logger.Debug().Msg("No security alerts found")
+		return
 	}
+
+	a.Logger.Error().Msgf("Security Alert:\n\n%s\n******************\n", body)
 }

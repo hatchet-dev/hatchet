@@ -725,6 +725,10 @@ type SNSIntegration struct {
 	TopicArn  string           `json:"topicArn"`
 }
 
+type SecurityCheckIdent struct {
+	ID pgtype.UUID `json:"id"`
+}
+
 type Service struct {
 	ID          pgtype.UUID      `json:"id"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`

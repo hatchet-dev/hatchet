@@ -56,6 +56,10 @@ type UserRepository interface {
 	ListTenantMemberships(userId string) ([]db.TenantMemberModel, error)
 }
 
+type SecurityCheckRepository interface {
+	GetIdent() (string, error)
+}
+
 func HashPassword(pw string) (*string, error) {
 	// hash the new password using bcrypt
 	hashedPw, err := bcrypt.GenerateFromPassword([]byte(pw), 10)

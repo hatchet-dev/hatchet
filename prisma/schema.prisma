@@ -1424,3 +1424,7 @@ model SNSIntegration {
 
   @@unique([tenantId, topicArn])
 }
+
+model SecurityCheckIdent {
+  id       String   @id @unique @default(uuid()) @db.Uuid
+}

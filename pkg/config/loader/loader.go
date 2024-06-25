@@ -254,9 +254,9 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
 			Enabled:  cf.SecurityCheck.Enabled,
 			Endpoint: cf.SecurityCheck.Endpoint,
-			L:        &l,
+			Logger:   &l,
 			Version:  version,
-		})
+		}, dc.APIRepository.SecurityCheck())
 
 		defer securityCheck.Check()
 	}
