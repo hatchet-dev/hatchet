@@ -14,7 +14,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
 func TestMessageQueueIntegration(t *testing.T) {
@@ -34,7 +34,7 @@ func TestMessageQueueIntegration(t *testing.T) {
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
-	id, _ := encryption.GenerateRandomBytes(4) // nolint: errcheck
+	id, _ := random.Generate(4) // nolint: errcheck
 
 	// Test adding a task to a static queue
 	staticQueue := msgqueue.EVENT_PROCESSING_QUEUE
@@ -116,7 +116,7 @@ func TestDeadLetteringSuccess(t *testing.T) {
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
-	id, _ := encryption.GenerateRandomBytes(4) // nolint: errcheck
+	id, _ := random.Generate(4) // nolint: errcheck
 
 	// Test adding a task to a static queue
 	staticQueue := msgqueue.EVENT_PROCESSING_QUEUE
@@ -174,7 +174,7 @@ func TestDeadLetteringExceedRetriesFailure(t *testing.T) {
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
-	id, _ := encryption.GenerateRandomBytes(4) // nolint: errcheck
+	id, _ := random.Generate(4) // nolint: errcheck
 
 	// Test adding a task to a static queue
 	staticQueue := msgqueue.EVENT_PROCESSING_QUEUE

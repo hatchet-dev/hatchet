@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -25,7 +26,7 @@ func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tes
 		tenantId := uuid.New().String()
 
 		// create the tenant
-		slugSuffix, err := encryption.GenerateRandomBytes(8)
+		slugSuffix, err := random.Generate(8)
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -66,7 +67,7 @@ func TestRevokeTenantToken(t *testing.T) {
 		tenantId := uuid.New().String()
 
 		// create the tenant
-		slugSuffix, err := encryption.GenerateRandomBytes(8)
+		slugSuffix, err := random.Generate(8)
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -126,7 +127,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 		tenantId := uuid.New().String()
 
 		// create the tenant
-		slugSuffix, err := encryption.GenerateRandomBytes(8)
+		slugSuffix, err := random.Generate(8)
 
 		if err != nil {
 			t.Fatal(err.Error())

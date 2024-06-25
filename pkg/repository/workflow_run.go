@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
@@ -224,7 +224,7 @@ func GetCreateWorkflowRunOptsFromSchedule(
 }
 
 func getWorkflowRunDisplayName(workflowName string) string {
-	workflowSuffix, _ := encryption.GenerateRandomBytes(3)
+	workflowSuffix, _ := random.Generate(3)
 
 	return workflowName + "-" + workflowSuffix
 }
