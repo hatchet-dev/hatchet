@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/webhooks"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 type Teardown struct {
@@ -49,6 +50,50 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 	if err != nil {
 		return fmt.Errorf("could not load server config: %w", err)
 	}
+
+	var l = sc.Logger
+
+	teardown, err := RunWithConfig(ctx, sc)
+
+	if err != nil {
+		return fmt.Errorf("could not run with config: %w", err)
+	}
+
+	teardown = append(teardown, Teardown{
+		name: "server",
+		fn: func() error {
+			return serverCleanup()
+		},
+	})
+	teardown = append(teardown, Teardown{
+		name: "database",
+		fn: func() error {
+			return sc.Disconnect()
+		},
+	})
+
+	time.Sleep(sc.Runtime.ShutdownWait)
+
+	l.Debug().Msgf("interrupt received, shutting down")
+
+	l.Debug().Msgf("waiting for all other services to gracefully exit...")
+	for i, t := range teardown {
+		l.Debug().Msgf("shutting down %s (%d/%d)", t.name, i+1, len(teardown))
+		err := t.fn()
+
+		if err != nil {
+			return fmt.Errorf("could not teardown %s: %w", t.name, err)
+		}
+		l.Debug().Msgf("successfully shutdown %s (%d/%d)", t.name, i+1, len(teardown))
+	}
+	l.Debug().Msgf("all services have successfully gracefully exited")
+
+	l.Debug().Msgf("successfully shutdown")
+
+	return nil
+}
+
+func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
 	var l = sc.Logger
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
@@ -56,10 +101,10 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		CollectorURL: sc.OpenTelemetry.CollectorURL,
 	})
 	if err != nil {
-		return fmt.Errorf("could not initialize tracer: %w", err)
+		return nil, fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
-	var teardown []Teardown
+	teardown := []Teardown{}
 
 	var h *health.Health
 	healthProbes := sc.HasService("health")
@@ -67,7 +112,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		h = health.New(sc.EngineRepository, sc.MessageQueue)
 		cleanup, err := h.Start()
 		if err != nil {
-			return fmt.Errorf("could not start health: %w", err)
+			return nil, fmt.Errorf("could not start health: %w", err)
 		}
 
 		teardown = append(teardown, Teardown{
@@ -86,12 +131,12 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		)
 
 		if err != nil {
-			return fmt.Errorf("could not create ticker: %w", err)
+			return nil, fmt.Errorf("could not create ticker: %w", err)
 		}
 
 		cleanup, err := t.Start()
 		if err != nil {
-			return fmt.Errorf("could not start ticker: %w", err)
+			return nil, fmt.Errorf("could not start ticker: %w", err)
 		}
 		teardown = append(teardown, Teardown{
 			name: "ticker",
@@ -107,12 +152,12 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			events.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 		if err != nil {
-			return fmt.Errorf("could not create events controller: %w", err)
+			return nil, fmt.Errorf("could not create events controller: %w", err)
 		}
 
 		cleanup, err := ec.Start()
 		if err != nil {
-			return fmt.Errorf("could not start events controller: %w", err)
+			return nil, fmt.Errorf("could not start events controller: %w", err)
 		}
 		teardown = append(teardown, Teardown{
 			name: "events controller",
@@ -129,12 +174,12 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		)
 
 		if err != nil {
-			return fmt.Errorf("could not create jobs controller: %w", err)
+			return nil, fmt.Errorf("could not create jobs controller: %w", err)
 		}
 
 		cleanup, err := jc.Start()
 		if err != nil {
-			return fmt.Errorf("could not start jobs controller: %w", err)
+			return nil, fmt.Errorf("could not start jobs controller: %w", err)
 		}
 		teardown = append(teardown, Teardown{
 			name: "jobs controller",
@@ -151,12 +196,12 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			workflows.WithTenantAlerter(sc.TenantAlerter),
 		)
 		if err != nil {
-			return fmt.Errorf("could not create workflows controller: %w", err)
+			return nil, fmt.Errorf("could not create workflows controller: %w", err)
 		}
 
 		cleanup, err := wc.Start()
 		if err != nil {
-			return fmt.Errorf("could not start workflows controller: %w", err)
+			return nil, fmt.Errorf("could not start workflows controller: %w", err)
 		}
 		teardown = append(teardown, Teardown{
 			name: "workflows controller",
@@ -172,12 +217,12 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		)
 
 		if err != nil {
-			return fmt.Errorf("could not create heartbeater: %w", err)
+			return nil, fmt.Errorf("could not create heartbeater: %w", err)
 		}
 
 		cleanup, err := h.Start()
 		if err != nil {
-			return fmt.Errorf("could not start heartbeater: %w", err)
+			return nil, fmt.Errorf("could not start heartbeater: %w", err)
 		}
 		teardown = append(teardown, Teardown{
 			name: "heartbeater",
@@ -194,13 +239,14 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
+
 		if err != nil {
-			return fmt.Errorf("could not create dispatcher: %w", err)
+			return nil, fmt.Errorf("could not create dispatcher: %w", err)
 		}
 
 		dispatcherCleanup, err := d.Start()
 		if err != nil {
-			return fmt.Errorf("could not start dispatcher: %w", err)
+			return nil, fmt.Errorf("could not start dispatcher: %w", err)
 		}
 
 		// create the event ingestor
@@ -218,7 +264,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 		if err != nil {
-			return fmt.Errorf("could not create ingestor: %w", err)
+			return nil, fmt.Errorf("could not create ingestor: %w", err)
 		}
 
 		adminSvc, err := admin.NewAdminService(
@@ -227,7 +273,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 		if err != nil {
-			return fmt.Errorf("could not create admin service: %w", err)
+			return nil, fmt.Errorf("could not create admin service: %w", err)
 		}
 
 		grpcOpts := []grpc.ServerOpt{
@@ -251,12 +297,12 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 			grpcOpts...,
 		)
 		if err != nil {
-			return fmt.Errorf("could not create grpc server: %w", err)
+			return nil, fmt.Errorf("could not create grpc server: %w", err)
 		}
 
 		grpcServerCleanup, err := s.Start()
 		if err != nil {
-			return fmt.Errorf("could not start grpc server: %w", err)
+			return nil, fmt.Errorf("could not start grpc server: %w", err)
 		}
 
 		cleanup := func() error {
@@ -296,7 +342,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 
 		cleanup, err := wh.Start()
 		if err != nil {
-			return fmt.Errorf("could not create webhook worker: %w", err)
+			return nil, fmt.Errorf("could not create webhook worker: %w", err)
 		}
 
 		teardown = append(teardown, Teardown{
@@ -309,18 +355,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		name: "telemetry",
 		fn: func() error {
 			return shutdown(ctx)
-		},
-	})
-	teardown = append(teardown, Teardown{
-		name: "server",
-		fn: func() error {
-			return serverCleanup()
-		},
-	})
-	teardown = append(teardown, Teardown{
-		name: "database",
-		fn: func() error {
-			return sc.Disconnect()
 		},
 	})
 
@@ -336,23 +370,5 @@ func Run(ctx context.Context, cf *loader.ConfigLoader) error {
 		h.SetReady(false)
 	}
 
-	time.Sleep(sc.Runtime.ShutdownWait)
-
-	l.Debug().Msgf("interrupt received, shutting down")
-
-	l.Debug().Msgf("waiting for all other services to gracefully exit...")
-	for i, t := range teardown {
-		l.Debug().Msgf("shutting down %s (%d/%d)", t.name, i+1, len(teardown))
-		err := t.fn()
-
-		if err != nil {
-			return fmt.Errorf("could not teardown %s: %w", t.name, err)
-		}
-		l.Debug().Msgf("successfully shutdown %s (%d/%d)", t.name, i+1, len(teardown))
-	}
-	l.Debug().Msgf("all services have successfully gracefully exited")
-
-	l.Debug().Msgf("successfully shutdown")
-
-	return nil
+	return teardown, nil
 }
