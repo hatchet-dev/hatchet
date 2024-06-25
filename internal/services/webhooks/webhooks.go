@@ -81,6 +81,7 @@ func (c *WebhooksController) check() error {
 		ec := errgroup.Group{}
 		ec.SetLimit(5)
 		for _, ww := range wws {
+			ww := ww
 			ec.Go(func() error {
 				id := sqlchelpers.UUIDToStr(ww.ID)
 				if _, ok := c.registeredWorkerIds[id]; ok {
