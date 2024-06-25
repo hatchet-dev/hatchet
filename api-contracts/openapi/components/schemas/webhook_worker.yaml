@@ -12,7 +12,6 @@ WebhookWorker:
     - metadata
     - name
     - url
-    - secret
   type: object
 
 WebhookWorkerCreated:

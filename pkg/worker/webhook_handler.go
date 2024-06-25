@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -99,7 +98,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 		}
 
 		timestamp := time.Now().UTC()
-		_, err = w.client.Dispatcher().SendStepActionEvent(context.TODO(),
+		_, err = w.client.Dispatcher().SendStepActionEvent(r.Context(),
 			&client.ActionEvent{
 				Action:         &action,
 				EventTimestamp: &timestamp,
@@ -113,7 +112,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 			return
 		}
 
-		ctx, err := newHatchetContext(context.TODO(), &action, w.client, w.l)
+		ctx, err := newHatchetContext(r.Context(), &action, w.client, w.l)
 		if err != nil {
 			w.l.Error().Err(err).Msg("error creating context")
 			writer.WriteHeader(http.StatusInternalServerError)
@@ -130,7 +129,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 		}
 
 		timestamp = time.Now().UTC()
-		_, err = w.client.Dispatcher().SendStepActionEvent(context.TODO(),
+		_, err = w.client.Dispatcher().SendStepActionEvent(r.Context(),
 			&client.ActionEvent{
 				Action:         &action,
 				EventTimestamp: &timestamp,

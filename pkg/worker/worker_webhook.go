@@ -133,7 +133,7 @@ func (w *Worker) markFailed(action *client.Action, err error) error {
 	failureEvent.EventPayload = err.Error()
 
 	_, err = w.client.Dispatcher().SendStepActionEvent(
-		context.TODO(),
+		context.Background(),
 		failureEvent,
 	)
 

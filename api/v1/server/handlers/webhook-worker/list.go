@@ -13,7 +13,7 @@ import (
 func (i *WebhookWorkersService) WebhookList(ctx echo.Context, request gen.WebhookListRequestObject) (gen.WebhookListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	webhooks, err := i.config.EngineRepository.WebhookWorker().ListActiveWebhookWorkers(context.TODO(), tenant.ID)
+	webhooks, err := i.config.EngineRepository.WebhookWorker().ListActiveWebhookWorkers(context.Background(), tenant.ID)
 
 	if err != nil {
 		return nil, err

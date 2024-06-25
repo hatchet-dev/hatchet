@@ -20,7 +20,7 @@ webhookworkers:
           application/json:
             schema:
               $ref: "../../components/schemas/_index.yaml#/WebhookWorkerListResponse"
-        description: Successfully changed password
+        description: The list of webhook workers
       "400":
         content:
           application/json:
