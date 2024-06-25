@@ -10,13 +10,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
-	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
-	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
@@ -47,8 +45,6 @@ type ServerConfigFile struct {
 
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
 
-	VCS ConfigFileVCS `mapstructure:"vcs" json:"vcs,omitempty"`
-
 	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
 
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
@@ -73,9 +69,6 @@ type ConfigFileRuntime struct {
 
 	// GRPCInsecure controls whether the grpc server is insecure or uses certs
 	GRPCInsecure bool `mapstructure:"grpcInsecure" json:"grpcInsecure,omitempty" default:"false"`
-
-	// Whether the internal worker is enabled for this instance
-	WorkerEnabled bool `mapstructure:"workerEnabled" json:"workerEnabled,omitempty" default:"false"`
 
 	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
 	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
@@ -204,10 +197,6 @@ type ConfigFileAuth struct {
 	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
 }
 
-type ConfigFileVCS struct {
-	Github ConfigFileGithub `mapstructure:"github" json:"github,omitempty"`
-}
-
 type ConfigFileTenantAlerting struct {
 	Slack ConfigFileSlack `mapstructure:"slack" json:"slack,omitempty"`
 }
@@ -218,17 +207,6 @@ type ConfigFileSlack struct {
 	SlackAppClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
 	SlackAppClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
 	SlackAppScopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"incoming-webhook\"]"`
-}
-
-type ConfigFileGithub struct {
-	Enabled                bool   `mapstructure:"enabled" json:"enabled"`
-	GithubAppClientID      string `mapstructure:"appClientID" json:"appClientID,omitempty"`
-	GithubAppClientSecret  string `mapstructure:"appClientSecret" json:"appClientSecret,omitempty"`
-	GithubAppName          string `mapstructure:"appName" json:"appName,omitempty"`
-	GithubAppWebhookSecret string `mapstructure:"appWebhookSecret" json:"appWebhookSecret,omitempty"`
-	GithubAppWebhookURL    string `mapstructure:"appWebhookURL" json:"appWebhookURL,omitempty"`
-	GithubAppID            string `mapstructure:"appID" json:"appID,omitempty"`
-	GithubAppSecretPath    string `mapstructure:"appSecretPath" json:"appSecretPath,omitempty"`
 }
 
 type ConfigFileAuthGoogle struct {
@@ -335,10 +313,6 @@ type ServerConfig struct {
 
 	OpenTelemetry shared.OpenTelemetryConfigFile
 
-	VCSProviders map[vcs.VCSRepositoryKind]vcs.VCSProvider
-
-	InternalClient client.Client
-
 	Email email.EmailService
 
 	TenantAlerter *alerting.TenantAlertManager
@@ -364,7 +338,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
-	_ = v.BindEnv("runtime.workerEnabled", "SERVER_WORKER_ENABLED")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
@@ -457,17 +430,6 @@ func BindAllEnv(v *viper.Viper) {
 	// otel options
 	_ = v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
-
-	// vcs options
-	_ = v.BindEnv("vcs.kind", "SERVER_VCS_KIND")
-	_ = v.BindEnv("vcs.github.enabled", "SERVER_VCS_GITHUB_ENABLED")
-	_ = v.BindEnv("vcs.github.appClientID", "SERVER_VCS_GITHUB_APP_CLIENT_ID")
-	_ = v.BindEnv("vcs.github.appClientSecret", "SERVER_VCS_GITHUB_APP_CLIENT_SECRET")
-	_ = v.BindEnv("vcs.github.appName", "SERVER_VCS_GITHUB_APP_NAME")
-	_ = v.BindEnv("vcs.github.appWebhookSecret", "SERVER_VCS_GITHUB_APP_WEBHOOK_SECRET")
-	_ = v.BindEnv("vcs.github.appWebhookURL", "SERVER_VCS_GITHUB_APP_WEBHOOK_URL")
-	_ = v.BindEnv("vcs.github.appID", "SERVER_VCS_GITHUB_APP_ID")
-	_ = v.BindEnv("vcs.github.appSecretPath", "SERVER_VCS_GITHUB_APP_SECRET_PATH")
 
 	// tenant alerting options
 	_ = v.BindEnv("tenantAlerting.slack.enabled", "SERVER_TENANT_ALERTING_SLACK_ENABLED")

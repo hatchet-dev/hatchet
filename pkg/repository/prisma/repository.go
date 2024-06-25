@@ -25,7 +25,6 @@ type apiRepository struct {
 	workflowRun    repository.WorkflowRunAPIRepository
 	jobRun         repository.JobRunAPIRepository
 	stepRun        repository.StepRunAPIRepository
-	github         repository.GithubRepository
 	step           repository.StepRepository
 	slack          repository.SlackRepository
 	sns            repository.SNSRepository
@@ -99,7 +98,6 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		workflowRun:    NewWorkflowRunRepository(client, pool, opts.v, opts.l, opts.metered),
 		jobRun:         NewJobRunAPIRepository(client, pool, opts.v, opts.l),
 		stepRun:        NewStepRunAPIRepository(client, pool, opts.v, opts.l),
-		github:         NewGithubRepository(client, opts.v),
 		step:           NewStepRepository(client, opts.v),
 		slack:          NewSlackRepository(client, opts.v),
 		sns:            NewSNSRepository(client, opts.v),
@@ -160,10 +158,6 @@ func (r *apiRepository) Slack() repository.SlackRepository {
 
 func (r *apiRepository) SNS() repository.SNSRepository {
 	return r.sns
-}
-
-func (r *apiRepository) Github() repository.GithubRepository {
-	return r.github
 }
 
 func (r *apiRepository) Step() repository.StepRepository {
@@ -306,6 +300,7 @@ type entitlementRepository struct {
 func (r *entitlementRepository) TenantLimit() repository.TenantLimitRepository {
 	return r.tenantLimit
 }
+
 func NewEntitlementRepository(pool *pgxpool.Pool, s *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) repository.EntitlementsRepository {
 	opts := defaultPrismaRepositoryOpts()
 

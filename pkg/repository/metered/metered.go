@@ -32,7 +32,7 @@ func NewMetered(entitlements repository.EntitlementsRepository, l *zerolog.Logge
 
 var ErrResourceExhausted = fmt.Errorf("resource exhausted")
 
-func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitResource, tenantId string, f func() (*T, error)) (*T, error) {
+func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitResource, tenantId string, f func() (*string, *T, error)) (*T, error) {
 
 	var key = fmt.Sprintf("%s:%s", resource, tenantId)
 
@@ -63,7 +63,7 @@ func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitRe
 		return nil, ErrResourceExhausted
 	}
 
-	res, err := f()
+	_, res, err := f()
 
 	if err != nil {
 		return nil, err

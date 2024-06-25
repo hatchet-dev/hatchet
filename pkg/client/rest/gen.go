@@ -62,12 +62,6 @@ const (
 	LogLineOrderByFieldCreatedAt LogLineOrderByField = "createdAt"
 )
 
-// Defines values for PullRequestState.
-const (
-	Closed PullRequestState = "closed"
-	Open   PullRequestState = "open"
-)
-
 // Defines values for StepRunEventReason.
 const (
 	StepRunEventReasonASSIGNED           StepRunEventReason = "ASSIGNED"
@@ -248,11 +242,6 @@ type CreateEventRequest struct {
 	Key string `json:"key"`
 }
 
-// CreatePullRequestFromStepRun defines model for CreatePullRequestFromStepRun.
-type CreatePullRequestFromStepRun struct {
-	BranchName string `json:"branchName"`
-}
-
 // CreateSNSIntegrationRequest defines model for CreateSNSIntegrationRequest.
 type CreateSNSIntegrationRequest struct {
 	// TopicArn The Amazon Resource Name (ARN) of the SNS topic.
@@ -344,31 +333,6 @@ type EventWorkflowRunSummary struct {
 	Succeeded *int64 `json:"succeeded,omitempty"`
 }
 
-// GetStepRunDiffResponse defines model for GetStepRunDiffResponse.
-type GetStepRunDiffResponse struct {
-	Diffs []StepRunDiff `json:"diffs"`
-}
-
-// GithubAppInstallation defines model for GithubAppInstallation.
-type GithubAppInstallation struct {
-	AccountAvatarUrl        string          `json:"account_avatar_url"`
-	AccountName             string          `json:"account_name"`
-	InstallationSettingsUrl string          `json:"installation_settings_url"`
-	Metadata                APIResourceMeta `json:"metadata"`
-}
-
-// GithubBranch defines model for GithubBranch.
-type GithubBranch struct {
-	BranchName string `json:"branch_name"`
-	IsDefault  bool   `json:"is_default"`
-}
-
-// GithubRepo defines model for GithubRepo.
-type GithubRepo struct {
-	RepoName  string `json:"repo_name"`
-	RepoOwner string `json:"repo_owner"`
-}
-
 // Job defines model for Job.
 type Job struct {
 	// Description The description of the job.
@@ -406,21 +370,6 @@ type JobRun struct {
 // JobRunStatus defines model for JobRunStatus.
 type JobRunStatus string
 
-// LinkGithubRepositoryRequest defines model for LinkGithubRepositoryRequest.
-type LinkGithubRepositoryRequest struct {
-	// GitRepoBranch The repository branch.
-	GitRepoBranch string `json:"gitRepoBranch"`
-
-	// GitRepoName The repository name.
-	GitRepoName string `json:"gitRepoName"`
-
-	// GitRepoOwner The repository owner.
-	GitRepoOwner string `json:"gitRepoOwner"`
-
-	// InstallationId The repository name.
-	InstallationId string `json:"installationId"`
-}
-
 // ListAPIMetaIntegration defines model for ListAPIMetaIntegration.
 type ListAPIMetaIntegration = []APIMetaIntegration
 
@@ -428,23 +377,6 @@ type ListAPIMetaIntegration = []APIMetaIntegration
 type ListAPITokensResponse struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]APIToken         `json:"rows,omitempty"`
-}
-
-// ListGithubAppInstallationsResponse defines model for ListGithubAppInstallationsResponse.
-type ListGithubAppInstallationsResponse struct {
-	Pagination PaginationResponse      `json:"pagination"`
-	Rows       []GithubAppInstallation `json:"rows"`
-}
-
-// ListGithubBranchesResponse defines model for ListGithubBranchesResponse.
-type ListGithubBranchesResponse = []GithubBranch
-
-// ListGithubReposResponse defines model for ListGithubReposResponse.
-type ListGithubReposResponse = []GithubRepo
-
-// ListPullRequestsResponse defines model for ListPullRequestsResponse.
-type ListPullRequestsResponse struct {
-	PullRequests []PullRequest `json:"pullRequests"`
 }
 
 // ListSNSIntegrations defines model for ListSNSIntegrations.
@@ -503,21 +435,6 @@ type PaginationResponse struct {
 	// NumPages the total number of pages for listing
 	NumPages *int64 `json:"num_pages,omitempty"`
 }
-
-// PullRequest defines model for PullRequest.
-type PullRequest struct {
-	PullRequestBaseBranch string           `json:"pullRequestBaseBranch"`
-	PullRequestHeadBranch string           `json:"pullRequestHeadBranch"`
-	PullRequestID         int              `json:"pullRequestID"`
-	PullRequestNumber     int              `json:"pullRequestNumber"`
-	PullRequestState      PullRequestState `json:"pullRequestState"`
-	PullRequestTitle      string           `json:"pullRequestTitle"`
-	RepositoryName        string           `json:"repositoryName"`
-	RepositoryOwner       string           `json:"repositoryOwner"`
-}
-
-// PullRequestState defines model for PullRequestState.
-type PullRequestState string
 
 // QueueMetrics defines model for QueueMetrics.
 type QueueMetrics struct {
@@ -622,13 +539,6 @@ type StepRun struct {
 	TimeoutAt         *time.Time              `json:"timeoutAt,omitempty"`
 	TimeoutAtEpoch    *int                    `json:"timeoutAtEpoch,omitempty"`
 	WorkerId          *string                 `json:"workerId,omitempty"`
-}
-
-// StepRunDiff defines model for StepRunDiff.
-type StepRunDiff struct {
-	Key      string `json:"key"`
-	Modified string `json:"modified"`
-	Original string `json:"original"`
 }
 
 // StepRunEvent defines model for StepRunEvent.
@@ -932,8 +842,6 @@ type WorkerList struct {
 
 // Workflow defines model for Workflow.
 type Workflow struct {
-	Deployment *WorkflowDeploymentConfig `json:"deployment,omitempty"`
-
 	// Description The description of the workflow.
 	Description *string `json:"description,omitempty"`
 
@@ -964,23 +872,6 @@ type WorkflowConcurrency struct {
 
 // WorkflowConcurrencyLimitStrategy The strategy to use when the concurrency limit is reached.
 type WorkflowConcurrencyLimitStrategy string
-
-// WorkflowDeploymentConfig defines model for WorkflowDeploymentConfig.
-type WorkflowDeploymentConfig struct {
-	// GitRepoBranch The repository branch.
-	GitRepoBranch string `json:"gitRepoBranch"`
-
-	// GitRepoName The repository name.
-	GitRepoName string `json:"gitRepoName"`
-
-	// GitRepoOwner The repository owner.
-	GitRepoOwner          string                 `json:"gitRepoOwner"`
-	GithubAppInstallation *GithubAppInstallation `json:"githubAppInstallation,omitempty"`
-
-	// GithubAppInstallationId The id of the Github App installation.
-	GithubAppInstallationId openapi_types.UUID `json:"githubAppInstallationId"`
-	Metadata                APIResourceMeta    `json:"metadata"`
-}
 
 // WorkflowID A workflow ID.
 type WorkflowID = string
@@ -1192,12 +1083,6 @@ type TenantGetQueueMetricsParams struct {
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
-// WorkflowRunListPullRequestsParams defines parameters for WorkflowRunListPullRequests.
-type WorkflowRunListPullRequestsParams struct {
-	// State The pull request state
-	State *PullRequestState `form:"state,omitempty" json:"state,omitempty"`
-}
-
 // WorkflowRunListParams defines parameters for WorkflowRunList.
 type WorkflowRunListParams struct {
 	// Offset The number to skip
@@ -1273,9 +1158,6 @@ type WorkflowVersionGetDefinitionParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
-// StepRunUpdateCreatePrJSONRequestBody defines body for StepRunUpdateCreatePr for application/json ContentType.
-type StepRunUpdateCreatePrJSONRequestBody = CreatePullRequestFromStepRun
-
 // TenantCreateJSONRequestBody defines body for TenantCreate for application/json ContentType.
 type TenantCreateJSONRequestBody = CreateTenantRequest
 
@@ -1323,9 +1205,6 @@ type UserUpdatePasswordJSONRequestBody = UserChangePasswordRequest
 
 // UserCreateJSONRequestBody defines body for UserCreate for application/json ContentType.
 type UserCreateJSONRequestBody = UserRegisterRequest
-
-// WorkflowUpdateLinkGithubJSONRequestBody defines body for WorkflowUpdateLinkGithub for application/json ContentType.
-type WorkflowUpdateLinkGithubJSONRequestBody = LinkGithubRepositoryRequest
 
 // WorkflowRunCreateJSONRequestBody defines body for WorkflowRunCreate for application/json ContentType.
 type WorkflowRunCreateJSONRequestBody = TriggerWorkflowRunRequest
@@ -1423,21 +1302,6 @@ type ClientInterface interface {
 	// EventDataGet request
 	EventDataGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GithubAppListInstallations request
-	GithubAppListInstallations(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GithubAppListRepos request
-	GithubAppListRepos(ctx context.Context, ghInstallation openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GithubAppListBranches request
-	GithubAppListBranches(ctx context.Context, ghInstallation openapi_types.UUID, ghRepoOwner string, ghRepoName string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GithubUpdateGlobalWebhook request
-	GithubUpdateGlobalWebhook(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GithubUpdateTenantWebhook request
-	GithubUpdateTenantWebhook(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// MetadataGet request
 	MetadataGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1452,14 +1316,6 @@ type ClientInterface interface {
 
 	// SnsUpdate request
 	SnsUpdate(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// StepRunUpdateCreatePrWithBody request with any body
-	StepRunUpdateCreatePrWithBody(ctx context.Context, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	StepRunUpdateCreatePr(ctx context.Context, stepRun openapi_types.UUID, body StepRunUpdateCreatePrJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// StepRunGetDiff request
-	StepRunGetDiff(ctx context.Context, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StepRunListEvents request
 	StepRunListEvents(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1574,9 +1430,6 @@ type ClientInterface interface {
 	// WorkflowRunGet request
 	WorkflowRunGet(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// WorkflowRunListPullRequests request
-	WorkflowRunListPullRequests(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListPullRequestsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// WorkflowList request
 	WorkflowList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1593,12 +1446,6 @@ type ClientInterface interface {
 
 	// UserGetCurrent request
 	UserGetCurrent(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UserUpdateGithubAppOauthCallback request
-	UserUpdateGithubAppOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UserUpdateGithubAppOauthStart request
-	UserUpdateGithubAppOauthStart(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UserUpdateGithubOauthCallback request
 	UserUpdateGithubOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1657,11 +1504,6 @@ type ClientInterface interface {
 
 	// WorkflowGet request
 	WorkflowGet(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// WorkflowUpdateLinkGithubWithBody request with any body
-	WorkflowUpdateLinkGithubWithBody(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	WorkflowUpdateLinkGithub(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateLinkGithubJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowGetMetrics request
 	WorkflowGetMetrics(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1762,66 +1604,6 @@ func (c *Client) EventDataGet(ctx context.Context, event openapi_types.UUID, req
 	return c.Client.Do(req)
 }
 
-func (c *Client) GithubAppListInstallations(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGithubAppListInstallationsRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GithubAppListRepos(ctx context.Context, ghInstallation openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGithubAppListReposRequest(c.Server, ghInstallation)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GithubAppListBranches(ctx context.Context, ghInstallation openapi_types.UUID, ghRepoOwner string, ghRepoName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGithubAppListBranchesRequest(c.Server, ghInstallation, ghRepoOwner, ghRepoName)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GithubUpdateGlobalWebhook(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGithubUpdateGlobalWebhookRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GithubUpdateTenantWebhook(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGithubUpdateTenantWebhookRequest(c.Server, webhook)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) MetadataGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewMetadataGetRequest(c.Server)
 	if err != nil {
@@ -1872,42 +1654,6 @@ func (c *Client) SnsDelete(ctx context.Context, sns openapi_types.UUID, reqEdito
 
 func (c *Client) SnsUpdate(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSnsUpdateRequest(c.Server, tenant, event)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) StepRunUpdateCreatePrWithBody(ctx context.Context, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewStepRunUpdateCreatePrRequestWithBody(c.Server, stepRun, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) StepRunUpdateCreatePr(ctx context.Context, stepRun openapi_types.UUID, body StepRunUpdateCreatePrJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewStepRunUpdateCreatePrRequest(c.Server, stepRun, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) StepRunGetDiff(ctx context.Context, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewStepRunGetDiffRequest(c.Server, stepRun)
 	if err != nil {
 		return nil, err
 	}
@@ -2410,18 +2156,6 @@ func (c *Client) WorkflowRunGet(ctx context.Context, tenant openapi_types.UUID, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkflowRunListPullRequests(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListPullRequestsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowRunListPullRequestsRequest(c.Server, tenant, workflowRun, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) WorkflowList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowListRequest(c.Server, tenant)
 	if err != nil {
@@ -2484,30 +2218,6 @@ func (c *Client) WorkflowRunGetMetrics(ctx context.Context, tenant openapi_types
 
 func (c *Client) UserGetCurrent(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUserGetCurrentRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UserUpdateGithubAppOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUserUpdateGithubAppOauthCallbackRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UserUpdateGithubAppOauthStart(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUserUpdateGithubAppOauthStartRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -2760,30 +2470,6 @@ func (c *Client) WorkflowDelete(ctx context.Context, workflow openapi_types.UUID
 
 func (c *Client) WorkflowGet(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowGetRequest(c.Server, workflow)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) WorkflowUpdateLinkGithubWithBody(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowUpdateLinkGithubRequestWithBody(c.Server, workflow, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) WorkflowUpdateLinkGithub(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateLinkGithubJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowUpdateLinkGithubRequest(c.Server, workflow, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3057,176 +2743,6 @@ func NewEventDataGetRequest(server string, event openapi_types.UUID) (*http.Requ
 	return req, nil
 }
 
-// NewGithubAppListInstallationsRequest generates requests for GithubAppListInstallations
-func NewGithubAppListInstallationsRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/github-app/installations")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGithubAppListReposRequest generates requests for GithubAppListRepos
-func NewGithubAppListReposRequest(server string, ghInstallation openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "gh-installation", runtime.ParamLocationPath, ghInstallation)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/github-app/installations/%s/repos", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGithubAppListBranchesRequest generates requests for GithubAppListBranches
-func NewGithubAppListBranchesRequest(server string, ghInstallation openapi_types.UUID, ghRepoOwner string, ghRepoName string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "gh-installation", runtime.ParamLocationPath, ghInstallation)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "gh-repo-owner", runtime.ParamLocationPath, ghRepoOwner)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "gh-repo-name", runtime.ParamLocationPath, ghRepoName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/github-app/installations/%s/repos/%s/%s/branches", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGithubUpdateGlobalWebhookRequest generates requests for GithubUpdateGlobalWebhook
-func NewGithubUpdateGlobalWebhookRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/github/webhook")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGithubUpdateTenantWebhookRequest generates requests for GithubUpdateTenantWebhook
-func NewGithubUpdateTenantWebhookRequest(server string, webhook openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "webhook", runtime.ParamLocationPath, webhook)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/github/webhook/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewMetadataGetRequest generates requests for MetadataGet
 func NewMetadataGetRequest(server string) (*http.Request, error) {
 	var err error
@@ -3383,87 +2899,6 @@ func NewSnsUpdateRequest(server string, tenant openapi_types.UUID, event string)
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewStepRunUpdateCreatePrRequest calls the generic StepRunUpdateCreatePr builder with application/json body
-func NewStepRunUpdateCreatePrRequest(server string, stepRun openapi_types.UUID, body StepRunUpdateCreatePrJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewStepRunUpdateCreatePrRequestWithBody(server, stepRun, "application/json", bodyReader)
-}
-
-// NewStepRunUpdateCreatePrRequestWithBody generates requests for StepRunUpdateCreatePr with any type of body
-func NewStepRunUpdateCreatePrRequestWithBody(server string, stepRun openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "step-run", runtime.ParamLocationPath, stepRun)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/step-runs/%s/create-pr", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewStepRunGetDiffRequest generates requests for StepRunGetDiff
-func NewStepRunGetDiffRequest(server string, stepRun openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "step-run", runtime.ParamLocationPath, stepRun)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/step-runs/%s/diff", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -5032,69 +4467,6 @@ func NewWorkflowRunGetRequest(server string, tenant openapi_types.UUID, workflow
 	return req, nil
 }
 
-// NewWorkflowRunListPullRequestsRequest generates requests for WorkflowRunListPullRequests
-func NewWorkflowRunListPullRequestsRequest(server string, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListPullRequestsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflow-run", runtime.ParamLocationPath, workflowRun)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflow-runs/%s/prs", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.State != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "state", runtime.ParamLocationQuery, *params.State); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewWorkflowListRequest generates requests for WorkflowList
 func NewWorkflowListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -5474,60 +4846,6 @@ func NewUserGetCurrentRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/users/current")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUserUpdateGithubAppOauthCallbackRequest generates requests for UserUpdateGithubAppOauthCallback
-func NewUserUpdateGithubAppOauthCallbackRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/users/github-app/callback")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUserUpdateGithubAppOauthStartRequest generates requests for UserUpdateGithubAppOauthStart
-func NewUserUpdateGithubAppOauthStartRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/users/github-app/start")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6063,53 +5381,6 @@ func NewWorkflowGetRequest(server string, workflow openapi_types.UUID) (*http.Re
 	return req, nil
 }
 
-// NewWorkflowUpdateLinkGithubRequest calls the generic WorkflowUpdateLinkGithub builder with application/json body
-func NewWorkflowUpdateLinkGithubRequest(server string, workflow openapi_types.UUID, body WorkflowUpdateLinkGithubJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewWorkflowUpdateLinkGithubRequestWithBody(server, workflow, "application/json", bodyReader)
-}
-
-// NewWorkflowUpdateLinkGithubRequestWithBody generates requests for WorkflowUpdateLinkGithub with any type of body
-func NewWorkflowUpdateLinkGithubRequestWithBody(server string, workflow openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workflow", runtime.ParamLocationPath, workflow)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/workflows/%s/link-github", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewWorkflowGetMetricsRequest generates requests for WorkflowGetMetrics
 func NewWorkflowGetMetricsRequest(server string, workflow openapi_types.UUID, params *WorkflowGetMetricsParams) (*http.Request, error) {
 	var err error
@@ -6426,21 +5697,6 @@ type ClientWithResponsesInterface interface {
 	// EventDataGetWithResponse request
 	EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error)
 
-	// GithubAppListInstallationsWithResponse request
-	GithubAppListInstallationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GithubAppListInstallationsResponse, error)
-
-	// GithubAppListReposWithResponse request
-	GithubAppListReposWithResponse(ctx context.Context, ghInstallation openapi_types.UUID, reqEditors ...RequestEditorFn) (*GithubAppListReposResponse, error)
-
-	// GithubAppListBranchesWithResponse request
-	GithubAppListBranchesWithResponse(ctx context.Context, ghInstallation openapi_types.UUID, ghRepoOwner string, ghRepoName string, reqEditors ...RequestEditorFn) (*GithubAppListBranchesResponse, error)
-
-	// GithubUpdateGlobalWebhookWithResponse request
-	GithubUpdateGlobalWebhookWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GithubUpdateGlobalWebhookResponse, error)
-
-	// GithubUpdateTenantWebhookWithResponse request
-	GithubUpdateTenantWebhookWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*GithubUpdateTenantWebhookResponse, error)
-
 	// MetadataGetWithResponse request
 	MetadataGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetadataGetResponse, error)
 
@@ -6455,14 +5711,6 @@ type ClientWithResponsesInterface interface {
 
 	// SnsUpdateWithResponse request
 	SnsUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*SnsUpdateResponse, error)
-
-	// StepRunUpdateCreatePrWithBodyWithResponse request with any body
-	StepRunUpdateCreatePrWithBodyWithResponse(ctx context.Context, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StepRunUpdateCreatePrResponse, error)
-
-	StepRunUpdateCreatePrWithResponse(ctx context.Context, stepRun openapi_types.UUID, body StepRunUpdateCreatePrJSONRequestBody, reqEditors ...RequestEditorFn) (*StepRunUpdateCreatePrResponse, error)
-
-	// StepRunGetDiffWithResponse request
-	StepRunGetDiffWithResponse(ctx context.Context, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetDiffResponse, error)
 
 	// StepRunListEventsWithResponse request
 	StepRunListEventsWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error)
@@ -6577,9 +5825,6 @@ type ClientWithResponsesInterface interface {
 	// WorkflowRunGetWithResponse request
 	WorkflowRunGetWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowRunGetResponse, error)
 
-	// WorkflowRunListPullRequestsWithResponse request
-	WorkflowRunListPullRequestsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListPullRequestsParams, reqEditors ...RequestEditorFn) (*WorkflowRunListPullRequestsResponse, error)
-
 	// WorkflowListWithResponse request
 	WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error)
 
@@ -6596,12 +5841,6 @@ type ClientWithResponsesInterface interface {
 
 	// UserGetCurrentWithResponse request
 	UserGetCurrentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserGetCurrentResponse, error)
-
-	// UserUpdateGithubAppOauthCallbackWithResponse request
-	UserUpdateGithubAppOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateGithubAppOauthCallbackResponse, error)
-
-	// UserUpdateGithubAppOauthStartWithResponse request
-	UserUpdateGithubAppOauthStartWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateGithubAppOauthStartResponse, error)
 
 	// UserUpdateGithubOauthCallbackWithResponse request
 	UserUpdateGithubOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateGithubOauthCallbackResponse, error)
@@ -6660,11 +5899,6 @@ type ClientWithResponsesInterface interface {
 
 	// WorkflowGetWithResponse request
 	WorkflowGetWithResponse(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowGetResponse, error)
-
-	// WorkflowUpdateLinkGithubWithBodyWithResponse request with any body
-	WorkflowUpdateLinkGithubWithBodyWithResponse(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowUpdateLinkGithubResponse, error)
-
-	WorkflowUpdateLinkGithubWithResponse(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateLinkGithubJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowUpdateLinkGithubResponse, error)
 
 	// WorkflowGetMetricsWithResponse request
 	WorkflowGetMetricsWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowGetMetricsResponse, error)
@@ -6817,129 +6051,6 @@ func (r EventDataGetResponse) StatusCode() int {
 	return 0
 }
 
-type GithubAppListInstallationsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ListGithubAppInstallationsResponse
-	JSON400      *APIErrors
-	JSON401      *APIErrors
-	JSON405      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r GithubAppListInstallationsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GithubAppListInstallationsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GithubAppListReposResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ListGithubReposResponse
-	JSON400      *APIErrors
-	JSON401      *APIErrors
-	JSON405      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r GithubAppListReposResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GithubAppListReposResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GithubAppListBranchesResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ListGithubBranchesResponse
-	JSON400      *APIErrors
-	JSON401      *APIErrors
-	JSON405      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r GithubAppListBranchesResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GithubAppListBranchesResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GithubUpdateGlobalWebhookResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *APIErrors
-	JSON401      *APIErrors
-	JSON405      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r GithubUpdateGlobalWebhookResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GithubUpdateGlobalWebhookResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GithubUpdateTenantWebhookResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *APIErrors
-	JSON401      *APIErrors
-	JSON405      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r GithubUpdateTenantWebhookResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GithubUpdateTenantWebhookResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type MetadataGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -7052,56 +6163,6 @@ func (r SnsUpdateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r SnsUpdateResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type StepRunUpdateCreatePrResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *CreatePullRequestFromStepRun
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-	JSON404      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r StepRunUpdateCreatePrResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r StepRunUpdateCreatePrResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type StepRunGetDiffResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *GetStepRunDiffResponse
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-	JSON404      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r StepRunGetDiffResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r StepRunGetDiffResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -7857,30 +6918,6 @@ func (r WorkflowRunGetResponse) StatusCode() int {
 	return 0
 }
 
-type WorkflowRunListPullRequestsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ListPullRequestsResponse
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r WorkflowRunListPullRequestsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r WorkflowRunListPullRequestsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type WorkflowListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -7998,48 +7035,6 @@ func (r UserGetCurrentResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UserGetCurrentResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UserUpdateGithubAppOauthCallbackResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-}
-
-// Status returns HTTPResponse.Status
-func (r UserUpdateGithubAppOauthCallbackResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UserUpdateGithubAppOauthCallbackResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UserUpdateGithubAppOauthStartResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-}
-
-// Status returns HTTPResponse.Status
-func (r UserUpdateGithubAppOauthStartResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UserUpdateGithubAppOauthStartResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8417,31 +7412,6 @@ func (r WorkflowGetResponse) StatusCode() int {
 	return 0
 }
 
-type WorkflowUpdateLinkGithubResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Workflow
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-	JSON404      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r WorkflowUpdateLinkGithubResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r WorkflowUpdateLinkGithubResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type WorkflowGetMetricsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -8605,51 +7575,6 @@ func (c *ClientWithResponses) EventDataGetWithResponse(ctx context.Context, even
 	return ParseEventDataGetResponse(rsp)
 }
 
-// GithubAppListInstallationsWithResponse request returning *GithubAppListInstallationsResponse
-func (c *ClientWithResponses) GithubAppListInstallationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GithubAppListInstallationsResponse, error) {
-	rsp, err := c.GithubAppListInstallations(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGithubAppListInstallationsResponse(rsp)
-}
-
-// GithubAppListReposWithResponse request returning *GithubAppListReposResponse
-func (c *ClientWithResponses) GithubAppListReposWithResponse(ctx context.Context, ghInstallation openapi_types.UUID, reqEditors ...RequestEditorFn) (*GithubAppListReposResponse, error) {
-	rsp, err := c.GithubAppListRepos(ctx, ghInstallation, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGithubAppListReposResponse(rsp)
-}
-
-// GithubAppListBranchesWithResponse request returning *GithubAppListBranchesResponse
-func (c *ClientWithResponses) GithubAppListBranchesWithResponse(ctx context.Context, ghInstallation openapi_types.UUID, ghRepoOwner string, ghRepoName string, reqEditors ...RequestEditorFn) (*GithubAppListBranchesResponse, error) {
-	rsp, err := c.GithubAppListBranches(ctx, ghInstallation, ghRepoOwner, ghRepoName, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGithubAppListBranchesResponse(rsp)
-}
-
-// GithubUpdateGlobalWebhookWithResponse request returning *GithubUpdateGlobalWebhookResponse
-func (c *ClientWithResponses) GithubUpdateGlobalWebhookWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GithubUpdateGlobalWebhookResponse, error) {
-	rsp, err := c.GithubUpdateGlobalWebhook(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGithubUpdateGlobalWebhookResponse(rsp)
-}
-
-// GithubUpdateTenantWebhookWithResponse request returning *GithubUpdateTenantWebhookResponse
-func (c *ClientWithResponses) GithubUpdateTenantWebhookWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*GithubUpdateTenantWebhookResponse, error) {
-	rsp, err := c.GithubUpdateTenantWebhook(ctx, webhook, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGithubUpdateTenantWebhookResponse(rsp)
-}
-
 // MetadataGetWithResponse request returning *MetadataGetResponse
 func (c *ClientWithResponses) MetadataGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetadataGetResponse, error) {
 	rsp, err := c.MetadataGet(ctx, reqEditors...)
@@ -8693,32 +7618,6 @@ func (c *ClientWithResponses) SnsUpdateWithResponse(ctx context.Context, tenant 
 		return nil, err
 	}
 	return ParseSnsUpdateResponse(rsp)
-}
-
-// StepRunUpdateCreatePrWithBodyWithResponse request with arbitrary body returning *StepRunUpdateCreatePrResponse
-func (c *ClientWithResponses) StepRunUpdateCreatePrWithBodyWithResponse(ctx context.Context, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StepRunUpdateCreatePrResponse, error) {
-	rsp, err := c.StepRunUpdateCreatePrWithBody(ctx, stepRun, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseStepRunUpdateCreatePrResponse(rsp)
-}
-
-func (c *ClientWithResponses) StepRunUpdateCreatePrWithResponse(ctx context.Context, stepRun openapi_types.UUID, body StepRunUpdateCreatePrJSONRequestBody, reqEditors ...RequestEditorFn) (*StepRunUpdateCreatePrResponse, error) {
-	rsp, err := c.StepRunUpdateCreatePr(ctx, stepRun, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseStepRunUpdateCreatePrResponse(rsp)
-}
-
-// StepRunGetDiffWithResponse request returning *StepRunGetDiffResponse
-func (c *ClientWithResponses) StepRunGetDiffWithResponse(ctx context.Context, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetDiffResponse, error) {
-	rsp, err := c.StepRunGetDiff(ctx, stepRun, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseStepRunGetDiffResponse(rsp)
 }
 
 // StepRunListEventsWithResponse request returning *StepRunListEventsResponse
@@ -9080,15 +7979,6 @@ func (c *ClientWithResponses) WorkflowRunGetWithResponse(ctx context.Context, te
 	return ParseWorkflowRunGetResponse(rsp)
 }
 
-// WorkflowRunListPullRequestsWithResponse request returning *WorkflowRunListPullRequestsResponse
-func (c *ClientWithResponses) WorkflowRunListPullRequestsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListPullRequestsParams, reqEditors ...RequestEditorFn) (*WorkflowRunListPullRequestsResponse, error) {
-	rsp, err := c.WorkflowRunListPullRequests(ctx, tenant, workflowRun, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseWorkflowRunListPullRequestsResponse(rsp)
-}
-
 // WorkflowListWithResponse request returning *WorkflowListResponse
 func (c *ClientWithResponses) WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error) {
 	rsp, err := c.WorkflowList(ctx, tenant, reqEditors...)
@@ -9140,24 +8030,6 @@ func (c *ClientWithResponses) UserGetCurrentWithResponse(ctx context.Context, re
 		return nil, err
 	}
 	return ParseUserGetCurrentResponse(rsp)
-}
-
-// UserUpdateGithubAppOauthCallbackWithResponse request returning *UserUpdateGithubAppOauthCallbackResponse
-func (c *ClientWithResponses) UserUpdateGithubAppOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateGithubAppOauthCallbackResponse, error) {
-	rsp, err := c.UserUpdateGithubAppOauthCallback(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUserUpdateGithubAppOauthCallbackResponse(rsp)
-}
-
-// UserUpdateGithubAppOauthStartWithResponse request returning *UserUpdateGithubAppOauthStartResponse
-func (c *ClientWithResponses) UserUpdateGithubAppOauthStartWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateGithubAppOauthStartResponse, error) {
-	rsp, err := c.UserUpdateGithubAppOauthStart(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUserUpdateGithubAppOauthStartResponse(rsp)
 }
 
 // UserUpdateGithubOauthCallbackWithResponse request returning *UserUpdateGithubOauthCallbackResponse
@@ -9342,23 +8214,6 @@ func (c *ClientWithResponses) WorkflowGetWithResponse(ctx context.Context, workf
 		return nil, err
 	}
 	return ParseWorkflowGetResponse(rsp)
-}
-
-// WorkflowUpdateLinkGithubWithBodyWithResponse request with arbitrary body returning *WorkflowUpdateLinkGithubResponse
-func (c *ClientWithResponses) WorkflowUpdateLinkGithubWithBodyWithResponse(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowUpdateLinkGithubResponse, error) {
-	rsp, err := c.WorkflowUpdateLinkGithubWithBody(ctx, workflow, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseWorkflowUpdateLinkGithubResponse(rsp)
-}
-
-func (c *ClientWithResponses) WorkflowUpdateLinkGithubWithResponse(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateLinkGithubJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowUpdateLinkGithubResponse, error) {
-	rsp, err := c.WorkflowUpdateLinkGithub(ctx, workflow, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseWorkflowUpdateLinkGithubResponse(rsp)
 }
 
 // WorkflowGetMetricsWithResponse request returning *WorkflowGetMetricsResponse
@@ -9583,227 +8438,6 @@ func ParseEventDataGetResponse(rsp *http.Response) (*EventDataGetResponse, error
 	return response, nil
 }
 
-// ParseGithubAppListInstallationsResponse parses an HTTP response from a GithubAppListInstallationsWithResponse call
-func ParseGithubAppListInstallationsResponse(rsp *http.Response) (*GithubAppListInstallationsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GithubAppListInstallationsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ListGithubAppInstallationsResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON405 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGithubAppListReposResponse parses an HTTP response from a GithubAppListReposWithResponse call
-func ParseGithubAppListReposResponse(rsp *http.Response) (*GithubAppListReposResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GithubAppListReposResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ListGithubReposResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON405 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGithubAppListBranchesResponse parses an HTTP response from a GithubAppListBranchesWithResponse call
-func ParseGithubAppListBranchesResponse(rsp *http.Response) (*GithubAppListBranchesResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GithubAppListBranchesResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ListGithubBranchesResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON405 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGithubUpdateGlobalWebhookResponse parses an HTTP response from a GithubUpdateGlobalWebhookWithResponse call
-func ParseGithubUpdateGlobalWebhookResponse(rsp *http.Response) (*GithubUpdateGlobalWebhookResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GithubUpdateGlobalWebhookResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON405 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGithubUpdateTenantWebhookResponse parses an HTTP response from a GithubUpdateTenantWebhookWithResponse call
-func ParseGithubUpdateTenantWebhookResponse(rsp *http.Response) (*GithubUpdateTenantWebhookResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GithubUpdateTenantWebhookResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON405 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseMetadataGetResponse parses an HTTP response from a MetadataGetWithResponse call
 func ParseMetadataGetResponse(rsp *http.Response) (*MetadataGetResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -9984,100 +8618,6 @@ func ParseSnsUpdateResponse(rsp *http.Response) (*SnsUpdateResponse, error) {
 			return nil, err
 		}
 		response.JSON405 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseStepRunUpdateCreatePrResponse parses an HTTP response from a StepRunUpdateCreatePrWithResponse call
-func ParseStepRunUpdateCreatePrResponse(rsp *http.Response) (*StepRunUpdateCreatePrResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &StepRunUpdateCreatePrResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest CreatePullRequestFromStepRun
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseStepRunGetDiffResponse parses an HTTP response from a StepRunGetDiffWithResponse call
-func ParseStepRunGetDiffResponse(rsp *http.Response) (*StepRunGetDiffResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &StepRunGetDiffResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GetStepRunDiffResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
 
 	}
 
@@ -11356,46 +9896,6 @@ func ParseWorkflowRunGetResponse(rsp *http.Response) (*WorkflowRunGetResponse, e
 	return response, nil
 }
 
-// ParseWorkflowRunListPullRequestsResponse parses an HTTP response from a WorkflowRunListPullRequestsWithResponse call
-func ParseWorkflowRunListPullRequestsResponse(rsp *http.Response) (*WorkflowRunListPullRequestsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &WorkflowRunListPullRequestsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ListPullRequestsResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseWorkflowListResponse parses an HTTP response from a WorkflowListWithResponse call
 func ParseWorkflowListResponse(rsp *http.Response) (*WorkflowListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -11600,38 +10100,6 @@ func ParseUserGetCurrentResponse(rsp *http.Response) (*UserGetCurrentResponse, e
 		}
 		response.JSON405 = &dest
 
-	}
-
-	return response, nil
-}
-
-// ParseUserUpdateGithubAppOauthCallbackResponse parses an HTTP response from a UserUpdateGithubAppOauthCallbackWithResponse call
-func ParseUserUpdateGithubAppOauthCallbackResponse(rsp *http.Response) (*UserUpdateGithubAppOauthCallbackResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UserUpdateGithubAppOauthCallbackResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	return response, nil
-}
-
-// ParseUserUpdateGithubAppOauthStartResponse parses an HTTP response from a UserUpdateGithubAppOauthStartWithResponse call
-func ParseUserUpdateGithubAppOauthStartResponse(rsp *http.Response) (*UserUpdateGithubAppOauthStartResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UserUpdateGithubAppOauthStartResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
 	}
 
 	return response, nil
@@ -12165,53 +10633,6 @@ func ParseWorkflowGetResponse(rsp *http.Response) (*WorkflowGetResponse, error) 
 			return nil, err
 		}
 		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseWorkflowUpdateLinkGithubResponse parses an HTTP response from a WorkflowUpdateLinkGithubWithResponse call
-func ParseWorkflowUpdateLinkGithubResponse(rsp *http.Response) (*WorkflowUpdateLinkGithubResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &WorkflowUpdateLinkGithubResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Workflow
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
 
 	}
 

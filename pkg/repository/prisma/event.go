@@ -199,6 +199,8 @@ type eventEngineRepository struct {
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 	m       *metered.Metered
+
+	callbacks []repository.Callback[*dbsqlc.Event]
 }
 
 func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.EventEngineRepository {
@@ -213,18 +215,26 @@ func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zero
 	}
 }
 
+func (r *eventEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.Event]) {
+	if r.callbacks == nil {
+		r.callbacks = make([]repository.Callback[*dbsqlc.Event], 0)
+	}
+
+	r.callbacks = append(r.callbacks, callback)
+}
+
 func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error) {
 	return r.queries.GetEventForEngine(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
 }
 
 func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*dbsqlc.Event, error) {
-	return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, func() (*dbsqlc.Event, error) {
+	return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, func() (*string, *dbsqlc.Event, error) {
 
 		ctx, span := telemetry.NewSpan(ctx, "db-create-event")
 		defer span.End()
 
 		if err := r.v.Validate(opts); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		createParams := dbsqlc.CreateEventParams{
@@ -246,10 +256,16 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create event: %w", err)
+			return nil, nil, fmt.Errorf("could not create event: %w", err)
 		}
 
-		return e, nil
+		for _, cb := range r.callbacks {
+			cb.Do(e) // nolint: errcheck
+		}
+
+		id := sqlchelpers.UUIDToStr(e.ID)
+
+		return &id, e, nil
 	})
 }
 

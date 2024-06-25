@@ -19,8 +19,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
-	"github.com/hatchet-dev/hatchet/internal/integrations/vcs"
-	"github.com/hatchet-dev/hatchet/internal/integrations/vcs/github"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
@@ -29,8 +27,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/auth/oauth"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
-	"github.com/hatchet-dev/hatchet/pkg/client"
-	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -38,7 +34,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
@@ -275,7 +270,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 			return nil, nil, fmt.Errorf("could not create posthog analytics: %w", err)
 		}
 	} else {
-		analyticsEmitter = analytics.NoOpAnalytics{} // TODO
+		analyticsEmitter = analytics.NoOpAnalytics{}
 	}
 
 	var pylon server.PylonConfig
@@ -347,34 +342,6 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil, nil, fmt.Errorf("could not create JWT manager: %w", err)
 	}
 
-	vcsProviders := make(map[vcs.VCSRepositoryKind]vcs.VCSProvider)
-
-	if cf.VCS.Github.Enabled {
-		var err error
-
-		githubAppConf, err := github.NewGithubAppConf(
-			&oauth.Config{
-				ClientID:     cf.VCS.Github.GithubAppClientID,
-				ClientSecret: cf.VCS.Github.GithubAppClientSecret,
-				Scopes:       []string{"read:user"},
-				BaseURL:      cf.Runtime.ServerURL,
-			},
-			cf.VCS.Github.GithubAppName,
-			cf.VCS.Github.GithubAppSecretPath,
-			cf.VCS.Github.GithubAppWebhookSecret,
-			cf.VCS.Github.GithubAppWebhookURL,
-			cf.VCS.Github.GithubAppID,
-		)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		githubProvider := github.NewGithubVCSProvider(githubAppConf, dc.APIRepository, cf.Runtime.ServerURL, encryptionSvc)
-
-		vcsProviders[vcs.VCSRepositoryKindGithub] = githubProvider
-	}
-
 	var emailSvc email.EmailService = &email.NoOpService{}
 
 	if cf.Email.Postmark.Enabled {
@@ -384,41 +351,6 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 			cf.Email.Postmark.FromName,
 			cf.Email.Postmark.SupportEmail,
 		)
-	}
-
-	var internalClient client.Client
-
-	if cf.Runtime.WorkerEnabled {
-		// get the internal tenant or create if it doesn't exist
-		internalTenant, err := dc.APIRepository.Tenant().GetTenantBySlug("internal")
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not get internal tenant: %w", err)
-		}
-
-		tokenSuffix, err := random.Generate(4)
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not generate token suffix: %w", err)
-		}
-
-		// generate a token for the internal client
-		token, err := auth.JWTManager.GenerateTenantToken(context.Background(), internalTenant.ID, fmt.Sprintf("internal-%s", tokenSuffix))
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not generate internal token: %w", err)
-		}
-
-		internalClient, err = client.NewFromConfigFile(
-			&clientconfig.ClientConfigFile{
-				Token:    token,
-				HostPort: cf.Runtime.GRPCBroadcastAddress,
-			},
-		)
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not create internal client: %w", err)
-		}
 	}
 
 	additionalOAuthConfigs := make(map[string]*oauth2.Config)
@@ -457,8 +389,6 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		Validator:              validator.NewDefaultValidator(),
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
-		VCSProviders:           vcsProviders,
-		InternalClient:         internalClient,
 		Email:                  emailSvc,
 		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,

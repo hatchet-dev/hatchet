@@ -115,86 +115,6 @@ CREATE TABLE "GetGroupKeyRun" (
 );
 
 -- CreateTable
-CREATE TABLE "GithubAppInstallation" (
-    "id" UUID NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deletedAt" TIMESTAMP(3),
-    "githubAppOAuthId" UUID NOT NULL,
-    "installationId" INTEGER NOT NULL,
-    "accountName" TEXT NOT NULL,
-    "accountId" INTEGER NOT NULL,
-    "accountAvatarURL" TEXT,
-    "installationSettingsURL" TEXT,
-    "config" JSONB,
-    "tenantId" UUID,
-    "tenantVcsProviderId" UUID,
-
-    CONSTRAINT "GithubAppInstallation_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "GithubAppOAuth" (
-    "id" UUID NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deletedAt" TIMESTAMP(3),
-    "githubUserID" INTEGER NOT NULL,
-    "accessToken" BYTEA NOT NULL,
-    "refreshToken" BYTEA,
-    "expiresAt" TIMESTAMP(3),
-
-    CONSTRAINT "GithubAppOAuth_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "GithubPullRequest" (
-    "id" UUID NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deletedAt" TIMESTAMP(3),
-    "tenantId" UUID NOT NULL,
-    "repositoryOwner" TEXT NOT NULL,
-    "repositoryName" TEXT NOT NULL,
-    "pullRequestID" INTEGER NOT NULL,
-    "pullRequestTitle" TEXT NOT NULL,
-    "pullRequestNumber" INTEGER NOT NULL,
-    "pullRequestHeadBranch" TEXT NOT NULL,
-    "pullRequestBaseBranch" TEXT NOT NULL,
-    "pullRequestState" TEXT NOT NULL,
-
-    CONSTRAINT "GithubPullRequest_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "GithubPullRequestComment" (
-    "id" UUID NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deletedAt" TIMESTAMP(3),
-    "tenantId" UUID NOT NULL,
-    "pullRequestID" UUID NOT NULL,
-    "moduleID" TEXT NOT NULL,
-    "commentID" INTEGER NOT NULL,
-
-    CONSTRAINT "GithubPullRequestComment_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "GithubWebhook" (
-    "id" UUID NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deletedAt" TIMESTAMP(3),
-    "tenantId" UUID NOT NULL,
-    "repositoryOwner" TEXT NOT NULL,
-    "repositoryName" TEXT NOT NULL,
-    "signingSecret" BYTEA NOT NULL,
-
-    CONSTRAINT "GithubWebhook_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "Job" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -644,21 +564,6 @@ CREATE TABLE "WorkflowConcurrency" (
 );
 
 -- CreateTable
-CREATE TABLE "WorkflowDeploymentConfig" (
-    "id" UUID NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deletedAt" TIMESTAMP(3),
-    "workflowId" UUID NOT NULL,
-    "gitRepoName" TEXT NOT NULL,
-    "gitRepoOwner" TEXT NOT NULL,
-    "gitRepoBranch" TEXT NOT NULL,
-    "githubAppInstallationId" UUID,
-
-    CONSTRAINT "WorkflowDeploymentConfig_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "WorkflowRun" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -672,7 +577,6 @@ CREATE TABLE "WorkflowRun" (
     "concurrencyGroupId" TEXT,
     "displayName" TEXT,
     "id" UUID NOT NULL,
-    "gitRepoBranch" TEXT,
     "childIndex" INTEGER,
     "childKey" TEXT,
     "parentId" UUID,
@@ -776,24 +680,6 @@ CREATE TABLE "_ActionToWorker" (
 );
 
 -- CreateTable
-CREATE TABLE "_GithubAppInstallationToGithubWebhook" (
-    "A" UUID NOT NULL,
-    "B" UUID NOT NULL
-);
-
--- CreateTable
-CREATE TABLE "_GithubAppOAuthToUser" (
-    "A" UUID NOT NULL,
-    "B" UUID NOT NULL
-);
-
--- CreateTable
-CREATE TABLE "_GithubPullRequestToWorkflowRun" (
-    "A" UUID NOT NULL,
-    "B" UUID NOT NULL
-);
-
--- CreateTable
 CREATE TABLE "_ServiceToWorker" (
     "A" UUID NOT NULL,
     "B" UUID NOT NULL
@@ -837,33 +723,6 @@ CREATE UNIQUE INDEX "GetGroupKeyRun_id_key" ON "GetGroupKeyRun"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GetGroupKeyRun_workflowRunId_key" ON "GetGroupKeyRun"("workflowRunId" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "GithubAppInstallation_id_key" ON "GithubAppInstallation"("id" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "GithubAppInstallation_installationId_accountId_key" ON "GithubAppInstallation"("installationId" ASC, "accountId" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "GithubAppOAuth_githubUserID_key" ON "GithubAppOAuth"("githubUserID" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "GithubAppOAuth_id_key" ON "GithubAppOAuth"("id" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "GithubPullRequest_id_key" ON "GithubPullRequest"("id" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "GithubPullRequest_tenantId_repositoryOwner_repositoryName_p_key" ON "GithubPullRequest"("tenantId" ASC, "repositoryOwner" ASC, "repositoryName" ASC, "pullRequestNumber" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "GithubPullRequestComment_id_key" ON "GithubPullRequestComment"("id" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "GithubWebhook_id_key" ON "GithubWebhook"("id" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "GithubWebhook_tenantId_repositoryOwner_repositoryName_key" ON "GithubWebhook"("tenantId" ASC, "repositoryOwner" ASC, "repositoryName" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Job_id_key" ON "Job"("id" ASC);
@@ -1034,12 +893,6 @@ CREATE UNIQUE INDEX "WorkflowConcurrency_id_key" ON "WorkflowConcurrency"("id" A
 CREATE UNIQUE INDEX "WorkflowConcurrency_workflowVersionId_key" ON "WorkflowConcurrency"("workflowVersionId" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WorkflowDeploymentConfig_id_key" ON "WorkflowDeploymentConfig"("id" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "WorkflowDeploymentConfig_workflowId_key" ON "WorkflowDeploymentConfig"("workflowId" ASC);
-
--- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRun_id_key" ON "WorkflowRun"("id" ASC);
 
 -- CreateIndex
@@ -1091,24 +944,6 @@ CREATE UNIQUE INDEX "_ActionToWorker_AB_unique" ON "_ActionToWorker"("A" ASC, "B
 CREATE INDEX "_ActionToWorker_B_index" ON "_ActionToWorker"("B" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "_GithubAppInstallationToGithubWebhook_AB_unique" ON "_GithubAppInstallationToGithubWebhook"("A" ASC, "B" ASC);
-
--- CreateIndex
-CREATE INDEX "_GithubAppInstallationToGithubWebhook_B_index" ON "_GithubAppInstallationToGithubWebhook"("B" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "_GithubAppOAuthToUser_AB_unique" ON "_GithubAppOAuthToUser"("A" ASC, "B" ASC);
-
--- CreateIndex
-CREATE INDEX "_GithubAppOAuthToUser_B_index" ON "_GithubAppOAuthToUser"("B" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "_GithubPullRequestToWorkflowRun_AB_unique" ON "_GithubPullRequestToWorkflowRun"("A" ASC, "B" ASC);
-
--- CreateIndex
-CREATE INDEX "_GithubPullRequestToWorkflowRun_B_index" ON "_GithubPullRequestToWorkflowRun"("B" ASC);
-
--- CreateIndex
 CREATE UNIQUE INDEX "_ServiceToWorker_AB_unique" ON "_ServiceToWorker"("A" ASC, "B" ASC);
 
 -- CreateIndex
@@ -1155,27 +990,6 @@ ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_workerId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "GithubAppInstallation" ADD CONSTRAINT "GithubAppInstallation_githubAppOAuthId_fkey" FOREIGN KEY ("githubAppOAuthId") REFERENCES "GithubAppOAuth"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "GithubAppInstallation" ADD CONSTRAINT "GithubAppInstallation_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "GithubAppInstallation" ADD CONSTRAINT "GithubAppInstallation_tenantVcsProviderId_fkey" FOREIGN KEY ("tenantVcsProviderId") REFERENCES "TenantVcsProvider"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "GithubPullRequest" ADD CONSTRAINT "GithubPullRequest_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "GithubPullRequestComment" ADD CONSTRAINT "GithubPullRequestComment_pullRequestID_fkey" FOREIGN KEY ("pullRequestID") REFERENCES "GithubPullRequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "GithubPullRequestComment" ADD CONSTRAINT "GithubPullRequestComment_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "GithubWebhook" ADD CONSTRAINT "GithubWebhook_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Job" ADD CONSTRAINT "Job_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1328,12 +1142,6 @@ ALTER TABLE "WorkflowConcurrency" ADD CONSTRAINT "WorkflowConcurrency_getConcurr
 ALTER TABLE "WorkflowConcurrency" ADD CONSTRAINT "WorkflowConcurrency_workflowVersionId_fkey" FOREIGN KEY ("workflowVersionId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "WorkflowDeploymentConfig" ADD CONSTRAINT "WorkflowDeploymentConfig_githubAppInstallationId_fkey" FOREIGN KEY ("githubAppInstallationId") REFERENCES "GithubAppInstallation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WorkflowDeploymentConfig" ADD CONSTRAINT "WorkflowDeploymentConfig_workflowId_fkey" FOREIGN KEY ("workflowId") REFERENCES "Workflow"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1401,24 +1209,6 @@ ALTER TABLE "_ActionToWorker" ADD CONSTRAINT "_ActionToWorker_A_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "_ActionToWorker" ADD CONSTRAINT "_ActionToWorker_B_fkey" FOREIGN KEY ("B") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_GithubAppInstallationToGithubWebhook" ADD CONSTRAINT "_GithubAppInstallationToGithubWebhook_A_fkey" FOREIGN KEY ("A") REFERENCES "GithubAppInstallation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_GithubAppInstallationToGithubWebhook" ADD CONSTRAINT "_GithubAppInstallationToGithubWebhook_B_fkey" FOREIGN KEY ("B") REFERENCES "GithubWebhook"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_GithubAppOAuthToUser" ADD CONSTRAINT "_GithubAppOAuthToUser_A_fkey" FOREIGN KEY ("A") REFERENCES "GithubAppOAuth"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_GithubAppOAuthToUser" ADD CONSTRAINT "_GithubAppOAuthToUser_B_fkey" FOREIGN KEY ("B") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_GithubPullRequestToWorkflowRun" ADD CONSTRAINT "_GithubPullRequestToWorkflowRun_A_fkey" FOREIGN KEY ("A") REFERENCES "GithubPullRequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_GithubPullRequestToWorkflowRun" ADD CONSTRAINT "_GithubPullRequestToWorkflowRun_B_fkey" FOREIGN KEY ("B") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_ServiceToWorker" ADD CONSTRAINT "_ServiceToWorker_A_fkey" FOREIGN KEY ("A") REFERENCES "Service"("id") ON DELETE CASCADE ON UPDATE CASCADE;

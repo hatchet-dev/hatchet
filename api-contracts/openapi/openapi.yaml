@@ -38,18 +38,10 @@ paths:
     $ref: "./paths/user/user.yaml#/oauth-start-github"
   /api/v1/users/github/callback:
     $ref: "./paths/user/user.yaml#/oauth-callback-github"
-  /api/v1/users/github-app/start:
-    $ref: "./paths/user/user.yaml#/oauth-start-github-app"
-  /api/v1/users/github-app/callback:
-    $ref: "./paths/user/user.yaml#/oauth-callback-github-app"
   /api/v1/tenants/{tenant}/slack/start:
     $ref: "./paths/user/user.yaml#/oauth-start-slack"
   /api/v1/users/slack/callback:
     $ref: "./paths/user/user.yaml#/oauth-callback-slack"
-  /api/v1/github/webhook:
-    $ref: "./paths/github-app/github-app.yaml#/globalWebhook"
-  /api/v1/github/webhook/{webhook}:
-    $ref: "./paths/github-app/github-app.yaml#/tenantWebhook"
   /api/v1/sns/{tenant}/{event}:
     $ref: "./paths/ingestors/ingestors.yaml#/sns"
   /api/v1/tenants/{tenant}/sns:
@@ -122,16 +114,10 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/triggerWorkflow"
   /api/v1/workflows/{workflow}/versions/definition:
     $ref: "./paths/workflow/workflow.yaml#/workflowVersionDefinition"
-  /api/v1/workflows/{workflow}/link-github:
-    $ref: "./paths/workflow/workflow.yaml#/linkGithub"
   /api/v1/workflows/{workflow}/metrics:
     $ref: "./paths/workflow/workflow.yaml#/getMetrics"
-  /api/v1/step-runs/{step-run}/create-pr:
-    $ref: "./paths/workflow/workflow.yaml#/createPullRequest"
   /api/v1/step-runs/{step-run}/logs:
     $ref: "./paths/log/log.yaml#/withStepRun"
-  /api/v1/step-runs/{step-run}/diff:
-    $ref: "./paths/workflow/workflow.yaml#/getDiff"
   /api/v1/step-runs/{step-run}/events:
     $ref: "./paths/step-run/step-run.yaml#/listEvents"
   /api/v1/tenants/{tenant}/workflows/runs:
@@ -140,8 +126,6 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/workflowRunsMetrics"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}:
     $ref: "./paths/workflow/workflow.yaml#/workflowRun"
-  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/prs:
-    $ref: "./paths/workflow/workflow.yaml#/listPullRequests"
   /api/v1/tenants/{tenant}/step-runs/{step-run}:
     $ref: "./paths/step-run/step-run.yaml#/stepRunScoped"
   /api/v1/tenants/{tenant}/step-runs/{step-run}/rerun:
@@ -154,9 +138,3 @@ paths:
     $ref: "./paths/worker/worker.yaml#/withTenant"
   /api/v1/workers/{worker}:
     $ref: "./paths/worker/worker.yaml#/withWorker"
-  /api/v1/github-app/installations:
-    $ref: "./paths/github-app/github-app.yaml#/installations"
-  /api/v1/github-app/installations/{gh-installation}/repos:
-    $ref: "./paths/github-app/github-app.yaml#/repos"
-  /api/v1/github-app/installations/{gh-installation}/repos/{gh-repo-owner}/{gh-repo-name}/branches:
-    $ref: "./paths/github-app/github-app.yaml#/branches"
