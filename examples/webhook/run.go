@@ -14,6 +14,7 @@ import (
 )
 
 func run(
+	name string,
 	w *worker.Worker,
 	port string,
 	handler func(w http.ResponseWriter, r *http.Request), c client.Client, workflow string, event string,
@@ -48,6 +49,7 @@ func run(
 
 	secret := "secret"
 	if err := w.RegisterWebhook(worker.RegisterWebhookWorkerOpts{
+		Name:   "test-" + name,
 		URL:    fmt.Sprintf("http://localhost:%s/webhook", port),
 		Secret: &secret,
 	}); err != nil {

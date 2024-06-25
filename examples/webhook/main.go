@@ -65,7 +65,7 @@ func main() {
 		Secret: "secret",
 	}, wf)
 	port := "8741"
-	err = run(w, port, handler, c, workflow, event)
+	err = run("webhook-demo", w, port, handler, c, workflow, event)
 	if err != nil {
 		panic(err)
 	}

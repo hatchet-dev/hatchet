@@ -13,6 +13,7 @@ import (
 )
 
 type RegisterWebhookWorkerOpts struct {
+	Name   string
 	URL    string
 	Secret *string
 }
@@ -26,6 +27,7 @@ func (w *Worker) RegisterWebhook(ww RegisterWebhookWorkerOpts) error {
 	res, err := w.client.API().WebhookCreate(context.Background(), tenantId, rest.WebhookCreateJSONRequestBody{
 		Url:    ww.URL,
 		Secret: ww.Secret,
+		Name:   ww.Name,
 	})
 	if err != nil {
 		return fmt.Errorf("error creating webhook worker: %w", err)

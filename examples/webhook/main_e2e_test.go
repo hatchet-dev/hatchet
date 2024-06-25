@@ -95,7 +95,7 @@ func TestWebhook(t *testing.T) {
 				handler := w.WebhookHttpHandler(worker.WebhookHandlerOptions{
 					Secret: "secret",
 				}, wf)
-				err = run(w, "8742", handler, c, workflow, event)
+				err = run("simple action", w, "8742", handler, c, workflow, event)
 				if err != nil {
 					t.Fatalf("run() error = %s", err)
 				}
@@ -161,7 +161,7 @@ func TestWebhook(t *testing.T) {
 					}
 					w.WriteHeader(http.StatusInternalServerError) // simulate a failure
 				}
-				err = run(w, "8743", handler, c, workflow, event)
+				err = run("mark action as failed immediately if webhook fails", w, "8743", handler, c, workflow, event)
 				if err != nil {
 					t.Fatalf("run() error = %s", err)
 				}
@@ -246,7 +246,7 @@ func TestWebhook(t *testing.T) {
 				handler := w.WebhookHttpHandler(worker.WebhookHandlerOptions{
 					Secret: "secret",
 				}, wf)
-				err = run(w, "8744", handler, c, workflow, event)
+				err = run("register action", w, "8744", handler, c, workflow, event)
 				if err != nil {
 					t.Fatalf("run() error = %s", err)
 				}
