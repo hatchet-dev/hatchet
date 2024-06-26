@@ -112,13 +112,17 @@ type TenantEngineRepository interface {
 
 	DeleteControllerPartition(ctx context.Context, id string) error
 
-	RebalanceControllerPartitions(ctx context.Context) error
+	RebalanceAllControllerPartitions(ctx context.Context) error
+
+	RebalanceInactiveControllerPartitions(ctx context.Context) error
 
 	CreateTenantWorkerPartition(ctx context.Context, id string) error
 
 	DeleteTenantWorkerPartition(ctx context.Context, id string) error
 
-	RebalanceTenantWorkerPartitions(ctx context.Context) error
+	RebalanceAllTenantWorkerPartitions(ctx context.Context) error
+
+	RebalanceInactiveTenantWorkerPartitions(ctx context.Context) error
 
 	// GetTenantByID returns the tenant with the given id
 	GetTenantByID(ctx context.Context, tenantId string) (*dbsqlc.Tenant, error)

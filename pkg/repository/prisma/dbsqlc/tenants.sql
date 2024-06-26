@@ -203,7 +203,7 @@ DELETE FROM "ControllerPartition"
 WHERE "id" = sqlc.arg('id')::text
 RETURNING *;
 
--- name: RebalanceControllerPartitions :exec
+-- name: RebalanceAllControllerPartitions :exec
 WITH active_partitions AS (
     SELECT
         "id"
@@ -232,6 +232,44 @@ WHERE
     )
 RETURNING *;
 
+-- name: RebalanceInactiveControllerPartitions :exec
+WITH active_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "ControllerPartition"
+    WHERE
+        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+), inactive_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "ControllerPartition"
+    WHERE
+        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+), update_tenants AS (
+    UPDATE
+        "Tenant" as tenants
+    SET
+        "controllerPartitionId" = (
+            SELECT
+                "id"
+            FROM
+                active_partitions
+            ORDER BY
+                random()
+            LIMIT 1
+        )
+    WHERE
+        "slug" != 'internal' AND
+        (
+            "controllerPartitionId" IS NULL OR
+            "controllerPartitionId" IN (SELECT "id" FROM inactive_partitions)
+        )
+)
+DELETE FROM "ControllerPartition"
+WHERE "id" IN (SELECT "id" FROM inactive_partitions);
+
 -- name: CreateTenantWorkerPartition :one
 INSERT INTO "TenantWorkerPartition" ("id", "createdAt", "lastHeartbeat")
 VALUES (sqlc.arg('id')::text, NOW(), NOW())
@@ -243,7 +281,7 @@ DELETE FROM "TenantWorkerPartition"
 WHERE "id" = sqlc.arg('id')::text
 RETURNING *;
 
--- name: RebalanceTenantWorkerPartitions :exec
+-- name: RebalanceAllTenantWorkerPartitions :exec
 WITH active_partitions AS (
     SELECT
         "id"
@@ -271,3 +309,41 @@ WHERE
         "workerPartitionId" NOT IN (SELECT "id" FROM active_partitions)
     )
 RETURNING *;
+
+-- name: RebalanceInactiveTenantWorkerPartitions :exec
+WITH active_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "TenantWorkerPartition"
+    WHERE
+        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+), inactive_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "TenantWorkerPartition"
+    WHERE
+        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+), update_tenants AS (
+    UPDATE
+        "Tenant" as tenants
+    SET
+        "workerPartitionId" = (
+            SELECT
+                "id"
+            FROM
+                active_partitions
+            ORDER BY
+                random()
+            LIMIT 1
+        )
+    WHERE
+        "slug" != 'internal' AND
+        (
+            "workerPartitionId" IS NULL OR
+            "workerPartitionId" IN (SELECT "id" FROM inactive_partitions)
+        )
+)
+DELETE FROM "TenantWorkerPartition"
+WHERE "id" IN (SELECT "id" FROM inactive_partitions);

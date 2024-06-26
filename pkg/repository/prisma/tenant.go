@@ -319,8 +319,12 @@ func (r *tenantEngineRepository) DeleteControllerPartition(ctx context.Context, 
 	return err
 }
 
-func (r *tenantEngineRepository) RebalanceControllerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceControllerPartitions(ctx, r.pool)
+func (r *tenantEngineRepository) RebalanceAllControllerPartitions(ctx context.Context) error {
+	return r.queries.RebalanceAllControllerPartitions(ctx, r.pool)
+}
+
+func (r *tenantEngineRepository) RebalanceInactiveControllerPartitions(ctx context.Context) error {
+	return r.queries.RebalanceInactiveControllerPartitions(ctx, r.pool)
 }
 
 func (r *tenantEngineRepository) CreateTenantWorkerPartition(ctx context.Context, id string) error {
@@ -333,6 +337,10 @@ func (r *tenantEngineRepository) DeleteTenantWorkerPartition(ctx context.Context
 	return err
 }
 
-func (r *tenantEngineRepository) RebalanceTenantWorkerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceTenantWorkerPartitions(ctx, r.pool)
+func (r *tenantEngineRepository) RebalanceAllTenantWorkerPartitions(ctx context.Context) error {
+	return r.queries.RebalanceAllTenantWorkerPartitions(ctx, r.pool)
+}
+
+func (r *tenantEngineRepository) RebalanceInactiveTenantWorkerPartitions(ctx context.Context) error {
+	return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, r.pool)
 }

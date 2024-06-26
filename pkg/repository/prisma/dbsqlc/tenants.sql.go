@@ -590,7 +590,7 @@ func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db D
 	return items, nil
 }
 
-const rebalanceControllerPartitions = `-- name: RebalanceControllerPartitions :exec
+const rebalanceAllControllerPartitions = `-- name: RebalanceAllControllerPartitions :exec
 WITH active_partitions AS (
     SELECT
         "id"
@@ -620,12 +620,12 @@ WHERE
 RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
 `
 
-func (q *Queries) RebalanceControllerPartitions(ctx context.Context, db DBTX) error {
-	_, err := db.Exec(ctx, rebalanceControllerPartitions)
+func (q *Queries) RebalanceAllControllerPartitions(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, rebalanceAllControllerPartitions)
 	return err
 }
 
-const rebalanceTenantWorkerPartitions = `-- name: RebalanceTenantWorkerPartitions :exec
+const rebalanceAllTenantWorkerPartitions = `-- name: RebalanceAllTenantWorkerPartitions :exec
 WITH active_partitions AS (
     SELECT
         "id"
@@ -655,8 +655,96 @@ WHERE
 RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
 `
 
-func (q *Queries) RebalanceTenantWorkerPartitions(ctx context.Context, db DBTX) error {
-	_, err := db.Exec(ctx, rebalanceTenantWorkerPartitions)
+func (q *Queries) RebalanceAllTenantWorkerPartitions(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, rebalanceAllTenantWorkerPartitions)
+	return err
+}
+
+const rebalanceInactiveControllerPartitions = `-- name: RebalanceInactiveControllerPartitions :exec
+WITH active_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "ControllerPartition"
+    WHERE
+        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+), inactive_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "ControllerPartition"
+    WHERE
+        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+), update_tenants AS (
+    UPDATE
+        "Tenant" as tenants
+    SET
+        "controllerPartitionId" = (
+            SELECT
+                "id"
+            FROM
+                active_partitions
+            ORDER BY
+                random()
+            LIMIT 1
+        )
+    WHERE
+        "slug" != 'internal' AND
+        (
+            "controllerPartitionId" IS NULL OR
+            "controllerPartitionId" IN (SELECT "id" FROM inactive_partitions)
+        )
+)
+DELETE FROM "ControllerPartition"
+WHERE "id" IN (SELECT "id" FROM inactive_partitions)
+`
+
+func (q *Queries) RebalanceInactiveControllerPartitions(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, rebalanceInactiveControllerPartitions)
+	return err
+}
+
+const rebalanceInactiveTenantWorkerPartitions = `-- name: RebalanceInactiveTenantWorkerPartitions :exec
+WITH active_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "TenantWorkerPartition"
+    WHERE
+        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+), inactive_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "TenantWorkerPartition"
+    WHERE
+        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+), update_tenants AS (
+    UPDATE
+        "Tenant" as tenants
+    SET
+        "workerPartitionId" = (
+            SELECT
+                "id"
+            FROM
+                active_partitions
+            ORDER BY
+                random()
+            LIMIT 1
+        )
+    WHERE
+        "slug" != 'internal' AND
+        (
+            "workerPartitionId" IS NULL OR
+            "workerPartitionId" IN (SELECT "id" FROM inactive_partitions)
+        )
+)
+DELETE FROM "TenantWorkerPartition"
+WHERE "id" IN (SELECT "id" FROM inactive_partitions)
+`
+
+func (q *Queries) RebalanceInactiveTenantWorkerPartitions(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, rebalanceInactiveTenantWorkerPartitions)
 	return err
 }
 
