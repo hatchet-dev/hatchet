@@ -193,7 +193,7 @@ func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheck
 	}{
 		Time: time.Now(),
 	}, func(req *http.Request) {
-		req.Header.Set("X-Healthcheck", "true")
+		req.Method = "PUT"
 	})
 	if err != nil {
 		return nil, fmt.Errorf("healthcheck request: %w", err)
