@@ -43,6 +43,7 @@ import {
   RerunStepRunRequest,
   SNSIntegration,
   StepRun,
+  StepRunArchiveList,
   StepRunEventList,
   Tenant,
   TenantAlertEmailGroup,
@@ -1225,6 +1226,39 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<StepRunEventList, APIErrors>({
       path: `/api/v1/step-runs/${stepRun}/events`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List archives for a step run
+   *
+   * @tags Step Run
+   * @name StepRunListArchives
+   * @summary List archives for step run
+   * @request GET:/api/v1/step-runs/{step-run}/archives
+   * @secure
+   */
+  stepRunListArchives = (
+    stepRun: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<StepRunArchiveList, APIErrors>({
+      path: `/api/v1/step-runs/${stepRun}/archives`,
       method: "GET",
       query: query,
       secure: true,

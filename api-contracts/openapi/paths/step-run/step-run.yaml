@@ -261,3 +261,60 @@ listEvents:
     summary: List events for step run
     tags:
       - Step Run
+listArchives:
+  get:
+    x-resources: ["tenant", "step-run"]
+    description: List archives for a step run
+    operationId: step-run:list:archives
+    parameters:
+      - description: The step run id
+        in: path
+        name: step-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/StepRunArchiveList"
+        description: Successfully retrieved the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: The step run was not found
+    summary: List archives for step run
+    tags:
+      - Step Run

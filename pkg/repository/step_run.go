@@ -113,6 +113,18 @@ type ListStepRunEventResult struct {
 	Rows  []*dbsqlc.StepRunEvent
 	Count int
 }
+type ListStepRunArchivesOpts struct {
+	// (optional) number of events to skip
+	Offset *int
+
+	// (optional) number of events to return
+	Limit *int
+}
+
+type ListStepRunArchivesResult struct {
+	Rows  []*dbsqlc.StepRunResultArchive
+	Count int
+}
 
 type RefreshTimeoutBy struct {
 	IncrementTimeoutBy string `validate:"required,duration"`
@@ -127,6 +139,8 @@ type StepRunAPIRepository interface {
 	GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error)
 
 	ListStepRunEvents(stepRunId string, opts *ListStepRunEventOpts) (*ListStepRunEventResult, error)
+
+	ListStepRunArchives(tenantId, stepRunId string, opts *ListStepRunArchivesOpts) (*ListStepRunArchivesResult, error)
 }
 
 type StepRunEngineRepository interface {

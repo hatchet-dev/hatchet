@@ -188,6 +188,22 @@ func (q *Queries) AssignStepRunToWorker(ctx context.Context, db DBTX, arg Assign
 	return &i, err
 }
 
+const countStepRunArchives = `-- name: CountStepRunArchives :one
+SELECT
+    count(*) OVER() AS total
+FROM
+    "StepRunResultArchive"
+WHERE
+    "stepRunId" = $1::uuid
+`
+
+func (q *Queries) CountStepRunArchives(ctx context.Context, db DBTX, steprunid pgtype.UUID) (int64, error) {
+	row := db.QueryRow(ctx, countStepRunArchives, steprunid)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const countStepRunEvents = `-- name: CountStepRunEvents :one
 SELECT
     count(*) OVER() AS total
@@ -689,6 +705,72 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepRunArchives = `-- name: ListStepRunArchives :many
+SELECT
+    "StepRunResultArchive".id, "StepRunResultArchive"."createdAt", "StepRunResultArchive"."updatedAt", "StepRunResultArchive"."deletedAt", "StepRunResultArchive"."stepRunId", "StepRunResultArchive"."order", "StepRunResultArchive".input, "StepRunResultArchive".output, "StepRunResultArchive".error, "StepRunResultArchive"."startedAt", "StepRunResultArchive"."finishedAt", "StepRunResultArchive"."timeoutAt", "StepRunResultArchive"."cancelledAt", "StepRunResultArchive"."cancelledReason", "StepRunResultArchive"."cancelledError"
+FROM
+    "StepRunResultArchive"
+JOIN
+    "StepRun" ON "StepRunResultArchive"."stepRunId" = "StepRun"."id"
+WHERE
+    "StepRunResultArchive"."stepRunId" = $1::uuid AND
+    "StepRun"."tenantId" = $2::uuid
+ORDER BY
+    "StepRunResultArchive"."createdAt"
+OFFSET
+    COALESCE($3, 0)
+LIMIT
+    COALESCE($4, 50)
+`
+
+type ListStepRunArchivesParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+	Offset    interface{} `json:"offset"`
+	Limit     interface{} `json:"limit"`
+}
+
+func (q *Queries) ListStepRunArchives(ctx context.Context, db DBTX, arg ListStepRunArchivesParams) ([]*StepRunResultArchive, error) {
+	rows, err := db.Query(ctx, listStepRunArchives,
+		arg.Steprunid,
+		arg.Tenantid,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepRunResultArchive
+	for rows.Next() {
+		var i StepRunResultArchive
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.StepRunId,
+			&i.Order,
+			&i.Input,
+			&i.Output,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.TimeoutAt,
+			&i.CancelledAt,
+			&i.CancelledReason,
+			&i.CancelledError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

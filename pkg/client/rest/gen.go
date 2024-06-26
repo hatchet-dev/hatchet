@@ -552,6 +552,32 @@ type StepRun struct {
 	WorkerId          *string                 `json:"workerId,omitempty"`
 }
 
+// StepRunArchive defines model for StepRunArchive.
+type StepRunArchive struct {
+	CancelledAt      *time.Time `json:"cancelledAt,omitempty"`
+	CancelledAtEpoch *int       `json:"cancelledAtEpoch,omitempty"`
+	CancelledError   *string    `json:"cancelledError,omitempty"`
+	CancelledReason  *string    `json:"cancelledReason,omitempty"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	Error            *string    `json:"error,omitempty"`
+	FinishedAt       *time.Time `json:"finishedAt,omitempty"`
+	FinishedAtEpoch  *int       `json:"finishedAtEpoch,omitempty"`
+	Input            *string    `json:"input,omitempty"`
+	Order            int        `json:"order"`
+	Output           *string    `json:"output,omitempty"`
+	StartedAt        *time.Time `json:"startedAt,omitempty"`
+	StartedAtEpoch   *int       `json:"startedAtEpoch,omitempty"`
+	StepRunId        string     `json:"stepRunId"`
+	TimeoutAt        *time.Time `json:"timeoutAt,omitempty"`
+	TimeoutAtEpoch   *int       `json:"timeoutAtEpoch,omitempty"`
+}
+
+// StepRunArchiveList defines model for StepRunArchiveList.
+type StepRunArchiveList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]StepRunArchive   `json:"rows,omitempty"`
+}
+
 // StepRunEvent defines model for StepRunEvent.
 type StepRunEvent struct {
 	Count         int                     `json:"count"`
@@ -1068,6 +1094,15 @@ type WorkflowVersionMeta struct {
 	WorkflowId string    `json:"workflowId"`
 }
 
+// StepRunListArchivesParams defines parameters for StepRunListArchives.
+type StepRunListArchivesParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // StepRunListEventsParams defines parameters for StepRunListEvents.
 type StepRunListEventsParams struct {
 	// Offset The number to skip
@@ -1376,6 +1411,9 @@ type ClientInterface interface {
 
 	// SnsUpdate request
 	SnsUpdate(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StepRunListArchives request
+	StepRunListArchives(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StepRunListEvents request
 	StepRunListEvents(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1737,6 +1775,18 @@ func (c *Client) SnsDelete(ctx context.Context, sns openapi_types.UUID, reqEdito
 
 func (c *Client) SnsUpdate(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSnsUpdateRequest(c.Server, tenant, event)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) StepRunListArchives(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStepRunListArchivesRequest(c.Server, stepRun, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3057,6 +3107,78 @@ func NewSnsUpdateRequest(server string, tenant openapi_types.UUID, event string)
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewStepRunListArchivesRequest generates requests for StepRunListArchives
+func NewStepRunListArchivesRequest(server string, stepRun openapi_types.UUID, params *StepRunListArchivesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "step-run", runtime.ParamLocationPath, stepRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/step-runs/%s/archives", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -5988,6 +6110,9 @@ type ClientWithResponsesInterface interface {
 	// SnsUpdateWithResponse request
 	SnsUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*SnsUpdateResponse, error)
 
+	// StepRunListArchivesWithResponse request
+	StepRunListArchivesWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*StepRunListArchivesResponse, error)
+
 	// StepRunListEventsWithResponse request
 	StepRunListEventsWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error)
 
@@ -6473,6 +6598,31 @@ func (r SnsUpdateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r SnsUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type StepRunListArchivesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *StepRunArchiveList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r StepRunListArchivesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StepRunListArchivesResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8013,6 +8163,15 @@ func (c *ClientWithResponses) SnsUpdateWithResponse(ctx context.Context, tenant 
 	return ParseSnsUpdateResponse(rsp)
 }
 
+// StepRunListArchivesWithResponse request returning *StepRunListArchivesResponse
+func (c *ClientWithResponses) StepRunListArchivesWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*StepRunListArchivesResponse, error) {
+	rsp, err := c.StepRunListArchives(ctx, stepRun, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStepRunListArchivesResponse(rsp)
+}
+
 // StepRunListEventsWithResponse request returning *StepRunListEventsResponse
 func (c *ClientWithResponses) StepRunListEventsWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error) {
 	rsp, err := c.StepRunListEvents(ctx, stepRun, params, reqEditors...)
@@ -9079,6 +9238,53 @@ func ParseSnsUpdateResponse(rsp *http.Response) (*SnsUpdateResponse, error) {
 			return nil, err
 		}
 		response.JSON405 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStepRunListArchivesResponse parses an HTTP response from a StepRunListArchivesWithResponse call
+func ParseStepRunListArchivesResponse(rsp *http.Response) (*StepRunListArchivesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StepRunListArchivesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest StepRunArchiveList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
