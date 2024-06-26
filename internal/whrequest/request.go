@@ -28,6 +28,7 @@ func Send(ctx context.Context, url string, secret string, data any, headers ...f
 		return nil, err
 	}
 	req.Header.Set("X-Hatchet-Signature", sig)
+	req.Header.Set("Content-Type", "application/json")
 
 	for _, h := range headers {
 		h(req)
