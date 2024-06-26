@@ -19,7 +19,8 @@ INSERT INTO "WebhookWorker" (
     "url",
     "tenantId",
     "tokenId",
-    "tokenValue"
+    "tokenValue",
+    "deleted"
 )
 VALUES (
     gen_random_uuid(),
@@ -30,7 +31,8 @@ VALUES (
     @url::text,
     @tenantId::uuid,
     sqlc.narg('tokenId')::uuid,
-    sqlc.narg('tokenValue')::text
+    sqlc.narg('tokenValue')::text,
+    coalesce(sqlc.narg('deleted')::boolean, false)
 )
 ON CONFLICT ("url") DO
 UPDATE
@@ -39,7 +41,8 @@ SET
     "tokenValue" = coalesce(sqlc.narg('tokenValue')::text, excluded."tokenValue"),
     "name" = coalesce(sqlc.narg('name')::text, excluded."name"),
     "secret" = coalesce(sqlc.narg('secret')::text, excluded."secret"),
-    "url" = coalesce(sqlc.narg('url')::text, excluded."url")
+    "url" = coalesce(sqlc.narg('url')::text, excluded."url"),
+    "deleted" = coalesce(sqlc.narg('deleted')::boolean, excluded."deleted")
 RETURNING *;
 
 -- name: DeleteWebhookWorker :exec

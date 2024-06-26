@@ -50,6 +50,10 @@ func (r *webhookWorkerEngineRepository) UpsertWebhookWorker(ctx context.Context,
 		Url:      sqlchelpers.TextFromStr(opts.URL),
 	}
 
+	if opts.Deleted != nil {
+		params.Deleted = sqlchelpers.BoolFromBoolean(*opts.Deleted)
+	}
+
 	if opts.TokenID != nil {
 		params.TokenId = sqlchelpers.UUIDFromStr(*opts.TokenID)
 	}
