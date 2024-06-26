@@ -37,6 +37,12 @@ func (a DefaultSecurityCheck) Check() {
 		return
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("panic in check: %v", r)
+		}
+	}()
+
 	a.Logger.Debug().Msgf("Fetching security alerts for version %s", a.Version)
 
 	ident, err := a.Repo.GetIdent()
