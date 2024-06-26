@@ -122,6 +122,10 @@ func (p *partitioner) start() {
 	p.s.Start()
 }
 
+func (p *partitioner) shutdown() error {
+	return p.s.Shutdown()
+}
+
 func rebalanceControllerPartitions(ctx context.Context, r repository.TenantEngineRepository) error {
 	return r.RebalanceInactiveControllerPartitions(ctx)
 }

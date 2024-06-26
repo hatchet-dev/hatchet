@@ -112,6 +112,11 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 
 	teardown := []Teardown{}
 
+	teardown = append(teardown, Teardown{
+		Name: "partitioner",
+		Fn:   p.shutdown,
+	})
+
 	var h *health.Health
 	healthProbes := sc.HasService("health")
 	if healthProbes {
