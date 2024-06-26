@@ -29,8 +29,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 			_, _ = writer.Write([]byte("OK!"))
 			return
 		}
-
-		if r.Method != http.MethodPost {
+		if r.Method != http.MethodPut && r.Method != http.MethodPost {
 			writer.WriteHeader(http.StatusMethodNotAllowed)
 			_, _ = writer.Write([]byte("Method not allowed"))
 			return
@@ -60,7 +59,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 			return
 		}
 
-		if r.Header.Get("X-Healthcheck") != "" {
+		if r.Method == http.MethodPut {
 			for _, wf := range workflows {
 				err = w.RegisterWorkflow(wf)
 				if err != nil {
