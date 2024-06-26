@@ -16,6 +16,12 @@ import (
 func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateRequestObject) (gen.TenantCreateResponseObject, error) {
 	user := ctx.Get("user").(*db.UserModel)
 
+	if !t.config.Runtime.AllowCreateTenant {
+		return gen.TenantCreate400JSONResponse(
+			apierrors.NewAPIErrors("tenant signups are disabled"),
+		), nil
+	}
+
 	// validate the request
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
 		return nil, err
