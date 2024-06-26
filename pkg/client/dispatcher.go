@@ -54,46 +54,46 @@ const (
 
 type Action struct {
 	// the worker id
-	WorkerId string
+	WorkerId string `json:"workerId"`
 
 	// the tenant id
-	TenantId string
+	TenantId string `json:"tenantId"`
 
 	// the workflow run id
-	WorkflowRunId string
+	WorkflowRunId string `json:"workflowRunId"`
 
 	// the get group key run id
-	GetGroupKeyRunId string
+	GetGroupKeyRunId string `json:"getGroupKeyRunId"`
 
 	// the job id
-	JobId string
+	JobId string `json:"jobId"`
 
 	// the job name
-	JobName string
+	JobName string `json:"jobName"`
 
 	// the job run id
-	JobRunId string
+	JobRunId string `json:"jobRunId"`
 
 	// the step id
-	StepId string
+	StepId string `json:"stepId"`
 
 	// the step name
-	StepName string
+	StepName string `json:"stepName"`
 
 	// the step run id
-	StepRunId string
+	StepRunId string `json:"stepRunId"`
 
 	// the action id
-	ActionId string
+	ActionId string `json:"actionId"`
 
 	// the action payload
-	ActionPayload []byte
+	ActionPayload []byte `json:"actionPayload"`
 
 	// the action type
-	ActionType ActionType
+	ActionType ActionType `json:"actionType"`
 
 	// the count of the retry attempt
-	RetryCount int32
+	RetryCount int32 `json:"retryCount"`
 }
 
 type WorkerActionListener interface {

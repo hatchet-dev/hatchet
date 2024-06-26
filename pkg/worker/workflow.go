@@ -126,6 +126,7 @@ func (e eventsArr) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace stri
 type workflowConverter interface {
 	ToWorkflow(svcName string, namespace string) types.Workflow
 	ToActionMap(svcName string) map[string]any
+	ToWorkflowTrigger() triggerConverter
 }
 
 type Workflow struct {
@@ -139,6 +140,8 @@ type WorkflowJob struct {
 	Name string
 
 	Description string
+
+	On triggerConverter
 
 	Concurrency *WorkflowConcurrency
 
@@ -234,6 +237,10 @@ func (j *WorkflowJob) ToWorkflowJob(svcName string, namespace string) (*types.Wo
 	return apiJob, nil
 }
 
+func (j *WorkflowJob) ToWorkflowTrigger() triggerConverter {
+	return j.On
+}
+
 func (j *WorkflowJob) ToActionMap(svcName string) map[string]any {
 	res := map[string]any{}
 
@@ -315,6 +322,10 @@ func (w *WorkflowStep) SetRetries(retries int) *WorkflowStep {
 func (w *WorkflowStep) AddParents(parents ...string) *WorkflowStep {
 	w.Parents = append(w.Parents, parents...)
 	return w
+}
+
+func (w *WorkflowStep) ToWorkflowTrigger() triggerConverter {
+	return NoTrigger()
 }
 
 func (w *WorkflowStep) ToWorkflow(svcName string, namespace string) types.Workflow {

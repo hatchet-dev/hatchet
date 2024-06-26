@@ -21,6 +21,7 @@ type APIRepository interface {
 	UserSession() UserSessionRepository
 	User() UserRepository
 	SecurityCheck() SecurityCheckRepository
+	WebhookWorker() WebhookWorkerRepository
 }
 
 type EngineRepository interface {
@@ -40,6 +41,7 @@ type EngineRepository interface {
 	StreamEvent() StreamEventsEngineRepository
 	Log() LogsEngineRepository
 	RateLimit() RateLimitEngineRepository
+	WebhookWorker() WebhookWorkerEngineRepository
 }
 
 type EntitlementsRepository interface {

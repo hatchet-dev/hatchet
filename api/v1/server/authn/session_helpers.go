@@ -112,7 +112,7 @@ func (s *SessionHelpers) SaveOAuthState(
 	c echo.Context,
 	integration string,
 ) (string, error) {
-	state, err := random.Generate(16)
+	state, err := random.Generate(32)
 
 	if err != nil {
 		return "", err

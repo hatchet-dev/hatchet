@@ -89,7 +89,7 @@ func (r *tenantAPIRepository) UpdateTenant(id string, opts *repository.UpdateTen
 }
 
 func (r *tenantAPIRepository) GetTenantByID(id string) (*db.TenantModel, error) {
-	return cache.MakeCacheable[db.TenantModel](r.cache, id, func() (*db.TenantModel, error) {
+	return cache.MakeCacheable[db.TenantModel](r.cache, "prisma"+id, func() (*db.TenantModel, error) {
 		return r.client.Tenant.FindUnique(
 			db.Tenant.ID.Equals(id),
 		).Exec(context.Background())

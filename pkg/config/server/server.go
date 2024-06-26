@@ -37,7 +37,7 @@ type ServerConfigFile struct {
 
 	MessageQueue MessageQueueConfigFile `mapstructure:"msgQueue" json:"msgQueue,omitempty"`
 
-	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"health\", \"ticker\", \"grpc\", \"eventscontroller\", \"jobscontroller\", \"workflowscontroller\", \"heartbeater\"]"`
+	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"health\", \"ticker\", \"grpc\", \"eventscontroller\", \"jobscontroller\", \"workflowscontroller\", \"webhookscontroller\", \"heartbeater\"]"`
 
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 
@@ -355,21 +355,21 @@ func BindAllEnv(v *viper.Viper) {
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultWorkflowRunLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT")
-	_ = v.BindEnv("runtime.limits.defaultWorkflowRunAlertLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_ALERT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultWorkflowRunAlarmLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_ALARM_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultWorkflowRunWindow", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_WINDOW")
 
 	_ = v.BindEnv("runtime.limits.defaultWorkerLimit", "SERVER_LIMITS_DEFAULT_WORKER_LIMIT")
-	_ = v.BindEnv("runtime.limits.defaultWorkerAlertLimit", "SERVER_LIMITS_DEFAULT_WORKER_ALERT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultWorkerAlarmLimit", "SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT")
 
 	_ = v.BindEnv("runtime.limits.defaultEventLimit", "SERVER_LIMITS_DEFAULT_EVENT_LIMIT")
-	_ = v.BindEnv("runtime.limits.defaultEventAlertLimit", "SERVER_LIMITS_DEFAULT_EVENT_ALERT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultEventAlarmLimit", "SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultEventWindow", "SERVER_LIMITS_DEFAULT_EVENT_WINDOW")
 
 	_ = v.BindEnv("runtime.limits.defaultCronLimit", "SERVER_LIMITS_DEFAULT_CRON_LIMIT")
-	_ = v.BindEnv("runtime.limits.defaultCronAlertLimit", "SERVER_LIMITS_DEFAULT_CRON_ALERT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultCronAlarmLimit", "SERVER_LIMITS_DEFAULT_CRON_ALARM_LIMIT")
 
 	_ = v.BindEnv("runtime.limits.defaultScheduleLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT")
-	_ = v.BindEnv("runtime.limits.defaultScheduleAlertLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_ALERT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultScheduleAlarmLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")

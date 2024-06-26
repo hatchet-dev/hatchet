@@ -20,3 +20,7 @@ func Generate(n int) (string, error) {
 
 	return string(b), nil
 }
+
+func GenerateWebhookSecret() (string, error) {
+	return Generate(32)
+}

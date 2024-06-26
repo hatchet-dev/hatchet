@@ -83,7 +83,7 @@ func runCreateAPIToken() error {
 		return err
 	}
 
-	fmt.Println(defaultTok)
+	fmt.Println(defaultTok.Token)
 
 	return nil
 }

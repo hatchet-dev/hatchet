@@ -139,9 +139,17 @@ ON CONFLICT DO NOTHING;
 
 -- name: DeleteWorker :one
 DELETE FROM
-    "Worker"
+  "Worker"
 WHERE
-    "id" = @id::uuid
+  "id" = @id::uuid
+RETURNING *;
+
+-- name: UpdateWorkersByName :many
+UPDATE "Worker"
+SET "isActive" = @isActive::boolean
+WHERE
+  "tenantId" = @tenantId::uuid AND
+  "name" = @name::text
 RETURNING *;
 
 -- name: UpdateWorkerActiveStatus :one

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -16,6 +17,7 @@ import (
 )
 
 func TestSessionStoreSave(t *testing.T) {
+	time.Sleep(10 * time.Second) // TODO temp hack for tenant non-upsert issue
 	testutils.RunTestWithDatabase(t, func(conf *database.Config) error {
 		const cookieName = "hatchet"
 

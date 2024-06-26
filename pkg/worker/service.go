@@ -18,6 +18,11 @@ func (s *Service) Use(mws ...MiddlewareFunc) {
 	s.mws.add(mws...)
 }
 
+func (s *Service) RegisterWorkflow(workflow workflowConverter) error {
+	return s.On(workflow.ToWorkflowTrigger(), workflow)
+}
+
+// Deprecated: Use RegisterWorkflow instead
 func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	namespace := s.worker.client.Namespace()
 

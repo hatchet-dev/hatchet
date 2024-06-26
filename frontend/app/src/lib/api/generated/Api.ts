@@ -63,6 +63,9 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  WebhookWorkerCreated,
+  WebhookWorkerCreateRequest,
+  WebhookWorkerListResponse,
   Worker,
   WorkerList,
   Workflow,
@@ -1456,6 +1459,55 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       method: "GET",
       secure: true,
       format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all webhooks
+   *
+   * @name WebhookList
+   * @summary List webhooks
+   * @request GET:/api/v1/tenants/{tenant}/webhook-workers
+   * @secure
+   */
+  webhookList = (tenant: string, params: RequestParams = {}) =>
+    this.request<WebhookWorkerListResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/webhook-workers`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Creates a webhook
+   *
+   * @name WebhookCreate
+   * @summary Create a webhook
+   * @request POST:/api/v1/tenants/{tenant}/webhook-workers
+   * @secure
+   */
+  webhookCreate = (tenant: string, data: WebhookWorkerCreateRequest, params: RequestParams = {}) =>
+    this.request<WebhookWorkerCreated, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/webhook-workers`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Deletes a webhook
+   *
+   * @name WebhookDelete
+   * @summary Delete a webhook
+   * @request DELETE:/api/v1/webhook-workers/{webhook}
+   * @secure
+   */
+  webhookDelete = (webhook: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/webhook-workers/${webhook}`,
+      method: "DELETE",
+      secure: true,
       ...params,
     });
 }

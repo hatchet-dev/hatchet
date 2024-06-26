@@ -64,9 +64,9 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 
 const deleteWorker = `-- name: DeleteWorker :one
 DELETE FROM
-    "Worker"
+  "Worker"
 WHERE
-    "id" = $1::uuid
+  "id" = $1::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished"
 `
 
@@ -382,6 +382,53 @@ func (q *Queries) UpdateWorkerActiveStatus(ctx context.Context, db DBTX, arg Upd
 		&i.LastListenerEstablished,
 	)
 	return &i, err
+}
+
+const updateWorkersByName = `-- name: UpdateWorkersByName :many
+UPDATE "Worker"
+SET "isActive" = $1::boolean
+WHERE
+  "tenantId" = $2::uuid AND
+  "name" = $3::text
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished"
+`
+
+type UpdateWorkersByNameParams struct {
+	Isactive bool        `json:"isactive"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Name     string      `json:"name"`
+}
+
+func (q *Queries) UpdateWorkersByName(ctx context.Context, db DBTX, arg UpdateWorkersByNameParams) ([]*Worker, error) {
+	rows, err := db.Query(ctx, updateWorkersByName, arg.Isactive, arg.Tenantid, arg.Name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Worker
+	for rows.Next() {
+		var i Worker
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.LastHeartbeatAt,
+			&i.Name,
+			&i.DispatcherId,
+			&i.MaxRuns,
+			&i.IsActive,
+			&i.LastListenerEstablished,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertService = `-- name: UpsertService :one

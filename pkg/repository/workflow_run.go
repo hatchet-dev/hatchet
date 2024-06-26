@@ -224,7 +224,7 @@ func GetCreateWorkflowRunOptsFromSchedule(
 }
 
 func getWorkflowRunDisplayName(workflowName string) string {
-	workflowSuffix, _ := random.Generate(3)
+	workflowSuffix, _ := random.Generate(6)
 
 	return workflowName + "-" + workflowSuffix
 }

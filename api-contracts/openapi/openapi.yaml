@@ -138,3 +138,7 @@ paths:
     $ref: "./paths/worker/worker.yaml#/withTenant"
   /api/v1/workers/{worker}:
     $ref: "./paths/worker/worker.yaml#/withWorker"
+  /api/v1/tenants/{tenant}/webhook-workers:
+    $ref: "./paths/webhook-worker/webhook-worker.yaml#/webhookworkers"
+  /api/v1/webhook-workers/{webhook}:
+    $ref: "./paths/webhook-worker/webhook-worker.yaml#/webhookworker"
