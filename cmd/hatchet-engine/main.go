@@ -38,7 +38,7 @@ var rootCmd = &cobra.Command{
 			context = ctx
 		}
 
-		if err := engine.Run(context, cf); err != nil {
+		if err := engine.Run(context, cf, Version); err != nil {
 			log.Printf("engine failure: %s", err.Error())
 			os.Exit(1)
 		}

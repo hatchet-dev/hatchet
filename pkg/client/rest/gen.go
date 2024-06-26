@@ -160,8 +160,19 @@ type APIErrors struct {
 
 // APIMeta defines model for APIMeta.
 type APIMeta struct {
-	Auth    *APIMetaAuth    `json:"auth,omitempty"`
-	Posthog *APIMetaPosthog `json:"posthog,omitempty"`
+	// AllowChangePassword whether or not users can change their password
+	AllowChangePassword *bool `json:"allowChangePassword,omitempty"`
+
+	// AllowCreateTenant whether or not users can create new tenants
+	AllowCreateTenant *bool `json:"allowCreateTenant,omitempty"`
+
+	// AllowInvites whether or not users can invite other users to this instance
+	AllowInvites *bool `json:"allowInvites,omitempty"`
+
+	// AllowSignup whether or not users can sign up for this instance
+	AllowSignup *bool           `json:"allowSignup,omitempty"`
+	Auth        *APIMetaAuth    `json:"auth,omitempty"`
+	Posthog     *APIMetaPosthog `json:"posthog,omitempty"`
 
 	// PylonAppId the Pylon app ID for usepylon.com chat support
 	PylonAppId *string `json:"pylonAppId,omitempty"`
@@ -1380,6 +1391,9 @@ type ClientInterface interface {
 	// ApiTokenUpdateRevoke request
 	ApiTokenUpdateRevoke(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CloudMetadataGet request
+	CloudMetadataGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// EventDataGet request
 	EventDataGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1677,6 +1691,18 @@ func (c *Client) AlertEmailGroupUpdate(ctx context.Context, alertEmailGroup open
 
 func (c *Client) ApiTokenUpdateRevoke(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewApiTokenUpdateRevokeRequest(c.Server, apiToken)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CloudMetadataGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCloudMetadataGetRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -2857,6 +2883,33 @@ func NewApiTokenUpdateRevokeRequest(server string, apiToken openapi_types.UUID) 
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCloudMetadataGetRequest generates requests for CloudMetadataGet
+func NewCloudMetadataGetRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/cloud/metadata")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -6036,6 +6089,9 @@ type ClientWithResponsesInterface interface {
 	// ApiTokenUpdateRevokeWithResponse request
 	ApiTokenUpdateRevokeWithResponse(ctx context.Context, apiToken openapi_types.UUID, reqEditors ...RequestEditorFn) (*ApiTokenUpdateRevokeResponse, error)
 
+	// CloudMetadataGetWithResponse request
+	CloudMetadataGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CloudMetadataGetResponse, error)
+
 	// EventDataGetWithResponse request
 	EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error)
 
@@ -6377,6 +6433,29 @@ func (r ApiTokenUpdateRevokeResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ApiTokenUpdateRevokeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CloudMetadataGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *APIErrors
+	JSON400      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r CloudMetadataGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CloudMetadataGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8021,6 +8100,15 @@ func (c *ClientWithResponses) ApiTokenUpdateRevokeWithResponse(ctx context.Conte
 	return ParseApiTokenUpdateRevokeResponse(rsp)
 }
 
+// CloudMetadataGetWithResponse request returning *CloudMetadataGetResponse
+func (c *ClientWithResponses) CloudMetadataGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CloudMetadataGetResponse, error) {
+	rsp, err := c.CloudMetadataGet(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCloudMetadataGetResponse(rsp)
+}
+
 // EventDataGetWithResponse request returning *EventDataGetResponse
 func (c *ClientWithResponses) EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error) {
 	rsp, err := c.EventDataGet(ctx, event, reqEditors...)
@@ -8891,6 +8979,39 @@ func ParseApiTokenUpdateRevokeResponse(rsp *http.Response) (*ApiTokenUpdateRevok
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCloudMetadataGetResponse parses an HTTP response from a CloudMetadataGetWithResponse call
+func ParseCloudMetadataGetResponse(rsp *http.Response) (*CloudMetadataGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CloudMetadataGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 

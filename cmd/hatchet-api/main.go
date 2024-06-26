@@ -28,7 +28,7 @@ var rootCmd = &cobra.Command{
 		cf := loader.NewConfigLoader(configDirectory)
 		interruptChan := cmdutils.InterruptChan()
 
-		if err := api.Start(cf, interruptChan); err != nil {
+		if err := api.Start(cf, interruptChan, Version); err != nil {
 			log.Println("error starting API:", err)
 			os.Exit(1)
 		}
