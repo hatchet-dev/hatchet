@@ -18,6 +18,12 @@ type RegisterWebhookWorkerOpts struct {
 	Secret *string
 }
 
+type ActionPayload struct {
+	*client.Action
+
+	ActionPayload string `json:"actionPayload"`
+}
+
 func (w *Worker) RegisterWebhook(ww RegisterWebhookWorkerOpts) error {
 	tenantId := openapi_types.UUID{}
 	if err := tenantId.Scan(w.client.TenantId()); err != nil {
@@ -107,7 +113,11 @@ func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 func (w *Worker) sendWebhook(ctx context.Context, action *client.Action, ww WebhookWorkerOpts) error {
 	w.l.Debug().Msgf("action received from step run %s, sending webhook at %s", action.StepRunId, time.Now())
 
-	_, err := whrequest.Send(ctx, ww.URL, ww.Secret, action)
+	actionWithPayload := ActionPayload{
+		Action:        action,
+		ActionPayload: string(action.ActionPayload),
+	}
+	_, err := whrequest.Send(ctx, ww.URL, ww.Secret, actionWithPayload)
 	if err != nil {
 		w.l.Warn().Msgf("step run %s could not send webhook to %s: %s", action.StepRunId, ww.URL, err)
 		if err := w.markFailed(action, fmt.Errorf("could not send webhook: %w", err)); err != nil {
