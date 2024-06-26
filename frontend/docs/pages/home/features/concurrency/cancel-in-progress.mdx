@@ -38,9 +38,9 @@ from hatchet_sdk import ConcurrencyLimitStrategy
 
 @hatchet.workflow(on_events=["concurrency-test"])
 class ConcurrencyDemoWorkflow:
-@hatchet.concurrency(max_runs=10, limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
-def concurrency(self, context) -> str:
-return context.workflow_input()["user_id"]
+    @hatchet.concurrency(max_runs=10, limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS)
+    def concurrency(self, context) -> str:
+        return context.workflow_input()["user_id"]
 
     @hatchet.step()
     def step1(self, context):
@@ -78,7 +78,7 @@ export const concurrencyDemoWorkflow: Workflow = {
 import "github.com/hatchet-dev/hatchet/pkg/client/types"
 
 type MyUser struct {
-UserId string `json:"user_id"`
+    UserId string `json:"user_id"`
 }
 
 func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
