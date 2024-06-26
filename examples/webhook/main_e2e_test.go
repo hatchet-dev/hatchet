@@ -154,7 +154,7 @@ func TestWebhook(t *testing.T) {
 					panic(fmt.Errorf("error registering webhook workflow: %w", err))
 				}
 				handler := func(w http.ResponseWriter, r *http.Request) {
-					if r.Header.Get("X-Healthcheck") != "" {
+					if r.Method == http.MethodPut {
 						w.WriteHeader(http.StatusOK)
 						_, _ = w.Write([]byte(fmt.Sprintf(`{"actions": ["default:%s"]}`, "webhook-failure-step-one")))
 						return
