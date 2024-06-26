@@ -19,10 +19,10 @@ import {
 import { Spinner } from '@/components/ui/loading';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Button } from '@/components/ui/button';
-import { ArrowRightIcon } from '@radix-ui/react-icons';
+import { ArrowRightIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
   const getLogsQuery = useQuery({
@@ -132,6 +132,8 @@ function StepRunEventCard({ event }: { event: StepRunEvent }) {
 }
 
 function StepRunArchiveCard({ archive }: { archive: StepRunArchive }) {
+  const [isCollapsed, setIsCollapsed] = useState(true);
+
   const reason = archive.cancelledReason || archive.error || archive.output;
   if (!reason) {
     return <></>;
@@ -148,19 +150,38 @@ function StepRunArchiveCard({ archive }: { archive: StepRunArchive }) {
       ? StepRunEventSeverity.CRITICAL
       : StepRunEventSeverity.INFO;
 
+  const toggleCollapse = () => {
+    setIsCollapsed(!isCollapsed);
+  };
+
   return (
-    <Card className=" bg-muted/30">
+    <Card
+      className="bg-muted/30 cursor-pointer hover:bg-muted/50 transition-all"
+      onClick={toggleCollapse}
+    >
       <CardHeader>
         <div className="flex flex-row justify-between items-center text-sm">
           <div className="flex flex-row justify-between gap-3 items-center">
-            <EventIndicator severity={severity} />
+            <span
+              className={`transform transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+            >
+              <ChevronRightIcon className="w-4 h-4" />
+            </span>
             <CardTitle className="tracking-wide text-sm">{type}</CardTitle>
           </div>
-          <RelativeDate date={archive.createdAt} />
+          <div className="flex flex-row items-center gap-1">
+            <RelativeDate date={archive.createdAt} />
+          </div>
         </div>
-        <CardDescription>{reason}</CardDescription>
+        {!isCollapsed && (
+          <CardDescription className="pt-2">
+            <code>{reason}</code>
+          </CardDescription>
+        )}
       </CardHeader>
-      <CardContent className="p-0 z-10 bg-background"></CardContent>
+      {!isCollapsed && (
+        <CardContent className="p-0 z-10 bg-background"></CardContent>
+      )}
     </Card>
   );
 }
