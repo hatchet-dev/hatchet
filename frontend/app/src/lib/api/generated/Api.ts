@@ -128,6 +128,21 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Gets metadata for the Hatchet cloud instance
+   *
+   * @tags Metadata
+   * @name CloudMetadataGet
+   * @summary Get cloud metadata
+   * @request GET:/api/v1/cloud/metadata
+   */
+  cloudMetadataGet = (params: RequestParams = {}) =>
+    this.request<APIErrors, APIErrors>({
+      path: `/api/v1/cloud/metadata`,
+      method: "GET",
+      format: "json",
+      ...params,
+    });
+  /**
    * @description List all integrations
    *
    * @tags Metadata

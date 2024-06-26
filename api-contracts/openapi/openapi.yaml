@@ -26,6 +26,8 @@ paths:
     $ref: "./paths/metadata/metadata.yaml#/liveness"
   /api/v1/meta:
     $ref: "./paths/metadata/metadata.yaml#/metadata"
+  /api/v1/cloud/metadata:
+    $ref: "./paths/metadata/metadata.yaml#/cloudMetadata"
   /api/v1/meta/integrations:
     $ref: "./paths/metadata/metadata.yaml#/listIntegrations"
   /api/v1/users/login:
