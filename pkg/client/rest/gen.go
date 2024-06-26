@@ -160,6 +160,9 @@ type APIErrors struct {
 
 // APIMeta defines model for APIMeta.
 type APIMeta struct {
+	// AllowChangePassword whether or not users can change their password
+	AllowChangePassword *bool `json:"allowChangePassword,omitempty"`
+
 	// AllowCreateTenant whether or not users can create new tenants
 	AllowCreateTenant *bool `json:"allowCreateTenant,omitempty"`
 

@@ -21,6 +21,10 @@ APIMeta:
       type: boolean
       description: whether or not users can create new tenants
       example: true
+    allowChangePassword:
+      type: boolean
+      description: whether or not users can change their password
+      example: true
 
 APIMetaAuth:
   type: object

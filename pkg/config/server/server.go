@@ -87,6 +87,9 @@ type ConfigFileRuntime struct {
 
 	// Allow new tenants to be created
 	AllowCreateTenant bool `mapstructure:"allowCreateTenant" json:"allowCreateTenant,omitempty" default:"true"`
+
+	// Allow passwords to be changed
+	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
 }
 
 type LimitConfigFile struct {
@@ -354,6 +357,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowSignup", "SERVER_ALLOW_SIGNUP")
 	_ = v.BindEnv("runtime.allowInvites", "SERVER_ALLOW_INVITES")
 	_ = v.BindEnv("runtime.allowCreateTenant", "SERVER_ALLOW_CREATE_TENANT")
+	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultWorkflowRunLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT")

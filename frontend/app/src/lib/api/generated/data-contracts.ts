@@ -32,6 +32,11 @@ export interface APIMeta {
    * @example true
    */
   allowCreateTenant?: boolean;
+  /**
+   * whether or not users can change their password
+   * @example true
+   */
+  allowChangePassword?: boolean;
 }
 
 export interface APIMetaAuth {

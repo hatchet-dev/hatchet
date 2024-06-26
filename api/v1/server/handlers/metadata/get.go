@@ -36,11 +36,12 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		Auth: &gen.APIMetaAuth{
 			Schemes: &authTypes,
 		},
-		PylonAppId:        &pylonAppID,
-		Posthog:           posthogConfig,
-		AllowSignup:       &u.config.Runtime.AllowSignup,
-		AllowInvites:      &u.config.Runtime.AllowInvites,
-		AllowCreateTenant: &u.config.Runtime.AllowCreateTenant,
+		PylonAppId:          &pylonAppID,
+		Posthog:             posthogConfig,
+		AllowSignup:         &u.config.Runtime.AllowSignup,
+		AllowInvites:        &u.config.Runtime.AllowInvites,
+		AllowCreateTenant:   &u.config.Runtime.AllowCreateTenant,
+		AllowChangePassword: &u.config.Runtime.AllowChangePassword,
 	}
 
 	return gen.MetadataGet200JSONResponse(meta), nil

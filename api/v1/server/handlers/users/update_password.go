@@ -16,6 +16,12 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	// determine if the user exists before attempting to write the user
 	existingUser := ctx.Get("user").(*db.UserModel)
 
+	if !u.config.Runtime.AllowChangePassword {
+		return gen.UserUpdatePassword405JSONResponse(
+			apierrors.NewAPIErrors("password changes are disabled"),
+		), nil
+	}
+
 	// check that the server supports local registration
 	if !u.config.Auth.ConfigFile.BasicAuthEnabled {
 		return gen.UserUpdatePassword405JSONResponse(
