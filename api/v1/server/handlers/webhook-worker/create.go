@@ -34,6 +34,7 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 		Name:     request.Body.Name,
 		URL:      request.Body.Url,
 		Secret:   encSecret,
+		Deleted:  repository.BoolPtr(false),
 	})
 	if err != nil {
 		return nil, err
