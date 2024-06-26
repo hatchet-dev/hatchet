@@ -37,6 +37,7 @@ Here's an example of how to use `context.log()` to log information during step e
 
 <Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
+
 ```python
 from hatchet_sdk import ConcurrencyLimitStrategy
 
@@ -52,9 +53,11 @@ class LogDemoWorkflow:
           result
         }
 
-````
+```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 import { Step, Context } from "@hatchet-dev/typescript-sdk";
 
@@ -71,7 +74,7 @@ const myStep: Step<any, any> = async (context: Context<any>) => {
 };
 
 export default myStep;
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>

@@ -12,6 +12,7 @@ To loop through a list and create a new workflow per element in the list, you ca
 
 <Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
+
 ```python
 @hatchet.workflow("fanout:create")
 class Parent:
@@ -24,9 +25,11 @@ class Parent:
 
         return {}
 
-````
+```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 const parentWorkflow: Workflow = {
   id: "parent-workflow",
@@ -48,14 +51,13 @@ const parentWorkflow: Workflow = {
         return {};
       },
     },
-
-],
+  ],
 };
-
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 w.On(
     worker.Event("fanout:create"),
@@ -76,7 +78,7 @@ w.On(
         },
     },
 )
-````
+```
 
   </Tabs.Tab>
 </Tabs>
@@ -89,6 +91,7 @@ To run all child workflows in parallel, and then wait for all of them to complet
 
 <Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
+
 ```python
 @hatchet.workflow()
 class Parent:
@@ -111,14 +114,16 @@ class Parent:
 
 @hatchet.workflow()
 class Child:
-@hatchet.step()
-async def process(self, context: Context):
-a = context.workflow_input()["a"]
-return {"status": "success " + a}
+    @hatchet.step()
+    async def process(self, context: Context):
+        a = context.workflow_input()["a"]
+        return {"status": "success " + a}
 
-````
+```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 const parentWorkflow: Workflow = {
   id: "parent-workflow",
@@ -152,10 +157,11 @@ const parentWorkflow: Workflow = {
     },
   ],
 };
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 w.On(
     worker.Event("fanout:create"),
@@ -203,7 +209,8 @@ w.On(
 
 )
 
-````
+```
+
   </Tabs.Tab>
 </Tabs>
 
@@ -214,6 +221,7 @@ For example, to spawn a recovery workflow if a child workflow fails:
 
 <Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
+
 ```typescript
 const parentWorkflow: Workflow = {
   id: "parent-workflow",
@@ -241,10 +249,11 @@ const parentWorkflow: Workflow = {
     },
   ],
 };
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```python
 @hatchet.workflow("fanout:create")
 class Parent:
@@ -262,9 +271,11 @@ class Parent:
 
         return {}
 
-````
+```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 w.On(
     worker.Event("fanout:create"),
@@ -293,7 +304,7 @@ w.On(
     },
 )
 
-````
+```
 
   </Tabs.Tab>
 </Tabs>
