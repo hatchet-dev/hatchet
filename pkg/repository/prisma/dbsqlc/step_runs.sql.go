@@ -696,6 +696,59 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 	return items, nil
 }
 
+const listStepRunArchives = `-- name: ListStepRunArchives :many
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", "stepRunId", "order", input, output, error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError"
+FROM
+    "StepRunResultArchive"
+WHERE
+    "stepRunId" = $1::uuid AND
+    "tenantId" = $2::uuid
+ORDER BY
+    "createdAt"
+`
+
+type ListStepRunArchivesParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) ListStepRunArchives(ctx context.Context, db DBTX, arg ListStepRunArchivesParams) ([]*StepRunResultArchive, error) {
+	rows, err := db.Query(ctx, listStepRunArchives, arg.Steprunid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepRunResultArchive
+	for rows.Next() {
+		var i StepRunResultArchive
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.StepRunId,
+			&i.Order,
+			&i.Input,
+			&i.Output,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.TimeoutAt,
+			&i.CancelledAt,
+			&i.CancelledReason,
+			&i.CancelledError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStepRunEvents = `-- name: ListStepRunEvents :many
 SELECT
     id, "timeFirstSeen", "timeLastSeen", "stepRunId", reason, severity, message, count, data

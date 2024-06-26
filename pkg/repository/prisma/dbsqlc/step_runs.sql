@@ -794,3 +794,14 @@ JOIN
 WHERE
     sr."tenantId" = @tenantId::uuid AND
     sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED');
+
+-- name: ListStepRunArchives :many
+SELECT
+    *
+FROM
+    "StepRunResultArchive"
+WHERE
+    "stepRunId" = @stepRunId::uuid AND
+    "tenantId" = @tenantId::uuid
+ORDER BY
+    "createdAt";
