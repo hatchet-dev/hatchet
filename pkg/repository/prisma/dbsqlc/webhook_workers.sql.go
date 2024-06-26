@@ -113,7 +113,8 @@ INSERT INTO "WebhookWorker" (
     "url",
     "tenantId",
     "tokenId",
-    "tokenValue"
+    "tokenValue",
+    "deleted"
 )
 VALUES (
     gen_random_uuid(),
@@ -124,7 +125,8 @@ VALUES (
     $3::text,
     $4::uuid,
     $5::uuid,
-    $6::text
+    $6::text,
+    coalesce($7::boolean, false)
 )
 ON CONFLICT ("url") DO
 UPDATE
@@ -133,7 +135,8 @@ SET
     "tokenValue" = coalesce($6::text, excluded."tokenValue"),
     "name" = coalesce($1::text, excluded."name"),
     "secret" = coalesce($2::text, excluded."secret"),
-    "url" = coalesce($3::text, excluded."url")
+    "url" = coalesce($3::text, excluded."url"),
+    "deleted" = coalesce($7::boolean, excluded."deleted")
 RETURNING id, "createdAt", "updatedAt", name, secret, url, "tokenValue", deleted, "tokenId", "tenantId"
 `
 
@@ -144,6 +147,7 @@ type UpsertWebhookWorkerParams struct {
 	Tenantid   pgtype.UUID `json:"tenantid"`
 	TokenId    pgtype.UUID `json:"tokenId"`
 	TokenValue pgtype.Text `json:"tokenValue"`
+	Deleted    pgtype.Bool `json:"deleted"`
 }
 
 func (q *Queries) UpsertWebhookWorker(ctx context.Context, db DBTX, arg UpsertWebhookWorkerParams) (*WebhookWorker, error) {
@@ -154,6 +158,7 @@ func (q *Queries) UpsertWebhookWorker(ctx context.Context, db DBTX, arg UpsertWe
 		arg.Tenantid,
 		arg.TokenId,
 		arg.TokenValue,
+		arg.Deleted,
 	)
 	var i WebhookWorker
 	err := row.Scan(
