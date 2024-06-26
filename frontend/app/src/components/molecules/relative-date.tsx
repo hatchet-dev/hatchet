@@ -8,12 +8,12 @@ import {
 } from '@/components/ui/tooltip';
 
 interface RelativeDateProps {
-  date: Date | string;
+  date?: Date | string;
   future?: boolean;
 }
 
 const RelativeDate: React.FC<RelativeDateProps> = ({
-  date,
+  date = '',
   future = false,
 }) => {
   const formattedDate = useMemo(

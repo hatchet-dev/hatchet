@@ -354,6 +354,9 @@ StepRunArchive:
       format: date-time
     error:
       type: string
+    createdAt:
+      type: string
+      format: date-time
     startedAtEpoch:
       type: integer
     finishedAt:
@@ -377,9 +380,8 @@ StepRunArchive:
       type: string
   required:
     - stepRunId
-    - metadata
-    - tenantId
     - order
+    - createdAt
 
 
 StepRunArchiveList:

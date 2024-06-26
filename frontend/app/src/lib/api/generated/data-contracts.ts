@@ -783,6 +783,8 @@ export interface StepRunArchive {
   /** @format date-time */
   startedAt?: string;
   error?: string;
+  /** @format date-time */
+  createdAt: string;
   startedAtEpoch?: number;
   /** @format date-time */
   finishedAt?: string;

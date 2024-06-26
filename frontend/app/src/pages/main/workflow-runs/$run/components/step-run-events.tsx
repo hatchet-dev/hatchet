@@ -4,6 +4,7 @@ import {
   StepRunEventReason,
   StepRunEventSeverity,
   StepRunStatus,
+  StepRunArchive,
   queries,
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -21,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowRightIcon } from '@radix-ui/react-icons';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useMemo } from 'react';
 
 export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
   const getLogsQuery = useQuery({
@@ -35,9 +37,39 @@ export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
     },
   });
 
-  // const getArchivesQuery = useQuery({
-  //   ...queries.stepRuns.
-  // });
+  const getArchivesQuery = useQuery({
+    ...queries.stepRuns.listArchives(stepRun?.metadata.id || ''),
+    enabled: !!stepRun,
+    refetchInterval: () => {
+      if (stepRun?.status === StepRunStatus.RUNNING) {
+        return 1000;
+      }
+
+      return 5000;
+    },
+  });
+
+  const combinedEvents = useMemo(() => {
+    const events = getLogsQuery.data?.rows || [];
+    const archives = getArchivesQuery.data?.rows || [];
+
+    const combined = [
+      ...events.map((event) => ({
+        type: 'event',
+        data: event,
+        time: event.timeLastSeen,
+      })),
+      ...archives.map((archive) => ({
+        type: 'archive',
+        data: archive,
+        time: archive.createdAt,
+      })),
+    ];
+
+    return combined.sort(
+      (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
+    );
+  }, [getLogsQuery.data?.rows, getArchivesQuery.data?.rows]);
 
   if (!stepRun) {
     return <Spinner />;
@@ -45,8 +77,8 @@ export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
 
   return (
     <div className="overflow-y-auto max-h-[400px] flex flex-col gap-2">
-      {getLogsQuery.isLoading && <Spinner />}
-      {getLogsQuery.data?.rows?.length === 0 && (
+      {(getLogsQuery.isLoading || getArchivesQuery.isLoading) && <Spinner />}
+      {combinedEvents.length === 0 && (
         <Card className="bg-muted/30 h-[400px]">
           <CardHeader>
             <CardTitle className="tracking-wide text-sm">
@@ -55,9 +87,16 @@ export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
           </CardHeader>
         </Card>
       )}
-      {getLogsQuery.data?.rows?.map((event) => (
-        <StepRunEventCard key={event.id} event={event} />
-      ))}
+      {combinedEvents.map((item, index) =>
+        item.type === 'event' ? (
+          <StepRunEventCard key={index} event={item.data as StepRunEvent} />
+        ) : (
+          <StepRunArchiveCard
+            key={index}
+            archive={item.data as StepRunArchive}
+          />
+        ),
+      )}
     </div>
   );
 }
@@ -79,6 +118,22 @@ function StepRunEventCard({ event }: { event: StepRunEvent }) {
       </CardHeader>
       <CardContent className="p-0 z-10 bg-background"></CardContent>
       {renderCardFooter(event)}
+    </Card>
+  );
+}
+
+function StepRunArchiveCard({ archive }: { archive: StepRunArchive }) {
+  const reason = archive.cancelledReason || archive.error || archive.output;
+  if (!reason) {
+    return <></>;
+  }
+
+  return (
+    <Card className=" bg-muted/30">
+      <CardHeader>
+        <CardDescription>{reason}</CardDescription>
+      </CardHeader>
+      <CardContent className="p-0 z-10 bg-background"></CardContent>
     </Card>
   );
 }

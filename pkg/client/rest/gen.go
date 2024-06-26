@@ -547,6 +547,7 @@ type StepRunArchive struct {
 	CancelledAtEpoch *int       `json:"cancelledAtEpoch,omitempty"`
 	CancelledError   *string    `json:"cancelledError,omitempty"`
 	CancelledReason  *string    `json:"cancelledReason,omitempty"`
+	CreatedAt        time.Time  `json:"createdAt"`
 	Error            *string    `json:"error,omitempty"`
 	FinishedAt       *time.Time `json:"finishedAt,omitempty"`
 	FinishedAtEpoch  *int       `json:"finishedAtEpoch,omitempty"`

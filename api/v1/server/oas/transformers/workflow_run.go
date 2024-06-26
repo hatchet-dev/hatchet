@@ -263,6 +263,7 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 func ToStepRunArchive(stepRunArchive *dbsqlc.StepRunResultArchive) *gen.StepRunArchive {
 
 	res := &gen.StepRunArchive{
+		CreatedAt:        stepRunArchive.CreatedAt.Time,
 		StepRunId:        sqlchelpers.UUIDToStr(stepRunArchive.StepRunId),
 		Order:            int(stepRunArchive.Order),
 		Input:            byteSliceToStringPointer(stepRunArchive.Input),
