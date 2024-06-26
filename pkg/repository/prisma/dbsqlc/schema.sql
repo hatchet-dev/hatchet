@@ -200,6 +200,13 @@ CREATE TABLE "SNSIntegration" (
 );
 
 -- CreateTable
+CREATE TABLE "SecurityCheckIdent" (
+    "id" UUID NOT NULL,
+
+    CONSTRAINT "SecurityCheckIdent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Service" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -778,6 +785,9 @@ CREATE UNIQUE INDEX "SNSIntegration_id_key" ON "SNSIntegration"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SNSIntegration_tenantId_topicArn_key" ON "SNSIntegration"("tenantId" ASC, "topicArn" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SecurityCheckIdent_id_key" ON "SecurityCheckIdent"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Service_id_key" ON "Service"("id" ASC);

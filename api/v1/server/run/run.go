@@ -48,15 +48,15 @@ type apiService struct {
 
 func newAPIService(config *server.ServerConfig) *apiService {
 	return &apiService{
-		UserService:           users.NewUserService(config),
-		TenantService:         tenants.NewTenantService(config),
-		EventService:          events.NewEventService(config),
-		LogService:            logs.NewLogService(config),
-		WorkflowService:       workflows.NewWorkflowService(config),
-		WorkerService:         workers.NewWorkerService(config),
-		MetadataService:       metadata.NewMetadataService(config),
-		APITokenService:       apitokens.NewAPITokenService(config),
-		StepRunService:        stepruns.NewStepRunService(config),
+		UserService:     users.NewUserService(config),
+		TenantService:   tenants.NewTenantService(config),
+		EventService:    events.NewEventService(config),
+		LogService:      logs.NewLogService(config),
+		WorkflowService: workflows.NewWorkflowService(config),
+		WorkerService:   workers.NewWorkerService(config),
+		MetadataService: metadata.NewMetadataService(config),
+		APITokenService: apitokens.NewAPITokenService(config),
+		StepRunService:  stepruns.NewStepRunService(config),
 
 		IngestorsService:      ingestors.NewIngestorsService(config),
 		SlackAppService:       slackapp.NewSlackAppService(config),

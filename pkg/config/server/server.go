@@ -45,6 +45,8 @@ type ServerConfigFile struct {
 
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
 
+	SecurityCheck SecurityCheckConfigFile `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
+
 	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
 
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
@@ -90,6 +92,11 @@ type ConfigFileRuntime struct {
 
 	// Allow passwords to be changed
 	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
+}
+
+type SecurityCheckConfigFile struct {
+	Enabled  bool   `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
+	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty" default:"https://security.hatchet.run"`
 }
 
 type LimitConfigFile struct {
@@ -358,6 +365,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowInvites", "SERVER_ALLOW_INVITES")
 	_ = v.BindEnv("runtime.allowCreateTenant", "SERVER_ALLOW_CREATE_TENANT")
 	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
+
+	// security check options
+	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
+	_ = v.BindEnv("securityCheck.endpoint", "SERVER_SECURITY_CHECK_ENDPOINT")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultWorkflowRunLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT")
