@@ -83,7 +83,7 @@ type ConfigFileRuntime struct {
 
 type SecurityCheckConfigFile struct {
 	Enabled  bool   `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
-	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty" default:"https://security.onhatchet.run"`
+	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty" default:"https://security.hatchet.run"`
 }
 
 type LimitConfigFile struct {
