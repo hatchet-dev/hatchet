@@ -214,7 +214,7 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.GetGroupKeyRun.ID)
 	workflowRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.WorkflowRunId)
 
-	getGroupKeyRun, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+	_, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		Status: repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment),
 	})
 
@@ -335,7 +335,7 @@ func (wc *WorkflowsControllerImpl) runGetGroupKeyRunRequeue(ctx context.Context)
 		wc.l.Debug().Msgf("workflows controller: checking get group key run requeue")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenants(ctx)
+		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.partitionId)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")
@@ -423,7 +423,7 @@ func (wc *WorkflowsControllerImpl) runGetGroupKeyRunReassign(ctx context.Context
 		wc.l.Debug().Msgf("workflows controller: checking get group key run reassign")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenants(ctx)
+		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.partitionId)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")

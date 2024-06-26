@@ -33,22 +33,24 @@ type JobsController interface {
 }
 
 type JobsControllerImpl struct {
-	mq   msgqueue.MessageQueue
-	l    *zerolog.Logger
-	repo repository.EngineRepository
-	dv   datautils.DataDecoderValidator
-	s    gocron.Scheduler
-	a    *hatcheterrors.Wrapped
+	mq          msgqueue.MessageQueue
+	l           *zerolog.Logger
+	repo        repository.EngineRepository
+	dv          datautils.DataDecoderValidator
+	s           gocron.Scheduler
+	a           *hatcheterrors.Wrapped
+	partitionId string
 }
 
 type JobsControllerOpt func(*JobsControllerOpts)
 
 type JobsControllerOpts struct {
-	mq      msgqueue.MessageQueue
-	l       *zerolog.Logger
-	repo    repository.EngineRepository
-	dv      datautils.DataDecoderValidator
-	alerter hatcheterrors.Alerter
+	mq          msgqueue.MessageQueue
+	l           *zerolog.Logger
+	repo        repository.EngineRepository
+	dv          datautils.DataDecoderValidator
+	alerter     hatcheterrors.Alerter
+	partitionId string
 }
 
 func defaultJobsControllerOpts() *JobsControllerOpts {
@@ -86,6 +88,12 @@ func WithRepository(r repository.EngineRepository) JobsControllerOpt {
 	}
 }
 
+func WithPartitionId(pid string) JobsControllerOpt {
+	return func(opts *JobsControllerOpts) {
+		opts.partitionId = pid
+	}
+}
+
 func WithDataDecoderValidator(dv datautils.DataDecoderValidator) JobsControllerOpt {
 	return func(opts *JobsControllerOpts) {
 		opts.dv = dv
@@ -107,6 +115,10 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
+	if opts.partitionId == "" {
+		return nil, errors.New("partition id is required. use WithPartitionId")
+	}
+
 	newLogger := opts.l.With().Str("service", "jobs-controller").Logger()
 	opts.l = &newLogger
 
@@ -120,12 +132,13 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 	a.WithData(map[string]interface{}{"service": "jobs-controller"})
 
 	return &JobsControllerImpl{
-		mq:   opts.mq,
-		l:    opts.l,
-		repo: opts.repo,
-		dv:   opts.dv,
-		s:    s,
-		a:    a,
+		mq:          opts.mq,
+		l:           opts.l,
+		repo:        opts.repo,
+		dv:          opts.dv,
+		s:           s,
+		a:           a,
+		partitionId: opts.partitionId,
 	}, nil
 }
 
@@ -568,7 +581,7 @@ func (jc *JobsControllerImpl) runStepRunRequeue(ctx context.Context, startedAt t
 		jc.l.Debug().Msgf("jobs controller: checking step run requeue")
 
 		// list all tenants
-		tenants, err := jc.repo.Tenant().ListTenants(ctx)
+		tenants, err := jc.repo.Tenant().ListTenantsByControllerPartition(ctx, jc.partitionId)
 
 		if err != nil {
 			jc.l.Err(err).Msg("could not list tenants")
@@ -652,7 +665,7 @@ func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt 
 		jc.l.Debug().Msgf("jobs controller: checking step run reassignment")
 
 		// list all tenants
-		tenants, err := jc.repo.Tenant().ListTenants(ctx)
+		tenants, err := jc.repo.Tenant().ListTenantsByControllerPartition(ctx, jc.partitionId)
 
 		if err != nil {
 			jc.l.Err(err).Msg("could not list tenants")

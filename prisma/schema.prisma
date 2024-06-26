@@ -124,6 +124,30 @@ model WebhookWorkerWorkflow {
   @@unique([webhookWorkerId, workflowId])
 }
 
+// ControllerPartition represents an engine instance that only handles a subset of tenants. This is used for list
+// operations across tenants. If tenants do not have a partition, they are included in all partitions.
+model ControllerPartition {
+  id        String   @id @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // lastHeartbeat is used for rebalancing partitions
+  lastHeartbeat DateTime?
+
+  tenants Tenant[]
+}
+
+model TenantWorkerPartition {
+  id        String   @id @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // lastHeartbeat is used for rebalancing partitions
+  lastHeartbeat DateTime?
+
+  tenants Tenant[]
+}
+
 // Tenant represents a unique tenant in the database. Each tenant-scoped resource should have the tenant as
 // an identifier, which makes tenant isolation easier.
 model Tenant {
@@ -138,6 +162,14 @@ model Tenant {
 
   // wheather the user has opted out of analytics
   analyticsOptOut Boolean @default(false)
+
+  // the parent controller partition, if exists
+  controllerPartition   ControllerPartition? @relation(fields: [controllerPartitionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  controllerPartitionId String?
+
+  // the parent worker partition, if exists
+  workerPartition   TenantWorkerPartition? @relation(fields: [workerPartitionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  workerPartitionId String?
 
   events              Event[]
   workflows           Workflow[]
@@ -165,12 +197,15 @@ model Tenant {
   stepRateLimits      StepRateLimit[]
   alertEmailGroups    TenantAlertEmailGroup[]
   // alertMemberEmails controls whether to send alert emails to tenant members in addition to the alert email groups
-  alertMemberEmails         Boolean                    @default(true)
-  slackWebhooks             SlackAppWebhook[]
-  alertingSettings          TenantAlertingSettings?
-  limits                    TenantResourceLimit[]
-  limitAlerts               TenantResourceLimitAlert[]
-  webhookWorkers            WebhookWorker[]
+  alertMemberEmails   Boolean                    @default(true)
+  slackWebhooks       SlackAppWebhook[]
+  alertingSettings    TenantAlertingSettings?
+  limits              TenantResourceLimit[]
+  limitAlerts         TenantResourceLimitAlert[]
+  webhookWorkers      WebhookWorker[]
+
+  @@index([controllerPartitionId])
+  @@index([workerPartitionId])
 }
 
 enum LimitResource {

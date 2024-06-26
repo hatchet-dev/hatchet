@@ -8,6 +8,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
@@ -165,47 +167,78 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
-	if sc.HasService("jobscontroller") {
+	if sc.HasService("queue") {
+		partitionId := uuid.New().String()
+
+		err = sc.EngineRepository.Tenant().CreateControllerPartition(ctx, partitionId)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create engine partition: %w", err)
+		}
+
+		// rebalance partitions on startup
+		err = sc.EngineRepository.Tenant().RebalanceControllerPartitions(ctx)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not rebalance engine partitions: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "partition teardown",
+			Fn: func() error {
+				deleteCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				err := sc.EngineRepository.Tenant().DeleteControllerPartition(deleteCtx, partitionId)
+
+				if err != nil {
+					return fmt.Errorf("could not delete controller partition: %w", err)
+				}
+
+				return sc.EngineRepository.Tenant().RebalanceControllerPartitions(deleteCtx)
+			},
+		})
+
 		jc, err := jobs.New(
 			jobs.WithAlerter(sc.Alerter),
 			jobs.WithMessageQueue(sc.MessageQueue),
 			jobs.WithRepository(sc.EngineRepository),
 			jobs.WithLogger(sc.Logger),
+			jobs.WithPartitionId(partitionId),
 		)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not create jobs controller: %w", err)
 		}
 
-		cleanup, err := jc.Start()
+		cleanupJobs, err := jc.Start()
 		if err != nil {
 			return nil, fmt.Errorf("could not start jobs controller: %w", err)
 		}
 		teardown = append(teardown, Teardown{
 			Name: "jobs controller",
-			Fn:   cleanup,
+			Fn:   cleanupJobs,
 		})
-	}
 
-	if sc.HasService("workflowscontroller") {
 		wc, err := workflows.New(
 			workflows.WithAlerter(sc.Alerter),
 			workflows.WithMessageQueue(sc.MessageQueue),
 			workflows.WithRepository(sc.EngineRepository),
 			workflows.WithLogger(sc.Logger),
 			workflows.WithTenantAlerter(sc.TenantAlerter),
+			workflows.WithPartitionId(partitionId),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create workflows controller: %w", err)
 		}
 
-		cleanup, err := wc.Start()
+		cleanupWorkflows, err := wc.Start()
 		if err != nil {
 			return nil, fmt.Errorf("could not start workflows controller: %w", err)
 		}
 		teardown = append(teardown, Teardown{
 			Name: "workflows controller",
-			Fn:   cleanup,
+			Fn:   cleanupWorkflows,
 		})
 	}
 
@@ -338,7 +371,38 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	}
 
 	if sc.HasService("webhookscontroller") {
-		wh := webhooks.New(sc)
+		partitionId := uuid.New().String()
+
+		err = sc.EngineRepository.Tenant().CreateTenantWorkerPartition(ctx, partitionId)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create engine partition: %w", err)
+		}
+
+		// rebalance partitions on startup
+		err = sc.EngineRepository.Tenant().RebalanceTenantWorkerPartitions(ctx)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not rebalance engine partitions: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "partition teardown",
+			Fn: func() error {
+				deleteCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				err := sc.EngineRepository.Tenant().DeleteTenantWorkerPartition(deleteCtx, partitionId)
+
+				if err != nil {
+					return fmt.Errorf("could not delete worker partition: %w", err)
+				}
+
+				return sc.EngineRepository.Tenant().RebalanceTenantWorkerPartitions(deleteCtx)
+			},
+		})
+
+		wh := webhooks.New(sc, partitionId)
 
 		cleanup, err := wh.Start()
 		if err != nil {
