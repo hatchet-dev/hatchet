@@ -154,6 +154,10 @@ StepRunEvent:
   $ref: "./workflow_run.yaml#/StepRunEvent"
 StepRunEventList:
   $ref: "./workflow_run.yaml#/StepRunEventList"
+StepRunArchive:
+  $ref: "./workflow_run.yaml#/StepRunArchive"
+StepRunArchiveList:
+  $ref: "./workflow_run.yaml#/StepRunArchiveList"
 WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 Worker:

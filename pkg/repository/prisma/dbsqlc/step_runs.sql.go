@@ -706,15 +706,26 @@ WHERE
     "tenantId" = $2::uuid
 ORDER BY
     "createdAt"
+OFFSET
+    COALESCE($3, 0)
+LIMIT
+    COALESCE($4, 50)
 `
 
 type ListStepRunArchivesParams struct {
 	Steprunid pgtype.UUID `json:"steprunid"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
+	Offset    interface{} `json:"offset"`
+	Limit     interface{} `json:"limit"`
 }
 
 func (q *Queries) ListStepRunArchives(ctx context.Context, db DBTX, arg ListStepRunArchivesParams) ([]*StepRunResultArchive, error) {
-	rows, err := db.Query(ctx, listStepRunArchives, arg.Steprunid, arg.Tenantid)
+	rows, err := db.Query(ctx, listStepRunArchives,
+		arg.Steprunid,
+		arg.Tenantid,
+		arg.Offset,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

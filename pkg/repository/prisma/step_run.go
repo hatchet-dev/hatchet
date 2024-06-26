@@ -133,6 +133,65 @@ func (s *stepRunAPIRepository) ListStepRunEvents(stepRunId string, opts *reposit
 	}, nil
 }
 
+func (s *stepRunAPIRepository) ListStepRunArchives(stepRunId string, opts *repository.ListStepRunArchivesOpts) (*repository.ListStepRunArchivesResult, error) {
+	if err := s.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	tx, err := s.pool.Begin(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(context.Background(), s.l, tx.Rollback)
+
+	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
+
+	listParams := dbsqlc.ListStepRunArchivesParams{
+		Steprunid: pgStepRunId,
+	}
+
+	if opts.Offset != nil {
+		listParams.Offset = *opts.Offset
+	}
+
+	if opts.Limit != nil {
+		listParams.Limit = *opts.Limit
+	}
+
+	events, err := s.queries.ListStepRunArchives(context.Background(), tx, listParams)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			events = make([]*dbsqlc.StepRunResultArchive, 0)
+		} else {
+			return nil, fmt.Errorf("could not list step run events: %w", err)
+		}
+	}
+
+	count, err := s.queries.CountStepRunEvents(context.Background(), tx, pgStepRunId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			count = 0
+		} else {
+			return nil, fmt.Errorf("could not count step run events: %w", err)
+		}
+	}
+
+	err = tx.Commit(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return &repository.ListStepRunArchivesResult{
+		Rows:  events,
+		Count: int(count),
+	}, nil
+}
+
 type stepRunEngineRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator

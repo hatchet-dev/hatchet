@@ -804,4 +804,8 @@ WHERE
     "stepRunId" = @stepRunId::uuid AND
     "tenantId" = @tenantId::uuid
 ORDER BY
-    "createdAt";
+    "createdAt"
+OFFSET
+    COALESCE(sqlc.narg('offset'), 0)
+LIMIT
+    COALESCE(sqlc.narg('limit'), 50);

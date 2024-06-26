@@ -258,6 +258,41 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 	return res
 }
 
+func ToStepRunArchive(stepRunArchive *dbsqlc.StepRunResultArchive) *gen.StepRunArchive {
+
+	res := &gen.StepRunArchive{
+		StepRunId:        sqlchelpers.UUIDToStr(stepRunArchive.StepRunId),
+		Order:            int(stepRunArchive.Order),
+		Input:            byteSliceToStringPointer(stepRunArchive.Input),
+		Output:           byteSliceToStringPointer(stepRunArchive.Output),
+		Error:            &stepRunArchive.Error.String,
+		CancelledAt:      &stepRunArchive.CancelledAt.Time,
+		CancelledAtEpoch: getEpochFromPgTime(stepRunArchive.CancelledAt),
+		CancelledError:   &stepRunArchive.CancelledError.String,
+		CancelledReason:  &stepRunArchive.CancelledReason.String,
+		FinishedAt:       &stepRunArchive.FinishedAt.Time,
+		FinishedAtEpoch:  getEpochFromPgTime(stepRunArchive.FinishedAt),
+		StartedAt:        &stepRunArchive.StartedAt.Time,
+		StartedAtEpoch:   getEpochFromPgTime(stepRunArchive.StartedAt),
+		TimeoutAt:        &stepRunArchive.TimeoutAt.Time,
+		TimeoutAtEpoch:   getEpochFromPgTime(stepRunArchive.TimeoutAt),
+	}
+
+	return res
+}
+
+func byteSliceToStringPointer(b []byte) *string {
+	if b == nil {
+		return nil
+	}
+	s := string(b)
+	return &s
+}
+
+func getEpochFromPgTime(t pgtype.Timestamp) *int {
+	return getEpochFromTime(t.Time)
+}
+
 func getEpochFromTime(t time.Time) *int {
 	epoch := int(t.UnixMilli())
 	return &epoch

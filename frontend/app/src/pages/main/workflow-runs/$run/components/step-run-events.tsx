@@ -35,6 +35,10 @@ export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
     },
   });
 
+  // const getArchivesQuery = useQuery({
+  //   ...queries.stepRuns.
+  // });
+
   if (!stepRun) {
     return <Spinner />;
   }
