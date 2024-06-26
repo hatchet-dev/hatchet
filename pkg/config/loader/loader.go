@@ -38,6 +38,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -96,7 +97,7 @@ func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
 type ServerConfigFileOverride func(*server.ServerConfigFile)
 
 // LoadServerConfig loads the server configuration
-func (c *ConfigLoader) LoadServerConfig(overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
+func (c *ConfigLoader) LoadServerConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
 	log.Printf("Loading server config from %s", c.directory)
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
 	log.Printf("Shared file path: %s", sharedFilePath)
@@ -120,7 +121,7 @@ func (c *ConfigLoader) LoadServerConfig(overrides ...ServerConfigFileOverride) (
 		override(cf)
 	}
 
-	return GetServerConfigFromConfigfile(dc, cf)
+	return GetServerConfigFromConfigfile(dc, cf, version)
 }
 
 func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.ConfigFileRuntime) (res *database.Config, err error) {
@@ -187,7 +188,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 	}, nil
 }
 
-func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigFile) (cleanup func() error, res *server.ServerConfig, err error) {
+func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigFile, version string) (cleanup func() error, res *server.ServerConfig, err error) {
 	l := logger.NewStdErr(&cf.Logger, "server")
 
 	tls, err := loaderutils.LoadServerTLSConfig(&cf.TLS)
@@ -247,6 +248,17 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		}
 	} else {
 		alerter = errors.NoOpAlerter{}
+	}
+
+	if cf.SecurityCheck.Enabled {
+		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
+			Enabled:  cf.SecurityCheck.Enabled,
+			Endpoint: cf.SecurityCheck.Endpoint,
+			Logger:   &l,
+			Version:  version,
+		}, dc.APIRepository.SecurityCheck())
+
+		defer securityCheck.Check()
 	}
 
 	var analyticsEmitter analytics.Analytics

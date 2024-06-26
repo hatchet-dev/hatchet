@@ -33,9 +33,11 @@ func SetupEngine(ctx context.Context, t *testing.T) {
 	_ = os.Setenv("SERVER_AUTH_COOKIE_INSECURE", "false")
 	_ = os.Setenv("SERVER_AUTH_SET_EMAIL_VERIFIED", "true")
 
+	_ = os.Setenv("SERVER_SECURITY_CHECK_ENABLED", "false")
+
 	cf := loader.NewConfigLoader(path.Join(dir, "./generated/"))
 
-	if err := engine.Run(ctx, cf); err != nil {
+	if err := engine.Run(ctx, cf, ""); err != nil {
 		t.Fatalf("engine failure: %s", err.Error())
 	}
 }

@@ -794,3 +794,28 @@ JOIN
 WHERE
     sr."tenantId" = @tenantId::uuid AND
     sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED');
+
+-- name: ListStepRunArchives :many
+SELECT
+    "StepRunResultArchive".*
+FROM
+    "StepRunResultArchive"
+JOIN
+    "StepRun" ON "StepRunResultArchive"."stepRunId" = "StepRun"."id"
+WHERE
+    "StepRunResultArchive"."stepRunId" = @stepRunId::uuid AND
+    "StepRun"."tenantId" = @tenantId::uuid
+ORDER BY
+    "StepRunResultArchive"."createdAt"
+OFFSET
+    COALESCE(sqlc.narg('offset'), 0)
+LIMIT
+    COALESCE(sqlc.narg('limit'), 50);
+
+-- name: CountStepRunArchives :one
+SELECT
+    count(*) OVER() AS total
+FROM
+    "StepRunResultArchive"
+WHERE
+    "stepRunId" = @stepRunId::uuid;

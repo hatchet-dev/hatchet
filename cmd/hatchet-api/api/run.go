@@ -7,9 +7,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
-func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
+func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version string) error {
 	// init the repository
-	configCleanup, sc, err := cf.LoadServerConfig()
+	configCleanup, sc, err := cf.LoadServerConfig(version)
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)
 	}

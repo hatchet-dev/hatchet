@@ -338,6 +338,61 @@ StepRunEventList:
         $ref: "#/StepRunEvent"
       type: array
 
+StepRunArchive:
+  type: object
+  properties:
+    stepRunId:
+      type: string
+    order:
+      type: integer
+    input:
+      type: string
+    output:
+      type: string
+    startedAt:
+      type: string
+      format: date-time
+    error:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    startedAtEpoch:
+      type: integer
+    finishedAt:
+      type: string
+      format: date-time
+    finishedAtEpoch:
+      type: integer
+    timeoutAt:
+      type: string
+      format: date-time
+    timeoutAtEpoch:
+      type: integer
+    cancelledAt:
+      type: string
+      format: date-time
+    cancelledAtEpoch:
+      type: integer
+    cancelledReason:
+      type: string
+    cancelledError:
+      type: string
+  required:
+    - stepRunId
+    - order
+    - createdAt
+
+
+StepRunArchiveList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/StepRunArchive"
+      type: array
+
 RerunStepRunRequest:
   properties:
     input:

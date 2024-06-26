@@ -19,6 +19,12 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 	tenantMember := ctx.Get("tenant-member").(*db.TenantMemberModel)
 
+	if !t.config.Runtime.AllowInvites {
+		return gen.TenantInviteCreate400JSONResponse(
+			apierrors.NewAPIErrors("tenant invites are disabled"),
+		), nil
+	}
+
 	// validate the request
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
 		return nil, err

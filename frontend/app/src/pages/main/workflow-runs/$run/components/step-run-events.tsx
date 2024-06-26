@@ -4,6 +4,7 @@ import {
   StepRunEventReason,
   StepRunEventSeverity,
   StepRunStatus,
+  StepRunArchive,
   queries,
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -18,9 +19,10 @@ import {
 import { Spinner } from '@/components/ui/loading';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Button } from '@/components/ui/button';
-import { ArrowRightIcon } from '@radix-ui/react-icons';
+import { ArrowRightIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useMemo, useState } from 'react';
 
 export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
   const getLogsQuery = useQuery({
@@ -35,14 +37,57 @@ export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
     },
   });
 
+  const getArchivesQuery = useQuery({
+    ...queries.stepRuns.listArchives(stepRun?.metadata.id || ''),
+    enabled: !!stepRun,
+    refetchInterval: () => {
+      if (stepRun?.status === StepRunStatus.RUNNING) {
+        return 1000;
+      }
+
+      return 5000;
+    },
+  });
+
+  const combinedEvents = useMemo(() => {
+    const events = getLogsQuery.data?.rows || [];
+    const stub = createStepRunArchive(stepRun!, 0);
+
+    const archives = getArchivesQuery.data?.rows || [];
+
+    const combined = [
+      ...events.map((event) => ({
+        type: 'event',
+        data: event,
+        time: event.timeLastSeen,
+      })),
+      ...archives.map((archive) => ({
+        type: 'archive',
+        data: archive,
+        time: archive.createdAt,
+      })),
+    ];
+
+    return [
+      {
+        type: 'archive',
+        data: stub,
+        time: stub.createdAt,
+      },
+      ...combined.sort(
+        (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
+      ),
+    ];
+  }, [getLogsQuery.data?.rows, getArchivesQuery.data?.rows, stepRun]);
+
   if (!stepRun) {
     return <Spinner />;
   }
 
   return (
     <div className="overflow-y-auto max-h-[400px] flex flex-col gap-2">
-      {getLogsQuery.isLoading && <Spinner />}
-      {getLogsQuery.data?.rows?.length === 0 && (
+      {(getLogsQuery.isLoading || getArchivesQuery.isLoading) && <Spinner />}
+      {combinedEvents.length === 0 && (
         <Card className="bg-muted/30 h-[400px]">
           <CardHeader>
             <CardTitle className="tracking-wide text-sm">
@@ -51,9 +96,16 @@ export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
           </CardHeader>
         </Card>
       )}
-      {getLogsQuery.data?.rows?.map((event) => (
-        <StepRunEventCard key={event.id} event={event} />
-      ))}
+      {combinedEvents.map((item, index) =>
+        item.type === 'event' ? (
+          <StepRunEventCard key={index} event={item.data as StepRunEvent} />
+        ) : (
+          <StepRunArchiveCard
+            key={index}
+            archive={item.data as StepRunArchive}
+          />
+        ),
+      )}
     </div>
   );
 }
@@ -75,6 +127,56 @@ function StepRunEventCard({ event }: { event: StepRunEvent }) {
       </CardHeader>
       <CardContent className="p-0 z-10 bg-background"></CardContent>
       {renderCardFooter(event)}
+    </Card>
+  );
+}
+
+function StepRunArchiveCard({ archive }: { archive: StepRunArchive }) {
+  const [isCollapsed, setIsCollapsed] = useState(true);
+
+  const reason = archive.cancelledReason || archive.error || archive.output;
+  if (!reason) {
+    return <></>;
+  }
+
+  const type = archive.cancelledReason
+    ? 'Cancelled'
+    : archive.error
+      ? 'Error'
+      : 'Output';
+
+  const toggleCollapse = () => {
+    setIsCollapsed(!isCollapsed);
+  };
+
+  return (
+    <Card
+      className="bg-muted/30 cursor-pointer hover:bg-muted/50 transition-all"
+      onClick={toggleCollapse}
+    >
+      <CardHeader>
+        <div className="flex flex-row justify-between items-center text-sm">
+          <div className="flex flex-row justify-between gap-3 items-center">
+            <span
+              className={`transform transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+            >
+              <ChevronRightIcon className="w-4 h-4" />
+            </span>
+            <CardTitle className="tracking-wide text-sm">{type}</CardTitle>
+          </div>
+          <div className="flex flex-row items-center gap-1">
+            <RelativeDate date={archive.createdAt} />
+          </div>
+        </div>
+        {!isCollapsed && (
+          <CardDescription className="pt-2">
+            <code>{reason}</code>
+          </CardDescription>
+        )}
+      </CardHeader>
+      {!isCollapsed && (
+        <CardContent className="p-0 z-10 bg-background"></CardContent>
+      )}
     </Card>
   );
 }
@@ -136,4 +238,25 @@ function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
       )}
     />
   );
+}
+
+function createStepRunArchive(stepRun: StepRun, order: number): StepRunArchive {
+  return {
+    createdAt: stepRun.finishedAt || stepRun.cancelledAt || stepRun.startedAt!,
+    stepRunId: stepRun.metadata.id,
+    order: order,
+    input: stepRun.input,
+    output: stepRun.output,
+    startedAt: stepRun.startedAt,
+    error: stepRun.error,
+    startedAtEpoch: stepRun.startedAtEpoch,
+    finishedAt: stepRun.finishedAt,
+    finishedAtEpoch: stepRun.finishedAtEpoch,
+    timeoutAt: stepRun.timeoutAt,
+    timeoutAtEpoch: stepRun.timeoutAtEpoch,
+    cancelledAt: stepRun.cancelledAt,
+    cancelledAtEpoch: stepRun.cancelledAtEpoch,
+    cancelledReason: stepRun.cancelledReason,
+    cancelledError: stepRun.cancelledError,
+  };
 }
