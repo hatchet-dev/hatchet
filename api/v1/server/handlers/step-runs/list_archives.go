@@ -32,7 +32,7 @@ func (t *StepRunService) StepRunListArchives(ctx echo.Context, request gen.StepR
 		listOpts.Offset = &offset
 	}
 
-	listRes, err := t.config.APIRepository.StepRun().ListStepRunArchives(stepRun.ID, listOpts)
+	listRes, err := t.config.APIRepository.StepRun().ListStepRunArchives(stepRun.TenantID, stepRun.ID, listOpts)
 
 	if err != nil {
 		return nil, err

@@ -797,15 +797,25 @@ WHERE
 
 -- name: ListStepRunArchives :many
 SELECT
-    *
+    "StepRunResultArchive".*
 FROM
     "StepRunResultArchive"
+JOIN
+    "StepRun" ON "StepRunResultArchive"."stepRunId" = "StepRun"."id"
 WHERE
-    "stepRunId" = @stepRunId::uuid AND
-    "tenantId" = @tenantId::uuid
+    "StepRunResultArchive"."stepRunId" = @stepRunId::uuid AND
+    "StepRun"."tenantId" = @tenantId::uuid
 ORDER BY
-    "createdAt"
+    "StepRunResultArchive"."createdAt"
 OFFSET
     COALESCE(sqlc.narg('offset'), 0)
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
+
+-- name: CountStepRunArchives :one
+SELECT
+    count(*) OVER() AS total
+FROM
+    "StepRunResultArchive"
+WHERE
+    "stepRunId" = @stepRunId::uuid;

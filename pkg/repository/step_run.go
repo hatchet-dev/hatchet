@@ -140,7 +140,7 @@ type StepRunAPIRepository interface {
 
 	ListStepRunEvents(stepRunId string, opts *ListStepRunEventOpts) (*ListStepRunEventResult, error)
 
-	ListStepRunArchives(stepRunId string, opts *ListStepRunArchivesOpts) (*ListStepRunArchivesResult, error)
+	ListStepRunArchives(tenantId, stepRunId string, opts *ListStepRunArchivesOpts) (*ListStepRunArchivesResult, error)
 }
 
 type StepRunEngineRepository interface {

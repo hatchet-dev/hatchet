@@ -188,6 +188,22 @@ func (q *Queries) AssignStepRunToWorker(ctx context.Context, db DBTX, arg Assign
 	return &i, err
 }
 
+const countStepRunArchives = `-- name: CountStepRunArchives :one
+SELECT
+    count(*) OVER() AS total
+FROM
+    "StepRunResultArchive"
+WHERE
+    "stepRunId" = $1::uuid
+`
+
+func (q *Queries) CountStepRunArchives(ctx context.Context, db DBTX, steprunid pgtype.UUID) (int64, error) {
+	row := db.QueryRow(ctx, countStepRunArchives, steprunid)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const countStepRunEvents = `-- name: CountStepRunEvents :one
 SELECT
     count(*) OVER() AS total
@@ -698,14 +714,16 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 
 const listStepRunArchives = `-- name: ListStepRunArchives :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", "stepRunId", "order", input, output, error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError"
+    "StepRunResultArchive".id, "StepRunResultArchive"."createdAt", "StepRunResultArchive"."updatedAt", "StepRunResultArchive"."deletedAt", "StepRunResultArchive"."stepRunId", "StepRunResultArchive"."order", "StepRunResultArchive".input, "StepRunResultArchive".output, "StepRunResultArchive".error, "StepRunResultArchive"."startedAt", "StepRunResultArchive"."finishedAt", "StepRunResultArchive"."timeoutAt", "StepRunResultArchive"."cancelledAt", "StepRunResultArchive"."cancelledReason", "StepRunResultArchive"."cancelledError"
 FROM
     "StepRunResultArchive"
+JOIN
+    "StepRun" ON "StepRunResultArchive"."stepRunId" = "StepRun"."id"
 WHERE
-    "stepRunId" = $1::uuid AND
-    "tenantId" = $2::uuid
+    "StepRunResultArchive"."stepRunId" = $1::uuid AND
+    "StepRun"."tenantId" = $2::uuid
 ORDER BY
-    "createdAt"
+    "StepRunResultArchive"."createdAt"
 OFFSET
     COALESCE($3, 0)
 LIMIT

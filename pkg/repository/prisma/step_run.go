@@ -133,7 +133,7 @@ func (s *stepRunAPIRepository) ListStepRunEvents(stepRunId string, opts *reposit
 	}, nil
 }
 
-func (s *stepRunAPIRepository) ListStepRunArchives(stepRunId string, opts *repository.ListStepRunArchivesOpts) (*repository.ListStepRunArchivesResult, error) {
+func (s *stepRunAPIRepository) ListStepRunArchives(tenantId string, stepRunId string, opts *repository.ListStepRunArchivesOpts) (*repository.ListStepRunArchivesResult, error) {
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -147,9 +147,11 @@ func (s *stepRunAPIRepository) ListStepRunArchives(stepRunId string, opts *repos
 	defer deferRollback(context.Background(), s.l, tx.Rollback)
 
 	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	listParams := dbsqlc.ListStepRunArchivesParams{
 		Steprunid: pgStepRunId,
+		Tenantid:  pgTenantId,
 	}
 
 	if opts.Offset != nil {
@@ -160,23 +162,23 @@ func (s *stepRunAPIRepository) ListStepRunArchives(stepRunId string, opts *repos
 		listParams.Limit = *opts.Limit
 	}
 
-	events, err := s.queries.ListStepRunArchives(context.Background(), tx, listParams)
+	archives, err := s.queries.ListStepRunArchives(context.Background(), tx, listParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			events = make([]*dbsqlc.StepRunResultArchive, 0)
+			archives = make([]*dbsqlc.StepRunResultArchive, 0)
 		} else {
-			return nil, fmt.Errorf("could not list step run events: %w", err)
+			return nil, fmt.Errorf("could not list step run archives: %w", err)
 		}
 	}
 
-	count, err := s.queries.CountStepRunEvents(context.Background(), tx, pgStepRunId)
+	count, err := s.queries.CountStepRunArchives(context.Background(), tx, pgStepRunId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			count = 0
 		} else {
-			return nil, fmt.Errorf("could not count step run events: %w", err)
+			return nil, fmt.Errorf("could not count step run archives: %w", err)
 		}
 	}
 
@@ -187,7 +189,7 @@ func (s *stepRunAPIRepository) ListStepRunArchives(stepRunId string, opts *repos
 	}
 
 	return &repository.ListStepRunArchivesResult{
-		Rows:  events,
+		Rows:  archives,
 		Count: int(count),
 	}, nil
 }
