@@ -145,11 +145,6 @@ function StepRunArchiveCard({ archive }: { archive: StepRunArchive }) {
       ? 'Error'
       : 'Output';
 
-  const severity: StepRunEventSeverity =
-    archive.cancelledReason || archive.error
-      ? StepRunEventSeverity.CRITICAL
-      : StepRunEventSeverity.INFO;
-
   const toggleCollapse = () => {
     setIsCollapsed(!isCollapsed);
   };
