@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateRequestObject) (gen.TenantCreateResponseObject, error) {
@@ -55,14 +56,16 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		return nil, err
 	}
 
-	err = t.config.EntitlementRepository.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenant.ID, nil)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	err = t.config.EntitlementRepository.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenantId, nil)
 
 	if err != nil {
 		return nil, err
 	}
 
 	// add the user as an owner of the tenant
-	_, err = t.config.APIRepository.Tenant().CreateTenantMember(tenant.ID, &repository.CreateTenantMemberOpts{
+	_, err = t.config.APIRepository.Tenant().CreateTenantMember(tenantId, &repository.CreateTenantMemberOpts{
 		UserId: user.ID,
 		Role:   "OWNER",
 	})
@@ -71,7 +74,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		return nil, err
 	}
 
-	t.config.Analytics.Tenant(tenant.ID, map[string]interface{}{
+	t.config.Analytics.Tenant(tenantId, map[string]interface{}{
 		"name": tenant.Name,
 		"slug": tenant.Slug,
 	})
@@ -79,11 +82,11 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	t.config.Analytics.Enqueue(
 		"tenant:create",
 		user.ID,
-		&tenant.ID,
+		&tenantId,
 		nil,
 	)
 
 	return gen.TenantCreate200JSONResponse(
-		*transformers.ToTenant(tenant),
+		*transformers.ToTenantSqlc(tenant),
 	), nil
 }

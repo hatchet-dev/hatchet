@@ -86,11 +86,17 @@ func runSeed(cf *loader.ConfigLoader) error {
 		if errors.Is(err, db.ErrNotFound) {
 			// seed an example tenant
 			// initialize a tenant
-			tenant, err = dc.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+			sqlcTenant, err := dc.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
 				ID:   &dc.Seed.DefaultTenantID,
 				Name: dc.Seed.DefaultTenantName,
 				Slug: dc.Seed.DefaultTenantSlug,
 			})
+
+			if err != nil {
+				return err
+			}
+
+			tenant, err = dc.APIRepository.Tenant().GetTenantByID(sqlchelpers.UUIDToStr(sqlcTenant.ID))
 
 			if err != nil {
 				return err

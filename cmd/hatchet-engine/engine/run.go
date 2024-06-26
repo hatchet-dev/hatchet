@@ -104,7 +104,18 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
+	p, err := newPartitioner(sc.EngineRepository.Tenant())
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create partitioner: %w", err)
+	}
+
 	teardown := []Teardown{}
+
+	teardown = append(teardown, Teardown{
+		Name: "partitioner",
+		Fn:   p.shutdown,
+	})
 
 	var h *health.Health
 	healthProbes := sc.HasService("health")
@@ -165,47 +176,55 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
-	if sc.HasService("jobscontroller") {
+	if sc.HasService("queue") {
+		partitionTeardown, partitionId, err := p.withControllers(ctx)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
+		}
+
+		teardown = append(teardown, *partitionTeardown)
+
 		jc, err := jobs.New(
 			jobs.WithAlerter(sc.Alerter),
 			jobs.WithMessageQueue(sc.MessageQueue),
 			jobs.WithRepository(sc.EngineRepository),
 			jobs.WithLogger(sc.Logger),
+			jobs.WithPartitionId(partitionId),
 		)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not create jobs controller: %w", err)
 		}
 
-		cleanup, err := jc.Start()
+		cleanupJobs, err := jc.Start()
 		if err != nil {
 			return nil, fmt.Errorf("could not start jobs controller: %w", err)
 		}
 		teardown = append(teardown, Teardown{
 			Name: "jobs controller",
-			Fn:   cleanup,
+			Fn:   cleanupJobs,
 		})
-	}
 
-	if sc.HasService("workflowscontroller") {
 		wc, err := workflows.New(
 			workflows.WithAlerter(sc.Alerter),
 			workflows.WithMessageQueue(sc.MessageQueue),
 			workflows.WithRepository(sc.EngineRepository),
 			workflows.WithLogger(sc.Logger),
 			workflows.WithTenantAlerter(sc.TenantAlerter),
+			workflows.WithPartitionId(partitionId),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create workflows controller: %w", err)
 		}
 
-		cleanup, err := wc.Start()
+		cleanupWorkflows, err := wc.Start()
 		if err != nil {
 			return nil, fmt.Errorf("could not start workflows controller: %w", err)
 		}
 		teardown = append(teardown, Teardown{
 			Name: "workflows controller",
-			Fn:   cleanup,
+			Fn:   cleanupWorkflows,
 		})
 	}
 
@@ -338,7 +357,15 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	}
 
 	if sc.HasService("webhookscontroller") {
-		wh := webhooks.New(sc)
+		partitionTeardown, partitionId, err := p.withTenantWorkers(ctx)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
+		}
+
+		teardown = append(teardown, *partitionTeardown)
+
+		wh := webhooks.New(sc, partitionId)
 
 		cleanup, err := wh.Start()
 		if err != nil {
@@ -363,6 +390,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	if healthProbes {
 		h.SetReady(true)
 	}
+
+	p.start()
 
 	<-ctx.Done()
 

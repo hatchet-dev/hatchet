@@ -62,7 +62,7 @@ type GetQueueMetricsResponse struct {
 
 type TenantAPIRepository interface {
 	// CreateTenant creates a new tenant.
-	CreateTenant(opts *CreateTenantOpts) (*db.TenantModel, error)
+	CreateTenant(opts *CreateTenantOpts) (*dbsqlc.Tenant, error)
 
 	// CreateTenant creates a new tenant.
 	UpdateTenant(tenantId string, opts *UpdateTenantOpts) (*db.TenantModel, error)
@@ -101,6 +101,28 @@ type TenantAPIRepository interface {
 type TenantEngineRepository interface {
 	// ListTenants lists all tenants in the instance
 	ListTenants(ctx context.Context) ([]*dbsqlc.Tenant, error)
+
+	// ListTenantsByPartition lists all tenants in the given partition
+	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error)
+
+	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*dbsqlc.Tenant, error)
+
+	// CreateEnginePartition creates a new partition for tenants within the engine
+	CreateControllerPartition(ctx context.Context, id string) error
+
+	DeleteControllerPartition(ctx context.Context, id string) error
+
+	RebalanceAllControllerPartitions(ctx context.Context) error
+
+	RebalanceInactiveControllerPartitions(ctx context.Context) error
+
+	CreateTenantWorkerPartition(ctx context.Context, id string) error
+
+	DeleteTenantWorkerPartition(ctx context.Context, id string) error
+
+	RebalanceAllTenantWorkerPartitions(ctx context.Context) error
+
+	RebalanceInactiveTenantWorkerPartitions(ctx context.Context) error
 
 	// GetTenantByID returns the tenant with the given id
 	GetTenantByID(ctx context.Context, tenantId string) (*dbsqlc.Tenant, error)

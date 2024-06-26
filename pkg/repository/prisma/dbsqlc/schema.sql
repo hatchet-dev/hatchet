@@ -62,6 +62,16 @@ CREATE TABLE "Action" (
 );
 
 -- CreateTable
+CREATE TABLE "ControllerPartition" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastHeartbeat" TIMESTAMP(3),
+
+    CONSTRAINT "ControllerPartition_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Dispatcher" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -350,6 +360,8 @@ CREATE TABLE "Tenant" (
     "slug" TEXT NOT NULL,
     "analyticsOptOut" BOOLEAN NOT NULL DEFAULT false,
     "alertMemberEmails" BOOLEAN NOT NULL DEFAULT true,
+    "controllerPartitionId" TEXT,
+    "workerPartitionId" TEXT,
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
@@ -453,6 +465,16 @@ CREATE TABLE "TenantVcsProvider" (
     "config" JSONB,
 
     CONSTRAINT "TenantVcsProvider_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TenantWorkerPartition" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastHeartbeat" TIMESTAMP(3),
+
+    CONSTRAINT "TenantWorkerPartition_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -745,6 +767,9 @@ CREATE UNIQUE INDEX "Action_id_key" ON "Action"("id" ASC);
 CREATE UNIQUE INDEX "Action_tenantId_actionId_key" ON "Action"("tenantId" ASC, "actionId" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "ControllerPartition_id_key" ON "ControllerPartition"("id" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Dispatcher_id_key" ON "Dispatcher"("id" ASC);
 
 -- CreateIndex
@@ -838,10 +863,16 @@ CREATE INDEX "StepRunEvent_stepRunId_idx" ON "StepRunEvent"("stepRunId" ASC);
 CREATE UNIQUE INDEX "StepRunResultArchive_id_key" ON "StepRunResultArchive"("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "Tenant_controllerPartitionId_idx" ON "Tenant"("controllerPartitionId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Tenant_id_key" ON "Tenant"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Tenant_slug_key" ON "Tenant"("slug" ASC);
+
+-- CreateIndex
+CREATE INDEX "Tenant_workerPartitionId_idx" ON "Tenant"("workerPartitionId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TenantAlertEmailGroup_id_key" ON "TenantAlertEmailGroup"("id" ASC);
@@ -875,6 +906,9 @@ CREATE UNIQUE INDEX "TenantVcsProvider_id_key" ON "TenantVcsProvider"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TenantVcsProvider_tenantId_vcsProvider_key" ON "TenantVcsProvider"("tenantId" ASC, "vcsProvider" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TenantWorkerPartition_id_key" ON "TenantWorkerPartition"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Ticker_id_key" ON "Ticker"("id" ASC);
@@ -1124,6 +1158,12 @@ ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_stepRunId_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_controllerPartitionId_fkey" FOREIGN KEY ("controllerPartitionId") REFERENCES "ControllerPartition"("id") ON DELETE SET NULL ON UPDATE SET NULL;
+
+-- AddForeignKey
+ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_workerPartitionId_fkey" FOREIGN KEY ("workerPartitionId") REFERENCES "TenantWorkerPartition"("id") ON DELETE SET NULL ON UPDATE SET NULL;
 
 -- AddForeignKey
 ALTER TABLE "TenantAlertEmailGroup" ADD CONSTRAINT "TenantAlertEmailGroup_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;

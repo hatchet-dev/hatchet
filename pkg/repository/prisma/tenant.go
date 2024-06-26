@@ -3,6 +3,7 @@ package prisma
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -39,7 +40,7 @@ func NewTenantAPIRepository(pool *pgxpool.Pool, client *db.PrismaClient, v valid
 	}
 }
 
-func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*db.TenantModel, error) {
+func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*dbsqlc.Tenant, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -50,28 +51,35 @@ func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*
 		tenantId = *opts.ID
 	}
 
-	createTenantTx := r.client.Tenant.CreateOne(
-		db.Tenant.Name.Set(opts.Name),
-		db.Tenant.Slug.Set(opts.Slug),
-		db.Tenant.ID.Set(tenantId),
-	).Tx()
-
-	createSettingsTx := r.client.TenantAlertingSettings.CreateOne(
-		db.TenantAlertingSettings.Tenant.Link(
-			db.Tenant.ID.Equals(tenantId),
-		),
-	).Tx()
-
-	err := r.client.Prisma.Transaction(
-		createTenantTx,
-		createSettingsTx,
-	).Exec(context.Background())
+	tx, err := r.pool.Begin(context.Background())
 
 	if err != nil {
 		return nil, err
 	}
 
-	return createTenantTx.Result(), nil
+	defer deferRollback(context.Background(), r.l, tx.Rollback)
+
+	createTenant, err := r.queries.CreateTenant(context.Background(), tx, dbsqlc.CreateTenantParams{
+		ID:   sqlchelpers.UUIDFromStr(tenantId),
+		Slug: opts.Slug,
+		Name: opts.Name,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = r.queries.CreateTenantAlertingSettings(context.Background(), tx, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(context.Background()); err != nil {
+		return nil, err
+	}
+
+	return createTenant, nil
 }
 
 func (r *tenantAPIRepository) UpdateTenant(id string, opts *repository.UpdateTenantOpts) (*db.TenantModel, error) {
@@ -283,4 +291,56 @@ func (r *tenantEngineRepository) GetTenantByID(ctx context.Context, tenantId str
 	return cache.MakeCacheable[dbsqlc.Tenant](r.cache, tenantId, func() (*dbsqlc.Tenant, error) {
 		return r.queries.GetTenantByID(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 	})
+}
+
+func (r *tenantEngineRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error) {
+	if controllerPartitionId == "" {
+		return nil, fmt.Errorf("partitionId is required")
+	}
+
+	return r.queries.ListTenantsByControllerPartitionId(ctx, r.pool, controllerPartitionId)
+}
+
+func (r *tenantEngineRepository) ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*dbsqlc.Tenant, error) {
+	if workerPartitionId == "" {
+		return nil, fmt.Errorf("partitionId is required")
+	}
+
+	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool, workerPartitionId)
+}
+
+func (r *tenantEngineRepository) CreateControllerPartition(ctx context.Context, id string) error {
+	_, err := r.queries.CreateControllerPartition(ctx, r.pool, id)
+	return err
+}
+
+func (r *tenantEngineRepository) DeleteControllerPartition(ctx context.Context, id string) error {
+	_, err := r.queries.DeleteControllerPartition(ctx, r.pool, id)
+	return err
+}
+
+func (r *tenantEngineRepository) RebalanceAllControllerPartitions(ctx context.Context) error {
+	return r.queries.RebalanceAllControllerPartitions(ctx, r.pool)
+}
+
+func (r *tenantEngineRepository) RebalanceInactiveControllerPartitions(ctx context.Context) error {
+	return r.queries.RebalanceInactiveControllerPartitions(ctx, r.pool)
+}
+
+func (r *tenantEngineRepository) CreateTenantWorkerPartition(ctx context.Context, id string) error {
+	_, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool, id)
+	return err
+}
+
+func (r *tenantEngineRepository) DeleteTenantWorkerPartition(ctx context.Context, id string) error {
+	_, err := r.queries.DeleteTenantWorkerPartition(ctx, r.pool, id)
+	return err
+}
+
+func (r *tenantEngineRepository) RebalanceAllTenantWorkerPartitions(ctx context.Context) error {
+	return r.queries.RebalanceAllTenantWorkerPartitions(ctx, r.pool)
+}
+
+func (r *tenantEngineRepository) RebalanceInactiveTenantWorkerPartitions(ctx context.Context) error {
+	return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, r.pool)
 }

@@ -19,6 +19,16 @@ func ToTenant(tenant *db.TenantModel) *gen.Tenant {
 	}
 }
 
+func ToTenantSqlc(tenant *dbsqlc.Tenant) *gen.Tenant {
+	return &gen.Tenant{
+		Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(tenant.ID), tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
+		Name:              tenant.Name,
+		Slug:              tenant.Slug,
+		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
+		AlertMemberEmails: &tenant.AlertMemberEmails,
+	}
+}
+
 func ToTenantAlertingSettings(alerting *db.TenantAlertingSettingsModel) *gen.TenantAlertingSettings {
 	res := &gen.TenantAlertingSettings{
 		Metadata:                        *toAPIMetadata(alerting.ID, alerting.CreatedAt, alerting.UpdatedAt),

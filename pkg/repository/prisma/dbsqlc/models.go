@@ -612,6 +612,13 @@ type ActionToWorker struct {
 	A pgtype.UUID `json:"A"`
 }
 
+type ControllerPartition struct {
+	ID            string           `json:"id"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	LastHeartbeat pgtype.Timestamp `json:"lastHeartbeat"`
+}
+
 type Dispatcher struct {
 	ID              pgtype.UUID      `json:"id"`
 	CreatedAt       pgtype.Timestamp `json:"createdAt"`
@@ -859,14 +866,16 @@ type StreamEvent struct {
 }
 
 type Tenant struct {
-	ID                pgtype.UUID      `json:"id"`
-	CreatedAt         pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt         pgtype.Timestamp `json:"deletedAt"`
-	Name              string           `json:"name"`
-	Slug              string           `json:"slug"`
-	AnalyticsOptOut   bool             `json:"analyticsOptOut"`
-	AlertMemberEmails bool             `json:"alertMemberEmails"`
+	ID                    pgtype.UUID      `json:"id"`
+	CreatedAt             pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt             pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt             pgtype.Timestamp `json:"deletedAt"`
+	Name                  string           `json:"name"`
+	Slug                  string           `json:"slug"`
+	AnalyticsOptOut       bool             `json:"analyticsOptOut"`
+	AlertMemberEmails     bool             `json:"alertMemberEmails"`
+	ControllerPartitionId pgtype.Text      `json:"controllerPartitionId"`
+	WorkerPartitionId     pgtype.Text      `json:"workerPartitionId"`
 }
 
 type TenantAlertEmailGroup struct {
@@ -947,6 +956,13 @@ type TenantVcsProvider struct {
 	TenantId    pgtype.UUID      `json:"tenantId"`
 	VcsProvider VcsProvider      `json:"vcsProvider"`
 	Config      []byte           `json:"config"`
+}
+
+type TenantWorkerPartition struct {
+	ID            string           `json:"id"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	LastHeartbeat pgtype.Timestamp `json:"lastHeartbeat"`
 }
 
 type Ticker struct {

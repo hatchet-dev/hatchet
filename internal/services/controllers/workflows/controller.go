@@ -36,17 +36,19 @@ type WorkflowsControllerImpl struct {
 	s             gocron.Scheduler
 	tenantAlerter *alerting.TenantAlertManager
 	a             *hatcheterrors.Wrapped
+	partitionId   string
 }
 
 type WorkflowsControllerOpt func(*WorkflowsControllerOpts)
 
 type WorkflowsControllerOpts struct {
-	mq      msgqueue.MessageQueue
-	l       *zerolog.Logger
-	repo    repository.EngineRepository
-	dv      datautils.DataDecoderValidator
-	ta      *alerting.TenantAlertManager
-	alerter hatcheterrors.Alerter
+	mq          msgqueue.MessageQueue
+	l           *zerolog.Logger
+	repo        repository.EngineRepository
+	dv          datautils.DataDecoderValidator
+	ta          *alerting.TenantAlertManager
+	alerter     hatcheterrors.Alerter
+	partitionId string
 }
 
 func defaultWorkflowsControllerOpts() *WorkflowsControllerOpts {
@@ -96,6 +98,12 @@ func WithTenantAlerter(ta *alerting.TenantAlertManager) WorkflowsControllerOpt {
 	}
 }
 
+func WithPartitionId(partitionId string) WorkflowsControllerOpt {
+	return func(opts *WorkflowsControllerOpts) {
+		opts.partitionId = partitionId
+	}
+}
+
 func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 	opts := defaultWorkflowsControllerOpts()
 
@@ -113,6 +121,10 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 
 	if opts.ta == nil {
 		return nil, fmt.Errorf("tenant alerter is required. use WithTenantAlerter")
+	}
+
+	if opts.partitionId == "" {
+		return nil, fmt.Errorf("partition ID is required. use WithPartitionId")
 	}
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
@@ -135,6 +147,7 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 		s:             s,
 		tenantAlerter: opts.ta,
 		a:             a,
+		partitionId:   opts.partitionId,
 	}, nil
 }
 

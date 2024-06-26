@@ -17,8 +17,8 @@ type UpsertWebhookWorkerOpts struct {
 }
 
 type WebhookWorkerEngineRepository interface {
-	// ListWebhookWorkers returns the list of webhook workers for the given tenant
-	ListWebhookWorkers(ctx context.Context, tenantId string) ([]*dbsqlc.WebhookWorker, error)
+	// ListWebhookWorkersByPartitionId returns the list of webhook workers for a worker partition
+	ListWebhookWorkersByPartitionId(ctx context.Context, partitionId string) ([]*dbsqlc.WebhookWorker, error)
 
 	// ListActiveWebhookWorkers returns the list of active webhook workers for the given tenant
 	ListActiveWebhookWorkers(ctx context.Context, tenantId string) ([]*dbsqlc.WebhookWorker, error)

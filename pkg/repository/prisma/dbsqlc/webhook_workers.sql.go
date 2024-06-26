@@ -66,14 +66,29 @@ func (q *Queries) ListActiveWebhookWorkers(ctx context.Context, db DBTX, tenanti
 	return items, nil
 }
 
-const listWebhookWorkers = `-- name: ListWebhookWorkers :many
+const listWebhookWorkersByPartitionId = `-- name: ListWebhookWorkersByPartitionId :many
+WITH tenants AS (
+    SELECT
+        "id"
+    FROM
+        "Tenant"
+    WHERE
+        "workerPartitionId" = $1::text
+), update_partition AS (
+    UPDATE
+        "TenantWorkerPartition"
+    SET
+        "lastHeartbeat" = NOW()
+    WHERE
+        "id" = $1::text
+)
 SELECT id, "createdAt", "updatedAt", name, secret, url, "tokenValue", deleted, "tokenId", "tenantId"
 FROM "WebhookWorker"
-WHERE "tenantId" = $1::uuid
+WHERE "tenantId" IN (SELECT "id" FROM tenants)
 `
 
-func (q *Queries) ListWebhookWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*WebhookWorker, error) {
-	rows, err := db.Query(ctx, listWebhookWorkers, tenantid)
+func (q *Queries) ListWebhookWorkersByPartitionId(ctx context.Context, db DBTX, workerpartitionid string) ([]*WebhookWorker, error) {
+	rows, err := db.Query(ctx, listWebhookWorkersByPartitionId, workerpartitionid)
 	if err != nil {
 		return nil, err
 	}
