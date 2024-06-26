@@ -39,5 +39,7 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 		return nil, err
 	}
 
+	ww.Secret = secret
+
 	return gen.WebhookCreate200JSONResponse(*transformers.ToWebhookWorkerCreated(ww)), nil
 }
