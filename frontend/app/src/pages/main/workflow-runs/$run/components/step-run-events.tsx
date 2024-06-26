@@ -51,6 +51,8 @@ export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
 
   const combinedEvents = useMemo(() => {
     const events = getLogsQuery.data?.rows || [];
+    const stub = createStepRunArchive(stepRun!, 0);
+
     const archives = getArchivesQuery.data?.rows || [];
 
     const combined = [
@@ -66,10 +68,17 @@ export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
       })),
     ];
 
-    return combined.sort(
-      (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
-    );
-  }, [getLogsQuery.data?.rows, getArchivesQuery.data?.rows]);
+    return [
+      {
+        type: 'archive',
+        data: stub,
+        time: stub.createdAt,
+      },
+      ...combined.sort(
+        (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
+      ),
+    ];
+  }, [getLogsQuery.data?.rows, getArchivesQuery.data?.rows, stepRun]);
 
   if (!stepRun) {
     return <Spinner />;
@@ -128,9 +137,27 @@ function StepRunArchiveCard({ archive }: { archive: StepRunArchive }) {
     return <></>;
   }
 
+  const type = archive.cancelledReason
+    ? 'Cancelled'
+    : archive.error
+      ? 'Error'
+      : 'Output';
+
+  const severity: StepRunEventSeverity =
+    archive.cancelledReason || archive.error
+      ? StepRunEventSeverity.CRITICAL
+      : StepRunEventSeverity.INFO;
+
   return (
     <Card className=" bg-muted/30">
       <CardHeader>
+        <div className="flex flex-row justify-between items-center text-sm">
+          <div className="flex flex-row justify-between gap-3 items-center">
+            <EventIndicator severity={severity} />
+            <CardTitle className="tracking-wide text-sm">{type}</CardTitle>
+          </div>
+          <RelativeDate date={archive.createdAt} />
+        </div>
         <CardDescription>{reason}</CardDescription>
       </CardHeader>
       <CardContent className="p-0 z-10 bg-background"></CardContent>
@@ -195,4 +222,25 @@ function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
       )}
     />
   );
+}
+
+function createStepRunArchive(stepRun: StepRun, order: number): StepRunArchive {
+  return {
+    createdAt: stepRun.finishedAt || stepRun.cancelledAt || stepRun.startedAt!,
+    stepRunId: stepRun.metadata.id,
+    order: order,
+    input: stepRun.input,
+    output: stepRun.output,
+    startedAt: stepRun.startedAt,
+    error: stepRun.error,
+    startedAtEpoch: stepRun.startedAtEpoch,
+    finishedAt: stepRun.finishedAt,
+    finishedAtEpoch: stepRun.finishedAtEpoch,
+    timeoutAt: stepRun.timeoutAt,
+    timeoutAtEpoch: stepRun.timeoutAtEpoch,
+    cancelledAt: stepRun.cancelledAt,
+    cancelledAtEpoch: stepRun.cancelledAtEpoch,
+    cancelledReason: stepRun.cancelledReason,
+    cancelledError: stepRun.cancelledError,
+  };
 }
