@@ -160,8 +160,19 @@ type APIErrors struct {
 
 // APIMeta defines model for APIMeta.
 type APIMeta struct {
-	Auth    *APIMetaAuth    `json:"auth,omitempty"`
-	Posthog *APIMetaPosthog `json:"posthog,omitempty"`
+	// AllowChangePassword whether or not users can change their password
+	AllowChangePassword *bool `json:"allowChangePassword,omitempty"`
+
+	// AllowCreateTenant whether or not users can create new tenants
+	AllowCreateTenant *bool `json:"allowCreateTenant,omitempty"`
+
+	// AllowInvites whether or not users can invite other users to this instance
+	AllowInvites *bool `json:"allowInvites,omitempty"`
+
+	// AllowSignup whether or not users can sign up for this instance
+	AllowSignup *bool           `json:"allowSignup,omitempty"`
+	Auth        *APIMetaAuth    `json:"auth,omitempty"`
+	Posthog     *APIMetaPosthog `json:"posthog,omitempty"`
 
 	// PylonAppId the Pylon app ID for usepylon.com chat support
 	PylonAppId *string `json:"pylonAppId,omitempty"`

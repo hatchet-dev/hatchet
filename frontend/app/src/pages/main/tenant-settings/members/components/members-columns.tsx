@@ -11,6 +11,7 @@ import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
 import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
 import { useState } from 'react';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 
 export const columns = ({
   onChangePasswordClick,
@@ -73,6 +74,7 @@ function MemberActions({
   row: Row<TenantMember>;
   onChangePasswordClick: (row: TenantMember) => void;
 }) {
+  const meta = useApiMeta();
   const { user } = useOutletContext<UserContextType>();
   const { tenant } = useOutletContext<TenantContextType>();
 
@@ -85,7 +87,7 @@ function MemberActions({
 
   const isCurrent = row.original.user.email !== user.email;
 
-  if (user.hasPassword && !isCurrent) {
+  if (user.hasPassword && !isCurrent && meta.data?.data.allowChangePassword) {
     actions.push({
       label: 'Change Password',
       onClick: () => onChangePasswordClick(row.original),

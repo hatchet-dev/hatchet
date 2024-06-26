@@ -76,7 +76,20 @@ type ConfigFileRuntime struct {
 	// Enforce limits controls whether the server enforces tenant limits
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
 
+	// Default limit values
 	Limits LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
+
+	// Allow new tenants to be created
+	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
+
+	// Allow new invites to be created
+	AllowInvites bool `mapstructure:"allowInvites" json:"allowInvites,omitempty" default:"true"`
+
+	// Allow new tenants to be created
+	AllowCreateTenant bool `mapstructure:"allowCreateTenant" json:"allowCreateTenant,omitempty" default:"true"`
+
+	// Allow passwords to be changed
+	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
 }
 
 type LimitConfigFile struct {
@@ -341,6 +354,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
+	_ = v.BindEnv("runtime.allowSignup", "SERVER_ALLOW_SIGNUP")
+	_ = v.BindEnv("runtime.allowInvites", "SERVER_ALLOW_INVITES")
+	_ = v.BindEnv("runtime.allowCreateTenant", "SERVER_ALLOW_CREATE_TENANT")
+	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultWorkflowRunLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT")

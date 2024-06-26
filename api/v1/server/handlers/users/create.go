@@ -15,6 +15,13 @@ import (
 )
 
 func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequestObject) (gen.UserCreateResponseObject, error) {
+
+	if !u.config.Runtime.AllowSignup {
+		return gen.UserCreate400JSONResponse(
+			apierrors.NewAPIErrors("user signups are disabled"),
+		), nil
+	}
+
 	// validate the request
 	if apiErrors, err := u.config.Validator.ValidateAPI(request.Body); err != nil {
 		return nil, err
