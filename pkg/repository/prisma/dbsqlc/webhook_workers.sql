@@ -5,7 +5,8 @@ WITH tenants AS (
     FROM
         "Tenant"
     WHERE
-        "workerPartitionId" = sqlc.arg('workerPartitionId')::text
+        "workerPartitionId" = sqlc.arg('workerPartitionId')::text OR
+        "workerPartitionId" IS NULL
 ), update_partition AS (
     UPDATE
         "TenantWorkerPartition"
