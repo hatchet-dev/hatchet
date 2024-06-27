@@ -1,8 +1,13 @@
+import { Callout } from "nextra/components";
+
 # Webhooks
 
-Hatchet expects you to use a long-running app to process your workflows. This does not work on serverless environments like AWS Lambda, Vercel, GCP Cloud Functions, CloudFlare Workers, and many more.
+In order to run workflows in serverless environments like AWS Lambda, Vercel, GCP Cloud Functions, and CloudFlare Workers, you can use webhooks.
 
-To run workflows on a serverless environment, you can use webhooks.\
+<Callout type="info" emoji="🪓">
+  Webhooks currently have first-class support only in the Typescript and Go
+  SDKs.
+</Callout>
 
 If you are using the following tools, we have quickstart repositories to help you get started:
 
