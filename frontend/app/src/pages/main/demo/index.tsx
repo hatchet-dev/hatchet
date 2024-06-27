@@ -96,8 +96,15 @@ export default function ExpandedWorkflow() {
         )}
         <div className="flex flex-row justify-start items-center mt-4"></div>
 
+        <p className="text-sm text-gray-700 dark:text-gray-300">
+          {' '}
+          Hey Hacker News, welcome to the Hatchet demo instance. We put together
+          this page so you can quickly run a workflow and experience our
+          observability.
+        </p>
+
         <Alert variant="default" className="my-2">
-          <AlertTitle className="font-semibold">
+          <AlertTitle className="font-semibold mb-2">
             <span className="mr-1">🪓</span> What's a workflow?
           </AlertTitle>
           <AlertDescription>
@@ -108,18 +115,12 @@ export default function ExpandedWorkflow() {
           </AlertDescription>
         </Alert>
 
-        <p className="text-sm text-gray-700 dark:text-gray-300">
-          {' '}
-          👋 Hey Hacker News, welcome to the Hatchet demo instance. We put
-          together this page so you can quickly run a workflow and experience
-          our observability.
-        </p>
-
         <h3 className="text-sm text-gray-700 dark:text-gray-300 mt-2">
           This is an example DAG workflow (
           <a
             href="hhttps://github.com/hatchet-dev/hatchet-python-quickstart/blob/65d81c46a394818aceaa7e328bd526950e2dfa68/simple-examples/src/demo/worker.py"
             target="_blank"
+            className="text-indigo-500 dark:text-indigo-400 underline"
           >
             source here
           </a>

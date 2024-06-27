@@ -308,7 +308,7 @@ export function StepRunPlayground({
               </div>
               {demo && (
                 <Alert variant="default" className="my-4">
-                  <AlertTitle className="font-semibold">
+                  <AlertTitle className="font-semibold mb-2">
                     <span className="mr-1">🪓</span> Here's your input.
                   </AlertTitle>
                   <AlertDescription>
@@ -328,14 +328,14 @@ export function StepRunPlayground({
                 />
               )}
             </div>
-            <div className="flex-grow flex-col flex gap-4 w-1/2 ">
+            <div className="flex-grow flex-col flex w-1/2 ">
               <div className="text-lg font-semibold tracking-tight mb-4">
                 Output
               </div>
               <p>
                 {demo && (
                   <Alert variant="default" className="my-4">
-                    <AlertTitle className="font-semibold">
+                    <AlertTitle className="font-semibold mb-2">
                       <span className="mr-1">🪓</span> Here's your output.
                     </AlertTitle>
                     <AlertDescription>
