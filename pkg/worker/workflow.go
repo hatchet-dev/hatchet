@@ -202,7 +202,7 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 
 	if j.Concurrency != nil {
 		w.Concurrency = &types.WorkflowConcurrency{
-			ActionID: "concurrency:" + getFnName(j.Concurrency.fn), // TODO this should also be namespaced
+			ActionID: w.Name + ":concurrency:" + getFnName(j.Concurrency.fn),
 		}
 
 		if j.Concurrency.maxRuns != nil {
@@ -251,7 +251,7 @@ func (j *WorkflowJob) ToActionMap(svcName string) map[string]any {
 	}
 
 	if j.Concurrency != nil {
-		res["concurrency:"+getFnName(j.Concurrency.fn)] = j.Concurrency.fn
+		res[j.Name+":concurrency:"+getFnName(j.Concurrency.fn)] = j.Concurrency.fn
 	}
 
 	if j.OnFailure != nil {
