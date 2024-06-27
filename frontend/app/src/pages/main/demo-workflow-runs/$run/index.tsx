@@ -207,7 +207,8 @@ export default function ExpandedWorkflowRun() {
             <p className="mt-4">
               Here's the same DAG, but updated with real time state of how your
               workflow is executing! You can click through each step to see
-              inputs and outputs or replay the step.
+              inputs and outputs or replay the step. We've added some artificial
+              delay in each step so you can see the steps in action.
             </p>
             <div className="w-full h-[200px] mt-8">
               <WorkflowRunVisualizer
