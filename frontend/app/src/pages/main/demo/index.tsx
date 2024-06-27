@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { WorkflowTags } from '../workflows/components/workflow-tags';
 import { StarIcon } from '@radix-ui/react-icons';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -95,21 +96,26 @@ export default function ExpandedWorkflow() {
         )}
         <div className="flex flex-row justify-start items-center mt-4"></div>
 
-        <p>
+        <p className="text-[1rem] text-gray-700 dark:text-gray-300">
           {' '}
-          👋 Hey there, welcome to the Hatchet Dashboard. We put together this
-          page so you can quickly run a workflow and experience our
-          observability.
+          👋 Hey Hacker News, welcome to the Hatchet demo instance. We put
+          together this page so you can quickly run a workflow and experience
+          our observability.
         </p>
 
-        <p className="mt-4">
-          In Hatchet, workflows are a series of functions that can either be
-          orchestrated as a Directed Acyclic Graph (DAG) or spawned procedurally
-          with Child Workflows. No matter how you use Hatchet, workflows are
-          durable and observable!
-        </p>
+        <Alert variant="default" className="mb-4">
+          <AlertTitle className="font-semibold">
+            🪓 What's a workflow?
+          </AlertTitle>
+          <AlertDescription>
+            In Hatchet, workflows are a series of functions that can either be
+            orchestrated as a Directed Acyclic Graph (DAG) or spawned
+            procedurally with child workflows. In either case, workflows are
+            durable and observable.
+          </AlertDescription>
+        </Alert>
 
-        <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
+        <h3 className="text-[1rem] text-gray-700 dark:text-gray-300">
           This is an example DAG Workflow, when you're ready, click the button
           to trigger it! <br />
           <Button

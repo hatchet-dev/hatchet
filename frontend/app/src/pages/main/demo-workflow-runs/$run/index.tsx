@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { BiDotsVertical } from 'react-icons/bi';
 import { useApiError } from '@/lib/hooks';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -204,12 +205,18 @@ export default function ExpandedWorkflowRun() {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="overview">
-            <p className="mt-4">
-              Here's the same DAG, but updated with real time state of how your
-              workflow is executing! You can click through each step to see
-              inputs and outputs or replay the step. We've added some artificial
-              delay in each step so you can see the steps in action.
-            </p>
+            <Alert variant="default" className="my-4">
+              <AlertTitle className="font-semibold">
+                🪓 Here's your workflow.
+              </AlertTitle>
+              <AlertDescription>
+                Here's the same DAG, but updated with real time state of how
+                your workflow is executing! You can click through each step to
+                see inputs and outputs or replay the step. We've added some
+                artificial delay in each step so you can see the steps in
+                action.
+              </AlertDescription>
+            </Alert>
             <div className="w-full h-[200px] mt-8">
               <WorkflowRunVisualizer
                 workflowRun={run}

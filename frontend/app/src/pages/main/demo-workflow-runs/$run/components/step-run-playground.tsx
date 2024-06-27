@@ -26,6 +26,7 @@ import { QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { WorkflowRunsTable } from '../../components/workflow-runs-table';
 import { StepRunEvents } from './step-run-events';
 import RelativeDate from '@/components/molecules/relative-date';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export function StepRunPlayground({
   stepRun,
@@ -306,10 +307,15 @@ export function StepRunPlayground({
                 Input
               </div>
               {demo && (
-                <p>
-                  Your input and data from parent steps get propegated through
-                  the step input.
-                </p>
+                <Alert variant="default" className="my-4">
+                  <AlertTitle className="font-semibold">
+                    🪓 Here's your input.
+                  </AlertTitle>
+                  <AlertDescription>
+                    Your input and data from parent steps get propegated through
+                    the step input.
+                  </AlertDescription>
+                </Alert>
               )}
               {stepInput && (
                 <StepRunInputs
@@ -325,10 +331,15 @@ export function StepRunPlayground({
             <div className="flex-grow flex-col flex gap-4 w-1/2 ">
               <p>
                 {demo && (
-                  <p>
-                    You can view outputs, pipe logs, and see the events for how
-                    this step was run.
-                  </p>
+                  <Alert variant="default" className="my-4">
+                    <AlertTitle className="font-semibold">
+                      🪓 Here's your output.
+                    </AlertTitle>
+                    <AlertDescription>
+                      You can view outputs, pipe logs, and see the events for
+                      how this step was run.
+                    </AlertDescription>
+                  </Alert>
                 )}
               </p>
               <Tabs defaultValue="output" className="flex flex-col">
