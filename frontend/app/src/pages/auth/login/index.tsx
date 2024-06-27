@@ -45,7 +45,7 @@ export default function Login() {
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center w-full h-full lg:flex-row">
-      <div className="container relative flex-col items-center justify-center w-full md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
+      <div className="container relative flex-col items-center justify-center w-full lg:px-0">
         <div className="mx-auto flex w-full max-w-md lg:p-8">
           <div className="flex w-full flex-col justify-center space-y-6">
             <div className="flex flex-col space-y-2 text-center">
