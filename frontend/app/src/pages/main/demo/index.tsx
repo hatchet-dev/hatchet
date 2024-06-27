@@ -19,7 +19,7 @@ type WorkflowWithVersion = {
 };
 
 export async function loader(): Promise<WorkflowWithVersion | null> {
-  const workflowId = 'bb0e4710-85cd-4e0e-9bd5-022b3d8142b2';
+  const workflowId = '432bee47-6963-4c57-bf50-bba6bb87d53e';
 
   invariant(workflowId);
 
@@ -121,6 +121,7 @@ export default function ExpandedWorkflow() {
             href="hhttps://github.com/hatchet-dev/hatchet-python-quickstart/blob/65d81c46a394818aceaa7e328bd526950e2dfa68/simple-examples/src/demo/worker.py"
             target="_blank"
             className="text-indigo-500 dark:text-indigo-400 underline"
+            rel="noreferrer"
           >
             source here
           </a>
