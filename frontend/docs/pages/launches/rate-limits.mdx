@@ -70,11 +70,11 @@ err = c.Admin().PutRateLimit("example-limit", &types.RateLimitOpts{
 2. Then, specify the consumption of limits in step definitions:
 
 ```go
-err = w.On(
-    worker.NoTrigger(),
+err = w.RegisterWorkflow(
     &worker.WorkflowJob{
         Name:        "rate-limit-workflow",
         Description: "This illustrates rate limiting.",
+        On:          worker.NoTrigger(),
         Steps: []*worker.WorkflowStep{
             worker.Fn(StepOne).SetName("step-one").SetRateLimit(
                 worker.RateLimit{

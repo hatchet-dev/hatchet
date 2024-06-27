@@ -301,13 +301,11 @@ func main() {
 		panic(fmt.Sprintf("error creating worker: %v", err))
 	}
 
-	testSvc := w.NewService("test")
-
-	err = testSvc.On(
-		worker.Events("simple"),
+	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			Name:        "simple-workflow",
 			Description: "Simple one-step workflow.",
+      On:          worker.Events("simple"),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
 					fmt.Println("executed step 1")

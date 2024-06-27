@@ -16,7 +16,7 @@ If you haven't already signed up for Hatchet Cloud, please register [here](https
 
 In Hatchet Cloud, you'll be shown a screen to create your first tenant. A tenant is a logical separation of your environments (e.g. `dev`, `staging`, `production`). Each tenant has its own set of users who can access it.
 
-After creating your tenant, navigate to your Hatchet dashboard and navigate to your settings tab. You should see a section called "API Keys". Click "Create API Key", input a name for the key and copy the key. Then set the following environment variables:
+After creating your tenant, navigate to your Hatchet dashboard and navigate to your settings tab. You should see a section called "API Keys". Click "Create API Key", input a name for the key and copy the key. Place the following in a `.env` file:
 
 ```sh
 HATCHET_CLIENT_TOKEN="<your-api-key>"
@@ -134,7 +134,13 @@ npm run worker
 
   </Tabs.Tab>
   <Tabs.Tab>
-  In a new Go project, copy the following code into a `main.go` file:
+Run the following to initialize a new Go project:
+
+```sh
+go mod init my-hatchet-project
+```
+
+Then copy the following code into a `main.go` file:
 
 ```go filename="main.go" copy
 package main
@@ -173,13 +179,11 @@ func main() {
 		panic(fmt.Sprintf("error creating worker: %v", err))
 	}
 
-	testSvc := w.NewService("test")
-
-	err = testSvc.On(
-		worker.Events("simple"),
+	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			Name:        "simple-workflow",
 			Description: "Simple one-step workflow.",
+			On:          worker.Events("simple"),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
 					fmt.Println("executed step 1")
@@ -209,7 +213,7 @@ func main() {
 }
 ```
 
-Next, run the following command to start the worker:
+Next, run `go mod tidy` to install the dependencies, and finally run the following to start the worker:
 
 ```sh
 go run main.go
