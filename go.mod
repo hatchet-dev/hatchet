@@ -93,7 +93,7 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/exaring/otelpgx v0.6.1
+	github.com/exaring/otelpgx v0.6.2
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/getsentry/sentry-go v0.28.1
 	github.com/go-chi/chi v1.5.5
