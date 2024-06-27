@@ -27,9 +27,7 @@ type WorkflowWithVersion = {
   version: WorkflowVersion;
 };
 
-export async function loader({
-  params,
-}: LoaderFunctionArgs): Promise<WorkflowWithVersion | null> {
+export async function loader(): Promise<WorkflowWithVersion | null> {
   const workflowId = '432bee47-6963-4c57-bf50-bba6bb87d53e';
 
   invariant(workflowId);

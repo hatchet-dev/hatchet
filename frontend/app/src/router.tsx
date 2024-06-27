@@ -120,6 +120,7 @@ const routes: RouteObject[] = [
                   import('./pages/main/demo').then((res) => {
                     return {
                       Component: res.default,
+                      loader: res.loader,
                     };
                   }),
               },
