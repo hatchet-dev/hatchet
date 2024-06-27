@@ -246,7 +246,7 @@ export function StepRunPlayground({
     <div className="p-4 sm:p-6 lg:p-8">
       {stepRun && (
         <>
-          <div className="flex flex-col sm:flex-row gap-2 justify-between items-center sticky top-0 z-50 bg-white p-4 sm:p-6 lg:p-8">
+          <div className="flex flex-col sm:flex-row gap-2 justify-between items-center sticky top-0 z-50 p-4 sm:p-6 lg:p-8">
             <div className="text-xl sm:text-2xl font-semibold tracking-tight">
               {stepRun?.step?.readableId}
             </div>
@@ -323,101 +323,103 @@ export function StepRunPlayground({
                 />
               )}
             </div>
-            <div className="flex-grow flex-col flex w-1/2 ">
-              <div className="text-lg font-semibold tracking-tight mb-4">
-                Output
-              </div>
-              <p>
-                {demo && (
-                  <Alert variant="default" className="mb-4">
-                    <AlertTitle className="font-semibold mb-2">
-                      <span className="mr-1">🪓</span> Here's your output.
-                    </AlertTitle>
-                    <AlertDescription>
-                      You can view outputs, pipe logs, and see the events for
-                      how this step was run.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </p>
-              <Tabs defaultValue="output" className="flex flex-col">
-                <div className="flex flex-col sm:flex-row justify-between items-center mb-2">
-                  <div className="flex flex-row justify-start items-center gap-6">
-                    <TabsList>
-                      <TabsTrigger value="output" className="px-4 sm:px-8">
-                        Output
-                      </TabsTrigger>
-                      <TabsTrigger value="logs" className="px-4 sm:px-8">
-                        Logs
-                      </TabsTrigger>
-                      <TabsTrigger value="events" className="px-4 sm:px-8">
-                        Events
-                      </TabsTrigger>
-                    </TabsList>
-                  </div>
-                  <RunStatus
-                    status={
-                      errors.length > 0
-                        ? StepRunStatus.FAILED
-                        : stepRun?.status || StepRunStatus.PENDING
-                    }
-                    className="px-2"
-                  />
+            <div className="flex flex-col lg:flex-row gap-4 mt-4">
+              <div className="flex-grow lg:w-1/2">
+                <div className="text-lg font-semibold tracking-tight mb-4">
+                  Output
                 </div>
-
-                <TabsContent value="output">
-                  <StepRunOutput
-                    output={output}
-                    isLoading={isLoading}
-                    errors={
-                      [
-                        ...errors,
-                        stepRun.error || stepRun.cancelledReason
-                          ? StepStatusDetails({ stepRun })
-                          : undefined,
-                      ].filter((e) => !!e) as string[]
-                    }
-                  />
-                </TabsContent>
-                <TabsContent value="logs">
-                  <StepRunLogs stepRun={stepRun} />
-                </TabsContent>
-                <TabsContent value="events">
-                  <StepRunEvents stepRun={stepRun} />
-                </TabsContent>
-              </Tabs>
-
-              {isLoading && disabled && (
-                <>
-                  {stepRun.timeoutAt && (
-                    <div>
-                      Timeout in{' '}
-                      <RelativeDate date={stepRun.timeoutAt} future />
-                    </div>
+                <p>
+                  {demo && (
+                    <Alert variant="default" className="my-4">
+                      <AlertTitle className="font-semibold mb-2">
+                        <span className="mr-1">🪓</span> Here's your output.
+                      </AlertTitle>
+                      <AlertDescription>
+                        You can view outputs, pipe logs, and see the events for
+                        how this step was run.
+                      </AlertDescription>
+                    </Alert>
                   )}
-                  <Button className="w-fit" onClick={handleOnCancel}>
-                    <>
-                      <XMarkIcon className={cn('h-4 w-4 mr-2')} />
-                      Attempt Cancel
-                    </>
-                  </Button>
-                  <a href="https://docs.hatchet.run/home/features/cancellation">
-                    <Button
-                      onClick={handleOnCancel}
-                      variant="link"
-                      className="p-0 w-fit"
-                      asChild
-                    >
-                      <span className="flex flex-row items-center">
-                        <QuestionMarkCircleIcon
-                          className={cn('h-4 w-4 mr-2')}
-                        />
-                        Help: How to handle cancelation signaling
-                      </span>
+                </p>
+                <Tabs defaultValue="output" className="flex flex-col">
+                  <div className="flex flex-col sm:flex-row justify-between items-center mb-2">
+                    <div className="flex flex-row justify-start items-center gap-6">
+                      <TabsList>
+                        <TabsTrigger value="output" className="px-4 sm:px-8">
+                          Output
+                        </TabsTrigger>
+                        <TabsTrigger value="logs" className="px-4 sm:px-8">
+                          Logs
+                        </TabsTrigger>
+                        <TabsTrigger value="events" className="px-4 sm:px-8">
+                          Events
+                        </TabsTrigger>
+                      </TabsList>
+                    </div>
+                    <RunStatus
+                      status={
+                        errors.length > 0
+                          ? StepRunStatus.FAILED
+                          : stepRun?.status || StepRunStatus.PENDING
+                      }
+                      className="px-2"
+                    />
+                  </div>
+
+                  <TabsContent value="output">
+                    <StepRunOutput
+                      output={output}
+                      isLoading={isLoading}
+                      errors={
+                        [
+                          ...errors,
+                          stepRun.error || stepRun.cancelledReason
+                            ? StepStatusDetails({ stepRun })
+                            : undefined,
+                        ].filter((e) => !!e) as string[]
+                      }
+                    />
+                  </TabsContent>
+                  <TabsContent value="logs">
+                    <StepRunLogs stepRun={stepRun} />
+                  </TabsContent>
+                  <TabsContent value="events">
+                    <StepRunEvents stepRun={stepRun} />
+                  </TabsContent>
+                </Tabs>
+
+                {isLoading && disabled && (
+                  <>
+                    {stepRun.timeoutAt && (
+                      <div>
+                        Timeout in{' '}
+                        <RelativeDate date={stepRun.timeoutAt} future />
+                      </div>
+                    )}
+                    <Button className="w-fit" onClick={handleOnCancel}>
+                      <>
+                        <XMarkIcon className={cn('h-4 w-4 mr-2')} />
+                        Attempt Cancel
+                      </>
                     </Button>
-                  </a>
-                </>
-              )}
+                    <a href="https://docs.hatchet.run/home/features/cancellation">
+                      <Button
+                        onClick={handleOnCancel}
+                        variant="link"
+                        className="p-0 w-fit"
+                        asChild
+                      >
+                        <span className="flex flex-row items-center">
+                          <QuestionMarkCircleIcon
+                            className={cn('h-4 w-4 mr-2')}
+                          />
+                          Help: How to handle cancelation signaling
+                        </span>
+                      </Button>
+                    </a>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </>
