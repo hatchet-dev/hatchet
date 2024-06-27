@@ -9,7 +9,7 @@ import {
 
 import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
 import { Tenant, TenantMember } from '@/lib/api';
-import { GearIcon, StarIcon } from '@radix-ui/react-icons';
+import { StarIcon } from '@radix-ui/react-icons';
 import React, { useCallback } from 'react';
 import {
   MembershipsContextType,
@@ -21,7 +21,6 @@ import { Loading } from '@/components/ui/loading.tsx';
 import { useSidebar } from '@/components/sidebar-provider';
 import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
-import useCloudApiMeta from '../auth/hooks/use-cloud-api-meta';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -59,8 +58,6 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
-
-  const meta = useCloudApiMeta();
 
   const onNavLinkClick = useCallback(() => {
     if (window.innerWidth > 768) {
@@ -181,33 +178,5 @@ function SidebarButtonPrimary({
         {collapsibleChildren}
       </CollapsibleContent>
     </Collapsible>
-  );
-}
-
-function SidebarButtonSecondary({
-  onNavLinkClick,
-  to,
-  name,
-}: {
-  onNavLinkClick: () => void;
-  to: string;
-  name: string;
-}) {
-  const location = useLocation();
-  const selected = location.pathname === to;
-
-  return (
-    <Link to={to} onClick={onNavLinkClick}>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn(
-          'w-[calc(100%-3px)] justify-start pl-3 pr-0 ml-1 mr-3 my-[1px]',
-          selected && 'bg-slate-200 dark:bg-slate-800',
-        )}
-      >
-        {name}
-      </Button>
-    </Link>
   );
 }
