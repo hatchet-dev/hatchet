@@ -329,6 +329,9 @@ export function StepRunPlayground({
               )}
             </div>
             <div className="flex-grow flex-col flex gap-4 w-1/2 ">
+              <div className="text-lg font-semibold tracking-tight mb-4">
+                Output
+              </div>
               <p>
                 {demo && (
                   <Alert variant="default" className="my-4">

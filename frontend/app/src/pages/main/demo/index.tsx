@@ -96,7 +96,7 @@ export default function ExpandedWorkflow() {
         )}
         <div className="flex flex-row justify-start items-center mt-4"></div>
 
-        <Alert variant="default" className="my-6">
+        <Alert variant="default" className="my-2">
           <AlertTitle className="font-semibold">
             <span className="mr-1">🪓</span> What's a workflow?
           </AlertTitle>
@@ -115,9 +115,15 @@ export default function ExpandedWorkflow() {
           our observability.
         </p>
 
-        <h3 className="text-sm text-gray-700 dark:text-gray-300">
-          This is an example DAG Workflow, when you're ready, click the button
-          to trigger it! <br />
+        <h3 className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+          This is an example DAG workflow (
+          <a
+            href="hhttps://github.com/hatchet-dev/hatchet-python-quickstart/blob/65d81c46a394818aceaa7e328bd526950e2dfa68/simple-examples/src/demo/worker.py"
+            target="_blank"
+          >
+            source here
+          </a>
+          ). Click the button below to trigger it: <br />
           <Button
             className="text-sm mt-4"
             onClick={() => setTriggerWorkflow(true)}
