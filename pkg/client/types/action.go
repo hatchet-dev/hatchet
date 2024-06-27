@@ -14,19 +14,15 @@ type Action struct {
 	// Required. The verb to perform.
 	Verb string
 
-	// Optional. A way to unique identify the step.
-	Subresource string
+	// The workflow name. Optional for compatibility reasons.
+	Workflow string
 }
 
 func (o Action) String() string {
-	if o.Subresource != "" {
-		return fmt.Sprintf("%s:%s:%s", o.Service, o.Verb, o.Subresource)
+	if o.Workflow != "" {
+		return fmt.Sprintf("%s:%s:%s", o.Workflow, o.Service, o.Verb)
 	}
 
-	return o.IntegrationVerbString()
-}
-
-func (o Action) IntegrationVerbString() string {
 	return fmt.Sprintf("%s:%s", o.Service, o.Verb)
 }
 
@@ -39,18 +35,19 @@ func ParseActionID(actionID string) (Action, error) {
 		return Action{}, fmt.Errorf("invalid action id %s, must have at least 2 strings separated : (colon)", actionID)
 	}
 
-	Service := firstToLower(parts[0])
-	verb := strings.ToLower(parts[1])
-
-	var subresource string
+	var workflow string
 	if numParts == 3 {
-		subresource = firstToLower(parts[2])
+		workflow = firstToLower(parts[0])
+		parts = parts[1:]
 	}
 
+	service := firstToLower(parts[0])
+	verb := strings.ToLower(parts[1])
+
 	return Action{
-		Service:     Service,
-		Verb:        verb,
-		Subresource: subresource,
+		Service:  service,
+		Verb:     verb,
+		Workflow: workflow,
 	}, nil
 }
 

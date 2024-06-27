@@ -56,7 +56,7 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 			}
 		}
 
-		err = s.worker.registerAction(parsedAction.Service, parsedAction.Verb, fn)
+		err = s.worker.registerAction(apiWorkflow.Name, parsedAction.Service, parsedAction.Verb, fn)
 
 		if err != nil {
 			return err
@@ -89,7 +89,7 @@ func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
 		fnOpts.name = getFnName(fn)
 	}
 
-	return s.worker.registerAction(s.Name, fnOpts.name, fn)
+	return s.worker.registerAction("none", s.Name, fnOpts.name, fn)
 }
 
 func (s *Service) Call(verb string) *WorkflowStep {

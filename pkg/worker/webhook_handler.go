@@ -154,8 +154,12 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 func (w *Worker) webhookProcess(ctx HatchetContext) (interface{}, error) {
 	var do Action
 	for _, action := range w.actions {
-		split := strings.Split(action.Name(), ":") // service:action
-		if split[1] == ctx.StepName() {
+		split := strings.Split(action.Name(), ":") // service:action or workflow:service:action
+		if len(split) == 3 && split[3-1] == ctx.StepName() {
+			do = action
+			break
+		}
+		if len(split) == 2 && split[2-1] == ctx.StepName() { // compatibility with old actions
 			do = action
 			break
 		}

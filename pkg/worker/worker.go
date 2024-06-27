@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -197,7 +198,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		for _, integrationAction := range actions {
 			action := fmt.Sprintf("%s:%s", integrationId, integrationAction)
 
-			err := w.registerAction(integrationId, action, integration.ActionHandler(integrationAction))
+			err := w.registerAction("integration", integrationId, action, integration.ActionHandler(integrationAction))
 
 			if err != nil {
 				return nil, fmt.Errorf("could not register integration action %s: %w", action, err)
@@ -266,11 +267,14 @@ func (w *Worker) RegisterAction(actionId string, method any) error {
 		return fmt.Errorf("could not parse action id: %w", err)
 	}
 
-	return w.registerAction(action.Service, action.Verb, method)
+	return w.registerAction("none", action.Service, action.Verb, method)
 }
 
-func (w *Worker) registerAction(service, verb string, method any) error {
-	actionId := fmt.Sprintf("%s:%s", service, verb)
+func (w *Worker) registerAction(wf, service, verb string, method any) error {
+	wf = strings.ToLower(wf)              // TODO
+	wf = strings.ReplaceAll(wf, " ", "-") // TODO
+
+	actionId := fmt.Sprintf("%s:%s:%s", wf, service, verb)
 
 	// if the service is "concurrency", then this is a special action
 	if service == "concurrency" {
