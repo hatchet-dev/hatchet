@@ -6,7 +6,7 @@ import invariant from 'tiny-invariant';
 import { Badge } from '@/components/ui/badge';
 import { Loading } from '@/components/ui/loading.tsx';
 import WorkflowVisualizer from './components/workflow-visualizer';
-import { TriggerWorkflowDemoForm, TriggerWorkflowForm } from './components/trigger-workflow-form';
+import { TriggerWorkflowDemoForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { WorkflowTags } from '../workflows/components/workflow-tags';

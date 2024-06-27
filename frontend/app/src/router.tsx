@@ -171,6 +171,15 @@ const routes: RouteObject[] = [
                   }),
               },
               {
+                path: '/demo-workflow-runs/:run',
+                lazy: async () =>
+                  import('./pages/main/demo-workflow-runs/$run').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
                 path: '/workflow-runs/:run',
                 lazy: async () =>
                   import('./pages/main/workflow-runs/$run').then((res) => {

@@ -136,7 +136,7 @@ export function TriggerWorkflowDemoForm({
 
   const triggerWorkflowMutation = useMutation({
     mutationKey: ['workflow-run:create', workflow?.metadata.id],
-    mutationFn: async (input: object) => {
+    mutationFn: async (input: string) => {
       if (!workflow) {
         return;
       }
@@ -155,7 +155,7 @@ export function TriggerWorkflowDemoForm({
         return;
       }
 
-      navigate(`/workflow-runs/${workflowRun.metadata.id}`);
+      navigate(`/demo-workflow-runs/${workflowRun.metadata.id}`);
     },
     onError: handleApiError,
   });
@@ -183,7 +183,7 @@ export function TriggerWorkflowDemoForm({
           className="w-fit"
           disabled={triggerWorkflowMutation.isPending}
           onClick={() => {
-            triggerWorkflowMutation.mutate(input);
+            triggerWorkflowMutation.mutate(input || '');
           }}
         >
           <PlusIcon
