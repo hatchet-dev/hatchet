@@ -52,6 +52,7 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
               autoCapitalize="none"
               autoComplete="email"
               autoCorrect="off"
+              defaultValue="hacker@news.ycombinator.com"
               disabled={props.isLoading}
             />
             {emailError && (
@@ -64,6 +65,7 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
               {...register('password')}
               id="password"
               placeholder="Password"
+              defaultValue="HatchetDemo123!"
               type="password"
               disabled={props.isLoading}
             />
