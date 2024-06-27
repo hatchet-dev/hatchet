@@ -73,7 +73,8 @@ WITH tenants AS (
     FROM
         "Tenant"
     WHERE
-        "workerPartitionId" = $1::text
+        "workerPartitionId" = $1::text OR
+        "workerPartitionId" IS NULL
 ), update_partition AS (
     UPDATE
         "TenantWorkerPartition"
