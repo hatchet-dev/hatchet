@@ -246,7 +246,7 @@ export function StepRunPlayground({
     <div className="p-4 sm:p-6 lg:p-8">
       {stepRun && (
         <>
-          <div className="flex flex-col sm:flex-row gap-2 justify-between items-center sticky top-0 z-50 p-4 sm:p-6 lg:p-8">
+          <div className="flex flex-col sm:flex-row gap-2 justify-between items-center sticky top-0 z-50 p-0">
             <div className="text-xl sm:text-2xl font-semibold tracking-tight">
               {stepRun?.step?.readableId}
             </div>
