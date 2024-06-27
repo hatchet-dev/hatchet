@@ -60,6 +60,8 @@ export const { GET, POST, PUT } = webhooks.nextJSHandler({
 ```typescript filename="pages/api/webhook.ts" copy
 import { Hatchet } from "@hatchet-dev/typescript-sdk";
 
+export const maxDuration = 60; // add this on vercel: 60 for free plans, 300 for pro plans
+
 const hatchet = Hatchet.init();
 
 const webhooks = hatchet.webhooks([workflow]);
@@ -74,6 +76,8 @@ export const { GET, POST, PUT } = webhooks.nextJSHandler({
 ```typescript filename="app.ts" copy
 import express from "express";
 import { Hatchet } from "@hatchet-dev/typescript-sdk";
+
+export const maxDuration = 60; // add this on vercel: 60 for free plans, 300 for pro plans
 
 const hatchet = Hatchet.init();
 
