@@ -267,14 +267,19 @@ func (w *Worker) RegisterAction(actionId string, method any) error {
 		return fmt.Errorf("could not parse action id: %w", err)
 	}
 
-	return w.registerAction("none", action.Service, action.Verb, method)
+	return w.registerAction("", action.Service, action.Verb, method)
 }
 
 func (w *Worker) registerAction(wf, service, verb string, method any) error {
 	wf = strings.ToLower(wf)              // TODO
 	wf = strings.ReplaceAll(wf, " ", "-") // TODO
 
-	actionId := fmt.Sprintf("%s:%s:%s", wf, service, verb)
+	var actionId string
+	if wf != "" {
+		actionId = fmt.Sprintf("%s:%s:%s", wf, service, verb)
+	} else {
+		actionId = fmt.Sprintf("%s:%s", service, verb)
+	}
 
 	// if the service is "concurrency", then this is a special action
 	if service == "concurrency" {

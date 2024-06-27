@@ -89,11 +89,11 @@ func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
 		fnOpts.name = getFnName(fn)
 	}
 
-	return s.worker.registerAction("none", s.Name, fnOpts.name, fn)
+	return s.worker.registerAction("", s.Name, fnOpts.name, fn)
 }
 
 func (s *Service) Call(verb string) *WorkflowStep {
-	actionId := fmt.Sprintf("none:%s:%s", s.Name, verb)
+	actionId := fmt.Sprintf("%s:%s", s.Name, verb)
 
 	registeredAction, exists := s.worker.actions[actionId]
 
