@@ -127,68 +127,6 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               />
             </div>
           </div>
-          <div className="py-2">
-            <h2 className="mb-2 text-lg font-semibold tracking-tight">
-              Settings
-            </h2>
-            <div className="space-y-1">
-              <SidebarButtonPrimary
-                onNavLinkClick={onNavLinkClick}
-                to="/tenant-settings/overview"
-                prefix="/tenant-settings"
-                name="General"
-                icon={<GearIcon className="mr-2 h-4 w-4" />}
-                collapsibleChildren={[
-                  <SidebarButtonSecondary
-                    key={1}
-                    onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/overview"
-                    name="Overview"
-                  />,
-                  <SidebarButtonSecondary
-                    key={2}
-                    onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/api-tokens"
-                    name="API Tokens"
-                  />,
-                  <SidebarButtonSecondary
-                    key={2}
-                    onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/webhooks"
-                    name="Webhooks"
-                  />,
-                  <SidebarButtonSecondary
-                    key={3}
-                    onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/members"
-                    name="Members"
-                  />,
-                  <SidebarButtonSecondary
-                    key={4}
-                    onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/billing-and-limits"
-                    name={
-                      meta?.data.canBill
-                        ? 'Billing & Limits'
-                        : 'Resource Limits'
-                    }
-                  />,
-                  <SidebarButtonSecondary
-                    key={4}
-                    onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/alerting"
-                    name="Alerting"
-                  />,
-                  <SidebarButtonSecondary
-                    key={4}
-                    onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/ingestors"
-                    name="Ingestors"
-                  />,
-                ]}
-              />
-            </div>
-          </div>
         </div>
         <TenantSwitcher memberships={memberships} currTenant={currTenant} />
       </div>

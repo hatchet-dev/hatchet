@@ -206,81 +206,81 @@ const routes: RouteObject[] = [
                     };
                   }),
               },
-              {
-                path: '/tenant-settings/overview',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/overview').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/api-tokens',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/api-tokens').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/webhooks',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/webhooks').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/members',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/members').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/tenant-settings/alerting',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/alerting').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/billing-and-limits',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/resource-limits').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
-              {
-                path: '/tenant-settings/ingestors',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/ingestors').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
-              },
+              // {
+              //   path: '/tenant-settings/overview',
+              //   lazy: async () =>
+              //     import('./pages/main/tenant-settings/overview').then(
+              //       (res) => {
+              //         return {
+              //           Component: res.default,
+              //         };
+              //       },
+              //     ),
+              // },
+              // {
+              //   path: '/tenant-settings/api-tokens',
+              //   lazy: async () =>
+              //     import('./pages/main/tenant-settings/api-tokens').then(
+              //       (res) => {
+              //         return {
+              //           Component: res.default,
+              //         };
+              //       },
+              //     ),
+              // },
+              // {
+              //   path: '/tenant-settings/webhooks',
+              //   lazy: async () =>
+              //     import('./pages/main/tenant-settings/webhooks').then(
+              //       (res) => {
+              //         return {
+              //           Component: res.default,
+              //         };
+              //       },
+              //     ),
+              // },
+              // {
+              //   path: '/tenant-settings/members',
+              //   lazy: async () =>
+              //     import('./pages/main/tenant-settings/members').then((res) => {
+              //       return {
+              //         Component: res.default,
+              //       };
+              //     }),
+              // },
+              // {
+              //   path: '/tenant-settings/alerting',
+              //   lazy: async () =>
+              //     import('./pages/main/tenant-settings/alerting').then(
+              //       (res) => {
+              //         return {
+              //           Component: res.default,
+              //         };
+              //       },
+              //     ),
+              // },
+              // {
+              //   path: '/tenant-settings/billing-and-limits',
+              //   lazy: async () =>
+              //     import('./pages/main/tenant-settings/resource-limits').then(
+              //       (res) => {
+              //         return {
+              //           Component: res.default,
+              //         };
+              //       },
+              //     ),
+              // },
+              // {
+              //   path: '/tenant-settings/ingestors',
+              //   lazy: async () =>
+              //     import('./pages/main/tenant-settings/ingestors').then(
+              //       (res) => {
+              //         return {
+              //           Component: res.default,
+              //         };
+              //       },
+              //     ),
+              // },
             ],
           },
         ],
