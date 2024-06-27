@@ -309,7 +309,7 @@ export function StepRunPlayground({
               {demo && (
                 <Alert variant="default" className="my-4">
                   <AlertTitle className="font-semibold">
-                    🪓 Here's your input.
+                    <span className="mr-1">🪓</span> Here's your input.
                   </AlertTitle>
                   <AlertDescription>
                     Your input and data from parent steps get propegated through
@@ -333,7 +333,7 @@ export function StepRunPlayground({
                 {demo && (
                   <Alert variant="default" className="my-4">
                     <AlertTitle className="font-semibold">
-                      🪓 Here's your output.
+                      <span className="mr-1">🪓</span> Here's your output.
                     </AlertTitle>
                     <AlertDescription>
                       You can view outputs, pipe logs, and see the events for

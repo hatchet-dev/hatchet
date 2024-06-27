@@ -96,16 +96,9 @@ export default function ExpandedWorkflow() {
         )}
         <div className="flex flex-row justify-start items-center mt-4"></div>
 
-        <p className="text-[1rem] text-gray-700 dark:text-gray-300">
-          {' '}
-          👋 Hey Hacker News, welcome to the Hatchet demo instance. We put
-          together this page so you can quickly run a workflow and experience
-          our observability.
-        </p>
-
-        <Alert variant="default" className="mb-4">
+        <Alert variant="default" className="my-6">
           <AlertTitle className="font-semibold">
-            🪓 What's a workflow?
+            <span className="mr-1">🪓</span> What's a workflow?
           </AlertTitle>
           <AlertDescription>
             In Hatchet, workflows are a series of functions that can either be
@@ -115,7 +108,14 @@ export default function ExpandedWorkflow() {
           </AlertDescription>
         </Alert>
 
-        <h3 className="text-[1rem] text-gray-700 dark:text-gray-300">
+        <p className="text-sm text-gray-700 dark:text-gray-300">
+          {' '}
+          👋 Hey Hacker News, welcome to the Hatchet demo instance. We put
+          together this page so you can quickly run a workflow and experience
+          our observability.
+        </p>
+
+        <h3 className="text-sm text-gray-700 dark:text-gray-300">
           This is an example DAG Workflow, when you're ready, click the button
           to trigger it! <br />
           <Button

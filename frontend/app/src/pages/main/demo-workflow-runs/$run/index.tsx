@@ -207,7 +207,7 @@ export default function ExpandedWorkflowRun() {
           <TabsContent value="overview">
             <Alert variant="default" className="my-4">
               <AlertTitle className="font-semibold">
-                🪓 Here's your workflow.
+                <span className="mr-1">🪓</span> Here's your workflow.
               </AlertTitle>
               <AlertDescription>
                 Here's the same DAG, but updated with real time state of how
