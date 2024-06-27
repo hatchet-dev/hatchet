@@ -4,14 +4,13 @@ import { isAxiosError } from 'axios';
 import { redirect, useLoaderData } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { Badge } from '@/components/ui/badge';
-import { relativeDate } from '@/lib/utils';
-import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/ui/loading.tsx';
 import WorkflowVisualizer from './components/workflow-visualizer';
-import { TriggerWorkflowForm } from './components/trigger-workflow-form';
+import { TriggerWorkflowDemoForm, TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { WorkflowTags } from '../workflows/components/workflow-tags';
+import { StarIcon } from '@radix-ui/react-icons';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -71,9 +70,9 @@ export default function ExpandedWorkflow() {
       <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
-            <Square3Stack3DIcon className="h-6 w-6 text-foreground mt-1" />
+            <StarIcon className="h-6 w-6 text-foreground mt-1" />
             <h2 className="text-2xl font-bold leading-tight text-foreground">
-              {workflow.name}
+              Demo Workflow
             </h2>
             {currVersion && (
               <Badge className="text-sm mt-1" variant="outline">
@@ -82,10 +81,8 @@ export default function ExpandedWorkflow() {
             )}
           </div>
           <WorkflowTags tags={workflow.tags || []} />
-          <Button className="text-sm" onClick={() => setTriggerWorkflow(true)}>
-            Trigger Workflow
-          </Button>
-          <TriggerWorkflowForm
+
+          <TriggerWorkflowDemoForm
             show={triggerWorkflow}
             workflow={workflow}
             onClose={() => setTriggerWorkflow(false)}
@@ -97,8 +94,30 @@ export default function ExpandedWorkflow() {
           </div>
         )}
         <div className="flex flex-row justify-start items-center mt-4"></div>
+
+        <p>
+          {' '}
+          👋 Hey there, welcome to the Hatchet Dashboard. We put together this
+          page so you can quickly run a workflow and experience our
+          observability.
+        </p>
+
+        <p className="mt-4">
+          In Hatchet, workflows are a series of functions that can either be
+          orchestrated as a Directed Acyclic Graph (DAG) or spawned procedurally
+          with Child Workflows. No matter how you use Hatchet, workflows are
+          durable and observable!
+        </p>
+
         <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
-          Workflow Definition
+          This is an example DAG Workflow, when you're ready, click the button
+          to trigger it! <br />
+          <Button
+            className="text-sm mt-4"
+            onClick={() => setTriggerWorkflow(true)}
+          >
+            Trigger Workflow
+          </Button>
         </h3>
         <Separator className="my-4" />
         <div className="w-full h-[400px]">
