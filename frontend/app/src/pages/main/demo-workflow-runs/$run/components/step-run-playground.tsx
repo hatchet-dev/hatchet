@@ -334,7 +334,7 @@ export function StepRunPlayground({
               </div>
               <p>
                 {demo && (
-                  <Alert variant="default" className="my-4">
+                  <Alert variant="default" className="mb-4">
                     <AlertTitle className="font-semibold mb-2">
                       <span className="mr-1">🪓</span> Here's your output.
                     </AlertTitle>

@@ -206,7 +206,7 @@ export default function ExpandedWorkflowRun() {
           </TabsList>
           <TabsContent value="overview">
             <Alert variant="default" className="my-4">
-              <AlertTitle className="font-semibold">
+              <AlertTitle className="font-semibold mb-2">
                 <span className="mr-1">🪓</span> Here's your workflow.
               </AlertTitle>
               <AlertDescription>
