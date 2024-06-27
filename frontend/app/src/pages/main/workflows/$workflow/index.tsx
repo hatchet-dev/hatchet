@@ -33,6 +33,7 @@ type WorkflowWithVersion = {
 };
 
 export async function loader({
+  request,
   params,
 }: LoaderFunctionArgs): Promise<WorkflowWithVersion | null> {
   const workflowId = params.workflow;
@@ -62,8 +63,13 @@ export async function loader({
     if (error instanceof Response) {
       throw error;
     } else if (isAxiosError(error)) {
-      // TODO: handle error better
-      throw redirect('/auth/login');
+      // only redirect if the response is 403 and current page does not contain /auth/login
+      if (
+        error.response?.status === 403 &&
+        !request.url.includes('/auth/login')
+      ) {
+        throw redirect('/auth/login');
+      }
     }
   }
 
