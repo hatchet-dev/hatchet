@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
 
@@ -271,8 +270,7 @@ func (w *Worker) RegisterAction(actionId string, method any) error {
 }
 
 func (w *Worker) registerAction(wf, service, verb string, method any) error {
-	wf = strings.ToLower(wf)              // TODO
-	wf = strings.ReplaceAll(wf, " ", "-") // TODO
+	wf = convertWorkflowNameToAction(wf)
 
 	var actionId string
 	if wf != "" {

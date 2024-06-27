@@ -446,9 +446,7 @@ func (w *WorkflowStep) GetStepId(index int) string {
 func (w *WorkflowStep) GetActionId(wfName, svcName string, index int) string {
 	stepId := w.GetStepId(index)
 
-	wf := wfName
-	wf = strings.ToLower(wf)
-	wf = strings.ReplaceAll(wf, " ", "-")
+	wf := convertWorkflowNameToAction(wfName)
 
 	return fmt.Sprintf("%s:%s:%s", wf, svcName, stepId)
 }
@@ -468,4 +466,8 @@ func getFnName(fn any) string {
 	}
 
 	return strings.ReplaceAll(fnName, ".", "-")
+}
+
+func convertWorkflowNameToAction(workflowName string) string {
+	return strings.ReplaceAll(strings.ToLower(workflowName), " ", "-")
 }
