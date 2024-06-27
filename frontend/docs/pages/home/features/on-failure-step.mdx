@@ -10,6 +10,7 @@ You can define an On Failure Step on your Workflow using the Hatchet client libr
 
 <Tabs items={['Python', 'Typescript', 'Go']}>
 <Tabs.Tab>
+
 ```python
 @hatchet.workflow(on_events=["user:create"])
 class OnFailureWorkflow:
@@ -22,78 +23,78 @@ class OnFailureWorkflow:
         print("executed on_failure")
         print(context)
 
-````
+```
+
 </Tabs.Tab>
 
 <Tabs.Tab>
+
 ```typescript
 const workflow: Workflow = {
-  id: 'on-failure-example',
-  description: 'test',
+  id: "on-failure-example",
+  description: "test",
   on: {
-    event: 'user:create',
+    event: "user:create",
   },
   steps: [
     {
-      name: 'step1',
+      name: "step1",
       run: async (ctx) => {
-        console.log('Starting Step 1!');
+        console.log("Starting Step 1!");
         await sleep(1000);
-        throw new Error('Step 1 failed');
+        throw new Error("Step 1 failed");
       },
     },
   ],
   onFailure: {
-    name: 'on-failure-step',
+    name: "on-failure-step",
     run: async (ctx) => {
-      console.log('Starting On Failure Step!');
-      return { onFailure: 'step' };
+      console.log("Starting On Failure Step!");
+      return { onFailure: "step" };
     },
   },
 };
-````
+```
 
 </Tabs.Tab>
 <Tabs.Tab>
+
 ```go
 
-func StepOne(ctx worker.HatchetContext) (result \*stepOneOutput, err error) {
-return nil, fmt.Errorf("test on failure")
+func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+	return nil, fmt.Errorf("test on failure")
 }
 
-func OnFailure(ctx worker.HatchetContext) (result \*stepOneOutput, err error) {
-return &stepOneOutput{
-Message: "Failure!",
-}, nil
+func OnFailure(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+	return &stepOneOutput{
+		Message: "Failure!",
+	}, nil
 }
 
-err = w.On(
-worker.NoTrigger(),
-&worker.WorkflowJob{
-Name: "on-failure-workflow",
-Description: "This runs at a scheduled time.",
-Steps: []*worker.WorkflowStep{
-worker.Fn(StepOne).SetName("step-one"),
-},
-OnFailure: &worker.WorkflowJob{
-Name: "scheduled-workflow-failure",
-Description: "This runs when the scheduled workflow fails.",
-Steps: []*worker.WorkflowStep{
-worker.Fn(OnFailure).SetName("on-failure"),
-},
-},
-},
+err = w.RegisterWorkflow(
+	&worker.WorkflowJob{
+		Name:        "on-failure-workflow",
+		On:          worker.NoTrigger(),
+		Description: "This runs at a scheduled time.",
+		Steps: []*worker.WorkflowStep{
+			worker.Fn(StepOne).SetName("step-one"),
+		},
+		OnFailure: &worker.WorkflowJob{
+			Name:        "scheduled-workflow-failure",
+			Description: "This runs when the scheduled workflow fails.",
+			Steps: []*worker.WorkflowStep{
+				worker.Fn(OnFailure).SetName("on-failure"),
+			},
+		},
+	},
 )
 
-````
+```
+
 </Tabs.Tab>
 </Tabs>
 
 In the above examples, the `on_failure` step is defined separately from the main workflow steps. It will be executed only if any of the main workflow steps fail.
-
-{/* <Callout type="info">
-The On Failure Step has access to the workflow context, which contains information about the failed step and the error that occurred.
-</Callout> */}
 
 ## Use Cases
 
@@ -114,7 +115,7 @@ def on_failure(self, context):
     slack_client.send_message(
         f"Workflow {context.workflow_run_id()} failed"
     )
-````
+```
 
 In this example, the On Failure Step sends a Slack notification with details about the failed workflow, including the workflow run ID which can be used to find the run in the Hatchet Dashboard.
 

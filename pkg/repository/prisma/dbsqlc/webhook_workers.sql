@@ -1,7 +1,23 @@
--- name: ListWebhookWorkers :many
+-- name: ListWebhookWorkersByPartitionId :many
+WITH tenants AS (
+    SELECT
+        "id"
+    FROM
+        "Tenant"
+    WHERE
+        "workerPartitionId" = sqlc.arg('workerPartitionId')::text OR
+        "workerPartitionId" IS NULL
+), update_partition AS (
+    UPDATE
+        "TenantWorkerPartition"
+    SET
+        "lastHeartbeat" = NOW()
+    WHERE
+        "id" = sqlc.arg('workerPartitionId')::text
+)
 SELECT *
 FROM "WebhookWorker"
-WHERE "tenantId" = @tenantId::uuid;
+WHERE "tenantId" IN (SELECT "id" FROM tenants);
 
 -- name: ListActiveWebhookWorkers :many
 SELECT *

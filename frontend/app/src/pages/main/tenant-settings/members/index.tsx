@@ -21,8 +21,11 @@ import { UpdateInviteForm } from './components/update-invite-form';
 import { DeleteInviteForm } from './components/delete-invite-form';
 import { ChangePasswordDialog } from './components/change-password-dialog';
 import { AxiosError } from 'axios';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 
 export default function Members() {
+  const meta = useApiMeta();
+
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
@@ -31,8 +34,12 @@ export default function Members() {
         </h2>
         <Separator className="my-4" />
         <MembersList />
-        <Separator className="my-4" />
-        <InvitesList />
+        {meta?.data?.data.allowInvites && (
+          <>
+            <Separator className="my-4" />
+            <InvitesList />
+          </>
+        )}
       </div>
     </div>
   );

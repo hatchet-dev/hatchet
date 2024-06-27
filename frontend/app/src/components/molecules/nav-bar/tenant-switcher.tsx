@@ -24,6 +24,7 @@ import {
 import React from 'react';
 import { useTenantContext } from '@/lib/atoms';
 import { Spinner } from '@/components/ui/loading.tsx';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 
 interface TenantSwitcherProps {
   className?: string;
@@ -35,6 +36,7 @@ export function TenantSwitcher({
   memberships,
   currTenant,
 }: TenantSwitcherProps) {
+  const meta = useApiMeta();
   const setCurrTenant = useTenantContext()[1];
   const [open, setOpen] = React.useState(false);
 
@@ -85,15 +87,19 @@ export function TenantSwitcher({
               </CommandItem>
             ))}
           </CommandList>
-          <CommandSeparator />
-          <CommandList>
-            <Link to="/onboarding/create-tenant">
-              <CommandItem className="text-sm cursor-pointer">
-                <PlusCircledIcon className="mr-2 h-4 w-4" />
-                New Tenant
-              </CommandItem>
-            </Link>
-          </CommandList>
+          {meta?.data?.data.allowCreateTenant && (
+            <>
+              <CommandSeparator />
+              <CommandList>
+                <Link to="/onboarding/create-tenant">
+                  <CommandItem className="text-sm cursor-pointer">
+                    <PlusCircledIcon className="mr-2 h-4 w-4" />
+                    New Tenant
+                  </CommandItem>
+                </Link>
+              </CommandList>
+            </>
+          )}
         </Command>
       </PopoverContent>
     </Popover>

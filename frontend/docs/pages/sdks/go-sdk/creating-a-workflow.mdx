@@ -1,14 +1,13 @@
 # Creating a Workflow
 
-The simplest way to define a workflow is by using the `worker.On` method. This method accepts two arguments: a workflow trigger and the workflow definition. For example, to trigger a workflow on the `user:created` event, you can do the following:
+The simplest way to define a workflow is by using the `worker.RegisterWorkflow` method. This method is passed the workflow definition, which includes triggers for the workflow and the steps that the workflow should execute. For example, to trigger a workflow on the `user:created` event, you can do the following:
 
 ```go
-w.On(
-    worker.Event("user:created"),
+w.RegisterWorkflow(
     &worker.WorkflowJob{
-        Name:        "post-user-sign-up",
-        Description: "Workflow that executes after a user signs up.",
-        Timeout:     "60s",
+        Name:        "simple-workflow",
+        Description: "Simple one-step workflow.",
+        On:          worker.Event("user:created"),
         Steps: []*worker.WorkflowStep{
             worker.Fn(func(ctx worker.HatchetContext) error {
                 return nil
@@ -33,11 +32,10 @@ w.On(
 
 ## Single-Step Workflows
 
-If your workflow is a single method, you can use `worker.Fn` to define your workflow:
+If your workflow is a single method that is only triggered via API, you can use `worker.Fn` to define your workflow:
 
 ```go
-w.On(
-    worker.Event("user:created"),
+w.RegisterWorkflow(
     worker.Fn(func(ctx worker.HatchetContext) error {
         return nil
     }),
@@ -47,8 +45,7 @@ w.On(
 Anonymous functions will be given an auto-generated name based on the package and parent function name. To avoid ugly auto-generated names, you can use `SetName` on the `worker.Fn` struct:
 
 ```go
-w.On(
-    worker.Event("user:created"),
+w.RegisterWorkflow(
     worker.Fn(func(ctx worker.HatchetContext) error {
         return nil
     }).SetName("post-user-create"), // this workflow will be named "post-user-create"
@@ -64,11 +61,12 @@ type stepOneOutput struct {
     Message string `json:"message"`
 }
 
-err = w.On(
-	worker.Events("user:create"),
+err = w.RegisterWorkflow(
+
 	&worker.WorkflowJob{
 		Name:        "two-step-workflow",
 		Description: "This is an example two-step workflow.",
+        On:          worker.Events("user:create"),
 		Steps: []*worker.WorkflowStep{
 			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 				input := &userCreateEvent{}
@@ -135,10 +133,10 @@ Services are a way to logically group workflows into different categories. For e
 ```go
 userService := w.NewService("user")
 
-userService.On(
-    worker.Event("user:created"),
+userService.RegisterWorkflow(
     &worker.WorkflowJob{
         Name:        "post-user-sign-up",
+        On:          worker.Event("user:created"),
         Description: "Workflow that executes after a user signs up.",
         Timeout:     "60s",
         Steps: []*worker.WorkflowStep{
@@ -166,10 +164,10 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "my-key", nil
 }
 
-err = testSvc.On(
-    worker.Events("concurrency-test-event"),
+err = w.RegisterWorkflow(
     &worker.WorkflowJob{
         Name:        "concurrency-limit",
+        On:          worker.Events("concurrency-test-event"),
         Description: "This limits concurrency to 1 run at a time.",
         Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(1),
         Steps: []*worker.WorkflowStep{
@@ -199,10 +197,10 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
     return event.UserId, nil
 }
 
-err = testSvc.On(
-    worker.Events("concurrency-test-event"),
+err = w.RegisterWorkflow(
     &worker.WorkflowJob{
         Name:        "concurrency-limit-per-user",
+        On:          worker.Events("concurrency-test-event"),
         Description: "This limits concurrency to 1 run at a time per user.",
         Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(1),
         Steps: []*worker.WorkflowStep{
@@ -214,13 +212,13 @@ err = testSvc.On(
 
 ## Cron Schedules
 
-You can declare a cron schedule by passing `worker.Cron` to the `worker.On` method. For example, to trigger a workflow every 5 minutes, you can do the following:
+You can declare a cron schedule by passing `worker.Cron` to the `worker.RegisterWorkflow` method. For example, to trigger a workflow every 5 minutes, you can do the following:
 
 ```go
-w.On(
-    worker.Cron("*/5 * * * *"),
+w.RegisterWorkflow(
     &worker.WorkflowJob{
         Name:        "my-cron-job",
+        On:          worker.Cron("*/5 * * * *"),
         Description: "Cron workflow example.",
         Timeout:     "60s",
         Steps: []*worker.WorkflowStep{
@@ -283,8 +281,7 @@ if err != nil {
 	panic(err)
 }
 
-err = testSvc.On(
-	worker.Events("user:create", "user:update"),
+err = testSvc.RegisterWorkflow(
 	testSvc.Call("step-one"),
 )
 ```

@@ -9,6 +9,22 @@ APIMeta:
       example: 12345678-1234-1234-1234-123456789012
     posthog:
       $ref: "#/APIMetaPosthog"
+    allowSignup:
+      type: boolean
+      description: whether or not users can sign up for this instance
+      example: true
+    allowInvites:
+      type: boolean
+      description: whether or not users can invite other users to this instance
+      example: true
+    allowCreateTenant:
+      type: boolean
+      description: whether or not users can create new tenants
+      example: true
+    allowChangePassword:
+      type: boolean
+      description: whether or not users can change their password
+      example: true
 
 APIMetaAuth:
   type: object

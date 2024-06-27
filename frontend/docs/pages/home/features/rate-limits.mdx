@@ -74,11 +74,11 @@ const workflow: Workflow = {
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
-err = w.On(
-    worker.NoTrigger(),
+err = w.RegisterWorkflow(
     &worker.WorkflowJob{
         Name:        "rate-limit-workflow",
         Description: "This illustrates rate limiting.",
+        On:          worker.NoTrigger(),
         Steps: []*worker.WorkflowStep{
             worker.Fn(StepOne).SetName("step-one").SetRateLimit(
                 worker.RateLimit{

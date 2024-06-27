@@ -17,6 +17,26 @@ export interface APIMeta {
    */
   pylonAppId?: string;
   posthog?: APIMetaPosthog;
+  /**
+   * whether or not users can sign up for this instance
+   * @example true
+   */
+  allowSignup?: boolean;
+  /**
+   * whether or not users can invite other users to this instance
+   * @example true
+   */
+  allowInvites?: boolean;
+  /**
+   * whether or not users can create new tenants
+   * @example true
+   */
+  allowCreateTenant?: boolean;
+  /**
+   * whether or not users can change their password
+   * @example true
+   */
+  allowChangePassword?: boolean;
 }
 
 export interface APIMetaAuth {
@@ -773,6 +793,35 @@ export interface StepRunEvent {
 export interface StepRunEventList {
   pagination?: PaginationResponse;
   rows?: StepRunEvent[];
+}
+
+export interface StepRunArchive {
+  stepRunId: string;
+  order: number;
+  input?: string;
+  output?: string;
+  /** @format date-time */
+  startedAt?: string;
+  error?: string;
+  /** @format date-time */
+  createdAt: string;
+  startedAtEpoch?: number;
+  /** @format date-time */
+  finishedAt?: string;
+  finishedAtEpoch?: number;
+  /** @format date-time */
+  timeoutAt?: string;
+  timeoutAtEpoch?: number;
+  /** @format date-time */
+  cancelledAt?: string;
+  cancelledAtEpoch?: number;
+  cancelledReason?: string;
+  cancelledError?: string;
+}
+
+export interface StepRunArchiveList {
+  pagination?: PaginationResponse;
+  rows?: StepRunArchive[];
 }
 
 export interface WorkerList {

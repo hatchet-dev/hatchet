@@ -11,6 +11,156 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createControllerPartition = `-- name: CreateControllerPartition :one
+INSERT INTO "ControllerPartition" ("id", "createdAt", "lastHeartbeat")
+VALUES ($1::text, NOW(), NOW())
+ON CONFLICT DO NOTHING
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+`
+
+func (q *Queries) CreateControllerPartition(ctx context.Context, db DBTX, id string) (*ControllerPartition, error) {
+	row := db.QueryRow(ctx, createControllerPartition, id)
+	var i ControllerPartition
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastHeartbeat,
+	)
+	return &i, err
+}
+
+const createTenant = `-- name: CreateTenant :one
+WITH active_controller_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "ControllerPartition"
+    WHERE
+        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+)
+INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId")
+VALUES (
+    $1::uuid,
+    $2::text,
+    $3::text,
+    (
+        SELECT
+            "id"
+        FROM
+            active_controller_partitions
+        ORDER BY
+            random()
+        LIMIT 1
+    )
+)
+RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+`
+
+type CreateTenantParams struct {
+	ID   pgtype.UUID `json:"id"`
+	Name string      `json:"name"`
+	Slug string      `json:"slug"`
+}
+
+func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantParams) (*Tenant, error) {
+	row := db.QueryRow(ctx, createTenant, arg.ID, arg.Name, arg.Slug)
+	var i Tenant
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Name,
+		&i.Slug,
+		&i.AnalyticsOptOut,
+		&i.AlertMemberEmails,
+		&i.ControllerPartitionId,
+		&i.WorkerPartitionId,
+	)
+	return &i, err
+}
+
+const createTenantAlertingSettings = `-- name: CreateTenantAlertingSettings :one
+INSERT INTO "TenantAlertingSettings" ("id", "tenantId")
+VALUES (gen_random_uuid(), $1::uuid)
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "maxFrequency", "lastAlertedAt", "tickerId", "enableExpiringTokenAlerts", "enableWorkflowRunFailureAlerts", "enableTenantResourceLimitAlerts"
+`
+
+func (q *Queries) CreateTenantAlertingSettings(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*TenantAlertingSettings, error) {
+	row := db.QueryRow(ctx, createTenantAlertingSettings, tenantid)
+	var i TenantAlertingSettings
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.MaxFrequency,
+		&i.LastAlertedAt,
+		&i.TickerId,
+		&i.EnableExpiringTokenAlerts,
+		&i.EnableWorkflowRunFailureAlerts,
+		&i.EnableTenantResourceLimitAlerts,
+	)
+	return &i, err
+}
+
+const createTenantWorkerPartition = `-- name: CreateTenantWorkerPartition :one
+INSERT INTO "TenantWorkerPartition" ("id", "createdAt", "lastHeartbeat")
+VALUES ($1::text, NOW(), NOW())
+ON CONFLICT DO NOTHING
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+`
+
+func (q *Queries) CreateTenantWorkerPartition(ctx context.Context, db DBTX, id string) (*TenantWorkerPartition, error) {
+	row := db.QueryRow(ctx, createTenantWorkerPartition, id)
+	var i TenantWorkerPartition
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastHeartbeat,
+	)
+	return &i, err
+}
+
+const deleteControllerPartition = `-- name: DeleteControllerPartition :one
+DELETE FROM "ControllerPartition"
+WHERE "id" = $1::text
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+`
+
+func (q *Queries) DeleteControllerPartition(ctx context.Context, db DBTX, id string) (*ControllerPartition, error) {
+	row := db.QueryRow(ctx, deleteControllerPartition, id)
+	var i ControllerPartition
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastHeartbeat,
+	)
+	return &i, err
+}
+
+const deleteTenantWorkerPartition = `-- name: DeleteTenantWorkerPartition :one
+DELETE FROM "TenantWorkerPartition"
+WHERE "id" = $1::text
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+`
+
+func (q *Queries) DeleteTenantWorkerPartition(ctx context.Context, db DBTX, id string) (*TenantWorkerPartition, error) {
+	row := db.QueryRow(ctx, deleteTenantWorkerPartition, id)
+	var i TenantWorkerPartition
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastHeartbeat,
+	)
+	return &i, err
+}
+
 const getEmailGroups = `-- name: GetEmailGroups :many
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", "tenantId", emails
@@ -145,7 +295,7 @@ func (q *Queries) GetTenantAlertingSettings(ctx context.Context, db DBTX, tenant
 
 const getTenantByID = `-- name: GetTenantByID :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails"
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
 FROM
     "Tenant" as tenants
 WHERE
@@ -164,6 +314,8 @@ func (q *Queries) GetTenantByID(ctx context.Context, db DBTX, id pgtype.UUID) (*
 		&i.Slug,
 		&i.AnalyticsOptOut,
 		&i.AlertMemberEmails,
+		&i.ControllerPartitionId,
+		&i.WorkerPartitionId,
 	)
 	return &i, err
 }
@@ -306,7 +458,7 @@ func (q *Queries) GetTenantWorkflowQueueMetrics(ctx context.Context, db DBTX, ar
 
 const listTenants = `-- name: ListTenants :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails"
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
 FROM
     "Tenant" as tenants
 `
@@ -329,6 +481,8 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 			&i.Slug,
 			&i.AnalyticsOptOut,
 			&i.AlertMemberEmails,
+			&i.ControllerPartitionId,
+			&i.WorkerPartitionId,
 		); err != nil {
 			return nil, err
 		}
@@ -338,6 +492,260 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const listTenantsByControllerPartitionId = `-- name: ListTenantsByControllerPartitionId :many
+WITH update_partition AS (
+    UPDATE
+        "ControllerPartition"
+    SET
+        "lastHeartbeat" = NOW()
+    WHERE
+        "id" = $1::text
+)
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+FROM
+    "Tenant" as tenants
+WHERE
+    "controllerPartitionId" = $1::text
+`
+
+func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBTX, controllerpartitionid string) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, listTenantsByControllerPartitionId, controllerpartitionid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Tenant
+	for rows.Next() {
+		var i Tenant
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Name,
+			&i.Slug,
+			&i.AnalyticsOptOut,
+			&i.AlertMemberEmails,
+			&i.ControllerPartitionId,
+			&i.WorkerPartitionId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTenantsByTenantWorkerPartitionId = `-- name: ListTenantsByTenantWorkerPartitionId :many
+WITH update_partition AS (
+    UPDATE
+        "TenantWorkerPartition"
+    SET
+        "lastHeartbeat" = NOW()
+    WHERE
+        "id" = $1::text
+)
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+FROM
+    "Tenant" as tenants
+WHERE
+    "workerPartitionId" = $1::text
+`
+
+func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db DBTX, workerpartitionid string) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, listTenantsByTenantWorkerPartitionId, workerpartitionid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Tenant
+	for rows.Next() {
+		var i Tenant
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Name,
+			&i.Slug,
+			&i.AnalyticsOptOut,
+			&i.AlertMemberEmails,
+			&i.ControllerPartitionId,
+			&i.WorkerPartitionId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const rebalanceAllControllerPartitions = `-- name: RebalanceAllControllerPartitions :exec
+WITH active_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "ControllerPartition"
+    WHERE
+        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+)
+UPDATE
+    "Tenant" as tenants
+SET
+    "controllerPartitionId" = (
+        SELECT
+            "id"
+        FROM
+            active_partitions
+        ORDER BY
+            random()
+        LIMIT 1
+    )
+WHERE
+    "slug" != 'internal' AND
+    (
+        "controllerPartitionId" IS NULL OR
+        "controllerPartitionId" NOT IN (SELECT "id" FROM active_partitions)
+    )
+RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+`
+
+func (q *Queries) RebalanceAllControllerPartitions(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, rebalanceAllControllerPartitions)
+	return err
+}
+
+const rebalanceAllTenantWorkerPartitions = `-- name: RebalanceAllTenantWorkerPartitions :exec
+WITH active_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "TenantWorkerPartition"
+    WHERE
+        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+)
+UPDATE
+    "Tenant" as tenants
+SET
+    "workerPartitionId" = (
+        SELECT
+            "id"
+        FROM
+            active_partitions
+        ORDER BY
+            random()
+        LIMIT 1
+    )
+WHERE
+    "slug" != 'internal' AND
+    (
+        "workerPartitionId" IS NULL OR
+        "workerPartitionId" NOT IN (SELECT "id" FROM active_partitions)
+    )
+RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+`
+
+func (q *Queries) RebalanceAllTenantWorkerPartitions(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, rebalanceAllTenantWorkerPartitions)
+	return err
+}
+
+const rebalanceInactiveControllerPartitions = `-- name: RebalanceInactiveControllerPartitions :exec
+WITH active_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "ControllerPartition"
+    WHERE
+        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+), inactive_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "ControllerPartition"
+    WHERE
+        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+), update_tenants AS (
+    UPDATE
+        "Tenant" as tenants
+    SET
+        "controllerPartitionId" = (
+            SELECT
+                "id"
+            FROM
+                active_partitions
+            ORDER BY
+                random()
+            LIMIT 1
+        )
+    WHERE
+        "slug" != 'internal' AND
+        (
+            "controllerPartitionId" IS NULL OR
+            "controllerPartitionId" IN (SELECT "id" FROM inactive_partitions)
+        )
+)
+DELETE FROM "ControllerPartition"
+WHERE "id" IN (SELECT "id" FROM inactive_partitions)
+`
+
+func (q *Queries) RebalanceInactiveControllerPartitions(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, rebalanceInactiveControllerPartitions)
+	return err
+}
+
+const rebalanceInactiveTenantWorkerPartitions = `-- name: RebalanceInactiveTenantWorkerPartitions :exec
+WITH active_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "TenantWorkerPartition"
+    WHERE
+        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+), inactive_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "TenantWorkerPartition"
+    WHERE
+        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+), update_tenants AS (
+    UPDATE
+        "Tenant" as tenants
+    SET
+        "workerPartitionId" = (
+            SELECT
+                "id"
+            FROM
+                active_partitions
+            ORDER BY
+                random()
+            LIMIT 1
+        )
+    WHERE
+        "slug" != 'internal' AND
+        (
+            "workerPartitionId" IS NULL OR
+            "workerPartitionId" IN (SELECT "id" FROM inactive_partitions)
+        )
+)
+DELETE FROM "TenantWorkerPartition"
+WHERE "id" IN (SELECT "id" FROM inactive_partitions)
+`
+
+func (q *Queries) RebalanceInactiveTenantWorkerPartitions(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, rebalanceInactiveTenantWorkerPartitions)
+	return err
 }
 
 const updateTenantAlertingSettings = `-- name: UpdateTenantAlertingSettings :one

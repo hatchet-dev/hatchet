@@ -35,7 +35,7 @@ var rootCmd = &cobra.Command{
 		cf := loader.NewConfigLoader(configDirectory)
 		interruptChan := cmdutils.InterruptChan()
 
-		if err := start(cf, interruptChan); err != nil {
+		if err := start(cf, interruptChan, Version); err != nil {
 			log.Println("error starting API:", err)
 			os.Exit(1)
 		}
@@ -67,7 +67,7 @@ func main() {
 }
 
 // runs a static file server, api and engine in the same process.
-func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
+func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version string) error {
 	// read static asset directory and frontend URL from the environment
 	staticAssetDir := os.Getenv("LITE_STATIC_ASSET_DIR")
 	frontendPort := os.Getenv("LITE_FRONTEND_PORT")
@@ -91,7 +91,7 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
 		return fmt.Errorf("error parsing frontend URL: %w", err)
 	}
 
-	_, sc, err := cf.LoadServerConfig()
+	_, sc, err := cf.LoadServerConfig(version)
 
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)
@@ -105,7 +105,7 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
 
 	// api process
 	go func() {
-		api.Start(cf, interruptCh) // nolint:errcheck
+		api.Start(cf, interruptCh, version) // nolint:errcheck
 	}()
 
 	// static file server
@@ -128,7 +128,7 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}) error {
 	defer cancel()
 
 	go func() {
-		if err := engine.Run(ctx, cf); err != nil {
+		if err := engine.Run(ctx, cf, version); err != nil {
 			log.Printf("engine failure: %s", err.Error())
 			os.Exit(1)
 		}

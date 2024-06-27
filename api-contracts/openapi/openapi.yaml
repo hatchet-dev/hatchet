@@ -122,6 +122,8 @@ paths:
     $ref: "./paths/log/log.yaml#/withStepRun"
   /api/v1/step-runs/{step-run}/events:
     $ref: "./paths/step-run/step-run.yaml#/listEvents"
+  /api/v1/step-runs/{step-run}/archives:
+    $ref: "./paths/step-run/step-run.yaml#/listArchives"
   /api/v1/tenants/{tenant}/workflows/runs:
     $ref: "./paths/workflow/workflow.yaml#/workflowRuns"
   /api/v1/tenants/{tenant}/workflows/runs/metrics:

@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -30,8 +31,12 @@ func NewWebhookWorkerEngineRepository(pool *pgxpool.Pool, v validator.Validator,
 	}
 }
 
-func (r *webhookWorkerEngineRepository) ListWebhookWorkers(ctx context.Context, tenantId string) ([]*dbsqlc.WebhookWorker, error) {
-	return r.queries.ListWebhookWorkers(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
+func (r *webhookWorkerEngineRepository) ListWebhookWorkersByPartitionId(ctx context.Context, partitionId string) ([]*dbsqlc.WebhookWorker, error) {
+	if partitionId == "" {
+		return nil, fmt.Errorf("partitionId is required")
+	}
+
+	return r.queries.ListWebhookWorkersByPartitionId(ctx, r.pool, partitionId)
 }
 
 func (r *webhookWorkerEngineRepository) ListActiveWebhookWorkers(ctx context.Context, tenantId string) ([]*dbsqlc.WebhookWorker, error) {

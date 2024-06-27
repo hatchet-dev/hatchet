@@ -20,6 +20,7 @@ sql:
       - tenants.sql
       - rate_limits.sql
       - tenant_limits.sql
+      - security_check.sql
       - webhook_workers.sql
     schema:
       - schema.sql
