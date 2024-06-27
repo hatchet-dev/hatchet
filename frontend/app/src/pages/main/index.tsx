@@ -9,7 +9,7 @@ import {
 
 import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
 import { Tenant, TenantMember } from '@/lib/api';
-import { GearIcon } from '@radix-ui/react-icons';
+import { GearIcon, StarIcon } from '@radix-ui/react-icons';
 import React, { useCallback } from 'react';
 import {
   MembershipsContextType,
@@ -88,6 +88,12 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               Activity
             </h2>
             <div className="space-y-1">
+              <SidebarButtonPrimary
+                onNavLinkClick={onNavLinkClick}
+                to="/demo"
+                name="Demo"
+                icon={<StarIcon className="mr-2 h-4 w-4" />}
+              />
               <SidebarButtonPrimary
                 onNavLinkClick={onNavLinkClick}
                 to="/events"

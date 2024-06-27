@@ -72,7 +72,7 @@ const routes: RouteObject[] = [
             lazy: async () => {
               return {
                 loader: function () {
-                  return redirect('/events');
+                  return redirect('/demo');
                 },
               };
             },
@@ -114,6 +114,15 @@ const routes: RouteObject[] = [
                 };
               }),
             children: [
+              {
+                path: '/demo',
+                lazy: async () =>
+                  import('./pages/main/demo').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
               {
                 path: '/events',
                 lazy: async () =>
