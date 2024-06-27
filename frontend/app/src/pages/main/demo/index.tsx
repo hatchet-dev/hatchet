@@ -118,7 +118,7 @@ export default function ExpandedWorkflow() {
         <h3 className="text-sm text-gray-700 dark:text-gray-300 mt-2">
           This is an example DAG workflow (
           <a
-            href="hhttps://github.com/hatchet-dev/hatchet-python-quickstart/blob/65d81c46a394818aceaa7e328bd526950e2dfa68/simple-examples/src/demo/worker.py"
+            href="https://github.com/hatchet-dev/hatchet-python-quickstart/blob/65d81c46a394818aceaa7e328bd526950e2dfa68/simple-examples/src/demo/worker.py"
             target="_blank"
             className="text-indigo-500 dark:text-indigo-400 underline"
             rel="noreferrer"
