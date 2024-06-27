@@ -47,7 +47,7 @@ export async function loader(): Promise<WorkflowWithVersion | null> {
       throw error;
     } else if (isAxiosError(error)) {
       // TODO: handle error better
-      throw redirect('/unauthorized');
+      throw redirect('/auth/login');
     }
   }
 

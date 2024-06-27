@@ -63,7 +63,7 @@ export async function loader({
       throw error;
     } else if (isAxiosError(error)) {
       // TODO: handle error better
-      throw redirect('/unauthorized');
+      throw redirect('/auth/login');
     }
   }
 
