@@ -1,26 +1,17 @@
 import { Separator } from '@/components/ui/separator';
 import api, { Workflow, WorkflowVersion } from '@/lib/api';
 import { isAxiosError } from 'axios';
-import {
-  LoaderFunctionArgs,
-  redirect,
-  useLoaderData,
-  useOutletContext,
-  useParams,
-} from 'react-router-dom';
+import { redirect, useLoaderData } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { Badge } from '@/components/ui/badge';
 import { relativeDate } from '@/lib/utils';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/ui/loading.tsx';
-import { TenantContextType } from '@/lib/outlet';
 import WorkflowVisualizer from './components/workflow-visualizer';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WorkflowTags } from '../workflows/components/workflow-tags';
-import { WorkflowRunsTable } from '../workflow-runs/components/workflow-runs-table';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -100,68 +91,20 @@ export default function ExpandedWorkflow() {
             onClose={() => setTriggerWorkflow(false)}
           />
         </div>
-        <div className="flex flex-row justify-start items-center mt-4">
-          <div className="text-sm text-gray-700 dark:text-gray-300">
-            Updated{' '}
-            {relativeDate(
-              workflow.versions && workflow.versions[0].metadata.updatedAt,
-            )}
-          </div>
-        </div>
         {workflow.description && (
           <div className="text-sm text-gray-700 dark:text-gray-300 mt-4">
             {workflow.description}
           </div>
         )}
         <div className="flex flex-row justify-start items-center mt-4"></div>
-        <Tabs defaultValue="overview">
-          <TabsList layout="underlined">
-            <TabsTrigger variant="underlined" value="overview">
-              Overview
-            </TabsTrigger>
-            <TabsTrigger variant="underlined" value="runs">
-              Runs
-            </TabsTrigger>
-            <TabsTrigger variant="underlined" value="settings">
-              Settings
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="overview">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
-              Workflow Definition
-            </h3>
-            <Separator className="my-4" />
-            <div className="w-full h-[400px]">
-              <WorkflowVisualizer workflow={version} />
-            </div>
-          </TabsContent>
-          <TabsContent value="runs">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
-              Recent Runs
-            </h3>
-            <Separator className="my-4" />
-            <RecentRunsList />
-          </TabsContent>
-        </Tabs>
+        <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
+          Workflow Definition
+        </h3>
+        <Separator className="my-4" />
+        <div className="w-full h-[400px]">
+          <WorkflowVisualizer workflow={version} />
+        </div>
       </div>
     </div>
-  );
-}
-
-function RecentRunsList() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  const params = useParams();
-  invariant(params.workflow);
-
-  return (
-    <>
-      <WorkflowRunsTable
-        workflowId={params.workflow}
-        initColumnVisibility={{ Workflow: false }}
-        filterVisibility={{ Workflow: false }}
-      />
-    </>
   );
 }
