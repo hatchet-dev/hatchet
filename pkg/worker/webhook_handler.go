@@ -88,7 +88,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 			return
 		}
 
-		var action client.Action
+		var action ActionPayload
 		if err := json.Unmarshal(data, &action); err != nil {
 			w.l.Error().Err(err).Msg("error unmarshaling action")
 			writer.WriteHeader(http.StatusInternalServerError)
@@ -96,10 +96,13 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 			return
 		}
 
+		actionWithPayload := action.Action
+		actionWithPayload.ActionPayload = []byte(action.ActionPayload)
+
 		timestamp := time.Now().UTC()
 		_, err = w.client.Dispatcher().SendStepActionEvent(r.Context(),
 			&client.ActionEvent{
-				Action:         &action,
+				Action:         actionWithPayload,
 				EventTimestamp: &timestamp,
 				EventType:      client.ActionEventTypeStarted,
 			},
@@ -111,7 +114,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 			return
 		}
 
-		ctx, err := newHatchetContext(r.Context(), &action, w.client, w.l)
+		ctx, err := newHatchetContext(r.Context(), actionWithPayload, w.client, w.l)
 		if err != nil {
 			w.l.Error().Err(err).Msg("error creating context")
 			writer.WriteHeader(http.StatusInternalServerError)
@@ -130,7 +133,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 		timestamp = time.Now().UTC()
 		_, err = w.client.Dispatcher().SendStepActionEvent(r.Context(),
 			&client.ActionEvent{
-				Action:         &action,
+				Action:         actionWithPayload,
 				EventTimestamp: &timestamp,
 				EventType:      client.ActionEventTypeCompleted,
 				EventPayload:   resp,

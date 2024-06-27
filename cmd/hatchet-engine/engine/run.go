@@ -176,7 +176,9 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
-	if sc.HasService("queue") {
+	// FIXME: jobscontroller and workflowscontroller are deprecated service names, but there's not a clear upgrade
+	// path for old config files.
+	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
 		partitionTeardown, partitionId, err := p.withControllers(ctx)
 
 		if err != nil {
