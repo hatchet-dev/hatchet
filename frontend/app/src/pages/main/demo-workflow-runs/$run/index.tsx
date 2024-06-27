@@ -139,9 +139,9 @@ export default function ExpandedWorkflowRun() {
       <div className="flex flex-col mx-auto gap-2 max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* TODO the triggeredBy parent id is itself */}
         {/* {run?.triggeredBy?.parentId && <ParentLink parentId={run.triggeredBy.parentId} />} */}
-        <div className="flex flex-row justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
-            <h2 className="text-2xl font-bold leading-tight text-foreground flex flex-row  items-center">
+            <h2 className="text-lg sm:text-2xl font-bold leading-tight text-foreground flex flex-row  items-center">
               <Link
                 to={`/workflows/${run?.workflowVersion?.workflow?.metadata.id}`}
               >
@@ -151,33 +151,36 @@ export default function ExpandedWorkflowRun() {
               /{selectedStepRun?.step?.readableId || '*'}
             </h2>
           </div>
-          <div className="flex flex-row gap-2 items-center">
+          <div className="flex flex-row gap-2 items-center justify-between">
             <RunStatus
               status={run.status}
               className="text-sm mt-1 px-4 shrink"
             />
-
-            <DropdownMenu>
-              <DropdownMenuTrigger>
-                <Button
-                  aria-label="Workflow Actions"
-                  size="icon"
-                  variant="outline"
-                >
-                  <BiDotsVertical />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem
-                  disabled={WORKFLOW_RUN_TERMINAL_STATUSES.includes(run.status)}
-                  onClick={() => {
-                    cancelWorkflowRunMutation.mutate();
-                  }}
-                >
-                  Cancel all running steps
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <span className="hidden sm:block">
+              <DropdownMenu>
+                <DropdownMenuTrigger>
+                  <Button
+                    aria-label="Workflow Actions"
+                    size="icon"
+                    variant="outline"
+                  >
+                    <BiDotsVertical />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    disabled={WORKFLOW_RUN_TERMINAL_STATUSES.includes(
+                      run.status,
+                    )}
+                    onClick={() => {
+                      cancelWorkflowRunMutation.mutate();
+                    }}
+                  >
+                    Cancel all running steps
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </span>
           </div>
         </div>
         <div className="flex flex-row justify-start items-center gap-2">

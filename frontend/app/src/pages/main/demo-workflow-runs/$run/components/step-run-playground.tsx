@@ -53,8 +53,6 @@ export function StepRunPlayground({
       return {};
     }
 
-    // HACK this is a temporary solution to get the parent data from the previous run
-    // this should be handled by the backend
     const parents = Object.keys(input.parents);
     if (!workflowRun.jobRuns || !workflowRun.jobRuns[0]) {
       return input;
@@ -231,31 +229,28 @@ export function StepRunPlayground({
 
   const disabled = rerunStepMutation.isPending || isLoading;
 
-  // Function to detect the operating system
   const getOS = () => {
     const userAgent = window.navigator.userAgent;
-    // Simple checks for platform; these could be extended as needed
     if (userAgent.includes('Mac')) {
       return 'MacOS';
     } else if (userAgent.includes('Win')) {
       return 'Windows';
     } else {
-      // Default or other OS
       return 'unknown';
     }
   };
-  // Determine the appropriate shortcut based on the OS
+
   const shortcut = getOS() === 'MacOS' ? 'Cmd + Enter' : 'Ctrl + Enter';
 
   return (
-    <div className="">
+    <div className="p-4 sm:p-6 lg:p-8">
       {stepRun && (
         <>
-          <div className="flex flex-row gap-2 justify-between items-center sticky top-0 z-50">
-            <div className="text-2xl font-semibold tracking-tight">
+          <div className="flex flex-col sm:flex-row gap-2 justify-between items-center sticky top-0 z-50 bg-white p-4 sm:p-6 lg:p-8">
+            <div className="text-xl sm:text-2xl font-semibold tracking-tight">
               {stepRun?.step?.readableId}
             </div>
-            <div className="flex flex-row gap-2 justify-end items-center">
+            <div className="flex flex-col sm:flex-row gap-2 justify-end items-center">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -301,14 +296,14 @@ export function StepRunPlayground({
               </TooltipProvider>
             </div>
           </div>
-          <div className="flex flex-row gap-4 mt-4">
-            <div className="flex-grow w-1/2">
+          <div className="flex flex-col lg:flex-row gap-4 mt-4">
+            <div className="flex-grow lg:w-1/2">
               <div className="text-lg font-semibold tracking-tight mb-4">
                 Input
               </div>
               {demo && (
                 <Alert variant="default" className="my-4">
-                  <AlertTitle className="font-semibold mb-2">
+                  <AlertTitle className="font-semibold">
                     <span className="mr-1">🪓</span> Here's your input.
                   </AlertTitle>
                   <AlertDescription>
@@ -328,34 +323,29 @@ export function StepRunPlayground({
                 />
               )}
             </div>
-            <div className="flex-grow flex-col flex w-1/2 ">
-              <div className="text-lg font-semibold tracking-tight mb-4">
-                Output
-              </div>
-              <p>
-                {demo && (
-                  <Alert variant="default" className="my-4">
-                    <AlertTitle className="font-semibold mb-2">
-                      <span className="mr-1">🪓</span> Here's your output.
-                    </AlertTitle>
-                    <AlertDescription>
-                      You can view outputs, pipe logs, and see the events for
-                      how this step was run.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </p>
+            <div className="flex-grow flex-col flex gap-4 lg:w-1/2">
+              {demo && (
+                <Alert variant="default" className="my-4">
+                  <AlertTitle className="font-semibold">
+                    <span className="mr-1">🪓</span> Here's your output.
+                  </AlertTitle>
+                  <AlertDescription>
+                    You can view outputs, pipe logs, and see the events for how
+                    this step was run.
+                  </AlertDescription>
+                </Alert>
+              )}
               <Tabs defaultValue="output" className="flex flex-col">
-                <div className="flex flex-row justify-between items-center">
-                  <div className="flex flex-row justify-start items-center gap-6 mb-2">
+                <div className="flex flex-col sm:flex-row justify-between items-center mb-2">
+                  <div className="flex flex-row justify-start items-center gap-6">
                     <TabsList>
-                      <TabsTrigger value="output" className="px-8">
+                      <TabsTrigger value="output" className="px-4 sm:px-8">
                         Output
                       </TabsTrigger>
-                      <TabsTrigger value="logs" className="px-8">
+                      <TabsTrigger value="logs" className="px-4 sm:px-8">
                         Logs
                       </TabsTrigger>
-                      <TabsTrigger value="events" className="px-8">
+                      <TabsTrigger value="events" className="px-4 sm:px-8">
                         Events
                       </TabsTrigger>
                     </TabsList>

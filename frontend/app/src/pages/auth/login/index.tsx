@@ -1,7 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { UserLoginForm } from './components/user-login-form';
-import { cn } from '@/lib/utils';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
 import api, { UserLoginRequest } from '@/lib/api';
 import { useState } from 'react';
@@ -45,21 +44,10 @@ export default function Login() {
   ].filter(Boolean);
 
   return (
-    <div className="flex flex-row flex-1 w-full h-full">
-      <div className="container relative hidden flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
-        {meta?.data?.data.allowSignup && (
-          <Link
-            to="/auth/register"
-            className={cn(
-              buttonVariants({ variant: 'ghost' }),
-              'absolute right-4 top-4 md:right-8 md:top-8',
-            )}
-          >
-            Sign Up
-          </Link>
-        )}
-        <div className="lg:p-8 mx-auto w-screen">
-          <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
+    <div className="flex flex-1 flex-col items-center justify-center w-full h-full lg:flex-row">
+      <div className="container relative flex-col items-center justify-center w-full md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
+        <div className="mx-auto flex w-full max-w-md lg:p-8">
+          <div className="flex w-full flex-col justify-center space-y-6">
             <div className="flex flex-col space-y-2 text-center">
               <h1 className="text-2xl font-semibold tracking-tight">
                 Log in to Hatchet
@@ -71,7 +59,7 @@ export default function Login() {
             {forms.map((form, index) => (
               <React.Fragment key={index}>
                 {form}
-                {index < schemes.length - 1 && <OrContinueWith />}
+                {index < forms.length - 1 && <OrContinueWith />}
               </React.Fragment>
             ))}
             <p className="text-left text-sm text-gray-700 dark:text-gray-300 w-full">
@@ -100,12 +88,12 @@ export default function Login() {
 
 export function OrContinueWith() {
   return (
-    <div className="relative">
+    <div className="relative my-4">
       <div className="absolute inset-0 flex items-center">
         <span className="w-full border-t" />
       </div>
       <div className="relative flex justify-center text-xs uppercase">
-        <span className="bg-background px-2 text-gray-700 dark:text-gray-300">
+        <span className="bg-white px-2 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
           Or continue with
         </span>
       </div>
@@ -116,9 +104,7 @@ export function OrContinueWith() {
 function BasicLogin() {
   const navigate = useNavigate();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { handleApiError } = useApiError({
-    setFieldErrors: setFieldErrors,
-  });
+  const { handleApiError } = useApiError({ setFieldErrors });
 
   const loginMutation = useMutation({
     mutationKey: ['user:update:login'],
@@ -142,7 +128,7 @@ function BasicLogin() {
 
 export function GoogleLogin() {
   return (
-    <a href="/api/v1/users/google/start">
+    <a href="/api/v1/users/google/start" className="w-full">
       <Button variant="outline" type="button" className="w-full py-2">
         <Icons.google className="mr-2 h-4 w-4" />
         Google
@@ -153,7 +139,7 @@ export function GoogleLogin() {
 
 export function GithubLogin() {
   return (
-    <a href="/api/v1/users/github/start">
+    <a href="/api/v1/users/github/start" className="w-full">
       <Button variant="outline" type="button" className="w-full py-2">
         <Icons.gitHub className="mr-2 h-4 w-4" />
         Github
