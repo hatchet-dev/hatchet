@@ -129,8 +129,10 @@ func (c *WebhooksController) check() error {
 
 				token = string(decTok)
 			} else {
-				// TODO How do we handle token expiration?
-				tok, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker", nil)
+
+				expiresAt := time.Now().Add(100 * 365 * 24 * time.Hour) // 100 years
+
+				tok, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker", &expiresAt)
 				if err != nil {
 					c.sc.Logger.Error().Err(err).Msgf("could not generate token for webhook worker %s of tenant %s", id, tenantId)
 					return
