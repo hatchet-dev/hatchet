@@ -113,8 +113,8 @@ export function CreateTokenDialog({
                   <Select onValueChange={field.onChange} {...field}>
                     <SelectTrigger id="expiresIn">
                       <SelectValue
-                        id="maxAlertingFrequency"
-                        placeholder="Frequency..."
+                        id="expiresInSelected"
+                        placeholder="Select a duration"
                       />
                     </SelectTrigger>
                     <SelectContent>
