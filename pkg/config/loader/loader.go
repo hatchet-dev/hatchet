@@ -71,24 +71,24 @@ func NewConfigLoader(directory string) *ConfigLoader {
 }
 
 // LoadDatabaseConfig loads the database configuration
-func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
+func (c *ConfigLoader) LoadDatabaseConfig() (func() error, *database.Config, error) {
 	sharedFilePath := filepath.Join(c.directory, "database.yaml")
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	cf, err := LoadDatabaseConfigFile(configFileBytes...)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	scf, err := LoadServerConfigFile(configFileBytes...)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	return GetDatabaseConfigFromConfigFile(cf, &scf.Runtime)
@@ -97,7 +97,7 @@ func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
 type ServerConfigFileOverride func(*server.ServerConfigFile)
 
 // LoadServerConfig loads the server configuration
-func (c *ConfigLoader) LoadServerConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
+func (c *ConfigLoader) LoadServerConfig(version string, overrides ...ServerConfigFileOverride) (func() error, *server.ServerConfig, error) {
 	log.Printf("Loading server config from %s", c.directory)
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
 	log.Printf("Shared file path: %s", sharedFilePath)
@@ -107,7 +107,7 @@ func (c *ConfigLoader) LoadServerConfig(version string, overrides ...ServerConfi
 		return nil, nil, err
 	}
 
-	dc, err := c.LoadDatabaseConfig()
+	dbCleanup, dc, err := c.LoadDatabaseConfig()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -121,10 +121,27 @@ func (c *ConfigLoader) LoadServerConfig(version string, overrides ...ServerConfi
 		override(cf)
 	}
 
-	return GetServerConfigFromConfigfile(dc, cf, version)
+	svcCleanup, res, err := GetServerConfigFromConfigfile(dc, cf, version)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cleanup := func() error {
+		if err := dbCleanup(); err != nil {
+			return err
+		}
+
+		if err := svcCleanup(); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	return cleanup, res, nil
 }
 
-func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.ConfigFileRuntime) (res *database.Config, err error) {
+func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.ConfigFileRuntime) (func() error, *database.Config, error) {
 	l := logger.NewStdErr(&cf.Logger, "database")
 
 	databaseUrl := fmt.Sprintf(
@@ -143,12 +160,12 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 	c := db.NewClient()
 
 	if err := c.Prisma.Connect(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	config, err := pgxpool.ParseConfig(databaseUrl)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if cf.LogQueries {
@@ -165,7 +182,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
-		return nil, fmt.Errorf("could not connect to database: %w", err)
+		return nil, nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
 	ch := cache.New(cf.CacheDuration)
@@ -174,18 +191,21 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	meter := metered.NewMetered(entitlementRepo, &l)
 
-	return &database.Config{
-		Disconnect: func() error {
-			ch.Stop()
-			meter.Stop()
-			return c.Prisma.Disconnect()
-		},
+	cleanup := func() error {
+		ch.Stop()
+		meter.Stop()
+		return c.Prisma.Disconnect()
+	}
+
+	cfg := &database.Config{
 		Pool:                  pool,
 		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
 		EngineRepository:      prisma.NewEngineRepository(pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
 		EntitlementRepository: entitlementRepo,
 		Seed:                  cf.Seed,
-	}, nil
+	}
+
+	return cleanup, cfg, nil
 }
 
 func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigFile, version string) (cleanup func() error, res *server.ServerConfig, err error) {

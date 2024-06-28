@@ -13,11 +13,12 @@ func RunTestWithDatabase(t *testing.T, test func(config *database.Config) error)
 
 	confLoader := &loader.ConfigLoader{}
 
-	conf, err := confLoader.LoadDatabaseConfig()
+	cleanup, conf, err := confLoader.LoadDatabaseConfig()
 	if err != nil {
 		t.Fatalf("failed to load database config: %v\n", err)
 	}
-	defer conf.Disconnect() // nolint: errcheck
+	//goland:noinspection GoUnhandledErrorResult
+	defer cleanup() // nolint:errcheck
 
 	err = test(conf)
 

@@ -73,9 +73,8 @@ func runCreateAPIToken() error {
 		return err
 	}
 
+	//goland:noinspection GoUnhandledErrorResult
 	defer cleanup() // nolint:errcheck
-
-	defer serverConf.Disconnect() // nolint:errcheck
 
 	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(context.Background(), tokenTenantId, tokenName)
 

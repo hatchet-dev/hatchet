@@ -65,12 +65,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 			return serverCleanup()
 		},
 	})
-	teardown = append(teardown, Teardown{
-		Name: "database",
-		Fn: func() error {
-			return sc.Disconnect()
-		},
-	})
 
 	time.Sleep(sc.Runtime.ShutdownWait)
 

@@ -86,10 +86,6 @@ func Prepare(t *testing.T) {
 
 	_ = os.Setenv("HATCHET_CLIENT_TOKEN", defaultTok.Token)
 
-	if err := serverConf.Disconnect(); err != nil {
-		t.Fatalf("could not disconnect from server: %v", err)
-	}
-
 	if err := cleanup(); err != nil {
 		t.Fatalf("could not cleanup server config: %v", err)
 	}
