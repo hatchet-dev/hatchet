@@ -885,6 +885,8 @@ export interface CreateAPITokenRequest {
    * @maxLength 255
    */
   name: string;
+  /** The duration for which the token is valid. */
+  expiresIn?: string;
 }
 
 export interface CreateAPITokenResponse {
