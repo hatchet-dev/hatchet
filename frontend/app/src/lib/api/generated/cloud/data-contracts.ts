@@ -232,12 +232,14 @@ export interface TenantSubscription {
 }
 
 export interface TenantPaymentMethod {
-  /** The last 4 digits of the card. */
-  last4: string;
-  /** The brand of the card. */
+  /** The brand of the payment method. */
   brand: string;
+  /** The last 4 digits of the card. */
+  last4?: string;
   /** The expiration date of the card. */
-  expiration: string;
+  expiration?: string;
+  /** The description of the payment method. */
+  description?: string;
 }
 
 export enum TenantSubscriptionStatus {

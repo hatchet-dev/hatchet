@@ -8,6 +8,9 @@ import {
   FaCcDinersClub,
   FaCcJcb,
 } from 'react-icons/fa';
+
+import { LuBanknote } from 'react-icons/lu';
+
 import { IconType } from 'react-icons/lib';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
@@ -25,6 +28,7 @@ const ccIcons: Record<string, IconType> = {
   dinersclub: FaCcDinersClub,
   jcb: FaCcJcb,
   generic: FaCreditCard,
+  link: LuBanknote,
 };
 
 export interface PaymentMethodsProps {
@@ -74,8 +78,9 @@ export function PaymentMethods({
                   <div className="flex flex-col mt-4 text-sm">
                     <div className="flex flex-row gap-2 items-center">
                       <Icon size={24} />
-                      {method.brand.toUpperCase()} *** *** {method.last4}{' '}
-                      (Expires {method.expiration})
+                      {method.brand.toUpperCase()}
+                      {method.last4 && ` *** *** ${method.last4} `}
+                      {method.expiration && `(Expires {method.expiration})`}
                     </div>
                   </div>
                 </div>
