@@ -16,6 +16,7 @@ import { cloudApi } from '@/lib/api/api';
 import {
   TenantSubscription,
   SubscriptionPlan,
+  Coupon,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { TenantContextType } from '@/lib/outlet';
@@ -29,11 +30,13 @@ interface SubscriptionProps {
   active?: TenantSubscription;
   plans?: SubscriptionPlan[];
   hasPaymentMethods?: boolean;
+  coupons?: Coupon[];
 }
 
 export const Subscription: React.FC<SubscriptionProps> = ({
   active,
   plans,
+  coupons,
   hasPaymentMethods,
 }) => {
   // Implement the logic for the Subscription component here
@@ -156,9 +159,15 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       />
       <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
-          <h3 className="text-xl font-semibold leading-tight text-foreground">
+          <h3 className="text-xl font-semibold leading-tight text-foreground flex flex-row gap-2">
             Subscription
+            {coupons?.map((coupon, i) => (
+              <Badge key={`c${i}`} variant="successful">
+                {coupon.name} coupon applied
+              </Badge>
+            ))}
           </h3>
+
           <div className="flex gap-2">
             <Switch
               id="sa"
