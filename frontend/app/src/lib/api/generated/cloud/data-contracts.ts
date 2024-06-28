@@ -198,6 +198,8 @@ export interface TenantBillingState {
   subscription: TenantSubscription;
   /** A list of plans available for the tenant. */
   plans?: SubscriptionPlan[];
+  /** A list of coupons applied to the tenant. */
+  coupons?: Coupon[];
 }
 
 export interface SubscriptionPlan {
@@ -232,12 +234,14 @@ export interface TenantSubscription {
 }
 
 export interface TenantPaymentMethod {
-  /** The last 4 digits of the card. */
-  last4: string;
-  /** The brand of the card. */
+  /** The brand of the payment method. */
   brand: string;
+  /** The last 4 digits of the card. */
+  last4?: string;
   /** The expiration date of the card. */
-  expiration: string;
+  expiration?: string;
+  /** The description of the payment method. */
+  description?: string;
 }
 
 export enum TenantSubscriptionStatus {
@@ -245,4 +249,28 @@ export enum TenantSubscriptionStatus {
   Pending = "pending",
   Terminated = "terminated",
   Canceled = "canceled",
+}
+
+export interface Coupon {
+  /** The name of the coupon. */
+  name: string;
+  /** The amount off of the coupon. */
+  amount_cents?: number;
+  /** The amount remaining on the coupon. */
+  amount_cents_remaining?: number;
+  /** The currency of the coupon. */
+  amount_currency?: string;
+  /** The frequency of the coupon. */
+  frequency: CouponFrequency;
+  /** The frequency duration of the coupon. */
+  frequency_duration?: number;
+  /** The frequency duration remaining of the coupon. */
+  frequency_duration_remaining?: number;
+  /** The percentage off of the coupon. */
+  percent?: number;
+}
+
+export enum CouponFrequency {
+  Once = "once",
+  Recurring = "recurring",
 }

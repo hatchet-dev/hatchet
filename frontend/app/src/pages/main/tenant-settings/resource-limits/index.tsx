@@ -58,6 +58,7 @@ export default function ResourceLimits() {
             hasPaymentMethods={hasPaymentMethods}
             active={billingState.data?.subscription}
             plans={billingState.data?.plans}
+            coupons={billingState.data?.coupons}
           />
           <Separator className="my-4" />
         </>
