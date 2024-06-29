@@ -54,7 +54,7 @@ const myWorkflow: Workflow = {
 cleanup, err := run(events, worker.WorkflowJob{
   Name:        "timeout",
   Description: "timeout",
-  ScheduleTimeoutAt: "2m",
+  ScheduleTimeout: "2m",
   Steps: []*worker.WorkflowStep{
     worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
       time.Sleep(time.Second * 60)

@@ -149,6 +149,8 @@ type WorkflowJob struct {
 	Steps []*WorkflowStep
 
 	OnFailure *WorkflowJob
+
+	ScheduleTimeout string
 }
 
 type WorkflowConcurrency struct {
@@ -195,9 +197,10 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 	}
 
 	w := types.Workflow{
-		Name:         namespace + j.Name,
-		Jobs:         jobs,
-		OnFailureJob: onFailureJob,
+		Name:            namespace + j.Name,
+		Jobs:            jobs,
+		OnFailureJob:    onFailureJob,
+		ScheduleTimeout: j.ScheduleTimeout,
 	}
 
 	if j.Concurrency != nil {
