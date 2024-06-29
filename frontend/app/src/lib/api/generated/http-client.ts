@@ -88,6 +88,9 @@ export class HttpClient<SecurityDataType = unknown> {
   }
 
   protected createFormData(input: Record<string, unknown>): FormData {
+    if (input instanceof FormData) {
+      return input;
+    }
     return Object.keys(input || {}).reduce((formData, key) => {
       const property = input[key];
       const propertyContent: any[] = property instanceof Array ? property : [property];
