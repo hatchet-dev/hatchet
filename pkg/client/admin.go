@@ -284,6 +284,10 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		}
 	}
 
+	if workflow.ScheduleTimeout != "" {
+		opts.ScheduleTimeout = &workflow.ScheduleTimeout
+	}
+
 	if workflow.OnFailureJob != nil {
 		onFailureJob, err := a.getJobOpts("on-failure", workflow.OnFailureJob)
 
