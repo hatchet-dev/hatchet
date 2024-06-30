@@ -12,6 +12,8 @@ import (
 type Workflow struct {
 	Name string `yaml:"name,omitempty"`
 
+	ScheduleTimeout string `yaml:"scheduleTimeout,omitempty"`
+
 	Concurrency *WorkflowConcurrency `yaml:"concurrency,omitempty"`
 
 	Version string `yaml:"version,omitempty"`

@@ -974,7 +974,9 @@ SET
     "status" = 'PENDING_ASSIGNMENT',
     -- requeue after now plus 4 seconds
     "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updatedAt" = CURRENT_TIMESTAMP,
+    -- unset the schedule timeout
+    "scheduleTimeoutAt" = NULL
 FROM
     locked_step_runs
 WHERE
