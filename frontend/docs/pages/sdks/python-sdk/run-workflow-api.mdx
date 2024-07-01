@@ -1,13 +1,13 @@
 # Running Workflows via API
 
-Workflows can be triggered from the API by calling `run_workflow`. This method is available on the `hatchet.admin` client:
+Workflows can be triggered from the API by calling `run_workflow`. This method is available on the `hatchet.client.admin` client:
 
 ```python filename="run_workflow.py" copy
 from hatchet_sdk import Hatchet, ClientConfig
 
 hatchet = Hatchet()
 
-workflowRun = hatchet.admin.run_workflow(
+workflowRun = hatchet.client.admin.run_workflow(
     "ManualTriggerWorkflow",
     {"test": "test"},
     options={"additional_metadata": {"hello": "moon"}},
