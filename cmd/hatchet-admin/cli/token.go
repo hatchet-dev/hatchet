@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -15,6 +16,7 @@ import (
 var (
 	tokenTenantId string
 	tokenName     string
+	expiresIn     time.Duration
 )
 
 var tokenCmd = &cobra.Command{
@@ -26,7 +28,7 @@ var tokenCreateAPICmd = &cobra.Command{
 	Use:   "create",
 	Short: "create a new API token.",
 	Run: func(cmd *cobra.Command, args []string) {
-		err := runCreateAPIToken()
+		err := runCreateAPIToken(expiresIn)
 
 		if err != nil {
 			log.Printf("Fatal: could not run [token create] command: %v", err)
@@ -55,9 +57,18 @@ func init() {
 		"default",
 		"the name of the token",
 	)
+
+	tokenCreateAPICmd.PersistentFlags().DurationVarP(
+		&expiresIn,
+		"expiresIn",
+		"e",
+		90*24*time.Hour,
+		"Expiration duration for the API token",
+	)
+
 }
 
-func runCreateAPIToken() error {
+func runCreateAPIToken(expiresIn time.Duration) error {
 	// read in the local config
 	configLoader := loader.NewConfigLoader(configDirectory)
 
@@ -77,7 +88,9 @@ func runCreateAPIToken() error {
 
 	defer serverConf.Disconnect() // nolint:errcheck
 
-	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(context.Background(), tokenTenantId, tokenName)
+	expiresAt := time.Now().UTC().Add(expiresIn)
+
+	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(context.Background(), tokenTenantId, tokenName, &expiresAt)
 
 	if err != nil {
 		return err

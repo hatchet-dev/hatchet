@@ -5,16 +5,30 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { z } from 'zod';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/loading';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+export const EXPIRES_IN_OPTS = {
+  '3 months': `${3 * 30 * 24 * 60 * 60}s`,
+  '1 year': `${365 * 24 * 60 * 60}s`,
+  '100 years': `${100 * 365 * 24 * 60 * 60}s`,
+};
 
 const schema = z.object({
   name: z.string().min(1).max(255),
+  expiresIn: z.string().optional(),
 });
 
 interface CreateTokenDialogProps {
@@ -33,6 +47,7 @@ export function CreateTokenDialog({
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -62,8 +77,6 @@ export function CreateTokenDialog({
     );
   }
 
-  // TODO: add a name for the token
-
   return (
     <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
       <DialogHeader>
@@ -90,6 +103,32 @@ export function CreateTokenDialog({
                 <div className="text-sm text-red-500">{nameError}</div>
               )}
             </div>
+            <Label htmlFor="expiresIn">Expires In</Label>
+            <Controller
+              control={control}
+              defaultValue={EXPIRES_IN_OPTS['100 years']}
+              name="expiresIn"
+              render={({ field }) => {
+                return (
+                  <Select onValueChange={field.onChange} {...field}>
+                    <SelectTrigger id="expiresIn">
+                      <SelectValue
+                        id="expiresInSelected"
+                        placeholder="Select a duration"
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(EXPIRES_IN_OPTS).map(([label, value]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              }}
+            />
+
             <Button disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
               Generate token
