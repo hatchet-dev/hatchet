@@ -59,6 +59,7 @@ import {
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
   UpdateTenantRequest,
+  UpdateWorkerRequest,
   User,
   UserChangePasswordRequest,
   UserLoginRequest,
@@ -1490,6 +1491,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/tenants/${tenant}/worker`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a worker
+   *
+   * @tags Worker
+   * @name WorkerUpdate
+   * @summary Update worker
+   * @request PATCH:/api/v1/workers/{worker}
+   * @secure
+   */
+  workerUpdate = (worker: string, data: UpdateWorkerRequest, params: RequestParams = {}) =>
+    this.request<Worker, APIErrors>({
+      path: `/api/v1/workers/${worker}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });

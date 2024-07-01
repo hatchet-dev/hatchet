@@ -118,6 +118,7 @@ const (
 const (
 	ACTIVE   WorkerStatus = "ACTIVE"
 	INACTIVE WorkerStatus = "INACTIVE"
+	PAUSED   WorkerStatus = "PAUSED"
 )
 
 // Defines values for WorkflowConcurrencyLimitStrategy.
@@ -776,6 +777,12 @@ type UpdateTenantRequest struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// UpdateWorkerRequest defines model for UpdateWorkerRequest.
+type UpdateWorkerRequest struct {
+	// IsPaused Whether the worker is paused and cannot accept new runs.
+	IsPaused *bool `json:"isPaused,omitempty"`
+}
+
 // User defines model for User.
 type User struct {
 	// Email The email address of the user.
@@ -1301,6 +1308,9 @@ type UserUpdatePasswordJSONRequestBody = UserChangePasswordRequest
 // UserCreateJSONRequestBody defines body for UserCreate for application/json ContentType.
 type UserCreateJSONRequestBody = UserRegisterRequest
 
+// WorkerUpdateJSONRequestBody defines body for WorkerUpdate for application/json ContentType.
+type WorkerUpdateJSONRequestBody = UpdateWorkerRequest
+
 // WorkflowRunCreateJSONRequestBody defines body for WorkflowRunCreate for application/json ContentType.
 type WorkflowRunCreateJSONRequestBody = TriggerWorkflowRunRequest
 
@@ -1610,6 +1620,11 @@ type ClientInterface interface {
 
 	// WorkerGet request
 	WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkerUpdateWithBody request with any body
+	WorkerUpdateWithBody(ctx context.Context, worker openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WorkerUpdate(ctx context.Context, worker openapi_types.UUID, body WorkerUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowDelete request
 	WorkflowDelete(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2630,6 +2645,30 @@ func (c *Client) WebhookDelete(ctx context.Context, webhook openapi_types.UUID, 
 
 func (c *Client) WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkerGetRequest(c.Server, worker)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkerUpdateWithBody(ctx context.Context, worker openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkerUpdateRequestWithBody(c.Server, worker, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkerUpdate(ctx context.Context, worker openapi_types.UUID, body WorkerUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkerUpdateRequest(c.Server, worker, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5711,6 +5750,53 @@ func NewWorkerGetRequest(server string, worker openapi_types.UUID) (*http.Reques
 	return req, nil
 }
 
+// NewWorkerUpdateRequest calls the generic WorkerUpdate builder with application/json body
+func NewWorkerUpdateRequest(server string, worker openapi_types.UUID, body WorkerUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWorkerUpdateRequestWithBody(server, worker, "application/json", bodyReader)
+}
+
+// NewWorkerUpdateRequestWithBody generates requests for WorkerUpdate with any type of body
+func NewWorkerUpdateRequestWithBody(server string, worker openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "worker", runtime.ParamLocationPath, worker)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/workers/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewWorkflowDeleteRequest generates requests for WorkflowDelete
 func NewWorkflowDeleteRequest(server string, workflow openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -6308,6 +6394,11 @@ type ClientWithResponsesInterface interface {
 
 	// WorkerGetWithResponse request
 	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
+
+	// WorkerUpdateWithBodyWithResponse request with any body
+	WorkerUpdateWithBodyWithResponse(ctx context.Context, worker openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkerUpdateResponse, error)
+
+	WorkerUpdateWithResponse(ctx context.Context, worker openapi_types.UUID, body WorkerUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkerUpdateResponse, error)
 
 	// WorkflowDeleteWithResponse request
 	WorkflowDeleteWithResponse(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowDeleteResponse, error)
@@ -7901,6 +7992,30 @@ func (r WorkerGetResponse) StatusCode() int {
 	return 0
 }
 
+type WorkerUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Worker
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkerUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkerUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowDeleteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -8786,6 +8901,23 @@ func (c *ClientWithResponses) WorkerGetWithResponse(ctx context.Context, worker 
 		return nil, err
 	}
 	return ParseWorkerGetResponse(rsp)
+}
+
+// WorkerUpdateWithBodyWithResponse request with arbitrary body returning *WorkerUpdateResponse
+func (c *ClientWithResponses) WorkerUpdateWithBodyWithResponse(ctx context.Context, worker openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkerUpdateResponse, error) {
+	rsp, err := c.WorkerUpdateWithBody(ctx, worker, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkerUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) WorkerUpdateWithResponse(ctx context.Context, worker openapi_types.UUID, body WorkerUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkerUpdateResponse, error) {
+	rsp, err := c.WorkerUpdate(ctx, worker, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkerUpdateResponse(rsp)
 }
 
 // WorkflowDeleteWithResponse request returning *WorkflowDeleteResponse
@@ -11332,6 +11464,46 @@ func ParseWorkerGetResponse(rsp *http.Response) (*WorkerGetResponse, error) {
 	}
 
 	response := &WorkerGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Worker
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkerUpdateResponse parses an HTTP response from a WorkerUpdateWithResponse call
+func ParseWorkerUpdateResponse(rsp *http.Response) (*WorkerUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkerUpdateResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

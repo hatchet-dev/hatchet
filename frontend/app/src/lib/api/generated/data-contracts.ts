@@ -850,7 +850,7 @@ export interface Worker {
   /** The recent step runs for this worker. */
   recentStepRuns?: StepRun[];
   /** The status of the worker. */
-  status?: "ACTIVE" | "INACTIVE";
+  status?: "ACTIVE" | "INACTIVE" | "PAUSED";
   /** The maximum number of runs this worker can execute concurrently. */
   maxRuns?: number;
   /** The number of runs this worker can execute concurrently. */
@@ -863,6 +863,11 @@ export interface Worker {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   dispatcherId?: string;
+}
+
+export interface UpdateWorkerRequest {
+  /** Whether the worker is paused and cannot accept new runs. */
+  isPaused?: boolean;
 }
 
 export interface APIToken {
