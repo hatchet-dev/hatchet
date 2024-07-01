@@ -572,6 +572,7 @@ CREATE TABLE "Worker" (
     "maxRuns" INTEGER NOT NULL DEFAULT 100,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
+    "isPaused" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );

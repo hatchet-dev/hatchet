@@ -31,6 +31,7 @@ Worker:
       enum:
         - ACTIVE
         - INACTIVE
+        - PAUSED
     maxRuns:
       type: integer
       description: The maximum number of runs this worker can execute concurrently.
@@ -47,6 +48,13 @@ Worker:
   required:
     - metadata
     - name
+  type: object
+
+UpdateWorkerRequest:
+  properties:
+    isPaused:
+      type: boolean
+      description: Whether the worker is paused and cannot accept new runs.
   type: object
 
 WorkerList:

@@ -1,6 +1,6 @@
 import { Separator } from '@/components/ui/separator';
-import { queries, Worker } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
@@ -9,7 +9,7 @@ import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/step-runs-columns';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
-import { Badge } from '@/components/ui/badge';
+import { Badge, BadgeProps } from '@/components/ui/badge';
 import {
   Tooltip,
   TooltipContent,
@@ -17,6 +17,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import RelativeDate from '@/components/molecules/relative-date';
+import { useApiError } from '@/lib/hooks';
+import queryClient from '@/query-client';
 
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
@@ -42,33 +44,47 @@ export const isHealthy = (worker?: Worker) => {
 };
 
 export const WorkerStatus = ({
-  status,
+  status = 'INACTIVE',
   health,
 }: {
-  status?: 'ACTIVE' | 'INACTIVE';
+  status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
   health: string[];
-}) => (
-  <div className="flex flex-row gap-2 item-center">
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger>
-          <Badge variant={status === 'ACTIVE' ? 'successful' : 'failed'}>
-            {status === 'ACTIVE' ? 'Active' : 'Inactive'}
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent>
-          {health.map((reason, i) => (
-            <div key={i}>{reason}</div>
-          ))}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  </div>
-);
+}) => {
+  const label: Record<typeof status, string> = {
+    ACTIVE: 'Active',
+    INACTIVE: 'Inactive',
+    PAUSED: 'Paused',
+  };
+
+  const variant: Record<typeof status, BadgeProps['variant']> = {
+    ACTIVE: 'successful',
+    INACTIVE: 'failed',
+    PAUSED: 'inProgress',
+  };
+
+  return (
+    <div className="flex flex-row gap-2 item-center">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>
+            <Badge variant={variant[status]}>{label[status]}</Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            {health.map((reason, i) => (
+              <div key={i}>{reason}</div>
+            ))}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+};
 
 export default function ExpandedWorkflowRun() {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
+
+  const { handleApiError } = useApiError({});
 
   const params = useParams();
   invariant(params.worker);
@@ -81,6 +97,19 @@ export default function ExpandedWorkflowRun() {
   const worker = workerQuery.data;
 
   const healthy = isHealthy(worker);
+
+  const updateWorker = useMutation({
+    mutationKey: ['worker:update', worker?.metadata.id],
+    mutationFn: async (data: UpdateWorkerRequest) =>
+      (await api.workerUpdate(worker!.metadata.id, data)).data,
+    onSuccess: async () => {
+      // Handle success logic here
+      await queryClient.invalidateQueries({
+        queryKey: queries.workers.get(worker!.metadata.id).queryKey,
+      });
+    },
+    onError: handleApiError,
+  });
 
   if (!worker || workerQuery.isLoading || !workerQuery.data) {
     return <Loading />;
@@ -100,6 +129,16 @@ export default function ExpandedWorkflowRun() {
           <WorkerStatus status={worker.status} health={healthy} />
         </div>
         <Separator className="my-4" />
+        <Button
+          disabled={worker.status === 'INACTIVE'}
+          onClick={() => {
+            updateWorker.mutate({
+              isPaused: worker.status === 'PAUSED' ? false : true,
+            });
+          }}
+        >
+          {worker.status === 'PAUSED' ? 'Resume' : 'Pause'} Step Run Assignment
+        </Button>
         <p className="mt-1 max-w-2xl text-gray-700 dark:text-gray-300">
           First Connected: <RelativeDate date={worker.metadata?.createdAt} />
           {worker.lastListenerEstablished && (
