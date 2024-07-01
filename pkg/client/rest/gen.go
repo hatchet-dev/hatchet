@@ -232,6 +232,9 @@ type AcceptInviteRequest struct {
 
 // CreateAPITokenRequest defines model for CreateAPITokenRequest.
 type CreateAPITokenRequest struct {
+	// ExpiresIn The duration for which the token is valid.
+	ExpiresIn *string `json:"expiresIn,omitempty" validate:"omitnil,duration"`
+
 	// Name A name for the API token.
 	Name string `json:"name"`
 }

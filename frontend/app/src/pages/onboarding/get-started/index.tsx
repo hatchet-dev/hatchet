@@ -107,6 +107,16 @@ export default function GetStarted() {
     </div>
   );
 
+  const Skip = () => {
+    return (
+      <a href="/" className="block">
+        <Button variant="ghost">
+          <span className="text-xs font-semibold">Skip Tutorial</span>
+        </Button>
+      </a>
+    );
+  };
+
   const PlatformPicker = () => (
     <>
       <div className="flex flex-row gap-4">
@@ -125,6 +135,11 @@ export default function GetStarted() {
           </Button>
         ))}
       </div>
+      {!platform && (
+        <div className="mt-4">
+          <Skip />
+        </div>
+      )}
       {platform && (
         <div className="flex flex-row gap-4 mt-4">
           <Button
@@ -149,6 +164,7 @@ export default function GetStarted() {
               Start a New Tutorial Project from Scratch
             </span>
           </Button>
+          <Skip />
         </div>
       )}
     </>
