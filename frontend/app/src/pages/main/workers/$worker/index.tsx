@@ -109,7 +109,6 @@ export default function ExpandedWorkflowRun() {
     mutationFn: async (data: UpdateWorkerRequest) =>
       (await api.workerUpdate(worker!.metadata.id, data)).data,
     onSuccess: async () => {
-      // Handle success logic here
       await queryClient.invalidateQueries({
         queryKey: queries.workers.get(worker!.metadata.id).queryKey,
       });
