@@ -19,7 +19,13 @@ import {
 import RelativeDate from '@/components/molecules/relative-date';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
-
+import { BiDotsVertical } from 'react-icons/bi';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -126,19 +132,35 @@ export default function ExpandedWorkflowRun() {
               {worker.name}
             </h2>
           </div>
-          <WorkerStatus status={worker.status} health={healthy} />
+          <div className="flex flex-row gap-2">
+            <WorkerStatus status={worker.status} health={healthy} />
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                <Button
+                  aria-label="Workflow Actions"
+                  size="icon"
+                  variant="ghost"
+                >
+                  <BiDotsVertical />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  disabled={worker.status === 'INACTIVE'}
+                  onClick={() => {
+                    updateWorker.mutate({
+                      isPaused: worker.status === 'PAUSED' ? false : true,
+                    });
+                  }}
+                >
+                  {worker.status === 'PAUSED' ? 'Resume' : 'Pause'} Step Run
+                  Assignment
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         <Separator className="my-4" />
-        <Button
-          disabled={worker.status === 'INACTIVE'}
-          onClick={() => {
-            updateWorker.mutate({
-              isPaused: worker.status === 'PAUSED' ? false : true,
-            });
-          }}
-        >
-          {worker.status === 'PAUSED' ? 'Resume' : 'Pause'} Step Run Assignment
-        </Button>
         <p className="mt-1 max-w-2xl text-gray-700 dark:text-gray-300">
           First Connected: <RelativeDate date={worker.metadata?.createdAt} />
           {worker.lastListenerEstablished && (
