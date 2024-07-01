@@ -23,6 +23,11 @@ CreateAPITokenRequest:
       type: string
       description: A name for the API token.
       maxLength: 255
+    expiresIn:
+      type: string
+      description: The duration for which the token is valid.
+      x-oapi-codegen-extra-tags:
+        validate: "omitnil,duration"
   required:
     - name
 

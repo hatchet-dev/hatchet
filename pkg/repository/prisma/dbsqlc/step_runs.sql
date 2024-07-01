@@ -316,6 +316,7 @@ WITH valid_workers AS (
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
+        AND w."isPaused" = false
     GROUP BY
         w."id", w."maxRuns"
     HAVING
@@ -382,7 +383,9 @@ SET
     "status" = 'PENDING_ASSIGNMENT',
     -- requeue after now plus 4 seconds
     "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updatedAt" = CURRENT_TIMESTAMP,
+    -- unset the schedule timeout
+    "scheduleTimeoutAt" = NULL
 FROM
     locked_step_runs
 WHERE
@@ -403,6 +406,7 @@ WITH valid_workers AS (
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
+        AND w."isPaused" = false
     GROUP BY
         w."id", w."maxRuns"
     HAVING
@@ -522,6 +526,7 @@ WITH valid_workers AS (
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
+        AND w."isPaused" = false
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"

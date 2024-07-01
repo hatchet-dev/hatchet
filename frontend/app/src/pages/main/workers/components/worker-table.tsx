@@ -34,7 +34,7 @@ export function WorkersTable() {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
     {
       id: 'status',
-      value: ['ACTIVE'],
+      value: ['ACTIVE', 'PAUSED'],
     },
   ]);
 
@@ -173,6 +173,7 @@ export function WorkersTable() {
           title: 'Status',
           options: [
             { value: 'ACTIVE', label: 'Active' },
+            { value: 'PAUSED', label: 'Paused' },
             { value: 'INACTIVE', label: 'Inactive' },
           ],
         },

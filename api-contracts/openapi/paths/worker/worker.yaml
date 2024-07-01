@@ -37,6 +37,49 @@ withTenant:
       - Worker
 
 withWorker:
+  patch:
+    x-resources: ["tenant", "worker"]
+    description: Update a worker
+    operationId: worker:update
+    parameters:
+      - description: The worker id
+        in: path
+        name: worker
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/UpdateWorkerRequest"
+      description: The worker update
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Worker"
+        description: Successfully updated the worker
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Update worker
+    tags:
+      - Worker
   get:
     x-resources: ["tenant", "worker"]
     description: Get a worker
