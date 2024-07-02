@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 
@@ -58,6 +57,10 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 	if r.Security.CookieAuth() {
 		cookieErr = a.handleCookieAuth(c)
 		c.Set("auth_strategy", "cookie")
+
+		if cookieErr == nil {
+			return nil
+		}
 	}
 
 	if cookieErr != nil && !r.Security.BearerAuth() {
@@ -75,7 +78,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		}
 	}
 
-	return multierror.Append(cookieErr, bearerErr).ErrorOrNil()
+	return bearerErr
 }
 
 func (a *AuthN) handleNoAuth(c echo.Context) error {
