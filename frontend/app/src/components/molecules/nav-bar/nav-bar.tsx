@@ -8,6 +8,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Version, VersionTheme } from '@/components/ui/version';
 
 import { useNavigate } from 'react-router-dom';
 import api, { User } from '@/lib/api';
@@ -64,16 +65,20 @@ export default function MainNav({ user }: MainNavProps) {
   return (
     <div className="fixed top-0 w-screen h-16 border-b">
       <div className="flex h-16 items-center pr-4 pl-4">
-        <button
-          onClick={() => toggleSidebarOpen()}
-          className="flex flex-row gap-4 items-center"
-        >
-          <img
-            src={theme == 'dark' ? hatchet : hatchetDark}
-            alt="Hatchet"
-            className="h-9 rounded"
-          />
-        </button>
+        <div className="flex items-center gap-x-4">
+          <button
+            onClick={() => toggleSidebarOpen()}
+            className="flex flex-row gap-4 items-center"
+          >
+            <img
+              src={theme == 'dark' ? hatchet : hatchetDark}
+              alt="Hatchet"
+              className="h-9 rounded"
+            />
+          </button>
+          <Version theme={VersionTheme.Dark} />
+        </div>
+
         <div className="ml-auto flex items-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
