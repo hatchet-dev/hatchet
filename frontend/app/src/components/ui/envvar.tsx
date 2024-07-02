@@ -33,7 +33,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
     if (!values) {
       setValues([]);
     }
-  }, [values]);
+  }, [setValues, values]);
 
   const handleValueChange = (index: number, key: string, value: any) => {
     const newValues = [...values];
