@@ -1293,7 +1293,10 @@ model Worker {
   // the last heartbeat time
   lastHeartbeatAt DateTime?
 
-  // whether this worker is active or not
+  // whether the worker has been marked as paused
+  isPaused Boolean @default(false)
+
+  // whether this worker GRPC connection is active or not
   isActive Boolean @default(false)
 
   lastListenerEstablished DateTime?
@@ -1497,5 +1500,5 @@ model SNSIntegration {
 }
 
 model SecurityCheckIdent {
-  id       String   @id @unique @default(uuid()) @db.Uuid
+  id String @id @unique @default(uuid()) @db.Uuid
 }

@@ -162,6 +162,8 @@ WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 Worker:
   $ref: "./worker.yaml#/Worker"
+UpdateWorkerRequest:
+  $ref: "./worker.yaml#/UpdateWorkerRequest"
 APIToken:
   $ref: "./api_tokens.yaml#/APIToken"
 CreateAPITokenRequest:

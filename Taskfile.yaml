@@ -150,6 +150,9 @@ tasks:
   lint-frontend:
     cmds:
       - cd frontend/app/ && pnpm run lint:check
+  format-prisma:
+    cmds:
+      - go run github.com/steebchen/prisma-client-go format
   kill-query-engines:
     cmds:
       - ps -A | grep 'prisma-query-engine-darwin-arm64' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
@@ -175,4 +178,5 @@ tasks:
     deps:
       - pre-commit-install
     cmds:
+      - task: format-prisma
       - pre-commit run --all-files || pre-commit run --all-files
