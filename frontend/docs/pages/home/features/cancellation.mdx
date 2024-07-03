@@ -88,24 +88,33 @@ Here's an example of how to check for cancellation in a step:
 
 ```go
 w.RegisterWorkflow(
-    worker.Event("user:created"),
-    worker.Fn(func(ctx worker.HatchetContext) error {
-      stepDone := make(chan struct{})
-      go func() {
-        // Step business logic
-        // ...
-        done <- struct{}{}
-      }()
-      select {
-        case <- ctx.Done():
-          // The step has been canceled
-          // Perform any necessary cleanup or termination logic
-          return
-        case <- stepDone:
-          // Workflow step finished executing
-          return
-      }
-    }).SetName("post-user-create"), // this workflow will be named "post-user-create"
+    &worker.WorkflowJob{
+        Name:        "post-user-sign-up",
+        On:          worker.Event("user:created"),
+        Description: "Workflow that executes after a user signs up.",
+        Timeout:     "60s",
+        Steps: []*worker.WorkflowStep{
+            {
+                Function: func(ctx context.Context) error {
+                  stepDone := make(chan struct{})
+                  go func() {
+                    // Step business logic
+                    // ...
+                    done <- struct{}{}
+                  }()
+                  select {
+                    case <- ctx.Done():
+                      // The step has been canceled
+                      // Perform any necessary cleanup or termination logic
+                      return
+                    case <- stepDone:
+                      // Workflow step finished executing
+                      return
+                  }
+                },
+            },
+        },
+    },
 )
 ```
 

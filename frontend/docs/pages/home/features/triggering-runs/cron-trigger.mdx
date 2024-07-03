@@ -41,9 +41,9 @@ const myWorkflow: Workflow = {
   <Tabs.Tab>
 ```go
 w.RegisterWorkflow(
-    worker.Cron("0 0 * * *"),
     &worker.WorkflowJob{
         Name:        "myWorkflow",
+        On: worker.Cron("0 0 * * *"),
         Description: "Cron workflow example.",
         Steps: []*worker.WorkflowStep{
             {

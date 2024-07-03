@@ -36,10 +36,19 @@ const myWorkflow: Workflow = {
   <Tabs.Tab>
 ```go
 w.RegisterWorkflow(
-    worker.Event("user:created"),
-    worker.Fn(func(ctx worker.HatchetContext) error {
-        return nil
-    }).SetName("post-user-create"), // this workflow will be named "post-user-create"
+    &worker.WorkflowJob{
+        Name:        "post-user-create",
+        On: worker.Event("user:created"),
+        Description: "Cron workflow example.",
+        Steps: []*worker.WorkflowStep{
+            {
+                Function: func(ctx context.Context) error {
+                    fmt.Println("triggered at:", time.Now())
+                    return nil
+                },
+            },
+        },
+    },
 )
 ```
   </Tabs.Tab>
@@ -77,12 +86,20 @@ const myStep: Step = async (context: Context<UserCreatedEvent>) => {
 ```go
 type workflowInputExample struct{}
 w.RegisterWorkflow(
-    worker.Event("user:created"),
-    worker.Fn(func(ctx worker.HatchetContext) error {
-        input := &workflowInputExample{}
-        ctx.WorkflowInput(input)
-        // Use the event payload data in your step logic
-    }).SetName("post-user-create"), // this workflow will be named "post-user-create"
+    &worker.WorkflowJob{
+        Name:        "post-user-create",
+        On: worker.Event("user:created"),
+        Description: "Cron workflow example.",
+        Steps: []*worker.WorkflowStep{
+            {
+                Function: func(ctx context.Context) error {
+                    input := &workflowInputExample{}
+                    ctx.WorkflowInput(input)
+                    // Use the event payload data in your step logic
+                },
+            },
+        },
+    },
 )
 ```
   </Tabs.Tab>
