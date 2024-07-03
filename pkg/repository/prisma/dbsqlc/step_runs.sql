@@ -541,10 +541,12 @@ input_values AS (
         jsonb_array_elements(@affinityInputJson) AS input
 ),
 evaluated_affinities AS (
-    SELECT
+    SELECT DISTINCT
         wa."key",
         wa."weight",
-		vw."id" AS "workerId",
+		wa."workerId",
+		wa."required",
+		wa."key",
         input->>'key' AS input_key,
         input->'value' AS input_value,
         CASE
@@ -572,34 +574,33 @@ evaluated_affinities AS (
             ELSE 0
         END AS is_true
     FROM
-        "WorkerAffinity" wa,
-        input_values,
-        valid_workers vw
-    WHERE
-        wa.key = input->>'key'
-		AND wa."workerId" = vw."id"
+        "WorkerAffinity" wa
+    LEFT JOIN input_values ON wa.key = input->>'key'
+    LEFT JOIN valid_workers vw ON wa."workerId" = vw."id"
 ),
-worker_affinities AS (
-    SELECT
-        "workerId",
-        SUM("weight") AS total_weight
-    FROM
-        evaluated_affinities
-    WHERE
-        is_true = 1
-    GROUP BY
-        "workerId"
+weighted_workers AS (
+	SELECT
+		ea."workerId",
+		CASE
+			WHEN COUNT(*) FILTER (WHERE ea."required" = TRUE AND (input_key IS NULL OR is_true = 0)) > 0 THEN -99999
+            ELSE COALESCE(SUM(CASE WHEN is_true = 1 THEN ea."weight" ELSE 0 END), 0)
+		END AS total_weight
+	FROM
+		evaluated_affinities ea
+	GROUP BY
+		"workerId"
 ),
 selected_worker AS (
     SELECT
         vw."id",
-        wa.total_weight
+        COALESCE(ww.total_weight, 0) AS total_weight
     FROM
         valid_workers vw
-    JOIN
-        worker_affinities wa ON vw.id = wa.workerId
+    LEFT JOIN weighted_workers ww ON vw."id" = ww."workerId"
+    WHERE
+        COALESCE(ww.total_weight, 0) >= 0
     ORDER BY
-        wa.total_weight DESC,
+        COALESCE(ww.total_weight, 0) DESC,
         RANDOM()
     LIMIT 1
 ),
