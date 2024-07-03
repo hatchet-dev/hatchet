@@ -1,6 +1,8 @@
 package transformers
 
 import (
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,6 +11,42 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
+
+func ToWorkerWithAffinity(worker *gen.Worker, affinities []*dbsqlc.ListWorkerAffinitiesRow) *gen.Worker {
+	respAffinities := make([]gen.WorkerAffinity, len(affinities))
+
+	for i := range affinities {
+		c := gen.WorkerAffinityComparator(affinities[i].Comparator)
+		w := int(affinities[i].Weight)
+
+		var value *string
+		if v, ok := affinities[i].Value.(string); ok {
+			value = &v
+		} else if v, ok := affinities[i].Value.(*string); ok {
+			value = v
+		} else {
+			// Handle other types or set a default value
+			// For example, you can log an error or set value to nil
+			log.Println("Type assertion failed for Value")
+			value = nil
+		}
+
+		id := fmt.Sprintf("%d", affinities[i].ID)
+
+		respAffinities[i] = gen.WorkerAffinity{
+			Metadata:   *toAPIMetadata(id, affinities[i].CreatedAt.Time, affinities[i].UpdatedAt.Time),
+			Comparator: &c,
+			Key:        affinities[i].Key,
+			Required:   &affinities[i].Required,
+			Value:      value,
+			Weight:     &w,
+		}
+	}
+
+	worker.AffinityState = &respAffinities
+
+	return worker
+}
 
 func ToWorker(worker *db.WorkerModel) *gen.Worker {
 

@@ -164,3 +164,19 @@ WHERE
         OR "lastListenerEstablished" <= sqlc.narg('lastListenerEstablished')::timestamp
         )
 RETURNING *;
+
+-- name: ListWorkerAffinities :many
+SELECT
+    "id",
+    "key",
+    CASE
+        WHEN wa."intValue" IS NOT NULL THEN wa."intValue"::text
+        WHEN wa."strValue" IS NOT NULL THEN wa."strValue"::text
+    END AS value,
+    "comparator",
+    "required",
+    "weight",
+    "createdAt",
+    "updatedAt"
+FROM "WorkerAffinity" wa
+WHERE wa."workerId" = @workerId::uuid;

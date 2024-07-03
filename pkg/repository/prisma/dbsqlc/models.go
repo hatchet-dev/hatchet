@@ -1097,6 +1097,8 @@ type WorkerAffinity struct {
 	IntValue   pgtype.Int4        `json:"intValue"`
 	StrValue   pgtype.Text        `json:"strValue"`
 	Required   bool               `json:"required"`
+	CreatedAt  pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp   `json:"updatedAt"`
 }
 
 type WorkerSemaphore struct {

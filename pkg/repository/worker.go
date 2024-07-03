@@ -61,6 +61,9 @@ type WorkerAPIRepository interface {
 
 	// GetWorkerById returns a worker by its id.
 	GetWorkerById(workerId string) (*db.WorkerModel, error)
+
+	// ListWorkerAffinities returns a list of affinity config for a worker
+	ListWorkerAffinities(tenantId, workerId string) ([]*dbsqlc.ListWorkerAffinitiesRow, error)
 }
 
 type WorkerEngineRepository interface {

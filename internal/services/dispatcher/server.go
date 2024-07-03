@@ -157,6 +157,10 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	s.l.Debug().Msgf("Registered worker with ID: %s", workerId)
 
+	if request.WorkerAffinities != nil {
+		fmt.Println("Worker affinities: ", request.WorkerAffinities)
+	}
+
 	// return the worker id to the worker
 	return &contracts.WorkerRegisterResponse{
 		TenantId:   tenantId,

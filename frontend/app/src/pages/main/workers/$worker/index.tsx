@@ -17,6 +17,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import RelativeDate from '@/components/molecules/relative-date';
+import { affinityColumns } from './components/worker-affinity-columns';
 
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
@@ -144,6 +145,15 @@ export default function ExpandedWorkflowRun() {
             );
           })}
         </div>
+        <Separator className="my-4" />
+        <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+          Worker Affinity State
+        </h3>
+        <DataTable
+          columns={affinityColumns}
+          data={worker.affinityState || []}
+          filters={[]}
+        />
       </div>
     </div>
   );

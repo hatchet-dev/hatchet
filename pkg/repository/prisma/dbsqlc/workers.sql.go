@@ -176,6 +176,63 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 	return err
 }
 
+const listWorkerAffinities = `-- name: ListWorkerAffinities :many
+SELECT
+    "id",
+    "key",
+    CASE
+        WHEN wa."intValue" IS NOT NULL THEN wa."intValue"::text
+        WHEN wa."strValue" IS NOT NULL THEN wa."strValue"::text
+    END AS value,
+    "comparator",
+    "required",
+    "weight",
+    "createdAt",
+    "updatedAt"
+FROM "WorkerAffinity" wa
+WHERE wa."workerId" = $1::uuid
+`
+
+type ListWorkerAffinitiesRow struct {
+	ID         int64              `json:"id"`
+	Key        string             `json:"key"`
+	Value      interface{}        `json:"value"`
+	Comparator AffinityComparator `json:"comparator"`
+	Required   bool               `json:"required"`
+	Weight     int32              `json:"weight"`
+	CreatedAt  pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp   `json:"updatedAt"`
+}
+
+func (q *Queries) ListWorkerAffinities(ctx context.Context, db DBTX, workerid pgtype.UUID) ([]*ListWorkerAffinitiesRow, error) {
+	rows, err := db.Query(ctx, listWorkerAffinities, workerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListWorkerAffinitiesRow
+	for rows.Next() {
+		var i ListWorkerAffinitiesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.Value,
+			&i.Comparator,
+			&i.Required,
+			&i.Weight,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished",

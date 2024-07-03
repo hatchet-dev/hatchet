@@ -125,6 +125,10 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 	return workers, nil
 }
 
+func (w *workerAPIRepository) ListWorkerAffinities(tenantId, workerId string) ([]*dbsqlc.ListWorkerAffinitiesRow, error) {
+	return w.queries.ListWorkerAffinities(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+}
+
 type workerEngineRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator

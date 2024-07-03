@@ -1291,6 +1291,9 @@ enum AffinityComparator {
 model WorkerAffinity {
   id        BigInt   @id @default(autoincrement()) @db.BigInt
 
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+
   worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workerId String @db.Uuid
 

@@ -125,8 +125,7 @@ export interface PaginationResponse {
 export interface APIResourceMeta {
   /**
    * the id of this resource, in UUID format
-   * @format uuid
-   * @minLength 36
+   * @minLength 0
    * @maxLength 36
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
@@ -863,6 +862,22 @@ export interface Worker {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   dispatcherId?: string;
+  /** The current affinity state of the worker. */
+  affinityState?: WorkerAffinity[];
+}
+
+export interface WorkerAffinity {
+  metadata: APIResourceMeta;
+  /** The key of the affinity. */
+  key: string;
+  /** The value of the affinity. */
+  value?: string;
+  /** The weight of the affinity. */
+  weight?: number;
+  /** The comparator of the affinity. */
+  comparator?: "EQUAL" | "NOT_EQUAL" | "GREATER_THAN" | "LESS_THAN" | "GREATER_THAN_OR_EQUAL" | "LESS_THAN_OR_EQUAL";
+  /** Whether this affinity is required. */
+  required?: boolean;
 }
 
 export interface APIToken {
