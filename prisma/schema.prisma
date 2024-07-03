@@ -1279,12 +1279,42 @@ model Ticker {
   tenantAlerts TenantAlertingSettings[]
 }
 
+enum AffinityComparator {
+  EQUAL
+  NOT_EQUAL
+  GREATER_THAN
+  GREATER_THAN_OR_EQUAL
+  LESS_THAN
+  LESS_THAN_OR_EQUAL
+}
+
+model WorkerAffinity {
+  id        BigInt   @id @default(autoincrement()) @db.BigInt
+
+  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workerId String @db.Uuid
+
+  key String
+  strValue String?
+  intValue Int?
+
+  comparator AffinityComparator @default(EQUAL)
+
+  required Boolean @default(false)
+
+  weight Int @default(100) // default weight is 100, higher weight means higher priority for that worker
+
+  @@index([workerId])
+}
+
 model Worker {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
+
+  affinityState WorkerAffinity[]
 
   // the parent tenant
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)

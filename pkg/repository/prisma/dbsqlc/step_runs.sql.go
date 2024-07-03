@@ -13,9 +13,13 @@ import (
 
 const acquireWorkerSemaphoreSlot = `-- name: AcquireWorkerSemaphoreSlot :one
 WITH valid_workers AS (
-    SELECT w."id", COUNT(wss."id") AS "slots"
-    FROM "Worker" w
-    JOIN "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
+    SELECT
+        w."id",
+        COUNT(wss."id") AS "slots"
+    FROM
+        "Worker" w
+    JOIN
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
     WHERE
         w."tenantId" = $2::uuid
         AND w."dispatcherId" IS NOT NULL
@@ -29,29 +33,109 @@ WITH valid_workers AS (
         )
     GROUP BY w."id"
 ),
+input_values AS (
+    SELECT
+        jsonb_array_elements($4) AS input
+),
+evaluated_affinities AS (
+    SELECT
+        wa."key",
+        wa."weight",
+		vw."id" AS "workerId",
+        input->>'key' AS input_key,
+        input->'value' AS input_value,
+        CASE
+            WHEN wa."intValue" IS NOT NULL THEN wa."intValue"::text
+            WHEN wa."strValue" IS NOT NULL THEN wa."strValue"
+        END AS value,
+        wa."comparator",
+        CASE
+            WHEN wa.comparator = 'EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int = wa."intValue") THEN 1
+            WHEN wa.comparator = 'EQUAL' AND
+                 (wa."strValue" IS NOT NULL AND (input->>'value')::text = wa."strValue") THEN 1
+            WHEN wa.comparator = 'NOT_EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int <> wa."intValue") THEN 1
+            WHEN wa.comparator = 'NOT_EQUAL' AND
+                 (wa."strValue" IS NOT NULL AND (input->>'value')::text <> wa."strValue") THEN 1
+            WHEN wa.comparator = 'GREATER_THAN' AND
+                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int > wa."intValue") THEN 1
+            WHEN wa.comparator = 'LESS_THAN' AND
+                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int < wa."intValue") THEN 1
+            WHEN wa.comparator = 'GREATER_THAN_OR_EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int >= wa."intValue") THEN 1
+            WHEN wa.comparator = 'LESS_THAN_OR_EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int <= wa."intValue") THEN 1
+            ELSE 0
+        END AS is_true
+    FROM
+        "WorkerAffinity" wa,
+        input_values,
+        valid_workers vw
+    WHERE
+        wa.key = input->>'key'
+		AND wa."workerId" = vw."id"
+),
+worker_affinities AS (
+    SELECT
+        "workerId",
+        SUM("weight") AS total_weight
+    FROM
+        evaluated_affinities
+    WHERE
+        is_true = 1
+    GROUP BY
+        "workerId"
+),
+selected_worker AS (
+    SELECT
+        vw."id",
+        wa.total_weight
+    FROM
+        valid_workers vw
+    JOIN
+        worker_affinities wa ON vw.id = wa.workerId
+    ORDER BY
+        wa.total_weight DESC,
+        RANDOM()
+    LIMIT 1
+),
 selected_slot AS (
-    SELECT wss."id" AS "slotId", wss."workerId" AS "workerId"
-    FROM "WorkerSemaphoreSlot" wss
-    JOIN valid_workers w ON wss."workerId" = w."id"
-    WHERE wss."stepRunId" IS NULL
-    ORDER BY w."slots" DESC, RANDOM()
+    SELECT
+        wss."id" AS "slotId",
+        wss."workerId" AS "workerId"
+    FROM
+        "WorkerSemaphoreSlot" wss
+    JOIN
+        selected_worker sw ON wss."workerId" = sw."id"
+    WHERE
+        wss."stepRunId" IS NULL
     FOR UPDATE SKIP LOCKED
     LIMIT 1
 )
-UPDATE "WorkerSemaphoreSlot"
-SET "stepRunId" = $1::uuid
-WHERE "id" = (SELECT "slotId" FROM selected_slot)
+UPDATE
+    "WorkerSemaphoreSlot"
+SET
+    "stepRunId" = $1::uuid
+WHERE
+    "id" = (SELECT "slotId" FROM selected_slot)
 RETURNING id, "workerId", "stepRunId"
 `
 
 type AcquireWorkerSemaphoreSlotParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
-	Actionid  string      `json:"actionid"`
+	Steprunid         pgtype.UUID `json:"steprunid"`
+	Tenantid          pgtype.UUID `json:"tenantid"`
+	Actionid          string      `json:"actionid"`
+	Affinityinputjson []byte      `json:"affinityinputjson"`
 }
 
 func (q *Queries) AcquireWorkerSemaphoreSlot(ctx context.Context, db DBTX, arg AcquireWorkerSemaphoreSlotParams) (*WorkerSemaphoreSlot, error) {
-	row := db.QueryRow(ctx, acquireWorkerSemaphoreSlot, arg.Steprunid, arg.Tenantid, arg.Actionid)
+	row := db.QueryRow(ctx, acquireWorkerSemaphoreSlot,
+		arg.Steprunid,
+		arg.Tenantid,
+		arg.Actionid,
+		arg.Affinityinputjson,
+	)
 	var i WorkerSemaphoreSlot
 	err := row.Scan(&i.ID, &i.WorkerId, &i.StepRunId)
 	return &i, err

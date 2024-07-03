@@ -11,6 +11,52 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AffinityComparator string
+
+const (
+	AffinityComparatorEQUAL              AffinityComparator = "EQUAL"
+	AffinityComparatorNOTEQUAL           AffinityComparator = "NOT_EQUAL"
+	AffinityComparatorGREATERTHAN        AffinityComparator = "GREATER_THAN"
+	AffinityComparatorGREATERTHANOREQUAL AffinityComparator = "GREATER_THAN_OR_EQUAL"
+	AffinityComparatorLESSTHAN           AffinityComparator = "LESS_THAN"
+	AffinityComparatorLESSTHANOREQUAL    AffinityComparator = "LESS_THAN_OR_EQUAL"
+)
+
+func (e *AffinityComparator) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AffinityComparator(s)
+	case string:
+		*e = AffinityComparator(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AffinityComparator: %T", src)
+	}
+	return nil
+}
+
+type NullAffinityComparator struct {
+	AffinityComparator AffinityComparator `json:"AffinityComparator"`
+	Valid              bool               `json:"valid"` // Valid is true if AffinityComparator is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAffinityComparator) Scan(value interface{}) error {
+	if value == nil {
+		ns.AffinityComparator, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AffinityComparator.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAffinityComparator) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AffinityComparator), nil
+}
+
 type ConcurrencyLimitStrategy string
 
 const (
@@ -1040,6 +1086,17 @@ type Worker struct {
 	MaxRuns                 int32            `json:"maxRuns"`
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
+}
+
+type WorkerAffinity struct {
+	ID         int64              `json:"id"`
+	WorkerId   pgtype.UUID        `json:"workerId"`
+	Key        string             `json:"key"`
+	Comparator AffinityComparator `json:"comparator"`
+	Weight     int32              `json:"weight"`
+	IntValue   pgtype.Int4        `json:"intValue"`
+	StrValue   pgtype.Text        `json:"strValue"`
+	Required   bool               `json:"required"`
 }
 
 type WorkerSemaphore struct {
