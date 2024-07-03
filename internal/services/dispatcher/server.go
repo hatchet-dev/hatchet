@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -156,31 +157,9 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	workerId := sqlchelpers.UUIDToStr(worker.ID)
 
 	if request.WorkerAffinities != nil {
-
-		affinities := make([]repository.UpsertWorkerAffinityOpts, 0, len(request.WorkerAffinities))
-
-		for key, config := range request.WorkerAffinities {
-
-			err = s.v.Validate(config)
-
-			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "Invalid affinity config: %s", err.Error())
-			}
-
-			affinities = append(affinities, repository.UpsertWorkerAffinityOpts{
-				Key:        key,
-				IntValue:   config.IntValue,
-				StrValue:   config.StrValue,
-				Weight:     config.Weight,
-				Required:   config.Required,
-				Comparator: config.Comparator,
-			})
-		}
-
-		_, err := s.repo.Worker().UpsertWorkerAffinities(ctx, worker.ID, affinities)
+		_, err = s.upsertAffinities(ctx, worker.ID, request.WorkerAffinities)
 
 		if err != nil {
-			s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", workerId)
 			return nil, err
 		}
 	}
@@ -191,6 +170,42 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		WorkerId:   workerId,
 		WorkerName: worker.Name,
 	}, nil
+}
+
+func (s *DispatcherImpl) UpsertWorkerAffinities(ctx context.Context, request *contracts.UpsertWorkerAffinitiesRequest) (*contracts.UpsertWorkerAffinitiesResponse, error) {
+	s.l.Error().Msgf("Received upsert worker affinities request for worker %s", request.WorkerId)
+	return nil, nil
+}
+
+func (s *DispatcherImpl) upsertAffinities(ctx context.Context, workerId pgtype.UUID, request map[string]*contracts.WorkerAffinityConfig) ([]*dbsqlc.WorkerAffinity, error) {
+	affinities := make([]repository.UpsertWorkerAffinityOpts, 0, len(request))
+
+	for key, config := range request {
+
+		err := s.v.Validate(config)
+
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid affinity config: %s", err.Error())
+		}
+
+		affinities = append(affinities, repository.UpsertWorkerAffinityOpts{
+			Key:        key,
+			IntValue:   config.IntValue,
+			StrValue:   config.StrValue,
+			Weight:     config.Weight,
+			Required:   config.Required,
+			Comparator: config.Comparator,
+		})
+	}
+
+	res, err := s.repo.Worker().UpsertWorkerAffinities(ctx, workerId, affinities)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", sqlchelpers.UUIDToStr(workerId))
+		return nil, err
+	}
+
+	return res, nil
 }
 
 // Subscribe handles a subscribe request from a client
