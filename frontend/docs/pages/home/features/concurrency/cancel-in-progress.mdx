@@ -93,7 +93,7 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 
 }
 
-err = testSvc.On(
+err = w.RegisterWorkflow(
     worker.Events("concurrency-test-event"),
     &worker.WorkflowJob{
         Name: "concurrency-limit-per-user",

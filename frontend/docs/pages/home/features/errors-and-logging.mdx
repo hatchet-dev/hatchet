@@ -80,7 +80,7 @@ export default myStep;
   <Tabs.Tab>
 
 ```go
-err = w.On(
+err = w.RegisterWorkflow(
 	worker.Events("user:create"),
 	&worker.WorkflowJob{
 		Name:        "log-demo-workflow",

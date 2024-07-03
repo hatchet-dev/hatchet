@@ -35,7 +35,7 @@ const myWorkflow: Workflow = {
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
-w.On(
+w.RegisterWorkflow(
     worker.Event("user:created"),
     worker.Fn(func(ctx worker.HatchetContext) error {
         return nil
@@ -76,7 +76,7 @@ const myStep: Step = async (context: Context<UserCreatedEvent>) => {
   <Tabs.Tab>
 ```go
 type workflowInputExample struct{}
-w.On(
+w.RegisterWorkflow(
     worker.Event("user:created"),
     worker.Fn(func(ctx worker.HatchetContext) error {
         input := &workflowInputExample{}

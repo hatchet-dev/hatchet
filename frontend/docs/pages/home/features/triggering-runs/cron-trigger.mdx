@@ -40,7 +40,7 @@ const myWorkflow: Workflow = {
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
-w.On(
+w.RegisterWorkflow(
     worker.Cron("0 0 * * *"),
     &worker.WorkflowJob{
         Name:        "myWorkflow",

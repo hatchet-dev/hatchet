@@ -157,7 +157,7 @@ const myStep: CreateStep<any, any> = {
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
-cleanup, err := run(events, worker.WorkflowJob{
+worker.WorkflowJob{
 		Name:        "timeout",
 		Description: "timeout",
 		Steps: []*worker.WorkflowStep{
@@ -169,8 +169,8 @@ cleanup, err := run(events, worker.WorkflowJob{
 					Message: "step1 results!",
 				}, nil
 			}).SetName("step-one").SetTimeout("30s"),
-		},
-	})
+    },
+}
 ```
   </Tabs.Tab>
 </Tabs>

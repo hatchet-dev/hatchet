@@ -59,7 +59,7 @@ const parentWorkflow: Workflow = {
   <Tabs.Tab>
 
 ```go
-w.On(
+w.RegisterWorkflow(
     worker.Event("fanout:create"),
     &worker.WorkflowJob{
         Name:        "parent-workflow",
@@ -163,7 +163,7 @@ const parentWorkflow: Workflow = {
   <Tabs.Tab>
 
 ```go
-w.On(
+w.RegisterWorkflow(
     worker.Event("fanout:create"),
     &worker.WorkflowJob{
         Name:        "parent-workflow",
@@ -277,7 +277,7 @@ class Parent:
   <Tabs.Tab>
 
 ```go
-w.On(
+w.RegisterWorkflow(
     worker.Event("fanout:create"),
     &worker.WorkflowJob{
         Name:        "parent-workflow",
