@@ -120,16 +120,6 @@ const (
 	INACTIVE WorkerStatus = "INACTIVE"
 )
 
-// Defines values for WorkerAffinityComparator.
-const (
-	EQUAL              WorkerAffinityComparator = "EQUAL"
-	GREATERTHAN        WorkerAffinityComparator = "GREATER_THAN"
-	GREATERTHANOREQUAL WorkerAffinityComparator = "GREATER_THAN_OR_EQUAL"
-	LESSTHAN           WorkerAffinityComparator = "LESS_THAN"
-	LESSTHANOREQUAL    WorkerAffinityComparator = "LESS_THAN_OR_EQUAL"
-	NOTEQUAL           WorkerAffinityComparator = "NOT_EQUAL"
-)
-
 // Defines values for WorkflowConcurrencyLimitStrategy.
 const (
 	CANCELINPROGRESS WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
@@ -899,7 +889,7 @@ type Worker struct {
 	Actions *[]string `json:"actions,omitempty"`
 
 	// AffinityState The current affinity state of the worker.
-	AffinityState *[]WorkerAffinity `json:"affinityState,omitempty"`
+	AffinityState *[]WorkerLabel `json:"affinityState,omitempty"`
 
 	// AvailableRuns The number of runs this worker can execute concurrently.
 	AvailableRuns *int `json:"availableRuns,omitempty"`
@@ -930,27 +920,15 @@ type Worker struct {
 // WorkerStatus The status of the worker.
 type WorkerStatus string
 
-// WorkerAffinity defines model for WorkerAffinity.
-type WorkerAffinity struct {
-	// Comparator The comparator of the affinity.
-	Comparator *WorkerAffinityComparator `json:"comparator,omitempty"`
-
+// WorkerLabel defines model for WorkerLabel.
+type WorkerLabel struct {
 	// Key The key of the affinity.
 	Key      string          `json:"key"`
 	Metadata APIResourceMeta `json:"metadata"`
 
-	// Required Whether this affinity is required.
-	Required *bool `json:"required,omitempty"`
-
 	// Value The value of the affinity.
 	Value *string `json:"value,omitempty"`
-
-	// Weight The weight of the affinity.
-	Weight *int `json:"weight,omitempty"`
 }
-
-// WorkerAffinityComparator The comparator of the affinity.
-type WorkerAffinityComparator string
 
 // WorkerList defines model for WorkerList.
 type WorkerList struct {

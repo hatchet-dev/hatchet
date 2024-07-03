@@ -162,8 +162,8 @@ WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 Worker:
   $ref: "./worker.yaml#/Worker"
-WorkerAffinity:
-  $ref: "./worker.yaml#/WorkerAffinity"
+WorkerLabel:
+  $ref: "./worker.yaml#/WorkerLabel"
 APIToken:
   $ref: "./api_tokens.yaml#/APIToken"
 CreateAPITokenRequest:

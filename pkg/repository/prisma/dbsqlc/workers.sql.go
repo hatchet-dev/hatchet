@@ -176,50 +176,41 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 	return err
 }
 
-const listWorkerAffinities = `-- name: ListWorkerAffinities :many
+const listWorkerLabels = `-- name: ListWorkerLabels :many
 SELECT
     "id",
     "key",
     CASE
-        WHEN wa."intValue" IS NOT NULL THEN wa."intValue"::text
-        WHEN wa."strValue" IS NOT NULL THEN wa."strValue"::text
+        WHEN wl."intValue" IS NOT NULL THEN wl."intValue"::text
+        WHEN wl."strValue" IS NOT NULL THEN wl."strValue"::text
     END AS value,
-    "comparator",
-    "required",
-    "weight",
     "createdAt",
     "updatedAt"
-FROM "WorkerAffinity" wa
-WHERE wa."workerId" = $1::uuid
+FROM "WorkerLabel" wl
+WHERE wl."workerId" = $1::uuid
 `
 
-type ListWorkerAffinitiesRow struct {
-	ID         int64              `json:"id"`
-	Key        string             `json:"key"`
-	Value      interface{}        `json:"value"`
-	Comparator AffinityComparator `json:"comparator"`
-	Required   bool               `json:"required"`
-	Weight     int32              `json:"weight"`
-	CreatedAt  pgtype.Timestamp   `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp   `json:"updatedAt"`
+type ListWorkerLabelsRow struct {
+	ID        int64            `json:"id"`
+	Key       string           `json:"key"`
+	Value     interface{}      `json:"value"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
 }
 
-func (q *Queries) ListWorkerAffinities(ctx context.Context, db DBTX, workerid pgtype.UUID) ([]*ListWorkerAffinitiesRow, error) {
-	rows, err := db.Query(ctx, listWorkerAffinities, workerid)
+func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid pgtype.UUID) ([]*ListWorkerLabelsRow, error) {
+	rows, err := db.Query(ctx, listWorkerLabels, workerid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListWorkerAffinitiesRow
+	var items []*ListWorkerLabelsRow
 	for rows.Next() {
-		var i ListWorkerAffinitiesRow
+		var i ListWorkerLabelsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Key,
 			&i.Value,
-			&i.Comparator,
-			&i.Required,
-			&i.Weight,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -531,70 +522,52 @@ func (q *Queries) UpsertService(ctx context.Context, db DBTX, arg UpsertServiceP
 	return &i, err
 }
 
-const upsertWorkerAffinity = `-- name: UpsertWorkerAffinity :one
-INSERT INTO "WorkerAffinity" (
+const upsertWorkerLabel = `-- name: UpsertWorkerLabel :one
+INSERT INTO "WorkerLabel" (
     "createdAt",
     "updatedAt",
     "workerId",
     "key",
     "intValue",
-    "strValue",
-    "comparator",
-    "required",
-    "weight"
+    "strValue"
 ) VALUES (
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
     $1::uuid,
     $2::text,
     $3::int,
-    $4::text,
-    $5::"AffinityComparator",
-    $6::boolean,
-    $7::int
+    $4::text
 ) ON CONFLICT ("workerId", "key") DO UPDATE
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "intValue" = $3::int,
-    "strValue" = $4::text,
-    "comparator" = $5::"AffinityComparator",
-    "required" = $6::boolean,
-    "weight" = $7::int
-RETURNING id, "workerId", key, comparator, weight, "intValue", "strValue", required, "createdAt", "updatedAt"
+    "strValue" = $4::text
+RETURNING id, "createdAt", "updatedAt", "workerId", key, "strValue", "intValue"
 `
 
-type UpsertWorkerAffinityParams struct {
-	Workerid   pgtype.UUID            `json:"workerid"`
-	Key        string                 `json:"key"`
-	IntValue   pgtype.Int4            `json:"intValue"`
-	StrValue   pgtype.Text            `json:"strValue"`
-	Comparator NullAffinityComparator `json:"comparator"`
-	Required   pgtype.Bool            `json:"required"`
-	Weight     pgtype.Int4            `json:"weight"`
+type UpsertWorkerLabelParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	Key      string      `json:"key"`
+	IntValue pgtype.Int4 `json:"intValue"`
+	StrValue pgtype.Text `json:"strValue"`
 }
 
-func (q *Queries) UpsertWorkerAffinity(ctx context.Context, db DBTX, arg UpsertWorkerAffinityParams) (*WorkerAffinity, error) {
-	row := db.QueryRow(ctx, upsertWorkerAffinity,
+func (q *Queries) UpsertWorkerLabel(ctx context.Context, db DBTX, arg UpsertWorkerLabelParams) (*WorkerLabel, error) {
+	row := db.QueryRow(ctx, upsertWorkerLabel,
 		arg.Workerid,
 		arg.Key,
 		arg.IntValue,
 		arg.StrValue,
-		arg.Comparator,
-		arg.Required,
-		arg.Weight,
 	)
-	var i WorkerAffinity
+	var i WorkerLabel
 	err := row.Scan(
 		&i.ID,
-		&i.WorkerId,
-		&i.Key,
-		&i.Comparator,
-		&i.Weight,
-		&i.IntValue,
-		&i.StrValue,
-		&i.Required,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkerId,
+		&i.Key,
+		&i.StrValue,
+		&i.IntValue,
 	)
 	return &i, err
 }

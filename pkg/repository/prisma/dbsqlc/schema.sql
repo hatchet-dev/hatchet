@@ -1,7 +1,4 @@
 -- CreateEnum
-CREATE TYPE "AffinityComparator" AS ENUM ('EQUAL', 'NOT_EQUAL', 'GREATER_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN', 'LESS_THAN_OR_EQUAL');
-
--- CreateEnum
 CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWEST', 'QUEUE_NEWEST', 'GROUP_ROUND_ROBIN');
 
 -- CreateEnum
@@ -36,6 +33,9 @@ CREATE TYPE "TenantResourceLimitAlertType" AS ENUM ('Alarm', 'Exhausted');
 
 -- CreateEnum
 CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
+
+-- CreateEnum
+CREATE TYPE "WorkerLabelComparator" AS ENUM ('EQUAL', 'NOT_EQUAL', 'GREATER_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN', 'LESS_THAN_OR_EQUAL');
 
 -- CreateEnum
 CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED');
@@ -262,6 +262,7 @@ CREATE TABLE "Step" (
     "customUserData" JSONB,
     "retries" INTEGER NOT NULL DEFAULT 0,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
+    "desiredWorkerAffinity" JSONB,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );
@@ -580,19 +581,16 @@ CREATE TABLE "Worker" (
 );
 
 -- CreateTable
-CREATE TABLE "WorkerAffinity" (
+CREATE TABLE "WorkerLabel" (
     "id" BIGSERIAL NOT NULL,
-    "workerId" UUID NOT NULL,
-    "key" TEXT NOT NULL,
-    "comparator" "AffinityComparator" NOT NULL DEFAULT 'EQUAL',
-    "weight" INTEGER NOT NULL DEFAULT 100,
-    "intValue" INTEGER,
-    "strValue" TEXT,
-    "required" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "workerId" UUID NOT NULL,
+    "key" TEXT NOT NULL,
+    "strValue" TEXT,
+    "intValue" INTEGER,
 
-    CONSTRAINT "WorkerAffinity_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "WorkerLabel_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -969,10 +967,10 @@ CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_workflowId_key" ON "W
 CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
 
 -- CreateIndex
-CREATE INDEX "WorkerAffinity_workerId_idx" ON "WorkerAffinity"("workerId" ASC);
+CREATE INDEX "WorkerLabel_workerId_idx" ON "WorkerLabel"("workerId" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WorkerAffinity_workerId_key_key" ON "WorkerAffinity"("workerId" ASC, "key" ASC);
+CREATE UNIQUE INDEX "WorkerLabel_workerId_key_key" ON "WorkerLabel"("workerId" ASC, "key" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkerSemaphore_workerId_key" ON "WorkerSemaphore"("workerId" ASC);
@@ -1248,7 +1246,7 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dis
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "WorkerAffinity" ADD CONSTRAINT "WorkerAffinity_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "WorkerLabel" ADD CONSTRAINT "WorkerLabel_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerSemaphore" ADD CONSTRAINT "WorkerSemaphore_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;

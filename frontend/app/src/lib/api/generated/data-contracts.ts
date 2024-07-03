@@ -863,21 +863,15 @@ export interface Worker {
    */
   dispatcherId?: string;
   /** The current affinity state of the worker. */
-  affinityState?: WorkerAffinity[];
+  affinityState?: WorkerLabel[];
 }
 
-export interface WorkerAffinity {
+export interface WorkerLabel {
   metadata: APIResourceMeta;
   /** The key of the affinity. */
   key: string;
   /** The value of the affinity. */
   value?: string;
-  /** The weight of the affinity. */
-  weight?: number;
-  /** The comparator of the affinity. */
-  comparator?: "EQUAL" | "NOT_EQUAL" | "GREATER_THAN" | "LESS_THAN" | "GREATER_THAN_OR_EQUAL" | "LESS_THAN_OR_EQUAL";
-  /** Whether this affinity is required. */
-  required?: boolean;
 }
 
 export interface APIToken {

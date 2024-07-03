@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 
@@ -55,13 +54,10 @@ type ListWorkersOpts struct {
 	Assignable *bool
 }
 
-type UpsertWorkerAffinityOpts struct {
-	Key        string
-	IntValue   *int32
-	StrValue   *string
-	Comparator *contracts.WorkerAffinityComparator
-	Required   *bool
-	Weight     *int32
+type UpsertWorkerLabelOpts struct {
+	Key      string
+	IntValue *int32
+	StrValue *string
 }
 
 type WorkerAPIRepository interface {
@@ -74,8 +70,8 @@ type WorkerAPIRepository interface {
 	// GetWorkerById returns a worker by its id.
 	GetWorkerById(workerId string) (*db.WorkerModel, error)
 
-	// ListWorkerAffinities returns a list of affinity config for a worker
-	ListWorkerAffinities(tenantId, workerId string) ([]*dbsqlc.ListWorkerAffinitiesRow, error)
+	// ListWorkerLabels returns a list of affinity config for a worker
+	ListWorkerLabels(tenantId, workerId string) ([]*dbsqlc.ListWorkerLabelsRow, error)
 }
 
 type WorkerEngineRepository interface {
@@ -97,5 +93,5 @@ type WorkerEngineRepository interface {
 
 	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error)
 
-	UpsertWorkerAffinities(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerAffinityOpts) ([]*dbsqlc.WorkerAffinity, error)
+	UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*dbsqlc.WorkerLabel, error)
 }

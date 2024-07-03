@@ -165,49 +165,37 @@ WHERE
         )
 RETURNING *;
 
--- name: ListWorkerAffinities :many
+-- name: ListWorkerLabels :many
 SELECT
     "id",
     "key",
     CASE
-        WHEN wa."intValue" IS NOT NULL THEN wa."intValue"::text
-        WHEN wa."strValue" IS NOT NULL THEN wa."strValue"::text
+        WHEN wl."intValue" IS NOT NULL THEN wl."intValue"::text
+        WHEN wl."strValue" IS NOT NULL THEN wl."strValue"::text
     END AS value,
-    "comparator",
-    "required",
-    "weight",
     "createdAt",
     "updatedAt"
-FROM "WorkerAffinity" wa
-WHERE wa."workerId" = @workerId::uuid;
+FROM "WorkerLabel" wl
+WHERE wl."workerId" = @workerId::uuid;
 
--- name: UpsertWorkerAffinity :one
-INSERT INTO "WorkerAffinity" (
+-- name: UpsertWorkerLabel :one
+INSERT INTO "WorkerLabel" (
     "createdAt",
     "updatedAt",
     "workerId",
     "key",
     "intValue",
-    "strValue",
-    "comparator",
-    "required",
-    "weight"
+    "strValue"
 ) VALUES (
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
     @workerId::uuid,
     @key::text,
     sqlc.narg('intValue')::int,
-    sqlc.narg('strValue')::text,
-    sqlc.narg('comparator')::"AffinityComparator",
-    sqlc.narg('required')::boolean,
-    sqlc.narg('weight')::int
+    sqlc.narg('strValue')::text
 ) ON CONFLICT ("workerId", "key") DO UPDATE
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "intValue" = sqlc.narg('intValue')::int,
-    "strValue" = sqlc.narg('strValue')::text,
-    "comparator" = sqlc.narg('comparator')::"AffinityComparator",
-    "required" = sqlc.narg('required')::boolean,
-    "weight" = sqlc.narg('weight')::int
+    "strValue" = sqlc.narg('strValue')::text
 RETURNING *;

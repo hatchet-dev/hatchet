@@ -1,4 +1,4 @@
-WorkerAffinity:
+WorkerLabel:
   properties:
     metadata:
       $ref: "./metadata.yaml#/APIResourceMeta"
@@ -8,22 +8,22 @@ WorkerAffinity:
     value:
       type: string
       description: The value of the affinity.
-    weight:
-      type: integer
-      description: The weight of the affinity.
-    comparator:
-      type: string
-      description: The comparator of the affinity.
-      enum:
-        - EQUAL
-        - NOT_EQUAL
-        - GREATER_THAN
-        - LESS_THAN
-        - GREATER_THAN_OR_EQUAL
-        - LESS_THAN_OR_EQUAL
-    required:
-      type: boolean
-      description: Whether this affinity is required.
+    # weight:
+    #   type: integer
+    #   description: The weight of the affinity.
+    # comparator:
+    #   type: string
+    #   description: The comparator of the affinity.
+    #   enum:
+    #     - EQUAL
+    #     - NOT_EQUAL
+    #     - GREATER_THAN
+    #     - LESS_THAN
+    #     - GREATER_THAN_OR_EQUAL
+    #     - LESS_THAN_OR_EQUAL
+    # required:
+    #   type: boolean
+    #   description: Whether this affinity is required.
   required:
     - metadata
     - key
@@ -79,7 +79,7 @@ Worker:
       type: array
       description: The current affinity state of the worker.
       items:
-        $ref: "./_index.yaml#/WorkerAffinity"
+        $ref: "./_index.yaml#/WorkerLabel"
   required:
     - metadata
     - name

@@ -125,8 +125,8 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 	return workers, nil
 }
 
-func (w *workerAPIRepository) ListWorkerAffinities(tenantId, workerId string) ([]*dbsqlc.ListWorkerAffinitiesRow, error) {
-	return w.queries.ListWorkerAffinities(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+func (w *workerAPIRepository) ListWorkerLabels(tenantId, workerId string) ([]*dbsqlc.ListWorkerLabelsRow, error) {
+	return w.queries.ListWorkerLabels(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
 }
 
 type workerEngineRepository struct {
@@ -372,21 +372,14 @@ func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, t
 	return worker, nil
 }
 
-func (w *workerEngineRepository) UpsertWorkerAffinities(ctx context.Context, workerId pgtype.UUID, opts []repository.UpsertWorkerAffinityOpts) ([]*dbsqlc.WorkerAffinity, error) {
+func (w *workerEngineRepository) UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*dbsqlc.WorkerLabel, error) {
 	if len(opts) == 0 {
 		return nil, nil
 	}
 
-	affinities := make([]*dbsqlc.WorkerAffinity, 0, len(opts))
+	affinities := make([]*dbsqlc.WorkerLabel, 0, len(opts))
 
 	for _, opt := range opts {
-		required := pgtype.Bool{
-			Bool:  false,
-			Valid: true,
-		}
-		if opt.Required != nil {
-			required.Bool = *opt.Required
-		}
 
 		intValue := pgtype.Int4{Valid: false}
 		if opt.IntValue != nil {
@@ -404,35 +397,40 @@ func (w *workerEngineRepository) UpsertWorkerAffinities(ctx context.Context, wor
 			}
 		}
 
-		comparator := dbsqlc.NullAffinityComparator{
-			AffinityComparator: dbsqlc.AffinityComparatorEQUAL,
-			Valid:              true,
+		// required := pgtype.Bool{
+		// 	Bool:  false,
+		// 	Valid: true,
+		// }
+		// if opt.Required != nil {
+		// 	required.Bool = *opt.Required
+		// }
+
+		// comparator := dbsqlc.NullAffinityComparator{
+		// 	AffinityComparator: dbsqlc.AffinityComparatorEQUAL,
+		// 	Valid:              true,
+		// }
+
+		// if opt.Comparator != nil {
+		// 	comparator.AffinityComparator = dbsqlc.AffinityComparator(*opt.Comparator)
+		// }
+
+		// weight := pgtype.Int4{
+		// 	Int32: 100,
+		// 	Valid: true,
+		// }
+
+		// if opt.Weight != nil {
+		// 	weight.Int32 = *opt.Weight
+		// }
+
+		dbsqlcOpts := dbsqlc.UpsertWorkerLabelParams{
+			Workerid: workerId,
+			Key:      opt.Key,
+			IntValue: intValue,
+			StrValue: strValue,
 		}
 
-		if opt.Comparator != nil {
-			comparator.AffinityComparator = dbsqlc.AffinityComparator(*opt.Comparator)
-		}
-
-		weight := pgtype.Int4{
-			Int32: 100,
-			Valid: true,
-		}
-
-		if opt.Weight != nil {
-			weight.Int32 = *opt.Weight
-		}
-
-		dbsqlcOpts := dbsqlc.UpsertWorkerAffinityParams{
-			Workerid:   workerId,
-			Key:        opt.Key,
-			IntValue:   intValue,
-			StrValue:   strValue,
-			Required:   required,
-			Comparator: comparator,
-			Weight:     weight,
-		}
-
-		affinity, err := w.queries.UpsertWorkerAffinity(ctx, w.pool, dbsqlcOpts)
+		affinity, err := w.queries.UpsertWorkerLabel(ctx, w.pool, dbsqlcOpts)
 		if err != nil {
 			return nil, fmt.Errorf("could not update worker affinity state: %w", err)
 		}

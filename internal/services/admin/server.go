@@ -454,11 +454,21 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 
 		retries := int(stepCp.Retries)
 
+		var affinity *map[string]string
+
+		if stepCp.WorkerLabels != nil {
+			affinity = &map[string]string{}
+			for k, v := range stepCp.WorkerLabels {
+				(*affinity)[k] = *v.StrValue
+			}
+		}
+
 		steps[j] = repository.CreateWorkflowStepOpts{
-			ReadableId: stepCp.ReadableId,
-			Action:     parsedAction.String(),
-			Parents:    stepCp.Parents,
-			Retries:    &retries,
+			ReadableId:            stepCp.ReadableId,
+			Action:                parsedAction.String(),
+			Parents:               stepCp.Parents,
+			Retries:               &retries,
+			DesiredWorkerAffinity: affinity,
 		}
 
 		if stepCp.Timeout != "" {

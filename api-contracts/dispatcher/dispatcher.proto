@@ -32,43 +32,15 @@ service Dispatcher {
 
     rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
 
-    rpc UpsertWorkerAffinities(UpsertWorkerAffinitiesRequest) returns (UpsertWorkerAffinitiesResponse) {}
+    rpc UpsertWorkerLabels(UpsertWorkerLabelsRequest) returns (UpsertWorkerLabelsResponse) {}
 }
 
-enum WorkerAffinityComparator {
-    EQUAL = 0;
-    NOT_EQUAL = 1;
-    GREATER_THAN = 2;
-    GREATER_THAN_OR_EQUAL = 3;
-    LESS_THAN = 4;
-    LESS_THAN_OR_EQUAL = 5;
-}
 
-message WorkerAffinityConfig {
 
-    // value of the affinity
+message WorkerLabels {
+    // value of the label
     optional string strValue = 1;
     optional int32 intValue = 2;
-
-    /**
-    * (optional) Specifies whether the affinity setting is required.
-    * If required, the worker will not accept actions that do not have a truthy affinity setting.
-    *
-    * Defaults to false.
-    */
-    optional bool required = 3;
-
-    /**
-    * (optional) Specifies the comparator for the affinity setting.
-    * If not set, the default is EQUAL.
-    */
-    optional WorkerAffinityComparator comparator = 4;
-
-    /**
-    * (optional) Specifies the weight of the affinity setting.
-    * If not set, the default is 100.
-    */
-    optional int32 weight = 5;
 }
 
 message WorkerRegisterRequest {
@@ -84,8 +56,8 @@ message WorkerRegisterRequest {
     // (optional) the max number of runs this worker can handle
     optional int32 maxRuns = 4;
 
-    // (optional) the worker affinity configurations
-    map<string, WorkerAffinityConfig> workerAffinities = 5;
+    // (optional) worker labels (i.e. state or other metadata)
+    map<string, WorkerLabels> labels = 5;
 }
 
 message WorkerRegisterResponse {
@@ -99,16 +71,16 @@ message WorkerRegisterResponse {
     string workerName = 3;
 }
 
-message UpsertWorkerAffinitiesRequest {
+message UpsertWorkerLabelsRequest {
     // the name of the worker
     string workerId = 1;
 
-    // (optional) the worker affinity configurations
-    map<string, WorkerAffinityConfig> workerAffinities = 2;
+    // (optional) the worker labels
+    map<string, WorkerLabels> labels = 2;
 }
 
 
-message UpsertWorkerAffinitiesResponse {
+message UpsertWorkerLabelsResponse {
     // the tenant id
     string tenantId = 1;
 

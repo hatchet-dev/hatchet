@@ -11,52 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type AffinityComparator string
-
-const (
-	AffinityComparatorEQUAL              AffinityComparator = "EQUAL"
-	AffinityComparatorNOTEQUAL           AffinityComparator = "NOT_EQUAL"
-	AffinityComparatorGREATERTHAN        AffinityComparator = "GREATER_THAN"
-	AffinityComparatorGREATERTHANOREQUAL AffinityComparator = "GREATER_THAN_OR_EQUAL"
-	AffinityComparatorLESSTHAN           AffinityComparator = "LESS_THAN"
-	AffinityComparatorLESSTHANOREQUAL    AffinityComparator = "LESS_THAN_OR_EQUAL"
-)
-
-func (e *AffinityComparator) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = AffinityComparator(s)
-	case string:
-		*e = AffinityComparator(s)
-	default:
-		return fmt.Errorf("unsupported scan type for AffinityComparator: %T", src)
-	}
-	return nil
-}
-
-type NullAffinityComparator struct {
-	AffinityComparator AffinityComparator `json:"AffinityComparator"`
-	Valid              bool               `json:"valid"` // Valid is true if AffinityComparator is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullAffinityComparator) Scan(value interface{}) error {
-	if value == nil {
-		ns.AffinityComparator, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.AffinityComparator.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullAffinityComparator) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.AffinityComparator), nil
-}
-
 type ConcurrencyLimitStrategy string
 
 const (
@@ -590,6 +544,52 @@ func (ns NullVcsProvider) Value() (driver.Value, error) {
 	return string(ns.VcsProvider), nil
 }
 
+type WorkerLabelComparator string
+
+const (
+	WorkerLabelComparatorEQUAL              WorkerLabelComparator = "EQUAL"
+	WorkerLabelComparatorNOTEQUAL           WorkerLabelComparator = "NOT_EQUAL"
+	WorkerLabelComparatorGREATERTHAN        WorkerLabelComparator = "GREATER_THAN"
+	WorkerLabelComparatorGREATERTHANOREQUAL WorkerLabelComparator = "GREATER_THAN_OR_EQUAL"
+	WorkerLabelComparatorLESSTHAN           WorkerLabelComparator = "LESS_THAN"
+	WorkerLabelComparatorLESSTHANOREQUAL    WorkerLabelComparator = "LESS_THAN_OR_EQUAL"
+)
+
+func (e *WorkerLabelComparator) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkerLabelComparator(s)
+	case string:
+		*e = WorkerLabelComparator(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkerLabelComparator: %T", src)
+	}
+	return nil
+}
+
+type NullWorkerLabelComparator struct {
+	WorkerLabelComparator WorkerLabelComparator `json:"WorkerLabelComparator"`
+	Valid                 bool                  `json:"valid"` // Valid is true if WorkerLabelComparator is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkerLabelComparator) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkerLabelComparator, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkerLabelComparator.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkerLabelComparator) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkerLabelComparator), nil
+}
+
 type WorkflowRunStatus string
 
 const (
@@ -811,18 +811,19 @@ type SlackAppWebhook struct {
 }
 
 type Step struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	ReadableId      pgtype.Text      `json:"readableId"`
-	TenantId        pgtype.UUID      `json:"tenantId"`
-	JobId           pgtype.UUID      `json:"jobId"`
-	ActionId        string           `json:"actionId"`
-	Timeout         pgtype.Text      `json:"timeout"`
-	CustomUserData  []byte           `json:"customUserData"`
-	Retries         int32            `json:"retries"`
-	ScheduleTimeout string           `json:"scheduleTimeout"`
+	ID                    pgtype.UUID      `json:"id"`
+	CreatedAt             pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt             pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt             pgtype.Timestamp `json:"deletedAt"`
+	ReadableId            pgtype.Text      `json:"readableId"`
+	TenantId              pgtype.UUID      `json:"tenantId"`
+	JobId                 pgtype.UUID      `json:"jobId"`
+	ActionId              string           `json:"actionId"`
+	Timeout               pgtype.Text      `json:"timeout"`
+	CustomUserData        []byte           `json:"customUserData"`
+	Retries               int32            `json:"retries"`
+	ScheduleTimeout       string           `json:"scheduleTimeout"`
+	DesiredWorkerAffinity []byte           `json:"desiredWorkerAffinity"`
 }
 
 type StepOrder struct {
@@ -1088,17 +1089,14 @@ type Worker struct {
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 }
 
-type WorkerAffinity struct {
-	ID         int64              `json:"id"`
-	WorkerId   pgtype.UUID        `json:"workerId"`
-	Key        string             `json:"key"`
-	Comparator AffinityComparator `json:"comparator"`
-	Weight     int32              `json:"weight"`
-	IntValue   pgtype.Int4        `json:"intValue"`
-	StrValue   pgtype.Text        `json:"strValue"`
-	Required   bool               `json:"required"`
-	CreatedAt  pgtype.Timestamp   `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp   `json:"updatedAt"`
+type WorkerLabel struct {
+	ID        int64            `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	WorkerId  pgtype.UUID      `json:"workerId"`
+	Key       string           `json:"key"`
+	StrValue  pgtype.Text      `json:"strValue"`
+	IntValue  pgtype.Int4      `json:"intValue"`
 }
 
 type WorkerSemaphore struct {

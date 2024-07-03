@@ -21,6 +21,7 @@ SELECT
     s."scheduleTimeout" AS "stepScheduleTimeout",
     s."readableId" AS "stepReadableId",
     s."customUserData" AS "stepCustomUserData",
+    s."desiredWorkerAffinity" as "desiredWorkerAffinity",
     j."name" AS "jobName",
     j."id" AS "jobId",
     j."kind" AS "jobKind",
@@ -542,41 +543,41 @@ input_values AS (
 ),
 evaluated_affinities AS (
     SELECT DISTINCT
-        wa."key",
-        wa."weight",
-		wa."workerId",
-		wa."required",
-		wa."key",
+        wl."key",
+        -- wl."weight",
+		wl."workerId",
+		-- wl."required",
+		wl."key",
         input->>'key' AS input_key,
         input->'value' AS input_value,
         CASE
-            WHEN wa."intValue" IS NOT NULL THEN wa."intValue"::text
-            WHEN wa."strValue" IS NOT NULL THEN wa."strValue"
+            WHEN wl."intValue" IS NOT NULL THEN wl."intValue"::text
+            WHEN wl."strValue" IS NOT NULL THEN wl."strValue"
         END AS value,
-        wa."comparator",
+        -- wl."comparator",
         CASE
-            WHEN wa.comparator = 'EQUAL' AND
-                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int = wa."intValue") THEN 1
-            WHEN wa.comparator = 'EQUAL' AND
-                 (wa."strValue" IS NOT NULL AND (input->>'value')::text = wa."strValue") THEN 1
-            WHEN wa.comparator = 'NOT_EQUAL' AND
-                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int <> wa."intValue") THEN 1
-            WHEN wa.comparator = 'NOT_EQUAL' AND
-                 (wa."strValue" IS NOT NULL AND (input->>'value')::text <> wa."strValue") THEN 1
-            WHEN wa.comparator = 'GREATER_THAN' AND
-                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int > wa."intValue") THEN 1
-            WHEN wa.comparator = 'LESS_THAN' AND
-                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int < wa."intValue") THEN 1
-            WHEN wa.comparator = 'GREATER_THAN_OR_EQUAL' AND
-                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int >= wa."intValue") THEN 1
-            WHEN wa.comparator = 'LESS_THAN_OR_EQUAL' AND
-                 (wa."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int <= wa."intValue") THEN 1
-            ELSE 0
+            WHEN
+                 (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int = wl."intValue") THEN 1
+            -- WHEN wl.comparator = 'EQUAL' AND
+            --      (wl."strValue" IS NOT NULL AND (input->>'value')::text = wl."strValue") THEN 1
+            -- WHEN wl.comparator = 'NOT_EQUAL' AND
+            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int <> wl."intValue") THEN 1
+            -- WHEN wl.comparator = 'NOT_EQUAL' AND
+            --      (wl."strValue" IS NOT NULL AND (input->>'value')::text <> wl."strValue") THEN 1
+            -- WHEN wl.comparator = 'GREATER_THAN' AND
+            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int > wl."intValue") THEN 1
+            -- WHEN wl.comparator = 'LESS_THAN' AND
+            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int < wl."intValue") THEN 1
+            -- WHEN wl.comparator = 'GREATER_THAN_OR_EQUAL' AND
+            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int >= wl."intValue") THEN 1
+            -- WHEN wl.comparator = 'LESS_THAN_OR_EQUAL' AND
+            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int <= wl."intValue") THEN 1
+            -- ELSE 0
         END AS is_true
     FROM
-        "WorkerAffinity" wa
-    LEFT JOIN input_values ON wa.key = input->>'key'
-    LEFT JOIN valid_workers vw ON wa."workerId" = vw."id"
+        "WorkerLabel" wl
+    LEFT JOIN input_values ON wl.key = input->>'key'
+    LEFT JOIN valid_workers vw ON wl."workerId" = vw."id"
 ),
 weighted_workers AS (
 	SELECT

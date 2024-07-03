@@ -12,17 +12,17 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
-func ToWorkerWithAffinity(worker *gen.Worker, affinities []*dbsqlc.ListWorkerAffinitiesRow) *gen.Worker {
-	respAffinities := make([]gen.WorkerAffinity, len(affinities))
+func ToWorkerWithLabels(worker *gen.Worker, labels []*dbsqlc.ListWorkerLabelsRow) *gen.Worker {
+	resp := make([]gen.WorkerLabel, len(labels))
 
-	for i := range affinities {
-		c := gen.WorkerAffinityComparator(affinities[i].Comparator)
-		w := int(affinities[i].Weight)
+	for i := range labels {
+		// c := gen.WorkerAffinityComparator(labels[i].Comparator)
+		// w := int(labels[i].Weight)
 
 		var value *string
-		if v, ok := affinities[i].Value.(string); ok {
+		if v, ok := labels[i].Value.(string); ok {
 			value = &v
-		} else if v, ok := affinities[i].Value.(*string); ok {
+		} else if v, ok := labels[i].Value.(*string); ok {
 			value = v
 		} else {
 			// Handle other types or set a default value
@@ -31,19 +31,16 @@ func ToWorkerWithAffinity(worker *gen.Worker, affinities []*dbsqlc.ListWorkerAff
 			value = nil
 		}
 
-		id := fmt.Sprintf("%d", affinities[i].ID)
+		id := fmt.Sprintf("%d", labels[i].ID)
 
-		respAffinities[i] = gen.WorkerAffinity{
-			Metadata:   *toAPIMetadata(id, affinities[i].CreatedAt.Time, affinities[i].UpdatedAt.Time),
-			Comparator: &c,
-			Key:        affinities[i].Key,
-			Required:   &affinities[i].Required,
-			Value:      value,
-			Weight:     &w,
+		resp[i] = gen.WorkerLabel{
+			Metadata: *toAPIMetadata(id, labels[i].CreatedAt.Time, labels[i].UpdatedAt.Time),
+			Key:      labels[i].Key,
+			Value:    value,
 		}
 	}
 
-	worker.AffinityState = &respAffinities
+	worker.AffinityState = &resp
 
 	return worker
 }
