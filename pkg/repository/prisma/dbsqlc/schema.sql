@@ -774,7 +774,16 @@ CREATE UNIQUE INDEX "ControllerPartition_id_key" ON "ControllerPartition"("id" A
 CREATE UNIQUE INDEX "Dispatcher_id_key" ON "Dispatcher"("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "Event_createdAt_idx" ON "Event"("createdAt" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Event_id_key" ON "Event"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "Event_tenantId_createdAt_idx" ON "Event"("tenantId" ASC, "createdAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GetGroupKeyRun_id_key" ON "GetGroupKeyRun"("id" ASC);
@@ -975,19 +984,46 @@ CREATE UNIQUE INDEX "WorkflowConcurrency_id_key" ON "WorkflowConcurrency"("id" A
 CREATE UNIQUE INDEX "WorkflowConcurrency_workflowVersionId_key" ON "WorkflowConcurrency"("workflowVersionId" ASC);
 
 -- CreateIndex
+CREATE INDEX "WorkflowRun_createdAt_idx" ON "WorkflowRun"("createdAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRun_finishedAt_idx" ON "WorkflowRun"("finishedAt" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRun_id_key" ON "WorkflowRun"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRun_parentId_parentStepRunId_childKey_key" ON "WorkflowRun"("parentId" ASC, "parentStepRunId" ASC, "childKey" ASC);
 
 -- CreateIndex
+CREATE INDEX "WorkflowRun_status_idx" ON "WorkflowRun"("status" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRun_tenantId_createdAt_idx" ON "WorkflowRun"("tenantId" ASC, "createdAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRun_tenantId_idx" ON "WorkflowRun"("tenantId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRun_workflowVersionId_idx" ON "WorkflowRun"("workflowVersionId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRunTriggeredBy_eventId_idx" ON "WorkflowRunTriggeredBy"("eventId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_id_key" ON "WorkflowRunTriggeredBy"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRunTriggeredBy_parentId_idx" ON "WorkflowRunTriggeredBy"("parentId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_parentId_key" ON "WorkflowRunTriggeredBy"("parentId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_scheduledId_key" ON "WorkflowRunTriggeredBy"("scheduledId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRunTriggeredBy_tenantId_idx" ON "WorkflowRunTriggeredBy"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTag_id_key" ON "WorkflowTag"("id" ASC);
