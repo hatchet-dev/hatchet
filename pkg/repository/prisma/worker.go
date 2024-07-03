@@ -371,3 +371,74 @@ func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, t
 
 	return worker, nil
 }
+
+func (w *workerEngineRepository) UpsertWorkerAffinities(ctx context.Context, workerId pgtype.UUID, opts []repository.UpsertWorkerAffinityOpts) ([]*dbsqlc.WorkerAffinity, error) {
+	if len(opts) == 0 {
+		return nil, nil
+	}
+
+	affinities := make([]*dbsqlc.WorkerAffinity, 0, len(opts))
+
+	for _, opt := range opts {
+		required := pgtype.Bool{
+			Bool:  false,
+			Valid: true,
+		}
+		if opt.Required != nil {
+			required.Bool = *opt.Required
+		}
+
+		intValue := pgtype.Int4{Valid: false}
+		if opt.IntValue != nil {
+			intValue = pgtype.Int4{
+				Int32: *opt.IntValue,
+				Valid: true,
+			}
+		}
+
+		strValue := pgtype.Text{Valid: false}
+		if opt.StrValue != nil {
+			strValue = pgtype.Text{
+				String: *opt.StrValue,
+				Valid:  true,
+			}
+		}
+
+		comparator := dbsqlc.NullAffinityComparator{
+			AffinityComparator: dbsqlc.AffinityComparatorEQUAL,
+			Valid:              true,
+		}
+
+		if opt.Comparator != nil {
+			comparator.AffinityComparator = dbsqlc.AffinityComparator(*opt.Comparator)
+		}
+
+		weight := pgtype.Int4{
+			Int32: 100,
+			Valid: true,
+		}
+
+		if opt.Weight != nil {
+			weight.Int32 = *opt.Weight
+		}
+
+		dbsqlcOpts := dbsqlc.UpsertWorkerAffinityParams{
+			Workerid:   workerId,
+			Key:        opt.Key,
+			IntValue:   intValue,
+			StrValue:   strValue,
+			Required:   required,
+			Comparator: comparator,
+			Weight:     weight,
+		}
+
+		affinity, err := w.queries.UpsertWorkerAffinity(ctx, w.pool, dbsqlcOpts)
+		if err != nil {
+			return nil, fmt.Errorf("could not update worker affinity state: %w", err)
+		}
+
+		affinities = append(affinities, affinity)
+	}
+
+	return affinities, nil
+}

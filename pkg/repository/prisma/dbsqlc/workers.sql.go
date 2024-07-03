@@ -530,3 +530,71 @@ func (q *Queries) UpsertService(ctx context.Context, db DBTX, arg UpsertServiceP
 	)
 	return &i, err
 }
+
+const upsertWorkerAffinity = `-- name: UpsertWorkerAffinity :one
+INSERT INTO "WorkerAffinity" (
+    "createdAt",
+    "updatedAt",
+    "workerId",
+    "key",
+    "intValue",
+    "strValue",
+    "comparator",
+    "required",
+    "weight"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    $2::text,
+    $3::int,
+    $4::text,
+    $5::"AffinityComparator",
+    $6::boolean,
+    $7::int
+) ON CONFLICT ("workerId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = $3::int,
+    "strValue" = $4::text,
+    "comparator" = $5::"AffinityComparator",
+    "required" = $6::boolean,
+    "weight" = $7::int
+RETURNING id, "workerId", key, comparator, weight, "intValue", "strValue", required, "createdAt", "updatedAt"
+`
+
+type UpsertWorkerAffinityParams struct {
+	Workerid   pgtype.UUID            `json:"workerid"`
+	Key        string                 `json:"key"`
+	IntValue   pgtype.Int4            `json:"intValue"`
+	StrValue   pgtype.Text            `json:"strValue"`
+	Comparator NullAffinityComparator `json:"comparator"`
+	Required   pgtype.Bool            `json:"required"`
+	Weight     pgtype.Int4            `json:"weight"`
+}
+
+func (q *Queries) UpsertWorkerAffinity(ctx context.Context, db DBTX, arg UpsertWorkerAffinityParams) (*WorkerAffinity, error) {
+	row := db.QueryRow(ctx, upsertWorkerAffinity,
+		arg.Workerid,
+		arg.Key,
+		arg.IntValue,
+		arg.StrValue,
+		arg.Comparator,
+		arg.Required,
+		arg.Weight,
+	)
+	var i WorkerAffinity
+	err := row.Scan(
+		&i.ID,
+		&i.WorkerId,
+		&i.Key,
+		&i.Comparator,
+		&i.Weight,
+		&i.IntValue,
+		&i.StrValue,
+		&i.Required,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}

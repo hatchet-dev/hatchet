@@ -1301,13 +1301,15 @@ model WorkerAffinity {
   strValue String?
   intValue Int?
 
-  comparator AffinityComparator @default(EQUAL)
+  comparator AffinityComparator
 
-  required Boolean @default(false)
+  required Boolean
 
-  weight Int @default(100) // default weight is 100, higher weight means higher priority for that worker
+  weight Int
 
   @@index([workerId])
+
+  @@unique([workerId, key])
 }
 
 model Worker {

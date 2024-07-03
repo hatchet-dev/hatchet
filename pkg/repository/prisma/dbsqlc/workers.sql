@@ -180,3 +180,34 @@ SELECT
     "updatedAt"
 FROM "WorkerAffinity" wa
 WHERE wa."workerId" = @workerId::uuid;
+
+-- name: UpsertWorkerAffinity :one
+INSERT INTO "WorkerAffinity" (
+    "createdAt",
+    "updatedAt",
+    "workerId",
+    "key",
+    "intValue",
+    "strValue",
+    "comparator",
+    "required",
+    "weight"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @workerId::uuid,
+    @key::text,
+    sqlc.narg('intValue')::int,
+    sqlc.narg('strValue')::text,
+    sqlc.narg('comparator')::"AffinityComparator",
+    sqlc.narg('required')::boolean,
+    sqlc.narg('weight')::int
+) ON CONFLICT ("workerId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = sqlc.narg('intValue')::int,
+    "strValue" = sqlc.narg('strValue')::text,
+    "comparator" = sqlc.narg('comparator')::"AffinityComparator",
+    "required" = sqlc.narg('required')::boolean,
+    "weight" = sqlc.narg('weight')::int
+RETURNING *;

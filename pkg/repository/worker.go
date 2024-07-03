@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
@@ -52,6 +53,15 @@ type ListWorkersOpts struct {
 	Assignable *bool
 }
 
+type UpsertWorkerAffinityOpts struct {
+	Key        string
+	IntValue   *int32
+	StrValue   *string
+	Comparator *contracts.WorkerAffinityComparator
+	Required   *bool
+	Weight     *int32
+}
+
 type WorkerAPIRepository interface {
 	// ListWorkers lists workers for the tenant
 	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error)
@@ -84,4 +94,6 @@ type WorkerEngineRepository interface {
 	ResolveWorkerSemaphoreSlots(ctx context.Context) (int64, error)
 
 	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error)
+
+	UpsertWorkerAffinities(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerAffinityOpts) ([]*dbsqlc.WorkerAffinity, error)
 }

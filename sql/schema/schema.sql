@@ -972,6 +972,9 @@ CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
 CREATE INDEX "WorkerAffinity_workerId_idx" ON "WorkerAffinity"("workerId" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WorkerAffinity_workerId_key_key" ON "WorkerAffinity"("workerId" ASC, "key" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkerSemaphore_workerId_key" ON "WorkerSemaphore"("workerId" ASC);
 
 -- CreateIndex

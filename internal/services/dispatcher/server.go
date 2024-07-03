@@ -155,10 +155,34 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	workerId := sqlchelpers.UUIDToStr(worker.ID)
 
-	s.l.Debug().Msgf("Registered worker with ID: %s", workerId)
-
 	if request.WorkerAffinities != nil {
-		fmt.Println("Worker affinities: ", request.WorkerAffinities)
+
+		affinities := make([]repository.UpsertWorkerAffinityOpts, 0, len(request.WorkerAffinities))
+
+		for key, config := range request.WorkerAffinities {
+
+			err = s.v.Validate(config)
+
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "Invalid affinity config: %s", err.Error())
+			}
+
+			affinities = append(affinities, repository.UpsertWorkerAffinityOpts{
+				Key:        key,
+				IntValue:   config.IntValue,
+				StrValue:   config.StrValue,
+				Weight:     config.Weight,
+				Required:   config.Required,
+				Comparator: config.Comparator,
+			})
+		}
+
+		_, err := s.repo.Worker().UpsertWorkerAffinities(ctx, worker.ID, affinities)
+
+		if err != nil {
+			s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", workerId)
+			return nil, err
+		}
 	}
 
 	// return the worker id to the worker
