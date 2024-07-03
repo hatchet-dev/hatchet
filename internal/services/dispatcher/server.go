@@ -173,8 +173,20 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 }
 
 func (s *DispatcherImpl) UpsertWorkerAffinities(ctx context.Context, request *contracts.UpsertWorkerAffinitiesRequest) (*contracts.UpsertWorkerAffinitiesResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	_, err := s.upsertAffinities(ctx, sqlchelpers.UUIDFromStr(request.WorkerId), request.WorkerAffinities)
+
+	if err != nil {
+		return nil, err
+	}
+
 	s.l.Error().Msgf("Received upsert worker affinities request for worker %s", request.WorkerId)
-	return nil, nil
+
+	return &contracts.UpsertWorkerAffinitiesResponse{
+		TenantId: sqlchelpers.UUIDToStr(tenant.ID),
+		WorkerId: request.WorkerId,
+	}, nil
 }
 
 func (s *DispatcherImpl) upsertAffinities(ctx context.Context, workerId pgtype.UUID, request map[string]*contracts.WorkerAffinityConfig) ([]*dbsqlc.WorkerAffinity, error) {
