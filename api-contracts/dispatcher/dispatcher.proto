@@ -61,6 +61,12 @@ message WorkerAffinityConfig {
     * If not set, the default is EQUAL.
     */
     optional WorkerAffinityComparator comparator = 4;
+
+    /**
+    * (optional) Specifies the weight of the affinity setting.
+    * If not set, the default is 100.
+    */
+    optional int32 weight = 5;
 }
 
 message WorkerRegisterRequest {
