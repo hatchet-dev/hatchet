@@ -437,6 +437,11 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
+	if len(workers) == 0 {
+		d.l.Warn().Msgf("worker %s not found, ignoring task for step run %s", payload.WorkerId, payload.StepRunId)
+		return nil
+	}
+
 	// load the step run from the database
 	stepRun, err := d.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
