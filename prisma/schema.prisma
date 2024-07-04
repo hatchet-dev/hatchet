@@ -171,6 +171,9 @@ model Tenant {
   workerPartition   TenantWorkerPartition? @relation(fields: [workerPartitionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   workerPartitionId String?
 
+  // The data retention period for deletable resources. This is a Go duration string.
+  dataRetentionPeriod String @default("720h")
+
   events              Event[]
   workflows           Workflow[]
   jobs                Job[]

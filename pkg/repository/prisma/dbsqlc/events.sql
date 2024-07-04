@@ -133,3 +133,25 @@ FROM
 WHERE
     "tenantId" = @tenantId::uuid AND
     "id" = ANY (sqlc.arg('ids')::uuid[]);
+
+-- name: DeleteExpiredEvents :one
+WITH expired_events_count AS (
+    SELECT COUNT(*) as count
+    FROM "Event" e1
+    WHERE
+        e1."tenantId" = @tenantId::uuid AND
+        e1."createdAt" < @createdBefore::timestamp
+), expired_events_with_limit AS (
+    SELECT
+        "id"
+    FROM "Event" e2
+    WHERE
+        e2."tenantId" = @tenantId::uuid AND
+        e2."createdAt" < @createdBefore::timestamp
+    ORDER BY "createdAt" ASC
+    LIMIT sqlc.arg('limit')
+)
+DELETE FROM "Event"
+WHERE
+    "id" IN (SELECT "id" FROM expired_events_with_limit)
+RETURNING (SELECT count FROM expired_events_count) as total, (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining, (SELECT COUNT(*) FROM expired_events_with_limit) as deleted;

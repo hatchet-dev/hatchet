@@ -128,6 +128,48 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 	return &i, err
 }
 
+const deleteExpiredEvents = `-- name: DeleteExpiredEvents :one
+WITH expired_events_count AS (
+    SELECT COUNT(*) as count
+    FROM "Event" e1
+    WHERE
+        e1."tenantId" = $1::uuid AND
+        e1."createdAt" < $2::timestamp
+), expired_events_with_limit AS (
+    SELECT
+        "id"
+    FROM "Event" e2
+    WHERE
+        e2."tenantId" = $1::uuid AND
+        e2."createdAt" < $2::timestamp
+    ORDER BY "createdAt" ASC
+    LIMIT $3
+)
+DELETE FROM "Event"
+WHERE
+    "id" IN (SELECT "id" FROM expired_events_with_limit)
+RETURNING (SELECT count FROM expired_events_count) as total, (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining, (SELECT COUNT(*) FROM expired_events_with_limit) as deleted
+`
+
+type DeleteExpiredEventsParams struct {
+	Tenantid      pgtype.UUID      `json:"tenantid"`
+	Createdbefore pgtype.Timestamp `json:"createdbefore"`
+	Limit         int32            `json:"limit"`
+}
+
+type DeleteExpiredEventsRow struct {
+	Total     int64 `json:"total"`
+	Remaining int32 `json:"remaining"`
+	Deleted   int64 `json:"deleted"`
+}
+
+func (q *Queries) DeleteExpiredEvents(ctx context.Context, db DBTX, arg DeleteExpiredEventsParams) (*DeleteExpiredEventsRow, error) {
+	row := db.QueryRow(ctx, deleteExpiredEvents, arg.Tenantid, arg.Createdbefore, arg.Limit)
+	var i DeleteExpiredEventsRow
+	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
+	return &i, err
+}
+
 const getEventForEngine = `-- name: GetEventForEngine :one
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"

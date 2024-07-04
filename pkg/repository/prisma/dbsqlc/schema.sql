@@ -362,6 +362,7 @@ CREATE TABLE "Tenant" (
     "alertMemberEmails" BOOLEAN NOT NULL DEFAULT true,
     "controllerPartitionId" TEXT,
     "workerPartitionId" TEXT,
+    "dataRetentionPeriod" TEXT NOT NULL DEFAULT '720h',
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
