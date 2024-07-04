@@ -21,7 +21,6 @@ SELECT
     s."scheduleTimeout" AS "stepScheduleTimeout",
     s."readableId" AS "stepReadableId",
     s."customUserData" AS "stepCustomUserData",
-    s."desiredWorkerAffinity" as "desiredWorkerAffinity",
     j."name" AS "jobName",
     j."id" AS "jobId",
     j."kind" AS "jobKind",
@@ -537,53 +536,62 @@ WITH valid_workers AS (
         )
     GROUP BY w."id"
 ),
-input_values AS (
+desired_workflow_labels AS (
     SELECT
-        jsonb_array_elements(@affinityInputJson) AS input
+        "key",
+        "strValue",
+        "intValue",
+        "required",
+        "weight",
+        "comparator"
+    FROM
+        "StepDesiredWorkerLabel"
+    WHERE
+        "stepId" = @stepId::uuid
 ),
 evaluated_affinities AS (
     SELECT DISTINCT
-        wl."key",
-        -- wl."weight",
-		wl."workerId",
-		-- wl."required",
-		wl."key",
-        input->>'key' AS input_key,
-        input->'value' AS input_value,
+        wa."key",
+        dwl."weight",
+        wa."workerId",
+        dwl."required",
+        dwl."key",
+        dwl."key" AS input_key,
+        COALESCE(dwl."intValue"::text, dwl."strValue") AS input_value,
         CASE
-            WHEN wl."intValue" IS NOT NULL THEN wl."intValue"::text
-            WHEN wl."strValue" IS NOT NULL THEN wl."strValue"
+            WHEN wa."intValue" IS NOT NULL THEN wa."intValue"::text
+            WHEN wa."strValue" IS NOT NULL THEN wa."strValue"
         END AS value,
-        -- wl."comparator",
+        dwl."comparator",
         CASE
-            WHEN
-                 (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int = wl."intValue") THEN 1
-            -- WHEN wl.comparator = 'EQUAL' AND
-            --      (wl."strValue" IS NOT NULL AND (input->>'value')::text = wl."strValue") THEN 1
-            -- WHEN wl.comparator = 'NOT_EQUAL' AND
-            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int <> wl."intValue") THEN 1
-            -- WHEN wl.comparator = 'NOT_EQUAL' AND
-            --      (wl."strValue" IS NOT NULL AND (input->>'value')::text <> wl."strValue") THEN 1
-            -- WHEN wl.comparator = 'GREATER_THAN' AND
-            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int > wl."intValue") THEN 1
-            -- WHEN wl.comparator = 'LESS_THAN' AND
-            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int < wl."intValue") THEN 1
-            -- WHEN wl.comparator = 'GREATER_THAN_OR_EQUAL' AND
-            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int >= wl."intValue") THEN 1
-            -- WHEN wl.comparator = 'LESS_THAN_OR_EQUAL' AND
-            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int <= wl."intValue") THEN 1
-            -- ELSE 0
+            WHEN dwl.comparator = 'EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" = wa."intValue") THEN 1
+            WHEN dwl.comparator = 'EQUAL' AND
+                 (wa."strValue" IS NOT NULL AND dwl."strValue" = wa."strValue") THEN 1
+            WHEN dwl.comparator = 'NOT_EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" <> wa."intValue") THEN 1
+            WHEN dwl.comparator = 'NOT_EQUAL' AND
+                 (wa."strValue" IS NOT NULL AND dwl."strValue" <> wa."strValue") THEN 1
+            WHEN dwl.comparator = 'GREATER_THAN' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" > wa."intValue") THEN 1
+            WHEN dwl.comparator = 'LESS_THAN' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" < wa."intValue") THEN 1
+            WHEN dwl.comparator = 'GREATER_THAN_OR_EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" >= wa."intValue") THEN 1
+            WHEN dwl.comparator = 'LESS_THAN_OR_EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" <= wa."intValue") THEN 1
+            ELSE 0
         END AS is_true
     FROM
-        "WorkerLabel" wl
-    LEFT JOIN input_values ON wl.key = input->>'key'
-    LEFT JOIN valid_workers vw ON wl."workerId" = vw."id"
+		valid_workers vw
+	LEFT JOIN "WorkerLabel" wa ON wa."workerId" = vw."id"
+	LEFT JOIN desired_workflow_labels dwl ON wa."key" = dwl."key"
 ),
 weighted_workers AS (
 	SELECT
 		ea."workerId",
 		CASE
-			WHEN COUNT(*) FILTER (WHERE ea."required" = TRUE AND (input_key IS NULL OR is_true = 0)) > 0 THEN -99999
+			WHEN COUNT(*) FILTER (WHERE ea."required" = TRUE AND (ea."input_key" IS NULL OR ea."is_true" = 0)) > 0 THEN -99999
             ELSE COALESCE(SUM(CASE WHEN is_true = 1 THEN ea."weight" ELSE 0 END), 0)
 		END AS total_weight
 	FROM
@@ -626,6 +634,36 @@ WHERE
     "id" = (SELECT "slotId" FROM selected_slot)
 RETURNING *;
 
+-- name: UpsertDesiredWorkerLabel :one
+INSERT INTO "StepDesiredWorkerLabel" (
+    "createdAt",
+    "updatedAt",
+    "stepId",
+    "key",
+    "intValue",
+    "strValue",
+    "required",
+    "weight",
+    "comparator"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @stepId::uuid,
+    @key::text,
+    COALESCE(sqlc.narg('intValue')::int, NULL),
+    COALESCE(sqlc.narg('strValue')::text, NULL),
+    COALESCE(sqlc.narg('required')::boolean, false),
+    COALESCE(sqlc.narg('weight')::int, 100),
+    COALESCE(sqlc.narg('comparator')::"WorkerLabelComparator", 'EQUAL')
+) ON CONFLICT ("stepId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = COALESCE(sqlc.narg('intValue')::int, null),
+    "strValue" = COALESCE(sqlc.narg('strValue')::text, null),
+    "required" = COALESCE(sqlc.narg('required')::boolean, false),
+    "weight" = COALESCE(sqlc.narg('weight')::int, 100),
+    "comparator" = COALESCE(sqlc.narg('comparator')::"WorkerLabelComparator", 'EQUAL')
+RETURNING *;
 
 -- name: CreateStepRunEvent :exec
 WITH input_values AS (

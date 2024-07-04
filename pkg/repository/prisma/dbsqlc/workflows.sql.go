@@ -309,7 +309,7 @@ INSERT INTO "Step" (
     coalesce($10::jsonb, '{}'),
     coalesce($11::integer, 0),
     coalesce($12::text, '5m')
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "scheduleTimeout", "desiredWorkerAffinity"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "scheduleTimeout"
 `
 
 type CreateStepParams struct {
@@ -356,7 +356,6 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.CustomUserData,
 		&i.Retries,
 		&i.ScheduleTimeout,
-		&i.DesiredWorkerAffinity,
 	)
 	return &i, err
 }

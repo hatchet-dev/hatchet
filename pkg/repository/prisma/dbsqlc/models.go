@@ -811,19 +811,31 @@ type SlackAppWebhook struct {
 }
 
 type Step struct {
-	ID                    pgtype.UUID      `json:"id"`
-	CreatedAt             pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt             pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt             pgtype.Timestamp `json:"deletedAt"`
-	ReadableId            pgtype.Text      `json:"readableId"`
-	TenantId              pgtype.UUID      `json:"tenantId"`
-	JobId                 pgtype.UUID      `json:"jobId"`
-	ActionId              string           `json:"actionId"`
-	Timeout               pgtype.Text      `json:"timeout"`
-	CustomUserData        []byte           `json:"customUserData"`
-	Retries               int32            `json:"retries"`
-	ScheduleTimeout       string           `json:"scheduleTimeout"`
-	DesiredWorkerAffinity []byte           `json:"desiredWorkerAffinity"`
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
+	ReadableId      pgtype.Text      `json:"readableId"`
+	TenantId        pgtype.UUID      `json:"tenantId"`
+	JobId           pgtype.UUID      `json:"jobId"`
+	ActionId        string           `json:"actionId"`
+	Timeout         pgtype.Text      `json:"timeout"`
+	CustomUserData  []byte           `json:"customUserData"`
+	Retries         int32            `json:"retries"`
+	ScheduleTimeout string           `json:"scheduleTimeout"`
+}
+
+type StepDesiredWorkerLabel struct {
+	ID         int64                 `json:"id"`
+	CreatedAt  pgtype.Timestamp      `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp      `json:"updatedAt"`
+	StepId     pgtype.UUID           `json:"stepId"`
+	Key        string                `json:"key"`
+	StrValue   pgtype.Text           `json:"strValue"`
+	IntValue   pgtype.Int4           `json:"intValue"`
+	Required   bool                  `json:"required"`
+	Comparator WorkerLabelComparator `json:"comparator"`
+	Weight     int32                 `json:"weight"`
 }
 
 type StepOrder struct {

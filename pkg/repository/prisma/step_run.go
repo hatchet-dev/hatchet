@@ -567,10 +567,10 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 
 	// acquire a semaphore slot
 	semaphore, err := s.queries.AcquireWorkerSemaphoreSlot(ctx, tx, dbsqlc.AcquireWorkerSemaphoreSlotParams{
-		Steprunid:         stepRun.StepRun.ID,
-		Tenantid:          stepRun.StepRun.TenantId,
-		Actionid:          stepRun.ActionId,
-		Affinityinputjson: stepRun.DesiredWorkerAffinity,
+		Steprunid: stepRun.StepRun.ID,
+		Tenantid:  stepRun.StepRun.TenantId,
+		Actionid:  stepRun.ActionId,
+		Stepid:    stepRun.StepId, // TODO infer this from step run id?
 	})
 
 	if err != nil {

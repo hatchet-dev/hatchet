@@ -125,7 +125,27 @@ type CreateWorkflowStepOpts struct {
 	RateLimits []CreateWorkflowStepRateLimitOpts `validate:"dive"`
 
 	// (optional) desired worker affinity state for this step
-	DesiredWorkerAffinity *map[string]string `validate:"omitempty"`
+	DesiredWorkerLabels *map[string]DesiredWorkerLabelOpts `validate:"omitempty"`
+}
+
+type DesiredWorkerLabelOpts struct {
+	// (required) the label key
+	Key string `validate:"required"`
+
+	// (required if StringValue is nil) the label integer value
+	IntValue *int32 `validate:"omitnil,required_without=StrValue"`
+
+	// (required if StrValue is nil) the label string value
+	StrValue *string `validate:"omitnil,required_without=IntValue"`
+
+	// (optional) if the label is required
+	Required *bool `validate:"omitempty"`
+
+	// (optional) the weight of the label for scheduling (default: 100)
+	Weight *int32 `validate:"omitempty"`
+
+	// (optional) the label comparator for scheduling (default: EQUAL)
+	Comparator *string `validate:"omitempty,oneof=EQUAL NOT_EQUAL GREATER_THAN LESS_THAN GREATER_THAN_OR_EQUAL LESS_THAN_OR_EQUAL"`
 }
 
 type CreateWorkflowStepRateLimitOpts struct {

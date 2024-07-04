@@ -33,53 +33,62 @@ WITH valid_workers AS (
         )
     GROUP BY w."id"
 ),
-input_values AS (
+desired_workflow_labels AS (
     SELECT
-        jsonb_array_elements($4) AS input
+        "key",
+        "strValue",
+        "intValue",
+        "required",
+        "weight",
+        "comparator"
+    FROM
+        "StepDesiredWorkerLabel"
+    WHERE
+        "stepId" = $4::uuid
 ),
 evaluated_affinities AS (
     SELECT DISTINCT
-        wl."key",
-        -- wl."weight",
-		wl."workerId",
-		-- wl."required",
-		wl."key",
-        input->>'key' AS input_key,
-        input->'value' AS input_value,
+        wa."key",
+        dwl."weight",
+        wa."workerId",
+        dwl."required",
+        dwl."key",
+        dwl."key" AS input_key,
+        COALESCE(dwl."intValue"::text, dwl."strValue") AS input_value,
         CASE
-            WHEN wl."intValue" IS NOT NULL THEN wl."intValue"::text
-            WHEN wl."strValue" IS NOT NULL THEN wl."strValue"
+            WHEN wa."intValue" IS NOT NULL THEN wa."intValue"::text
+            WHEN wa."strValue" IS NOT NULL THEN wa."strValue"
         END AS value,
-        -- wl."comparator",
+        dwl."comparator",
         CASE
-            WHEN
-                 (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int = wl."intValue") THEN 1
-            -- WHEN wl.comparator = 'EQUAL' AND
-            --      (wl."strValue" IS NOT NULL AND (input->>'value')::text = wl."strValue") THEN 1
-            -- WHEN wl.comparator = 'NOT_EQUAL' AND
-            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int <> wl."intValue") THEN 1
-            -- WHEN wl.comparator = 'NOT_EQUAL' AND
-            --      (wl."strValue" IS NOT NULL AND (input->>'value')::text <> wl."strValue") THEN 1
-            -- WHEN wl.comparator = 'GREATER_THAN' AND
-            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int > wl."intValue") THEN 1
-            -- WHEN wl.comparator = 'LESS_THAN' AND
-            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int < wl."intValue") THEN 1
-            -- WHEN wl.comparator = 'GREATER_THAN_OR_EQUAL' AND
-            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int >= wl."intValue") THEN 1
-            -- WHEN wl.comparator = 'LESS_THAN_OR_EQUAL' AND
-            --      (wl."intValue" IS NOT NULL AND (input->>'value')::int IS NOT NULL AND (input->>'value')::int <= wl."intValue") THEN 1
-            -- ELSE 0
+            WHEN dwl.comparator = 'EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" = wa."intValue") THEN 1
+            WHEN dwl.comparator = 'EQUAL' AND
+                 (wa."strValue" IS NOT NULL AND dwl."strValue" = wa."strValue") THEN 1
+            WHEN dwl.comparator = 'NOT_EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" <> wa."intValue") THEN 1
+            WHEN dwl.comparator = 'NOT_EQUAL' AND
+                 (wa."strValue" IS NOT NULL AND dwl."strValue" <> wa."strValue") THEN 1
+            WHEN dwl.comparator = 'GREATER_THAN' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" > wa."intValue") THEN 1
+            WHEN dwl.comparator = 'LESS_THAN' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" < wa."intValue") THEN 1
+            WHEN dwl.comparator = 'GREATER_THAN_OR_EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" >= wa."intValue") THEN 1
+            WHEN dwl.comparator = 'LESS_THAN_OR_EQUAL' AND
+                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" <= wa."intValue") THEN 1
+            ELSE 0
         END AS is_true
     FROM
-        "WorkerLabel" wl
-    LEFT JOIN input_values ON wl.key = input->>'key'
-    LEFT JOIN valid_workers vw ON wl."workerId" = vw."id"
+		valid_workers vw
+	LEFT JOIN "WorkerLabel" wa ON wa."workerId" = vw."id"
+	LEFT JOIN desired_workflow_labels dwl ON wa."key" = dwl."key"
 ),
 weighted_workers AS (
 	SELECT
 		ea."workerId",
 		CASE
-			WHEN COUNT(*) FILTER (WHERE ea."required" = TRUE AND (input_key IS NULL OR is_true = 0)) > 0 THEN -99999
+			WHEN COUNT(*) FILTER (WHERE ea."required" = TRUE AND (ea."input_key" IS NULL OR ea."is_true" = 0)) > 0 THEN -99999
             ELSE COALESCE(SUM(CASE WHEN is_true = 1 THEN ea."weight" ELSE 0 END), 0)
 		END AS total_weight
 	FROM
@@ -124,10 +133,10 @@ RETURNING id, "workerId", "stepRunId"
 `
 
 type AcquireWorkerSemaphoreSlotParams struct {
-	Steprunid         pgtype.UUID `json:"steprunid"`
-	Tenantid          pgtype.UUID `json:"tenantid"`
-	Actionid          string      `json:"actionid"`
-	Affinityinputjson []byte      `json:"affinityinputjson"`
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+	Actionid  string      `json:"actionid"`
+	Stepid    pgtype.UUID `json:"stepid"`
 }
 
 func (q *Queries) AcquireWorkerSemaphoreSlot(ctx context.Context, db DBTX, arg AcquireWorkerSemaphoreSlotParams) (*WorkerSemaphoreSlot, error) {
@@ -135,7 +144,7 @@ func (q *Queries) AcquireWorkerSemaphoreSlot(ctx context.Context, db DBTX, arg A
 		arg.Steprunid,
 		arg.Tenantid,
 		arg.Actionid,
-		arg.Affinityinputjson,
+		arg.Stepid,
 	)
 	var i WorkerSemaphoreSlot
 	err := row.Scan(&i.ID, &i.WorkerId, &i.StepRunId)
@@ -529,7 +538,6 @@ SELECT
     s."scheduleTimeout" AS "stepScheduleTimeout",
     s."readableId" AS "stepReadableId",
     s."customUserData" AS "stepCustomUserData",
-    s."desiredWorkerAffinity" as "desiredWorkerAffinity",
     j."name" AS "jobName",
     j."id" AS "jobId",
     j."kind" AS "jobKind",
@@ -569,24 +577,23 @@ type GetStepRunForEngineParams struct {
 }
 
 type GetStepRunForEngineRow struct {
-	StepRun               StepRun     `json:"step_run"`
-	JobRunLookupData      []byte      `json:"jobRunLookupData"`
-	JobRunId              pgtype.UUID `json:"jobRunId"`
-	WorkflowRunId         pgtype.UUID `json:"workflowRunId"`
-	StepId                pgtype.UUID `json:"stepId"`
-	StepRetries           int32       `json:"stepRetries"`
-	StepTimeout           pgtype.Text `json:"stepTimeout"`
-	StepScheduleTimeout   string      `json:"stepScheduleTimeout"`
-	StepReadableId        pgtype.Text `json:"stepReadableId"`
-	StepCustomUserData    []byte      `json:"stepCustomUserData"`
-	DesiredWorkerAffinity []byte      `json:"desiredWorkerAffinity"`
-	JobName               string      `json:"jobName"`
-	JobId                 pgtype.UUID `json:"jobId"`
-	JobKind               JobKind     `json:"jobKind"`
-	WorkflowVersionId     pgtype.UUID `json:"workflowVersionId"`
-	WorkflowName          string      `json:"workflowName"`
-	WorkflowId            pgtype.UUID `json:"workflowId"`
-	ActionId              string      `json:"actionId"`
+	StepRun             StepRun     `json:"step_run"`
+	JobRunLookupData    []byte      `json:"jobRunLookupData"`
+	JobRunId            pgtype.UUID `json:"jobRunId"`
+	WorkflowRunId       pgtype.UUID `json:"workflowRunId"`
+	StepId              pgtype.UUID `json:"stepId"`
+	StepRetries         int32       `json:"stepRetries"`
+	StepTimeout         pgtype.Text `json:"stepTimeout"`
+	StepScheduleTimeout string      `json:"stepScheduleTimeout"`
+	StepReadableId      pgtype.Text `json:"stepReadableId"`
+	StepCustomUserData  []byte      `json:"stepCustomUserData"`
+	JobName             string      `json:"jobName"`
+	JobId               pgtype.UUID `json:"jobId"`
+	JobKind             JobKind     `json:"jobKind"`
+	WorkflowVersionId   pgtype.UUID `json:"workflowVersionId"`
+	WorkflowName        string      `json:"workflowName"`
+	WorkflowId          pgtype.UUID `json:"workflowId"`
+	ActionId            string      `json:"actionId"`
 }
 
 func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepRunForEngineParams) ([]*GetStepRunForEngineRow, error) {
@@ -635,7 +642,6 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.StepScheduleTimeout,
 			&i.StepReadableId,
 			&i.StepCustomUserData,
-			&i.DesiredWorkerAffinity,
 			&i.JobName,
 			&i.JobId,
 			&i.JobKind,
@@ -1851,4 +1857,72 @@ func (q *Queries) UpdateStepRunOverridesData(ctx context.Context, db DBTX, arg U
 	var input []byte
 	err := row.Scan(&input)
 	return input, err
+}
+
+const upsertDesiredWorkerLabel = `-- name: UpsertDesiredWorkerLabel :one
+INSERT INTO "StepDesiredWorkerLabel" (
+    "createdAt",
+    "updatedAt",
+    "stepId",
+    "key",
+    "intValue",
+    "strValue",
+    "required",
+    "weight",
+    "comparator"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    $2::text,
+    COALESCE($3::int, NULL),
+    COALESCE($4::text, NULL),
+    COALESCE($5::boolean, false),
+    COALESCE($6::int, 100),
+    COALESCE($7::"WorkerLabelComparator", 'EQUAL')
+) ON CONFLICT ("stepId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = COALESCE($3::int, null),
+    "strValue" = COALESCE($4::text, null),
+    "required" = COALESCE($5::boolean, false),
+    "weight" = COALESCE($6::int, 100),
+    "comparator" = COALESCE($7::"WorkerLabelComparator", 'EQUAL')
+RETURNING id, "createdAt", "updatedAt", "stepId", key, "strValue", "intValue", required, comparator, weight
+`
+
+type UpsertDesiredWorkerLabelParams struct {
+	Stepid     pgtype.UUID               `json:"stepid"`
+	Key        string                    `json:"key"`
+	IntValue   pgtype.Int4               `json:"intValue"`
+	StrValue   pgtype.Text               `json:"strValue"`
+	Required   pgtype.Bool               `json:"required"`
+	Weight     pgtype.Int4               `json:"weight"`
+	Comparator NullWorkerLabelComparator `json:"comparator"`
+}
+
+func (q *Queries) UpsertDesiredWorkerLabel(ctx context.Context, db DBTX, arg UpsertDesiredWorkerLabelParams) (*StepDesiredWorkerLabel, error) {
+	row := db.QueryRow(ctx, upsertDesiredWorkerLabel,
+		arg.Stepid,
+		arg.Key,
+		arg.IntValue,
+		arg.StrValue,
+		arg.Required,
+		arg.Weight,
+		arg.Comparator,
+	)
+	var i StepDesiredWorkerLabel
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StepId,
+		&i.Key,
+		&i.StrValue,
+		&i.IntValue,
+		&i.Required,
+		&i.Comparator,
+		&i.Weight,
+	)
+	return &i, err
 }

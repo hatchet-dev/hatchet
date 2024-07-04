@@ -700,6 +700,27 @@ model Action {
   @@unique([tenantId, actionId])
 }
 
+model StepDesiredWorkerLabel {
+  id        BigInt   @id @default(autoincrement()) @db.BigInt
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+
+  step   Step   @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepId String @db.Uuid
+
+  key String
+  strValue String?
+  intValue Int?
+
+  required Boolean
+  comparator WorkerLabelComparator
+  weight Int
+
+  @@index([stepId])
+  @@unique([stepId, key])
+}
+
 model Step {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -743,7 +764,7 @@ model Step {
 
   rateLimits StepRateLimit[]
 
-  desiredWorkerAffinity Json?
+  workerLabels StepDesiredWorkerLabel[]
 
   // readable ids are unique per job
   @@unique([jobId, readableId])

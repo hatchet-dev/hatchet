@@ -262,9 +262,24 @@ CREATE TABLE "Step" (
     "customUserData" JSONB,
     "retries" INTEGER NOT NULL DEFAULT 0,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
-    "desiredWorkerAffinity" JSONB,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StepDesiredWorkerLabel" (
+    "id" BIGSERIAL NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "stepId" UUID NOT NULL,
+    "key" TEXT NOT NULL,
+    "strValue" TEXT,
+    "intValue" INTEGER,
+    "required" BOOLEAN NOT NULL,
+    "comparator" "WorkerLabelComparator" NOT NULL,
+    "weight" INTEGER NOT NULL,
+
+    CONSTRAINT "StepDesiredWorkerLabel_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -850,6 +865,12 @@ CREATE UNIQUE INDEX "Step_id_key" ON "Step"("id" ASC);
 CREATE UNIQUE INDEX "Step_jobId_readableId_key" ON "Step"("jobId" ASC, "readableId" ASC);
 
 -- CreateIndex
+CREATE INDEX "StepDesiredWorkerLabel_stepId_idx" ON "StepDesiredWorkerLabel"("stepId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "StepDesiredWorkerLabel_stepId_key_key" ON "StepDesiredWorkerLabel"("stepId" ASC, "key" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "StepRateLimit_stepId_rateLimitKey_key" ON "StepRateLimit"("stepId" ASC, "rateLimitKey" ASC);
 
 -- CreateIndex
@@ -1145,6 +1166,9 @@ ALTER TABLE "Step" ADD CONSTRAINT "Step_jobId_fkey" FOREIGN KEY ("jobId") REFERE
 
 -- AddForeignKey
 ALTER TABLE "Step" ADD CONSTRAINT "Step_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StepDesiredWorkerLabel" ADD CONSTRAINT "StepDesiredWorkerLabel_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "StepRateLimit" ADD CONSTRAINT "StepRateLimit_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE;
