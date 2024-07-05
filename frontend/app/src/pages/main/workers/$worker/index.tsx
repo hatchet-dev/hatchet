@@ -148,11 +148,13 @@ export default function ExpandedWorkflowRun() {
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Worker Labels
         </h3>
-        {worker.affinityState?.map(({ key, value }) => (
-          <>
-            {key}:{value}
-          </>
-        ))}
+        <div className="flex gap-2">
+          {worker.affinityState?.map(({ key, value }) => (
+            <Badge key={key}>
+              {key}:{value}
+            </Badge>
+          ))}
+        </div>
       </div>
     </div>
   );
