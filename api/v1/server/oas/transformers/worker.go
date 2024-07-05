@@ -2,7 +2,6 @@ package transformers
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,8 +15,6 @@ func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 	resp := make([]gen.WorkerLabel, len(labels))
 
 	for i := range labels {
-		// c := gen.WorkerAffinityComparator(labels[i].Comparator)
-		// w := int(labels[i].Weight)
 
 		var value *string
 		if v, ok := labels[i].Value.(string); ok {
@@ -25,9 +22,6 @@ func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 		} else if v, ok := labels[i].Value.(*string); ok {
 			value = v
 		} else {
-			// Handle other types or set a default value
-			// For example, you can log an error or set value to nil
-			log.Println("Type assertion failed for Value")
 			value = nil
 		}
 

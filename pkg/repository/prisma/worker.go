@@ -397,32 +397,6 @@ func (w *workerEngineRepository) UpsertWorkerLabels(ctx context.Context, workerI
 			}
 		}
 
-		// required := pgtype.Bool{
-		// 	Bool:  false,
-		// 	Valid: true,
-		// }
-		// if opt.Required != nil {
-		// 	required.Bool = *opt.Required
-		// }
-
-		// comparator := dbsqlc.NullAffinityComparator{
-		// 	AffinityComparator: dbsqlc.AffinityComparatorEQUAL,
-		// 	Valid:              true,
-		// }
-
-		// if opt.Comparator != nil {
-		// 	comparator.AffinityComparator = dbsqlc.AffinityComparator(*opt.Comparator)
-		// }
-
-		// weight := pgtype.Int4{
-		// 	Int32: 100,
-		// 	Valid: true,
-		// }
-
-		// if opt.Weight != nil {
-		// 	weight.Int32 = *opt.Weight
-		// }
-
 		dbsqlcOpts := dbsqlc.UpsertWorkerLabelParams{
 			Workerid: workerId,
 			Key:      opt.Key,

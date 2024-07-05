@@ -4,10 +4,10 @@ WorkerLabel:
       $ref: "./metadata.yaml#/APIResourceMeta"
     key:
       type: string
-      description: The key of the affinity.
+      description: The key of the label.
     value:
       type: string
-      description: The value of the affinity.
+      description: The value of the label.
   required:
     - metadata
     - key
