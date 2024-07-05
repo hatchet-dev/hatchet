@@ -35,8 +35,6 @@ service Dispatcher {
     rpc UpsertWorkerLabels(UpsertWorkerLabelsRequest) returns (UpsertWorkerLabelsResponse) {}
 }
 
-
-
 message WorkerLabels {
     // value of the label
     optional string strValue = 1;
