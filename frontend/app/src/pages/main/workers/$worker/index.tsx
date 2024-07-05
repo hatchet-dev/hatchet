@@ -153,13 +153,13 @@ export default function ExpandedWorkflowRun() {
           assignment of steps to specific workers.
         </div>
         <div className="flex gap-2">
-          {!worker.affinityState || worker.affinityState.length === 0 ? (
+          {!worker.labels || worker.labels.length === 0 ? (
             <>
               <>No Labels Assigned. [Docs]</>
               {/* TODO add doc link */}
             </>
           ) : (
-            worker.affinityState?.map(({ key, value }) => (
+            worker.labels?.map(({ key, value }) => (
               <Badge key={key}>
                 {key}:{value}
               </Badge>

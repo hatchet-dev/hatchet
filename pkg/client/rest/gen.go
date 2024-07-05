@@ -888,14 +888,14 @@ type Worker struct {
 	// Actions The actions this worker can perform.
 	Actions *[]string `json:"actions,omitempty"`
 
-	// AffinityState The current affinity state of the worker.
-	AffinityState *[]WorkerLabel `json:"affinityState,omitempty"`
-
 	// AvailableRuns The number of runs this worker can execute concurrently.
 	AvailableRuns *int `json:"availableRuns,omitempty"`
 
 	// DispatcherId the id of the assigned dispatcher, in UUID format
 	DispatcherId *openapi_types.UUID `json:"dispatcherId,omitempty"`
+
+	// Labels The current label state of the worker.
+	Labels *[]WorkerLabel `json:"labels,omitempty"`
 
 	// LastHeartbeatAt The time this worker last sent a heartbeat.
 	LastHeartbeatAt *time.Time `json:"lastHeartbeatAt,omitempty"`

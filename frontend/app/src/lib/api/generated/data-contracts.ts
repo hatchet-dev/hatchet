@@ -862,8 +862,8 @@ export interface Worker {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   dispatcherId?: string;
-  /** The current affinity state of the worker. */
-  affinityState?: WorkerLabel[];
+  /** The current label state of the worker. */
+  labels?: WorkerLabel[];
 }
 
 export interface WorkerLabel {

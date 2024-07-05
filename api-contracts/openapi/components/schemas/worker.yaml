@@ -8,22 +8,6 @@ WorkerLabel:
     value:
       type: string
       description: The value of the affinity.
-    # weight:
-    #   type: integer
-    #   description: The weight of the affinity.
-    # comparator:
-    #   type: string
-    #   description: The comparator of the affinity.
-    #   enum:
-    #     - EQUAL
-    #     - NOT_EQUAL
-    #     - GREATER_THAN
-    #     - LESS_THAN
-    #     - GREATER_THAN_OR_EQUAL
-    #     - LESS_THAN_OR_EQUAL
-    # required:
-    #   type: boolean
-    #   description: Whether this affinity is required.
   required:
     - metadata
     - key
@@ -75,9 +59,9 @@ Worker:
       minLength: 36
       maxLength: 36
       format: uuid
-    affinityState:
+    labels:
       type: array
-      description: The current affinity state of the worker.
+      description: The current label state of the worker.
       items:
         $ref: "./_index.yaml#/WorkerLabel"
   required:

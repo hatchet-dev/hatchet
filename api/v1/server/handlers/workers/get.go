@@ -39,7 +39,7 @@ func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequest
 		return nil, err
 	}
 
-	workerResp = *transformers.ToWorkerWithLabels(&workerResp, affinity)
+	workerResp.Labels = transformers.ToWorkerLabels(affinity)
 
 	return gen.WorkerGet200JSONResponse(workerResp), nil
 }

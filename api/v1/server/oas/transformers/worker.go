@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
-func ToWorkerWithLabels(worker *gen.Worker, labels []*dbsqlc.ListWorkerLabelsRow) *gen.Worker {
+func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 	resp := make([]gen.WorkerLabel, len(labels))
 
 	for i := range labels {
@@ -40,9 +40,7 @@ func ToWorkerWithLabels(worker *gen.Worker, labels []*dbsqlc.ListWorkerLabelsRow
 		}
 	}
 
-	worker.AffinityState = &resp
-
-	return worker
+	return &resp
 }
 
 func ToWorker(worker *db.WorkerModel) *gen.Worker {
