@@ -556,11 +556,11 @@ func (e *errNoWorkerWithSlots) Error() string {
 	return fmt.Sprintf("no worker available, slots left: %d", e.totalSlots)
 }
 
-func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (*dbsqlc.AssignStepRunToWorkerRow, error) {
+func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (*dbsqlc.AssignStepRunToWorkerRow, *dbsqlc.AcquireWorkerSemaphoreSlotRow, error) {
 	tx, err := s.pool.Begin(ctx)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
@@ -575,9 +575,9 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &errNoWorkerWithSlots{totalSlots: int(0)}
+			return nil, nil, &errNoWorkerWithSlots{totalSlots: int(0)}
 		}
-		return nil, fmt.Errorf("could not acquire worker semaphore slot: %w", err)
+		return nil, nil, fmt.Errorf("could not acquire worker semaphore slot: %w", err)
 	}
 
 	assigned, err := s.queries.AssignStepRunToWorker(ctx, tx, dbsqlc.AssignStepRunToWorkerParams{
@@ -592,7 +592,7 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 			s.l.Warn().Err(err).Msg("no rows returned from worker assign")
 		}
 
-		return nil, fmt.Errorf("query to assign worker failed: %w", err)
+		return nil, nil, fmt.Errorf("query to assign worker failed: %w", err)
 	}
 
 	rateLimits, err := s.queries.UpdateStepRateLimits(ctx, tx, dbsqlc.UpdateStepRateLimitsParams{
@@ -601,13 +601,13 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("could not update rate limit: %w", err)
+		return nil, nil, fmt.Errorf("could not update rate limit: %w", err)
 	}
 
 	if len(rateLimits) > 0 {
 		for _, rateLimit := range rateLimits {
 			if rateLimit.Value < 0 {
-				return nil, repository.ErrRateLimitExceeded
+				return nil, nil, repository.ErrRateLimitExceeded
 			}
 		}
 	}
@@ -615,10 +615,10 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 	err = tx.Commit(ctx)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return assigned, nil
+	return assigned, semaphore, nil
 }
 
 func (s *stepRunEngineRepository) deferredStepRunEvent(
@@ -659,9 +659,10 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 	}
 
 	var assigned *dbsqlc.AssignStepRunToWorkerRow
+	var semaphore *dbsqlc.AcquireWorkerSemaphoreSlotRow
 
 	err = unassignedRetry(s.l, func() (err error) {
-		assigned, err = s.assignStepRunToWorkerAttempt(ctx, stepRun)
+		assigned, semaphore, err = s.assignStepRunToWorkerAttempt(ctx, stepRun)
 
 		if err != nil {
 			var target *errNoWorkerWithSlots
@@ -683,13 +684,20 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 	if err != nil {
 		var target *errNoWorkerWithSlots
 
+		semaphoreExtra := s.unmarshalSemaphoreExtraData(semaphore)
+
+		fmt.Println("semaphoreExtra", semaphoreExtra)
+
 		if errors.As(err, &target) {
 			defer s.deferredStepRunEvent(
 				stepRun.StepRun.ID,
 				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
 				dbsqlc.StepRunEventSeverityWARNING,
 				"No worker available",
-				nil,
+				map[string]interface{}{
+					"worker_id": nil,
+					"semaphore": nil,
+				},
 			)
 
 			return "", "", repository.ErrNoWorkerAvailable
@@ -701,7 +709,10 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
 				dbsqlc.StepRunEventSeverityWARNING,
 				"No worker available",
-				nil,
+				map[string]interface{}{
+					"worker_id": nil,
+					"semaphore": nil,
+				},
 			)
 		}
 
@@ -711,12 +722,14 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 				dbsqlc.StepRunEventReasonREQUEUEDRATELIMIT,
 				dbsqlc.StepRunEventSeverityWARNING,
 				"Rate limit exceeded",
-				nil,
+				nil, // TODO add label data
 			)
 		}
 
 		return "", "", err
 	}
+
+	semaphoreExtra := s.unmarshalSemaphoreExtraData(semaphore)
 
 	defer s.deferredStepRunEvent(
 		stepRun.StepRun.ID,
@@ -725,10 +738,37 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		fmt.Sprintf("Assigned to worker %s", sqlchelpers.UUIDToStr(assigned.WorkerId)),
 		map[string]interface{}{
 			"worker_id": sqlchelpers.UUIDToStr(assigned.WorkerId),
+			"semaphore": semaphoreExtra,
 		},
 	)
 
 	return sqlchelpers.UUIDToStr(assigned.WorkerId), sqlchelpers.UUIDToStr(assigned.DispatcherId), nil
+}
+
+func (s *stepRunEngineRepository) unmarshalSemaphoreExtraData(semaphore *dbsqlc.AcquireWorkerSemaphoreSlotRow) map[string]interface{} {
+
+	if semaphore == nil {
+		return map[string]interface{}{}
+	}
+
+	var desiredLabels []map[string]interface{}
+
+	err := json.Unmarshal(semaphore.DesiredLabels, &desiredLabels)
+	if err != nil {
+		s.l.Warn().Err(err).Msg("failed to unmarshal DesiredLabels")
+	}
+
+	var workerLabels []map[string]interface{}
+
+	err = json.Unmarshal(semaphore.WorkerLabels, &workerLabels)
+	if err != nil {
+		s.l.Warn().Err(err).Msg("failed to unmarshal DesiredLabels")
+	}
+
+	return map[string]interface{}{
+		"desired_worker_labels": desiredLabels,
+		"actual_worker_labels":  workerLabels,
+	}
 }
 
 func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *repository.StepRunUpdateInfo, error) {

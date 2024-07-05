@@ -21,7 +21,7 @@ WITH valid_workers AS (
     JOIN
         "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
     WHERE
-        w."tenantId" = $2::uuid
+        w."tenantId" = $1::uuid
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
@@ -29,7 +29,7 @@ WITH valid_workers AS (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
             INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = $2 AND "Action"."actionId" = $3::text
+            WHERE "Action"."tenantId" = $1 AND "Action"."actionId" = $2::text
         )
     GROUP BY w."id"
 ),
@@ -44,16 +44,15 @@ desired_workflow_labels AS (
     FROM
         "StepDesiredWorkerLabel"
     WHERE
-        "stepId" = $4::uuid
+        "stepId" = $3::uuid
 ),
 evaluated_affinities AS (
     SELECT DISTINCT
-        wa."key",
+        wa."key" AS worker_key,
+        dwl."key" AS desired_key,
         dwl."weight",
         wa."workerId",
         dwl."required",
-        dwl."key",
-        dwl."key" AS input_key,
         COALESCE(dwl."intValue"::text, dwl."strValue") AS input_value,
         CASE
             WHEN wa."intValue" IS NOT NULL THEN wa."intValue"::text
@@ -80,21 +79,21 @@ evaluated_affinities AS (
             ELSE 0
         END AS is_true
     FROM
-		valid_workers vw
-	LEFT JOIN "WorkerLabel" wa ON wa."workerId" = vw."id"
-	LEFT JOIN desired_workflow_labels dwl ON wa."key" = dwl."key"
+        valid_workers vw
+    LEFT JOIN "WorkerLabel" wa ON wa."workerId" = vw."id"
+    LEFT JOIN desired_workflow_labels dwl ON wa."key" = dwl."key"
 ),
 weighted_workers AS (
-	SELECT
-		ea."workerId",
-		CASE
-			WHEN COUNT(*) FILTER (WHERE ea."required" = TRUE AND (ea."input_key" IS NULL OR ea."is_true" = 0)) > 0 THEN -99999
+    SELECT
+        ea."workerId",
+        CASE
+            WHEN COUNT(*) FILTER (WHERE ea."required" = TRUE AND (ea."desired_key" IS NULL OR ea."is_true" = 0)) > 0 THEN -99999
             ELSE COALESCE(SUM(CASE WHEN is_true = 1 THEN ea."weight" ELSE 0 END), 0)
-		END AS total_weight
-	FROM
-		evaluated_affinities ea
-	GROUP BY
-		"workerId"
+        END AS total_weight
+    FROM
+        evaluated_affinities ea
+    GROUP BY
+        ea."workerId"
 ),
 selected_worker AS (
     SELECT
@@ -122,32 +121,78 @@ selected_slot AS (
         wss."stepRunId" IS NULL
     FOR UPDATE SKIP LOCKED
     LIMIT 1
+),
+update_slot AS (
+    UPDATE
+        "WorkerSemaphoreSlot"
+    SET
+        "stepRunId" = $4::uuid
+    WHERE
+        "id" = (SELECT "slotId" FROM selected_slot)
+    RETURNING id, "workerId", "stepRunId"
 )
-UPDATE
-    "WorkerSemaphoreSlot"
-SET
-    "stepRunId" = $1::uuid
-WHERE
-    "id" = (SELECT "slotId" FROM selected_slot)
-RETURNING id, "workerId", "stepRunId"
+SELECT
+    us.id, us."workerId", us."stepRunId",
+    jsonb_agg(
+        jsonb_build_object(
+            'key', dwl."key",
+            'strValue', dwl."strValue",
+            'intValue', dwl."intValue",
+            'required', dwl."required",
+            'weight', dwl."weight",
+            'comparator', dwl."comparator",
+            'is_true', ea."is_true"
+        )
+    ) AS desired_labels,
+    jsonb_agg(
+        jsonb_build_object(
+            'key', wa."key",
+            'strValue', wa."strValue",
+            'intValue', wa."intValue"
+        )
+    ) AS worker_labels
+FROM
+    update_slot us
+LEFT JOIN
+    evaluated_affinities ea ON us."workerId" = ea."workerId"
+LEFT JOIN
+    desired_workflow_labels dwl ON ea."desired_key" = dwl."key"
+LEFT JOIN
+    "WorkerLabel" wa ON ea."workerId" = wa."workerId" AND ea."worker_key" = wa."key"
+GROUP BY
+    us."id", us."workerId", us."stepRunId"
 `
 
 type AcquireWorkerSemaphoreSlotParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
 	Actionid  string      `json:"actionid"`
 	Stepid    pgtype.UUID `json:"stepid"`
+	Steprunid pgtype.UUID `json:"steprunid"`
 }
 
-func (q *Queries) AcquireWorkerSemaphoreSlot(ctx context.Context, db DBTX, arg AcquireWorkerSemaphoreSlotParams) (*WorkerSemaphoreSlot, error) {
+type AcquireWorkerSemaphoreSlotRow struct {
+	ID            pgtype.UUID `json:"id"`
+	WorkerId      pgtype.UUID `json:"workerId"`
+	StepRunId     pgtype.UUID `json:"stepRunId"`
+	DesiredLabels []byte      `json:"desired_labels"`
+	WorkerLabels  []byte      `json:"worker_labels"`
+}
+
+func (q *Queries) AcquireWorkerSemaphoreSlot(ctx context.Context, db DBTX, arg AcquireWorkerSemaphoreSlotParams) (*AcquireWorkerSemaphoreSlotRow, error) {
 	row := db.QueryRow(ctx, acquireWorkerSemaphoreSlot,
-		arg.Steprunid,
 		arg.Tenantid,
 		arg.Actionid,
 		arg.Stepid,
+		arg.Steprunid,
 	)
-	var i WorkerSemaphoreSlot
-	err := row.Scan(&i.ID, &i.WorkerId, &i.StepRunId)
+	var i AcquireWorkerSemaphoreSlotRow
+	err := row.Scan(
+		&i.ID,
+		&i.WorkerId,
+		&i.StepRunId,
+		&i.DesiredLabels,
+		&i.WorkerLabels,
+	)
 	return &i, err
 }
 

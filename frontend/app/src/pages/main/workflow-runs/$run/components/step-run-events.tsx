@@ -22,7 +22,14 @@ import { Button } from '@/components/ui/button';
 import { ArrowRightIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import {
+  SemaphoreEventData,
+  SemaphoreExtra,
+  columns,
+  mapSemaphoreExtra,
+} from './step-runs-worker-label-columns';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 
 export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
   const getLogsQuery = useQuery({
@@ -125,7 +132,9 @@ function StepRunEventCard({ event }: { event: StepRunEvent }) {
         </div>
         <CardDescription className="mt-2">{event.message}</CardDescription>
       </CardHeader>
-      <CardContent className="p-0 z-10 bg-background"></CardContent>
+      <CardContent className="p-0 z-10 bg-background">
+        <RenderSemaphoreExtra event={event} />
+      </CardContent>
       {renderCardFooter(event)}
     </Card>
   );
@@ -201,6 +210,30 @@ const REASON_TO_TITLE: Record<StepRunEventReason, string> = {
 function getTitleFromReason(reason: StepRunEventReason, message: string) {
   return REASON_TO_TITLE[reason] || message;
 }
+
+const RenderSemaphoreExtra: React.FC<{ event: StepRunEvent }> = ({ event }) => {
+  const state = useMemo(() => {
+    const data = (event?.data as { semaphore?: SemaphoreEventData })?.semaphore;
+    if (!data) {
+      return;
+    }
+
+    return mapSemaphoreExtra(data) as unknown as SemaphoreExtra[];
+  }, [event]);
+
+  if (!state) {
+    return <></>;
+  } else {
+    return (
+      <div className="flex flex-col p-2 gap">
+        <div className="text-sm font-semibold">Worker Labels:</div>
+        <div className="text-sm">
+          <DataTable columns={columns} data={state} filters={[]} />
+        </div>
+      </div>
+    );
+  }
+};
 
 function renderCardFooter(event: StepRunEvent) {
   if (event.data) {
