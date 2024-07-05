@@ -60,6 +60,10 @@ type UpsertWorkerLabelOpts struct {
 	StrValue *string
 }
 
+type ApiUpdateWorkerOpts struct {
+	IsPaused *bool
+}
+
 type WorkerAPIRepository interface {
 	// ListWorkers lists workers for the tenant
 	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error)
@@ -70,8 +74,11 @@ type WorkerAPIRepository interface {
 	// GetWorkerById returns a worker by its id.
 	GetWorkerById(workerId string) (*db.WorkerModel, error)
 
-	// ListWorkerLabels returns a list of affinity config for a worker
+	// ListWorkerLabels returns a list of labels config for a worker
 	ListWorkerLabels(tenantId, workerId string) ([]*dbsqlc.ListWorkerLabelsRow, error)
+
+	// UpdateWorker updates a worker for a given tenant.
+	UpdateWorker(tenantId string, workerId string, opts ApiUpdateWorkerOpts) (*dbsqlc.Worker, error)
 }
 
 type WorkerEngineRepository interface {

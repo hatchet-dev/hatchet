@@ -1099,6 +1099,7 @@ type Worker struct {
 	MaxRuns                 int32            `json:"maxRuns"`
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
+	IsPaused                bool             `json:"isPaused"`
 }
 
 type WorkerLabel struct {

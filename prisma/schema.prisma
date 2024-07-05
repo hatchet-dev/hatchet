@@ -405,6 +405,10 @@ model Event {
 
   // the workflow runs that were triggered by this event
   workflowRuns WorkflowRunTriggeredBy[]
+
+  @@index([tenantId])
+  @@index([createdAt])
+  @@index([tenantId, createdAt])
 }
 
 model WorkflowTag {
@@ -701,24 +705,24 @@ model Action {
 }
 
 model StepDesiredWorkerLabel {
-  id        BigInt   @id @default(autoincrement()) @db.BigInt
+  id BigInt @id @default(autoincrement()) @db.BigInt
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now()) @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   step   Step   @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepId String @db.Uuid
 
-  key String
+  key      String
   strValue String?
   intValue Int?
 
-  required Boolean
+  required   Boolean
   comparator WorkerLabelComparator
-  weight Int
+  weight     Int
 
-  @@index([stepId])
   @@unique([stepId, key])
+  @@index([stepId])
 }
 
 model Step {
@@ -876,6 +880,12 @@ model WorkflowRun {
   additionalMetadata Json?
 
   @@unique([parentId, parentStepRunId, childKey])
+  @@index([tenantId])
+  @@index([workflowVersionId])
+  @@index([createdAt])
+  @@index([tenantId, createdAt])
+  @@index([finishedAt])
+  @@index([status])
 }
 
 model GetGroupKeyRun {
@@ -967,6 +977,10 @@ model WorkflowRunTriggeredBy {
   // a specific time that triggered this workflow
   scheduled   WorkflowTriggerScheduledRef? @relation(fields: [scheduledId], references: [id])
   scheduledId String?                      @unique @db.Uuid
+
+  @@index([tenantId])
+  @@index([eventId])
+  @@index([parentId])
 }
 
 enum JobRunStatus {
@@ -1312,20 +1326,20 @@ enum WorkerLabelComparator {
 }
 
 model WorkerLabel {
-  id        BigInt   @id @default(autoincrement()) @db.BigInt
+  id BigInt @id @default(autoincrement()) @db.BigInt
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now()) @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workerId String @db.Uuid
 
-  key String
+  key      String
   strValue String?
   intValue Int?
 
-  @@index([workerId])
   @@unique([workerId, key])
+  @@index([workerId])
 }
 
 model Worker {
@@ -1344,7 +1358,10 @@ model Worker {
   // the last heartbeat time
   lastHeartbeatAt DateTime?
 
-  // whether this worker is active or not
+  // whether the worker has been marked as paused
+  isPaused Boolean @default(false)
+
+  // whether this worker GRPC connection is active or not
   isActive Boolean @default(false)
 
   lastListenerEstablished DateTime?
@@ -1548,5 +1565,5 @@ model SNSIntegration {
 }
 
 model SecurityCheckIdent {
-  id       String   @id @unique @default(uuid()) @db.Uuid
+  id String @id @unique @default(uuid()) @db.Uuid
 }

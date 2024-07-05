@@ -47,6 +47,10 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 
 	status := gen.ACTIVE
 
+	if worker.IsPaused {
+		status = gen.PAUSED
+	}
+
 	if lastHeartbeat, ok := worker.LastHeartbeatAt(); ok && lastHeartbeat.Add(4*time.Second).Before(time.Now()) {
 		status = gen.INACTIVE
 	}
@@ -90,7 +94,7 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 	return res
 }
 
-func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64, slots *int) *gen.Worker {
+func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
@@ -98,11 +102,19 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64, slots *int) *gen.Work
 
 	status := gen.ACTIVE
 
+	if worker.IsPaused {
+		status = gen.PAUSED
+	}
+
 	if worker.LastHeartbeatAt.Time.Add(5 * time.Second).Before(time.Now()) {
 		status = gen.INACTIVE
 	}
 
-	availableRuns := maxRuns - *slots
+	var availableRuns int
+
+	if slots != nil {
+		availableRuns = maxRuns - *slots
+	}
 
 	res := &gen.Worker{
 		Metadata:      *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),

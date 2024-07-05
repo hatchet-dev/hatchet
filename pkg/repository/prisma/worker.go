@@ -129,6 +129,31 @@ func (w *workerAPIRepository) ListWorkerLabels(tenantId, workerId string) ([]*db
 	return w.queries.ListWorkerLabels(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
 }
 
+func (w *workerAPIRepository) UpdateWorker(tenantId, workerId string, opts repository.ApiUpdateWorkerOpts) (*dbsqlc.Worker, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	updateParams := dbsqlc.UpdateWorkerParams{
+		ID: sqlchelpers.UUIDFromStr(workerId),
+	}
+
+	if opts.IsPaused != nil {
+		updateParams.IsPaused = pgtype.Bool{
+			Bool:  *opts.IsPaused,
+			Valid: true,
+		}
+	}
+
+	worker, err := w.queries.UpdateWorker(context.Background(), w.pool, updateParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not update worker: %w", err)
+	}
+
+	return worker, nil
+}
+
 type workerEngineRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator

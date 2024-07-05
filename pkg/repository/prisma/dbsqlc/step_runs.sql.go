@@ -25,6 +25,7 @@ WITH valid_workers AS (
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
+        AND w."isPaused" = false
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
@@ -1074,6 +1075,7 @@ WITH valid_workers AS (
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
+        AND w."isPaused" = false
     GROUP BY
         w."id", w."maxRuns"
     HAVING
@@ -1184,6 +1186,7 @@ WITH valid_workers AS (
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         -- necessary because isActive is set to false immediately when the stream closes
         AND w."isActive" = true
+        AND w."isPaused" = false
     GROUP BY
         w."id", w."maxRuns"
     HAVING

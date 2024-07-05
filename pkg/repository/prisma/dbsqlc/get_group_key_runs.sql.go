@@ -221,6 +221,7 @@ WITH valid_workers AS (
         w."tenantId" = $1::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
+        AND w."isPaused" = false
     GROUP BY
         w."id"
 ),
