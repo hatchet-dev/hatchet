@@ -22,20 +22,20 @@ interface DesiredWorkerLabel extends WorkerLabel {
 }
 
 export interface SemaphoreEventData {
-  desired_worker_labels: DesiredWorkerLabel[];
-  actual_worker_labels: WorkerLabel[];
+  desired_worker_labels?: DesiredWorkerLabel[];
+  actual_worker_labels?: WorkerLabel[];
 }
 
 export const mapSemaphoreExtra = (data: SemaphoreEventData) => {
-  return data.desired_worker_labels.map((label) => {
-    const actual = data.actual_worker_labels.find(
+  return (data.desired_worker_labels || []).map((label) => {
+    const actual = data.actual_worker_labels?.find(
       (actual) => actual.key === label.key,
     );
     return {
       metadata: { id: 'key', createdAt: new Date(), updatedAt: new Date() }, // Hack to make the table work
       key: label.key,
       desired: label.intValue || label.strValue,
-      actual: actual?.intValue || actual?.strValue || 'Not Set',
+      actual: actual?.intValue || actual?.strValue || 'N/A',
       comparator: label.comparator,
       weight: label.weight,
       is_true: label.is_true,
@@ -45,7 +45,7 @@ export const mapSemaphoreExtra = (data: SemaphoreEventData) => {
 };
 
 const COMPARATOR_MAP: { [key: string]: string } = {
-  EQUAL: '=',
+  EQUAL: '==',
   NOT_EQUAL: '!=',
   GREATER_THAN: '>',
   LESS_THAN: '<',

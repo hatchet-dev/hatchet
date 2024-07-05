@@ -665,6 +665,24 @@ LEFT JOIN
 GROUP BY
     us."id", us."workerId", us."stepRunId";
 
+-- name: GetStepDesiredWorkerLabels :one
+SELECT
+    jsonb_agg(
+        jsonb_build_object(
+            'key', dwl."key",
+            'strValue', dwl."strValue",
+            'intValue', dwl."intValue",
+            'required', dwl."required",
+            'weight', dwl."weight",
+            'comparator', dwl."comparator",
+            'is_true', false
+        )
+    ) AS desired_labels
+FROM
+    "StepDesiredWorkerLabel" dwl
+WHERE
+    dwl."stepId" = @stepId::uuid;
+
 -- name: UpsertDesiredWorkerLabel :one
 INSERT INTO "StepDesiredWorkerLabel" (
     "createdAt",

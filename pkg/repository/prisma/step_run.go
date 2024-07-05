@@ -684,9 +684,13 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 	if err != nil {
 		var target *errNoWorkerWithSlots
 
-		semaphoreExtra := s.unmarshalSemaphoreExtraData(semaphore)
+		labels, labelErr := s.queries.GetStepDesiredWorkerLabels(ctx, s.pool, stepRun.StepId)
 
-		fmt.Println("semaphoreExtra", semaphoreExtra)
+		if labelErr != nil {
+			return "", "", fmt.Errorf("could not get step desired worker labels: %w", err)
+		}
+
+		semaphoreExtra := s.unmarshalSemaphoreExtraData(nil, &labels)
 
 		if errors.As(err, &target) {
 			defer s.deferredStepRunEvent(
@@ -696,7 +700,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 				"No worker available",
 				map[string]interface{}{
 					"worker_id": nil,
-					"semaphore": nil,
+					"semaphore": semaphoreExtra,
 				},
 			)
 
@@ -711,7 +715,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 				"No worker available",
 				map[string]interface{}{
 					"worker_id": nil,
-					"semaphore": nil,
+					"semaphore": semaphoreExtra,
 				},
 			)
 		}
@@ -729,7 +733,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		return "", "", err
 	}
 
-	semaphoreExtra := s.unmarshalSemaphoreExtraData(semaphore)
+	semaphoreExtra := s.unmarshalSemaphoreExtraData(semaphore, nil)
 
 	defer s.deferredStepRunEvent(
 		stepRun.StepRun.ID,
@@ -745,24 +749,34 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 	return sqlchelpers.UUIDToStr(assigned.WorkerId), sqlchelpers.UUIDToStr(assigned.DispatcherId), nil
 }
 
-func (s *stepRunEngineRepository) unmarshalSemaphoreExtraData(semaphore *dbsqlc.AcquireWorkerSemaphoreSlotRow) map[string]interface{} {
-
-	if semaphore == nil {
-		return map[string]interface{}{}
-	}
-
+func (s *stepRunEngineRepository) unmarshalSemaphoreExtraData(semaphore *dbsqlc.AcquireWorkerSemaphoreSlotRow, desiredLabelBytes *[]byte) map[string]interface{} {
+	// Initialize the result maps
 	var desiredLabels []map[string]interface{}
-
-	err := json.Unmarshal(semaphore.DesiredLabels, &desiredLabels)
-	if err != nil {
-		s.l.Warn().Err(err).Msg("failed to unmarshal DesiredLabels")
-	}
-
 	var workerLabels []map[string]interface{}
 
-	err = json.Unmarshal(semaphore.WorkerLabels, &workerLabels)
-	if err != nil {
-		s.l.Warn().Err(err).Msg("failed to unmarshal DesiredLabels")
+	// Check if desiredLabelBytes is not nil and unmarshal it
+	switch {
+	case desiredLabelBytes != nil:
+		err := json.Unmarshal(*desiredLabelBytes, &desiredLabels)
+		if err != nil && err.Error() != "unexpected end of JSON input" {
+			s.l.Warn().Err(err).Msg("failed to unmarshal desiredLabelBytes")
+		}
+	case semaphore != nil:
+		// If desiredLabelBytes is nil, use semaphore.DesiredLabels
+		err := json.Unmarshal(semaphore.DesiredLabels, &desiredLabels)
+		if err != nil {
+			s.l.Warn().Err(err).Msg("failed to unmarshal semaphore.DesiredLabels")
+		}
+	default:
+		s.l.Warn().Msg("semaphore is nil, cannot unmarshal DesiredLabels")
+	}
+
+	// Unmarshal WorkerLabels from semaphore if it's not nil
+	if semaphore != nil && semaphore.WorkerLabels != nil {
+		err := json.Unmarshal(semaphore.WorkerLabels, &workerLabels)
+		if err != nil {
+			s.l.Warn().Err(err).Msg("failed to unmarshal semaphore.WorkerLabels")
+		}
 	}
 
 	return map[string]interface{}{

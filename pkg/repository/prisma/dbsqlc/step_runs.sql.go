@@ -519,6 +519,32 @@ func (q *Queries) GetLaterStepRunsForReplay(ctx context.Context, db DBTX, arg Ge
 	return items, nil
 }
 
+const getStepDesiredWorkerLabels = `-- name: GetStepDesiredWorkerLabels :one
+SELECT
+    jsonb_agg(
+        jsonb_build_object(
+            'key', dwl."key",
+            'strValue', dwl."strValue",
+            'intValue', dwl."intValue",
+            'required', dwl."required",
+            'weight', dwl."weight",
+            'comparator', dwl."comparator",
+            'is_true', false
+        )
+    ) AS desired_labels
+FROM
+    "StepDesiredWorkerLabel" dwl
+WHERE
+    dwl."stepId" = $1::uuid
+`
+
+func (q *Queries) GetStepDesiredWorkerLabels(ctx context.Context, db DBTX, stepid pgtype.UUID) ([]byte, error) {
+	row := db.QueryRow(ctx, getStepDesiredWorkerLabels, stepid)
+	var desired_labels []byte
+	err := row.Scan(&desired_labels)
+	return desired_labels, err
+}
+
 const getStepRun = `-- name: GetStepRun :one
 SELECT
     "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased"
