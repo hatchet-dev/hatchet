@@ -767,6 +767,7 @@ func (s *stepRunEngineRepository) unmarshalSemaphoreExtraData(semaphore *dbsqlc.
 		if err != nil {
 			s.l.Warn().Err(err).Msg("failed to unmarshal semaphore.DesiredLabels")
 		}
+
 	default:
 		s.l.Warn().Msg("semaphore is nil, cannot unmarshal DesiredLabels")
 	}
@@ -779,8 +780,17 @@ func (s *stepRunEngineRepository) unmarshalSemaphoreExtraData(semaphore *dbsqlc.
 		}
 	}
 
+	// Filter values of desiredLabels where desiredLabels.key is empty
+	// HACK this is a workaround for the fact that the sqlc query sometimes returns null rows
+	filteredDesiredLabels := make([]map[string]interface{}, 0)
+	for _, label := range desiredLabels {
+		if label["key"] != "" && label["key"] != nil {
+			filteredDesiredLabels = append(filteredDesiredLabels, label)
+		}
+	}
+
 	return map[string]interface{}{
-		"desired_worker_labels": desiredLabels,
+		"desired_worker_labels": filteredDesiredLabels,
 		"actual_worker_labels":  workerLabels,
 	}
 }
