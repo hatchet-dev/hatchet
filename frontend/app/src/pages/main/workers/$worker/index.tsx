@@ -156,6 +156,7 @@ export default function ExpandedWorkflowRun() {
           {!worker.affinityState || worker.affinityState.length === 0 ? (
             <>
               <>No Labels Assigned. [Docs]</>
+              {/* TODO add doc link */}
             </>
           ) : (
             worker.affinityState?.map(({ key, value }) => (
