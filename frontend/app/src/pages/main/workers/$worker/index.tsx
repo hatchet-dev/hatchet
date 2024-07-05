@@ -148,12 +148,22 @@ export default function ExpandedWorkflowRun() {
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Worker Labels
         </h3>
+        <div className="mb-4 text-sm">
+          Worker labels are key-value pairs that can be used to prioritize
+          assignment of steps to specific workers.
+        </div>
         <div className="flex gap-2">
-          {worker.affinityState?.map(({ key, value }) => (
-            <Badge key={key}>
-              {key}:{value}
-            </Badge>
-          ))}
+          {!worker.affinityState || worker.affinityState.length === 0 ? (
+            <>
+              <>No Labels Assigned. [Docs]</>
+            </>
+          ) : (
+            worker.affinityState?.map(({ key, value }) => (
+              <Badge key={key}>
+                {key}:{value}
+              </Badge>
+            ))
+          )}
         </div>
       </div>
     </div>
