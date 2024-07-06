@@ -466,7 +466,6 @@ model Workflow {
 
   // workflow names are unique per tenant
   @@unique([tenantId, name])
-
   @@index([tenantId])
 }
 
@@ -687,7 +686,6 @@ model Job {
 
   // jobs names are unique per workflow
   @@unique([workflowVersionId, name])
-
   @@index([tenantId])
 }
 
@@ -714,7 +712,6 @@ model Action {
 
   // actions are unique per tenant
   @@unique([tenantId, actionId])
-
   @@index([tenantId])
 }
 
@@ -763,7 +760,6 @@ model Step {
 
   // readable ids are unique per job
   @@unique([jobId, readableId])
-
   @@index([tenantId])
   @@index([jobId])
 }
@@ -1183,10 +1179,8 @@ model StepRun {
   @@index([id, tenantId])
   // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
   @@index([jobRunId, tenantId, order])
-
   @@index([timeoutAt])
   @@index([status])
-
 }
 
 enum StepRunEventReason {
