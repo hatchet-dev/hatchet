@@ -21,50 +21,50 @@ The Hatchet server and engine can be configured via `SERVER` and `DATABASE` envi
 
 ## Database Configuration
 
-| Variable                      | Description                | Default Value        |
-| ----------------------------- | -------------------------- | -------------------- |
-| `DATABASE_POSTGRES_HOST`      | PostgreSQL host            | `127.0.0.1`          |
-| `DATABASE_POSTGRES_PORT`      | PostgreSQL port            | `5431`               |
-| `DATABASE_POSTGRES_USERNAME`  | PostgreSQL username        | `hatchet`            |
-| `DATABASE_POSTGRES_PASSWORD`  | PostgreSQL password        | `hatchet`            |
-| `DATABASE_POSTGRES_DB_NAME`   | PostgreSQL database name   | `hatchet`            |
-| `DATABASE_POSTGRES_SSL_MODE`  | PostgreSQL SSL mode        | `disable`            |
-| `DATABASE_MAX_CONNS`          | Max database connections   | `5`                  |
-| `DATABASE_LOG_QUERIES`        | Log database queries       | `false`              |
-| `CACHE_DURATION`              | Cache duration             | `60s`                |
+| Variable                     | Description              | Default Value |
+| ---------------------------- | ------------------------ | ------------- |
+| `DATABASE_POSTGRES_HOST`     | PostgreSQL host          | `127.0.0.1`   |
+| `DATABASE_POSTGRES_PORT`     | PostgreSQL port          | `5431`        |
+| `DATABASE_POSTGRES_USERNAME` | PostgreSQL username      | `hatchet`     |
+| `DATABASE_POSTGRES_PASSWORD` | PostgreSQL password      | `hatchet`     |
+| `DATABASE_POSTGRES_DB_NAME`  | PostgreSQL database name | `hatchet`     |
+| `DATABASE_POSTGRES_SSL_MODE` | PostgreSQL SSL mode      | `disable`     |
+| `DATABASE_MAX_CONNS`         | Max database connections | `5`           |
+| `DATABASE_LOG_QUERIES`       | Log database queries     | `false`       |
+| `CACHE_DURATION`             | Cache duration           | `60s`         |
 
 ## Security Check Configuration
 
-| Variable                         | Description                           | Default Value                 |
-| -------------------------------- | ------------------------------------- | ----------------------------- |
-| `SERVER_SECURITY_CHECK_ENABLED`  | Enable security check                 | `true`                        |
-| `SERVER_SECURITY_CHECK_ENDPOINT` | Security check endpoint               | `https://security.hatchet.run`|
+| Variable                         | Description             | Default Value                  |
+| -------------------------------- | ----------------------- | ------------------------------ |
+| `SERVER_SECURITY_CHECK_ENABLED`  | Enable security check   | `true`                         |
+| `SERVER_SECURITY_CHECK_ENDPOINT` | Security check endpoint | `https://security.hatchet.run` |
 
 ## Limit Configuration
 
-| Variable                                    | Description                                | Default Value |
-| ------------------------------------------- | ------------------------------------------ | ------------- |
-| `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD` | Default tenant retention period          | `720h`        |
-| `SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT`  | Default workflow run limit                 | `1000`        |
-| `SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_ALARM_LIMIT` | Default workflow run alarm limit          | `750`         |
-| `SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_WINDOW` | Default workflow run window                | `24h`         |
-| `SERVER_LIMITS_DEFAULT_WORKER_LIMIT`        | Default worker limit                       | `4`           |
-| `SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT`  | Default worker alarm limit                 | `2`           |
-| `SERVER_LIMITS_DEFAULT_EVENT_LIMIT`         | Default event limit                        | `1000`        |
-| `SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT`   | Default event alarm limit                  | `750`         |
-| `SERVER_LIMITS_DEFAULT_EVENT_WINDOW`        | Default event window                       | `24h`         |
-| `SERVER_LIMITS_DEFAULT_CRON_LIMIT`          | Default cron limit                         | `5`           |
-| `SERVER_LIMITS_DEFAULT_CRON_ALARM_LIMIT`    | Default cron alarm limit                   | `2`           |
-| `SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT`      | Default schedule limit                     | `1000`        |
-| `SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT`| Default schedule alarm limit               | `750`         |
+| Variable                                         | Description                      | Default Value |
+| ------------------------------------------------ | -------------------------------- | ------------- |
+| `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD`  | Default tenant retention period  | `720h`        |
+| `SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_LIMIT`       | Default workflow run limit       | `1000`        |
+| `SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_ALARM_LIMIT` | Default workflow run alarm limit | `750`         |
+| `SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_WINDOW`      | Default workflow run window      | `24h`         |
+| `SERVER_LIMITS_DEFAULT_WORKER_LIMIT`             | Default worker limit             | `4`           |
+| `SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT`       | Default worker alarm limit       | `2`           |
+| `SERVER_LIMITS_DEFAULT_EVENT_LIMIT`              | Default event limit              | `1000`        |
+| `SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT`        | Default event alarm limit        | `750`         |
+| `SERVER_LIMITS_DEFAULT_EVENT_WINDOW`             | Default event window             | `24h`         |
+| `SERVER_LIMITS_DEFAULT_CRON_LIMIT`               | Default cron limit               | `5`           |
+| `SERVER_LIMITS_DEFAULT_CRON_ALARM_LIMIT`         | Default cron alarm limit         | `2`           |
+| `SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT`           | Default schedule limit           | `1000`        |
+| `SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT`     | Default schedule alarm limit     | `750`         |
 
 ## Alerting Configuration
 
-| Variable                         | Description                              | Default Value   |
-| -------------------------------- | ---------------------------------------- | --------------- |
-| `SERVER_ALERTING_SENTRY_ENABLED` | Enable Sentry for alerting               |                 |
-| `SERVER_ALERTING_SENTRY_DSN`     | Sentry DSN                               |                 |
-| `SERVER_ALERTING_SENTRY_ENVIRONMENT` | Sentry environment                     | `development`   |
+| Variable                             | Description                | Default Value |
+| ------------------------------------ | -------------------------- | ------------- |
+| `SERVER_ALERTING_SENTRY_ENABLED`     | Enable Sentry for alerting |               |
+| `SERVER_ALERTING_SENTRY_DSN`         | Sentry DSN                 |               |
+| `SERVER_ALERTING_SENTRY_ENVIRONMENT` | Sentry environment         | `development` |
 
 ## Encryption Configuration
 
@@ -102,10 +102,10 @@ The Hatchet server and engine can be configured via `SERVER` and `DATABASE` envi
 
 ## Task Queue Configuration
 
-| Variable                        | Description  | Default Value                          |
-| ------------------------------- | ------------ | -------------------------------------- |
-| `SERVER_MSGQUEUE_KIND`          | Message queue kind                     |              |
-| `SERVER_MSGQUEUE_RABBITMQ_URL`  | RabbitMQ URL                           | `amqp://user:password@localhost:5672/` |
+| Variable                       | Description        | Default Value                          |
+| ------------------------------ | ------------------ | -------------------------------------- |
+| `SERVER_MSGQUEUE_KIND`         | Message queue kind |                                        |
+| `SERVER_MSGQUEUE_RABBITMQ_URL` | RabbitMQ URL       | `amqp://user:password@localhost:5672/` |
 
 ## TLS Configuration
 
@@ -122,13 +122,12 @@ The Hatchet server and engine can be configured via `SERVER` and `DATABASE` envi
 
 ## Logging Configuration
 
-| Variable               | Description   | Default Value |
-| ---------------------- | ------------- | ------------- |
-| `SERVER_LOGGER_LEVEL`  | Logger level  |               |
-| `SERVER_LOGGER_FORMAT` | Logger format |               |
-| `DATABASE_LOGGER_LEVEL`       | Logger level               |                      |
-| `DATABASE_LOGGER_FORMAT`      | Logger format              |                      |
-
+| Variable                 | Description   | Default Value |
+| ------------------------ | ------------- | ------------- |
+| `SERVER_LOGGER_LEVEL`    | Logger level  |               |
+| `SERVER_LOGGER_FORMAT`   | Logger format |               |
+| `DATABASE_LOGGER_LEVEL`  | Logger level  |               |
+| `DATABASE_LOGGER_FORMAT` | Logger format |               |
 
 ## OpenTelemetry Configuration
 
@@ -139,9 +138,9 @@ The Hatchet server and engine can be configured via `SERVER` and `DATABASE` envi
 
 ## Tenant Alerting Configuration
 
-| Variable                                   | Description                      | Default Value               |
-| ------------------------------------------ | -------------------------------- | --------------------------- |
-| `SERVER_TENANT_ALERTING_SLACK_ENABLED`     | Enable Slack for tenant alerting |                             |
-| `SERVER_TENANT_ALERTING_SLACK_CLIENT_ID`   | Slack client ID                  |                             |
-| `SERVER_TENANT_ALERTING_SLACK_CLIENT_SECRET`| Slack client secret             |                             |
-| `SERVER_TENANT_ALERTING_SLACK_SCOPES`      | Slack scopes                     | `["incoming-webhook"]`      |
+| Variable                                     | Description                      | Default Value          |
+| -------------------------------------------- | -------------------------------- | ---------------------- |
+| `SERVER_TENANT_ALERTING_SLACK_ENABLED`       | Enable Slack for tenant alerting |                        |
+| `SERVER_TENANT_ALERTING_SLACK_CLIENT_ID`     | Slack client ID                  |                        |
+| `SERVER_TENANT_ALERTING_SLACK_CLIENT_SECRET` | Slack client secret              |                        |
+| `SERVER_TENANT_ALERTING_SLACK_SCOPES`        | Slack scopes                     | `["incoming-webhook"]` |
