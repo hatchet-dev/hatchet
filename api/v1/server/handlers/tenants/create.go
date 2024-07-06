@@ -49,6 +49,10 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		Name: request.Body.Name,
 	}
 
+	if t.config.Runtime.Limits.DefaultTenantRetentionPeriod != "" {
+		createOpts.DataRetentionPeriod = &t.config.Runtime.Limits.DefaultTenantRetentionPeriod
+	}
+
 	// write the user to the db
 	tenant, err := t.config.APIRepository.Tenant().CreateTenant(createOpts)
 
