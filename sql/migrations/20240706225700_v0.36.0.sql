@@ -1,3 +1,5 @@
+-- atlas:txmode none
+
 -- CREATE INDEX CONCURRENTLY IF NOT EXISTS "Action_tenantId_idx" to table: "Action"
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "Action_tenantId_idx" ON "Action" ("tenantId");
 -- CREATE INDEX CONCURRENTLY IF NOT EXISTS "Job_tenantId_idx" to table: "Job"
