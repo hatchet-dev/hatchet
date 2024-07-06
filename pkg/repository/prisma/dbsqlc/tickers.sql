@@ -82,6 +82,7 @@ WITH stepRunsToTimeout AS (
             )
             OR "tickerId" IS NULL
         )
+    LIMIT 200
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
