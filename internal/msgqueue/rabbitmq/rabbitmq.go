@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -197,7 +198,7 @@ func (t *MessageQueueImpl) Subscribe(
 ) (func() error, error) {
 	t.l.Debug().Msgf("subscribing to queue: %s", q.Name())
 
-	cleanup := t.subscribe(t.identity, q, t.sessions, preAck, postAck)
+	cleanup := t.subscribe(t.identity, q, preAck, postAck)
 	return cleanup, nil
 }
 
@@ -321,6 +322,8 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 						t.l.Debug().Msgf("publishing msg %s to queue %s", msg.ID, msg.q.Name())
 
+						log.Printf("publishing msg %s to queue %s", msg.ID, msg.q.Name())
+
 						err = pub.PublishWithContext(ctx, "", msg.q.Name(), false, false, amqp.Publishing{
 							Body: body,
 						})
@@ -333,6 +336,7 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 						// if this is a tenant msg, publish to the tenant exchange
 						if msg.TenantID() != "" {
+							log.Printf("ALSO PUBLISHING TO TENANT EXCHANGE: %s", msg.TenantID())
 							// determine if the tenant exchange exists
 							if _, ok := t.tenantIdCache.Get(msg.TenantID()); !ok {
 								// register the tenant exchange
@@ -377,10 +381,11 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 func (t *MessageQueueImpl) subscribe(
 	subId string,
 	q msgqueue.Queue,
-	sessions chan chan session,
 	preAck msgqueue.AckHook,
 	postAck msgqueue.AckHook,
 ) func() error {
+	log.Print("subscribing to queue: ", q.Name())
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sessionCount := 0
@@ -388,7 +393,7 @@ func (t *MessageQueueImpl) subscribe(
 	wg := sync.WaitGroup{}
 
 	go func() {
-		for session := range sessions {
+		for session := range t.sessions {
 			sessionCount++
 			sub := <-session
 

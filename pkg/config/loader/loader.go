@@ -20,7 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue/pgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/analytics/posthog"
@@ -217,9 +217,13 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	var ing ingestor.Ingestor
 
 	if cf.MessageQueue.Enabled {
-		cleanup1, mq = rabbitmq.New(
-			rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
-			rabbitmq.WithLogger(&l),
+		// cleanup1, mq = rabbitmq.New(
+		//	rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
+		//	rabbitmq.WithLogger(&l),
+		//)
+		cleanup1, mq = pgqueue.New(
+			pgqueue.WithLogger(&l),
+			//		pgqueue.WithURL(&l), // TODO
 		)
 
 		ing, err = ingestor.NewIngestor(
