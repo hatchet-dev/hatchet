@@ -575,7 +575,7 @@ func (jc *JobsControllerImpl) runStepRunRequeue(ctx context.Context, startedAt t
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
 		jc.l.Debug().Msgf("jobs controller: checking step run requeue")
@@ -623,29 +623,48 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 
 	g := new(errgroup.Group)
 
-	for i := range stepRuns {
-		stepRunCp := stepRuns[i]
+	batchSize := 10
+	numBatches := (len(stepRuns) + batchSize - 1) / batchSize
+	for i := 0; i < numBatches; i++ {
+		start := i * batchSize
+		end := start + batchSize
+		if end > len(stepRuns) {
+			end = len(stepRuns)
+		}
+		batch := stepRuns[start:end]
 
-		// wrap in func to get defer on the span to avoid leaking spans
 		g.Go(func() error {
-			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue-step-run")
-			defer span.End()
 
-			now := time.Now().UTC()
-			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
+			for i := range batch {
+				stepRunCp := batch[i]
+				err := func() error {
 
-			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-			scheduleTimeoutAt := stepRunCp.StepRun.ScheduleTimeoutAt.Time
+					// wrap in func to get defer on the span to avoid leaking spans
+					ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue-step-run")
+					defer span.End()
 
-			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
-			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
-			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
+					now := time.Now().UTC()
+					stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
 
-			if isTimedOut {
-				return ec.cancelStepRun(ctx, tenantId, stepRunId, "SCHEDULING_TIMED_OUT")
+					// if the current time is after the scheduleTimeoutAt, then mark this as timed out
+					scheduleTimeoutAt := stepRunCp.StepRun.ScheduleTimeoutAt.Time
+
+					// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
+					// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
+					isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
+
+					if isTimedOut {
+						return ec.cancelStepRun(ctx, tenantId, stepRunId, "SCHEDULING_TIMED_OUT")
+					}
+
+					return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
+				}()
+
+				if err != nil {
+					ec.l.Err(err).Msgf("could not reassign step run %s", sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID))
+				}
 			}
-
-			return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
+			return err
 		})
 	}
 
@@ -659,7 +678,7 @@ func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt 
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
 		jc.l.Debug().Msgf("jobs controller: checking step run reassignment")
@@ -708,44 +727,63 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 
 	g := new(errgroup.Group)
 
-	for i := range stepRuns {
-		stepRunCp := stepRuns[i]
+	batchSize := 10
+	numBatches := (len(stepRuns) + batchSize - 1) / batchSize
+	for i := 0; i < numBatches; i++ {
+		start := i * batchSize
+		end := start + batchSize
+		if end > len(stepRuns) {
+			end = len(stepRuns)
+		}
+		batch := stepRuns[start:end]
 
-		// wrap in func to get defer on the span to avoid leaking spans
 		g.Go(func() error {
-			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign-step-run")
-			defer span.End()
+			for i := range batch {
+				stepRunCp := batch[i]
 
-			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
+				// wrap in func to avoid leaking spans
+				err := func() error {
+					ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign-step-run")
+					defer span.End()
 
-			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-			now := time.Now().UTC().UTC()
-			scheduleTimeoutAt := stepRunCp.StepRun.ScheduleTimeoutAt.Time
+					stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
 
-			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
-			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
-			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
+					// if the current time is after the scheduleTimeoutAt, then mark this as timed out
+					now := time.Now().UTC().UTC()
+					scheduleTimeoutAt := stepRunCp.StepRun.ScheduleTimeoutAt.Time
 
-			if isTimedOut {
-				return ec.cancelStepRun(ctx, tenantId, stepRunId, "SCHEDULING_TIMED_OUT")
+					// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
+					// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
+					isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
+
+					if isTimedOut {
+						return ec.cancelStepRun(ctx, tenantId, stepRunId, "SCHEDULING_TIMED_OUT")
+					}
+
+					eventData := map[string]interface{}{
+						"worker_id": sqlchelpers.UUIDToStr(stepRunCp.StepRun.WorkerId),
+					}
+
+					err = ec.repo.StepRun().CreateStepRunEvent(ctx, tenantId, stepRunId, repository.CreateStepRunEventOpts{
+						EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
+						EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
+						EventMessage:  repository.StringPtr("Worker has become inactive"),
+						EventData:     &eventData,
+					})
+
+					if err != nil {
+						return fmt.Errorf("could not create step run event: %w", err)
+					}
+
+					return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
+				}()
+
+				if err != nil {
+					ec.l.Err(err).Msgf("could not reassign step run %s", sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID))
+				}
 			}
 
-			eventData := map[string]interface{}{
-				"worker_id": sqlchelpers.UUIDToStr(stepRunCp.StepRun.WorkerId),
-			}
-
-			err = ec.repo.StepRun().CreateStepRunEvent(ctx, tenantId, stepRunId, repository.CreateStepRunEventOpts{
-				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
-				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
-				EventMessage:  repository.StringPtr("Worker has become inactive"),
-				EventData:     &eventData,
-			})
-
-			if err != nil {
-				return fmt.Errorf("could not create step run event: %w", err)
-			}
-
-			return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
+			return err
 		})
 	}
 
