@@ -738,12 +738,15 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 		batch := stepRuns[start:end]
 
 		g.Go(func() error {
+			scheduleCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			defer cancel()
+
 			for i := range batch {
 				stepRunCp := batch[i]
 
 				// wrap in func to avoid leaking spans
 				err := func() error {
-					ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign-step-run")
+					ctx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-reassign-step-run")
 					defer span.End()
 
 					stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
