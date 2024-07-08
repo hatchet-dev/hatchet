@@ -623,3 +623,27 @@ DELETE FROM "WorkflowRun"
 WHERE
     "id" IN (SELECT "id" FROM expired_runs_with_limit)
 RETURNING (SELECT count FROM expired_runs_count) as total, (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining, (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted;
+
+-- name: ListActiveQueuedWorkflowVersions :many
+WITH QueuedRuns AS (
+    SELECT DISTINCT ON (wr."workflowVersionId")
+        wr."workflowVersionId",
+        w."tenantId",
+        wr."status",
+        wr."id",
+        wr."concurrencyGroupId"
+    FROM "WorkflowRun" wr
+    JOIN "WorkflowVersion" wv ON wv."id" = wr."workflowVersionId"
+    JOIN "Workflow" w ON w."id" = wv."workflowId"
+    WHERE wr."status" = 'QUEUED'
+		AND wr."concurrencyGroupId" IS NOT NULL
+    ORDER BY wr."workflowVersionId"
+)
+SELECT
+    q."workflowVersionId",
+    q."tenantId",
+    q."status",
+    q."id",
+    q."concurrencyGroupId"
+FROM QueuedRuns q
+GROUP BY q."workflowVersionId", q."tenantId", q."concurrencyGroupId", q."status", q."id";
