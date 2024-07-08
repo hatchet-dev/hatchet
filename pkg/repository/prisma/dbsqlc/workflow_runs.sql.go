@@ -490,6 +490,56 @@ func (q *Queries) CreateWorkflowRunTriggeredBy(ctx context.Context, db DBTX, arg
 	return &i, err
 }
 
+const deleteExpiredWorkflowRuns = `-- name: DeleteExpiredWorkflowRuns :one
+WITH expired_runs_count AS (
+    SELECT COUNT(*) as count
+    FROM "WorkflowRun" wr1
+    WHERE
+        wr1."tenantId" = $1::uuid AND
+        wr1."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
+        wr1."createdAt" < $3::timestamp
+), expired_runs_with_limit AS (
+    SELECT
+        "id"
+    FROM "WorkflowRun" wr2
+    WHERE
+        wr2."tenantId" = $1::uuid AND
+        wr2."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
+        wr2."createdAt" < $3::timestamp
+    ORDER BY "createdAt" ASC
+    LIMIT $4
+)
+DELETE FROM "WorkflowRun"
+WHERE
+    "id" IN (SELECT "id" FROM expired_runs_with_limit)
+RETURNING (SELECT count FROM expired_runs_count) as total, (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining, (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted
+`
+
+type DeleteExpiredWorkflowRunsParams struct {
+	Tenantid      pgtype.UUID      `json:"tenantid"`
+	Statuses      []string         `json:"statuses"`
+	Createdbefore pgtype.Timestamp `json:"createdbefore"`
+	Limit         int32            `json:"limit"`
+}
+
+type DeleteExpiredWorkflowRunsRow struct {
+	Total     int64 `json:"total"`
+	Remaining int32 `json:"remaining"`
+	Deleted   int64 `json:"deleted"`
+}
+
+func (q *Queries) DeleteExpiredWorkflowRuns(ctx context.Context, db DBTX, arg DeleteExpiredWorkflowRunsParams) (*DeleteExpiredWorkflowRunsRow, error) {
+	row := db.QueryRow(ctx, deleteExpiredWorkflowRuns,
+		arg.Tenantid,
+		arg.Statuses,
+		arg.Createdbefore,
+		arg.Limit,
+	)
+	var i DeleteExpiredWorkflowRunsRow
+	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
+	return &i, err
+}
+
 const getChildWorkflowRun = `-- name: GetChildWorkflowRun :one
 SELECT
     "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata"

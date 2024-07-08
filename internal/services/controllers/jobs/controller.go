@@ -685,7 +685,7 @@ func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt 
 		err = g.Wait()
 
 		if err != nil {
-			jc.l.Err(err).Msg("could not run step run requeue")
+			jc.l.Err(err).Msg("could not run step run reassign")
 		}
 	}
 }

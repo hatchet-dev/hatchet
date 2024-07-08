@@ -599,3 +599,27 @@ WHERE
         (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
         (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
     );
+
+-- name: DeleteExpiredWorkflowRuns :one
+WITH expired_runs_count AS (
+    SELECT COUNT(*) as count
+    FROM "WorkflowRun" wr1
+    WHERE
+        wr1."tenantId" = @tenantId::uuid AND
+        wr1."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[])) AND
+        wr1."createdAt" < @createdBefore::timestamp
+), expired_runs_with_limit AS (
+    SELECT
+        "id"
+    FROM "WorkflowRun" wr2
+    WHERE
+        wr2."tenantId" = @tenantId::uuid AND
+        wr2."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[])) AND
+        wr2."createdAt" < @createdBefore::timestamp
+    ORDER BY "createdAt" ASC
+    LIMIT sqlc.arg('limit')
+)
+DELETE FROM "WorkflowRun"
+WHERE
+    "id" IN (SELECT "id" FROM expired_runs_with_limit)
+RETURNING (SELECT count FROM expired_runs_count) as total, (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining, (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted;

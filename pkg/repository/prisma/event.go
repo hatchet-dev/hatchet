@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -284,4 +285,22 @@ func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId st
 		Tenantid: pgTenantId,
 		Ids:      pgIds,
 	})
+}
+
+func (r *eventEngineRepository) DeleteExpiredEvents(ctx context.Context, tenantId string, before time.Time) (int, int, error) {
+	resp, err := r.queries.DeleteExpiredEvents(ctx, r.pool, dbsqlc.DeleteExpiredEventsParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Createdbefore: sqlchelpers.TimestampFromTime(before),
+		Limit:         1000,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, 0, nil
+		}
+
+		return 0, 0, err
+	}
+
+	return int(resp.Deleted), int(resp.Remaining), nil
 }

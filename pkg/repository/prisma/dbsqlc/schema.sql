@@ -362,6 +362,7 @@ CREATE TABLE "Tenant" (
     "alertMemberEmails" BOOLEAN NOT NULL DEFAULT true,
     "controllerPartitionId" TEXT,
     "workerPartitionId" TEXT,
+    "dataRetentionPeriod" TEXT NOT NULL DEFAULT '720h',
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
@@ -768,13 +769,25 @@ CREATE UNIQUE INDEX "Action_id_key" ON "Action"("id" ASC);
 CREATE UNIQUE INDEX "Action_tenantId_actionId_key" ON "Action"("tenantId" ASC, "actionId" ASC);
 
 -- CreateIndex
+CREATE INDEX "Action_tenantId_idx" ON "Action"("tenantId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "ControllerPartition_id_key" ON "ControllerPartition"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Dispatcher_id_key" ON "Dispatcher"("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "Event_createdAt_idx" ON "Event"("createdAt" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Event_id_key" ON "Event"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "Event_tenantId_createdAt_idx" ON "Event"("tenantId" ASC, "createdAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GetGroupKeyRun_id_key" ON "GetGroupKeyRun"("id" ASC);
@@ -784,6 +797,9 @@ CREATE UNIQUE INDEX "GetGroupKeyRun_workflowRunId_key" ON "GetGroupKeyRun"("work
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Job_id_key" ON "Job"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "Job_tenantId_idx" ON "Job"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Job_workflowVersionId_name_key" ON "Job"("workflowVersionId" ASC, "name" ASC);
@@ -831,7 +847,13 @@ CREATE UNIQUE INDEX "SlackAppWebhook_tenantId_teamId_channelId_key" ON "SlackApp
 CREATE UNIQUE INDEX "Step_id_key" ON "Step"("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "Step_jobId_idx" ON "Step"("jobId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Step_jobId_readableId_key" ON "Step"("jobId" ASC, "readableId" ASC);
+
+-- CreateIndex
+CREATE INDEX "Step_tenantId_idx" ON "Step"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRateLimit_stepId_rateLimitKey_key" ON "StepRateLimit"("stepId" ASC, "rateLimitKey" ASC);
@@ -849,10 +871,16 @@ CREATE INDEX "StepRun_jobRunId_status_idx" ON "StepRun"("jobRunId" ASC, "status"
 CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, "tenantId" ASC, "order" ASC);
 
 -- CreateIndex
+CREATE INDEX "StepRun_status_idx" ON "StepRun"("status" ASC);
+
+-- CreateIndex
 CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_tenantId_status_requeueAfter_createdAt_idx" ON "StepRun"("tenantId" ASC, "status" ASC, "requeueAfter" ASC, "createdAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_timeoutAt_idx" ON "StepRun"("timeoutAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRunEvent_id_key" ON "StepRunEvent"("id" ASC);
@@ -897,10 +925,16 @@ CREATE UNIQUE INDEX "TenantMember_tenantId_userId_key" ON "TenantMember"("tenant
 CREATE UNIQUE INDEX "TenantResourceLimit_id_key" ON "TenantResourceLimit"("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "TenantResourceLimit_tenantId_idx" ON "TenantResourceLimit"("tenantId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "TenantResourceLimit_tenantId_resource_key" ON "TenantResourceLimit"("tenantId" ASC, "resource" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TenantResourceLimitAlert_id_key" ON "TenantResourceLimitAlert"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "TenantResourceLimitAlert_tenantId_idx" ON "TenantResourceLimitAlert"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TenantVcsProvider_id_key" ON "TenantVcsProvider"("id" ASC);
@@ -913,6 +947,12 @@ CREATE UNIQUE INDEX "TenantWorkerPartition_id_key" ON "TenantWorkerPartition"("i
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Ticker_id_key" ON "Ticker"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "Ticker_isActive_idx" ON "Ticker"("isActive" ASC);
+
+-- CreateIndex
+CREATE INDEX "Ticker_lastHeartbeatAt_idx" ON "Ticker"("lastHeartbeatAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email" ASC);
@@ -951,6 +991,15 @@ CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_workflowId_key" ON "W
 CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "Worker_isActive_idx" ON "Worker"("isActive" ASC);
+
+-- CreateIndex
+CREATE INDEX "Worker_lastHeartbeatAt_idx" ON "Worker"("lastHeartbeatAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "Worker_tenantId_idx" ON "Worker"("tenantId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkerSemaphore_workerId_key" ON "WorkerSemaphore"("workerId" ASC);
 
 -- CreateIndex
@@ -966,6 +1015,9 @@ CREATE INDEX "WorkerSemaphoreSlot_workerId_idx" ON "WorkerSemaphoreSlot"("worker
 CREATE UNIQUE INDEX "Workflow_id_key" ON "Workflow"("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "Workflow_tenantId_idx" ON "Workflow"("tenantId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Workflow_tenantId_name_key" ON "Workflow"("tenantId" ASC, "name" ASC);
 
 -- CreateIndex
@@ -975,19 +1027,46 @@ CREATE UNIQUE INDEX "WorkflowConcurrency_id_key" ON "WorkflowConcurrency"("id" A
 CREATE UNIQUE INDEX "WorkflowConcurrency_workflowVersionId_key" ON "WorkflowConcurrency"("workflowVersionId" ASC);
 
 -- CreateIndex
+CREATE INDEX "WorkflowRun_createdAt_idx" ON "WorkflowRun"("createdAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRun_finishedAt_idx" ON "WorkflowRun"("finishedAt" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRun_id_key" ON "WorkflowRun"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRun_parentId_parentStepRunId_childKey_key" ON "WorkflowRun"("parentId" ASC, "parentStepRunId" ASC, "childKey" ASC);
 
 -- CreateIndex
+CREATE INDEX "WorkflowRun_status_idx" ON "WorkflowRun"("status" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRun_tenantId_createdAt_idx" ON "WorkflowRun"("tenantId" ASC, "createdAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRun_tenantId_idx" ON "WorkflowRun"("tenantId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRun_workflowVersionId_idx" ON "WorkflowRun"("workflowVersionId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRunTriggeredBy_eventId_idx" ON "WorkflowRunTriggeredBy"("eventId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_id_key" ON "WorkflowRunTriggeredBy"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRunTriggeredBy_parentId_idx" ON "WorkflowRunTriggeredBy"("parentId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_parentId_key" ON "WorkflowRunTriggeredBy"("parentId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunTriggeredBy_scheduledId_key" ON "WorkflowRunTriggeredBy"("scheduledId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRunTriggeredBy_tenantId_idx" ON "WorkflowRunTriggeredBy"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTag_id_key" ON "WorkflowTag"("id" ASC);
@@ -1018,6 +1097,9 @@ CREATE UNIQUE INDEX "WorkflowVersion_id_key" ON "WorkflowVersion"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowVersion_onFailureJobId_key" ON "WorkflowVersion"("onFailureJobId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowVersion_workflowId_idx" ON "WorkflowVersion"("workflowId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "_ActionToWorker_AB_unique" ON "_ActionToWorker"("A" ASC, "B" ASC);

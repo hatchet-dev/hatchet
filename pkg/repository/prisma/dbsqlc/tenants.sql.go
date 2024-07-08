@@ -39,7 +39,7 @@ WITH active_controller_partitions AS (
     WHERE
         "lastHeartbeat" > NOW() - INTERVAL '1 minute'
 )
-INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId")
+INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod")
 VALUES (
     $1::uuid,
     $2::text,
@@ -52,19 +52,26 @@ VALUES (
         ORDER BY
             random()
         LIMIT 1
-    )
+    ),
+    COALESCE($4::text, '720h')
 )
-RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod"
 `
 
 type CreateTenantParams struct {
-	ID   pgtype.UUID `json:"id"`
-	Name string      `json:"name"`
-	Slug string      `json:"slug"`
+	ID                  pgtype.UUID `json:"id"`
+	Name                string      `json:"name"`
+	Slug                string      `json:"slug"`
+	DataRetentionPeriod pgtype.Text `json:"dataRetentionPeriod"`
 }
 
 func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantParams) (*Tenant, error) {
-	row := db.QueryRow(ctx, createTenant, arg.ID, arg.Name, arg.Slug)
+	row := db.QueryRow(ctx, createTenant,
+		arg.ID,
+		arg.Name,
+		arg.Slug,
+		arg.DataRetentionPeriod,
+	)
 	var i Tenant
 	err := row.Scan(
 		&i.ID,
@@ -77,6 +84,7 @@ func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantPar
 		&i.AlertMemberEmails,
 		&i.ControllerPartitionId,
 		&i.WorkerPartitionId,
+		&i.DataRetentionPeriod,
 	)
 	return &i, err
 }
@@ -295,7 +303,7 @@ func (q *Queries) GetTenantAlertingSettings(ctx context.Context, db DBTX, tenant
 
 const getTenantByID = `-- name: GetTenantByID :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod"
 FROM
     "Tenant" as tenants
 WHERE
@@ -316,6 +324,7 @@ func (q *Queries) GetTenantByID(ctx context.Context, db DBTX, id pgtype.UUID) (*
 		&i.AlertMemberEmails,
 		&i.ControllerPartitionId,
 		&i.WorkerPartitionId,
+		&i.DataRetentionPeriod,
 	)
 	return &i, err
 }
@@ -458,7 +467,7 @@ func (q *Queries) GetTenantWorkflowQueueMetrics(ctx context.Context, db DBTX, ar
 
 const listTenants = `-- name: ListTenants :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod"
 FROM
     "Tenant" as tenants
 `
@@ -483,6 +492,7 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 			&i.AlertMemberEmails,
 			&i.ControllerPartitionId,
 			&i.WorkerPartitionId,
+			&i.DataRetentionPeriod,
 		); err != nil {
 			return nil, err
 		}
@@ -504,7 +514,7 @@ WITH update_partition AS (
         "id" = $1::text
 )
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod"
 FROM
     "Tenant" as tenants
 WHERE
@@ -531,6 +541,7 @@ func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBT
 			&i.AlertMemberEmails,
 			&i.ControllerPartitionId,
 			&i.WorkerPartitionId,
+			&i.DataRetentionPeriod,
 		); err != nil {
 			return nil, err
 		}
@@ -552,7 +563,7 @@ WITH update_partition AS (
         "id" = $1::text
 )
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+    id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod"
 FROM
     "Tenant" as tenants
 WHERE
@@ -579,6 +590,7 @@ func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db D
 			&i.AlertMemberEmails,
 			&i.ControllerPartitionId,
 			&i.WorkerPartitionId,
+			&i.DataRetentionPeriod,
 		); err != nil {
 			return nil, err
 		}
@@ -617,7 +629,7 @@ WHERE
         "controllerPartitionId" IS NULL OR
         "controllerPartitionId" NOT IN (SELECT "id" FROM active_partitions)
     )
-RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod"
 `
 
 func (q *Queries) RebalanceAllControllerPartitions(ctx context.Context, db DBTX) error {
@@ -652,7 +664,7 @@ WHERE
         "workerPartitionId" IS NULL OR
         "workerPartitionId" NOT IN (SELECT "id" FROM active_partitions)
     )
-RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod"
 `
 
 func (q *Queries) RebalanceAllTenantWorkerPartitions(ctx context.Context, db DBTX) error {
