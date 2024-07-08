@@ -771,6 +771,46 @@ func (q *Queries) PollTenantResourceLimitAlerts(ctx context.Context, db DBTX) ([
 	return items, nil
 }
 
+const pollUnresolvedFailedStepRuns = `-- name: PollUnresolvedFailedStepRuns :many
+SELECT
+	sr."id",
+    sr."tenantId"
+FROM "StepRun" sr
+JOIN "JobRun" jr on jr."id" = sr."jobRunId"
+WHERE
+	(
+		(sr."status" = 'FAILED' AND jr."status" != 'FAILED')
+	OR
+		(sr."status" = 'CANCELLED' AND jr."status" != 'CANCELLED')
+	)
+	AND sr."updatedAt" < CURRENT_TIMESTAMP - INTERVAL '5 seconds'
+`
+
+type PollUnresolvedFailedStepRunsRow struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantId pgtype.UUID `json:"tenantId"`
+}
+
+func (q *Queries) PollUnresolvedFailedStepRuns(ctx context.Context, db DBTX) ([]*PollUnresolvedFailedStepRunsRow, error) {
+	rows, err := db.Query(ctx, pollUnresolvedFailedStepRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*PollUnresolvedFailedStepRunsRow
+	for rows.Next() {
+		var i PollUnresolvedFailedStepRunsRow
+		if err := rows.Scan(&i.ID, &i.TenantId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setTickersInactive = `-- name: SetTickersInactive :many
 UPDATE
     "Ticker" as tickers

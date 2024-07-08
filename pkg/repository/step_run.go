@@ -7,6 +7,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type ListStepRunsOpts struct {
@@ -185,4 +187,6 @@ type StepRunEngineRepository interface {
 	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error
 
 	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
+
+	ResolveRelatedStatuses(ctx context.Context, tenantId pgtype.UUID, stepRunId pgtype.UUID) (*StepRunUpdateInfo, error)
 }
