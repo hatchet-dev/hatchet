@@ -1065,7 +1065,7 @@ step_runs AS (
     ORDER BY
         sr."createdAt" ASC
     LIMIT
-        (SELECT "totalMaxRuns" FROM limit_max_runs)
+        (SELECT "limitMaxRuns" FROM limit_max_runs)
 ),
 locked_step_runs AS (
     SELECT
