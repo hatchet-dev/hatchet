@@ -634,13 +634,15 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 		batch := stepRuns[start:end]
 
 		g.Go(func() error {
+			scheduleCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			defer cancel()
 
 			for i := range batch {
 				stepRunCp := batch[i]
-				err := func() error {
 
-					// wrap in func to get defer on the span to avoid leaking spans
-					ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue-step-run")
+				// wrap in func to get defer on the span to avoid leaking spans
+				err := func() error {
+					ctx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-requeue-step-run")
 					defer span.End()
 
 					now := time.Now().UTC()
