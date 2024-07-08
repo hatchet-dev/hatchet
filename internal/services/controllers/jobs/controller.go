@@ -634,7 +634,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 		batch := stepRuns[start:end]
 
 		g.Go(func() error {
-			scheduleCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			scheduleCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cancel()
 
 			for i := range batch {
@@ -740,7 +740,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 		batch := stepRuns[start:end]
 
 		g.Go(func() error {
-			scheduleCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			scheduleCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cancel()
 
 			for i := range batch {
