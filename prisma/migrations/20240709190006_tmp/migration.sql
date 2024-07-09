@@ -9,5 +9,3 @@ CREATE INDEX "StepRun_createdAt_idx" ON "StepRun"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "StepRun_status_idx" ON "StepRun"("status");
-
-VACUUM ANALYZE "StepRun";
