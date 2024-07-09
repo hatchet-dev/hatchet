@@ -13,9 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lib/pq"
-
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/lib/pq"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -43,6 +42,8 @@ type MessageQueueImpl struct {
 
 	// lru cache for tenant ids
 	tenantIdCache *lru.Cache[string, bool]
+
+	channels map[string]chan *pq.Notification
 }
 
 func (t *MessageQueueImpl) IsReady() bool {
@@ -111,6 +112,8 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	minReconn := 10 * time.Second
 	maxReconn := time.Minute
 
+	t.channels = make(map[string]chan *pq.Notification)
+
 	t.listener = pq.NewListener(conninfo, minReconn, maxReconn, reportProblem)
 	t.db = db
 
@@ -146,11 +149,15 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 
 	// create publisher go func
 	cleanup1 := t.startPublishing()
+	cleanup2 := t.startListening()
 
 	cleanup := func() error {
 		cancel()
 		if err := cleanup1(); err != nil {
-			return fmt.Errorf("error cleaning up rabbitmq publisher: %w", err)
+			return fmt.Errorf("error cleaning up pg publisher: %w", err)
+		}
+		if err := cleanup2(); err != nil {
+			return fmt.Errorf("error cleaning up pg listener: %w", err)
 		}
 
 		return nil
@@ -187,6 +194,11 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 	// TODO!!
 	tID := "queue_" + strings.ReplaceAll(tenantId, "-", "_")
 	log.Printf("registering tenant queue %s / %s", tenantId, tID)
+
+	if _, ok := t.channels[tID]; !ok {
+		t.channels[tID] = make(chan *pq.Notification)
+	}
+
 	if err := t.listener.Listen(tID); err != nil && !errors.Is(err, pq.ErrChannelAlreadyOpen) {
 		return fmt.Errorf("error listening to queue: %w", err)
 	}
@@ -225,11 +237,47 @@ func (t *MessageQueueImpl) initQueue(q msgqueue.Queue) (string, error) {
 
 	log.Printf("listening to queue: %s", name)
 
+	if _, ok := t.channels[name]; !ok {
+		t.channels[name] = make(chan *pq.Notification)
+	}
+
 	if err := t.listener.Listen(name); err != nil && !errors.Is(err, pq.ErrChannelAlreadyOpen) {
 		return "", fmt.Errorf("error listening to queue: %w", err)
 	}
 
 	return name, nil
+}
+
+func (t *MessageQueueImpl) startListening() func() error {
+	ctx, cancel := context.WithCancel(t.ctx)
+
+	cleanup := func() error {
+		cancel()
+
+		for _, ch := range t.channels {
+			close(ch)
+		}
+
+		return nil
+	}
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg := <-t.listener.Notify:
+				log.Printf("received message! %s with payload", msg.Channel)
+
+				for i, ch := range t.channels { // TODO only send to the channels that are listening to this queue
+					log.Printf("sending message to channel %s", i)
+					ch <- msg
+				}
+			}
+		}
+	}()
+
+	return cleanup
 }
 
 func (t *MessageQueueImpl) startPublishing() func() error {
@@ -323,11 +371,16 @@ func (t *MessageQueueImpl) subscribe(
 			select {
 			case <-ctx.Done():
 				return
-			case msg := <-t.listener.Notify:
-				log.Printf("received message! %s vs name %s with payload %s", msg.Channel, name, msg.Extra)
-				// if msg.Channel != name {
-				//	continue
-				//}
+			case msg, ok := <-t.channels[name]:
+				if !ok {
+					log.Printf("channel %s not found", name)
+					continue
+				}
+				if msg.Channel != name {
+					log.Printf("declined - received message! %s vs name %s with payload %s", msg.Channel, name, msg.Extra)
+					continue
+				}
+				log.Printf("accepted - received message! %s vs name %s with payload %s", msg.Channel, name, msg.Extra)
 
 				wg.Add(1)
 
