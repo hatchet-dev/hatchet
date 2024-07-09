@@ -575,7 +575,7 @@ func (jc *JobsControllerImpl) runStepRunRequeue(ctx context.Context, startedAt t
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
 		jc.l.Debug().Msgf("jobs controller: checking step run requeue")
@@ -659,7 +659,7 @@ func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt 
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
 		jc.l.Debug().Msgf("jobs controller: checking step run reassignment")
