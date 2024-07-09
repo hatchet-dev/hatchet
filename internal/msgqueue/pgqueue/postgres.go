@@ -252,6 +252,29 @@ func (t *MessageQueueImpl) initQueue(q msgqueue.Queue) (string, error) {
 func (t *MessageQueueImpl) startListening() func() error {
 	ctx, cancel := context.WithCancel(t.ctx)
 
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg := <-t.listener.Notify:
+				var sent bool
+
+				for i, ch := range t.channels {
+					if msg.Channel == i {
+						ch <- msg
+						sent = true
+						break
+					}
+				}
+
+				if !sent {
+					t.l.Warn().Msgf("message not sent to any channel: %s with payload %+v", msg.Channel, msg)
+				}
+			}
+		}
+	}()
+
 	cleanup := func() error {
 		cancel()
 
@@ -261,22 +284,6 @@ func (t *MessageQueueImpl) startListening() func() error {
 
 		return nil
 	}
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case msg := <-t.listener.Notify:
-				log.Printf("received message! %s with payload", msg.Channel)
-
-				for i, ch := range t.channels { // TODO only send to the channels that are listening to this queue
-					log.Printf("sending message to channel %s", i)
-					ch <- msg
-				}
-			}
-		}
-	}()
 
 	return cleanup
 }
