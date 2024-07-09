@@ -11,13 +11,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const acquireWorkerSemaphoreSlot = `-- name: AcquireWorkerSemaphoreSlot :one
+const acquireWorkerSemaphoreSlotAndAssign = `-- name: AcquireWorkerSemaphoreSlotAndAssign :one
 WITH valid_workers AS (
     SELECT w."id", COUNT(wss."id") AS "slots"
     FROM "Worker" w
     JOIN "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
     WHERE
-        w."tenantId" = $2::uuid
+        w."tenantId" = $1::uuid
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
@@ -26,7 +26,7 @@ WITH valid_workers AS (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
             INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = $2 AND "Action"."actionId" = $3::text
+            WHERE "Action"."tenantId" = $1 AND "Action"."actionId" = $2::text
         )
     GROUP BY w."id"
 ),
@@ -38,23 +38,67 @@ selected_slot AS (
     ORDER BY w."slots" DESC, RANDOM()
     FOR UPDATE SKIP LOCKED
     LIMIT 1
+),
+updated_slot AS (
+    UPDATE "WorkerSemaphoreSlot"
+    SET "stepRunId" = $3::uuid
+    WHERE "id" = (SELECT "slotId" FROM selected_slot)
+    RETURNING id, "workerId", "stepRunId"
+),
+assign_step_run_to_worker AS (
+	UPDATE
+	    "StepRun"
+	SET
+	    "status" = 'ASSIGNED',
+	    "workerId" = (SELECT "workerId" FROM updated_slot),
+	    "tickerId" = NULL,
+	    "updatedAt" = CURRENT_TIMESTAMP,
+	    "timeoutAt" = CASE
+	        WHEN $4::text IS NOT NULL THEN
+	            CURRENT_TIMESTAMP + convert_duration_to_interval($4::text)
+	        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+	    END
+	WHERE
+	    "id" = (SELECT "stepRunId" FROM updated_slot) AND
+	    "status" = 'PENDING_ASSIGNMENT'
+	RETURNING
+	    "StepRun"."id", "StepRun"."workerId"
+),
+selected_dispatcher AS (
+    SELECT "dispatcherId" FROM "Worker"
+    WHERE "id" = (SELECT "workerId" FROM updated_slot)
 )
-UPDATE "WorkerSemaphoreSlot"
-SET "stepRunId" = $1::uuid
-WHERE "id" = (SELECT "slotId" FROM selected_slot)
-RETURNING id, "workerId", "stepRunId"
+SELECT
+    updated_slot."workerId" as "workerId",
+    updated_slot."stepRunId" as "stepRunId",
+    selected_dispatcher."dispatcherId" as "dispatcherId"
+FROM
+    updated_slot,
+    selected_dispatcher
 `
 
-type AcquireWorkerSemaphoreSlotParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
-	Actionid  string      `json:"actionid"`
+type AcquireWorkerSemaphoreSlotAndAssignParams struct {
+	Tenantid    pgtype.UUID `json:"tenantid"`
+	Actionid    string      `json:"actionid"`
+	Steprunid   pgtype.UUID `json:"steprunid"`
+	StepTimeout pgtype.Text `json:"stepTimeout"`
 }
 
-func (q *Queries) AcquireWorkerSemaphoreSlot(ctx context.Context, db DBTX, arg AcquireWorkerSemaphoreSlotParams) (*WorkerSemaphoreSlot, error) {
-	row := db.QueryRow(ctx, acquireWorkerSemaphoreSlot, arg.Steprunid, arg.Tenantid, arg.Actionid)
-	var i WorkerSemaphoreSlot
-	err := row.Scan(&i.ID, &i.WorkerId, &i.StepRunId)
+type AcquireWorkerSemaphoreSlotAndAssignRow struct {
+	WorkerId     pgtype.UUID `json:"workerId"`
+	StepRunId    pgtype.UUID `json:"stepRunId"`
+	DispatcherId pgtype.UUID `json:"dispatcherId"`
+}
+
+func (q *Queries) AcquireWorkerSemaphoreSlotAndAssign(ctx context.Context, db DBTX, arg AcquireWorkerSemaphoreSlotAndAssignParams) (*AcquireWorkerSemaphoreSlotAndAssignRow, error) {
+	row := db.QueryRow(ctx, acquireWorkerSemaphoreSlotAndAssign,
+		arg.Tenantid,
+		arg.Actionid,
+		arg.Steprunid,
+		arg.StepTimeout,
+	)
+	var i AcquireWorkerSemaphoreSlotAndAssignRow
+	err := row.Scan(&i.WorkerId, &i.StepRunId, &i.DispatcherId)
 	return &i, err
 }
 

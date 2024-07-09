@@ -556,7 +556,7 @@ func (e *errNoWorkerWithSlots) Error() string {
 	return fmt.Sprintf("no worker available, slots left: %d", e.totalSlots)
 }
 
-func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (*dbsqlc.AssignStepRunToWorkerRow, error) {
+func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (*dbsqlc.AcquireWorkerSemaphoreSlotAndAssignRow, error) {
 	tx, err := s.pool.Begin(ctx)
 
 	if err != nil {
@@ -566,29 +566,16 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
 	// acquire a semaphore slot
-	semaphore, err := s.queries.AcquireWorkerSemaphoreSlot(ctx, tx, dbsqlc.AcquireWorkerSemaphoreSlotParams{
-		Steprunid: stepRun.StepRun.ID,
-		Tenantid:  stepRun.StepRun.TenantId,
-		Actionid:  stepRun.ActionId,
+	assigned, err := s.queries.AcquireWorkerSemaphoreSlotAndAssign(ctx, tx, dbsqlc.AcquireWorkerSemaphoreSlotAndAssignParams{
+		Steprunid:   stepRun.StepRun.ID,
+		Tenantid:    stepRun.StepRun.TenantId,
+		Actionid:    stepRun.ActionId,
+		StepTimeout: stepRun.StepTimeout,
 	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, &errNoWorkerWithSlots{totalSlots: int(0)}
-		}
-		return nil, fmt.Errorf("could not acquire worker semaphore slot: %w", err)
-	}
-
-	assigned, err := s.queries.AssignStepRunToWorker(ctx, tx, dbsqlc.AssignStepRunToWorkerParams{
-		Steprunid:   stepRun.StepRun.ID,
-		Tenantid:    stepRun.StepRun.TenantId,
-		StepTimeout: stepRun.StepTimeout,
-		Workerid:    semaphore.WorkerId,
-	})
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			s.l.Warn().Err(err).Msg("no rows returned from worker assign")
 		}
 
 		return nil, fmt.Errorf("query to assign worker failed: %w", err)
@@ -657,7 +644,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		return "", "", err
 	}
 
-	var assigned *dbsqlc.AssignStepRunToWorkerRow
+	var assigned *dbsqlc.AcquireWorkerSemaphoreSlotAndAssignRow
 
 	err = unassignedRetry(s.l, func() (err error) {
 		assigned, err = s.assignStepRunToWorkerAttempt(ctx, stepRun)

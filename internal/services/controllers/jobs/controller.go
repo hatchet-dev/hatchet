@@ -623,7 +623,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 
 	g := new(errgroup.Group)
 
-	batchSize := 10
+	batchSize := 5
 	numBatches := (len(stepRuns) + batchSize - 1) / batchSize
 	for i := 0; i < numBatches; i++ {
 		start := i * batchSize
@@ -729,7 +729,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 
 	g := new(errgroup.Group)
 
-	batchSize := 10
+	batchSize := 5
 	numBatches := (len(stepRuns) + batchSize - 1) / batchSize
 	for i := 0; i < numBatches; i++ {
 		start := i * batchSize

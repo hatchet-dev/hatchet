@@ -522,7 +522,7 @@ WHERE "stepRunId" = @stepRunId::uuid
   AND "workerId" = (SELECT "workerId" FROM step_run)
 RETURNING *;
 
--- name: AcquireWorkerSemaphoreSlot :one
+-- name: AcquireWorkerSemaphoreSlotAndAssign :one
 WITH valid_workers AS (
     SELECT w."id", COUNT(wss."id") AS "slots"
     FROM "Worker" w
@@ -549,11 +549,44 @@ selected_slot AS (
     ORDER BY w."slots" DESC, RANDOM()
     FOR UPDATE SKIP LOCKED
     LIMIT 1
+),
+updated_slot AS (
+    UPDATE "WorkerSemaphoreSlot"
+    SET "stepRunId" = @stepRunId::uuid
+    WHERE "id" = (SELECT "slotId" FROM selected_slot)
+    AND "stepRunId" IS NULL
+    RETURNING *
+),
+assign_step_run_to_worker AS (
+	UPDATE
+	    "StepRun"
+	SET
+	    "status" = 'ASSIGNED',
+	    "workerId" = (SELECT "workerId" FROM updated_slot),
+	    "tickerId" = NULL,
+	    "updatedAt" = CURRENT_TIMESTAMP,
+	    "timeoutAt" = CASE
+	        WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
+	            CURRENT_TIMESTAMP + convert_duration_to_interval(sqlc.narg('stepTimeout')::text)
+	        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+	    END
+	WHERE
+	    "id" = (SELECT "stepRunId" FROM updated_slot) AND
+	    "status" = 'PENDING_ASSIGNMENT'
+	RETURNING
+	    "StepRun"."id", "StepRun"."workerId"
+),
+selected_dispatcher AS (
+    SELECT "dispatcherId" FROM "Worker"
+    WHERE "id" = (SELECT "workerId" FROM updated_slot)
 )
-UPDATE "WorkerSemaphoreSlot"
-SET "stepRunId" = @stepRunId::uuid
-WHERE "id" = (SELECT "slotId" FROM selected_slot)
-RETURNING *;
+SELECT
+    updated_slot."workerId" as "workerId",
+    updated_slot."stepRunId" as "stepRunId",
+    selected_dispatcher."dispatcherId" as "dispatcherId"
+FROM
+    updated_slot,
+    selected_dispatcher;
 
 -- name: CreateStepRunEvent :exec
 WITH input_values AS (
