@@ -233,6 +233,7 @@ func (t *MessageQueueImpl) initQueue(q msgqueue.Queue) (string, error) {
 
 		log.Printf("binding queue: %s to exchange: %s", name, q.FanoutExchangeKey())
 		// TODO
+		panic("unimplemented")
 	}
 
 	log.Printf("listening to queue: %s", name)
@@ -318,6 +319,7 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 						// determine if the tenant exchange exists
 						if _, ok := t.tenantIdCache.Get(msg.TenantID()); !ok {
+							log.Printf("registering tenant exchange: %s", msg.TenantID())
 							// register the tenant exchange
 							err = t.RegisterTenant(ctx, msg.TenantID())
 
@@ -432,8 +434,6 @@ func (t *MessageQueueImpl) subscribe(
 }
 
 func (t *MessageQueueImpl) notify(channel string, message string) error {
-	log.Printf("notifying %s: %s", channel, message)
-
 	ch := "queue_" + strings.ReplaceAll(channel, "-", "_")
 
 	msg := strings.ReplaceAll(message, "'", "\\'")
