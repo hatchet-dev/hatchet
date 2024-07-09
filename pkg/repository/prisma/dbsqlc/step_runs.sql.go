@@ -11,13 +11,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const acquireWorkerSemaphoreSlot = `-- name: AcquireWorkerSemaphoreSlot :one
+const acquireWorkerSemaphoreSlotAndAssign = `-- name: AcquireWorkerSemaphoreSlotAndAssign :one
 WITH valid_workers AS (
     SELECT w."id", COUNT(wss."id") AS "slots"
     FROM "Worker" w
     JOIN "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
     WHERE
-        w."tenantId" = $2::uuid
+        w."tenantId" = $1::uuid
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
@@ -26,35 +26,151 @@ WITH valid_workers AS (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
             INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = $2 AND "Action"."actionId" = $3::text
+            WHERE "Action"."tenantId" = $1 AND "Action"."actionId" = $2::text
         )
     GROUP BY w."id"
+),
+locked_step_runs AS (
+    SELECT
+        sr."id", sr."status", sr."workerId"
+    FROM
+        "StepRun" sr
+    WHERE
+        sr."id" = $3::uuid
+    FOR UPDATE SKIP LOCKED
 ),
 selected_slot AS (
     SELECT wss."id" AS "slotId", wss."workerId" AS "workerId"
     FROM "WorkerSemaphoreSlot" wss
     JOIN valid_workers w ON wss."workerId" = w."id"
-    WHERE wss."stepRunId" IS NULL
+    WHERE
+        wss."stepRunId" IS NULL
+        AND (SELECT COUNT(*) FROM locked_step_runs) > 0
     ORDER BY w."slots" DESC, RANDOM()
     FOR UPDATE SKIP LOCKED
     LIMIT 1
+),
+updated_slot AS (
+    UPDATE "WorkerSemaphoreSlot"
+    SET "stepRunId" = $3::uuid
+    WHERE "id" = (SELECT "slotId" FROM selected_slot)
+    AND "stepRunId" IS NULL
+    RETURNING id, "workerId", "stepRunId"
+),
+assign_step_run_to_worker AS (
+	UPDATE
+	    "StepRun"
+	SET
+	    "status" = 'ASSIGNED',
+	    "workerId" = (SELECT "workerId" FROM updated_slot),
+	    "tickerId" = NULL,
+	    "updatedAt" = CURRENT_TIMESTAMP,
+	    "timeoutAt" = CASE
+	        WHEN $4::text IS NOT NULL THEN
+	            CURRENT_TIMESTAMP + convert_duration_to_interval($4::text)
+	        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+	    END
+	WHERE
+	    "id" = (SELECT "stepRunId" FROM updated_slot) AND
+	    "status" = 'PENDING_ASSIGNMENT'
+	RETURNING
+	    "StepRun"."id", "StepRun"."workerId"
+),
+selected_dispatcher AS (
+    SELECT "dispatcherId" FROM "Worker"
+    WHERE "id" = (SELECT "workerId" FROM updated_slot)
+),
+step_rate_limits AS (
+    SELECT
+        rl."units" AS "units",
+        rl."rateLimitKey" AS "rateLimitKey"
+    FROM
+        "StepRateLimit" rl
+    WHERE
+        rl."stepId" = $5::uuid AND
+        rl."tenantId" = $1::uuid
+),
+locked_rate_limits AS (
+    SELECT
+        srl."tenantId", srl.key, srl."limitValue", srl.value, srl."window", srl."lastRefill",
+        step_rate_limits."units"
+    FROM
+        step_rate_limits
+    JOIN
+        "RateLimit" srl ON srl."key" = step_rate_limits."rateLimitKey" AND srl."tenantId" = $1::uuid
+    FOR UPDATE
+),
+update_rate_limits AS (
+    UPDATE
+        "RateLimit" srl
+    SET
+        "value" = get_refill_value(srl) - lrl."units",
+        "lastRefill" = CASE
+            WHEN NOW() - srl."lastRefill" >= srl."window"::INTERVAL THEN
+                CURRENT_TIMESTAMP
+            ELSE
+                srl."lastRefill"
+        END
+    FROM
+        locked_rate_limits lrl
+    WHERE
+        srl."tenantId" = lrl."tenantId" AND
+        srl."key" = lrl."key"
+    RETURNING srl."tenantId", srl.key, srl."limitValue", srl.value, srl."window", srl."lastRefill"
+),
+exhausted_rate_limits AS (
+    SELECT
+        srl."key"
+    FROM
+        update_rate_limits srl
+    WHERE
+        srl."value" < 0
 )
-UPDATE "WorkerSemaphoreSlot"
-SET "stepRunId" = $1::uuid
-WHERE "id" = (SELECT "slotId" FROM selected_slot)
-RETURNING id, "workerId", "stepRunId"
+SELECT
+    updated_slot."workerId" as "workerId",
+    updated_slot."stepRunId" as "stepRunId",
+    selected_dispatcher."dispatcherId" as "dispatcherId",
+    COALESCE(COUNT(exhausted_rate_limits."key"), 0)::int as "exhaustedRateLimitCount"
+FROM
+    updated_slot
+    CROSS JOIN selected_dispatcher
+    LEFT JOIN exhausted_rate_limits ON true
+GROUP BY
+    updated_slot."workerId",
+    updated_slot."stepRunId",
+    selected_dispatcher."dispatcherId"
 `
 
-type AcquireWorkerSemaphoreSlotParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
-	Actionid  string      `json:"actionid"`
+type AcquireWorkerSemaphoreSlotAndAssignParams struct {
+	Tenantid    pgtype.UUID `json:"tenantid"`
+	Actionid    string      `json:"actionid"`
+	Steprunid   pgtype.UUID `json:"steprunid"`
+	StepTimeout pgtype.Text `json:"stepTimeout"`
+	Stepid      pgtype.UUID `json:"stepid"`
 }
 
-func (q *Queries) AcquireWorkerSemaphoreSlot(ctx context.Context, db DBTX, arg AcquireWorkerSemaphoreSlotParams) (*WorkerSemaphoreSlot, error) {
-	row := db.QueryRow(ctx, acquireWorkerSemaphoreSlot, arg.Steprunid, arg.Tenantid, arg.Actionid)
-	var i WorkerSemaphoreSlot
-	err := row.Scan(&i.ID, &i.WorkerId, &i.StepRunId)
+type AcquireWorkerSemaphoreSlotAndAssignRow struct {
+	WorkerId                pgtype.UUID `json:"workerId"`
+	StepRunId               pgtype.UUID `json:"stepRunId"`
+	DispatcherId            pgtype.UUID `json:"dispatcherId"`
+	ExhaustedRateLimitCount int32       `json:"exhaustedRateLimitCount"`
+}
+
+func (q *Queries) AcquireWorkerSemaphoreSlotAndAssign(ctx context.Context, db DBTX, arg AcquireWorkerSemaphoreSlotAndAssignParams) (*AcquireWorkerSemaphoreSlotAndAssignRow, error) {
+	row := db.QueryRow(ctx, acquireWorkerSemaphoreSlotAndAssign,
+		arg.Tenantid,
+		arg.Actionid,
+		arg.Steprunid,
+		arg.StepTimeout,
+		arg.Stepid,
+	)
+	var i AcquireWorkerSemaphoreSlotAndAssignRow
+	err := row.Scan(
+		&i.WorkerId,
+		&i.StepRunId,
+		&i.DispatcherId,
+		&i.ExhaustedRateLimitCount,
+	)
 	return &i, err
 }
 
@@ -936,7 +1052,7 @@ step_runs AS (
     LEFT JOIN
         "Worker" w ON sr."workerId" = w."id"
     JOIN
-        "JobRun" jr ON sr."jobRunId" = jr."id"
+        "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
     JOIN
         "Step" s ON sr."stepId" = s."id"
     WHERE
@@ -948,7 +1064,6 @@ step_runs AS (
             sr."status" = 'ASSIGNED'
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ))
-        AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
@@ -1038,15 +1153,12 @@ step_runs AS (
         sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased"
     FROM
         "StepRun" sr
-    LEFT JOIN
-        "Worker" w ON sr."workerId" = w."id"
     JOIN
-        "JobRun" jr ON sr."jobRunId" = jr."id"
+        "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
     WHERE
         sr."tenantId" = $1::uuid
         AND sr."requeueAfter" < NOW()
         AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
-        AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
@@ -1514,76 +1626,6 @@ func (q *Queries) UnlinkStepRunFromWorker(ctx context.Context, db DBTX, arg Unli
 		&i.SemaphoreReleased,
 	)
 	return &i, err
-}
-
-const updateStepRateLimits = `-- name: UpdateStepRateLimits :many
-WITH step_rate_limits AS (
-    SELECT
-        rl."units" AS "units",
-        rl."rateLimitKey" AS "rateLimitKey"
-    FROM
-        "StepRateLimit" rl
-    WHERE
-        rl."stepId" = $1::uuid AND
-        rl."tenantId" = $2::uuid
-), locked_rate_limits AS (
-    SELECT
-        srl."tenantId", srl.key, srl."limitValue", srl.value, srl."window", srl."lastRefill",
-        step_rate_limits."units"
-    FROM
-        step_rate_limits
-    JOIN
-        "RateLimit" srl ON srl."key" = step_rate_limits."rateLimitKey" AND srl."tenantId" = $2::uuid
-    FOR UPDATE
-)
-UPDATE
-    "RateLimit" srl
-SET
-    "value" = get_refill_value(srl) - lrl."units",
-    "lastRefill" = CASE
-        WHEN NOW() - srl."lastRefill" >= srl."window"::INTERVAL THEN
-            CURRENT_TIMESTAMP
-        ELSE
-            srl."lastRefill"
-    END
-FROM
-    locked_rate_limits lrl
-WHERE
-    srl."tenantId" = lrl."tenantId" AND
-    srl."key" = lrl."key"
-RETURNING srl."tenantId", srl.key, srl."limitValue", srl.value, srl."window", srl."lastRefill"
-`
-
-type UpdateStepRateLimitsParams struct {
-	Stepid   pgtype.UUID `json:"stepid"`
-	Tenantid pgtype.UUID `json:"tenantid"`
-}
-
-func (q *Queries) UpdateStepRateLimits(ctx context.Context, db DBTX, arg UpdateStepRateLimitsParams) ([]*RateLimit, error) {
-	rows, err := db.Query(ctx, updateStepRateLimits, arg.Stepid, arg.Tenantid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*RateLimit
-	for rows.Next() {
-		var i RateLimit
-		if err := rows.Scan(
-			&i.TenantId,
-			&i.Key,
-			&i.LimitValue,
-			&i.Value,
-			&i.Window,
-			&i.LastRefill,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const updateStepRun = `-- name: UpdateStepRun :one

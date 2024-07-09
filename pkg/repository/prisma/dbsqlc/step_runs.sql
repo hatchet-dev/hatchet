@@ -343,7 +343,7 @@ step_runs AS (
     LEFT JOIN
         "Worker" w ON sr."workerId" = w."id"
     JOIN
-        "JobRun" jr ON sr."jobRunId" = jr."id"
+        "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
     JOIN
         "Step" s ON sr."stepId" = s."id"
     WHERE
@@ -355,7 +355,6 @@ step_runs AS (
             sr."status" = 'ASSIGNED'
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         ))
-        AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
@@ -419,20 +418,23 @@ total_max_runs AS (
     FROM
         valid_workers
 ),
+limit_max_runs AS (
+    SELECT
+        GREATEST("totalMaxRuns", 100) AS "limitMaxRuns"
+    FROM
+        total_max_runs
+),
 step_runs AS (
     SELECT
         sr.*
     FROM
         "StepRun" sr
-    LEFT JOIN
-        "Worker" w ON sr."workerId" = w."id"
     JOIN
-        "JobRun" jr ON sr."jobRunId" = jr."id"
+        "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
     WHERE
         sr."tenantId" = @tenantId::uuid
         AND sr."requeueAfter" < NOW()
         AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
-        AND jr."status" = 'RUNNING'
         AND sr."input" IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
@@ -445,7 +447,7 @@ step_runs AS (
     ORDER BY
         sr."createdAt" ASC
     LIMIT
-        COALESCE((SELECT "totalMaxRuns" FROM total_max_runs), 100)
+        (SELECT "limitMaxRuns" FROM limit_max_runs)
 ),
 locked_step_runs AS (
     SELECT
@@ -516,7 +518,7 @@ WHERE "stepRunId" = @stepRunId::uuid
   AND "workerId" = (SELECT "workerId" FROM step_run)
 RETURNING *;
 
--- name: AcquireWorkerSemaphoreSlot :one
+-- name: AcquireWorkerSemaphoreSlotAndAssign :one
 WITH valid_workers AS (
     SELECT w."id", COUNT(wss."id") AS "slots"
     FROM "Worker" w
@@ -535,19 +537,115 @@ WITH valid_workers AS (
         )
     GROUP BY w."id"
 ),
+locked_step_runs AS (
+    SELECT
+        sr."id", sr."status", sr."workerId"
+    FROM
+        "StepRun" sr
+    WHERE
+        sr."id" = @stepRunId::uuid
+    FOR UPDATE SKIP LOCKED
+),
 selected_slot AS (
     SELECT wss."id" AS "slotId", wss."workerId" AS "workerId"
     FROM "WorkerSemaphoreSlot" wss
     JOIN valid_workers w ON wss."workerId" = w."id"
-    WHERE wss."stepRunId" IS NULL
+    WHERE
+        wss."stepRunId" IS NULL
+        AND (SELECT COUNT(*) FROM locked_step_runs) > 0
     ORDER BY w."slots" DESC, RANDOM()
     FOR UPDATE SKIP LOCKED
     LIMIT 1
+),
+updated_slot AS (
+    UPDATE "WorkerSemaphoreSlot"
+    SET "stepRunId" = @stepRunId::uuid
+    WHERE "id" = (SELECT "slotId" FROM selected_slot)
+    AND "stepRunId" IS NULL
+    RETURNING *
+),
+assign_step_run_to_worker AS (
+	UPDATE
+	    "StepRun"
+	SET
+	    "status" = 'ASSIGNED',
+	    "workerId" = (SELECT "workerId" FROM updated_slot),
+	    "tickerId" = NULL,
+	    "updatedAt" = CURRENT_TIMESTAMP,
+	    "timeoutAt" = CASE
+	        WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
+	            CURRENT_TIMESTAMP + convert_duration_to_interval(sqlc.narg('stepTimeout')::text)
+	        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+	    END
+	WHERE
+	    "id" = (SELECT "stepRunId" FROM updated_slot) AND
+	    "status" = 'PENDING_ASSIGNMENT'
+	RETURNING
+	    "StepRun"."id", "StepRun"."workerId"
+),
+selected_dispatcher AS (
+    SELECT "dispatcherId" FROM "Worker"
+    WHERE "id" = (SELECT "workerId" FROM updated_slot)
+),
+step_rate_limits AS (
+    SELECT
+        rl."units" AS "units",
+        rl."rateLimitKey" AS "rateLimitKey"
+    FROM
+        "StepRateLimit" rl
+    WHERE
+        rl."stepId" = @stepId::uuid AND
+        rl."tenantId" = @tenantId::uuid
+),
+locked_rate_limits AS (
+    SELECT
+        srl.*,
+        step_rate_limits."units"
+    FROM
+        step_rate_limits
+    JOIN
+        "RateLimit" srl ON srl."key" = step_rate_limits."rateLimitKey" AND srl."tenantId" = @tenantId::uuid
+    FOR UPDATE
+),
+update_rate_limits AS (
+    UPDATE
+        "RateLimit" srl
+    SET
+        "value" = get_refill_value(srl) - lrl."units",
+        "lastRefill" = CASE
+            WHEN NOW() - srl."lastRefill" >= srl."window"::INTERVAL THEN
+                CURRENT_TIMESTAMP
+            ELSE
+                srl."lastRefill"
+        END
+    FROM
+        locked_rate_limits lrl
+    WHERE
+        srl."tenantId" = lrl."tenantId" AND
+        srl."key" = lrl."key"
+    RETURNING srl.*
+),
+exhausted_rate_limits AS (
+    SELECT
+        srl."key"
+    FROM
+        update_rate_limits srl
+    WHERE
+        srl."value" < 0
 )
-UPDATE "WorkerSemaphoreSlot"
-SET "stepRunId" = @stepRunId::uuid
-WHERE "id" = (SELECT "slotId" FROM selected_slot)
-RETURNING *;
+SELECT
+    updated_slot."workerId" as "workerId",
+    updated_slot."stepRunId" as "stepRunId",
+    selected_dispatcher."dispatcherId" as "dispatcherId",
+    COALESCE(COUNT(exhausted_rate_limits."key"), 0)::int as "exhaustedRateLimitCount"
+FROM
+    updated_slot
+    CROSS JOIN selected_dispatcher
+    LEFT JOIN exhausted_rate_limits ON true
+GROUP BY
+    updated_slot."workerId",
+    updated_slot."stepRunId",
+    selected_dispatcher."dispatcherId";
 
 -- name: CreateStepRunEvent :exec
 WITH input_values AS (
@@ -628,42 +726,6 @@ OFFSET
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
 
--- name: UpdateStepRateLimits :many
-WITH step_rate_limits AS (
-    SELECT
-        rl."units" AS "units",
-        rl."rateLimitKey" AS "rateLimitKey"
-    FROM
-        "StepRateLimit" rl
-    WHERE
-        rl."stepId" = @stepId::uuid AND
-        rl."tenantId" = @tenantId::uuid
-), locked_rate_limits AS (
-    SELECT
-        srl.*,
-        step_rate_limits."units"
-    FROM
-        step_rate_limits
-    JOIN
-        "RateLimit" srl ON srl."key" = step_rate_limits."rateLimitKey" AND srl."tenantId" = @tenantId::uuid
-    FOR UPDATE
-)
-UPDATE
-    "RateLimit" srl
-SET
-    "value" = get_refill_value(srl) - lrl."units",
-    "lastRefill" = CASE
-        WHEN NOW() - srl."lastRefill" >= srl."window"::INTERVAL THEN
-            CURRENT_TIMESTAMP
-        ELSE
-            srl."lastRefill"
-    END
-FROM
-    locked_rate_limits lrl
-WHERE
-    srl."tenantId" = lrl."tenantId" AND
-    srl."key" = lrl."key"
-RETURNING srl.*;
 
 -- name: ReplayStepRunResetWorkflowRun :one
 WITH workflow_run_id AS (
