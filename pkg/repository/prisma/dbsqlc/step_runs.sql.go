@@ -1148,6 +1148,12 @@ total_max_runs AS (
     FROM
         valid_workers
 ),
+limit_max_runs AS (
+    SELECT
+        GREATEST("totalMaxRuns", 100) AS "limitMaxRuns"
+    FROM
+        total_max_runs
+),
 step_runs AS (
     SELECT
         sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased"
@@ -1171,7 +1177,7 @@ step_runs AS (
     ORDER BY
         sr."createdAt" ASC
     LIMIT
-        COALESCE((SELECT "totalMaxRuns" FROM total_max_runs), 100)
+        (SELECT "limitMaxRuns" FROM limit_max_runs)
 ),
 locked_step_runs AS (
     SELECT

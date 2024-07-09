@@ -859,6 +859,9 @@ CREATE INDEX "Step_tenantId_idx" ON "Step"("tenantId" ASC);
 CREATE UNIQUE INDEX "StepRateLimit_stepId_rateLimitKey_key" ON "StepRateLimit"("stepId" ASC, "rateLimitKey" ASC);
 
 -- CreateIndex
+CREATE INDEX "StepRun_createdAt_idx" ON "StepRun"("createdAt" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun"("id" ASC);
 
 -- CreateIndex
@@ -871,13 +874,16 @@ CREATE INDEX "StepRun_jobRunId_status_idx" ON "StepRun"("jobRunId" ASC, "status"
 CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, "tenantId" ASC, "order" ASC);
 
 -- CreateIndex
+CREATE INDEX "StepRun_requeueAfter_idx" ON "StepRun"("requeueAfter" ASC);
+
+-- CreateIndex
 CREATE INDEX "StepRun_status_idx" ON "StepRun"("status" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 
 -- CreateIndex
-CREATE INDEX "StepRun_tenantId_status_requeueAfter_createdAt_idx" ON "StepRun"("tenantId" ASC, "status" ASC, "requeueAfter" ASC, "createdAt" ASC);
+CREATE INDEX "StepRun_tenantId_idx" ON "StepRun"("tenantId" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_timeoutAt_idx" ON "StepRun"("timeoutAt" ASC);
