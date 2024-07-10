@@ -87,6 +87,7 @@ step_rate_limits AS (
     FROM
         "StepRateLimit" rl
     JOIN locked_step_runs lsr ON rl."stepId" = lsr."stepId" -- only increment if we have a lsr
+    JOIN updated_slot us ON us."stepRunId" = lsr."id" -- only increment if we have a slot
     WHERE
         rl."tenantId" = $1::uuid
 ),
@@ -138,6 +139,10 @@ FROM
     LEFT JOIN selected_dispatcher ON true
     LEFT JOIN exhausted_rate_limits ON true
     LEFT JOIN valid_workers ON true
+GROUP BY
+    updated_slot."workerId",
+    updated_slot."stepRunId",
+    selected_dispatcher."dispatcherId"
 `
 
 type AcquireWorkerSemaphoreSlotAndAssignParams struct {
