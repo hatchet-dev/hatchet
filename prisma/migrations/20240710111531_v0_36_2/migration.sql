@@ -36,3 +36,9 @@ DROP INDEX "Workflow_tenantId_idx";
 
 -- DropIndex
 DROP INDEX "WorkflowVersion_workflowId_idx";
+
+-- DropIndex
+DROP INDEX "Ticker_isActive_idx";
+
+-- DropIndex
+DROP INDEX "Ticker_lastHeartbeatAt_idx";

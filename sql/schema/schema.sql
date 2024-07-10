@@ -925,12 +925,6 @@ CREATE UNIQUE INDEX "TenantWorkerPartition_id_key" ON "TenantWorkerPartition"("i
 CREATE UNIQUE INDEX "Ticker_id_key" ON "Ticker"("id" ASC);
 
 -- CreateIndex
-CREATE INDEX "Ticker_isActive_idx" ON "Ticker"("isActive" ASC);
-
--- CreateIndex
-CREATE INDEX "Ticker_lastHeartbeatAt_idx" ON "Ticker"("lastHeartbeatAt" ASC);
-
--- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email" ASC);
 
 -- CreateIndex

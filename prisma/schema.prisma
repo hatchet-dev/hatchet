@@ -1294,9 +1294,6 @@ model Ticker {
   scheduled    WorkflowTriggerScheduledRef[]
   groupKeyRuns GetGroupKeyRun[]
   tenantAlerts TenantAlertingSettings[]
-
-  @@index([isActive])
-  @@index([lastHeartbeatAt])
 }
 
 model Worker {
