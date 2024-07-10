@@ -1,7 +1,7 @@
 -- name: CountWorkflowRuns :one
-SELECT
-    count(runs) OVER() AS total
-FROM
+WITH runs AS (
+    SELECT runs."id", runs."createdAt"
+    FROM
     "WorkflowRun" as runs
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
@@ -56,7 +56,17 @@ WHERE
     (
         sqlc.narg('finishedAfter')::timestamp IS NULL OR
         runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
-    );
+    )
+    ORDER BY
+        case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+        case when @orderBy = 'createdAt DESC' then runs."createdAt" END DESC,
+        runs."id" ASC
+    LIMIT 10000
+)
+SELECT
+    count(runs) AS total
+FROM
+    runs;
 
 -- name: WorkflowRunsMetricsCount :one
 SELECT
