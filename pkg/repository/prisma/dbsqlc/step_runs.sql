@@ -469,27 +469,6 @@ WHERE
     "StepRun"."id" = locked_step_runs."id"
 RETURNING "StepRun"."id";
 
--- name: AssignStepRunToWorker :one
-UPDATE
-    "StepRun"
-SET
-    "status" = 'ASSIGNED',
-    "workerId" = @workerId::uuid,
-    "tickerId" = NULL,
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "timeoutAt" = CASE
-        WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
-            CURRENT_TIMESTAMP + convert_duration_to_interval(sqlc.narg('stepTimeout')::text)
-        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
-    END
-WHERE
-    "id" = @stepRunId::uuid AND
-    "tenantId" = @tenantId::uuid AND
-    "status" = 'PENDING_ASSIGNMENT'
-RETURNING
-    "StepRun"."id", "StepRun"."workerId",
-    (SELECT "dispatcherId" FROM "Worker" WHERE "id" = @workerId::uuid) AS "dispatcherId";
-
 -- name: RefreshTimeoutBy :one
 UPDATE
     "StepRun" sr

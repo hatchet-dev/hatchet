@@ -258,53 +258,6 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 	return &i, err
 }
 
-const assignStepRunToWorker = `-- name: AssignStepRunToWorker :one
-UPDATE
-    "StepRun"
-SET
-    "status" = 'ASSIGNED',
-    "workerId" = $1::uuid,
-    "tickerId" = NULL,
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "timeoutAt" = CASE
-        WHEN $2::text IS NOT NULL THEN
-            CURRENT_TIMESTAMP + convert_duration_to_interval($2::text)
-        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
-    END
-WHERE
-    "id" = $3::uuid AND
-    "tenantId" = $4::uuid AND
-    "status" = 'PENDING_ASSIGNMENT'
-RETURNING
-    "StepRun"."id", "StepRun"."workerId",
-    (SELECT "dispatcherId" FROM "Worker" WHERE "id" = $1::uuid) AS "dispatcherId"
-`
-
-type AssignStepRunToWorkerParams struct {
-	Workerid    pgtype.UUID `json:"workerid"`
-	StepTimeout pgtype.Text `json:"stepTimeout"`
-	Steprunid   pgtype.UUID `json:"steprunid"`
-	Tenantid    pgtype.UUID `json:"tenantid"`
-}
-
-type AssignStepRunToWorkerRow struct {
-	ID           pgtype.UUID `json:"id"`
-	WorkerId     pgtype.UUID `json:"workerId"`
-	DispatcherId pgtype.UUID `json:"dispatcherId"`
-}
-
-func (q *Queries) AssignStepRunToWorker(ctx context.Context, db DBTX, arg AssignStepRunToWorkerParams) (*AssignStepRunToWorkerRow, error) {
-	row := db.QueryRow(ctx, assignStepRunToWorker,
-		arg.Workerid,
-		arg.StepTimeout,
-		arg.Steprunid,
-		arg.Tenantid,
-	)
-	var i AssignStepRunToWorkerRow
-	err := row.Scan(&i.ID, &i.WorkerId, &i.DispatcherId)
-	return &i, err
-}
-
 const countStepRunArchives = `-- name: CountStepRunArchives :one
 SELECT
     count(*) OVER() AS total
