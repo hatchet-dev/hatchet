@@ -585,15 +585,15 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 		return nil, repository.ErrRateLimitExceeded
 	}
 
+	if !assigned.WorkerId.Valid || !assigned.DispatcherId.Valid {
+		// this likely means that the step run was skip locked by another assign attempt
+		return nil, repository.ErrStepRunIsNotAssigned
+	}
+
 	err = tx.Commit(ctx)
 
 	if err != nil {
 		return nil, err
-	}
-
-	if !assigned.WorkerId.Valid || !assigned.DispatcherId.Valid {
-		// this likely means that the step run was skip locked by another assign attempt
-		return nil, repository.ErrStepRunIsNotAssigned
 	}
 
 	return assigned, nil
