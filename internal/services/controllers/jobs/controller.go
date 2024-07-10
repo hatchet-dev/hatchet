@@ -575,7 +575,8 @@ func (jc *JobsControllerImpl) runStepRunRequeue(ctx context.Context, startedAt t
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		// we set requeueAfter to 4 seconds in the future to avoid requeuing the same step run multiple times
+		ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
 
 		jc.l.Debug().Msgf("jobs controller: checking step run requeue")
@@ -659,7 +660,8 @@ func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt 
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		// we set requeueAfter to 4 seconds in the future to avoid requeuing the same step run multiple times
+		ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
 
 		jc.l.Debug().Msgf("jobs controller: checking step run reassignment")
@@ -862,6 +864,11 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId stri
 
 		if errors.Is(err, repository.ErrRateLimitExceeded) {
 			ec.l.Debug().Msgf("rate limit exceeded for step run %s, requeueing", stepRunId)
+			return nil
+		}
+
+		if errors.Is(err, repository.ErrStepRunIsNotAssigned) {
+			ec.l.Debug().Msgf("step run %s is not assigned, skipping scheduling", stepRunId)
 			return nil
 		}
 
