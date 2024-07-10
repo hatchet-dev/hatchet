@@ -68,18 +68,24 @@ WHERE
 RETURNING *;
 
 -- name: PollStepRuns :many
-WITH stepRunsToTimeout AS (
+WITH inactiveTickers AS (
+    SELECT "id"
+    FROM "Ticker"
+    WHERE
+        "isActive" = false OR
+        "lastHeartbeatAt" < NOW() - INTERVAL '10 seconds'
+),
+stepRunsToTimeout AS (
     SELECT
         stepRun."id"
     FROM
         "StepRun" as stepRun
+    LEFT JOIN inactiveTickers ON stepRun."tickerId" = inactiveTickers."id"
     WHERE
         ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
         AND "timeoutAt" < NOW()
         AND (
-            NOT EXISTS (
-                SELECT 1 FROM "Ticker" WHERE "id" = stepRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
-            )
+            inactiveTickers."id" IS NOT NULL
             OR "tickerId" IS NULL
         )
     LIMIT 1000
