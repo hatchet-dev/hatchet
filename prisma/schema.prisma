@@ -503,7 +503,6 @@ model WorkflowVersion {
 
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")
-
 }
 
 enum ConcurrencyLimitStrategy {
@@ -1346,7 +1345,6 @@ model Worker {
 
   // DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
   semaphore WorkerSemaphore? // FIXME remove this in a few releases from v_0_30_1
-
 }
 
 // DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
