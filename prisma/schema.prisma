@@ -1172,6 +1172,8 @@ model StepRun {
   @@index([requeueAfter])
   @@index([createdAt])
   @@index([status])
+  // index for PollStepRuns
+  @@index([status, timeoutAt, tickerId])
 }
 
 enum StepRunEventReason {
@@ -1297,9 +1299,6 @@ model Ticker {
   scheduled    WorkflowTriggerScheduledRef[]
   groupKeyRuns GetGroupKeyRun[]
   tenantAlerts TenantAlertingSettings[]
-
-  @@index([isActive])
-  @@index([lastHeartbeatAt])
 }
 
 model Worker {

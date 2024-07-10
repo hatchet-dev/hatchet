@@ -623,11 +623,7 @@ FROM
     LEFT JOIN updated_slot ON true
     LEFT JOIN selected_dispatcher ON true
     LEFT JOIN exhausted_rate_limits ON true
-    LEFT JOIN valid_workers ON true
-GROUP BY
-    updated_slot."workerId",
-    updated_slot."stepRunId",
-    selected_dispatcher."dispatcherId";
+    LEFT JOIN valid_workers ON true;
 
 
 -- name: CreateStepRunEvent :exec

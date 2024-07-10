@@ -138,10 +138,6 @@ FROM
     LEFT JOIN selected_dispatcher ON true
     LEFT JOIN exhausted_rate_limits ON true
     LEFT JOIN valid_workers ON true
-GROUP BY
-    updated_slot."workerId",
-    updated_slot."stepRunId",
-    selected_dispatcher."dispatcherId"
 `
 
 type AcquireWorkerSemaphoreSlotAndAssignParams struct {

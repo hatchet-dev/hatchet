@@ -868,6 +868,9 @@ CREATE INDEX "StepRun_requeueAfter_idx" ON "StepRun"("requeueAfter" ASC);
 CREATE INDEX "StepRun_status_idx" ON "StepRun"("status" ASC);
 
 -- CreateIndex
+CREATE INDEX "StepRun_status_timeoutAt_tickerId_idx" ON "StepRun"("status" ASC, "timeoutAt" ASC, "tickerId" ASC);
+
+-- CreateIndex
 CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 
 -- CreateIndex
@@ -935,12 +938,6 @@ CREATE UNIQUE INDEX "TenantWorkerPartition_id_key" ON "TenantWorkerPartition"("i
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Ticker_id_key" ON "Ticker"("id" ASC);
-
--- CreateIndex
-CREATE INDEX "Ticker_isActive_idx" ON "Ticker"("isActive" ASC);
-
--- CreateIndex
-CREATE INDEX "Ticker_lastHeartbeatAt_idx" ON "Ticker"("lastHeartbeatAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email" ASC);
