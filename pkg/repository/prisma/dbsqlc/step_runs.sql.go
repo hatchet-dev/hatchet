@@ -32,7 +32,7 @@ WITH valid_workers AS (
 ),
 locked_step_runs AS (
     SELECT
-        sr."id", sr."status", sr."workerId"
+        sr."id", sr."status", sr."workerId", sr."stepId"
     FROM
         "StepRun" sr
     WHERE
@@ -86,8 +86,8 @@ step_rate_limits AS (
         rl."rateLimitKey" AS "rateLimitKey"
     FROM
         "StepRateLimit" rl
+    JOIN locked_step_runs lsr ON rl."stepId" = lsr."stepId" -- only increment if we have a lsr
     WHERE
-        rl."stepId" = $5::uuid AND
         rl."tenantId" = $1::uuid
 ),
 locked_rate_limits AS (
@@ -130,11 +130,14 @@ SELECT
     updated_slot."workerId" as "workerId",
     updated_slot."stepRunId" as "stepRunId",
     selected_dispatcher."dispatcherId" as "dispatcherId",
-    COALESCE(COUNT(exhausted_rate_limits."key"), 0)::int as "exhaustedRateLimitCount"
+    COALESCE(COUNT(exhausted_rate_limits."key"), 0)::int as "exhaustedRateLimitCount",
+    COALESCE(SUM(valid_workers."slots"),0)::int as "remainingSlots"
 FROM
-    updated_slot
-    CROSS JOIN selected_dispatcher
+    (SELECT 1 as filler) as filler_row_subquery -- always return a row
+    LEFT JOIN updated_slot ON true
+    LEFT JOIN selected_dispatcher ON true
     LEFT JOIN exhausted_rate_limits ON true
+    LEFT JOIN valid_workers ON true
 GROUP BY
     updated_slot."workerId",
     updated_slot."stepRunId",
@@ -146,7 +149,6 @@ type AcquireWorkerSemaphoreSlotAndAssignParams struct {
 	Actionid    string      `json:"actionid"`
 	Steprunid   pgtype.UUID `json:"steprunid"`
 	StepTimeout pgtype.Text `json:"stepTimeout"`
-	Stepid      pgtype.UUID `json:"stepid"`
 }
 
 type AcquireWorkerSemaphoreSlotAndAssignRow struct {
@@ -154,6 +156,7 @@ type AcquireWorkerSemaphoreSlotAndAssignRow struct {
 	StepRunId               pgtype.UUID `json:"stepRunId"`
 	DispatcherId            pgtype.UUID `json:"dispatcherId"`
 	ExhaustedRateLimitCount int32       `json:"exhaustedRateLimitCount"`
+	RemainingSlots          int32       `json:"remainingSlots"`
 }
 
 func (q *Queries) AcquireWorkerSemaphoreSlotAndAssign(ctx context.Context, db DBTX, arg AcquireWorkerSemaphoreSlotAndAssignParams) (*AcquireWorkerSemaphoreSlotAndAssignRow, error) {
@@ -162,7 +165,6 @@ func (q *Queries) AcquireWorkerSemaphoreSlotAndAssign(ctx context.Context, db DB
 		arg.Actionid,
 		arg.Steprunid,
 		arg.StepTimeout,
-		arg.Stepid,
 	)
 	var i AcquireWorkerSemaphoreSlotAndAssignRow
 	err := row.Scan(
@@ -170,6 +172,7 @@ func (q *Queries) AcquireWorkerSemaphoreSlotAndAssign(ctx context.Context, db DB
 		&i.StepRunId,
 		&i.DispatcherId,
 		&i.ExhaustedRateLimitCount,
+		&i.RemainingSlots,
 	)
 	return &i, err
 }

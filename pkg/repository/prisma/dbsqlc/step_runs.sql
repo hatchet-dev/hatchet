@@ -518,7 +518,7 @@ WITH valid_workers AS (
 ),
 locked_step_runs AS (
     SELECT
-        sr."id", sr."status", sr."workerId"
+        sr."id", sr."status", sr."workerId", sr."stepId"
     FROM
         "StepRun" sr
     WHERE
@@ -572,8 +572,8 @@ step_rate_limits AS (
         rl."rateLimitKey" AS "rateLimitKey"
     FROM
         "StepRateLimit" rl
+    JOIN locked_step_runs lsr ON rl."stepId" = lsr."stepId" -- only increment if we have a lsr
     WHERE
-        rl."stepId" = @stepId::uuid AND
         rl."tenantId" = @tenantId::uuid
 ),
 locked_rate_limits AS (
@@ -616,15 +616,19 @@ SELECT
     updated_slot."workerId" as "workerId",
     updated_slot."stepRunId" as "stepRunId",
     selected_dispatcher."dispatcherId" as "dispatcherId",
-    COALESCE(COUNT(exhausted_rate_limits."key"), 0)::int as "exhaustedRateLimitCount"
+    COALESCE(COUNT(exhausted_rate_limits."key"), 0)::int as "exhaustedRateLimitCount",
+    COALESCE(SUM(valid_workers."slots"),0)::int as "remainingSlots"
 FROM
-    updated_slot
-    CROSS JOIN selected_dispatcher
+    (SELECT 1 as filler) as filler_row_subquery -- always return a row
+    LEFT JOIN updated_slot ON true
+    LEFT JOIN selected_dispatcher ON true
     LEFT JOIN exhausted_rate_limits ON true
+    LEFT JOIN valid_workers ON true
 GROUP BY
     updated_slot."workerId",
     updated_slot."stepRunId",
     selected_dispatcher."dispatcherId";
+
 
 -- name: CreateStepRunEvent :exec
 WITH input_values AS (

@@ -568,19 +568,17 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 	// acquire a semaphore slot
 	assigned, err := s.queries.AcquireWorkerSemaphoreSlotAndAssign(ctx, tx, dbsqlc.AcquireWorkerSemaphoreSlotAndAssignParams{
 		Steprunid:   stepRun.StepRun.ID,
-		Stepid:      stepRun.StepRun.StepId,
 		Actionid:    stepRun.ActionId,
 		StepTimeout: stepRun.StepTimeout,
 		Tenantid:    stepRun.StepRun.TenantId,
 	})
 
 	if err != nil {
-		// TODO its possible that the step is locked and in that case we should do nothing...
-
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &errNoWorkerWithSlots{totalSlots: int(0)}
-		}
 		return nil, fmt.Errorf("could not acquire worker semaphore slot: %w", err)
+	}
+
+	if assigned.RemainingSlots == 0 {
+		return nil, &errNoWorkerWithSlots{totalSlots: int(0)}
 	}
 
 	if assigned.ExhaustedRateLimitCount > 0 {
@@ -591,6 +589,11 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 
 	if err != nil {
 		return nil, err
+	}
+
+	if !assigned.WorkerId.Valid || !assigned.DispatcherId.Valid {
+		// this likely means that the step run was skip locked by another assign attempt
+		return nil, repository.ErrStepRunIsNotAssigned
 	}
 
 	return assigned, nil

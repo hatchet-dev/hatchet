@@ -867,6 +867,11 @@ func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId stri
 			return nil
 		}
 
+		if errors.Is(err, repository.ErrStepRunIsNotAssigned) {
+			ec.l.Debug().Msgf("step run %s is not assigned, skipping scheduling", stepRunId)
+			return nil
+		}
+
 		return fmt.Errorf("could not assign step run to worker: %w", err)
 	}
 
