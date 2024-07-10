@@ -769,9 +769,6 @@ CREATE UNIQUE INDEX "Action_id_key" ON "Action"("id" ASC);
 CREATE UNIQUE INDEX "Action_tenantId_actionId_key" ON "Action"("tenantId" ASC, "actionId" ASC);
 
 -- CreateIndex
-CREATE INDEX "Action_tenantId_idx" ON "Action"("tenantId" ASC);
-
--- CreateIndex
 CREATE UNIQUE INDEX "ControllerPartition_id_key" ON "ControllerPartition"("id" ASC);
 
 -- CreateIndex
@@ -797,9 +794,6 @@ CREATE UNIQUE INDEX "GetGroupKeyRun_workflowRunId_key" ON "GetGroupKeyRun"("work
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Job_id_key" ON "Job"("id" ASC);
-
--- CreateIndex
-CREATE INDEX "Job_tenantId_idx" ON "Job"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Job_workflowVersionId_name_key" ON "Job"("workflowVersionId" ASC, "name" ASC);
@@ -847,13 +841,7 @@ CREATE UNIQUE INDEX "SlackAppWebhook_tenantId_teamId_channelId_key" ON "SlackApp
 CREATE UNIQUE INDEX "Step_id_key" ON "Step"("id" ASC);
 
 -- CreateIndex
-CREATE INDEX "Step_jobId_idx" ON "Step"("jobId" ASC);
-
--- CreateIndex
 CREATE UNIQUE INDEX "Step_jobId_readableId_key" ON "Step"("jobId" ASC, "readableId" ASC);
-
--- CreateIndex
-CREATE INDEX "Step_tenantId_idx" ON "Step"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRateLimit_stepId_rateLimitKey_key" ON "StepRateLimit"("stepId" ASC, "rateLimitKey" ASC);
@@ -884,9 +872,6 @@ CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_tenantId_idx" ON "StepRun"("tenantId" ASC);
-
--- CreateIndex
-CREATE INDEX "StepRun_timeoutAt_idx" ON "StepRun"("timeoutAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRunEvent_id_key" ON "StepRunEvent"("id" ASC);
@@ -931,16 +916,10 @@ CREATE UNIQUE INDEX "TenantMember_tenantId_userId_key" ON "TenantMember"("tenant
 CREATE UNIQUE INDEX "TenantResourceLimit_id_key" ON "TenantResourceLimit"("id" ASC);
 
 -- CreateIndex
-CREATE INDEX "TenantResourceLimit_tenantId_idx" ON "TenantResourceLimit"("tenantId" ASC);
-
--- CreateIndex
 CREATE UNIQUE INDEX "TenantResourceLimit_tenantId_resource_key" ON "TenantResourceLimit"("tenantId" ASC, "resource" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TenantResourceLimitAlert_id_key" ON "TenantResourceLimitAlert"("id" ASC);
-
--- CreateIndex
-CREATE INDEX "TenantResourceLimitAlert_tenantId_idx" ON "TenantResourceLimitAlert"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TenantVcsProvider_id_key" ON "TenantVcsProvider"("id" ASC);
@@ -997,15 +976,6 @@ CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_workflowId_key" ON "W
 CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
 
 -- CreateIndex
-CREATE INDEX "Worker_isActive_idx" ON "Worker"("isActive" ASC);
-
--- CreateIndex
-CREATE INDEX "Worker_lastHeartbeatAt_idx" ON "Worker"("lastHeartbeatAt" ASC);
-
--- CreateIndex
-CREATE INDEX "Worker_tenantId_idx" ON "Worker"("tenantId" ASC);
-
--- CreateIndex
 CREATE UNIQUE INDEX "WorkerSemaphore_workerId_key" ON "WorkerSemaphore"("workerId" ASC);
 
 -- CreateIndex
@@ -1019,9 +989,6 @@ CREATE INDEX "WorkerSemaphoreSlot_workerId_idx" ON "WorkerSemaphoreSlot"("worker
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Workflow_id_key" ON "Workflow"("id" ASC);
-
--- CreateIndex
-CREATE INDEX "Workflow_tenantId_idx" ON "Workflow"("tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Workflow_tenantId_name_key" ON "Workflow"("tenantId" ASC, "name" ASC);
@@ -1103,9 +1070,6 @@ CREATE UNIQUE INDEX "WorkflowVersion_id_key" ON "WorkflowVersion"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowVersion_onFailureJobId_key" ON "WorkflowVersion"("onFailureJobId" ASC);
-
--- CreateIndex
-CREATE INDEX "WorkflowVersion_workflowId_idx" ON "WorkflowVersion"("workflowId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "_ActionToWorker_AB_unique" ON "_ActionToWorker"("A" ASC, "B" ASC);
