@@ -1171,7 +1171,7 @@ model StepRun {
   // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
   @@index([jobRunId, tenantId, order])
   // index for ListStepRunsToRequeue, ListStepRunsToReassign
-  @@index([jobRunId, status, tenantId, requeueAfter])
+  @@index([jobRunId, status, tenantId])
   // index for PollStepRuns
   @@index([status, timeoutAt, tickerId])
 }

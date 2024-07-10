@@ -1009,41 +1009,22 @@ func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsPar
 }
 
 const listStepRunsToReassign = `-- name: ListStepRunsToReassign :many
-WITH step_runs AS (
+WITH inactive_workers AS (
     SELECT
-        sr."id", sr."status", sr."workerId"
+        w."id"
     FROM
-        "StepRun" sr
-    LEFT JOIN
-        "Worker" w ON sr."workerId" = w."id"
-    JOIN
-        "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
-    JOIN
-        "Step" s ON sr."stepId" = s."id"
+        "Worker" w
     WHERE
-        sr."tenantId" = $1::uuid
-        AND sr."status" = ANY(ARRAY['RUNNING', 'ASSIGNED']::"StepRunStatus"[])
+        w."tenantId" = $1::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-        AND sr."input" IS NOT NULL
-        AND NOT EXISTS (
-            SELECT 1
-            FROM "_StepRunOrder" AS order_table
-            JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-            WHERE
-                order_table."B" = sr."id"
-                AND prev_sr."status" != 'SUCCEEDED'
-        )
-    ORDER BY
-        sr."createdAt" ASC
-    LIMIT
-        $2::int
 ),
-locked_step_runs AS (
-    SELECT
-        sr."id", sr."status", sr."workerId"
-    FROM
-        step_runs sr
-    FOR UPDATE SKIP LOCKED
+inactive_semaphore_steps AS (
+    UPDATE "WorkerSemaphoreSlot" wss
+    SET "stepRunId" = NULL
+    WHERE
+        wss."workerId" = ANY(SELECT "id" FROM inactive_workers)
+        AND wss."stepRunId" IS NOT NULL
+    RETURNING wss."stepRunId"
 )
 UPDATE
     "StepRun"
@@ -1055,19 +1036,14 @@ SET
     -- unset the schedule timeout
     "scheduleTimeoutAt" = NULL
 FROM
-    locked_step_runs
+    inactive_semaphore_steps
 WHERE
-    "StepRun"."id" = locked_step_runs."id"
+    "StepRun"."id" = inactive_semaphore_steps."stepRunId"
 RETURNING "StepRun"."id"
 `
 
-type ListStepRunsToReassignParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Limit    int32       `json:"limit"`
-}
-
-func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, arg ListStepRunsToReassignParams) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, listStepRunsToReassign, arg.Tenantid, arg.Limit)
+func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStepRunsToReassign, tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -1107,8 +1083,6 @@ WITH step_runs AS (
                 order_table."B" = sr."id"
                 AND prev_sr."status" != 'SUCCEEDED'
         )
-    ORDER BY
-        sr."createdAt" ASC
     FOR UPDATE SKIP LOCKED
     LIMIT
         $2::int
