@@ -874,6 +874,9 @@ CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 CREATE INDEX "StepRun_tenantId_idx" ON "StepRun"("tenantId" ASC);
 
 -- CreateIndex
+CREATE INDEX "StepRun_timeoutAt_idx" ON "StepRun"("timeoutAt" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "StepRunEvent_id_key" ON "StepRunEvent"("id" ASC);
 
 -- CreateIndex
