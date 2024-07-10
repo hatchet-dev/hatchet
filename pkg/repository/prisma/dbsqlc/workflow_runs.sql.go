@@ -78,6 +78,8 @@ WHERE
 )
 SELECT
     count(runs) AS total
+FROM
+    runs
 `
 
 type CountWorkflowRunsParams struct {

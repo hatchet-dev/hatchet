@@ -50,7 +50,9 @@ WITH events AS (
     LIMIT 10000
 )
 SELECT
-    count(events) AS total;
+    count(events) AS total
+FROM
+    events;
 
 -- name: CreateEvent :one
 INSERT INTO "Event" (

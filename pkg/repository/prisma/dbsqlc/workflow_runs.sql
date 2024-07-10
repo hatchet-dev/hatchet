@@ -64,7 +64,9 @@ WHERE
     LIMIT 10000
 )
 SELECT
-    count(runs) AS total;
+    count(runs) AS total
+FROM
+    runs;
 
 -- name: WorkflowRunsMetricsCount :one
 SELECT

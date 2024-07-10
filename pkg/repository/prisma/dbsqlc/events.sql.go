@@ -56,6 +56,8 @@ WITH events AS (
 )
 SELECT
     count(events) AS total
+FROM
+    events
 `
 
 type CountEventsParams struct {
