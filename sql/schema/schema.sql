@@ -859,6 +859,9 @@ CREATE INDEX "StepRun_jobRunId_status_idx" ON "StepRun"("jobRunId" ASC, "status"
 CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, "tenantId" ASC, "order" ASC);
 
 -- CreateIndex
+CREATE INDEX "StepRun_status_timeoutAt_tickerId_idx" ON "StepRun"("status" ASC, "timeoutAt" ASC, "tickerId" ASC);
+
+-- CreateIndex
 CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 
 -- CreateIndex
