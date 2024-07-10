@@ -312,8 +312,18 @@ func (s *stepRunEngineRepository) ListStepRunsToRequeue(ctx context.Context, ten
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
+	// get the limits for the step runs
+	limit, err := s.queries.GetMaxRunsLimit(ctx, tx, pgTenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
 	// get the step run and make sure it's still in pending
-	stepRunIds, err := s.queries.ListStepRunsToRequeue(ctx, tx, pgTenantId)
+	stepRunIds, err := s.queries.ListStepRunsToRequeue(ctx, tx, dbsqlc.ListStepRunsToRequeueParams{
+		Tenantid: pgTenantId,
+		Limit:    limit,
+	})
 
 	if err != nil {
 		return nil, err
@@ -348,8 +358,18 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
+	// get the limits for the step runs
+	limit, err := s.queries.GetMaxRunsLimit(ctx, tx, pgTenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
 	// get the step run and make sure it's still in pending
-	stepRunIds, err := s.queries.ListStepRunsToReassign(ctx, tx, pgTenantId)
+	stepRunIds, err := s.queries.ListStepRunsToReassign(ctx, tx, dbsqlc.ListStepRunsToReassignParams{
+		Tenantid: pgTenantId,
+		Limit:    limit,
+	})
 
 	if err != nil {
 		return nil, err

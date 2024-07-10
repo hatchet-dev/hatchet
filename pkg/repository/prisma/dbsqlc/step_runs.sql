@@ -301,16 +301,15 @@ SELECT
 FROM step_run_data
 RETURNING *;
 
--- name: ListStepRunsToReassign :many
+-- name: GetMaxRunsLimit :one
 WITH valid_workers AS (
     SELECT
-        DISTINCT ON (w."id")
         w."id",
         COALESCE(w."maxRuns", 100) - COUNT(wss."id") AS "remainingSlots"
     FROM
         "Worker" w
     LEFT JOIN
-        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NOT NULL
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
@@ -320,24 +319,24 @@ WITH valid_workers AS (
     GROUP BY
         w."id", w."maxRuns"
     HAVING
-        COALESCE(w."maxRuns", 100) - COUNT(wss."id") > 0
+        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") > 0
 ),
--- Count the total number of slots across all workers
+-- Count the total number of maxRuns - runningStepRuns across all workers
 total_max_runs AS (
     SELECT
         SUM("remainingSlots") AS "totalMaxRuns"
     FROM
         valid_workers
-),
-limit_max_runs AS (
+)
+SELECT
+    GREATEST("totalMaxRuns", 100)::int AS "limitMaxRuns"
+FROM
+    total_max_runs;
+
+-- name: ListStepRunsToReassign :many
+WITH step_runs AS (
     SELECT
-        GREATEST("totalMaxRuns", 100) AS "limitMaxRuns"
-    FROM
-        total_max_runs
-),
-step_runs AS (
-    SELECT
-        sr.*
+        sr."id", sr."status", sr."workerId"
     FROM
         "StepRun" sr
     LEFT JOIN
@@ -348,13 +347,8 @@ step_runs AS (
         "Step" s ON sr."stepId" = s."id"
     WHERE
         sr."tenantId" = @tenantId::uuid
-        AND ((
-            sr."status" = 'RUNNING'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-        ) OR (
-            sr."status" = 'ASSIGNED'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-        ))
+        AND sr."status" = ANY(ARRAY['RUNNING', 'ASSIGNED']::"StepRunStatus"[])
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         AND sr."input" IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
@@ -367,7 +361,7 @@ step_runs AS (
     ORDER BY
         sr."createdAt" ASC
     LIMIT
-        (SELECT "limitMaxRuns" FROM limit_max_runs)
+        sqlc.arg('limit')::int
 ),
 locked_step_runs AS (
     SELECT
@@ -392,49 +386,17 @@ WHERE
 RETURNING "StepRun"."id";
 
 -- name: ListStepRunsToRequeue :many
-WITH valid_workers AS (
+WITH step_runs AS (
     SELECT
-        w."id",
-        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") AS "remainingSlots"
-    FROM
-        "Worker" w
-    LEFT JOIN
-        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
-    WHERE
-        w."tenantId" = @tenantId::uuid
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary because isActive is set to false immediately when the stream closes
-        AND w."isActive" = true
-        AND w."isPaused" = false
-    GROUP BY
-        w."id", w."maxRuns"
-    HAVING
-        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") > 0
-),
--- Count the total number of maxRuns - runningStepRuns across all workers
-total_max_runs AS (
-    SELECT
-        SUM("remainingSlots") AS "totalMaxRuns"
-    FROM
-        valid_workers
-),
-limit_max_runs AS (
-    SELECT
-        GREATEST("totalMaxRuns", 100) AS "limitMaxRuns"
-    FROM
-        total_max_runs
-),
-step_runs AS (
-    SELECT
-        sr.*
+        sr."id", sr."status", sr."workerId"
     FROM
         "StepRun" sr
     JOIN
         "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
     WHERE
         sr."tenantId" = @tenantId::uuid
+        AND sr."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT']::"StepRunStatus"[])
         AND sr."requeueAfter" < NOW()
-        AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
         AND sr."input" IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
@@ -446,15 +408,9 @@ step_runs AS (
         )
     ORDER BY
         sr."createdAt" ASC
-    LIMIT
-        (SELECT "limitMaxRuns" FROM limit_max_runs)
-),
-locked_step_runs AS (
-    SELECT
-        sr."id", sr."status", sr."workerId"
-    FROM
-        step_runs sr
     FOR UPDATE SKIP LOCKED
+    LIMIT
+        sqlc.arg('limit')::int
 )
 UPDATE
     "StepRun"
@@ -464,9 +420,9 @@ SET
     "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
     "updatedAt" = CURRENT_TIMESTAMP
 FROM
-    locked_step_runs
+    step_runs
 WHERE
-    "StepRun"."id" = locked_step_runs."id"
+    "StepRun"."id" = step_runs."id"
 RETURNING "StepRun"."id";
 
 -- name: RefreshTimeoutBy :one

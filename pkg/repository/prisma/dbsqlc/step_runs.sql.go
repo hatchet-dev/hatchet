@@ -454,6 +454,46 @@ func (q *Queries) GetLaterStepRunsForReplay(ctx context.Context, db DBTX, arg Ge
 	return items, nil
 }
 
+const getMaxRunsLimit = `-- name: GetMaxRunsLimit :one
+WITH valid_workers AS (
+    SELECT
+        w."id",
+        COALESCE(w."maxRuns", 100) - COUNT(wss."id") AS "remainingSlots"
+    FROM
+        "Worker" w
+    LEFT JOIN
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NOT NULL
+    WHERE
+        w."tenantId" = $1::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        -- necessary because isActive is set to false immediately when the stream closes
+        AND w."isActive" = true
+        AND w."isPaused" = false
+    GROUP BY
+        w."id", w."maxRuns"
+    HAVING
+        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") > 0
+),
+total_max_runs AS (
+    SELECT
+        SUM("remainingSlots") AS "totalMaxRuns"
+    FROM
+        valid_workers
+)
+SELECT
+    GREATEST("totalMaxRuns", 100)::int AS "limitMaxRuns"
+FROM
+    total_max_runs
+`
+
+// Count the total number of maxRuns - runningStepRuns across all workers
+func (q *Queries) GetMaxRunsLimit(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int32, error) {
+	row := db.QueryRow(ctx, getMaxRunsLimit, tenantid)
+	var limitMaxRuns int32
+	err := row.Scan(&limitMaxRuns)
+	return limitMaxRuns, err
+}
+
 const getStepRun = `-- name: GetStepRun :one
 SELECT
     "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased"
@@ -969,41 +1009,9 @@ func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsPar
 }
 
 const listStepRunsToReassign = `-- name: ListStepRunsToReassign :many
-WITH valid_workers AS (
+WITH step_runs AS (
     SELECT
-        DISTINCT ON (w."id")
-        w."id",
-        COALESCE(w."maxRuns", 100) - COUNT(wss."id") AS "remainingSlots"
-    FROM
-        "Worker" w
-    LEFT JOIN
-        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
-    WHERE
-        w."tenantId" = $1::uuid
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary because isActive is set to false immediately when the stream closes
-        AND w."isActive" = true
-        AND w."isPaused" = false
-    GROUP BY
-        w."id", w."maxRuns"
-    HAVING
-        COALESCE(w."maxRuns", 100) - COUNT(wss."id") > 0
-),
-total_max_runs AS (
-    SELECT
-        SUM("remainingSlots") AS "totalMaxRuns"
-    FROM
-        valid_workers
-),
-limit_max_runs AS (
-    SELECT
-        GREATEST("totalMaxRuns", 100) AS "limitMaxRuns"
-    FROM
-        total_max_runs
-),
-step_runs AS (
-    SELECT
-        sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased"
+        sr."id", sr."status", sr."workerId"
     FROM
         "StepRun" sr
     LEFT JOIN
@@ -1014,13 +1022,8 @@ step_runs AS (
         "Step" s ON sr."stepId" = s."id"
     WHERE
         sr."tenantId" = $1::uuid
-        AND ((
-            sr."status" = 'RUNNING'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-        ) OR (
-            sr."status" = 'ASSIGNED'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-        ))
+        AND sr."status" = ANY(ARRAY['RUNNING', 'ASSIGNED']::"StepRunStatus"[])
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         AND sr."input" IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
@@ -1033,7 +1036,7 @@ step_runs AS (
     ORDER BY
         sr."createdAt" ASC
     LIMIT
-        (SELECT "limitMaxRuns" FROM limit_max_runs)
+        $2::int
 ),
 locked_step_runs AS (
     SELECT
@@ -1058,9 +1061,13 @@ WHERE
 RETURNING "StepRun"."id"
 `
 
-// Count the total number of slots across all workers
-func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, listStepRunsToReassign, tenantid)
+type ListStepRunsToReassignParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    int32       `json:"limit"`
+}
+
+func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, arg ListStepRunsToReassignParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStepRunsToReassign, arg.Tenantid, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1080,48 +1087,17 @@ func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, tenantid 
 }
 
 const listStepRunsToRequeue = `-- name: ListStepRunsToRequeue :many
-WITH valid_workers AS (
+WITH step_runs AS (
     SELECT
-        w."id",
-        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") AS "remainingSlots"
-    FROM
-        "Worker" w
-    LEFT JOIN
-        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
-    WHERE
-        w."tenantId" = $1::uuid
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary because isActive is set to false immediately when the stream closes
-        AND w."isActive" = true
-        AND w."isPaused" = false
-    GROUP BY
-        w."id", w."maxRuns"
-    HAVING
-        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") > 0
-),
-total_max_runs AS (
-    SELECT
-        SUM("remainingSlots") AS "totalMaxRuns"
-    FROM
-        valid_workers
-),
-limit_max_runs AS (
-    SELECT
-        GREATEST("totalMaxRuns", 100) AS "limitMaxRuns"
-    FROM
-        total_max_runs
-),
-step_runs AS (
-    SELECT
-        sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased"
+        sr."id", sr."status", sr."workerId"
     FROM
         "StepRun" sr
     JOIN
         "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
     WHERE
         sr."tenantId" = $1::uuid
+        AND sr."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT']::"StepRunStatus"[])
         AND sr."requeueAfter" < NOW()
-        AND (sr."status" = 'PENDING' OR sr."status" = 'PENDING_ASSIGNMENT')
         AND sr."input" IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
@@ -1133,15 +1109,9 @@ step_runs AS (
         )
     ORDER BY
         sr."createdAt" ASC
-    LIMIT
-        (SELECT "limitMaxRuns" FROM limit_max_runs)
-),
-locked_step_runs AS (
-    SELECT
-        sr."id", sr."status", sr."workerId"
-    FROM
-        step_runs sr
     FOR UPDATE SKIP LOCKED
+    LIMIT
+        $2::int
 )
 UPDATE
     "StepRun"
@@ -1151,15 +1121,19 @@ SET
     "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
     "updatedAt" = CURRENT_TIMESTAMP
 FROM
-    locked_step_runs
+    step_runs
 WHERE
-    "StepRun"."id" = locked_step_runs."id"
+    "StepRun"."id" = step_runs."id"
 RETURNING "StepRun"."id"
 `
 
-// Count the total number of maxRuns - runningStepRuns across all workers
-func (q *Queries) ListStepRunsToRequeue(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, listStepRunsToRequeue, tenantid)
+type ListStepRunsToRequeueParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    int32       `json:"limit"`
+}
+
+func (q *Queries) ListStepRunsToRequeue(ctx context.Context, db DBTX, arg ListStepRunsToRequeueParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStepRunsToRequeue, arg.Tenantid, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
