@@ -736,6 +736,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 				"worker_id": sqlchelpers.UUIDToStr(stepRunCp.StepRun.WorkerId),
 			}
 
+			// TODO: batch this query to avoid n+1 issues
 			err = ec.repo.StepRun().CreateStepRunEvent(ctx, tenantId, stepRunId, repository.CreateStepRunEventOpts{
 				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
 				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
@@ -747,7 +748,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 				return fmt.Errorf("could not create step run event: %w", err)
 			}
 
-			return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
+			return nil
 		})
 	}
 

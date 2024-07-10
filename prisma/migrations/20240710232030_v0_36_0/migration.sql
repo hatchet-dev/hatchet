@@ -11,7 +11,7 @@ CREATE INDEX "StepRun_workerId_idx" ON "StepRun"("workerId");
 CREATE INDEX "StepRun_createdAt_idx" ON "StepRun"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "StepRun_jobRunId_status_tenantId_requeueAfter_idx" ON "StepRun"("jobRunId", "status", "tenantId", "requeueAfter");
+CREATE INDEX "StepRun_jobRunId_status_tenantId_idx" ON "StepRun"("jobRunId", "status", "tenantId");
 
 -- CreateIndex
 CREATE INDEX "StepRun_status_timeoutAt_tickerId_idx" ON "StepRun"("status", "timeoutAt", "tickerId");
