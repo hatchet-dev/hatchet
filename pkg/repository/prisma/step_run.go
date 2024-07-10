@@ -340,7 +340,7 @@ func (s *stepRunEngineRepository) ListStepRunsToRequeue(ctx context.Context, ten
 func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	tx, err := s.pool.Begin(ctx) // TODO context with timeout?
+	tx, err := s.pool.Begin(ctx)
 
 	if err != nil {
 		return nil, err
