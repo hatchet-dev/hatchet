@@ -926,6 +926,9 @@ model GetGroupKeyRun {
 
   // errors while cancelling the run
   cancelledError String?
+
+  // index for PollGetGroupKeyRuns
+  @@index([status, timeoutAt, tickerId])
 }
 
 model WorkflowRunTriggeredBy {
@@ -1168,7 +1171,6 @@ model StepRun {
   @@index([id, tenantId])
   // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
   @@index([jobRunId, tenantId, order])
-  @@index([timeoutAt])
   @@index([requeueAfter])
   @@index([createdAt])
   @@index([status])

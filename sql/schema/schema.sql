@@ -790,6 +790,9 @@ CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
 CREATE UNIQUE INDEX "GetGroupKeyRun_id_key" ON "GetGroupKeyRun"("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "GetGroupKeyRun_status_timeoutAt_tickerId_idx" ON "GetGroupKeyRun"("status" ASC, "timeoutAt" ASC, "tickerId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "GetGroupKeyRun_workflowRunId_key" ON "GetGroupKeyRun"("workflowRunId" ASC);
 
 -- CreateIndex
@@ -875,9 +878,6 @@ CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_tenantId_idx" ON "StepRun"("tenantId" ASC);
-
--- CreateIndex
-CREATE INDEX "StepRun_timeoutAt_idx" ON "StepRun"("timeoutAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRunEvent_id_key" ON "StepRunEvent"("id" ASC);
