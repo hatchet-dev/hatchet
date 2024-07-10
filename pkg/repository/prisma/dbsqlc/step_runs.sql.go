@@ -1030,8 +1030,8 @@ UPDATE
     "StepRun"
 SET
     "status" = 'PENDING_ASSIGNMENT',
-    -- requeue after now plus 4 seconds
-    "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
+    -- place directly in the queue
+    "requeueAfter" = CURRENT_TIMESTAMP,
     "updatedAt" = CURRENT_TIMESTAMP,
     -- unset the schedule timeout
     "scheduleTimeoutAt" = NULL
