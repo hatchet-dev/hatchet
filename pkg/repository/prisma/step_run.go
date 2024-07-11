@@ -319,6 +319,10 @@ func (s *stepRunEngineRepository) ListStepRunsToRequeue(ctx context.Context, ten
 		return nil, err
 	}
 
+	if limit > 100 {
+		limit = 100
+	}
+
 	// get the step run and make sure it's still in pending
 	stepRunIds, err := s.queries.ListStepRunsToRequeue(ctx, tx, dbsqlc.ListStepRunsToRequeueParams{
 		Tenantid: pgTenantId,
