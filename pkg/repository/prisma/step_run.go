@@ -387,6 +387,42 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 	return stepRuns, nil
 }
 
+func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	tx, err := s.pool.Begin(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(ctx, s.l, tx.Rollback)
+
+	// get the step run and make sure it's still in pending
+	stepRunIds, err := s.queries.ListStepRunsToTimeout(ctx, tx, pgTenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepRuns, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
+		Ids:      stepRunIds,
+		TenantId: pgTenantId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return stepRuns, nil
+}
+
 var deadlockRetry = func(l *zerolog.Logger, f func() error) error {
 	return genericRetry(l.Warn(), 3, f, "deadlock", func(err error) (bool, error) {
 		return strings.Contains(err.Error(), "deadlock detected"), err

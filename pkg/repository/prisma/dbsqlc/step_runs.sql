@@ -372,6 +372,15 @@ WHERE
     "StepRun"."id" = step_runs_to_reassign."stepRunId"
 RETURNING "StepRun"."id";
 
+-- name: ListStepRunsToTimeout :many
+SELECT "id"
+FROM "StepRun"
+WHERE
+    "status" = 'RUNNING'
+    AND "timeoutAt" < NOW()
+    AND "tenantId" = @tenantId::uuid
+LIMIT 100;
+
 -- name: ListStepRunsToRequeue :many
 WITH step_runs AS (
     SELECT

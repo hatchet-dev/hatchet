@@ -1132,6 +1132,36 @@ func (q *Queries) ListStepRunsToRequeue(ctx context.Context, db DBTX, arg ListSt
 	return items, nil
 }
 
+const listStepRunsToTimeout = `-- name: ListStepRunsToTimeout :many
+SELECT "id"
+FROM "StepRun"
+WHERE
+    "status" = 'RUNNING'
+    AND "timeoutAt" < NOW()
+    AND "tenantId" = $1::uuid
+LIMIT 100
+`
+
+func (q *Queries) ListStepRunsToTimeout(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStepRunsToTimeout, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const refreshTimeoutBy = `-- name: RefreshTimeoutBy :one
 UPDATE
     "StepRun" sr
