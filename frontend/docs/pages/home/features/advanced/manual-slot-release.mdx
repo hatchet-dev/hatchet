@@ -32,28 +32,29 @@ You can manually release a slot in from within a running step in your Workflow u
 </Tabs.Tab>
 
 <Tabs.Tab>
+
 ```typescript
 const workflow: Workflow = {
   // ... other workflow properties
   steps: [
     {
-      name: 'step1',
+      name: "step1",
       run: async (ctx) => {
-        console.log('RESOURCE INTENSIVE PROCESS...');
+        console.log("RESOURCE INTENSIVE PROCESS...");
         await sleep(5000);
-         // Release the slot after the resource-intensive process, so that other steps can run
+        // Release the slot after the resource-intensive process, so that other steps can run
         await ctx.releaseSlot();
-        console.log('NON RESOURCE INTENSIVE PROCESS...');
-        return { step1: 'step1 results!' };
+        console.log("NON RESOURCE INTENSIVE PROCESS...");
+        return { step1: "step1 results!" };
       },
     },
   ],
 };
-
-````
+```
 
 </Tabs.Tab>
 <Tabs.Tab>
+
 ```go
 
 func StepOne(ctx worker.HatchetContext) (result \*stepOneOutput, err error) {
@@ -66,7 +67,7 @@ func StepOne(ctx worker.HatchetContext) (result \*stepOneOutput, err error) {
     Message: "step1 results",
   }, nil
 },
-````
+```
 
 </Tabs.Tab>
 </Tabs>
