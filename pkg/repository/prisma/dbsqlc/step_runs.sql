@@ -343,13 +343,19 @@ WITH inactive_workers AS (
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
 ),
-inactive_semaphore_steps AS (
+step_runs_to_reassign AS (
+    SELECT "stepRunId"
+    FROM "WorkerSemaphoreSlot"
+    WHERE
+        "workerId" = ANY(SELECT "id" FROM inactive_workers)
+        AND "stepRunId" IS NOT NULL
+    FOR UPDATE SKIP LOCKED
+),
+update_semaphore_steps AS (
     UPDATE "WorkerSemaphoreSlot" wss
     SET "stepRunId" = NULL
-    WHERE
-        wss."workerId" = ANY(SELECT "id" FROM inactive_workers)
-        AND wss."stepRunId" IS NOT NULL
-    RETURNING wss."stepRunId"
+    FROM step_runs_to_reassign
+    WHERE wss."stepRunId" = step_runs_to_reassign."stepRunId"
 )
 UPDATE
     "StepRun"
@@ -361,9 +367,9 @@ SET
     -- unset the schedule timeout
     "scheduleTimeoutAt" = NULL
 FROM
-    inactive_semaphore_steps
+    step_runs_to_reassign
 WHERE
-    "StepRun"."id" = inactive_semaphore_steps."stepRunId"
+    "StepRun"."id" = step_runs_to_reassign."stepRunId"
 RETURNING "StepRun"."id";
 
 -- name: ListStepRunsToRequeue :many
