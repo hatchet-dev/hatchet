@@ -45,6 +45,67 @@ WHERE
         sr."tenantId" = sqlc.narg('tenantId')::uuid
     );
 
+-- name: GetStepRunForEngineLite :many
+SELECT
+    DISTINCT ON (sr."id")
+    json_build_object(
+        'id', sr."id",
+        'createdAt', sr."createdAt",
+        'updatedAt', sr."updatedAt",
+        'deletedAt', sr."deletedAt",
+        'tenantId', sr."tenantId",
+        'jobRunId', sr."jobRunId",
+        'stepId', sr."stepId",
+        'order', sr."order",
+        'workerId', sr."workerId",
+        'tickerId', sr."tickerId",
+        'status', sr."status",
+        'requeueAfter', sr."requeueAfter",
+        'scheduleTimeoutAt', sr."scheduleTimeoutAt",
+        'startedAt', sr."startedAt",
+        'finishedAt', sr."finishedAt",
+        'timeoutAt', sr."timeoutAt",
+        'cancelledAt', sr."cancelledAt",
+        'cancelledReason', sr."cancelledReason",
+        'cancelledError', sr."cancelledError",
+        'callerFiles', sr."callerFiles",
+        'gitRepoBranch', sr."gitRepoBranch",
+        'retryCount', sr."retryCount",
+        'semaphoreReleased', sr."semaphoreReleased"
+    ) AS "StepRun",
+    -- TODO: everything below this line is cacheable and should be moved to a separate query
+    jr."id" AS "jobRunId",
+    s."id" AS "stepId",
+    s."retries" AS "stepRetries",
+    s."timeout" AS "stepTimeout",
+    s."scheduleTimeout" AS "stepScheduleTimeout",
+    s."readableId" AS "stepReadableId",
+    s."customUserData" AS "stepCustomUserData",
+    j."name" AS "jobName",
+    j."id" AS "jobId",
+    j."kind" AS "jobKind",
+    j."workflowVersionId" AS "workflowVersionId",
+    jr."workflowRunId" AS "workflowRunId",
+    a."actionId" AS "actionId"
+FROM
+    "StepRun" sr
+JOIN
+    "Step" s ON sr."stepId" = s."id"
+JOIN
+    "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
+JOIN
+    "Job" j ON jr."jobId" = j."id"
+WHERE
+    sr."id" = ANY(@ids::uuid[]) AND
+    (
+        sqlc.narg('tenantId')::uuid IS NULL OR
+        sr."tenantId" = sqlc.narg('tenantId')::uuid
+    );
+
 -- name: ListStartableStepRuns :many
 WITH job_run AS (
     SELECT "status"

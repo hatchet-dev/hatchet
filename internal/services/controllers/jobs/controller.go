@@ -928,7 +928,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	return ec.a.WrapErr(ec.scheduleStepRun(ctx, tenantId, stepRun), errData)
 }
 
-func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.GetStepRunForEngineRow) error {
+func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId string, stepRun *repository.GetStepRunForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-run")
 	defer span.End()
 
@@ -1318,7 +1318,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	return nil
 }
 
-func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *dbsqlc.GetStepRunForEngineRow, updateInfo *repository.StepRunUpdateInfo) {
+func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *repository.GetStepRunForEngineRow, updateInfo *repository.StepRunUpdateInfo) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoveryutils.RecoverWithAlert(ec.l, ec.a, r) // nolint:errcheck
@@ -1381,7 +1381,7 @@ func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelled
 	}
 }
 
-func getScheduleTimeout(stepRun *dbsqlc.GetStepRunForEngineRow) time.Time {
+func getScheduleTimeout(stepRun *repository.GetStepRunForEngineRow) time.Time {
 	var timeoutDuration time.Duration
 
 	// get the schedule timeout from the step

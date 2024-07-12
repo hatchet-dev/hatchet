@@ -38,7 +38,7 @@ type subscribedWorker struct {
 func (worker *subscribedWorker) StartStepRun(
 	ctx context.Context,
 	tenantId string,
-	stepRun *dbsqlc.GetStepRunForEngineRow,
+	stepRun *repository.GetStepRunForEngineRow,
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "start-step-run") // nolint:ineffassign
 	defer span.End()
@@ -92,7 +92,7 @@ func (worker *subscribedWorker) StartGroupKeyAction(
 func (worker *subscribedWorker) CancelStepRun(
 	ctx context.Context,
 	tenantId string,
-	stepRun *dbsqlc.GetStepRunForEngineRow,
+	stepRun *repository.GetStepRunForEngineRow,
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run") // nolint:ineffassign
 	defer span.End()

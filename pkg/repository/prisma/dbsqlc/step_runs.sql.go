@@ -668,6 +668,125 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 	return items, nil
 }
 
+const getStepRunForEngineLite = `-- name: GetStepRunForEngineLite :many
+SELECT
+    DISTINCT ON (sr."id")
+    json_build_object(
+        'id', sr."id",
+        'createdAt', sr."createdAt",
+        'updatedAt', sr."updatedAt",
+        'deletedAt', sr."deletedAt",
+        'tenantId', sr."tenantId",
+        'jobRunId', sr."jobRunId",
+        'stepId', sr."stepId",
+        'order', sr."order",
+        'workerId', sr."workerId",
+        'tickerId', sr."tickerId",
+        'status', sr."status",
+        'requeueAfter', sr."requeueAfter",
+        'scheduleTimeoutAt', sr."scheduleTimeoutAt",
+        'startedAt', sr."startedAt",
+        'finishedAt', sr."finishedAt",
+        'timeoutAt', sr."timeoutAt",
+        'cancelledAt', sr."cancelledAt",
+        'cancelledReason', sr."cancelledReason",
+        'cancelledError', sr."cancelledError",
+        'callerFiles', sr."callerFiles",
+        'gitRepoBranch', sr."gitRepoBranch",
+        'retryCount', sr."retryCount",
+        'semaphoreReleased', sr."semaphoreReleased"
+    ) AS "StepRun",
+    -- TODO: everything below this line is cacheable and should be moved to a separate query
+    jr."id" AS "jobRunId",
+    s."id" AS "stepId",
+    s."retries" AS "stepRetries",
+    s."timeout" AS "stepTimeout",
+    s."scheduleTimeout" AS "stepScheduleTimeout",
+    s."readableId" AS "stepReadableId",
+    s."customUserData" AS "stepCustomUserData",
+    j."name" AS "jobName",
+    j."id" AS "jobId",
+    j."kind" AS "jobKind",
+    j."workflowVersionId" AS "workflowVersionId",
+    jr."workflowRunId" AS "workflowRunId",
+    a."actionId" AS "actionId"
+FROM
+    "StepRun" sr
+JOIN
+    "Step" s ON sr."stepId" = s."id"
+JOIN
+    "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
+JOIN
+    "Job" j ON jr."jobId" = j."id"
+WHERE
+    sr."id" = ANY($1::uuid[]) AND
+    (
+        $2::uuid IS NULL OR
+        sr."tenantId" = $2::uuid
+    )
+`
+
+type GetStepRunForEngineLiteParams struct {
+	Ids      []pgtype.UUID `json:"ids"`
+	TenantId pgtype.UUID   `json:"tenantId"`
+}
+
+type GetStepRunForEngineLiteRow struct {
+	StepRun             []byte      `json:"StepRun"`
+	JobRunId            pgtype.UUID `json:"jobRunId"`
+	StepId              pgtype.UUID `json:"stepId"`
+	StepRetries         int32       `json:"stepRetries"`
+	StepTimeout         pgtype.Text `json:"stepTimeout"`
+	StepScheduleTimeout string      `json:"stepScheduleTimeout"`
+	StepReadableId      pgtype.Text `json:"stepReadableId"`
+	StepCustomUserData  []byte      `json:"stepCustomUserData"`
+	JobName             string      `json:"jobName"`
+	JobId               pgtype.UUID `json:"jobId"`
+	JobKind             JobKind     `json:"jobKind"`
+	WorkflowVersionId   pgtype.UUID `json:"workflowVersionId"`
+	WorkflowRunId       pgtype.UUID `json:"workflowRunId"`
+	ActionId            string      `json:"actionId"`
+}
+
+func (q *Queries) GetStepRunForEngineLite(ctx context.Context, db DBTX, arg GetStepRunForEngineLiteParams) ([]*GetStepRunForEngineLiteRow, error) {
+	rows, err := db.Query(ctx, getStepRunForEngineLite, arg.Ids, arg.TenantId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetStepRunForEngineLiteRow
+	for rows.Next() {
+		var i GetStepRunForEngineLiteRow
+		if err := rows.Scan(
+			&i.StepRun,
+			&i.JobRunId,
+			&i.StepId,
+			&i.StepRetries,
+			&i.StepTimeout,
+			&i.StepScheduleTimeout,
+			&i.StepReadableId,
+			&i.StepCustomUserData,
+			&i.JobName,
+			&i.JobId,
+			&i.JobKind,
+			&i.WorkflowVersionId,
+			&i.WorkflowRunId,
+			&i.ActionId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNonFinalChildStepRuns = `-- name: ListNonFinalChildStepRuns :many
 WITH RECURSIVE currStepRun AS (
     SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased"
