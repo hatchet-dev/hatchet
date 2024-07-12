@@ -4,6 +4,7 @@ SELECT
 FROM
     "Event"
 WHERE
+    "deletedAt" IS NOT NULL AND
     "id" = @id::uuid;
 
 -- name: CountEvents :one
@@ -22,6 +23,7 @@ WITH events AS (
         "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
     WHERE
         events."tenantId" = $1 AND
+        events."deletedAt" IS NOT NULL AND
         (
             sqlc.narg('keys')::text[] IS NULL OR
             events."key" = ANY(sqlc.narg('keys')::text[])
@@ -135,6 +137,7 @@ SELECT
 FROM
     "Event"
 WHERE
+    events."deletedAt" IS NOT NULL AND
     "createdAt" >= NOW() - INTERVAL '1 week'
 GROUP BY
     event_hour
@@ -147,9 +150,11 @@ SELECT
 FROM
     "Event" as events
 WHERE
+    events."deletedAt" IS NOT NULL AND
     "tenantId" = @tenantId::uuid AND
     "id" = ANY (sqlc.arg('ids')::uuid[]);
 
+-- // TODO rewrite this
 -- name: DeleteExpiredEvents :one
 WITH expired_events_count AS (
     SELECT COUNT(*) as count

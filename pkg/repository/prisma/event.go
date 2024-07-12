@@ -184,8 +184,9 @@ func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
 }
 
 func (r *eventAPIRepository) GetEventById(id string) (*db.EventModel, error) {
-	return r.client.Event.FindUnique(
+	return r.client.Event.FindFirst(
 		db.Event.ID.Equals(id),
+		db.Event.DeletedAt.IsNull(),
 	).Exec(context.Background())
 }
 
@@ -193,6 +194,7 @@ func (r *eventAPIRepository) ListEventsById(tenantId string, ids []string) ([]db
 	return r.client.Event.FindMany(
 		db.Event.ID.In(ids),
 		db.Event.TenantID.Equals(tenantId),
+		db.Event.DeletedAt.IsNull(),
 	).Exec(context.Background())
 }
 

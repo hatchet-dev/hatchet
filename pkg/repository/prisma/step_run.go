@@ -43,8 +43,9 @@ func NewStepRunAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v vali
 }
 
 func (s *stepRunAPIRepository) GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error) {
-	return s.client.StepRun.FindUnique(
+	return s.client.StepRun.FindFirst(
 		db.StepRun.ID.Equals(stepRunId),
+		db.StepRun.DeletedAt.IsNull(),
 	).With(
 		db.StepRun.Children.Fetch(),
 		db.StepRun.ChildWorkflowRuns.Fetch(),

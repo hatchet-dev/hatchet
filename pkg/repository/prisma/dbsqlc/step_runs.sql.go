@@ -36,7 +36,8 @@ locked_step_runs AS (
     FROM
         "StepRun" sr
     WHERE
-        sr."id" = $3::uuid
+        sr."id" = $3::uuid AND
+        sr."deletedAt" IS NULL
     FOR UPDATE SKIP LOCKED
 ),
 selected_slot AS (
@@ -196,7 +197,10 @@ WITH step_run_data AS (
         "cancelledReason",
         "cancelledError"
     FROM "StepRun"
-    WHERE "id" = $2::uuid AND "tenantId" = $3::uuid
+    WHERE
+        "id" = $2::uuid
+        AND "tenantId" = $3::uuid
+        AND "deletedAt" IS NULL
 )
 INSERT INTO "StepRunResultArchive" (
     "id",
@@ -501,6 +505,7 @@ FROM
     "StepRun"
 WHERE
     "id" = $1::uuid AND
+    "deletedAt" IS NULL AND
     "tenantId" = $2::uuid
 `
 
@@ -585,6 +590,11 @@ JOIN
     "Workflow" w ON wv."workflowId" = w."id"
 WHERE
     sr."id" = ANY($1::uuid[]) AND
+    sr."deletedAt" IS NULL AND
+    jr."deletedAt" IS NULL AND
+    wr."deletedAt" IS NULL AND
+    wv."deletedAt" IS NULL AND
+    w."deletedAt" IS NULL AND
     (
         $2::uuid IS NULL OR
         sr."tenantId" = $2::uuid
@@ -692,6 +702,7 @@ WITH RECURSIVE currStepRun AS (
     FROM "StepRun" sr
     JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
     WHERE sro."A" = (SELECT "id" FROM currStepRun)
+        AND sr."deletedAt" IS NULL
 
     UNION ALL
 
@@ -708,6 +719,7 @@ JOIN
     childStepRuns csr ON sr."id" = csr."id"
 WHERE
     sr."tenantId" = $1::uuid AND
+    sr."deletedAt" IS NULL AND
     sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
 `
 
@@ -782,6 +794,8 @@ JOIN
     job_run ON true
 WHERE
     child_run."jobRunId" = $1::uuid
+    AND child_run."deletedAt" IS NULL
+    AND jr."deletedAt" IS NULL
     AND child_run."status" = 'PENDING'
     AND job_run."status" = 'RUNNING'
     -- case on whether parentStepRunId is null
@@ -835,7 +849,8 @@ JOIN
     "StepRun" ON "StepRunResultArchive"."stepRunId" = "StepRun"."id"
 WHERE
     "StepRunResultArchive"."stepRunId" = $1::uuid AND
-    "StepRun"."tenantId" = $2::uuid
+    "StepRun"."tenantId" = $2::uuid AND
+    "StepRun"."deletedAt" IS NULL
 ORDER BY
     "StepRunResultArchive"."createdAt"
 OFFSET
@@ -952,6 +967,8 @@ FROM
 JOIN
     "JobRun" ON "StepRun"."jobRunId" = "JobRun"."id"
 WHERE
+    "StepRun"."deletedAt" IS NULL AND
+    "JobRun"."deletedAt" IS NULL AND
     (
         $1::uuid IS NULL OR
         "StepRun"."tenantId" = $1::uuid
@@ -1039,6 +1056,7 @@ FROM
     inactive_semaphore_steps
 WHERE
     "StepRun"."id" = inactive_semaphore_steps."stepRunId"
+    AND "StepRun"."deletedAt" IS NULL
 RETURNING "StepRun"."id"
 `
 
@@ -1072,6 +1090,8 @@ WITH step_runs AS (
         "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
     WHERE
         sr."tenantId" = $1::uuid
+        AND sr."deletedAt" IS NULL
+        AND jr."deletedAt" IS NULL
         AND sr."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT']::"StepRunStatus"[])
         AND sr."requeueAfter" < NOW()
         AND sr."input" IS NOT NULL

@@ -5,6 +5,7 @@ FROM
     "StepRun"
 WHERE
     "id" = @id::uuid AND
+    "deletedAt" IS NULL AND
     "tenantId" = @tenantId::uuid;
 
 -- name: GetStepRunForEngine :many
@@ -48,6 +49,11 @@ JOIN
     "Workflow" w ON wv."workflowId" = w."id"
 WHERE
     sr."id" = ANY(@ids::uuid[]) AND
+    sr."deletedAt" IS NULL AND
+    jr."deletedAt" IS NULL AND
+    wr."deletedAt" IS NULL AND
+    wv."deletedAt" IS NULL AND
+    w."deletedAt" IS NULL AND
     (
         sqlc.narg('tenantId')::uuid IS NULL OR
         sr."tenantId" = sqlc.narg('tenantId')::uuid
@@ -70,6 +76,8 @@ JOIN
     job_run ON true
 WHERE
     child_run."jobRunId" = @jobRunId::uuid
+    AND child_run."deletedAt" IS NULL
+    AND jr."deletedAt" IS NULL
     AND child_run."status" = 'PENDING'
     AND job_run."status" = 'RUNNING'
     -- case on whether parentStepRunId is null
@@ -97,6 +105,8 @@ FROM
 JOIN
     "JobRun" ON "StepRun"."jobRunId" = "JobRun"."id"
 WHERE
+    "StepRun"."deletedAt" IS NULL AND
+    "JobRun"."deletedAt" IS NULL AND
     (
         sqlc.narg('tenantId')::uuid IS NULL OR
         "StepRun"."tenantId" = sqlc.narg('tenantId')::uuid
@@ -265,7 +275,10 @@ WITH step_run_data AS (
         "cancelledReason",
         "cancelledError"
     FROM "StepRun"
-    WHERE "id" = @stepRunId::uuid AND "tenantId" = @tenantId::uuid
+    WHERE
+        "id" = @stepRunId::uuid
+        AND "tenantId" = @tenantId::uuid
+        AND "deletedAt" IS NULL
 )
 INSERT INTO "StepRunResultArchive" (
     "id",
@@ -364,6 +377,7 @@ FROM
     inactive_semaphore_steps
 WHERE
     "StepRun"."id" = inactive_semaphore_steps."stepRunId"
+    AND "StepRun"."deletedAt" IS NULL
 RETURNING "StepRun"."id";
 
 -- name: ListStepRunsToRequeue :many
@@ -376,6 +390,8 @@ WITH step_runs AS (
         "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
     WHERE
         sr."tenantId" = @tenantId::uuid
+        AND sr."deletedAt" IS NULL
+        AND jr."deletedAt" IS NULL
         AND sr."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT']::"StepRunStatus"[])
         AND sr."requeueAfter" < NOW()
         AND sr."input" IS NOT NULL
@@ -457,7 +473,8 @@ locked_step_runs AS (
     FROM
         "StepRun" sr
     WHERE
-        sr."id" = @stepRunId::uuid
+        sr."id" = @stepRunId::uuid AND
+        sr."deletedAt" IS NULL
     FOR UPDATE SKIP LOCKED
 ),
 selected_slot AS (
@@ -762,6 +779,7 @@ WITH RECURSIVE currStepRun AS (
     FROM "StepRun" sr
     JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
     WHERE sro."A" = (SELECT "id" FROM currStepRun)
+        AND sr."deletedAt" IS NULL
 
     UNION ALL
 
@@ -779,6 +797,7 @@ JOIN
     childStepRuns csr ON sr."id" = csr."id"
 WHERE
     sr."tenantId" = @tenantId::uuid AND
+    sr."deletedAt" IS NULL AND
     sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED');
 
 -- name: ListStepRunArchives :many
@@ -790,7 +809,8 @@ JOIN
     "StepRun" ON "StepRunResultArchive"."stepRunId" = "StepRun"."id"
 WHERE
     "StepRunResultArchive"."stepRunId" = @stepRunId::uuid AND
-    "StepRun"."tenantId" = @tenantId::uuid
+    "StepRun"."tenantId" = @tenantId::uuid AND
+    "StepRun"."deletedAt" IS NULL
 ORDER BY
     "StepRunResultArchive"."createdAt"
 OFFSET

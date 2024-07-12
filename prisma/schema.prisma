@@ -505,6 +505,8 @@ model WorkflowVersion {
 
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")
+
+  @@index([deletedAt])
 }
 
 enum ConcurrencyLimitStrategy {
@@ -931,7 +933,7 @@ model GetGroupKeyRun {
   // errors while cancelling the run
   cancelledError String?
 
-  // TODO index on deletedAt
+  @@index([deletedAt])
 }
 
 model WorkflowRunTriggeredBy {
@@ -1030,6 +1032,8 @@ model JobRun {
 
   // index for ResolveWorkflowRunStatus and ListJobRunsForWorkflowRun
   @@index([workflowRunId, tenantId])
+
+  @@index([deletedAt])
 }
 
 model JobRunLookupData {
@@ -1180,6 +1184,8 @@ model StepRun {
   @@index([jobRunId, status, tenantId])
   // index for PollStepRuns
   @@index([status, timeoutAt, tickerId])
+
+  @@index([deletedAt])
 }
 
 enum StepRunEventReason {

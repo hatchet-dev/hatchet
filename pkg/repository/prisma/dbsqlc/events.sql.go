@@ -27,6 +27,7 @@ WITH events AS (
         "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
     WHERE
         events."tenantId" = $1 AND
+        events."deletedAt" IS NOT NULL AND
         (
             $2::text[] IS NULL OR
             events."key" = ANY($2::text[])
@@ -183,6 +184,7 @@ type DeleteExpiredEventsRow struct {
 	Deleted   int64 `json:"deleted"`
 }
 
+// // TODO rewrite this
 func (q *Queries) DeleteExpiredEvents(ctx context.Context, db DBTX, arg DeleteExpiredEventsParams) (*DeleteExpiredEventsRow, error) {
 	row := db.QueryRow(ctx, deleteExpiredEvents, arg.Tenantid, arg.Createdbefore, arg.Limit)
 	var i DeleteExpiredEventsRow
@@ -196,6 +198,7 @@ SELECT
 FROM
     "Event"
 WHERE
+    "deletedAt" IS NOT NULL AND
     "id" = $1::uuid
 `
 
@@ -223,6 +226,7 @@ SELECT
 FROM
     "Event"
 WHERE
+    events."deletedAt" IS NOT NULL AND
     "createdAt" >= NOW() - INTERVAL '1 week'
 GROUP BY
     event_hour
@@ -379,6 +383,7 @@ SELECT
 FROM
     "Event" as events
 WHERE
+    events."deletedAt" IS NOT NULL AND
     "tenantId" = $1::uuid AND
     "id" = ANY ($2::uuid[])
 `
