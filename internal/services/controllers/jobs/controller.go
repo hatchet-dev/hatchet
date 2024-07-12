@@ -627,7 +627,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 	stepRuns, err := ec.repo.StepRun().ListStepRunsToRequeue(ctx, tenantId)
 
 	if err != nil {
-		return fmt.Errorf("could not list step runs to requeue: %w", err)
+		return fmt.Errorf("could not list step runs to requeue for tenant %s: %w", tenantId, err)
 	}
 
 	if num := len(stepRuns); num > 0 {
@@ -713,7 +713,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 	stepRuns, err := ec.repo.StepRun().ListStepRunsToReassign(ctx, tenantId)
 
 	if err != nil {
-		return fmt.Errorf("could not list step runs to reassign: %w", err)
+		return fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
 	}
 
 	if num := len(stepRuns); num > 0 {
@@ -808,7 +808,7 @@ func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenan
 	stepRuns, err := ec.repo.StepRun().ListStepRunsToTimeout(ctx, tenantId)
 
 	if err != nil {
-		return fmt.Errorf("could not list step runs to timeout: %w", err)
+		return fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
 	}
 
 	if num := len(stepRuns); num > 0 {
