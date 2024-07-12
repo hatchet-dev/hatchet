@@ -985,6 +985,9 @@ CREATE UNIQUE INDEX "WorkerSemaphoreSlot_stepRunId_key" ON "WorkerSemaphoreSlot"
 CREATE INDEX "WorkerSemaphoreSlot_workerId_idx" ON "WorkerSemaphoreSlot"("workerId" ASC);
 
 -- CreateIndex
+CREATE INDEX "Workflow_deletedAt_idx" ON "Workflow"("deletedAt" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Workflow_id_key" ON "Workflow"("id" ASC);
 
 -- CreateIndex
@@ -998,6 +1001,9 @@ CREATE UNIQUE INDEX "WorkflowConcurrency_workflowVersionId_key" ON "WorkflowConc
 
 -- CreateIndex
 CREATE INDEX "WorkflowRun_createdAt_idx" ON "WorkflowRun"("createdAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRun_deletedAt_idx" ON "WorkflowRun"("deletedAt" ASC);
 
 -- CreateIndex
 CREATE INDEX "WorkflowRun_finishedAt_idx" ON "WorkflowRun"("finishedAt" ASC);

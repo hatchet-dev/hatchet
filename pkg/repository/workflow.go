@@ -208,7 +208,7 @@ type WorkflowAPIRepository interface {
 	GetWorkflowVersionById(tenantId, workflowId string) (*db.WorkflowVersionModel, error)
 
 	// DeleteWorkflow deletes a workflow for a given tenant.
-	DeleteWorkflow(tenantId, workflowId string) (*db.WorkflowModel, error)
+	DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error)
 
 	// GetWorkflowVersionMetrics returns the metrics for a given workflow version.
 	GetWorkflowMetrics(tenantId, workflowId string, opts *GetWorkflowMetricsOpts) (*WorkflowMetrics, error)

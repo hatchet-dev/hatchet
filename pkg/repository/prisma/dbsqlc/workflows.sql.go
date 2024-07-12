@@ -49,6 +49,24 @@ func (q *Queries) AddWorkflowTag(ctx context.Context, db DBTX, arg AddWorkflowTa
 	return err
 }
 
+const cleanupDeletedWorkflows = `-- name: CleanupDeletedWorkflows :exec
+
+WITH workflows_to_delete AS (
+    SELECT "id"
+    FROM "Workflow"
+    WHERE "deletedAt" < NOW() + '1 minute'::interval
+)
+DELETE FROM "Workflow"
+USING workflows_to_delete
+WHERE "Workflow"."id" = workflows_to_delete."id"
+`
+
+// TODO is setting all versions enough to stop writes?
+func (q *Queries) CleanupDeletedWorkflows(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, cleanupDeletedWorkflows)
+	return err
+}
+
 const countRoundRobinGroupKeys = `-- name: CountRoundRobinGroupKeys :one
 SELECT
     COUNT(DISTINCT "concurrencyGroupId") AS total
@@ -58,6 +76,8 @@ JOIN
     "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
 WHERE
     r1."tenantId" = $1::uuid AND
+    workflowVersion."deletedAt" IS NULL AND
+    r1."deletedAt" IS NULL AND
     (
         $2::"WorkflowRunStatus" IS NULL OR
         r1."status" = $2::"WorkflowRunStatus"
@@ -86,6 +106,8 @@ JOIN
     "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
 WHERE
     r1."tenantId" = $1::uuid AND
+    workflowVersion."deletedAt" IS NULL AND
+    r1."deletedAt" IS NULL AND
     (
         $2::"WorkflowRunStatus" IS NULL OR
         r1."status" = $2::"WorkflowRunStatus"
@@ -124,6 +146,7 @@ FROM
     "Workflow" as workflows
 WHERE
     workflows."tenantId" = $1 AND
+    workflows."deletedAt" IS NULL AND
     (
         $2::text IS NULL OR
         workflows."id" IN (
@@ -700,7 +723,8 @@ FROM
     "Workflow" as workflows
 WHERE
     workflows."tenantId" = $1::uuid AND
-    workflows."name" = $2::text
+    workflows."name" = $2::text AND
+    workflows."deletedAt" IS NULL
 `
 
 type GetWorkflowByNameParams struct {
@@ -729,7 +753,8 @@ SELECT
 FROM
     "WorkflowVersion" as workflowVersions
 WHERE
-    workflowVersions."workflowId" = $1::uuid
+    workflowVersions."workflowId" = $1::uuid AND
+    workflowVersions."deletedAt" IS NULL
 ORDER BY
     workflowVersions."order" DESC
 LIMIT 1
@@ -756,7 +781,9 @@ LEFT JOIN
     "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
 WHERE
     workflowVersions."id" = ANY($1::uuid[]) AND
-    w."tenantId" = $2::uuid
+    w."tenantId" = $2::uuid AND
+    w."deletedAt" IS NULL AND
+    workflowVersions."deletedAt" IS NULL
 `
 
 type GetWorkflowVersionForEngineParams struct {
@@ -853,6 +880,8 @@ FROM (
         "WorkflowTriggerEventRef" as workflowTriggerEventRef ON workflowTrigger."id" = workflowTriggerEventRef."parentId"
     WHERE
         workflows."tenantId" = $1
+        AND workflows."deletedAt" IS NULL
+        AND workflowVersion."deletedAt" IS NULL
         AND
         (
             $2::text IS NULL OR
@@ -944,6 +973,8 @@ LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
 LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
 WHERE
     (j1."tenantId"::uuid = $1 AND j1.id IS NOT NULL)
+    AND j1."deletedAt" IS NULL
+    AND "WorkflowVersion"."deletedAt" IS NULL
     AND
     (j2.id IN (
         SELECT t3."parentId"
@@ -997,6 +1028,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1 AND
+    runs."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
     (
         $2::text IS NULL OR
         workflow."id" IN (
@@ -1074,6 +1108,33 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 		return nil, err
 	}
 	return items, nil
+}
+
+const softDeleteWorkflow = `-- name: SoftDeleteWorkflow :one
+WITH versions AS (
+    UPDATE "WorkflowVersion"
+    SET "deletedAt" = CURRENT_TIMESTAMP
+    WHERE "workflowId" = $1::uuid
+)
+UPDATE "Workflow"
+SET "deletedAt" = CURRENT_TIMESTAMP
+WHERE "id" = $1::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
+`
+
+func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id pgtype.UUID) (*Workflow, error) {
+	row := db.QueryRow(ctx, softDeleteWorkflow, id)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.Name,
+		&i.Description,
+	)
+	return &i, err
 }
 
 const upsertAction = `-- name: UpsertAction :one

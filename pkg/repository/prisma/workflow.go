@@ -189,12 +189,8 @@ func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersion
 	).Exec(context.Background())
 }
 
-func (r *workflowAPIRepository) DeleteWorkflow(tenantId, workflowId string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindUnique(
-		db.Workflow.ID.Equals(workflowId),
-	).With(
-		defaultWorkflowPopulator()...,
-	).Delete().Exec(context.Background())
+func (r *workflowAPIRepository) DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error) {
+	return r.queries.SoftDeleteWorkflow(context.Background(), r.pool, sqlchelpers.UUIDFromStr(workflowId))
 }
 
 func (r *workflowAPIRepository) GetWorkflowMetrics(tenantId, workflowId string, opts *repository.GetWorkflowMetricsOpts) (*repository.WorkflowMetrics, error) {

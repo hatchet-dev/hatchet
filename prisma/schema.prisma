@@ -463,6 +463,8 @@ model Workflow {
 
   // workflow names are unique per tenant
   @@unique([tenantId, name])
+
+  @@index([deletedAt])
 }
 
 model WorkflowVersion {
@@ -866,6 +868,8 @@ model WorkflowRun {
   @@index([tenantId, createdAt])
   @@index([finishedAt])
   @@index([status])
+
+  @@index([deletedAt])
 }
 
 model GetGroupKeyRun {

@@ -182,10 +182,11 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule get group key run reassign: %w", err)
 	}
 
+	// TODO clean up soft delete cron
 	// _, err = wc.s.NewJob(
 	// 	gocron.DurationJob(time.Second*60),
 	// 	gocron.NewTask(
-	// 		wc.runDeleteExpiredWorkflowRuns(ctx),
+	// 		wc.runSoftDeleteCleanup(ctx),
 	// 	),
 	// )
 

@@ -633,3 +633,32 @@ DELETE FROM "WorkflowRun"
 WHERE
     "id" IN (SELECT "id" FROM expired_runs_with_limit)
 RETURNING (SELECT count FROM expired_runs_count) as total, (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining, (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted;
+
+
+-- -- name: SoftDeleteWorkflowRun :one
+-- WITH job_runs_to_delete AS (
+--     SELECT
+--         "id"
+--     FROM
+--         "JobRun"
+--     WHERE
+--         "workflowRunId" = @id::uuid
+-- ),
+
+
+-- runs_to_delete AS (
+--     UPDATE
+--         "StepRun"
+--     SET
+--         "deletedAt" = CURRENT_TIMESTAMP
+--     WHERE
+--         "jobRunId" = @id::uuid
+-- )
+
+-- UPDATE
+--     "WorkflowRun"
+-- SET
+--     "deletedAt" = CURRENT_TIMESTAMP
+-- WHERE
+--     "id" = @id::uuid AND
+--     "tenantId" = @tenantId::uuid
