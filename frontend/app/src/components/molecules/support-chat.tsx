@@ -16,11 +16,11 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
   const [tenant] = useTenantContext();
 
   const APP_ID = useMemo(() => {
-    if (!meta.data?.data?.pylonAppId) {
+    if (!meta.data?.pylonAppId) {
       return null;
     }
 
-    return meta.data.data.pylonAppId;
+    return meta.data.pylonAppId;
   }, [meta]);
 
   useEffect(() => {
