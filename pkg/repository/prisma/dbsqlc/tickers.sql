@@ -154,7 +154,6 @@ active_cron_schedules AS (
         latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
     WHERE
         "enabled" = TRUE
-        AND "deletedAt" IS NULL
         AND versions."deletedAt" IS NULL
         AND (
             "tickerId" IS NULL
