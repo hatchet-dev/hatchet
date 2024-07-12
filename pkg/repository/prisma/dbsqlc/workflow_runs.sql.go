@@ -12,9 +12,9 @@ import (
 )
 
 const countWorkflowRuns = `-- name: CountWorkflowRuns :one
-SELECT
-    count(runs) OVER() AS total
-FROM
+WITH runs AS (
+    SELECT runs."id", runs."createdAt"
+    FROM
     "WorkflowRun" as runs
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
@@ -70,6 +70,16 @@ WHERE
         $12::timestamp IS NULL OR
         runs."finishedAt" > $12::timestamp
     )
+    ORDER BY
+        case when $13 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+        case when $13 = 'createdAt DESC' then runs."createdAt" END DESC,
+        runs."id" ASC
+    LIMIT 10000
+)
+SELECT
+    count(runs) AS total
+FROM
+    runs
 `
 
 type CountWorkflowRunsParams struct {
@@ -85,6 +95,7 @@ type CountWorkflowRunsParams struct {
 	Statuses           []string         `json:"statuses"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
+	Orderby            interface{}      `json:"orderby"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -101,6 +112,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.Statuses,
 		arg.CreatedAfter,
 		arg.FinishedAfter,
+		arg.Orderby,
 	)
 	var total int64
 	err := row.Scan(&total)

@@ -312,8 +312,18 @@ func (s *stepRunEngineRepository) ListStepRunsToRequeue(ctx context.Context, ten
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
+	// get the limits for the step runs
+	limit, err := s.queries.GetMaxRunsLimit(ctx, tx, pgTenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
 	// get the step run and make sure it's still in pending
-	stepRunIds, err := s.queries.ListStepRunsToRequeue(ctx, tx, pgTenantId)
+	stepRunIds, err := s.queries.ListStepRunsToRequeue(ctx, tx, dbsqlc.ListStepRunsToRequeueParams{
+		Tenantid: pgTenantId,
+		Limit:    limit,
+	})
 
 	if err != nil {
 		return nil, err
@@ -556,7 +566,7 @@ func (e *errNoWorkerWithSlots) Error() string {
 	return fmt.Sprintf("no worker available, slots left: %d", e.totalSlots)
 }
 
-func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (*dbsqlc.AssignStepRunToWorkerRow, error) {
+func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (*dbsqlc.AcquireWorkerSemaphoreSlotAndAssignRow, error) {
 	tx, err := s.pool.Begin(ctx)
 
 	if err != nil {
@@ -566,49 +576,28 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
 	// acquire a semaphore slot
-	semaphore, err := s.queries.AcquireWorkerSemaphoreSlot(ctx, tx, dbsqlc.AcquireWorkerSemaphoreSlotParams{
-		Steprunid: stepRun.StepRun.ID,
-		Tenantid:  stepRun.StepRun.TenantId,
-		Actionid:  stepRun.ActionId,
+	assigned, err := s.queries.AcquireWorkerSemaphoreSlotAndAssign(ctx, tx, dbsqlc.AcquireWorkerSemaphoreSlotAndAssignParams{
+		Steprunid:   stepRun.StepRun.ID,
+		Actionid:    stepRun.ActionId,
+		StepTimeout: stepRun.StepTimeout,
+		Tenantid:    stepRun.StepRun.TenantId,
 	})
 
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &errNoWorkerWithSlots{totalSlots: int(0)}
-		}
 		return nil, fmt.Errorf("could not acquire worker semaphore slot: %w", err)
 	}
 
-	assigned, err := s.queries.AssignStepRunToWorker(ctx, tx, dbsqlc.AssignStepRunToWorkerParams{
-		Steprunid:   stepRun.StepRun.ID,
-		Tenantid:    stepRun.StepRun.TenantId,
-		StepTimeout: stepRun.StepTimeout,
-		Workerid:    semaphore.WorkerId,
-	})
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			s.l.Warn().Err(err).Msg("no rows returned from worker assign")
-		}
-
-		return nil, fmt.Errorf("query to assign worker failed: %w", err)
+	if assigned.RemainingSlots == 0 {
+		return nil, &errNoWorkerWithSlots{totalSlots: int(0)}
 	}
 
-	rateLimits, err := s.queries.UpdateStepRateLimits(ctx, tx, dbsqlc.UpdateStepRateLimitsParams{
-		Stepid:   stepRun.StepId,
-		Tenantid: stepRun.StepRun.TenantId,
-	})
-
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("could not update rate limit: %w", err)
+	if assigned.ExhaustedRateLimitCount > 0 {
+		return nil, repository.ErrRateLimitExceeded
 	}
 
-	if len(rateLimits) > 0 {
-		for _, rateLimit := range rateLimits {
-			if rateLimit.Value < 0 {
-				return nil, repository.ErrRateLimitExceeded
-			}
-		}
+	if !assigned.WorkerId.Valid || !assigned.DispatcherId.Valid {
+		// this likely means that the step run was skip locked by another assign attempt
+		return nil, repository.ErrStepRunIsNotAssigned
 	}
 
 	err = tx.Commit(ctx)
@@ -657,7 +646,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		return "", "", err
 	}
 
-	var assigned *dbsqlc.AssignStepRunToWorkerRow
+	var assigned *dbsqlc.AcquireWorkerSemaphoreSlotAndAssignRow
 
 	err = unassignedRetry(s.l, func() (err error) {
 		assigned, err = s.assignStepRunToWorkerAttempt(ctx, stepRun)

@@ -1,10 +1,11 @@
 import React from 'react';
 
-import { WorkflowRunsMetrics } from '@/lib/api';
+import { WorkflowRunStatus, WorkflowRunsMetrics } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 
 interface WorkflowRunsMetricsProps {
   metrics: WorkflowRunsMetrics;
+  onClick?: (status?: WorkflowRunStatus) => void;
 }
 
 const calculatePercentage = (value: number, total: number): number => {
@@ -19,6 +20,7 @@ const calculatePercentage = (value: number, total: number): number => {
 
 export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
   metrics: { counts },
+  onClick = () => {},
 }) => {
   const total =
     (counts?.PENDING ?? 0) +
@@ -40,33 +42,41 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
     <dl className="flex flex-row justify-start gap-6">
       <Badge
         variant="successful"
-        className="cursor-default text-sm px-2 py-1 w-fit"
+        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        onClick={() => onClick(WorkflowRunStatus.SUCCEEDED)}
       >
-        {counts?.SUCCEEDED} Succeeded ({succeededPercentage}%)
+        {counts?.SUCCEEDED?.toLocaleString('en-US')} Succeeded (
+        {succeededPercentage}%)
       </Badge>
       <Badge
         variant="inProgress"
-        className="cursor-default text-sm px-2 py-1 w-fit"
+        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        onClick={() => onClick(WorkflowRunStatus.RUNNING)}
       >
-        {counts?.RUNNING} Running ({runningPercentage}%)
+        {counts?.RUNNING?.toLocaleString('en-US')} Running ({runningPercentage}
+        %)
       </Badge>
       <Badge
         variant="failed"
-        className="cursor-default text-sm px-2 py-1 w-fit"
+        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        onClick={() => onClick(WorkflowRunStatus.FAILED)}
       >
-        {counts?.FAILED} Failed ({failedPercentage}%)
+        {counts?.FAILED?.toLocaleString('en-US')} Failed ({failedPercentage}%)
       </Badge>
       <Badge
         variant="outline"
-        className="cursor-default rounded-sm font-normal text-sm px-2 py-1 w-fit"
+        className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
+        onClick={() => onClick(WorkflowRunStatus.PENDING)}
       >
-        {counts?.PENDING} Pending ({pendingPercentage}%)
+        {counts?.PENDING?.toLocaleString('en-US')} Pending ({pendingPercentage}
+        %)
       </Badge>
       <Badge
         variant="outline"
-        className="cursor-default rounded-sm font-normal text-sm px-2 py-1 w-fit"
+        className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
+        onClick={() => onClick(WorkflowRunStatus.QUEUED)}
       >
-        {counts?.QUEUED} Queued ({queuedPercentage}%)
+        {counts?.QUEUED?.toLocaleString('en-US')} Queued ({queuedPercentage}%)
       </Badge>
     </dl>
   );

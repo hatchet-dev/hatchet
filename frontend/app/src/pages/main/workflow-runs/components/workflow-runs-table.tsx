@@ -306,7 +306,34 @@ export function WorkflowRunsTable({
     <>
       {metricsQuery.data && (
         <div className="mb-4">
-          <WorkflowRunsMetricsView metrics={metricsQuery.data} />
+          <WorkflowRunsMetricsView
+            metrics={metricsQuery.data}
+            onClick={(status) => {
+              setColumnFilters((prev) => {
+                const statusFilter = prev.find(
+                  (filter) => filter.id === 'status',
+                );
+                if (statusFilter) {
+                  prev = prev.filter((filter) => filter.id !== 'status');
+                }
+
+                if (
+                  JSON.stringify(statusFilter?.value) ===
+                  JSON.stringify([status])
+                ) {
+                  return prev;
+                }
+
+                return [
+                  ...prev,
+                  {
+                    id: 'status',
+                    value: [status],
+                  },
+                ];
+              });
+            }}
+          />
         </div>
       )}
       <DataTable

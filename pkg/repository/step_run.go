@@ -95,6 +95,7 @@ func StepRunEventSeverityPtr(severity dbsqlc.StepRunEventSeverity) *dbsqlc.StepR
 var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
 var ErrNoWorkerAvailable = fmt.Errorf("no worker available")
 var ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded")
+var ErrStepRunIsNotAssigned = fmt.Errorf("step run is not assigned")
 
 type StepRunUpdateInfo struct {
 	JobRunFinalState      bool
