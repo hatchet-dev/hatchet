@@ -26,6 +26,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1 AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         $2::uuid IS NULL OR
         workflowVersion."id" = $2::uuid
@@ -540,6 +543,7 @@ type DeleteExpiredWorkflowRunsRow struct {
 	Deleted   int64 `json:"deleted"`
 }
 
+// //TODO rewrite this
 func (q *Queries) DeleteExpiredWorkflowRuns(ctx context.Context, db DBTX, arg DeleteExpiredWorkflowRunsParams) (*DeleteExpiredWorkflowRunsRow, error) {
 	row := db.QueryRow(ctx, deleteExpiredWorkflowRuns,
 		arg.Tenantid,
@@ -559,6 +563,7 @@ FROM
     "WorkflowRun"
 WHERE
     "parentId" = $1::uuid AND
+    "deletedAt" IS NULL AND
     "parentStepRunId" = $2::uuid AND
     (
         -- if childKey is set, use that
@@ -671,6 +676,9 @@ LEFT JOIN
 LEFT JOIN
     "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
 WHERE
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     runs."id" = ANY($1::uuid[]) AND
     runs."tenantId" = $2::uuid
 `
@@ -791,6 +799,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1 AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         $2::uuid IS NULL OR
         workflowVersion."id" = $2::uuid
@@ -973,6 +984,8 @@ WITH workflow_runs AS (
         "WorkflowVersion" workflowVersion ON r2."workflowVersionId" = workflowVersion."id"
     WHERE
         r2."tenantId" = $1::uuid AND
+        r2."deletedAt" IS NULL AND
+        workflowVersion."deletedAt" IS NULL AND
         (r2."status" = 'QUEUED' OR r2."status" = 'RUNNING') AND
         workflowVersion."workflowId" = $2::uuid
     ORDER BY
@@ -1081,6 +1094,7 @@ WITH jobRuns AS (
             FROM "JobRun"
             WHERE "id" = $1::uuid
         ) AND
+        runs."deletedAt" IS NULL AND
         runs."tenantId" = $2::uuid AND
         -- we should not include onFailure jobs in the calculation
         job."kind" = 'DEFAULT'
@@ -1284,7 +1298,8 @@ WITH groupKeyRun AS (
     FROM "GetGroupKeyRun" as groupKeyRun
     WHERE
         "id" = $2::uuid AND
-        "tenantId" = $1::uuid
+        "tenantId" = $1::uuid AND
+        "deletedAt" IS NULL
 )
 UPDATE "WorkflowRun" workflowRun
 SET "status" = CASE
@@ -1359,6 +1374,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1::uuid AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         $2::uuid IS NULL OR
         workflow."id" = $2::uuid

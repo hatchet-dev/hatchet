@@ -103,8 +103,9 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 }
 
 func (w *workflowRunAPIRepository) GetWorkflowRunById(tenantId, id string) (*db.WorkflowRunModel, error) {
-	return w.client.WorkflowRun.FindUnique(
+	return w.client.WorkflowRun.FindFirst(
 		db.WorkflowRun.ID.Equals(id),
+		db.WorkflowRun.DeletedAt.IsNull(),
 	).With(
 		defaultWorkflowRunPopulator()...,
 	).Exec(context.Background())

@@ -13,6 +13,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1 AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         sqlc.narg('workflowVersionId')::uuid IS NULL OR
         workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
@@ -87,6 +90,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = @tenantId::uuid AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         sqlc.narg('workflowId')::uuid IS NULL OR
         workflow."id" = sqlc.narg('workflowId')::uuid
@@ -128,6 +134,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1 AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         sqlc.narg('workflowVersionId')::uuid IS NULL OR
         workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
@@ -194,6 +203,8 @@ WITH workflow_runs AS (
         "WorkflowVersion" workflowVersion ON r2."workflowVersionId" = workflowVersion."id"
     WHERE
         r2."tenantId" = @tenantId::uuid AND
+        r2."deletedAt" IS NULL AND
+        workflowVersion."deletedAt" IS NULL AND
         (r2."status" = 'QUEUED' OR r2."status" = 'RUNNING') AND
         workflowVersion."workflowId" = @workflowId::uuid
     ORDER BY
@@ -248,7 +259,8 @@ WITH groupKeyRun AS (
     FROM "GetGroupKeyRun" as groupKeyRun
     WHERE
         "id" = @groupKeyRunId::uuid AND
-        "tenantId" = @tenantId::uuid
+        "tenantId" = @tenantId::uuid AND
+        "deletedAt" IS NULL
 )
 UPDATE "WorkflowRun" workflowRun
 SET "status" = CASE
@@ -288,6 +300,7 @@ WITH jobRuns AS (
             FROM "JobRun"
             WHERE "id" = @jobRunId::uuid
         ) AND
+        runs."deletedAt" IS NULL AND
         runs."tenantId" = @tenantId::uuid AND
         -- we should not include onFailure jobs in the calculation
         job."kind" = 'DEFAULT'
@@ -578,6 +591,9 @@ LEFT JOIN
 LEFT JOIN
     "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
 WHERE
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     runs."id" = ANY(@ids::uuid[]) AND
     runs."tenantId" = @tenantId::uuid;
 
@@ -589,6 +605,7 @@ FROM
     "WorkflowRun"
 WHERE
     "parentId" = @parentId::uuid AND
+    "deletedAt" IS NULL AND
     "parentStepRunId" = @parentStepRunId::uuid AND
     (
         -- if childKey is set, use that
@@ -610,6 +627,7 @@ WHERE
         (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
     );
 
+-- //TODO rewrite this
 -- name: DeleteExpiredWorkflowRuns :one
 WITH expired_runs_count AS (
     SELECT COUNT(*) as count
