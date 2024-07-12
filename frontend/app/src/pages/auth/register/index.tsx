@@ -20,7 +20,7 @@ export default function Register() {
     return <Loading />;
   }
 
-  const schemes = meta.data?.data?.auth?.schemes || [];
+  const schemes = meta.data?.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
