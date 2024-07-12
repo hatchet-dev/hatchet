@@ -634,6 +634,11 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 				return
 			}
 
+			if _, parseErr := uuid.Parse(req.WorkflowRunId); parseErr != nil {
+				s.l.Warn().Err(parseErr).Msg("invalid workflow run id")
+				continue
+			}
+
 			acks.addWorkflowRun(req.WorkflowRunId)
 
 			if immediateSendFilter.canSend() {
