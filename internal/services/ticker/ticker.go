@@ -277,6 +277,19 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule worker semaphore slot resolver polling: %w", err)
 	}
 
+	// poll to resolve unresolved failed step runs every 30 seconds
+	// _, err = t.s.NewJob(
+	// 	gocron.DurationJob(time.Second*30),
+	// 	gocron.NewTask(
+	// 		t.runResolveUnresolvedFailedSteps(ctx),
+	// 	),
+	// )
+
+	// if err != nil {
+	// 	cancel()
+	// 	return nil, fmt.Errorf("could not resolve unresolved failed steps polling: %w", err)
+	// }
+
 	t.s.Start()
 
 	cleanup := func() error {
@@ -355,3 +368,31 @@ func (t *TickerImpl) runWorkerSemaphoreSlotResolver(ctx context.Context) func() 
 		}
 	}
 }
+
+// func (t *TickerImpl) runResolveUnresolvedFailedSteps(ctx context.Context) func() {
+// 	return func() {
+
+// 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+// 		defer cancel()
+
+// 		toResolve, err := t.repo.Ticker().PollUnresolvedFailedStepRuns(ctx)
+
+// 		if err != nil {
+// 			t.l.Err(err).Msg("could not poll unresolved failed step runs")
+// 			return
+// 		}
+
+// 		if len(toResolve) > 0 {
+// 			t.l.Warn().Msgf("attempting to resolve %d unresolved failed step runs", len(toResolve))
+// 		}
+
+// 		for _, stepRun := range toResolve {
+// 			_, err := t.repo.StepRun().ResolveRelatedStatuses(ctx, stepRun.TenantId, stepRun.ID)
+
+// 			if err != nil {
+// 				t.l.Err(err).Msgf("could not resolve step run %s", sqlchelpers.UUIDToStr(stepRun.ID))
+// 			}
+// 		}
+
+// 	}
+// }

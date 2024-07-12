@@ -371,3 +371,18 @@ FROM
 WHERE
     na."existingAlert" = false
 RETURNING *;
+
+-- name: PollUnresolvedFailedStepRuns :many
+SELECT
+	sr."id",
+    sr."tenantId"
+FROM "StepRun" sr
+JOIN "JobRun" jr on jr."id" = sr."jobRunId"
+WHERE
+	(
+		(sr."status" = 'FAILED' AND jr."status" != 'FAILED')
+	OR
+		(sr."status" = 'CANCELLED' AND jr."status" != 'CANCELLED')
+	)
+	AND sr."updatedAt" < CURRENT_TIMESTAMP - INTERVAL '5 seconds'
+;
