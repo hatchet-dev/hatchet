@@ -319,6 +319,10 @@ func (s *stepRunEngineRepository) ListStepRunsToRequeue(ctx context.Context, ten
 		return nil, err
 	}
 
+	if limit > 100 {
+		limit = 100
+	}
+
 	// get the step run and make sure it's still in pending
 	stepRunIds, err := s.queries.ListStepRunsToRequeue(ctx, tx, dbsqlc.ListStepRunsToRequeueParams{
 		Tenantid: pgTenantId,
@@ -360,6 +364,42 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 
 	// get the step run and make sure it's still in pending
 	stepRunIds, err := s.queries.ListStepRunsToReassign(ctx, tx, pgTenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepRuns, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
+		Ids:      stepRunIds,
+		TenantId: pgTenantId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return stepRuns, nil
+}
+
+func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	tx, err := s.pool.Begin(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(ctx, s.l, tx.Rollback)
+
+	// get the step run and make sure it's still in pending
+	stepRunIds, err := s.queries.ListStepRunsToTimeout(ctx, tx, pgTenantId)
 
 	if err != nil {
 		return nil, err

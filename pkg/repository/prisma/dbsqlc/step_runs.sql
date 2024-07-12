@@ -14,7 +14,6 @@ SELECT
     jrld."data" AS "jobRunLookupData",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
-    wr."id" AS "workflowRunId",
     s."id" AS "stepId",
     s."retries" AS "stepRetries",
     s."timeout" AS "stepTimeout",
@@ -24,9 +23,8 @@ SELECT
     j."name" AS "jobName",
     j."id" AS "jobId",
     j."kind" AS "jobKind",
-    wv."id" AS "workflowVersionId",
-    w."name" AS "workflowName",
-    w."id" AS "workflowId",
+    j."workflowVersionId" AS "workflowVersionId",
+    jr."workflowRunId" AS "workflowRunId",
     a."actionId" AS "actionId"
 FROM
     "StepRun" sr
@@ -40,12 +38,6 @@ JOIN
     "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
 JOIN
     "Job" j ON jr."jobId" = j."id"
-JOIN
-    "WorkflowRun" wr ON jr."workflowRunId" = wr."id"
-JOIN
-    "WorkflowVersion" wv ON wr."workflowVersionId" = wv."id"
-JOIN
-    "Workflow" w ON wv."workflowId" = w."id"
 WHERE
     sr."id" = ANY(@ids::uuid[]) AND
     (
@@ -343,13 +335,19 @@ WITH inactive_workers AS (
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
 ),
-inactive_semaphore_steps AS (
+step_runs_to_reassign AS (
+    SELECT "stepRunId"
+    FROM "WorkerSemaphoreSlot"
+    WHERE
+        "workerId" = ANY(SELECT "id" FROM inactive_workers)
+        AND "stepRunId" IS NOT NULL
+    FOR UPDATE SKIP LOCKED
+),
+update_semaphore_steps AS (
     UPDATE "WorkerSemaphoreSlot" wss
     SET "stepRunId" = NULL
-    WHERE
-        wss."workerId" = ANY(SELECT "id" FROM inactive_workers)
-        AND wss."stepRunId" IS NOT NULL
-    RETURNING wss."stepRunId"
+    FROM step_runs_to_reassign
+    WHERE wss."stepRunId" = step_runs_to_reassign."stepRunId"
 )
 UPDATE
     "StepRun"
@@ -361,10 +359,19 @@ SET
     -- unset the schedule timeout
     "scheduleTimeoutAt" = NULL
 FROM
-    inactive_semaphore_steps
+    step_runs_to_reassign
 WHERE
-    "StepRun"."id" = inactive_semaphore_steps."stepRunId"
+    "StepRun"."id" = step_runs_to_reassign."stepRunId"
 RETURNING "StepRun"."id";
+
+-- name: ListStepRunsToTimeout :many
+SELECT "id"
+FROM "StepRun"
+WHERE
+    "status" = 'RUNNING'
+    AND "timeoutAt" < NOW()
+    AND "tenantId" = @tenantId::uuid
+LIMIT 100;
 
 -- name: ListStepRunsToRequeue :many
 WITH step_runs AS (

@@ -173,6 +173,18 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule step run reassign: %w", err)
 	}
 
+	_, err = jc.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			jc.runStepRunTimeout(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
+	}
+
 	jc.s.Start()
 
 	f := func(task *msgqueue.Message) error {
@@ -615,7 +627,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 	stepRuns, err := ec.repo.StepRun().ListStepRunsToRequeue(ctx, tenantId)
 
 	if err != nil {
-		return fmt.Errorf("could not list step runs to requeue: %w", err)
+		return fmt.Errorf("could not list step runs to requeue for tenant %s: %w", tenantId, err)
 	}
 
 	if num := len(stepRuns); num > 0 {
@@ -701,7 +713,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 	stepRuns, err := ec.repo.StepRun().ListStepRunsToReassign(ctx, tenantId)
 
 	if err != nil {
-		return fmt.Errorf("could not list step runs to reassign: %w", err)
+		return fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
 	}
 
 	if num := len(stepRuns); num > 0 {
@@ -749,6 +761,73 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 			}
 
 			return nil
+		})
+	}
+
+	return g.Wait()
+}
+
+func (jc *JobsControllerImpl) runStepRunTimeout(ctx context.Context) func() {
+	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		jc.l.Debug().Msgf("jobs controller: running step run timeout")
+
+		// list all tenants
+		tenants, err := jc.repo.Tenant().ListTenantsByControllerPartition(ctx, jc.partitionId)
+
+		if err != nil {
+			jc.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		g := new(errgroup.Group)
+
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+
+			g.Go(func() error {
+				return jc.runStepRunTimeoutTenant(ctx, tenantId)
+			})
+		}
+
+		err = g.Wait()
+
+		if err != nil {
+			jc.l.Err(err).Msg("could not run step run timeout")
+		}
+	}
+}
+
+// runStepRunTimeoutTenant looks for step runs that are timed out in the tenant.
+func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenantId string) error {
+	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout")
+	defer span.End()
+
+	stepRuns, err := ec.repo.StepRun().ListStepRunsToTimeout(ctx, tenantId)
+
+	if err != nil {
+		return fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
+	}
+
+	if num := len(stepRuns); num > 0 {
+		ec.l.Info().Msgf("timing out %d step runs", num)
+	}
+
+	g := new(errgroup.Group)
+
+	for i := range stepRuns {
+		stepRunCp := stepRuns[i]
+
+		// wrap in func to get defer on the span to avoid leaking spans
+		g.Go(func() error {
+			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout-step-run")
+			defer span.End()
+
+			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
+
+			return ec.failStepRun(ctx, tenantId, stepRunId, "TIMED_OUT", time.Now().UTC())
 		})
 	}
 

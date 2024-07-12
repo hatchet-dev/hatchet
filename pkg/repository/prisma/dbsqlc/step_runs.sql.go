@@ -551,7 +551,6 @@ SELECT
     jrld."data" AS "jobRunLookupData",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
-    wr."id" AS "workflowRunId",
     s."id" AS "stepId",
     s."retries" AS "stepRetries",
     s."timeout" AS "stepTimeout",
@@ -561,9 +560,8 @@ SELECT
     j."name" AS "jobName",
     j."id" AS "jobId",
     j."kind" AS "jobKind",
-    wv."id" AS "workflowVersionId",
-    w."name" AS "workflowName",
-    w."id" AS "workflowId",
+    j."workflowVersionId" AS "workflowVersionId",
+    jr."workflowRunId" AS "workflowRunId",
     a."actionId" AS "actionId"
 FROM
     "StepRun" sr
@@ -577,12 +575,6 @@ JOIN
     "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
 JOIN
     "Job" j ON jr."jobId" = j."id"
-JOIN
-    "WorkflowRun" wr ON jr."workflowRunId" = wr."id"
-JOIN
-    "WorkflowVersion" wv ON wr."workflowVersionId" = wv."id"
-JOIN
-    "Workflow" w ON wv."workflowId" = w."id"
 WHERE
     sr."id" = ANY($1::uuid[]) AND
     (
@@ -600,7 +592,6 @@ type GetStepRunForEngineRow struct {
 	StepRun             StepRun     `json:"step_run"`
 	JobRunLookupData    []byte      `json:"jobRunLookupData"`
 	JobRunId            pgtype.UUID `json:"jobRunId"`
-	WorkflowRunId       pgtype.UUID `json:"workflowRunId"`
 	StepId              pgtype.UUID `json:"stepId"`
 	StepRetries         int32       `json:"stepRetries"`
 	StepTimeout         pgtype.Text `json:"stepTimeout"`
@@ -611,8 +602,7 @@ type GetStepRunForEngineRow struct {
 	JobId               pgtype.UUID `json:"jobId"`
 	JobKind             JobKind     `json:"jobKind"`
 	WorkflowVersionId   pgtype.UUID `json:"workflowVersionId"`
-	WorkflowName        string      `json:"workflowName"`
-	WorkflowId          pgtype.UUID `json:"workflowId"`
+	WorkflowRunId       pgtype.UUID `json:"workflowRunId"`
 	ActionId            string      `json:"actionId"`
 }
 
@@ -655,7 +645,6 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.StepRun.SemaphoreReleased,
 			&i.JobRunLookupData,
 			&i.JobRunId,
-			&i.WorkflowRunId,
 			&i.StepId,
 			&i.StepRetries,
 			&i.StepTimeout,
@@ -666,8 +655,7 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.JobId,
 			&i.JobKind,
 			&i.WorkflowVersionId,
-			&i.WorkflowName,
-			&i.WorkflowId,
+			&i.WorkflowRunId,
 			&i.ActionId,
 		); err != nil {
 			return nil, err
@@ -1018,13 +1006,19 @@ WITH inactive_workers AS (
         w."tenantId" = $1::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
 ),
-inactive_semaphore_steps AS (
+step_runs_to_reassign AS (
+    SELECT "stepRunId"
+    FROM "WorkerSemaphoreSlot"
+    WHERE
+        "workerId" = ANY(SELECT "id" FROM inactive_workers)
+        AND "stepRunId" IS NOT NULL
+    FOR UPDATE SKIP LOCKED
+),
+update_semaphore_steps AS (
     UPDATE "WorkerSemaphoreSlot" wss
     SET "stepRunId" = NULL
-    WHERE
-        wss."workerId" = ANY(SELECT "id" FROM inactive_workers)
-        AND wss."stepRunId" IS NOT NULL
-    RETURNING wss."stepRunId"
+    FROM step_runs_to_reassign
+    WHERE wss."stepRunId" = step_runs_to_reassign."stepRunId"
 )
 UPDATE
     "StepRun"
@@ -1036,9 +1030,9 @@ SET
     -- unset the schedule timeout
     "scheduleTimeoutAt" = NULL
 FROM
-    inactive_semaphore_steps
+    step_runs_to_reassign
 WHERE
-    "StepRun"."id" = inactive_semaphore_steps."stepRunId"
+    "StepRun"."id" = step_runs_to_reassign."stepRunId"
 RETURNING "StepRun"."id"
 `
 
@@ -1108,6 +1102,36 @@ type ListStepRunsToRequeueParams struct {
 
 func (q *Queries) ListStepRunsToRequeue(ctx context.Context, db DBTX, arg ListStepRunsToRequeueParams) ([]pgtype.UUID, error) {
 	rows, err := db.Query(ctx, listStepRunsToRequeue, arg.Tenantid, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepRunsToTimeout = `-- name: ListStepRunsToTimeout :many
+SELECT "id"
+FROM "StepRun"
+WHERE
+    "status" = 'RUNNING'
+    AND "timeoutAt" < NOW()
+    AND "tenantId" = $1::uuid
+LIMIT 100
+`
+
+func (q *Queries) ListStepRunsToTimeout(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStepRunsToTimeout, tenantid)
 	if err != nil {
 		return nil, err
 	}
