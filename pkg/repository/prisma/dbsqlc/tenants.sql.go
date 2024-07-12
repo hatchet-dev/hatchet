@@ -605,31 +605,32 @@ func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db D
 const rebalanceAllControllerPartitions = `-- name: RebalanceAllControllerPartitions :exec
 WITH active_partitions AS (
     SELECT
-        "id"
+        "id",
+        ROW_NUMBER() OVER () AS row_number
     FROM
         "ControllerPartition"
     WHERE
         "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+),
+tenants_to_update AS (
+    SELECT
+        tenants."id" AS "id",
+        ROW_NUMBER() OVER () AS row_number
+    FROM
+        "Tenant" AS tenants
+    WHERE
+        tenants."slug" != 'internal'
 )
 UPDATE
-    "Tenant" as tenants
+    "Tenant" AS tenants
 SET
-    "controllerPartitionId" = (
-        SELECT
-            "id"
-        FROM
-            active_partitions
-        ORDER BY
-            random()
-        LIMIT 1
-    )
+    "controllerPartitionId" = partitions."id"
+FROM
+    tenants_to_update,
+    active_partitions AS partitions
 WHERE
-    "slug" != 'internal' AND
-    (
-        "controllerPartitionId" IS NULL OR
-        "controllerPartitionId" NOT IN (SELECT "id" FROM active_partitions)
-    )
-RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod"
+    tenants."id" = tenants_to_update."id" AND
+    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
 `
 
 func (q *Queries) RebalanceAllControllerPartitions(ctx context.Context, db DBTX) error {
@@ -640,31 +641,32 @@ func (q *Queries) RebalanceAllControllerPartitions(ctx context.Context, db DBTX)
 const rebalanceAllTenantWorkerPartitions = `-- name: RebalanceAllTenantWorkerPartitions :exec
 WITH active_partitions AS (
     SELECT
-        "id"
+        "id",
+        ROW_NUMBER() OVER () AS row_number
     FROM
         "TenantWorkerPartition"
     WHERE
         "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+),
+tenants_to_update AS (
+    SELECT
+        tenants."id" AS "id",
+        ROW_NUMBER() OVER () AS row_number
+    FROM
+        "Tenant" AS tenants
+    WHERE
+        tenants."slug" != 'internal'
 )
 UPDATE
-    "Tenant" as tenants
+    "Tenant" AS tenants
 SET
-    "workerPartitionId" = (
-        SELECT
-            "id"
-        FROM
-            active_partitions
-        ORDER BY
-            random()
-        LIMIT 1
-    )
+    "workerPartitionId" = partitions."id"
+FROM
+    tenants_to_update,
+    active_partitions AS partitions
 WHERE
-    "slug" != 'internal' AND
-    (
-        "workerPartitionId" IS NULL OR
-        "workerPartitionId" NOT IN (SELECT "id" FROM active_partitions)
-    )
-RETURNING id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod"
+    tenants."id" = tenants_to_update."id" AND
+    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
 `
 
 func (q *Queries) RebalanceAllTenantWorkerPartitions(ctx context.Context, db DBTX) error {
