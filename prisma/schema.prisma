@@ -463,7 +463,6 @@ model Workflow {
 
   // workflow names are unique per tenant
   @@unique([tenantId, name])
-
   @@index([deletedAt])
 }
 
@@ -870,7 +869,6 @@ model WorkflowRun {
   @@index([tenantId, createdAt])
   @@index([finishedAt])
   @@index([status])
-
   @@index([deletedAt])
 }
 
@@ -1032,7 +1030,6 @@ model JobRun {
 
   // index for ResolveWorkflowRunStatus and ListJobRunsForWorkflowRun
   @@index([workflowRunId, tenantId])
-
   @@index([deletedAt])
 }
 
@@ -1184,7 +1181,6 @@ model StepRun {
   @@index([jobRunId, status, tenantId])
   // index for PollStepRuns
   @@index([status, timeoutAt, tickerId])
-
   @@index([deletedAt])
 }
 
