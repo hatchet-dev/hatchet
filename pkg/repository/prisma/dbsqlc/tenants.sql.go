@@ -677,7 +677,8 @@ func (q *Queries) RebalanceAllTenantWorkerPartitions(ctx context.Context, db DBT
 const rebalanceInactiveControllerPartitions = `-- name: RebalanceInactiveControllerPartitions :exec
 WITH active_partitions AS (
     SELECT
-        "id"
+        "id",
+        ROW_NUMBER() OVER () AS row_number
     FROM
         "ControllerPartition"
     WHERE
@@ -723,7 +724,8 @@ func (q *Queries) RebalanceInactiveControllerPartitions(ctx context.Context, db 
 const rebalanceInactiveTenantWorkerPartitions = `-- name: RebalanceInactiveTenantWorkerPartitions :exec
 WITH active_partitions AS (
     SELECT
-        "id"
+        "id",
+        ROW_NUMBER() OVER () AS row_number
     FROM
         "TenantWorkerPartition"
     WHERE

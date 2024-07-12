@@ -237,7 +237,8 @@ WHERE
 -- name: RebalanceInactiveControllerPartitions :exec
 WITH active_partitions AS (
     SELECT
-        "id"
+        "id",
+        ROW_NUMBER() OVER () AS row_number
     FROM
         "ControllerPartition"
     WHERE
@@ -318,7 +319,8 @@ WHERE
 -- name: RebalanceInactiveTenantWorkerPartitions :exec
 WITH active_partitions AS (
     SELECT
-        "id"
+        "id",
+        ROW_NUMBER() OVER () AS row_number
     FROM
         "TenantWorkerPartition"
     WHERE
