@@ -428,7 +428,7 @@ not_run_scheduled_workflows AS (
     WHERE
         "triggerAt" <= NOW() + INTERVAL '5 seconds'
         AND runTriggeredBy IS NULL
-        AND l."deletedAt" IS NULL
+        AND versions."deletedAt" IS NULL
         AND workflow."deletedAt" IS NULL
         AND (
             "tickerId" IS NULL
