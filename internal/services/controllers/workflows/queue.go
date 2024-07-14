@@ -780,7 +780,7 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRun(ctx context.Context, tenant
 
 	for i := range stepRuns {
 		stepRunCp := stepRuns[i]
-		stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
+		stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
 
 		errGroup.Go(func() error {
 			return wc.mq.AddMessage(

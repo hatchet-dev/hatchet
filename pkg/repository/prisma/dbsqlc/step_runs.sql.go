@@ -544,10 +544,60 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, arg GetStepRunParams)
 	return &i, err
 }
 
+const getStepRunDataForEngine = `-- name: GetStepRunDataForEngine :one
+SELECT
+    "input",
+    "output",
+    "error"
+FROM
+    "StepRun"
+WHERE
+    "id" = $1::uuid AND
+    "tenantId" = $2::uuid
+`
+
+type GetStepRunDataForEngineParams struct {
+	ID       pgtype.UUID `json:"id"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+type GetStepRunDataForEngineRow struct {
+	Input  []byte      `json:"input"`
+	Output []byte      `json:"output"`
+	Error  pgtype.Text `json:"error"`
+}
+
+func (q *Queries) GetStepRunDataForEngine(ctx context.Context, db DBTX, arg GetStepRunDataForEngineParams) (*GetStepRunDataForEngineRow, error) {
+	row := db.QueryRow(ctx, getStepRunDataForEngine, arg.ID, arg.Tenantid)
+	var i GetStepRunDataForEngineRow
+	err := row.Scan(&i.Input, &i.Output, &i.Error)
+	return &i, err
+}
+
 const getStepRunForEngine = `-- name: GetStepRunForEngine :many
 SELECT
     DISTINCT ON (sr."id")
-    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased",
+    sr."id" AS "SR_id",
+    sr."createdAt" AS "SR_createdAt",
+    sr."updatedAt" AS "SR_updatedAt",
+    sr."deletedAt" AS "SR_deletedAt",
+    sr."tenantId" AS "SR_tenantId",
+    sr."order" AS "SR_order",
+    sr."workerId" AS "SR_workerId",
+    sr."tickerId" AS "SR_tickerId",
+    sr."status" AS "SR_status",
+    sr."requeueAfter" AS "SR_requeueAfter",
+    sr."scheduleTimeoutAt" AS "SR_scheduleTimeoutAt",
+    sr."startedAt" AS "SR_startedAt",
+    sr."finishedAt" AS "SR_finishedAt",
+    sr."timeoutAt" AS "SR_timeoutAt",
+    sr."cancelledAt" AS "SR_cancelledAt",
+    sr."cancelledReason" AS "SR_cancelledReason",
+    sr."cancelledError" AS "SR_cancelledError",
+    sr."callerFiles" AS "SR_callerFiles",
+    sr."gitRepoBranch" AS "SR_gitRepoBranch",
+    sr."retryCount" AS "SR_retryCount",
+    sr."semaphoreReleased" AS "SR_semaphoreReleased",
     jrld."data" AS "jobRunLookupData",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
@@ -589,21 +639,41 @@ type GetStepRunForEngineParams struct {
 }
 
 type GetStepRunForEngineRow struct {
-	StepRun             StepRun     `json:"step_run"`
-	JobRunLookupData    []byte      `json:"jobRunLookupData"`
-	JobRunId            pgtype.UUID `json:"jobRunId"`
-	StepId              pgtype.UUID `json:"stepId"`
-	StepRetries         int32       `json:"stepRetries"`
-	StepTimeout         pgtype.Text `json:"stepTimeout"`
-	StepScheduleTimeout string      `json:"stepScheduleTimeout"`
-	StepReadableId      pgtype.Text `json:"stepReadableId"`
-	StepCustomUserData  []byte      `json:"stepCustomUserData"`
-	JobName             string      `json:"jobName"`
-	JobId               pgtype.UUID `json:"jobId"`
-	JobKind             JobKind     `json:"jobKind"`
-	WorkflowVersionId   pgtype.UUID `json:"workflowVersionId"`
-	WorkflowRunId       pgtype.UUID `json:"workflowRunId"`
-	ActionId            string      `json:"actionId"`
+	SRID                pgtype.UUID      `json:"SR_id"`
+	SRCreatedAt         pgtype.Timestamp `json:"SR_createdAt"`
+	SRUpdatedAt         pgtype.Timestamp `json:"SR_updatedAt"`
+	SRDeletedAt         pgtype.Timestamp `json:"SR_deletedAt"`
+	SRTenantId          pgtype.UUID      `json:"SR_tenantId"`
+	SROrder             int64            `json:"SR_order"`
+	SRWorkerId          pgtype.UUID      `json:"SR_workerId"`
+	SRTickerId          pgtype.UUID      `json:"SR_tickerId"`
+	SRStatus            StepRunStatus    `json:"SR_status"`
+	SRRequeueAfter      pgtype.Timestamp `json:"SR_requeueAfter"`
+	SRScheduleTimeoutAt pgtype.Timestamp `json:"SR_scheduleTimeoutAt"`
+	SRStartedAt         pgtype.Timestamp `json:"SR_startedAt"`
+	SRFinishedAt        pgtype.Timestamp `json:"SR_finishedAt"`
+	SRTimeoutAt         pgtype.Timestamp `json:"SR_timeoutAt"`
+	SRCancelledAt       pgtype.Timestamp `json:"SR_cancelledAt"`
+	SRCancelledReason   pgtype.Text      `json:"SR_cancelledReason"`
+	SRCancelledError    pgtype.Text      `json:"SR_cancelledError"`
+	SRCallerFiles       []byte           `json:"SR_callerFiles"`
+	SRGitRepoBranch     pgtype.Text      `json:"SR_gitRepoBranch"`
+	SRRetryCount        int32            `json:"SR_retryCount"`
+	SRSemaphoreReleased bool             `json:"SR_semaphoreReleased"`
+	JobRunLookupData    []byte           `json:"jobRunLookupData"`
+	JobRunId            pgtype.UUID      `json:"jobRunId"`
+	StepId              pgtype.UUID      `json:"stepId"`
+	StepRetries         int32            `json:"stepRetries"`
+	StepTimeout         pgtype.Text      `json:"stepTimeout"`
+	StepScheduleTimeout string           `json:"stepScheduleTimeout"`
+	StepReadableId      pgtype.Text      `json:"stepReadableId"`
+	StepCustomUserData  []byte           `json:"stepCustomUserData"`
+	JobName             string           `json:"jobName"`
+	JobId               pgtype.UUID      `json:"jobId"`
+	JobKind             JobKind          `json:"jobKind"`
+	WorkflowVersionId   pgtype.UUID      `json:"workflowVersionId"`
+	WorkflowRunId       pgtype.UUID      `json:"workflowRunId"`
+	ActionId            string           `json:"actionId"`
 }
 
 func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepRunForEngineParams) ([]*GetStepRunForEngineRow, error) {
@@ -616,33 +686,27 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 	for rows.Next() {
 		var i GetStepRunForEngineRow
 		if err := rows.Scan(
-			&i.StepRun.ID,
-			&i.StepRun.CreatedAt,
-			&i.StepRun.UpdatedAt,
-			&i.StepRun.DeletedAt,
-			&i.StepRun.TenantId,
-			&i.StepRun.JobRunId,
-			&i.StepRun.StepId,
-			&i.StepRun.Order,
-			&i.StepRun.WorkerId,
-			&i.StepRun.TickerId,
-			&i.StepRun.Status,
-			&i.StepRun.Input,
-			&i.StepRun.Output,
-			&i.StepRun.RequeueAfter,
-			&i.StepRun.ScheduleTimeoutAt,
-			&i.StepRun.Error,
-			&i.StepRun.StartedAt,
-			&i.StepRun.FinishedAt,
-			&i.StepRun.TimeoutAt,
-			&i.StepRun.CancelledAt,
-			&i.StepRun.CancelledReason,
-			&i.StepRun.CancelledError,
-			&i.StepRun.InputSchema,
-			&i.StepRun.CallerFiles,
-			&i.StepRun.GitRepoBranch,
-			&i.StepRun.RetryCount,
-			&i.StepRun.SemaphoreReleased,
+			&i.SRID,
+			&i.SRCreatedAt,
+			&i.SRUpdatedAt,
+			&i.SRDeletedAt,
+			&i.SRTenantId,
+			&i.SROrder,
+			&i.SRWorkerId,
+			&i.SRTickerId,
+			&i.SRStatus,
+			&i.SRRequeueAfter,
+			&i.SRScheduleTimeoutAt,
+			&i.SRStartedAt,
+			&i.SRFinishedAt,
+			&i.SRTimeoutAt,
+			&i.SRCancelledAt,
+			&i.SRCancelledReason,
+			&i.SRCancelledError,
+			&i.SRCallerFiles,
+			&i.SRGitRepoBranch,
+			&i.SRRetryCount,
+			&i.SRSemaphoreReleased,
 			&i.JobRunLookupData,
 			&i.JobRunId,
 			&i.StepId,

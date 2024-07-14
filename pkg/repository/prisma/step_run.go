@@ -243,7 +243,8 @@ func (s *stepRunEngineRepository) ListRunningStepRunsForTicker(ctx context.Conte
 
 	err = tx.Commit(ctx)
 
-	return res, err
+	return res, nil
+
 }
 
 func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId string, opts *repository.ListStepRunsOpts) ([]*dbsqlc.GetStepRunForEngineRow, error) {
@@ -502,11 +503,11 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 			return fmt.Errorf("could not get step run for engine: %w", err)
 		}
 
-		if stepRun.StepRun.SemaphoreReleased {
+		if stepRun.SRSemaphoreReleased {
 			return nil
 		}
 
-		data := map[string]interface{}{"worker_id": sqlchelpers.UUIDToStr(stepRun.StepRun.WorkerId)}
+		data := map[string]interface{}{"worker_id": sqlchelpers.UUIDToStr(stepRun.SRWorkerId)}
 
 		dataBytes, err := json.Marshal(data)
 
@@ -515,7 +516,7 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 		}
 
 		err = s.queries.CreateStepRunEvent(ctx, tx, dbsqlc.CreateStepRunEventParams{
-			Steprunid: stepRun.StepRun.ID,
+			Steprunid: stepRun.SRID,
 			Reason:    dbsqlc.StepRunEventReasonSLOTRELEASED,
 			Severity:  dbsqlc.StepRunEventSeverityINFO,
 			Message:   "Slot released",
@@ -527,8 +528,8 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 		}
 
 		_, err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
-			Steprunid: stepRun.StepRun.ID,
-			Tenantid:  stepRun.StepRun.TenantId,
+			Steprunid: stepRun.SRID,
+			Tenantid:  stepRun.SRTenantId,
 		})
 
 		if err != nil {
@@ -536,8 +537,8 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 		}
 
 		_, err = s.queries.UnlinkStepRunFromWorker(ctx, tx, dbsqlc.UnlinkStepRunFromWorkerParams{
-			Steprunid: stepRun.StepRun.ID,
-			Tenantid:  stepRun.StepRun.TenantId,
+			Steprunid: stepRun.SRID,
+			Tenantid:  stepRun.SRTenantId,
 		})
 
 		if err != nil {
@@ -546,8 +547,8 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 
 		// Update the Step Run to release the semaphore
 		_, err = s.queries.UpdateStepRun(ctx, tx, dbsqlc.UpdateStepRunParams{
-			ID:       stepRun.StepRun.ID,
-			Tenantid: stepRun.StepRun.TenantId,
+			ID:       stepRun.SRID,
+			Tenantid: stepRun.SRTenantId,
 			SemaphoreReleased: pgtype.Bool{
 				Valid: true,
 				Bool:  true,
@@ -573,8 +574,8 @@ func (s *stepRunEngineRepository) releaseWorkerSemaphore(ctx context.Context, st
 		defer deferRollback(ctx, s.l, tx.Rollback)
 
 		_, err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
-			Steprunid: stepRun.StepRun.ID,
-			Tenantid:  stepRun.StepRun.TenantId,
+			Steprunid: stepRun.SRID,
+			Tenantid:  stepRun.SRTenantId,
 		})
 
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -585,8 +586,8 @@ func (s *stepRunEngineRepository) releaseWorkerSemaphore(ctx context.Context, st
 		// so that we don't re-increment the old worker semaphore on each retry
 		if err == nil {
 			_, err = s.queries.UnlinkStepRunFromWorker(ctx, tx, dbsqlc.UnlinkStepRunFromWorkerParams{
-				Steprunid: stepRun.StepRun.ID,
-				Tenantid:  stepRun.StepRun.TenantId,
+				Steprunid: stepRun.SRID,
+				Tenantid:  stepRun.SRTenantId,
 			})
 
 			if err != nil {
@@ -617,10 +618,10 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 
 	// acquire a semaphore slot
 	assigned, err := s.queries.AcquireWorkerSemaphoreSlotAndAssign(ctx, tx, dbsqlc.AcquireWorkerSemaphoreSlotAndAssignParams{
-		Steprunid:   stepRun.StepRun.ID,
+		Steprunid:   stepRun.SRID,
 		Actionid:    stepRun.ActionId,
 		StepTimeout: stepRun.StepTimeout,
-		Tenantid:    stepRun.StepRun.TenantId,
+		Tenantid:    stepRun.SRTenantId,
 	})
 
 	if err != nil {
@@ -702,7 +703,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 				return err
 			}
 
-			return fmt.Errorf("could not assign worker for step run %s (step %s): %w", sqlchelpers.UUIDToStr(stepRun.StepRun.ID), stepRun.StepReadableId.String, err)
+			return fmt.Errorf("could not assign worker for step run %s (step %s): %w", sqlchelpers.UUIDToStr(stepRun.SRID), stepRun.StepReadableId.String, err)
 		}
 
 		return nil
@@ -713,7 +714,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 
 		if errors.As(err, &target) {
 			defer s.deferredStepRunEvent(
-				stepRun.StepRun.ID,
+				stepRun.SRID,
 				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
 				dbsqlc.StepRunEventSeverityWARNING,
 				"No worker available",
@@ -725,7 +726,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 
 		if errors.Is(err, repository.ErrNoWorkerAvailable) {
 			defer s.deferredStepRunEvent(
-				stepRun.StepRun.ID,
+				stepRun.SRID,
 				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
 				dbsqlc.StepRunEventSeverityWARNING,
 				"No worker available",
@@ -735,7 +736,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 
 		if errors.Is(err, repository.ErrRateLimitExceeded) {
 			defer s.deferredStepRunEvent(
-				stepRun.StepRun.ID,
+				stepRun.SRID,
 				dbsqlc.StepRunEventReasonREQUEUEDRATELIMIT,
 				dbsqlc.StepRunEventSeverityWARNING,
 				"Rate limit exceeded",
@@ -747,7 +748,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 	}
 
 	defer s.deferredStepRunEvent(
-		stepRun.StepRun.ID,
+		stepRun.SRID,
 		dbsqlc.StepRunEventReasonASSIGNED,
 		dbsqlc.StepRunEventSeverityINFO,
 		fmt.Sprintf("Assigned to worker %s", sqlchelpers.UUIDToStr(assigned.WorkerId)),
@@ -811,7 +812,7 @@ func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, s
 	}
 
 	err = deadlockRetry(s.l, func() error {
-		updateInfo, err = s.ResolveRelatedStatuses(ctx, stepRun.StepRun.TenantId, stepRun.StepRun.ID)
+		updateInfo, err = s.ResolveRelatedStatuses(ctx, stepRun.SRTenantId, stepRun.SRID)
 		return err
 	})
 
@@ -949,7 +950,7 @@ func (s *stepRunEngineRepository) PreflightCheckReplayStepRun(ctx context.Contex
 		return err
 	}
 
-	if !repository.IsFinalStepRunStatus(stepRun.StepRun.Status) {
+	if !repository.IsFinalStepRunStatus(stepRun.SRStatus) {
 		return repository.ErrPreflightReplayStepRunNotInFinalState
 	}
 
@@ -1141,7 +1142,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 	}
 
 	retrierExtraErr := deadlockRetry(s.l, func() error {
-		_, err = s.ResolveRelatedStatuses(ctx, stepRun.StepRun.TenantId, stepRun.StepRun.ID)
+		_, err = s.ResolveRelatedStatuses(ctx, stepRun.SRTenantId, stepRun.SRID)
 		return err
 	})
 
@@ -1456,6 +1457,13 @@ func (s *stepRunEngineRepository) getStepRunForEngineTx(ctx context.Context, dbt
 	}
 
 	return res[0], nil
+}
+
+func (s *stepRunEngineRepository) GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error) {
+	return s.queries.GetStepRunDataForEngine(ctx, s.pool, dbsqlc.GetStepRunDataForEngineParams{
+		ID:       sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
 }
 
 func (s *stepRunEngineRepository) ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
