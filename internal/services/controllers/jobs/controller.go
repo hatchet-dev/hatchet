@@ -405,14 +405,20 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	inputBytes := stepRun.StepRun.Input
-	retryCount := int(stepRun.StepRun.RetryCount) + 1
+	data, err := ec.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run data: %w", err)
+	}
+
+	inputBytes := data.Input
+	retryCount := int(stepRun.SRRetryCount) + 1
 
 	// update step run
 	_, _, err = ec.repo.StepRun().UpdateStepRun(
 		ctx,
 		metadata.TenantId,
-		sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
+		sqlchelpers.UUIDToStr(stepRun.SRID),
 		&repository.UpdateStepRunOpts{
 			Input:      inputBytes,
 			Status:     repository.StepRunStatusPtr(db.StepRunStatusPending),
@@ -480,8 +486,14 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
+	data, err := ec.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run data: %w", err)
+	}
+
 	var inputBytes []byte
-	retryCount := int(stepRun.StepRun.RetryCount) + 1
+	retryCount := int(stepRun.SRRetryCount) + 1
 
 	// update the input schema for the step run based on the new input
 	if payload.InputData != "" {
@@ -491,7 +503,7 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 		// input data because the user could have deleted fields that are required by the step.
 		// A better solution would be to validate the user input ahead of time.
 		// NOTE: this is an expensive operation.
-		if currentInput := stepRun.StepRun.Input; len(currentInput) > 0 {
+		if currentInput := data.Input; len(currentInput) > 0 {
 			inputMap, err := datautils.JSONBytesToMap([]byte(payload.InputData))
 
 			if err != nil {
@@ -525,14 +537,14 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 		// if the input data has been manually set, we reset the retry count as this is a user-triggered retry
 		retryCount = 0
 	} else {
-		inputBytes = stepRun.StepRun.Input
+		inputBytes = data.Input
 	}
 
 	// update step run
 	_, err = ec.repo.StepRun().ReplayStepRun(
 		ctx,
 		metadata.TenantId,
-		sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
+		sqlchelpers.UUIDToStr(stepRun.SRID),
 		&repository.UpdateStepRunOpts{
 			Input:      inputBytes,
 			Status:     repository.StepRunStatusPtr(db.StepRunStatusPending),
@@ -645,10 +657,10 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 			defer span.End()
 
 			now := time.Now().UTC()
-			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
+			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
 
 			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-			scheduleTimeoutAt := stepRunCp.StepRun.ScheduleTimeoutAt.Time
+			scheduleTimeoutAt := stepRunCp.SRScheduleTimeoutAt.Time
 
 			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
 			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
@@ -730,11 +742,11 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign-step-run")
 			defer span.End()
 
-			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
+			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
 
 			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
 			now := time.Now().UTC().UTC()
-			scheduleTimeoutAt := stepRunCp.StepRun.ScheduleTimeoutAt.Time
+			scheduleTimeoutAt := stepRunCp.SRScheduleTimeoutAt.Time
 
 			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
 			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
@@ -745,7 +757,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 			}
 
 			eventData := map[string]interface{}{
-				"worker_id": sqlchelpers.UUIDToStr(stepRunCp.StepRun.WorkerId),
+				"worker_id": sqlchelpers.UUIDToStr(stepRunCp.SRWorkerId),
 			}
 
 			// TODO: batch this query to avoid n+1 issues
@@ -825,7 +837,7 @@ func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenan
 			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout-step-run")
 			defer span.End()
 
-			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.StepRun.ID)
+			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
 
 			return ec.failStepRun(ctx, tenantId, stepRunId, "TIMED_OUT", time.Now().UTC())
 		})
@@ -851,6 +863,12 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 		return ec.a.WrapErr(fmt.Errorf("could not get step run: %w", err), errData)
 	}
 
+	data, err := ec.repo.StepRun().GetStepRunDataForEngine(ctx, tenantId, stepRunId)
+
+	if err != nil {
+		return ec.a.WrapErr(fmt.Errorf("could not get step run data: %w", err), errData)
+	}
+
 	servertel.WithStepRunModel(span, stepRun)
 
 	requeueAfterTime := time.Now().Add(4 * time.Second).UTC()
@@ -860,7 +878,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	}
 
 	// set scheduling timeout
-	if scheduleTimeoutAt := stepRun.StepRun.ScheduleTimeoutAt.Time; scheduleTimeoutAt.IsZero() {
+	if scheduleTimeoutAt := stepRun.SRScheduleTimeoutAt.Time; scheduleTimeoutAt.IsZero() {
 		scheduleTimeoutAt = getScheduleTimeout(stepRun)
 
 		updateStepOpts.ScheduleTimeoutAt = &scheduleTimeoutAt
@@ -868,7 +886,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 	// If the step run input is not set, then we should set it. This will be set upstream if we've rerun
 	// the step run manually with new inputs. It will not be set when the step is automatically queued.
-	if in := stepRun.StepRun.Input; len(in) == 0 || string(in) == "{}" {
+	if in := data.Input; len(in) == 0 || string(in) == "{}" {
 		lookupDataBytes := stepRun.JobRunLookupData
 
 		if lookupDataBytes != nil {
@@ -928,11 +946,11 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	return ec.a.WrapErr(ec.scheduleStepRun(ctx, tenantId, stepRun), errData)
 }
 
-func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId string, stepRun *repository.GetStepRunForEngineRow) error {
+func (ec *JobsControllerImpl) scheduleStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.GetStepRunForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-run")
 	defer span.End()
 
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
 
 	selectedWorkerId, dispatcherId, err := ec.repo.StepRun().AssignStepRunToWorker(ctx, stepRun)
 
@@ -1066,7 +1084,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 
 	// queue the next step runs
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
 
 	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, jobRunId, &stepRunId)
 
@@ -1076,7 +1094,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 
 	for _, nextStepRun := range nextStepRuns {
 		nextStepId := sqlchelpers.UUIDToStr(nextStepRun.StepId)
-		nextStepRunId := sqlchelpers.UUIDToStr(nextStepRun.StepRun.ID)
+		nextStepRunId := sqlchelpers.UUIDToStr(nextStepRun.SRID)
 
 		err = ec.queueStepRun(ctx, metadata.TenantId, nextStepId, nextStepRunId)
 
@@ -1123,7 +1141,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	}
 
 	// determine if step run should be retried or not
-	shouldRetry := stepRun.StepRun.RetryCount < stepRun.StepRetries
+	shouldRetry := stepRun.SRRetryCount < stepRun.StepRetries
 
 	status := db.StepRunStatusFailed
 
@@ -1172,7 +1190,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 		attemptCancel = true
 	}
 
-	if !stepRun.StepRun.WorkerId.Valid {
+	if !stepRun.SRWorkerId.Valid {
 		// this is not a fatal error
 		ec.l.Warn().Msgf("step run %s has no worker id, skipping cancellation", stepRunId)
 		attemptCancel = false
@@ -1181,7 +1199,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	// Attempt to cancel the previous running step run
 	if attemptCancel {
 
-		workerId := sqlchelpers.UUIDToStr(stepRun.StepRun.WorkerId)
+		workerId := sqlchelpers.UUIDToStr(stepRun.SRWorkerId)
 
 		worker, err := ec.repo.Worker().GetWorkerForEngine(ctx, tenantId, workerId)
 
@@ -1286,14 +1304,14 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 
 	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
-	if !stepRun.StepRun.WorkerId.Valid {
+	if !stepRun.SRWorkerId.Valid {
 		// this is not a fatal error
 		ec.l.Debug().Msgf("step run %s has no worker id, skipping cancellation", stepRunId)
 
 		return nil
 	}
 
-	workerId := sqlchelpers.UUIDToStr(stepRun.StepRun.WorkerId)
+	workerId := sqlchelpers.UUIDToStr(stepRun.SRWorkerId)
 
 	worker, err := ec.repo.Worker().GetWorkerForEngine(ctx, tenantId, workerId)
 
@@ -1318,7 +1336,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	return nil
 }
 
-func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *repository.GetStepRunForEngineRow, updateInfo *repository.StepRunUpdateInfo) {
+func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *dbsqlc.GetStepRunForEngineRow, updateInfo *repository.StepRunUpdateInfo) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoveryutils.RecoverWithAlert(ec.l, ec.a, r) // nolint:errcheck
@@ -1330,7 +1348,7 @@ func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *repository.GetSte
 			context.Background(),
 			msgqueue.WORKFLOW_PROCESSING_QUEUE,
 			tasktypes.WorkflowRunFinishedToTask(
-				sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId),
+				sqlchelpers.UUIDToStr(stepRun.SRTenantId),
 				updateInfo.WorkflowRunId,
 				updateInfo.WorkflowRunStatus,
 			),
@@ -1381,7 +1399,7 @@ func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelled
 	}
 }
 
-func getScheduleTimeout(stepRun *repository.GetStepRunForEngineRow) time.Time {
+func getScheduleTimeout(stepRun *dbsqlc.GetStepRunForEngineRow) time.Time {
 	var timeoutDuration time.Duration
 
 	// get the schedule timeout from the step

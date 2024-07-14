@@ -4,18 +4,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 
 	"go.opentelemetry.io/otel/trace"
 )
 
-func WithStepRunModel(span trace.Span, stepRun *repository.GetStepRunForEngineRow) {
+func WithStepRunModel(span trace.Span, stepRun *dbsqlc.GetStepRunForEngineRow) {
 	telemetry.WithAttributes(
 		span,
-		TenantId(stepRun.StepRun.TenantId),
-		StepRunId(stepRun.StepRun.ID),
+		TenantId(stepRun.SRTenantId),
+		StepRunId(stepRun.SRID),
 		Step(stepRun.StepId),
 		JobRunId(stepRun.JobRunId),
 	)

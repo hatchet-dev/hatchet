@@ -3,8 +3,8 @@ package tasktypes
 import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
@@ -150,10 +150,10 @@ func TenantToStepRunRequeueTask(tenant db.TenantModel) *msgqueue.Message {
 	}
 }
 
-func StepRunRetryToTask(stepRun *repository.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
+func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 
 	payload, _ := datautils.ToJSONMap(StepRunRetryTaskPayload{
 		JobRunId:  jobRunId,
@@ -173,10 +173,10 @@ func StepRunRetryToTask(stepRun *repository.GetStepRunForEngineRow, inputData []
 	}
 }
 
-func StepRunReplayToTask(stepRun *repository.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
+func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 
 	payload, _ := datautils.ToJSONMap(StepRunReplayTaskPayload{
 		JobRunId:  jobRunId,
@@ -196,9 +196,9 @@ func StepRunReplayToTask(stepRun *repository.GetStepRunForEngineRow, inputData [
 	}
 }
 
-func StepRunCancelToTask(stepRun *repository.GetStepRunForEngineRow, reason string) *msgqueue.Message {
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
+func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string) *msgqueue.Message {
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 
 	payload, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskPayload{
 		StepRunId:       stepRunId,
@@ -217,10 +217,10 @@ func StepRunCancelToTask(stepRun *repository.GetStepRunForEngineRow, reason stri
 	}
 }
 
-func StepRunQueuedToTask(stepRun *repository.GetStepRunForEngineRow) *msgqueue.Message {
+func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(StepRunTaskPayload{
 		JobRunId:  sqlchelpers.UUIDToStr(stepRun.JobRunId),
-		StepRunId: sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
+		StepRunId: sqlchelpers.UUIDToStr(stepRun.SRID),
 	})
 
 	metadata, _ := datautils.ToJSONMap(StepRunTaskMetadata{
@@ -229,7 +229,7 @@ func StepRunQueuedToTask(stepRun *repository.GetStepRunForEngineRow) *msgqueue.M
 		JobName:           stepRun.JobName,
 		JobId:             sqlchelpers.UUIDToStr(stepRun.JobId),
 		WorkflowVersionId: sqlchelpers.UUIDToStr(stepRun.WorkflowVersionId),
-		TenantId:          sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId),
+		TenantId:          sqlchelpers.UUIDToStr(stepRun.SRTenantId),
 	})
 
 	return &msgqueue.Message{
