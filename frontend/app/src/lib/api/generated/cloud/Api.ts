@@ -15,6 +15,7 @@ import {
   APIErrors,
   Build,
   CreateManagedWorkerRequest,
+  FeatureFlags,
   InstanceList,
   ListGithubAppInstallationsResponse,
   ListGithubBranchesResponse,
@@ -545,6 +546,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Get all feature flags for the tenant
+   *
+   * @tags Feature Flags
+   * @name FeatureFlagsList
+   * @summary List Feature Flags
+   * @request GET:/api/v1/cloud/tenants/{tenant}/feature-flags
+   * @secure
+   */
+  featureFlagsList = (tenant: string, params: RequestParams = {}) =>
+    this.request<FeatureFlags, APIErrors>({
+      path: `/api/v1/cloud/tenants/${tenant}/feature-flags`,
+      method: "GET",
+      secure: true,
+      format: "json",
       ...params,
     });
 }

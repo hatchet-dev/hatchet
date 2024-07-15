@@ -27,7 +27,7 @@ const TimePickerInput = React.forwardRef<
   (
     {
       className,
-      type = 'tel',
+      type = 'datetime-local',
       value,
       id,
       name,

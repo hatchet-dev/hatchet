@@ -427,3 +427,9 @@ export interface InstanceList {
   pagination?: PaginationResponse;
   rows?: Instance[];
 }
+
+/**
+ * a map of feature flags for the tenant
+ * @example {"flag1":"value1","flag2":"value2"}
+ */
+export type FeatureFlags = Record<string, string>;

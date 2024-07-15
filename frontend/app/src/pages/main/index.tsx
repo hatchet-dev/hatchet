@@ -22,6 +22,7 @@ import { useSidebar } from '@/components/sidebar-provider';
 import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import useCloudApiMeta from '../auth/hooks/use-cloud-api-meta';
+import useCloudFeatureFlags from '../auth/hooks/use-cloud-feature-flags';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -61,6 +62,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
 
   const meta = useCloudApiMeta();
+  const featureFlags = useCloudFeatureFlags(currTenant.metadata.id);
 
   const onNavLinkClick = useCallback(() => {
     if (window.innerWidth > 768) {
@@ -83,7 +85,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
     />,
   ];
 
-  if (meta?.data.canLinkGithub) {
+  if (featureFlags?.data['managed-worker']) {
     workers.push(
       <SidebarButtonSecondary
         key={2}
@@ -180,19 +182,19 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     name="Github"
                   />,
                   <SidebarButtonSecondary
-                    key={2}
+                    key={4}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/webhooks"
                     name="Webhooks"
                   />,
                   <SidebarButtonSecondary
-                    key={4}
+                    key={5}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/members"
                     name="Members"
                   />,
                   <SidebarButtonSecondary
-                    key={5}
+                    key={6}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/billing-and-limits"
                     name={
@@ -202,13 +204,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     }
                   />,
                   <SidebarButtonSecondary
-                    key={6}
+                    key={7}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/alerting"
                     name="Alerting"
                   />,
                   <SidebarButtonSecondary
-                    key={7}
+                    key={8}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/ingestors"
                     name="Ingestors"

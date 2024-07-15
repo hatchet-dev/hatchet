@@ -45,7 +45,7 @@ function EventList({
   setBuildId: (id: string) => void;
 }) {
   const getLogsQuery = useQuery({
-    ...queries.cloud.listManagedWorkerEvents(managedWorker?.metadata.id || ''),
+    ...queries.cloud.listManagedWorkerEvents(managedWorker!.metadata.id || ''),
     enabled: !!managedWorker,
     refetchInterval: () => {
       return 5000;
@@ -94,9 +94,6 @@ function Build({ buildId, back }: { buildId: string; back: () => void }) {
           <ChevronLeftIcon className="w-4 h-4" />
           Back
         </Button>
-        {/* <h3 className="text-lg font-semibold leading-tight text-foreground">
-          Build
-        </h3> */}
       </div>
       <Separator />
       <ManagedWorkerBuild buildId={buildId} />
