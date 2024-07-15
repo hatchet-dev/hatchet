@@ -21,7 +21,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -470,7 +469,6 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		} else {
 			success = true
 		}
-		// TODO revert the step run
 	}
 
 	if success {
@@ -486,9 +484,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	)
 
 	// we were unable to send the step run to any worker, revert the step run to pending assignment
-	_, _, err = d.repo.StepRun().UpdateStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID), &repository.UpdateStepRunOpts{
-		Status: repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment),
-	})
+	err = d.repo.StepRun().UnassignStepRunFromWorker(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID))
 
 	if err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("💥 could not revert step run: %w", err))

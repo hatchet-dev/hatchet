@@ -179,6 +179,8 @@ type StepRunEngineRepository interface {
 
 	AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (workerId string, dispatcherId string, err error)
 
+	UnassignStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error
+
 	GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 
 	GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error)
