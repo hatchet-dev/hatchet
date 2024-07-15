@@ -401,7 +401,10 @@ RETURNING "StepRun"."id";
 SELECT "id"
 FROM "StepRun"
 WHERE
-    "status" = 'RUNNING'
+    (
+        "status" = 'RUNNING'
+        OR "status" = 'ASSIGNED'
+    )
     AND "timeoutAt" < NOW()
     AND "tenantId" = @tenantId::uuid
 LIMIT 100;
