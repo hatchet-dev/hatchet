@@ -126,9 +126,10 @@ export function ManagedWorkerMetrics({
           end={beforeInput || new Date()}
         />
       )}
-      {getCpuMetricsQuery.data?.map((d) => {
+      {getCpuMetricsQuery.data?.map((d, i) => {
         return (
           <MetricsChart
+            key={i}
             sample={d}
             yLabel="CPU Usage (%)"
             tooltipFormat={formatPercentTooltip}
@@ -139,9 +140,10 @@ export function ManagedWorkerMetrics({
         Memory
       </h4>
       <Separator />
-      {getMemoryMetricsQuery.data?.map((d) => {
+      {getMemoryMetricsQuery.data?.map((d, i) => {
         return (
           <MetricsChart
+            key={i}
             sample={d}
             normalizer={(d) => {
               return d / (1000 * 1000);
@@ -157,9 +159,10 @@ export function ManagedWorkerMetrics({
         Disk
       </h4>
       <Separator />
-      {getDiskMetricsQuery.data?.map((d) => {
+      {getDiskMetricsQuery.data?.map((d, i) => {
         return (
           <MetricsChart
+            key={i}
             sample={d}
             normalizer={(d) => {
               return d / (1000 * 1000);
@@ -175,7 +178,7 @@ export function ManagedWorkerMetrics({
   );
 }
 
-type metricsChartProps = {
+type MetricsChartProps = {
   sample: SampleStream;
   normalizer?: (value: number) => number;
   yLabel: string;
@@ -187,7 +190,7 @@ function MetricsChart({
   normalizer,
   yLabel,
   tooltipFormat,
-}: metricsChartProps) {
+}: MetricsChartProps) {
   const { parentRef, width, height } = useParentSize({ debounceTime: 150 });
 
   const values: MetricValue[] = useMemo(
@@ -198,7 +201,7 @@ function MetricsChart({
           value: normalizer ? normalizer(parseFloat(v[1])) : parseFloat(v[1]),
         };
       }) || [],
-    [sample],
+    [sample, normalizer],
   );
 
   return (

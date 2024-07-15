@@ -109,7 +109,9 @@ export default withTooltip<AreaChartProps, TooltipData>(
     tooltipTop = 0,
     tooltipLeft = 0,
   }: AreaChartProps & WithTooltipProvidedProps<TooltipData>) => {
-    if (width < 10) return null;
+    if (width < 10) {
+      return null;
+    }
 
     const innerWidth = width;
     const innerHeight = height;
@@ -120,7 +122,7 @@ export default withTooltip<AreaChartProps, TooltipData>(
           range: [0, width],
           domain: xDomain || (extent(data, getDate) as [Date, Date]),
         }),
-      [width, data],
+      [width, data, xDomain],
     );
 
     const yScale = useMemo(

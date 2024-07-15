@@ -22,7 +22,9 @@ export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
    * instead of resetting to 00:00
    */
   const handleSelect = (newDay: Date | undefined) => {
-    if (!newDay) return;
+    if (!newDay) {
+      return;
+    }
     if (!date) {
       setDate(newDay);
       return;

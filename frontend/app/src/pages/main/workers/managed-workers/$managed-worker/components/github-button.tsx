@@ -11,7 +11,6 @@ export default function GithubButton({
   commitSha?: string;
   prefix?: string;
 }) {
-  buildConfig.githubRepository.repo_owner;
   return (
     <div className="text-sm w-fit flex flex-row items-center gap-2 text-gray-700 dark:text-gray-300">
       {prefix}

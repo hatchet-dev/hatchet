@@ -34,9 +34,9 @@ export function ManagedWorkerLogs({
     refetchInterval: 15000,
   });
 
-  const logs = getLogsQuery.data?.rows || [];
-
   useEffect(() => {
+    const logs = getLogsQuery.data?.rows || [];
+
     if (!lastUpdatedAt && getLogsQuery.isSuccess) {
       setLastUpdatedAt(getLogsQuery.dataUpdatedAt);
       setMergedLogs(logs);
@@ -50,7 +50,12 @@ export function ManagedWorkerLogs({
         return mergeLogs(prevLogs, logs);
       });
     }
-  }, [lastUpdatedAt, getLogsQuery.isSuccess, logs]);
+  }, [
+    lastUpdatedAt,
+    getLogsQuery.isSuccess,
+    getLogsQuery.data,
+    getLogsQuery.dataUpdatedAt,
+  ]);
 
   const handleBottomReached = async () => {
     if (

@@ -14,7 +14,7 @@ type LogProps = {
   onBottomReached: () => void;
 };
 
-let options: Intl.DateTimeFormatOptions = {
+const options: Intl.DateTimeFormatOptions = {
   year: 'numeric',
   month: 'numeric',
   day: 'numeric',
@@ -36,19 +36,25 @@ const LoggingComponent: React.FC<LogProps> = ({
   const previousScrollHeightRef = useRef<number>(0);
 
   const handleScroll = () => {
-    if (!containerRef.current) return;
+    if (!containerRef.current) {
+      return;
+    }
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     previousScrollHeightRef.current = scrollHeight;
     const now = Date.now();
 
     if (scrollTop === 0 && now - lastTopCall >= 1000) {
-      logs.length > 0 && onTopReached();
+      if (logs.length > 0) {
+        onTopReached();
+      }
       setLastTopCall(now);
     } else if (
       scrollTop + clientHeight >= scrollHeight &&
       now - lastBottomCall >= 1000
     ) {
-      logs.length > 0 && onBottomReached();
+      if (logs.length > 0) {
+        onBottomReached();
+      }
       setLastBottomCall(now);
     }
   };
@@ -81,7 +87,9 @@ const LoggingComponent: React.FC<LogProps> = ({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const previousScrollHeight = previousScrollHeightRef.current;
     const currentScrollHeight = container.scrollHeight;
