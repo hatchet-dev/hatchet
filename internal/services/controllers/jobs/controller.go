@@ -887,7 +887,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	// If the step run input is not set, then we should set it. This will be set upstream if we've rerun
 	// the step run manually with new inputs. It will not be set when the step is automatically queued.
 	if in := data.Input; len(in) == 0 || string(in) == "{}" {
-		lookupDataBytes := stepRun.JobRunLookupData
+		lookupDataBytes := data.JobRunLookupData
 
 		if lookupDataBytes != nil {
 			lookupData := &datautils.JobRunLookupData{}
