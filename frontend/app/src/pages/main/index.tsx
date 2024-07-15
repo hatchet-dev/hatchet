@@ -115,9 +115,25 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               />
               <SidebarButtonPrimary
                 onNavLinkClick={onNavLinkClick}
-                to="/workers"
+                to="/workers/all"
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
+                prefix="/workers"
+                collapsibleChildren={[
+                  <SidebarButtonSecondary
+                    key={1}
+                    onNavLinkClick={onNavLinkClick}
+                    to="/workers/all"
+                    name="All Workers"
+                  />,
+                  <SidebarButtonSecondary
+                    key={2}
+                    onNavLinkClick={onNavLinkClick}
+                    to="/workers/managed-workers"
+                    prefix="/workers/managed-workers"
+                    name="Managed Worker Pools"
+                  />,
+                ]}
               />
             </div>
           </div>
@@ -144,6 +160,12 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/api-tokens"
                     name="API Tokens"
+                  />,
+                  <SidebarButtonSecondary
+                    key={2}
+                    onNavLinkClick={onNavLinkClick}
+                    to="/tenant-settings/github"
+                    name="Github"
                   />,
                   <SidebarButtonSecondary
                     key={2}
@@ -244,13 +266,16 @@ function SidebarButtonSecondary({
   onNavLinkClick,
   to,
   name,
+  prefix,
 }: {
   onNavLinkClick: () => void;
   to: string;
   name: string;
+  prefix?: string;
 }) {
   const location = useLocation();
-  const selected = location.pathname === to;
+  const hasPrefix = prefix && location.pathname.startsWith(prefix);
+  const selected = hasPrefix || location.pathname === to;
 
   return (
     <Link to={to} onClick={onNavLinkClick}>
