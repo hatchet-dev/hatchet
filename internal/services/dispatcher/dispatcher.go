@@ -449,13 +449,19 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
+	data, err := d.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run data: %w", err)
+	}
+
 	servertel.WithStepRunModel(span, stepRun)
 
 	var multiErr error
 	var success bool
 
 	for _, w := range workers {
-		err = w.StartStepRun(ctx, metadata.TenantId, stepRun)
+		err = w.StartStepRun(ctx, metadata.TenantId, stepRun, data)
 
 		if err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker: %w", err))

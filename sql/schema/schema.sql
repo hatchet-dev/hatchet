@@ -874,13 +874,13 @@ CREATE INDEX "StepRun_jobRunId_status_tenantId_idx" ON "StepRun"("jobRunId" ASC,
 CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, "tenantId" ASC, "order" ASC);
 
 -- CreateIndex
-CREATE INDEX "StepRun_status_timeoutAt_tickerId_idx" ON "StepRun"("status" ASC, "timeoutAt" ASC, "tickerId" ASC);
-
--- CreateIndex
 CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_tenantId_idx" ON "StepRun"("tenantId" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_tenantId_status_timeoutAt_idx" ON "StepRun"("tenantId" ASC, "status" ASC, "timeoutAt" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_workerId_idx" ON "StepRun"("workerId" ASC);

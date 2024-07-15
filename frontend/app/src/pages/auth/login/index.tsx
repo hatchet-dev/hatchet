@@ -20,7 +20,7 @@ export default function Login() {
     return <Loading />;
   }
 
-  const schemes = meta.data?.data?.auth?.schemes || [];
+  const schemes = meta.data?.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
@@ -47,7 +47,7 @@ export default function Login() {
   return (
     <div className="flex flex-row flex-1 w-full h-full">
       <div className="container relative hidden flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
-        {meta?.data?.data.allowSignup && (
+        {meta.data?.allowSignup && (
           <Link
             to="/auth/register"
             className={cn(

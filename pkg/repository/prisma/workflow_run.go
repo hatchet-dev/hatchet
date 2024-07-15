@@ -243,6 +243,10 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 	return id, nil
 }
 
+func (w *workflowRunEngineRepository) ListActiveQueuedWorkflowVersions(ctx context.Context) ([]*dbsqlc.ListActiveQueuedWorkflowVersionsRow, error) {
+	return w.queries.ListActiveQueuedWorkflowVersions(ctx, w.pool)
+}
+
 func (w *workflowRunEngineRepository) DeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (int, int, error) {
 	paramStatuses := make([]string, 0)
 

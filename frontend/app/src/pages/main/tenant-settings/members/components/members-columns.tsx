@@ -83,16 +83,7 @@ function MemberActions({
 
   const { handleApiError } = useApiError({});
 
-  const actions = [];
-
   const isCurrent = row.original.user.email !== user.email;
-
-  if (user.hasPassword && !isCurrent && meta.data?.data.allowChangePassword) {
-    actions.push({
-      label: 'Change Password',
-      onClick: () => onChangePasswordClick(row.original),
-    });
-  }
 
   const deleteUserMutation = useMutation({
     mutationKey: ['tenant-member:delete'],
@@ -111,6 +102,15 @@ function MemberActions({
     },
     onError: handleApiError,
   });
+
+  const actions = [];
+
+  if (user.hasPassword && !isCurrent && meta.data?.allowChangePassword) {
+    actions.push({
+      label: 'Change Password',
+      onClick: () => onChangePasswordClick(row.original),
+    });
+  }
 
   if (isCurrent) {
     actions.push({

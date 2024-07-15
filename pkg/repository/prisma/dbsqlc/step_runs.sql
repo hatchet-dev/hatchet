@@ -8,14 +8,48 @@ WHERE
     "deletedAt" IS NULL AND
     "tenantId" = @tenantId::uuid;
 
+-- name: GetStepRunDataForEngine :one
+SELECT
+    sr."input",
+    sr."output",
+    sr."error",
+    jrld."data" AS "jobRunLookupData"
+FROM
+    "StepRun" sr
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
+WHERE
+    sr."id" = @id::uuid AND
+    sr."tenantId" = @tenantId::uuid;
+
 -- name: GetStepRunForEngine :many
 SELECT
     DISTINCT ON (sr."id")
-    sqlc.embed(sr),
-    jrld."data" AS "jobRunLookupData",
+    sr."id" AS "SR_id",
+    sr."createdAt" AS "SR_createdAt",
+    sr."updatedAt" AS "SR_updatedAt",
+    sr."deletedAt" AS "SR_deletedAt",
+    sr."tenantId" AS "SR_tenantId",
+    sr."order" AS "SR_order",
+    sr."workerId" AS "SR_workerId",
+    sr."tickerId" AS "SR_tickerId",
+    sr."status" AS "SR_status",
+    sr."requeueAfter" AS "SR_requeueAfter",
+    sr."scheduleTimeoutAt" AS "SR_scheduleTimeoutAt",
+    sr."startedAt" AS "SR_startedAt",
+    sr."finishedAt" AS "SR_finishedAt",
+    sr."timeoutAt" AS "SR_timeoutAt",
+    sr."cancelledAt" AS "SR_cancelledAt",
+    sr."cancelledReason" AS "SR_cancelledReason",
+    sr."cancelledError" AS "SR_cancelledError",
+    sr."callerFiles" AS "SR_callerFiles",
+    sr."gitRepoBranch" AS "SR_gitRepoBranch",
+    sr."retryCount" AS "SR_retryCount",
+    sr."semaphoreReleased" AS "SR_semaphoreReleased",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
-    wr."id" AS "workflowRunId",
     s."id" AS "stepId",
     s."retries" AS "stepRetries",
     s."timeout" AS "stepTimeout",
@@ -25,9 +59,8 @@ SELECT
     j."name" AS "jobName",
     j."id" AS "jobId",
     j."kind" AS "jobKind",
-    wv."id" AS "workflowVersionId",
-    w."name" AS "workflowName",
-    w."id" AS "workflowId",
+    j."workflowVersionId" AS "workflowVersionId",
+    jr."workflowRunId" AS "workflowRunId",
     a."actionId" AS "actionId"
 FROM
     "StepRun" sr
@@ -38,15 +71,7 @@ JOIN
 JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
-    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
-JOIN
     "Job" j ON jr."jobId" = j."id"
-JOIN
-    "WorkflowRun" wr ON jr."workflowRunId" = wr."id"
-JOIN
-    "WorkflowVersion" wv ON wr."workflowVersionId" = wv."id"
-JOIN
-    "Workflow" w ON wv."workflowId" = w."id"
 WHERE
     sr."id" = ANY(@ids::uuid[]) AND
     sr."deletedAt" IS NULL AND
@@ -356,13 +381,19 @@ WITH inactive_workers AS (
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
 ),
-inactive_semaphore_steps AS (
+step_runs_to_reassign AS (
+    SELECT "stepRunId"
+    FROM "WorkerSemaphoreSlot"
+    WHERE
+        "workerId" = ANY(SELECT "id" FROM inactive_workers)
+        AND "stepRunId" IS NOT NULL
+    FOR UPDATE SKIP LOCKED
+),
+update_semaphore_steps AS (
     UPDATE "WorkerSemaphoreSlot" wss
     SET "stepRunId" = NULL
-    WHERE
-        wss."workerId" = ANY(SELECT "id" FROM inactive_workers)
-        AND wss."stepRunId" IS NOT NULL
-    RETURNING wss."stepRunId"
+    FROM step_runs_to_reassign
+    WHERE wss."stepRunId" = step_runs_to_reassign."stepRunId"
 )
 UPDATE
     "StepRun"
@@ -374,11 +405,20 @@ SET
     -- unset the schedule timeout
     "scheduleTimeoutAt" = NULL
 FROM
-    inactive_semaphore_steps
+    step_runs_to_reassign
 WHERE
-    "StepRun"."id" = inactive_semaphore_steps."stepRunId"
+    "StepRun"."id" = step_runs_to_reassign."stepRunId"
     AND "StepRun"."deletedAt" IS NULL
 RETURNING "StepRun"."id";
+
+-- name: ListStepRunsToTimeout :many
+SELECT "id"
+FROM "StepRun"
+WHERE
+    "status" = ANY(ARRAY['RUNNING', 'ASSIGNED']::"StepRunStatus"[])
+    AND "timeoutAt" < NOW()
+    AND "tenantId" = @tenantId::uuid
+LIMIT 100;
 
 -- name: ListStepRunsToRequeue :many
 WITH step_runs AS (

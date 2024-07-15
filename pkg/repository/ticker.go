@@ -51,6 +51,9 @@ type TickerEngineRepository interface {
 	PollExpiringTokens(ctx context.Context) ([]*dbsqlc.PollExpiringTokensRow, error)
 
 	PollTenantResourceLimitAlerts(ctx context.Context) ([]*dbsqlc.TenantResourceLimitAlert, error)
+
+	PollUnresolvedFailedStepRuns(ctx context.Context) ([]*dbsqlc.PollUnresolvedFailedStepRunsRow, error)
+
 	// // AddJobRun assigns a job run to a ticker.
 	// AddJobRun(tickerId string, jobRun *db.JobRunModel) (*db.TickerModel, error)
 
