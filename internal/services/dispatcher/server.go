@@ -39,14 +39,15 @@ func (worker *subscribedWorker) StartStepRun(
 	ctx context.Context,
 	tenantId string,
 	stepRun *dbsqlc.GetStepRunForEngineRow,
+	stepRunData *dbsqlc.GetStepRunDataForEngineRow,
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "start-step-run") // nolint:ineffassign
 	defer span.End()
 
 	inputBytes := []byte{}
 
-	if stepRun.StepRun.Input != nil {
-		inputBytes = stepRun.StepRun.Input
+	if stepRunData.Input != nil {
+		inputBytes = stepRunData.Input
 	}
 
 	stepName := stepRun.StepReadableId.String
@@ -57,13 +58,13 @@ func (worker *subscribedWorker) StartStepRun(
 		JobName:       stepRun.JobName,
 		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
 		StepId:        sqlchelpers.UUIDToStr(stepRun.StepId),
-		StepRunId:     sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
+		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
 		ActionType:    contracts.ActionType_START_STEP_RUN,
 		ActionId:      stepRun.ActionId,
 		ActionPayload: string(inputBytes),
 		StepName:      stepName,
 		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
-		RetryCount:    stepRun.StepRun.RetryCount,
+		RetryCount:    stepRun.SRRetryCount,
 	})
 }
 
@@ -103,11 +104,11 @@ func (worker *subscribedWorker) CancelStepRun(
 		JobName:       stepRun.JobName,
 		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
 		StepId:        sqlchelpers.UUIDToStr(stepRun.StepId),
-		StepRunId:     sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
+		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
 		ActionType:    contracts.ActionType_CANCEL_STEP_RUN,
 		StepName:      stepRun.StepReadableId.String,
 		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
-		RetryCount:    stepRun.StepRun.RetryCount,
+		RetryCount:    stepRun.SRRetryCount,
 	})
 }
 
@@ -296,7 +297,13 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 	_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, true, sessionEstablished)
 
 	if err != nil {
-		s.l.Error().Err(err).Msgf("could not update worker %s active status", request.WorkerId)
+		lastSessionEstablished := "NULL"
+
+		if worker.LastListenerEstablished.Valid {
+			lastSessionEstablished = worker.LastListenerEstablished.Time.String()
+		}
+
+		s.l.Error().Err(err).Msgf("could not update worker %s active status to true (session established %s, last session established %s)", request.WorkerId, sessionEstablished.String(), lastSessionEstablished)
 		return err
 	}
 
@@ -323,7 +330,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 			_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
 
 			if err != nil {
-				s.l.Error().Err(err).Msgf("could not update worker %s active status", request.WorkerId)
+				s.l.Error().Err(err).Msgf("could not update worker %s active status to false due to worker stream closing (session established %s)", request.WorkerId, sessionEstablished.String())
 				return err
 			}
 
@@ -337,7 +344,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 			_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
 
 			if err != nil {
-				s.l.Error().Err(err).Msgf("could not update worker %s active status", request.WorkerId)
+				s.l.Error().Err(err).Msgf("could not update worker %s active status due to worker disconnecting (session established %s)", request.WorkerId, sessionEstablished.String())
 				return err
 			}
 
@@ -626,6 +633,11 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 
 				s.l.Error().Err(err).Msg("could not receive message from client")
 				return
+			}
+
+			if _, parseErr := uuid.Parse(req.WorkflowRunId); parseErr != nil {
+				s.l.Warn().Err(parseErr).Msg("invalid workflow run id")
+				continue
 			}
 
 			acks.addWorkflowRun(req.WorkflowRunId)
@@ -1104,7 +1116,7 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 		}
 
 		workflowEvent.StepRetries = &stepRun.StepRetries
-		workflowEvent.RetryCount = &stepRun.StepRun.RetryCount
+		workflowEvent.RetryCount = &stepRun.SRRetryCount
 
 		if workflowEvent.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
 			streamEventId, err := strconv.ParseInt(task.Metadata["stream_event_id"].(string), 10, 64)
@@ -1192,23 +1204,30 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 	res := make(map[string][]*contracts.StepRunResult)
 
 	for _, stepRun := range stepRuns {
+
+		data, err := s.repo.StepRun().GetStepRunDataForEngine(context.Background(), tenantId, sqlchelpers.UUIDToStr(stepRun.SRID))
+
+		if err != nil {
+			return nil, fmt.Errorf("could not get step run data for %s, %e", sqlchelpers.UUIDToStr(stepRun.SRID), err)
+		}
+
 		resStepRun := &contracts.StepRunResult{
-			StepRunId:      sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
+			StepRunId:      sqlchelpers.UUIDToStr(stepRun.SRID),
 			StepReadableId: stepRun.StepReadableId.String,
 			JobRunId:       sqlchelpers.UUIDToStr(stepRun.JobRunId),
 		}
 
-		if stepRun.StepRun.Error.Valid {
-			resStepRun.Error = &stepRun.StepRun.Error.String
+		if data.Error.Valid {
+			resStepRun.Error = &data.Error.String
 		}
 
-		if stepRun.StepRun.CancelledReason.Valid {
-			errString := fmt.Sprintf("this step run was cancelled due to %s", stepRun.StepRun.CancelledReason.String)
+		if stepRun.SRCancelledReason.Valid {
+			errString := fmt.Sprintf("this step run was cancelled due to %s", stepRun.SRCancelledReason.String)
 			resStepRun.Error = &errString
 		}
 
-		if stepRun.StepRun.Output != nil {
-			resStepRun.Output = repository.StringPtr(string(stepRun.StepRun.Output))
+		if data.Output != nil {
+			resStepRun.Output = repository.StringPtr(string(data.Output))
 		}
 
 		workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)

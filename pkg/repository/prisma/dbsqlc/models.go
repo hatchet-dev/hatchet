@@ -876,6 +876,7 @@ type Tenant struct {
 	AlertMemberEmails     bool             `json:"alertMemberEmails"`
 	ControllerPartitionId pgtype.Text      `json:"controllerPartitionId"`
 	WorkerPartitionId     pgtype.Text      `json:"workerPartitionId"`
+	DataRetentionPeriod   string           `json:"dataRetentionPeriod"`
 }
 
 type TenantAlertEmailGroup struct {

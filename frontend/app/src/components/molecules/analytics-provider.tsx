@@ -17,7 +17,7 @@ const AnalyticsProvider: React.FC<
   const [tenant] = useTenantContext();
 
   const config = useMemo(() => {
-    return meta.data?.data?.posthog;
+    return meta.data?.posthog;
   }, [meta]);
 
   useEffect(() => {

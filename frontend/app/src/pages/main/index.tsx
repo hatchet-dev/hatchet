@@ -89,12 +89,14 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
+                key={1}
                 onNavLinkClick={onNavLinkClick}
                 to="/events"
                 name="Events"
                 icon={<QueueListIcon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
+                key={2}
                 onNavLinkClick={onNavLinkClick}
                 to="/workflow-runs"
                 name="Workflow Runs"
@@ -108,12 +110,14 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
+                key={1}
                 onNavLinkClick={onNavLinkClick}
                 to="/workflows"
                 name="Workflows"
                 icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
+                key={2}
                 onNavLinkClick={onNavLinkClick}
                 to="/workers/all"
                 name="Workers"
@@ -143,6 +147,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
+                key={1}
                 onNavLinkClick={onNavLinkClick}
                 to="/tenant-settings/overview"
                 prefix="/tenant-settings"
@@ -162,7 +167,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     name="API Tokens"
                   />,
                   <SidebarButtonSecondary
-                    key={2}
+                    key={3}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/github"
                     name="Github"
@@ -174,13 +179,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     name="Webhooks"
                   />,
                   <SidebarButtonSecondary
-                    key={3}
+                    key={4}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/members"
                     name="Members"
                   />,
                   <SidebarButtonSecondary
-                    key={4}
+                    key={5}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/billing-and-limits"
                     name={
@@ -190,13 +195,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     }
                   />,
                   <SidebarButtonSecondary
-                    key={4}
+                    key={6}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/alerting"
                     name="Alerting"
                   />,
                   <SidebarButtonSecondary
-                    key={4}
+                    key={7}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/ingestors"
                     name="Ingestors"

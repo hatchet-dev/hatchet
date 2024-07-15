@@ -1,7 +1,7 @@
 -- name: CountWorkflowRuns :one
-SELECT
-    count(runs) OVER() AS total
-FROM
+WITH runs AS (
+    SELECT runs."id", runs."createdAt"
+    FROM
     "WorkflowRun" as runs
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
@@ -56,7 +56,17 @@ WHERE
     (
         sqlc.narg('finishedAfter')::timestamp IS NULL OR
         runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
-    );
+    )
+    ORDER BY
+        case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+        case when @orderBy = 'createdAt DESC' then runs."createdAt" END DESC,
+        runs."id" ASC
+    LIMIT 10000
+)
+SELECT
+    count(runs) AS total
+FROM
+    runs;
 
 -- name: WorkflowRunsMetricsCount :one
 SELECT
@@ -599,3 +609,51 @@ WHERE
         (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
         (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
     );
+
+-- name: DeleteExpiredWorkflowRuns :one
+WITH expired_runs_count AS (
+    SELECT COUNT(*) as count
+    FROM "WorkflowRun" wr1
+    WHERE
+        wr1."tenantId" = @tenantId::uuid AND
+        wr1."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[])) AND
+        wr1."createdAt" < @createdBefore::timestamp
+), expired_runs_with_limit AS (
+    SELECT
+        "id"
+    FROM "WorkflowRun" wr2
+    WHERE
+        wr2."tenantId" = @tenantId::uuid AND
+        wr2."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[])) AND
+        wr2."createdAt" < @createdBefore::timestamp
+    ORDER BY "createdAt" ASC
+    LIMIT sqlc.arg('limit')
+)
+DELETE FROM "WorkflowRun"
+WHERE
+    "id" IN (SELECT "id" FROM expired_runs_with_limit)
+RETURNING (SELECT count FROM expired_runs_count) as total, (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining, (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted;
+
+-- name: ListActiveQueuedWorkflowVersions :many
+WITH QueuedRuns AS (
+    SELECT DISTINCT ON (wr."workflowVersionId")
+        wr."workflowVersionId",
+        w."tenantId",
+        wr."status",
+        wr."id",
+        wr."concurrencyGroupId"
+    FROM "WorkflowRun" wr
+    JOIN "WorkflowVersion" wv ON wv."id" = wr."workflowVersionId"
+    JOIN "Workflow" w ON w."id" = wv."workflowId"
+    WHERE wr."status" = 'QUEUED'
+		AND wr."concurrencyGroupId" IS NOT NULL
+    ORDER BY wr."workflowVersionId"
+)
+SELECT
+    q."workflowVersionId",
+    q."tenantId",
+    q."status",
+    q."id",
+    q."concurrencyGroupId"
+FROM QueuedRuns q
+GROUP BY q."workflowVersionId", q."tenantId", q."concurrencyGroupId", q."status", q."id";

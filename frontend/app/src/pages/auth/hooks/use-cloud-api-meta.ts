@@ -18,6 +18,7 @@ export default function useCloudApiMeta() {
         return null;
       }
     },
+    staleTime: 1000 * 60,
   });
 
   if (cloudMetaQuery.isError) {

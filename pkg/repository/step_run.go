@@ -7,6 +7,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type ListStepRunsOpts struct {
@@ -93,6 +95,7 @@ func StepRunEventSeverityPtr(severity dbsqlc.StepRunEventSeverity) *dbsqlc.StepR
 var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
 var ErrNoWorkerAvailable = fmt.Errorf("no worker available")
 var ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded")
+var ErrStepRunIsNotAssigned = fmt.Errorf("step run is not assigned")
 
 type StepRunUpdateInfo struct {
 	JobRunFinalState      bool
@@ -153,6 +156,8 @@ type StepRunEngineRepository interface {
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
 	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
+	ListStepRunsToTimeout(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+
 	UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *StepRunUpdateInfo, error)
 
 	ReplayStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
@@ -176,6 +181,8 @@ type StepRunEngineRepository interface {
 
 	GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 
+	GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error)
+
 	// QueueStepRun is like UpdateStepRun, except that it will only update the step run if it is in
 	// a pending state.
 	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
@@ -185,4 +192,6 @@ type StepRunEngineRepository interface {
 	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error
 
 	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
+
+	ResolveRelatedStatuses(ctx context.Context, tenantId pgtype.UUID, stepRunId pgtype.UUID) (*StepRunUpdateInfo, error)
 }

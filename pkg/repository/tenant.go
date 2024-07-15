@@ -16,6 +16,9 @@ type CreateTenantOpts struct {
 
 	// (optional) the tenant ID
 	ID *string `validate:"omitempty,uuid"`
+
+	// (optional) the tenant data retention period
+	DataRetentionPeriod *string `validate:"omitempty,duration"`
 }
 
 type UpdateTenantOpts struct {

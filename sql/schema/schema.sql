@@ -362,6 +362,7 @@ CREATE TABLE "Tenant" (
     "alertMemberEmails" BOOLEAN NOT NULL DEFAULT true,
     "controllerPartitionId" TEXT,
     "workerPartitionId" TEXT,
+    "dataRetentionPeriod" TEXT NOT NULL DEFAULT '720h',
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
@@ -846,6 +847,9 @@ CREATE UNIQUE INDEX "Step_jobId_readableId_key" ON "Step"("jobId" ASC, "readable
 CREATE UNIQUE INDEX "StepRateLimit_stepId_rateLimitKey_key" ON "StepRateLimit"("stepId" ASC, "rateLimitKey" ASC);
 
 -- CreateIndex
+CREATE INDEX "StepRun_createdAt_idx" ON "StepRun"("createdAt" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun"("id" ASC);
 
 -- CreateIndex
@@ -855,13 +859,22 @@ CREATE INDEX "StepRun_id_tenantId_idx" ON "StepRun"("id" ASC, "tenantId" ASC);
 CREATE INDEX "StepRun_jobRunId_status_idx" ON "StepRun"("jobRunId" ASC, "status" ASC);
 
 -- CreateIndex
+CREATE INDEX "StepRun_jobRunId_status_tenantId_idx" ON "StepRun"("jobRunId" ASC, "status" ASC, "tenantId" ASC);
+
+-- CreateIndex
 CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, "tenantId" ASC, "order" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 
 -- CreateIndex
-CREATE INDEX "StepRun_tenantId_status_requeueAfter_createdAt_idx" ON "StepRun"("tenantId" ASC, "status" ASC, "requeueAfter" ASC, "createdAt" ASC);
+CREATE INDEX "StepRun_tenantId_idx" ON "StepRun"("tenantId" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_tenantId_status_timeoutAt_idx" ON "StepRun"("tenantId" ASC, "status" ASC, "timeoutAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_workerId_idx" ON "StepRun"("workerId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRunEvent_id_key" ON "StepRunEvent"("id" ASC);

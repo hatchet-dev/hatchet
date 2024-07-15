@@ -12,9 +12,9 @@ import (
 )
 
 const countWorkflowRuns = `-- name: CountWorkflowRuns :one
-SELECT
-    count(runs) OVER() AS total
-FROM
+WITH runs AS (
+    SELECT runs."id", runs."createdAt"
+    FROM
     "WorkflowRun" as runs
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
@@ -70,6 +70,16 @@ WHERE
         $12::timestamp IS NULL OR
         runs."finishedAt" > $12::timestamp
     )
+    ORDER BY
+        case when $13 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+        case when $13 = 'createdAt DESC' then runs."createdAt" END DESC,
+        runs."id" ASC
+    LIMIT 10000
+)
+SELECT
+    count(runs) AS total
+FROM
+    runs
 `
 
 type CountWorkflowRunsParams struct {
@@ -85,6 +95,7 @@ type CountWorkflowRunsParams struct {
 	Statuses           []string         `json:"statuses"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
+	Orderby            interface{}      `json:"orderby"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -101,6 +112,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.Statuses,
 		arg.CreatedAfter,
 		arg.FinishedAfter,
+		arg.Orderby,
 	)
 	var total int64
 	err := row.Scan(&total)
@@ -490,6 +502,56 @@ func (q *Queries) CreateWorkflowRunTriggeredBy(ctx context.Context, db DBTX, arg
 	return &i, err
 }
 
+const deleteExpiredWorkflowRuns = `-- name: DeleteExpiredWorkflowRuns :one
+WITH expired_runs_count AS (
+    SELECT COUNT(*) as count
+    FROM "WorkflowRun" wr1
+    WHERE
+        wr1."tenantId" = $1::uuid AND
+        wr1."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
+        wr1."createdAt" < $3::timestamp
+), expired_runs_with_limit AS (
+    SELECT
+        "id"
+    FROM "WorkflowRun" wr2
+    WHERE
+        wr2."tenantId" = $1::uuid AND
+        wr2."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
+        wr2."createdAt" < $3::timestamp
+    ORDER BY "createdAt" ASC
+    LIMIT $4
+)
+DELETE FROM "WorkflowRun"
+WHERE
+    "id" IN (SELECT "id" FROM expired_runs_with_limit)
+RETURNING (SELECT count FROM expired_runs_count) as total, (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining, (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted
+`
+
+type DeleteExpiredWorkflowRunsParams struct {
+	Tenantid      pgtype.UUID      `json:"tenantid"`
+	Statuses      []string         `json:"statuses"`
+	Createdbefore pgtype.Timestamp `json:"createdbefore"`
+	Limit         int32            `json:"limit"`
+}
+
+type DeleteExpiredWorkflowRunsRow struct {
+	Total     int64 `json:"total"`
+	Remaining int32 `json:"remaining"`
+	Deleted   int64 `json:"deleted"`
+}
+
+func (q *Queries) DeleteExpiredWorkflowRuns(ctx context.Context, db DBTX, arg DeleteExpiredWorkflowRunsParams) (*DeleteExpiredWorkflowRunsRow, error) {
+	row := db.QueryRow(ctx, deleteExpiredWorkflowRuns,
+		arg.Tenantid,
+		arg.Statuses,
+		arg.Createdbefore,
+		arg.Limit,
+	)
+	var i DeleteExpiredWorkflowRunsRow
+	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
+	return &i, err
+}
+
 const getChildWorkflowRun = `-- name: GetChildWorkflowRun :one
 SELECT
     "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata"
@@ -707,6 +769,65 @@ JOIN
 func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, jobrunid pgtype.UUID) error {
 	_, err := db.Exec(ctx, linkStepRunParents, jobrunid)
 	return err
+}
+
+const listActiveQueuedWorkflowVersions = `-- name: ListActiveQueuedWorkflowVersions :many
+WITH QueuedRuns AS (
+    SELECT DISTINCT ON (wr."workflowVersionId")
+        wr."workflowVersionId",
+        w."tenantId",
+        wr."status",
+        wr."id",
+        wr."concurrencyGroupId"
+    FROM "WorkflowRun" wr
+    JOIN "WorkflowVersion" wv ON wv."id" = wr."workflowVersionId"
+    JOIN "Workflow" w ON w."id" = wv."workflowId"
+    WHERE wr."status" = 'QUEUED'
+		AND wr."concurrencyGroupId" IS NOT NULL
+    ORDER BY wr."workflowVersionId"
+)
+SELECT
+    q."workflowVersionId",
+    q."tenantId",
+    q."status",
+    q."id",
+    q."concurrencyGroupId"
+FROM QueuedRuns q
+GROUP BY q."workflowVersionId", q."tenantId", q."concurrencyGroupId", q."status", q."id"
+`
+
+type ListActiveQueuedWorkflowVersionsRow struct {
+	WorkflowVersionId  pgtype.UUID       `json:"workflowVersionId"`
+	TenantId           pgtype.UUID       `json:"tenantId"`
+	Status             WorkflowRunStatus `json:"status"`
+	ID                 pgtype.UUID       `json:"id"`
+	ConcurrencyGroupId pgtype.Text       `json:"concurrencyGroupId"`
+}
+
+func (q *Queries) ListActiveQueuedWorkflowVersions(ctx context.Context, db DBTX) ([]*ListActiveQueuedWorkflowVersionsRow, error) {
+	rows, err := db.Query(ctx, listActiveQueuedWorkflowVersions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListActiveQueuedWorkflowVersionsRow
+	for rows.Next() {
+		var i ListActiveQueuedWorkflowVersionsRow
+		if err := rows.Scan(
+			&i.WorkflowVersionId,
+			&i.TenantId,
+			&i.Status,
+			&i.ID,
+			&i.ConcurrencyGroupId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listWorkflowRuns = `-- name: ListWorkflowRuns :many

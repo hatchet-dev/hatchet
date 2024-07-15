@@ -437,11 +437,22 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
+	if len(workers) == 0 {
+		d.l.Warn().Msgf("worker %s not found, ignoring task for step run %s", payload.WorkerId, payload.StepRunId)
+		return nil
+	}
+
 	// load the step run from the database
 	stepRun, err := d.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
+	}
+
+	data, err := d.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run data: %w", err)
 	}
 
 	servertel.WithStepRunModel(span, stepRun)
@@ -450,7 +461,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	var success bool
 
 	for _, w := range workers {
-		err = w.StartStepRun(ctx, metadata.TenantId, stepRun)
+		err = w.StartStepRun(ctx, metadata.TenantId, stepRun, data)
 
 		if err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker: %w", err))

@@ -104,7 +104,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
-	p, err := newPartitioner(sc.EngineRepository.Tenant())
+	p, err := newPartitioner(sc.EngineRepository.Tenant(), l)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)

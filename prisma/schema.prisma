@@ -171,6 +171,9 @@ model Tenant {
   workerPartition   TenantWorkerPartition? @relation(fields: [workerPartitionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   workerPartitionId String?
 
+  // The data retention period for deletable resources. This is a Go duration string.
+  dataRetentionPeriod String @default("720h")
+
   events              Event[]
   workflows           Workflow[]
   jobs                Job[]
@@ -1156,8 +1159,9 @@ model StepRun {
 
   events StepRunEvent[]
 
-  // index for ListStepRunsToRequeue and ListStepRunsToReassign
-  @@index([tenantId, status, requeueAfter, createdAt])
+  @@index([tenantId])
+  @@index([workerId])
+  @@index([createdAt])
   // index for LinkStepRunParents
   @@index([stepId])
   // index for ListStartableStepRuns
@@ -1166,6 +1170,10 @@ model StepRun {
   @@index([id, tenantId])
   // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
   @@index([jobRunId, tenantId, order])
+  // index for ListStepRunsToRequeue, ListStepRunsToReassign
+  @@index([jobRunId, status, tenantId])
+  // index for PollStepRuns
+  @@index([tenantId, status, timeoutAt])
 }
 
 enum StepRunEventReason {

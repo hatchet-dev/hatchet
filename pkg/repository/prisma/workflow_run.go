@@ -242,6 +242,35 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 	return id, nil
 }
 
+func (w *workflowRunEngineRepository) ListActiveQueuedWorkflowVersions(ctx context.Context) ([]*dbsqlc.ListActiveQueuedWorkflowVersionsRow, error) {
+	return w.queries.ListActiveQueuedWorkflowVersions(ctx, w.pool)
+}
+
+func (w *workflowRunEngineRepository) DeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (int, int, error) {
+	paramStatuses := make([]string, 0)
+
+	for _, status := range statuses {
+		paramStatuses = append(paramStatuses, string(status))
+	}
+
+	resp, err := w.queries.DeleteExpiredWorkflowRuns(ctx, w.pool, dbsqlc.DeleteExpiredWorkflowRunsParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Statuses:      paramStatuses,
+		Createdbefore: sqlchelpers.TimestampFromTime(before),
+		Limit:         1000,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, 0, nil
+		}
+
+		return 0, 0, err
+	}
+
+	return int(resp.Deleted), int(resp.Remaining), nil
+}
+
 func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
 	res := &repository.ListWorkflowRunsResult{}
 
@@ -362,6 +391,7 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 	}
 
 	queryParams.Orderby = orderByField + " " + orderByDirection
+	countParams.Orderby = orderByField + " " + orderByDirection
 
 	tx, err := pool.Begin(ctx)
 
