@@ -650,7 +650,7 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 	return assigned, nil
 }
 
-func (s *stepRunEngineRepository) deferredStepRunEvent(
+func (s *stepRunEngineRepository) DeferredStepRunEvent(
 	stepRunId pgtype.UUID,
 	reason dbsqlc.StepRunEventReason,
 	severity dbsqlc.StepRunEventSeverity,
@@ -713,7 +713,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		var target *errNoWorkerWithSlots
 
 		if errors.As(err, &target) {
-			defer s.deferredStepRunEvent(
+			defer s.DeferredStepRunEvent(
 				stepRun.SRID,
 				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
 				dbsqlc.StepRunEventSeverityWARNING,
@@ -725,7 +725,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		}
 
 		if errors.Is(err, repository.ErrNoWorkerAvailable) {
-			defer s.deferredStepRunEvent(
+			defer s.DeferredStepRunEvent(
 				stepRun.SRID,
 				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
 				dbsqlc.StepRunEventSeverityWARNING,
@@ -735,7 +735,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		}
 
 		if errors.Is(err, repository.ErrRateLimitExceeded) {
-			defer s.deferredStepRunEvent(
+			defer s.DeferredStepRunEvent(
 				stepRun.SRID,
 				dbsqlc.StepRunEventReasonREQUEUEDRATELIMIT,
 				dbsqlc.StepRunEventSeverityWARNING,
@@ -747,7 +747,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		return "", "", err
 	}
 
-	defer s.deferredStepRunEvent(
+	defer s.DeferredStepRunEvent(
 		stepRun.SRID,
 		dbsqlc.StepRunEventReasonASSIGNED,
 		dbsqlc.StepRunEventSeverityINFO,
@@ -911,7 +911,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 			}
 
 			// create a deferred event for each of these step runs
-			defer s.deferredStepRunEvent(
+			defer s.DeferredStepRunEvent(
 				laterStepRunCp.ID,
 				dbsqlc.StepRunEventReasonRETRIEDBYUSER,
 				dbsqlc.StepRunEventSeverityINFO,
@@ -1554,7 +1554,7 @@ func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId
 		return nil, err
 	}
 
-	defer s.deferredStepRunEvent(
+	defer s.DeferredStepRunEvent(
 		stepRunUUID,
 		dbsqlc.StepRunEventReasonTIMEOUTREFRESHED,
 		dbsqlc.StepRunEventSeverityINFO,
