@@ -124,15 +124,6 @@ const routes: RouteObject[] = [
                   }),
               },
               {
-                path: '/events/metrics',
-                lazy: async () =>
-                  import('./pages/main/events/metrics').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
                 path: '/workflows',
                 lazy: async () =>
                   import('./pages/main/workflows').then((res) => {
