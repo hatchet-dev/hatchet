@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
@@ -460,11 +461,11 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	var multiErr error
 	var success bool
 
-	for _, w := range workers {
+	for i, w := range workers {
 		err = w.StartStepRun(ctx, metadata.TenantId, stepRun, data)
 
 		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker: %w", err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker (%d): %w", i, err))
 		} else {
 			success = true
 		}
@@ -472,6 +473,21 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 
 	if success {
 		return nil
+	}
+
+	defer d.repo.StepRun().DeferredStepRunEvent(
+		stepRun.SRID,
+		dbsqlc.StepRunEventReasonREASSIGNED,
+		dbsqlc.StepRunEventSeverityWARNING,
+		"Could not send step run to assigned worker",
+		nil,
+	)
+
+	// we were unable to send the step run to any worker, revert the step run to pending assignment
+	err = d.repo.StepRun().UnassignStepRunFromWorker(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID))
+
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("💥 could not revert step run: %w", err))
 	}
 
 	return multiErr
