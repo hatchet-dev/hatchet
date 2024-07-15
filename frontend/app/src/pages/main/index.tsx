@@ -74,6 +74,27 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
     return null;
   }
 
+  const workers = [
+    <SidebarButtonSecondary
+      key={1}
+      onNavLinkClick={onNavLinkClick}
+      to="/workers/all"
+      name="All Workers"
+    />,
+  ];
+
+  if (meta?.data.canLinkGithub) {
+    workers.push(
+      <SidebarButtonSecondary
+        key={2}
+        onNavLinkClick={onNavLinkClick}
+        to="/workers/managed-workers"
+        prefix="/workers/managed-workers"
+        name="Managed Worker Pools"
+      />,
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -123,21 +144,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
                 prefix="/workers"
-                collapsibleChildren={[
-                  <SidebarButtonSecondary
-                    key={1}
-                    onNavLinkClick={onNavLinkClick}
-                    to="/workers/all"
-                    name="All Workers"
-                  />,
-                  <SidebarButtonSecondary
-                    key={2}
-                    onNavLinkClick={onNavLinkClick}
-                    to="/workers/managed-workers"
-                    prefix="/workers/managed-workers"
-                    name="Managed Worker Pools"
-                  />,
-                ]}
+                collapsibleChildren={workers}
               />
             </div>
           </div>
