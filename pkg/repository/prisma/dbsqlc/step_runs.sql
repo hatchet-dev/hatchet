@@ -401,10 +401,7 @@ RETURNING "StepRun"."id";
 SELECT "id"
 FROM "StepRun"
 WHERE
-    (
-        "status" = 'RUNNING'
-        OR "status" = 'ASSIGNED'
-    )
+    "status" = ANY(ARRAY['RUNNING', 'ASSIGNED']::"StepRunStatus"[])
     AND "timeoutAt" < NOW()
     AND "tenantId" = @tenantId::uuid
 LIMIT 100;

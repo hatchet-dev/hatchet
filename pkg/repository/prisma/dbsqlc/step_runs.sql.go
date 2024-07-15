@@ -1194,10 +1194,7 @@ const listStepRunsToTimeout = `-- name: ListStepRunsToTimeout :many
 SELECT "id"
 FROM "StepRun"
 WHERE
-    (
-        "status" = 'RUNNING'
-        OR "status" = 'ASSIGNED'
-    )
+    "status" = ANY(ARRAY['RUNNING', 'ASSIGNED']::"StepRunStatus"[])
     AND "timeoutAt" < NOW()
     AND "tenantId" = $1::uuid
 LIMIT 100
