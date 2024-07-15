@@ -110,6 +110,7 @@ func (a *engineTokenRepository) CreateAPIToken(ctx context.Context, opts *reposi
 	createParams := dbsqlc.CreateAPITokenParams{
 		ID:        sqlchelpers.UUIDFromStr(opts.ID),
 		Expiresat: sqlchelpers.TimestampFromTime(opts.ExpiresAt),
+		Internal:  sqlchelpers.BoolFromBoolean(opts.Internal),
 	}
 
 	if opts.TenantId != nil {
