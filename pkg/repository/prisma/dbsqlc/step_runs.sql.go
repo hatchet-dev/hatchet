@@ -546,14 +546,19 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, arg GetStepRunParams)
 
 const getStepRunDataForEngine = `-- name: GetStepRunDataForEngine :one
 SELECT
-    "input",
-    "output",
-    "error"
+    sr."input",
+    sr."output",
+    sr."error",
+    jrld."data" AS "jobRunLookupData"
 FROM
-    "StepRun"
+    "StepRun" sr
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
 WHERE
-    "id" = $1::uuid AND
-    "tenantId" = $2::uuid
+    sr."id" = $1::uuid AND
+    sr."tenantId" = $2::uuid
 `
 
 type GetStepRunDataForEngineParams struct {
@@ -562,15 +567,21 @@ type GetStepRunDataForEngineParams struct {
 }
 
 type GetStepRunDataForEngineRow struct {
-	Input  []byte      `json:"input"`
-	Output []byte      `json:"output"`
-	Error  pgtype.Text `json:"error"`
+	Input            []byte      `json:"input"`
+	Output           []byte      `json:"output"`
+	Error            pgtype.Text `json:"error"`
+	JobRunLookupData []byte      `json:"jobRunLookupData"`
 }
 
 func (q *Queries) GetStepRunDataForEngine(ctx context.Context, db DBTX, arg GetStepRunDataForEngineParams) (*GetStepRunDataForEngineRow, error) {
 	row := db.QueryRow(ctx, getStepRunDataForEngine, arg.ID, arg.Tenantid)
 	var i GetStepRunDataForEngineRow
-	err := row.Scan(&i.Input, &i.Output, &i.Error)
+	err := row.Scan(
+		&i.Input,
+		&i.Output,
+		&i.Error,
+		&i.JobRunLookupData,
+	)
 	return &i, err
 }
 
@@ -598,7 +609,6 @@ SELECT
     sr."gitRepoBranch" AS "SR_gitRepoBranch",
     sr."retryCount" AS "SR_retryCount",
     sr."semaphoreReleased" AS "SR_semaphoreReleased",
-    jrld."data" AS "jobRunLookupData",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
     s."id" AS "stepId",
@@ -621,8 +631,6 @@ JOIN
     "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
 JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
-JOIN
-    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
 JOIN
     "Job" j ON jr."jobId" = j."id"
 WHERE
@@ -660,7 +668,6 @@ type GetStepRunForEngineRow struct {
 	SRGitRepoBranch     pgtype.Text      `json:"SR_gitRepoBranch"`
 	SRRetryCount        int32            `json:"SR_retryCount"`
 	SRSemaphoreReleased bool             `json:"SR_semaphoreReleased"`
-	JobRunLookupData    []byte           `json:"jobRunLookupData"`
 	JobRunId            pgtype.UUID      `json:"jobRunId"`
 	StepId              pgtype.UUID      `json:"stepId"`
 	StepRetries         int32            `json:"stepRetries"`
@@ -707,7 +714,6 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.SRGitRepoBranch,
 			&i.SRRetryCount,
 			&i.SRSemaphoreReleased,
-			&i.JobRunLookupData,
 			&i.JobRunId,
 			&i.StepId,
 			&i.StepRetries,

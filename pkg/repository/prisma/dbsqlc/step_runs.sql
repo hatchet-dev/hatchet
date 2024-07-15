@@ -9,14 +9,19 @@ WHERE
 
 -- name: GetStepRunDataForEngine :one
 SELECT
-    "input",
-    "output",
-    "error"
+    sr."input",
+    sr."output",
+    sr."error",
+    jrld."data" AS "jobRunLookupData"
 FROM
-    "StepRun"
+    "StepRun" sr
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
 WHERE
-    "id" = @id::uuid AND
-    "tenantId" = @tenantId::uuid;
+    sr."id" = @id::uuid AND
+    sr."tenantId" = @tenantId::uuid;
 
 -- name: GetStepRunForEngine :many
 SELECT
@@ -42,7 +47,6 @@ SELECT
     sr."gitRepoBranch" AS "SR_gitRepoBranch",
     sr."retryCount" AS "SR_retryCount",
     sr."semaphoreReleased" AS "SR_semaphoreReleased",
-    jrld."data" AS "jobRunLookupData",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
     s."id" AS "stepId",
@@ -65,8 +69,6 @@ JOIN
     "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
 JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
-JOIN
-    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
 JOIN
     "Job" j ON jr."jobId" = j."id"
 WHERE
