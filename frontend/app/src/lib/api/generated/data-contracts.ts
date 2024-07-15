@@ -644,6 +644,18 @@ export interface WorkflowRunList {
   pagination?: PaginationResponse;
 }
 
+export enum WorkflowRunOrderByField {
+  CreatedAt = 'createdAt',
+  StartedAt = 'startedAt',
+  FinishedAt = 'finishedAt',
+  Duration = 'duration',
+}
+
+export enum WorkflowRunOrderByDirection {
+  ASC = 'ASC',
+  DESC = 'DESC',
+}
+
 export interface WorkflowRunsMetrics {
   counts?: WorkflowRunsMetricsCounts;
 }

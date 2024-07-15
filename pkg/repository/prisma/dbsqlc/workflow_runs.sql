@@ -174,7 +174,13 @@ WHERE
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when @orderBy = 'createdAt DESC' then runs."createdAt" END DESC,
+    case when @orderBy = 'createdAt DESC' THEN runs."createdAt" END DESC,
+    case when @orderBy = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+    case when @orderBy = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+    case when @orderBy = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+    case when @orderBy = 'startedAt DESC' THEN runs."startedAt" END DESC,
+    case when @orderBy = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+    case when @orderBy = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
     runs."id" ASC
 OFFSET
     COALESCE(sqlc.narg('offset'), 0)

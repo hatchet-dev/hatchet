@@ -111,7 +111,7 @@ export const columns: ColumnDef<WorkflowRun>[] = [
         </div>
       );
     },
-    enableSorting: false,
+    enableSorting: true,
     enableHiding: true,
   },
   {
@@ -134,7 +134,7 @@ export const columns: ColumnDef<WorkflowRun>[] = [
         </div>
       );
     },
-    enableSorting: false,
+    enableSorting: true,
     enableHiding: true,
   },
   {
@@ -155,7 +155,7 @@ export const columns: ColumnDef<WorkflowRun>[] = [
 
       return <div className="whitespace-nowrap">{finishedAt}</div>;
     },
-    enableSorting: false,
+    enableSorting: true,
     enableHiding: true,
   },
   {
@@ -170,7 +170,7 @@ export const columns: ColumnDef<WorkflowRun>[] = [
     cell: ({ row }) => {
       return <div className="whitespace-nowrap">{row.original.duration}</div>;
     },
-    enableSorting: false,
+    enableSorting: true,
     enableHiding: true,
   },
   {

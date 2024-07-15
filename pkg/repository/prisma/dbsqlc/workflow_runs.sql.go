@@ -899,7 +899,13 @@ WHERE
     )
 ORDER BY
     case when $13 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when $13 = 'createdAt DESC' then runs."createdAt" END DESC,
+    case when $13 = 'createdAt DESC' THEN runs."createdAt" END DESC,
+    case when $13 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+    case when $13 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+    case when $13 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+    case when $13 = 'startedAt DESC' THEN runs."startedAt" END DESC,
+    case when $13 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+    case when $13 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
     runs."id" ASC
 OFFSET
     COALESCE($14, 0)

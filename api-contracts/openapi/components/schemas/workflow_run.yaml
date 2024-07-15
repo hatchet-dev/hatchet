@@ -1,3 +1,17 @@
+WorkflowRunOrderByField:
+  type: string
+  enum:
+    - createdAt
+    - startedAt
+    - finishedAt
+    - duration
+
+WorkflowRunOrderByDirection:
+  type: string
+  enum:
+    - ASC
+    - DESC
+
 WorkflowRun:
   type: object
   properties:

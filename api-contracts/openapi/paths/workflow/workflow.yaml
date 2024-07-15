@@ -413,6 +413,18 @@ workflowRuns:
           type: array
           items:
             type: string
+      - description: The order by field
+        in: query
+        name: orderByField
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/WorkflowRunOrderByField"
+      - description: The order by direction
+        in: query
+        name: orderByDirection
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/WorkflowRunOrderByDirection"
     responses:
       "200":
         content:

@@ -10,7 +10,12 @@ import {
 } from '@tanstack/react-table';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import api, { WorkflowRunStatus, queries } from '@/lib/api';
+import api, {
+  WorkflowRunOrderByDirection,
+  WorkflowRunOrderByField,
+  WorkflowRunStatus,
+  queries,
+} from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
@@ -78,11 +83,11 @@ export function WorkflowRunsTable({
     const newSearchParams = new URLSearchParams(searchParams);
     if (sorting.length) {
       newSearchParams.set(
-        'sort',
+        'orderDirection',
         sorting.map((s) => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(','),
       );
     } else {
-      newSearchParams.delete('sort');
+      newSearchParams.delete('orderDirection');
     }
     if (columnFilters.length) {
       newSearchParams.set('filters', JSON.stringify(columnFilters));
@@ -142,6 +147,36 @@ export function WorkflowRunsTable({
     return filter?.value as Array<string>;
   }, [columnFilters]);
 
+  const orderByDirection = useMemo(():
+    | WorkflowRunOrderByDirection
+    | undefined => {
+    if (!sorting.length) {
+      return;
+    }
+
+    return sorting[0]?.desc
+      ? WorkflowRunOrderByDirection.DESC
+      : WorkflowRunOrderByDirection.ASC;
+  }, [sorting]);
+
+  const orderByField = useMemo((): WorkflowRunOrderByField | undefined => {
+    if (!sorting.length) {
+      return;
+    }
+
+    switch (sorting[0]?.id) {
+      case 'Duration':
+        return WorkflowRunOrderByField.Duration;
+      case 'Finished at':
+        return WorkflowRunOrderByField.FinishedAt;
+      case 'Started at':
+        return WorkflowRunOrderByField.StartedAt;
+      case 'Seen at':
+      default:
+        return WorkflowRunOrderByField.CreatedAt;
+    }
+  }, [sorting]);
+
   const listWorkflowRunsQuery = useQuery({
     ...queries.workflowRuns.list(tenant.metadata.id, {
       offset,
@@ -150,6 +185,8 @@ export function WorkflowRunsTable({
       workflowId: workflow,
       parentWorkflowRunId,
       parentStepRunId,
+      orderByDirection,
+      orderByField,
       additionalMetadata: AdditionalMetadataFilter,
     }),
     refetchInterval,
