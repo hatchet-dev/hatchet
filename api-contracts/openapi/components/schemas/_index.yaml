@@ -126,6 +126,10 @@ WorkflowRun:
   $ref: "./workflow_run.yaml#/WorkflowRun"
 WorkflowRunList:
   $ref: "./workflow_run.yaml#/WorkflowRunList"
+WorkflowRunOrderByField:
+  $ref: "./workflow_run.yaml#/WorkflowRunOrderByField"
+WorkflowRunOrderByDirection:
+  $ref: "./workflow_run.yaml#/WorkflowRunOrderByDirection"
 WorkflowRunsMetrics:
   $ref: "./workflow_run.yaml#/WorkflowRunsMetrics"
 WorkflowRunsMetricsCounts:

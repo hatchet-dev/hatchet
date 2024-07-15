@@ -1452,10 +1452,11 @@ SET
     "status" = 'RUNNING',
     "updatedAt" = CURRENT_TIMESTAMP,
     "startedAt" = NULL,
-    "finishedAt" = NULL
+    "finishedAt" = NULL,
+    "duration" = NULL
 WHERE
     "id" = (SELECT "workflowRunId" FROM workflow_run_id)
-RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata"
+RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration
 `
 
 func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, jobrunid pgtype.UUID) (*WorkflowRun, error) {
@@ -1479,6 +1480,7 @@ func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, jo
 		&i.ParentId,
 		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
+		&i.Duration,
 	)
 	return &i, err
 }

@@ -76,6 +76,8 @@ import {
   WorkflowMetrics,
   WorkflowRun,
   WorkflowRunList,
+  WorkflowRunOrderByDirection,
+  WorkflowRunOrderByField,
   WorkflowRunsCancelRequest,
   WorkflowRunsMetrics,
   WorkflowRunStatus,
@@ -1323,6 +1325,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @example ["key1:value1","key2:value2"]
        */
       additionalMetadata?: string[];
+      /** The order by field */
+      orderByField?: WorkflowRunOrderByField;
+      /** The order by direction */
+      orderByDirection?: WorkflowRunOrderByDirection;
     },
     params: RequestParams = {},
   ) =>

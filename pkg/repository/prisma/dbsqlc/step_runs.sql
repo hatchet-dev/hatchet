@@ -701,7 +701,8 @@ SET
     "status" = 'RUNNING',
     "updatedAt" = CURRENT_TIMESTAMP,
     "startedAt" = NULL,
-    "finishedAt" = NULL
+    "finishedAt" = NULL,
+    "duration" = NULL
 WHERE
     "id" = (SELECT "workflowRunId" FROM workflow_run_id)
 RETURNING *;
