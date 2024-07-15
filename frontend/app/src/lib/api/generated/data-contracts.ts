@@ -620,6 +620,8 @@ export interface WorkflowRun {
   startedAt?: string;
   /** @format date-time */
   finishedAt?: string;
+  /** @example 1000 */
+  duration?: number;
   /**
    * @format uuid
    * @minLength 36

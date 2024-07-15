@@ -159,6 +159,21 @@ export const columns: ColumnDef<WorkflowRun>[] = [
     enableHiding: true,
   },
   {
+    accessorKey: 'Duration',
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="Duration (ms)"
+        className="whitespace-nowrap"
+      />
+    ),
+    cell: ({ row }) => {
+      return <div className="whitespace-nowrap">{row.original.duration}</div>;
+    },
+    enableSorting: false,
+    enableHiding: true,
+  },
+  {
     accessorKey: 'Metadata',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Metadata" />

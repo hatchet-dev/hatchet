@@ -986,6 +986,7 @@ type WorkflowMetrics struct {
 type WorkflowRun struct {
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 	DisplayName        *string                 `json:"displayName,omitempty"`
+	Duration           *int                    `json:"duration,omitempty"`
 	Error              *string                 `json:"error,omitempty"`
 	FinishedAt         *time.Time              `json:"finishedAt,omitempty"`
 	Input              *map[string]interface{} `json:"input,omitempty"`
