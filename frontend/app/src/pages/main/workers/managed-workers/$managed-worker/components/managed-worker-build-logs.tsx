@@ -5,6 +5,7 @@ import LoggingComponent from '@/components/cloud/logging/logs';
 export function ManagedWorkerBuildLogs({ buildId }: { buildId: string }) {
   const getBuildLogsQuery = useQuery({
     ...queries.cloud.getBuildLogs(buildId),
+    refetchInterval: 5000,
   });
 
   const logs = getBuildLogsQuery.data?.rows || [

@@ -45,6 +45,7 @@ func (a *apiTokenRepository) CreateAPIToken(opts *repository.CreateAPITokenOpts)
 	optionals := []db.APITokenSetParam{
 		db.APIToken.ID.Set(opts.ID),
 		db.APIToken.ExpiresAt.Set(opts.ExpiresAt),
+		db.APIToken.Internal.Set(opts.Internal),
 	}
 
 	if opts.TenantId != nil {
@@ -77,6 +78,7 @@ func (a *apiTokenRepository) ListAPITokensByTenant(tenantId string) ([]db.APITok
 	return a.client.APIToken.FindMany(
 		db.APIToken.TenantID.Equals(tenantId),
 		db.APIToken.Revoked.Equals(false),
+		db.APIToken.Internal.Equals(false),
 	).Exec(context.Background())
 }
 

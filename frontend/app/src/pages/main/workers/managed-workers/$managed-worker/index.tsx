@@ -1,7 +1,7 @@
 import { Separator } from '@/components/ui/separator';
 import { queries } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { relativeDate } from '@/lib/utils';
 import { CpuChipIcon } from '@heroicons/react/24/outline';
@@ -21,6 +21,7 @@ import { useApiError } from '@/lib/hooks';
 import GithubButton from './components/github-button';
 
 export default function ExpandedWorkflow() {
+  const navigate = useNavigate();
   const [deleteWorker, setDeleteWorker] = useState(false);
 
   const params = useParams();
@@ -48,6 +49,20 @@ export default function ExpandedWorkflow() {
     },
     onSuccess: () => {
       managedWorkerQuery.refetch();
+    },
+    onError: handleApiError,
+  });
+
+  const deleteManagedWorkerMutation = useMutation({
+    mutationKey: ['managed-worker:delete', params['managed-worker']],
+    mutationFn: async () => {
+      invariant(managedWorker);
+      const res = await cloudApi.managedWorkerDelete(managedWorker.metadata.id);
+      return res.data;
+    },
+    onSuccess: () => {
+      setDeleteWorker(false);
+      navigate('/workers/managed-workers');
     },
     onError: handleApiError,
   });
@@ -147,19 +162,13 @@ export default function ExpandedWorkflow() {
 
             <ConfirmDialog
               title={`Delete managed worker`}
-              description={`Are you sure you want to delete the managed worker ${managedWorker.name}? This action cannot be undone, and will immediately prevent any services running with this workflow from executing steps.`}
+              description={`Are you sure you want to delete the managed worker ${managedWorker.name}? This action cannot be undone, and will immediately tear these workers down.`}
               submitLabel={'Delete'}
-              onSubmit={function (): void {
-                // TODO
-                // deleteWorkflowMutation.mutate();
-              }}
+              onSubmit={deleteManagedWorkerMutation.mutate}
               onCancel={function (): void {
                 setDeleteWorker(false);
               }}
-              isLoading={
-                false
-                // deleteWorkflowMutation.isPending
-              }
+              isLoading={deleteManagedWorkerMutation.isPending}
               isOpen={deleteWorker}
             />
           </TabsContent>

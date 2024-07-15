@@ -236,6 +236,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Delete a managed worker for the tenant
+   *
+   * @tags Managed Worker
+   * @name ManagedWorkerDelete
+   * @summary Delete Managed Worker
+   * @request DELETE:/api/v1/cloud/managed-worker/{managed-worker}
+   * @secure
+   */
+  managedWorkerDelete = (managedWorker: string, params: RequestParams = {}) =>
+    this.request<ManagedWorker, APIErrors>({
+      path: `/api/v1/cloud/managed-worker/${managedWorker}`,
+      method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Get CPU metrics for a managed worker
    *
    * @tags Metrics

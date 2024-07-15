@@ -47,6 +47,7 @@ CREATE TABLE "APIToken" (
     "name" TEXT,
     "tenantId" UUID,
     "nextAlertAt" TIMESTAMP(3),
+    "internal" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "APIToken_pkey" PRIMARY KEY ("id")
 );
