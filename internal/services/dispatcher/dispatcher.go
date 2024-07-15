@@ -492,6 +492,14 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 
 	if err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("💥 could not revert step run: %w", err))
+
+		defer d.repo.StepRun().DeferredStepRunEvent(
+			stepRun.SRID,
+			dbsqlc.StepRunEventReasonREASSIGNED,
+			dbsqlc.StepRunEventSeverityCRITICAL,
+			"Could not revert step run to pending assignment",
+			nil,
+		)
 	}
 
 	return multiErr
