@@ -627,8 +627,7 @@ WHERE
         (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
     );
 
--- //TODO rewrite this
--- name: DeleteExpiredWorkflowRuns :one
+-- name: SoftDeleteExpiredWorkflowRuns :one
 WITH expired_runs_count AS (
     SELECT COUNT(*) as count
     FROM "WorkflowRun" wr1
@@ -647,38 +646,20 @@ WITH expired_runs_count AS (
     ORDER BY "createdAt" ASC
     LIMIT sqlc.arg('limit')
 )
-DELETE FROM "WorkflowRun"
+UPDATE
+    "WorkflowRun"
+SET
+    "deletedAt" = CURRENT_TIMESTAMP
+FROM expired_runs_with_limit
 WHERE
-    "id" IN (SELECT "id" FROM expired_runs_with_limit)
-RETURNING (SELECT count FROM expired_runs_count) as total, (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining, (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted;
+    "id" = expired_runs_with_limit."id" AND
+    "tenantId" = @tenantId::uuid
+RETURNING
+    (SELECT count FROM expired_runs_count) as total,
+    (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining,
+    (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted;
+-- TODO archive chunky data?
 
--- -- name: SoftDeleteWorkflowRun :one
--- WITH job_runs_to_delete AS (
---     SELECT
---         "id"
---     FROM
---         "JobRun"
---     WHERE
---         "workflowRunId" = @id::uuid
--- ),
-
-
--- runs_to_delete AS (
---     UPDATE
---         "StepRun"
---     SET
---         "deletedAt" = CURRENT_TIMESTAMP
---     WHERE
---         "jobRunId" = @id::uuid
--- )
-
--- UPDATE
---     "WorkflowRun"
--- SET
---     "deletedAt" = CURRENT_TIMESTAMP
--- WHERE
---     "id" = @id::uuid AND
---     "tenantId" = @tenantId::uuid
 
 -- name: ListActiveQueuedWorkflowVersions :many
 WITH QueuedRuns AS (

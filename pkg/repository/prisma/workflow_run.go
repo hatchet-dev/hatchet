@@ -254,7 +254,7 @@ func (w *workflowRunEngineRepository) DeleteExpiredWorkflowRuns(ctx context.Cont
 		paramStatuses = append(paramStatuses, string(status))
 	}
 
-	resp, err := w.queries.DeleteExpiredWorkflowRuns(ctx, w.pool, dbsqlc.DeleteExpiredWorkflowRunsParams{
+	resp, err := w.queries.SoftDeleteExpiredWorkflowRuns(ctx, w.pool, dbsqlc.SoftDeleteExpiredWorkflowRunsParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Statuses:      paramStatuses,
 		Createdbefore: sqlchelpers.TimestampFromTime(before),

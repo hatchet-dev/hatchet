@@ -505,57 +505,6 @@ func (q *Queries) CreateWorkflowRunTriggeredBy(ctx context.Context, db DBTX, arg
 	return &i, err
 }
 
-const deleteExpiredWorkflowRuns = `-- name: DeleteExpiredWorkflowRuns :one
-WITH expired_runs_count AS (
-    SELECT COUNT(*) as count
-    FROM "WorkflowRun" wr1
-    WHERE
-        wr1."tenantId" = $1::uuid AND
-        wr1."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
-        wr1."createdAt" < $3::timestamp
-), expired_runs_with_limit AS (
-    SELECT
-        "id"
-    FROM "WorkflowRun" wr2
-    WHERE
-        wr2."tenantId" = $1::uuid AND
-        wr2."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
-        wr2."createdAt" < $3::timestamp
-    ORDER BY "createdAt" ASC
-    LIMIT $4
-)
-DELETE FROM "WorkflowRun"
-WHERE
-    "id" IN (SELECT "id" FROM expired_runs_with_limit)
-RETURNING (SELECT count FROM expired_runs_count) as total, (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining, (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted
-`
-
-type DeleteExpiredWorkflowRunsParams struct {
-	Tenantid      pgtype.UUID      `json:"tenantid"`
-	Statuses      []string         `json:"statuses"`
-	Createdbefore pgtype.Timestamp `json:"createdbefore"`
-	Limit         int32            `json:"limit"`
-}
-
-type DeleteExpiredWorkflowRunsRow struct {
-	Total     int64 `json:"total"`
-	Remaining int32 `json:"remaining"`
-	Deleted   int64 `json:"deleted"`
-}
-
-// //TODO rewrite this
-func (q *Queries) DeleteExpiredWorkflowRuns(ctx context.Context, db DBTX, arg DeleteExpiredWorkflowRunsParams) (*DeleteExpiredWorkflowRunsRow, error) {
-	row := db.QueryRow(ctx, deleteExpiredWorkflowRuns,
-		arg.Tenantid,
-		arg.Statuses,
-		arg.Createdbefore,
-		arg.Limit,
-	)
-	var i DeleteExpiredWorkflowRunsRow
-	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
-	return &i, err
-}
-
 const getChildWorkflowRun = `-- name: GetChildWorkflowRun :one
 SELECT
     "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata"
@@ -782,8 +731,6 @@ func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, jobrunid pgty
 const listActiveQueuedWorkflowVersions = `-- name: ListActiveQueuedWorkflowVersions :many
 
 
-
-
 WITH QueuedRuns AS (
     SELECT DISTINCT ON (wr."workflowVersionId")
         wr."workflowVersionId",
@@ -816,39 +763,7 @@ type ListActiveQueuedWorkflowVersionsRow struct {
 	ConcurrencyGroupId pgtype.Text       `json:"concurrencyGroupId"`
 }
 
-// -- name: SoftDeleteWorkflowRun :one
-// WITH job_runs_to_delete AS (
-//
-//	SELECT
-//	    "id"
-//	FROM
-//	    "JobRun"
-//	WHERE
-//	    "workflowRunId" = @id::uuid
-//
-// ),
-// runs_to_delete AS (
-//
-//	UPDATE
-//	    "StepRun"
-//	SET
-//	    "deletedAt" = CURRENT_TIMESTAMP
-//	WHERE
-//	    "jobRunId" = @id::uuid
-//
-// )
-// UPDATE
-//
-//	"WorkflowRun"
-//
-// SET
-//
-//	"deletedAt" = CURRENT_TIMESTAMP
-//
-// WHERE
-//
-//	"id" = @id::uuid AND
-//	"tenantId" = @tenantId::uuid
+// TODO archive chunky data?
 func (q *Queries) ListActiveQueuedWorkflowVersions(ctx context.Context, db DBTX) ([]*ListActiveQueuedWorkflowVersionsRow, error) {
 	rows, err := db.Query(ctx, listActiveQueuedWorkflowVersions)
 	if err != nil {
@@ -1258,6 +1173,64 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
 	)
+	return &i, err
+}
+
+const softDeleteExpiredWorkflowRuns = `-- name: SoftDeleteExpiredWorkflowRuns :one
+WITH expired_runs_count AS (
+    SELECT COUNT(*) as count
+    FROM "WorkflowRun" wr1
+    WHERE
+        wr1."tenantId" = $1::uuid AND
+        wr1."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
+        wr1."createdAt" < $3::timestamp
+), expired_runs_with_limit AS (
+    SELECT
+        "id"
+    FROM "WorkflowRun" wr2
+    WHERE
+        wr2."tenantId" = $1::uuid AND
+        wr2."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
+        wr2."createdAt" < $3::timestamp
+    ORDER BY "createdAt" ASC
+    LIMIT $4
+)
+UPDATE
+    "WorkflowRun"
+SET
+    "deletedAt" = CURRENT_TIMESTAMP
+FROM expired_runs_with_limit
+WHERE
+    "id" = expired_runs_with_limit."id" AND
+    "tenantId" = $1::uuid
+RETURNING
+    (SELECT count FROM expired_runs_count) as total,
+    (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining,
+    (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted
+`
+
+type SoftDeleteExpiredWorkflowRunsParams struct {
+	Tenantid      pgtype.UUID      `json:"tenantid"`
+	Statuses      []string         `json:"statuses"`
+	Createdbefore pgtype.Timestamp `json:"createdbefore"`
+	Limit         int32            `json:"limit"`
+}
+
+type SoftDeleteExpiredWorkflowRunsRow struct {
+	Total     int64 `json:"total"`
+	Remaining int32 `json:"remaining"`
+	Deleted   int64 `json:"deleted"`
+}
+
+func (q *Queries) SoftDeleteExpiredWorkflowRuns(ctx context.Context, db DBTX, arg SoftDeleteExpiredWorkflowRunsParams) (*SoftDeleteExpiredWorkflowRunsRow, error) {
+	row := db.QueryRow(ctx, softDeleteExpiredWorkflowRuns,
+		arg.Tenantid,
+		arg.Statuses,
+		arg.Createdbefore,
+		arg.Limit,
+	)
+	var i SoftDeleteExpiredWorkflowRunsRow
+	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
 	return &i, err
 }
 
