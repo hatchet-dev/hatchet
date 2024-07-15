@@ -392,6 +392,7 @@ export function WorkflowRunsTable({
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
         pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
+        showColumnToggle={true}
       />
     </>
   );
