@@ -154,8 +154,7 @@ WHERE
     "tenantId" = @tenantId::uuid AND
     "id" = ANY (sqlc.arg('ids')::uuid[]);
 
--- // TODO rewrite this
--- name: DeleteExpiredEvents :one
+-- name: SoftDeleteExpiredEvents :one
 WITH expired_events_count AS (
     SELECT COUNT(*) as count
     FROM "Event" e1
@@ -171,8 +170,17 @@ WITH expired_events_count AS (
         e2."createdAt" < @createdBefore::timestamp
     ORDER BY "createdAt" ASC
     LIMIT sqlc.arg('limit')
+    FOR UPDATE SKIP LOCKED
 )
-DELETE FROM "Event"
+UPDATE
+    "Event"
+SET
+    "deletedAt" = CURRENT_TIMESTAMP
+FROM
+    expired_events_with_limit e
 WHERE
-    "id" IN (SELECT "id" FROM expired_events_with_limit)
-RETURNING (SELECT count FROM expired_events_count) as total, (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining, (SELECT COUNT(*) FROM expired_events_with_limit) as deleted;
+    "id" = e."id"
+RETURNING
+    (SELECT count FROM expired_events_count) as total,
+    (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining,
+    (SELECT COUNT(*) FROM expired_events_with_limit) as deleted;

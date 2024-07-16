@@ -291,8 +291,8 @@ func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId st
 	})
 }
 
-func (r *eventEngineRepository) DeleteExpiredEvents(ctx context.Context, tenantId string, before time.Time) (int, int, error) {
-	resp, err := r.queries.DeleteExpiredEvents(ctx, r.pool, dbsqlc.DeleteExpiredEventsParams{
+func (r *eventEngineRepository) SoftDeleteExpiredEvents(ctx context.Context, tenantId string, before time.Time) (int, int, error) {
+	resp, err := r.queries.SoftDeleteExpiredEvents(ctx, r.pool, dbsqlc.SoftDeleteExpiredEventsParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Createdbefore: sqlchelpers.TimestampFromTime(before),
 		Limit:         1000,

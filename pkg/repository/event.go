@@ -89,5 +89,5 @@ type EventEngineRepository interface {
 
 	// DeleteExpiredEvents deletes events that were created before the given time. It returns the number of deleted events
 	// and the number of non-deleted events that match the conditions.
-	DeleteExpiredEvents(ctx context.Context, tenantId string, before time.Time) (int, int, error)
+	SoftDeleteExpiredEvents(ctx context.Context, tenantId string, before time.Time) (int, int, error)
 }

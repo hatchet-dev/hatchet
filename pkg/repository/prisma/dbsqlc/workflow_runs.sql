@@ -675,6 +675,7 @@ WITH expired_runs_count AS (
         wr2."createdAt" < @createdBefore::timestamp
     ORDER BY "createdAt" ASC
     LIMIT sqlc.arg('limit')
+    FOR UPDATE SKIP LOCKED
 )
 UPDATE
     "WorkflowRun"
@@ -690,6 +691,31 @@ RETURNING
     (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted;
 -- TODO archive chunky data?
 
+-- name: SoftDeleteWorkflowRun :exec
+WITH job_runs_to_delete AS (
+    SELECT
+        "id"
+    FROM
+        "JobRun"
+    WHERE
+        "workflowRunId" = @id::uuid
+),
+runs_to_delete AS (
+    UPDATE
+        "StepRun"
+    SET
+        "deletedAt" = CURRENT_TIMESTAMP
+    WHERE
+        "jobRunId" = @id::uuid
+)
+UPDATE
+    "WorkflowRun"
+SET
+    "deletedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" = @id::uuid AND
+    "tenantId" = @tenantId::uuid
+;
 
 -- name: ListActiveQueuedWorkflowVersions :many
 WITH QueuedRuns AS (

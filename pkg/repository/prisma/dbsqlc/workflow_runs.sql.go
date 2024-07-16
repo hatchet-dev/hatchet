@@ -732,8 +732,6 @@ func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, jobrunid pgty
 }
 
 const listActiveQueuedWorkflowVersions = `-- name: ListActiveQueuedWorkflowVersions :many
-
-
 WITH QueuedRuns AS (
     SELECT DISTINCT ON (wr."workflowVersionId")
         wr."workflowVersionId",
@@ -766,7 +764,6 @@ type ListActiveQueuedWorkflowVersionsRow struct {
 	ConcurrencyGroupId pgtype.Text       `json:"concurrencyGroupId"`
 }
 
-// TODO archive chunky data?
 func (q *Queries) ListActiveQueuedWorkflowVersions(ctx context.Context, db DBTX) ([]*ListActiveQueuedWorkflowVersionsRow, error) {
 	rows, err := db.Query(ctx, listActiveQueuedWorkflowVersions)
 	if err != nil {
@@ -1218,6 +1215,7 @@ WITH expired_runs_count AS (
         wr2."createdAt" < $3::timestamp
     ORDER BY "createdAt" ASC
     LIMIT $4
+    FOR UPDATE SKIP LOCKED
 )
 UPDATE
     "WorkflowRun"
@@ -1256,6 +1254,44 @@ func (q *Queries) SoftDeleteExpiredWorkflowRuns(ctx context.Context, db DBTX, ar
 	var i SoftDeleteExpiredWorkflowRunsRow
 	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
 	return &i, err
+}
+
+const softDeleteWorkflowRun = `-- name: SoftDeleteWorkflowRun :exec
+
+WITH job_runs_to_delete AS (
+    SELECT
+        "id"
+    FROM
+        "JobRun"
+    WHERE
+        "workflowRunId" = $1::uuid
+),
+runs_to_delete AS (
+    UPDATE
+        "StepRun"
+    SET
+        "deletedAt" = CURRENT_TIMESTAMP
+    WHERE
+        "jobRunId" = $1::uuid
+)
+UPDATE
+    "WorkflowRun"
+SET
+    "deletedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" = $1::uuid AND
+    "tenantId" = $2::uuid
+`
+
+type SoftDeleteWorkflowRunParams struct {
+	ID       pgtype.UUID `json:"id"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+// TODO archive chunky data?
+func (q *Queries) SoftDeleteWorkflowRun(ctx context.Context, db DBTX, arg SoftDeleteWorkflowRunParams) error {
+	_, err := db.Exec(ctx, softDeleteWorkflowRun, arg.ID, arg.Tenantid)
+	return err
 }
 
 const updateManyWorkflowRun = `-- name: UpdateManyWorkflowRun :many
