@@ -598,6 +598,7 @@ type APIToken struct {
 	Name        pgtype.Text      `json:"name"`
 	TenantId    pgtype.UUID      `json:"tenantId"`
 	NextAlertAt pgtype.Timestamp `json:"nextAlertAt"`
+	Internal    bool             `json:"internal"`
 }
 
 type Action struct {

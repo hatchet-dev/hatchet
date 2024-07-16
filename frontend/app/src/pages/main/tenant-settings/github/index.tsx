@@ -1,16 +1,26 @@
 import { Separator } from '@/components/ui/separator';
-import { useApiMetaIntegrations } from '@/lib/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 
 import { columns as githubInstallationsColumns } from './components/github-installations-columns';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { Button } from '@/components/ui/button';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 
 export default function Github() {
-  const integrations = useApiMetaIntegrations();
+  const cloudMeta = useCloudApiMeta();
 
-  const hasGithubIntegration = integrations?.find((i) => i.name === 'github');
+  const hasGithubIntegration = cloudMeta?.data.canLinkGithub;
+
+  if (!cloudMeta || !hasGithubIntegration) {
+    return (
+      <div className="flex-grow h-full w-full">
+        <p className="text-gray-700 dark:text-gray-300 my-4">
+          Not enabled for this tenant or instance.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-grow h-full w-full">
@@ -43,7 +53,7 @@ function GithubInstallationsList() {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Github Accounts
         </h3>
-        <a href="/api/v1/users/github/start">
+        <a href="/api/v1/cloud/users/github-app/start">
           <Button key="create-api-token">Link new account</Button>
         </a>
       </div>

@@ -18,15 +18,17 @@ INSERT INTO "APIToken" (
     "updatedAt",
     "tenantId",
     "name",
-    "expiresAt"
+    "expiresAt",
+    "internal"
 ) VALUES (
     coalesce($1::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
     $2::uuid,
     $3::text,
-    $4::timestamp
-) RETURNING id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt"
+    $4::timestamp,
+    COALESCE($5::boolean, FALSE)
+) RETURNING id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal
 `
 
 type CreateAPITokenParams struct {
@@ -34,6 +36,7 @@ type CreateAPITokenParams struct {
 	TenantId  pgtype.UUID      `json:"tenantId"`
 	Name      pgtype.Text      `json:"name"`
 	Expiresat pgtype.Timestamp `json:"expiresat"`
+	Internal  pgtype.Bool      `json:"internal"`
 }
 
 func (q *Queries) CreateAPIToken(ctx context.Context, db DBTX, arg CreateAPITokenParams) (*APIToken, error) {
@@ -42,6 +45,7 @@ func (q *Queries) CreateAPIToken(ctx context.Context, db DBTX, arg CreateAPIToke
 		arg.TenantId,
 		arg.Name,
 		arg.Expiresat,
+		arg.Internal,
 	)
 	var i APIToken
 	err := row.Scan(
@@ -53,13 +57,14 @@ func (q *Queries) CreateAPIToken(ctx context.Context, db DBTX, arg CreateAPIToke
 		&i.Name,
 		&i.TenantId,
 		&i.NextAlertAt,
+		&i.Internal,
 	)
 	return &i, err
 }
 
 const getAPITokenById = `-- name: GetAPITokenById :one
 SELECT
-    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt"
+    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal
 FROM
     "APIToken"
 WHERE
@@ -78,6 +83,7 @@ func (q *Queries) GetAPITokenById(ctx context.Context, db DBTX, id pgtype.UUID) 
 		&i.Name,
 		&i.TenantId,
 		&i.NextAlertAt,
+		&i.Internal,
 	)
 	return &i, err
 }

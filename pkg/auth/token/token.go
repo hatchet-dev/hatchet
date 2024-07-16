@@ -13,8 +13,8 @@ import (
 )
 
 type JWTManager interface {
-	GenerateTenantToken(ctx context.Context, tenantId, name string, expires *time.Time) (*Token, error)
-	UpsertTenantToken(ctx context.Context, tenantId, name, id string, expires *time.Time) (string, error)
+	GenerateTenantToken(ctx context.Context, tenantId, name string, internal bool, expires *time.Time) (*Token, error)
+	UpsertTenantToken(ctx context.Context, tenantId, name, id string, internal bool, expires *time.Time) (string, error)
 	ValidateTenantToken(ctx context.Context, token string) (string, error)
 }
 
@@ -82,7 +82,7 @@ func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId, name string,
 	}, nil
 }
 
-func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name string, expires *time.Time) (*Token, error) {
+func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name string, internal bool, expires *time.Time) (*Token, error) {
 	token, err := j.createToken(ctx, tenantId, name, nil, expires)
 	if err != nil {
 		return nil, err
@@ -94,6 +94,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name
 		ExpiresAt: token.ExpiresAt,
 		TenantId:  &tenantId,
 		Name:      &name,
+		Internal:  internal,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to write token to database: %v", err)
@@ -102,7 +103,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name
 	return token, nil
 }
 
-func (j *jwtManagerImpl) UpsertTenantToken(ctx context.Context, tenantId, name, id string, expires *time.Time) (string, error) {
+func (j *jwtManagerImpl) UpsertTenantToken(ctx context.Context, tenantId, name, id string, internal bool, expires *time.Time) (string, error) {
 	token, err := j.createToken(ctx, tenantId, name, &id, expires)
 	if err != nil {
 		return "", err
@@ -114,6 +115,7 @@ func (j *jwtManagerImpl) UpsertTenantToken(ctx context.Context, tenantId, name, 
 		ExpiresAt: token.ExpiresAt,
 		TenantId:  &tenantId,
 		Name:      &name,
+		Internal:  internal,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to write token to database: %v", err)
