@@ -29,6 +29,16 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 		OrderDirection: &orderDirection,
 	}
 
+	if request.Params.OrderByField != nil {
+		orderBy = string(*request.Params.OrderByField)
+		listOpts.OrderBy = &orderBy
+	}
+
+	if request.Params.OrderByDirection != nil {
+		orderDirection = string(*request.Params.OrderByDirection)
+		listOpts.OrderDirection = &orderDirection
+	}
+
 	if request.Params.Limit != nil {
 		limit = int(*request.Params.Limit)
 		listOpts.Limit = &limit

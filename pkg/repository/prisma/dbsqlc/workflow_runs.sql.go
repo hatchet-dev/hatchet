@@ -391,7 +391,7 @@ INSERT INTO "WorkflowRun" (
     $7::uuid,
     $8::uuid,
     $9::jsonb
-) RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata"
+) RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration
 `
 
 type CreateWorkflowRunParams struct {
@@ -437,6 +437,7 @@ func (q *Queries) CreateWorkflowRun(ctx context.Context, db DBTX, arg CreateWork
 		&i.ParentId,
 		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
+		&i.Duration,
 	)
 	return &i, err
 }
@@ -554,7 +555,7 @@ func (q *Queries) DeleteExpiredWorkflowRuns(ctx context.Context, db DBTX, arg De
 
 const getChildWorkflowRun = `-- name: GetChildWorkflowRun :one
 SELECT
-    "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata"
+    "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration
 FROM
     "WorkflowRun"
 WHERE
@@ -600,6 +601,7 @@ func (q *Queries) GetChildWorkflowRun(ctx context.Context, db DBTX, arg GetChild
 		&i.ParentId,
 		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
+		&i.Duration,
 	)
 	return &i, err
 }
@@ -650,7 +652,7 @@ func (q *Queries) GetScheduledChildWorkflowRun(ctx context.Context, db DBTX, arg
 
 const getWorkflowRun = `-- name: GetWorkflowRun :many
 SELECT
-    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata",
+    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration,
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
     workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId",
     workflow."name" as "workflowName",
@@ -717,6 +719,7 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 			&i.WorkflowRun.ParentId,
 			&i.WorkflowRun.ParentStepRunId,
 			&i.WorkflowRun.AdditionalMetadata,
+			&i.WorkflowRun.Duration,
 			&i.WorkflowRunTriggeredBy.ID,
 			&i.WorkflowRunTriggeredBy.CreatedAt,
 			&i.WorkflowRunTriggeredBy.UpdatedAt,
@@ -832,7 +835,7 @@ func (q *Queries) ListActiveQueuedWorkflowVersions(ctx context.Context, db DBTX)
 
 const listWorkflowRuns = `-- name: ListWorkflowRuns :many
 SELECT
-    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata",
+    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration,
     workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description,
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
     workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId",
@@ -896,7 +899,13 @@ WHERE
     )
 ORDER BY
     case when $13 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when $13 = 'createdAt DESC' then runs."createdAt" END DESC,
+    case when $13 = 'createdAt DESC' THEN runs."createdAt" END DESC,
+    case when $13 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+    case when $13 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+    case when $13 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+    case when $13 = 'startedAt DESC' THEN runs."startedAt" END DESC,
+    case when $13 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+    case when $13 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
     runs."id" ASC
 OFFSET
     COALESCE($14, 0)
@@ -976,6 +985,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 			&i.WorkflowRun.ParentId,
 			&i.WorkflowRun.ParentStepRunId,
 			&i.WorkflowRun.AdditionalMetadata,
+			&i.WorkflowRun.Duration,
 			&i.Workflow.ID,
 			&i.Workflow.CreatedAt,
 			&i.Workflow.UpdatedAt,
@@ -1078,7 +1088,7 @@ WHERE
     "WorkflowRun".id = eligible_runs.id AND
     "WorkflowRun"."status" = 'QUEUED'
 RETURNING
-    "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata"
+    "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration
 `
 
 type PopWorkflowRunsRoundRobinParams struct {
@@ -1114,6 +1124,7 @@ func (q *Queries) PopWorkflowRunsRoundRobin(ctx context.Context, db DBTX, arg Po
 			&i.ParentId,
 			&i.ParentStepRunId,
 			&i.AdditionalMetadata,
+			&i.Duration,
 		); err != nil {
 			return nil, err
 		}
@@ -1155,7 +1166,8 @@ SET "status" = CASE
     -- When all job runs have succeeded, then the workflow is succeeded
     WHEN j.succeededRuns > 0 AND j.pendingRuns = 0 AND j.runningRuns = 0 AND j.failedRuns = 0 AND j.cancelledRuns = 0 THEN 'SUCCEEDED'
     ELSE "status"
-END, "finishedAt" = CASE
+END,
+"finishedAt" = CASE
     -- Final states are final, cannot be updated
     WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
     -- We check for running first, because if a job run is running, then the workflow is not finished
@@ -1163,12 +1175,23 @@ END, "finishedAt" = CASE
     -- When one job run has failed or been cancelled, then the workflow is failed
     WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN NOW()
     ELSE "finishedAt"
-END, "startedAt" = CASE
+END,
+"startedAt" = CASE
     -- Started at is final, cannot be changed
     WHEN "startedAt" IS NOT NULL THEN "startedAt"
     -- If a job is running or in a final state, then the workflow has started
     WHEN j.runningRuns > 0 OR j.succeededRuns > 0 OR j.failedRuns > 0 OR j.cancelledRuns > 0 THEN NOW()
     ELSE "startedAt"
+END,
+"duration" = CASE
+    -- duration is final, cannot be changed
+    WHEN "duration" IS NOT NULL THEN "duration"
+    -- We check for running first, because if a job run is running, then the workflow is not finished
+    WHEN j.runningRuns > 0 THEN NULL
+    -- When one job run has failed or been cancelled, then the workflow is failed
+    WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN
+                    EXTRACT(EPOCH FROM (NOW() - "startedAt")) * 1000
+    ELSE "duration"
 END
 FROM
     jobRuns j
@@ -1177,7 +1200,7 @@ WHERE "id" = (
     FROM "JobRun"
     WHERE "id" = $1::uuid
 ) AND "tenantId" = $2::uuid
-RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata"
+RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration
 `
 
 type ResolveWorkflowRunStatusParams struct {
@@ -1206,6 +1229,7 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 		&i.ParentId,
 		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
+		&i.Duration,
 	)
 	return &i, err
 }
@@ -1217,11 +1241,12 @@ SET
     "status" = COALESCE($1::"WorkflowRunStatus", "status"),
     "error" = COALESCE($2::text, "error"),
     "startedAt" = COALESCE($3::timestamp, "startedAt"),
-    "finishedAt" = COALESCE($4::timestamp, "finishedAt")
+    "finishedAt" = COALESCE($4::timestamp, "finishedAt"),
+    "duration" = COALESCE($4::timestamp, "finishedAt") - COALESCE($3::timestamp, "startedAt")
 WHERE
     "tenantId" = $5::uuid AND
     "id" = ANY($6::uuid[])
-RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata"
+RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration
 `
 
 type UpdateManyWorkflowRunParams struct {
@@ -1267,6 +1292,7 @@ func (q *Queries) UpdateManyWorkflowRun(ctx context.Context, db DBTX, arg Update
 			&i.ParentId,
 			&i.ParentStepRunId,
 			&i.AdditionalMetadata,
+			&i.Duration,
 		); err != nil {
 			return nil, err
 		}
@@ -1289,11 +1315,14 @@ SET
     END,
     "error" = COALESCE($2::text, "error"),
     "startedAt" = COALESCE($3::timestamp, "startedAt"),
-    "finishedAt" = COALESCE($4::timestamp, "finishedAt")
+    "finishedAt" = COALESCE($4::timestamp, "finishedAt"),
+    "duration" =
+        EXTRACT(EPOCH FROM (COALESCE($4::timestamp, "finishedAt") - COALESCE($3::timestamp, "startedAt")) * 1000)
+
 WHERE
     "id" = $5::uuid AND
     "tenantId" = $6::uuid
-RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata"
+RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration
 `
 
 type UpdateWorkflowRunParams struct {
@@ -1333,6 +1362,7 @@ func (q *Queries) UpdateWorkflowRun(ctx context.Context, db DBTX, arg UpdateWork
 		&i.ParentId,
 		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
+		&i.Duration,
 	)
 	return &i, err
 }
@@ -1353,12 +1383,20 @@ SET "status" = CASE
     WHEN groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN 'FAILED'
     WHEN groupKeyRun.output IS NOT NULL THEN 'QUEUED'
     ELSE "status"
-END, "finishedAt" = CASE
+END,
+"finishedAt" = CASE
     -- Final states are final, cannot be updated
     WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
     -- When one job run has failed or been cancelled, then the workflow is failed
     WHEN groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN NOW()
     ELSE "finishedAt"
+END,
+"duration" = CASE
+    -- duration is final, cannot be changed
+    WHEN "duration" IS NOT NULL THEN "duration"
+    WHEN "startedAt" IS NOT NULL AND groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN
+                EXTRACT(EPOCH FROM (NOW() - "startedAt")) * 1000
+    ELSE "duration"
 END,
 "concurrencyGroupId" = groupKeyRun."output"
 FROM
@@ -1366,7 +1404,7 @@ FROM
 WHERE
 workflowRun."id" = groupKeyRun."workflowRunId" AND
 workflowRun."tenantId" = $1::uuid
-RETURNING workflowrun."createdAt", workflowrun."updatedAt", workflowrun."deletedAt", workflowrun."tenantId", workflowrun."workflowVersionId", workflowrun.status, workflowrun.error, workflowrun."startedAt", workflowrun."finishedAt", workflowrun."concurrencyGroupId", workflowrun."displayName", workflowrun.id, workflowrun."childIndex", workflowrun."childKey", workflowrun."parentId", workflowrun."parentStepRunId", workflowrun."additionalMetadata"
+RETURNING workflowrun."createdAt", workflowrun."updatedAt", workflowrun."deletedAt", workflowrun."tenantId", workflowrun."workflowVersionId", workflowrun.status, workflowrun.error, workflowrun."startedAt", workflowrun."finishedAt", workflowrun."concurrencyGroupId", workflowrun."displayName", workflowrun.id, workflowrun."childIndex", workflowrun."childKey", workflowrun."parentId", workflowrun."parentStepRunId", workflowrun."additionalMetadata", workflowrun.duration
 `
 
 type UpdateWorkflowRunGroupKeyParams struct {
@@ -1395,6 +1433,7 @@ func (q *Queries) UpdateWorkflowRunGroupKey(ctx context.Context, db DBTX, arg Up
 		&i.ParentId,
 		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
+		&i.Duration,
 	)
 	return &i, err
 }

@@ -1,3 +1,17 @@
+WorkflowRunOrderByField:
+  type: string
+  enum:
+    - createdAt
+    - startedAt
+    - finishedAt
+    - duration
+
+WorkflowRunOrderByDirection:
+  type: string
+  enum:
+    - ASC
+    - DESC
+
 WorkflowRun:
   type: object
   properties:
@@ -30,6 +44,9 @@ WorkflowRun:
     finishedAt:
       type: string
       format: date-time
+    duration:
+      type: integer
+      example: 1000
     parentId:
       type: string
       example: bb214807-246e-43a5-a25d-41761d1cff9e
