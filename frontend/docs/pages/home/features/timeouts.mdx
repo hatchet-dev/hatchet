@@ -52,7 +52,7 @@ const myWorkflow: Workflow = {
   <Tabs.Tab>
 ```go
 cleanup, err := run(events, worker.WorkflowJob{
-  Name:        "timeout",
+  Name: "timeout",
   Description: "timeout",
   ScheduleTimeout: "2m",
   Steps: []*worker.WorkflowStep{
@@ -101,7 +101,7 @@ const myStep: CreateStep<any, any> = {
   <Tabs.Tab>
 ```go
 worker.WorkflowJob{
-  Name:        "timeout",
+  Name: "timeout",
   Description: "timeout",
   Steps: []*worker.WorkflowStep{
     worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
@@ -158,7 +158,7 @@ const myStep: CreateStep<any, any> = {
   <Tabs.Tab>
 ```go
 worker.WorkflowJob{
-		Name:        "timeout",
+		Name: "timeout",
 		Description: "timeout",
 		Steps: []*worker.WorkflowStep{
 			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {

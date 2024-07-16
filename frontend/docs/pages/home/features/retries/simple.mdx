@@ -28,25 +28,27 @@ def step1(self, context: Context):
 ```
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 import { CreateStepSchema } from "@hatchet-dev/typescript-sdk";
 
 const step1: z.infer<typeof CreateStepSchema> = {
-name: "step1",
-timeout: "30s",
-retries: 3,
+  name: "step1",
+  timeout: "30s",
+  retries: 3,
 };
+```
 
-````
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 Steps: []*worker.WorkflowStep{
   worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
     continue
   }).SetName("step1").SetRetries(3).SetTimeout("30s"),
 },
-````
+```
 
   </Tabs.Tab>
 </Tabs>

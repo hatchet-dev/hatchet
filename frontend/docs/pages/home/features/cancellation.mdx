@@ -89,10 +89,10 @@ Here's an example of how to check for cancellation in a step:
 ```go
 w.RegisterWorkflow(
     &worker.WorkflowJob{
-        Name:        "post-user-sign-up",
-        On:          worker.Event("user:created"),
+        Name: "post-user-sign-up",
+        On: worker.Event("user:created"),
         Description: "Workflow that executes after a user signs up.",
-        Timeout:     "60s",
+        Timeout: "60s",
         Steps: []*worker.WorkflowStep{
             {
                 Function: func(ctx context.Context) error {

@@ -42,7 +42,7 @@ const myWorkflow: Workflow = {
 ```go
 w.RegisterWorkflow(
     &worker.WorkflowJob{
-        Name:        "myWorkflow",
+        Name: "myWorkflow",
         On: worker.Cron("0 0 * * *"),
         Description: "Cron workflow example.",
         Steps: []*worker.WorkflowStep{

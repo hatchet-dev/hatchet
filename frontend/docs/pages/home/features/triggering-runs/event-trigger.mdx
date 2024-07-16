@@ -37,7 +37,7 @@ const myWorkflow: Workflow = {
 ```go
 w.RegisterWorkflow(
     &worker.WorkflowJob{
-        Name:        "post-user-create",
+        Name: "post-user-create",
         On: worker.Event("user:created"),
         Description: "Cron workflow example.",
         Steps: []*worker.WorkflowStep{
@@ -87,7 +87,7 @@ const myStep: Step = async (context: Context<UserCreatedEvent>) => {
 type workflowInputExample struct{}
 w.RegisterWorkflow(
     &worker.WorkflowJob{
-        Name:        "post-user-create",
+        Name: "post-user-create",
         On: worker.Event("user:created"),
         Description: "Cron workflow example.",
         Steps: []*worker.WorkflowStep{

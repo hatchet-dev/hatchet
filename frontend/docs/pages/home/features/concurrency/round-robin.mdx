@@ -74,14 +74,17 @@ export const concurrencyDemoWorkflow: Workflow = {
   <Tabs.Tab>
 
 ```go
-import "github.com/hatchet-dev/hatchet/pkg/client/types"
+import (
+  "github.com/hatchet-dev/hatchet/pkg/client/types"
+  "github.com/hatchet-dev/hatchet/pkg/worker"
+)
 
 type MyUser struct {
   UserId string `json:"user_id"`
 }
 
 func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
-    event := &MyEvent{}
+    event := &MyUser{}
     err := ctx.WorkflowInput(event)
 
     if err != nil {
@@ -97,7 +100,7 @@ err = w.RegisterWorkflow(
         On: worker.Events("concurrency-test-event"),
         Description: "This limits concurrency to 1 run at a time per user.",
         Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(10).LimitStrategy(types.GroupRoundRobin),
-        Steps: []\*worker.WorkflowStep{
+        Steps: []*worker.WorkflowStep{
             // your steps here...
         },
     },

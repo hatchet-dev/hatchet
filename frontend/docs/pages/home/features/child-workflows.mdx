@@ -61,8 +61,8 @@ const parentWorkflow: Workflow = {
 ```go
 w.RegisterWorkflow(
     &worker.WorkflowJob{
-        Name:   "parent-workflow",
-        On:   worker.Event("fanout:create"),
+        Name: "parent-workflow",
+        On: worker.Event("fanout:create"),
         Description: "Example workflow for spawning child workflows.",
         Steps: []*worker.WorkflowStep{
             worker.Fn(func(ctx worker.HatchetContext) error {
@@ -165,7 +165,7 @@ const parentWorkflow: Workflow = {
 ```go
 w.RegisterWorkflow(
     &worker.WorkflowJob{
-        Name:        "parent-workflow",
+        Name: "parent-workflow",
         On: worker.Event("fanout:create"),
         Description: "Example workflow for spawning child workflows.",
         Steps: []*worker.WorkflowStep{
@@ -279,7 +279,7 @@ class Parent:
 ```go
 w.RegisterWorkflow(
     &worker.WorkflowJob{
-        Name:        "parent-workflow",
+        Name: "parent-workflow",
         On: worker.Event("fanout:create"),
         Description: "Example workflow for spawning child workflows.",
         Steps: []*worker.WorkflowStep{

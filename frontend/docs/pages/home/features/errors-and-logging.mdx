@@ -82,13 +82,13 @@ export default myStep;
 ```go
 err = w.RegisterWorkflow(
 	&worker.WorkflowJob{
-		Name:        "log-demo-workflow",
+		Name: "log-demo-workflow",
     On: worker.Events("user:create"),
 		Description: "This is an example workflow with logging.",
 		Steps: []*worker.WorkflowStep{
 			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 				ctx.log("Starting step execution")
-        result := someOpeartion()
+        result := someOperation()
         ctx.log(fmt.Sprintf("Operation result: %v", result))
 
     		}).SetName("step-one"),
