@@ -11,6 +11,58 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearEventPayloadData = `-- name: ClearEventPayloadData :one
+WITH expired_events_count AS (
+    SELECT COUNT(*) as count
+    FROM "Event" e1
+    WHERE
+        e1."tenantId" = $1::uuid AND
+        e1."deletedAt" > NOW() + INTERVAL '5 minutes'
+        AND e1."data" IS NOT NULL
+), expired_events_with_limit AS (
+    SELECT
+        "id"
+    FROM "Event" e2
+    WHERE
+        e1."tenantId" = $1::uuid AND
+        e1."deletedAt" > NOW() + INTERVAL '5 minutes'
+        AND e1."data" IS NOT NULL
+    ORDER BY "deletedAt" ASC
+    LIMIT $2
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "Event"
+SET
+    "data" = NULL
+FROM
+    expired_events_with_limit e
+WHERE
+    "id" = e."id"
+RETURNING
+    (SELECT count FROM expired_events_count) as total,
+    (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining,
+    (SELECT COUNT(*) FROM expired_events_with_limit) as deleted
+`
+
+type ClearEventPayloadDataParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    int32       `json:"limit"`
+}
+
+type ClearEventPayloadDataRow struct {
+	Total     int64 `json:"total"`
+	Remaining int32 `json:"remaining"`
+	Deleted   int64 `json:"deleted"`
+}
+
+func (q *Queries) ClearEventPayloadData(ctx context.Context, db DBTX, arg ClearEventPayloadDataParams) (*ClearEventPayloadDataRow, error) {
+	row := db.QueryRow(ctx, clearEventPayloadData, arg.Tenantid, arg.Limit)
+	var i ClearEventPayloadDataRow
+	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
+	return &i, err
+}
+
 const countEvents = `-- name: CountEvents :one
 WITH events AS (
     SELECT
@@ -386,14 +438,16 @@ WITH expired_events_count AS (
     FROM "Event" e1
     WHERE
         e1."tenantId" = $1::uuid AND
-        e1."createdAt" < $2::timestamp
+        e1."createdAt" < $2::timestamp AND
+        e1."deletedAt" IS NULL
 ), expired_events_with_limit AS (
     SELECT
         "id"
     FROM "Event" e2
     WHERE
         e2."tenantId" = $1::uuid AND
-        e2."createdAt" < $2::timestamp
+        e2."createdAt" < $2::timestamp AND
+        e2."deletedAt" IS NULL
     ORDER BY "createdAt" ASC
     LIMIT $3
     FOR UPDATE SKIP LOCKED

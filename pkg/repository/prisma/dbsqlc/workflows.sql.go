@@ -49,24 +49,6 @@ func (q *Queries) AddWorkflowTag(ctx context.Context, db DBTX, arg AddWorkflowTa
 	return err
 }
 
-const cleanupDeletedWorkflows = `-- name: CleanupDeletedWorkflows :exec
-
-WITH workflows_to_delete AS (
-    SELECT "id"
-    FROM "Workflow"
-    WHERE "deletedAt" < NOW() + '1 minute'::interval
-)
-DELETE FROM "Workflow"
-USING workflows_to_delete
-WHERE "Workflow"."id" = workflows_to_delete."id"
-`
-
-// TODO is setting all versions enough to stop writes?
-func (q *Queries) CleanupDeletedWorkflows(ctx context.Context, db DBTX) error {
-	_, err := db.Exec(ctx, cleanupDeletedWorkflows)
-	return err
-}
-
 const countRoundRobinGroupKeys = `-- name: CountRoundRobinGroupKeys :one
 SELECT
     COUNT(DISTINCT "concurrencyGroupId") AS total

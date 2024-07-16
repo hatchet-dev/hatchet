@@ -266,6 +266,74 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 	return &i, err
 }
 
+const clearStepRunPayloadData = `-- name: ClearStepRunPayloadData :one
+WITH deleted_count AS (
+    SELECT COUNT(*) as count
+    FROM "StepRun" sr1
+    WHERE
+        e1."tenantId" = $1::uuid AND
+        e1."deletedAt" > NOW() + INTERVAL '5 minutes'
+        AND ("input" IS NOT NULL OR "output" IS NOT NULL OR "error" IS NOT NULL)
+), deleted_with_limit AS (
+    SELECT
+        "id"
+    FROM "StepRun" sr2
+    WHERE
+        e1."tenantId" = $1::uuid AND
+        e1."deletedAt" > NOW() + INTERVAL '5 minutes'
+        AND ("input" IS NOT NULL OR "output" IS NOT NULL OR "error" IS NOT NULL)
+    ORDER BY "deletedAt" ASC
+    LIMIT $2
+    FOR UPDATE SKIP LOCKED
+), deleted_archives AS (
+    SELECT "id"
+    FROM "StepRunResultArchive" sra
+    WHERE
+        sra."stepRunId" IN (SELECT "id" FROM deleted_with_limit)
+        AND ("input" IS NOT NULL OR "output" IS NOT NULL OR "error" IS NOT NULL)
+), cleared_archives AS (
+    UPDATE "StepRunResultArchive" sra
+    SET
+        "input" = NULL,
+        "output" = NULL,
+        "error" = NULL
+    WHERE
+        sra."id" IN (SELECT "id" FROM deleted_archives)
+)
+UPDATE
+    "StepRun"
+SET
+    "input" = NULL,
+    "output" = NULL,
+    "error" = NULL
+FROM
+    deleted_with_limit e
+WHERE
+    "id" = e."id"
+RETURNING
+    (SELECT count FROM deleted_count) as total,
+    (SELECT count FROM deleted_count) - (SELECT COUNT(*) FROM deleted_with_limit) as remaining,
+    (SELECT COUNT(*) FROM deleted_with_limit) as deleted
+`
+
+type ClearStepRunPayloadDataParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    int32       `json:"limit"`
+}
+
+type ClearStepRunPayloadDataRow struct {
+	Total     int64 `json:"total"`
+	Remaining int32 `json:"remaining"`
+	Deleted   int64 `json:"deleted"`
+}
+
+func (q *Queries) ClearStepRunPayloadData(ctx context.Context, db DBTX, arg ClearStepRunPayloadDataParams) (*ClearStepRunPayloadDataRow, error) {
+	row := db.QueryRow(ctx, clearStepRunPayloadData, arg.Tenantid, arg.Limit)
+	var i ClearStepRunPayloadDataRow
+	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
+	return &i, err
+}
+
 const countStepRunArchives = `-- name: CountStepRunArchives :one
 SELECT
     count(*) OVER() AS total

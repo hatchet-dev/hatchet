@@ -112,11 +112,11 @@ func New(fs ...RetentionControllerOpt) (*RetentionControllerImpl, error) {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
 
-	newLogger := opts.l.With().Str("service", "workflows-controller").Logger()
+	newLogger := opts.l.With().Str("service", "retention-controller").Logger()
 	opts.l = &newLogger
 
 	a := hatcheterrors.NewWrapped(opts.alerter)
-	a.WithData(map[string]interface{}{"service": "workflows-controller"})
+	a.WithData(map[string]interface{}{"service": "retention-controller"})
 
 	return &RetentionControllerImpl{
 		l:             opts.l,
@@ -130,25 +130,14 @@ func New(fs ...RetentionControllerOpt) (*RetentionControllerImpl, error) {
 }
 
 func (rc *RetentionControllerImpl) Start() (func() error, error) {
-	rc.l.Debug().Msg("starting workflows controller")
+	rc.l.Debug().Msg("starting retention controller")
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// TODO clean up soft delete cron
-	// _, err = wc.s.NewJob(
-	// 	gocron.DurationJob(time.Second*60),
-	// 	gocron.NewTask(
-	// 		wc.runSoftDeleteCleanup(ctx),
-	// 	),
-	// )
-
-	// if err != nil {
-	// 	cancel()
-	// 	return nil, fmt.Errorf("could not delete expired workflow runs: %w", err)
-	// }
+	interval := time.Second * 60 // run every 60 seconds
 
 	_, err := rc.s.NewJob(
-		gocron.DurationJob(time.Second*60),
+		gocron.DurationJob(interval),
 		gocron.NewTask(
 			rc.runDeleteExpiredWorkflowRuns(ctx),
 		),
@@ -160,7 +149,7 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = rc.s.NewJob(
-		gocron.DurationJob(time.Second*60),
+		gocron.DurationJob(interval),
 		gocron.NewTask(
 			rc.runDeleteExpiredEvents(ctx),
 		),
@@ -169,6 +158,30 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not delete expired events: %w", err)
+	}
+
+	_, err = rc.s.NewJob(
+		gocron.DurationJob(interval),
+		gocron.NewTask(
+			rc.runDeleteExpiredStepRuns(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not delete expired step runs: %w", err)
+	}
+
+	_, err = rc.s.NewJob(
+		gocron.DurationJob(interval),
+		gocron.NewTask(
+			rc.runDeleteExpiredJobRuns(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not delete expired job runs: %w", err)
 	}
 
 	rc.s.Start()

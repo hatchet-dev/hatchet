@@ -247,14 +247,14 @@ func (w *workflowRunEngineRepository) ListActiveQueuedWorkflowVersions(ctx conte
 	return w.queries.ListActiveQueuedWorkflowVersions(ctx, w.pool)
 }
 
-func (w *workflowRunEngineRepository) DeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (int, int, error) {
+func (w *workflowRunEngineRepository) SoftDeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (int, int, error) {
 	paramStatuses := make([]string, 0)
 
 	for _, status := range statuses {
 		paramStatuses = append(paramStatuses, string(status))
 	}
 
-	resp, err := w.queries.SoftDeleteExpiredWorkflowRuns(ctx, w.pool, dbsqlc.SoftDeleteExpiredWorkflowRunsParams{
+	resp, err := w.queries.SoftDeleteExpiredWorkflowRunsWithDependencies(ctx, w.pool, dbsqlc.SoftDeleteExpiredWorkflowRunsWithDependenciesParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Statuses:      paramStatuses,
 		Createdbefore: sqlchelpers.TimestampFromTime(before),

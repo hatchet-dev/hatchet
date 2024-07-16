@@ -1197,25 +1197,58 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 	return &i, err
 }
 
-const softDeleteExpiredWorkflowRuns = `-- name: SoftDeleteExpiredWorkflowRuns :one
+const softDeleteExpiredWorkflowRunsWithDependencies = `-- name: SoftDeleteExpiredWorkflowRunsWithDependencies :one
 WITH expired_runs_count AS (
     SELECT COUNT(*) as count
     FROM "WorkflowRun" wr1
     WHERE
         wr1."tenantId" = $1::uuid AND
         wr1."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
-        wr1."createdAt" < $3::timestamp
-), expired_runs_with_limit AS (
+        wr1."createdAt" < $3::timestamp AND
+        wr1."deletedAt" IS NULL
+),
+expired_runs_with_limit AS (
     SELECT
         "id"
     FROM "WorkflowRun" wr2
     WHERE
         wr2."tenantId" = $1::uuid AND
         wr2."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
-        wr2."createdAt" < $3::timestamp
+        wr2."createdAt" < $3::timestamp AND
+        "deletedAt" IS NULL
     ORDER BY "createdAt" ASC
     LIMIT $4
     FOR UPDATE SKIP LOCKED
+), job_runs_to_delete AS (
+    SELECT
+        "id"
+    FROM
+        "JobRun"
+    WHERE
+        "workflowRunId" IN (SELECT "id" FROM expired_runs_with_limit)
+        AND "deletedAt" IS NULL
+), step_runs_to_delete AS (
+    SELECT
+        "id"
+    FROM
+        "StepRun"
+    WHERE
+        "jobRunId" IN (SELECT "id" FROM job_runs_to_delete)
+        AND "deletedAt" IS NULL
+), update_step_runs AS (
+    UPDATE
+        "StepRun"
+    SET
+        "deletedAt" = CURRENT_TIMESTAMP
+    WHERE
+        "id" IN (SELECT "id" FROM step_runs_to_delete)
+), update_job_runs AS (
+    UPDATE
+        "JobRun"
+    SET
+        "deletedAt" = CURRENT_TIMESTAMP
+    WHERE
+        "id" IN (SELECT "id" FROM job_runs_to_delete)
 )
 UPDATE
     "WorkflowRun"
@@ -1231,67 +1264,29 @@ RETURNING
     (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted
 `
 
-type SoftDeleteExpiredWorkflowRunsParams struct {
+type SoftDeleteExpiredWorkflowRunsWithDependenciesParams struct {
 	Tenantid      pgtype.UUID      `json:"tenantid"`
 	Statuses      []string         `json:"statuses"`
 	Createdbefore pgtype.Timestamp `json:"createdbefore"`
 	Limit         int32            `json:"limit"`
 }
 
-type SoftDeleteExpiredWorkflowRunsRow struct {
+type SoftDeleteExpiredWorkflowRunsWithDependenciesRow struct {
 	Total     int64 `json:"total"`
 	Remaining int32 `json:"remaining"`
 	Deleted   int64 `json:"deleted"`
 }
 
-func (q *Queries) SoftDeleteExpiredWorkflowRuns(ctx context.Context, db DBTX, arg SoftDeleteExpiredWorkflowRunsParams) (*SoftDeleteExpiredWorkflowRunsRow, error) {
-	row := db.QueryRow(ctx, softDeleteExpiredWorkflowRuns,
+func (q *Queries) SoftDeleteExpiredWorkflowRunsWithDependencies(ctx context.Context, db DBTX, arg SoftDeleteExpiredWorkflowRunsWithDependenciesParams) (*SoftDeleteExpiredWorkflowRunsWithDependenciesRow, error) {
+	row := db.QueryRow(ctx, softDeleteExpiredWorkflowRunsWithDependencies,
 		arg.Tenantid,
 		arg.Statuses,
 		arg.Createdbefore,
 		arg.Limit,
 	)
-	var i SoftDeleteExpiredWorkflowRunsRow
+	var i SoftDeleteExpiredWorkflowRunsWithDependenciesRow
 	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
 	return &i, err
-}
-
-const softDeleteWorkflowRun = `-- name: SoftDeleteWorkflowRun :exec
-
-WITH job_runs_to_delete AS (
-    SELECT
-        "id"
-    FROM
-        "JobRun"
-    WHERE
-        "workflowRunId" = $1::uuid
-),
-runs_to_delete AS (
-    UPDATE
-        "StepRun"
-    SET
-        "deletedAt" = CURRENT_TIMESTAMP
-    WHERE
-        "jobRunId" = $1::uuid
-)
-UPDATE
-    "WorkflowRun"
-SET
-    "deletedAt" = CURRENT_TIMESTAMP
-WHERE
-    "id" = $1::uuid AND
-    "tenantId" = $2::uuid
-`
-
-type SoftDeleteWorkflowRunParams struct {
-	ID       pgtype.UUID `json:"id"`
-	Tenantid pgtype.UUID `json:"tenantid"`
-}
-
-// TODO archive chunky data?
-func (q *Queries) SoftDeleteWorkflowRun(ctx context.Context, db DBTX, arg SoftDeleteWorkflowRunParams) error {
-	_, err := db.Exec(ctx, softDeleteWorkflowRun, arg.ID, arg.Tenantid)
-	return err
 }
 
 const updateManyWorkflowRun = `-- name: UpdateManyWorkflowRun :many

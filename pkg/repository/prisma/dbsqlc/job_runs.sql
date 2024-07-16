@@ -137,3 +137,38 @@ WHERE
     jr."tenantId" = @tenantId::uuid
     AND jr."workflowRunId" = @workflowRunId::uuid
     AND jr."jobId" = @jobId::uuid;
+
+-- name: ClearJobRunLookupData :one
+WITH deleted_count AS (
+    SELECT COUNT(*) as count
+    FROM "JobRun" jr1
+    LEFT JOIN "JobRunLookupData" jrld1 ON jr1."id" = jrld1."jobRunId"
+    WHERE
+        jr1."tenantId" = @tenantId::uuid AND
+        jr1."deletedAt" > NOW() + INTERVAL '5 minutes' AND
+        jrld1."data" IS NOT NULL
+), deleted_with_limit AS (
+    SELECT
+        jrld2."id" as "id"
+    FROM "JobRun" jr2
+    LEFT JOIN "JobRunLookupData" jrld2 ON jr2."id" = jrld2."jobRunId"
+    WHERE
+        jr2."tenantId" = @tenantId::uuid AND
+        jr2."deletedAt" > NOW() + INTERVAL '5 minutes' AND
+        jrld2."data" IS NOT NULL
+    ORDER BY "deletedAt" ASC
+    LIMIT sqlc.arg('limit')
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "JobRunLookupData"
+SET
+    "data" = NULL
+FROM
+    deleted_with_limit e
+WHERE
+    "id" = e."id"
+RETURNING
+    (SELECT count FROM deleted_count) as total,
+    (SELECT count FROM deleted_count) - (SELECT COUNT(*) FROM deleted_with_limit) as remaining,
+    (SELECT COUNT(*) FROM deleted_with_limit) as deleted;

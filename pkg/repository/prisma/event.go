@@ -308,3 +308,20 @@ func (r *eventEngineRepository) SoftDeleteExpiredEvents(ctx context.Context, ten
 
 	return int(resp.Deleted), int(resp.Remaining), nil
 }
+
+func (r *eventEngineRepository) ClearEventPayloadData(ctx context.Context, tenantId string) (int, int, error) {
+	resp, err := r.queries.ClearEventPayloadData(ctx, r.pool, dbsqlc.ClearEventPayloadDataParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Limit:    1000,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, 0, nil
+		}
+
+		return 0, 0, err
+	}
+
+	return int(resp.Deleted), int(resp.Remaining), nil
+}

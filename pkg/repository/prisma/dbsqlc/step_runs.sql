@@ -866,3 +866,53 @@ FROM
     "StepRunResultArchive"
 WHERE
     "stepRunId" = @stepRunId::uuid;
+
+
+-- name: ClearStepRunPayloadData :one
+WITH deleted_count AS (
+    SELECT COUNT(*) as count
+    FROM "StepRun" sr1
+    WHERE
+        e1."tenantId" = @tenantId::uuid AND
+        e1."deletedAt" > NOW() + INTERVAL '5 minutes'
+        AND ("input" IS NOT NULL OR "output" IS NOT NULL OR "error" IS NOT NULL)
+), deleted_with_limit AS (
+    SELECT
+        "id"
+    FROM "StepRun" sr2
+    WHERE
+        e1."tenantId" = @tenantId::uuid AND
+        e1."deletedAt" > NOW() + INTERVAL '5 minutes'
+        AND ("input" IS NOT NULL OR "output" IS NOT NULL OR "error" IS NOT NULL)
+    ORDER BY "deletedAt" ASC
+    LIMIT sqlc.arg('limit')
+    FOR UPDATE SKIP LOCKED
+), deleted_archives AS (
+    SELECT "id"
+    FROM "StepRunResultArchive" sra
+    WHERE
+        sra."stepRunId" IN (SELECT "id" FROM deleted_with_limit)
+        AND ("input" IS NOT NULL OR "output" IS NOT NULL OR "error" IS NOT NULL)
+), cleared_archives AS (
+    UPDATE "StepRunResultArchive" sra
+    SET
+        "input" = NULL,
+        "output" = NULL,
+        "error" = NULL
+    WHERE
+        sra."id" IN (SELECT "id" FROM deleted_archives)
+)
+UPDATE
+    "StepRun"
+SET
+    "input" = NULL,
+    "output" = NULL,
+    "error" = NULL
+FROM
+    deleted_with_limit e
+WHERE
+    "id" = e."id"
+RETURNING
+    (SELECT count FROM deleted_count) as total,
+    (SELECT count FROM deleted_count) - (SELECT COUNT(*) FROM deleted_with_limit) as remaining,
+    (SELECT COUNT(*) FROM deleted_with_limit) as deleted;

@@ -204,4 +204,6 @@ type StepRunEngineRepository interface {
 		message string,
 		data map[string]interface{},
 	)
+
+	ClearStepRunPayloadData(ctx context.Context, tenantId string) (int, int, error)
 }

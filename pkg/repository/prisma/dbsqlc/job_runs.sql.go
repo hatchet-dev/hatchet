@@ -11,6 +11,60 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearJobRunLookupData = `-- name: ClearJobRunLookupData :one
+WITH deleted_count AS (
+    SELECT COUNT(*) as count
+    FROM "JobRun" jr1
+    LEFT JOIN "JobRunLookupData" jrld1 ON jr1."id" = jrld1."jobRunId"
+    WHERE
+        jr1."tenantId" = $1::uuid AND
+        jr1."deletedAt" > NOW() + INTERVAL '5 minutes' AND
+        jrld1."data" IS NOT NULL
+), deleted_with_limit AS (
+    SELECT
+        jrld2."id" as "id"
+    FROM "JobRun" jr2
+    LEFT JOIN "JobRunLookupData" jrld2 ON jr2."id" = jrld2."jobRunId"
+    WHERE
+        jr2."tenantId" = $1::uuid AND
+        jr2."deletedAt" > NOW() + INTERVAL '5 minutes' AND
+        jrld2."data" IS NOT NULL
+    ORDER BY "deletedAt" ASC
+    LIMIT $2
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "JobRunLookupData"
+SET
+    "data" = NULL
+FROM
+    deleted_with_limit e
+WHERE
+    "id" = e."id"
+RETURNING
+    (SELECT count FROM deleted_count) as total,
+    (SELECT count FROM deleted_count) - (SELECT COUNT(*) FROM deleted_with_limit) as remaining,
+    (SELECT COUNT(*) FROM deleted_with_limit) as deleted
+`
+
+type ClearJobRunLookupDataParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    int32       `json:"limit"`
+}
+
+type ClearJobRunLookupDataRow struct {
+	Total     int64 `json:"total"`
+	Remaining int32 `json:"remaining"`
+	Deleted   int64 `json:"deleted"`
+}
+
+func (q *Queries) ClearJobRunLookupData(ctx context.Context, db DBTX, arg ClearJobRunLookupDataParams) (*ClearJobRunLookupDataRow, error) {
+	row := db.QueryRow(ctx, clearJobRunLookupData, arg.Tenantid, arg.Limit)
+	var i ClearJobRunLookupDataRow
+	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
+	return &i, err
+}
+
 const getJobRunByWorkflowRunIdAndJobId = `-- name: GetJobRunByWorkflowRunIdAndJobId :one
 SELECT
     "id",
