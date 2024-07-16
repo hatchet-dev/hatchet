@@ -1,3 +1,5 @@
+import { Tabs } from "nextra/components";
+
 # Triggering Workflows with Cron in Hatchet
 
 Hatchet provides a flexible and powerful way to trigger workflows based on a schedule using cron expressions. Cron is a time-based job scheduler that allows you to define when a workflow should be executed automatically. This feature is particularly useful for recurring tasks, such as daily data updates, weekly reports, or periodic maintenance jobs.
@@ -6,6 +8,23 @@ Hatchet provides a flexible and powerful way to trigger workflows based on a sch
 
 To trigger a workflow with a cron schedule, you need to configure the `on` property in the workflow definition. Here's an example of how to define a cron trigger:
 
+<Tabs items={['Python', 'Typescript', 'Golang']}>
+  <Tabs.Tab>
+```python
+@hatchet.workflow(on_crons=["0 0 * * *"])
+class MyWorkflow:
+    @hatchet.step()
+    def step1(self, context):
+        print("executed step1")
+        pass
+
+    @hatchet.step(parents=["step1"])
+    def step2(self, context):
+        print("executed step2")
+        pass```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
 ```typescript
 const myWorkflow: Workflow = {
   id: "my-workflow",
@@ -18,8 +37,29 @@ const myWorkflow: Workflow = {
   ],
 };
 ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+w.RegisterWorkflow(
+    &worker.WorkflowJob{
+        Name: "myWorkflow",
+        On: worker.Cron("0 0 * * *"),
+        Description: "Cron workflow example.",
+        Steps: []*worker.WorkflowStep{
+            {
+                Function: func(ctx context.Context) error {
+                    fmt.Println("triggered at:", time.Now())
+                    return nil
+                },
+            },
+        },
+    },
+)
+```
+  </Tabs.Tab>
+</Tabs>
 
-In this example, the `on` property is set to an object with a `cron` property. The `cron` property specifies the cron expression that determines when the workflow should be triggered.
+In the examples above, we set the `on cron` property of the workflows. The property specifies the cron expression that determines when the workflow should be triggered.
 
 ## Cron Expression Syntax
 

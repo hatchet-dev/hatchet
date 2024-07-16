@@ -1,16 +1,19 @@
+import { Tabs } from "nextra/components";
+
 # Cancellation in Hatchet Workflows
 
 Hatchet provides a mechanism for canceling workflow executions gracefully, allowing you to stop running workflows and their associated steps when needed. Cancellation can be triggered on graceful termination of a worker or automatically through concurrency control strategies like [`CANCEL_IN_PROGRESS`](./concurrency/cancel-in-progress), which cancels currently running workflow instances to free up slots for new instances when the concurrency limit is reached.
 
-## Cancellation Mechanism in Node.js
-
-{/* TODO Python, GO */}
-
-Hatchet uses the standard `AbortController` and `AbortSignal` interfaces from Node.js to handle cancellation. Each step in a workflow has access to a `context.controller` property, which is an instance of `AbortController`. The `AbortController` provides a way to signal cancellation to the step and any asynchronous operations it may be performing.
-
 When a workflow is canceled, Hatchet sends a cancellation signal to all the currently executing steps. The steps can then check for the cancellation signal and take appropriate action, such as cleaning up resources, aborting network requests, or gracefully terminating their execution.
 
-## Checking for Cancellation
+## Cancellation Mechanisms
+
+{/* TODO Python */}
+
+<Tabs items={['Typescript', 'Go']}>
+<Tabs.Tab>
+
+Hatchet uses the standard `AbortController` and `AbortSignal` interfaces from Node.js to handle cancellation. Each step in a workflow has access to a `context.controller` property, which is an instance of `AbortController`. The `AbortController` provides a way to signal cancellation to the step and any asynchronous operations it may be performing.
 
 Inside a step function, you can check for cancellation by accessing the `signal` property of the `context.controller`. The `signal` property is an instance of `AbortSignal`, which provides a way to register event listeners and check the cancellation status.
 
@@ -75,6 +78,48 @@ const myStep: Step = async (context: Context) => {
 ```
 
 In this example, the `signal` property from the `context.controller` is passed as an option to the `axios.get` request. If the step is canceled while the request is still pending, the request will be automatically aborted, and an error will be thrown. You can catch the error and check if it was due to cancellation using the `axios.isCancel` method.
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+Hatchet uses the standard `context.WithCancel` way of creating a context and passes that to a workflow step. Each step in a workflow can check for cancellation signals using the `Done()` method that context package provides.
+
+Here's an example of how to check for cancellation in a step:
+
+```go
+w.RegisterWorkflow(
+    &worker.WorkflowJob{
+        Name: "post-user-sign-up",
+        On: worker.Event("user:created"),
+        Description: "Workflow that executes after a user signs up.",
+        Timeout: "60s",
+        Steps: []*worker.WorkflowStep{
+            {
+                Function: func(ctx context.Context) error {
+                  stepDone := make(chan struct{})
+                  go func() {
+                    // Step business logic
+                    // ...
+                    done <- struct{}{}
+                  }()
+                  select {
+                    case <- ctx.Done():
+                      // The step has been canceled
+                      // Perform any necessary cleanup or termination logic
+                      return
+                    case <- stepDone:
+                      // Workflow step finished executing
+                      return
+                  }
+                },
+            },
+        },
+    },
+)
+```
+
+</Tabs.Tab>
+</Tabs>
 
 ## Cancellation Best Practices
 

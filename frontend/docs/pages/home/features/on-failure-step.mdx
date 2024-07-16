@@ -73,14 +73,14 @@ func OnFailure(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 
 err = w.RegisterWorkflow(
 	&worker.WorkflowJob{
-		Name:        "on-failure-workflow",
-		On:          worker.NoTrigger(),
+		Name: "on-failure-workflow",
+		On: worker.NoTrigger(),
 		Description: "This runs at a scheduled time.",
 		Steps: []*worker.WorkflowStep{
 			worker.Fn(StepOne).SetName("step-one"),
 		},
 		OnFailure: &worker.WorkflowJob{
-			Name:        "scheduled-workflow-failure",
+			Name: "scheduled-workflow-failure",
 			Description: "This runs when the scheduled workflow fails.",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(OnFailure).SetName("on-failure"),

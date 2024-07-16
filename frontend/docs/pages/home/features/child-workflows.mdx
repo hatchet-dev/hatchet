@@ -1,3 +1,5 @@
+import { Tabs } from "nextra/components";
+
 # Child Workflows
 
 While workflows in Hatchet implement a DAG, there are many cases where the structure of a workflow isn't known ahead of time. For example, you may have a batch processing workflow where the number of tasks is determined by the input - for example, running a workflow per page in a PDF. In these cases, you can use child workflows to dynamically create new workflows as needed.
@@ -6,7 +8,27 @@ Note that spawning child workflows is a **durable** operation, meaning that spaw
 
 ## Looping Workflows
 
-To loop through a list and create a new workflow per element in the list, you can simply use `spawnWorkflow` in a loop. For example, in the Typescript SDK:
+To loop through a list and create a new workflow per element in the list, you can simply use `spawnWorkflow` in a loop. For example:
+
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+@hatchet.workflow("fanout:create")
+class Parent:
+    @hatchet.step()
+    def spawn(self, context: Context):
+        for i in range(10):
+          context.spawn_workflow(
+            "Child", {"a": str(i)}, key=f"child{i}"
+          )
+
+        return {}
+
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
 
 ```typescript
 const parentWorkflow: Workflow = {
@@ -20,7 +42,7 @@ const parentWorkflow: Workflow = {
       name: "parent-spawn",
       timeout: "10s",
       run: async (ctx) => {
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 10; i++) {
           ctx.spawnWorkflow<string>("child-workflow", {
             input: `child-input-${i}`,
           });
@@ -33,11 +55,74 @@ const parentWorkflow: Workflow = {
 };
 ```
 
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+w.RegisterWorkflow(
+    &worker.WorkflowJob{
+        Name: "parent-workflow",
+        On: worker.Event("fanout:create"),
+        Description: "Example workflow for spawning child workflows.",
+        Steps: []*worker.WorkflowStep{
+            worker.Fn(func(ctx worker.HatchetContext) error {
+                for i := 0; i < 10; i++ {
+                  childInput := "child-input-" + strconv.Itoa(i)
+                  childWorkflow, err := ctx.SpawnWorkflow("child-workflow", childInput, &worker.SpawnWorkflowOpts{})
+                  if err != nil {
+                      return nil, err
+                  }
+                }
+                return nil
+            }),
+        },
+    },
+)
+```
+
+  </Tabs.Tab>
+</Tabs>
+
 Note that calling `spawnWorkflow` will return immediately, and the child workflows will run in parallel. If you want to wait for child workflows, you can await the results of each workflow (see below).
 
 ## Scatter/Gather Workflows
 
 To run all child workflows in parallel, and then wait for all of them to complete, you can use the `result` method on the returned method.
+
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+@hatchet.workflow()
+class Parent:
+    @hatchet.step(timeout="5m")
+    async def spawn(self, context: Context):
+        results = []
+
+        for i in range(10):
+            results.append(
+                (
+                    await context.aio.spawn_workflow(
+                        "Child", {"a": str(i)}, key=f"child{i}"
+                    )
+                ).result()
+            )
+
+        result = await asyncio.gather(*results)
+
+        return {"results": result}
+
+@hatchet.workflow()
+class Child:
+    @hatchet.step()
+    async def process(self, context: Context):
+        a = context.workflow_input()["a"]
+        return {"status": "success " + a}
+
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
 
 ```typescript
 const parentWorkflow: Workflow = {
@@ -74,9 +159,68 @@ const parentWorkflow: Workflow = {
 };
 ```
 
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+w.RegisterWorkflow(
+    &worker.WorkflowJob{
+        Name: "parent-workflow",
+        On: worker.Event("fanout:create"),
+        Description: "Example workflow for spawning child workflows.",
+        Steps: []*worker.WorkflowStep{
+            worker.Fn(func(ctx worker.HatchetContext) error {
+                var wg sync.WaitGroup
+                results := make([]string, 10)
+                resultCh := make(chan string, 10)
+                for i := 0; i < 10; i++ {
+                    wg.Add(1)
+                    go func(i int) {
+                        defer wg.Done()
+                        childInput := "child-input-" + strconv.Itoa(i)
+                        childWorkflow, err := ctx.SpawnWorkflow("child-workflow", childInput, &worker.SpawnWorkflowOpts{})
+                        if err != nil {
+                            // Handle error here
+                            return
+                        }
+                        // Collect the result from the child workflow
+                        result, err := childWorkflow.Result()
+                        if err != nil {
+                            // Handle error here
+                            return
+                        }
+                        resultCh <- result
+                    }(i)
+                }
+                go func() {
+                    wg.Wait()
+                    close(resultCh)
+                }()
+
+                // Collect all results
+                for result := range resultCh {
+                    results = append(results, result)
+                }
+
+                return nil
+            }),
+        },
+    },
+
+)
+
+```
+
+  </Tabs.Tab>
+</Tabs>
+
 ## Error Handling
 
-If child workflows fail, an error will be raised to the parent, which can be caught and handled as needed. For example, to spawn a recovery workflow if a child workflow fails:
+If child workflows fail, an error will be raised to the parent, which can be caught and handled as needed.
+For example, to spawn a recovery workflow if a child workflow fails:
+
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
 
 ```typescript
 const parentWorkflow: Workflow = {
@@ -106,3 +250,61 @@ const parentWorkflow: Workflow = {
   ],
 };
 ```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```python
+@hatchet.workflow("fanout:create")
+class Parent:
+    @hatchet.step()
+    async def spawn(self, context: Context):
+        try:
+            (
+                await context.aio.spawn_workflow(
+                  "Child", {"a": str(i)}, key=f"child{i}"
+                )
+            ).result()
+        except Exception as e:
+          # Spawn a recovery workflow
+          context.spawn_workflow("recovery-workflow", { "error": str(e) });
+
+        return {}
+
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+w.RegisterWorkflow(
+    &worker.WorkflowJob{
+        Name: "parent-workflow",
+        On: worker.Event("fanout:create"),
+        Description: "Example workflow for spawning child workflows.",
+        Steps: []*worker.WorkflowStep{
+            worker.Fn(func(ctx worker.HatchetContext) error {
+                childInput := "child-input-" + strconv.Itoa(i)
+                childWorkflow, err := ctx.SpawnWorkflow("child-workflow", childInput, &worker.SpawnWorkflowOpts{})
+                if err != nil {
+                    // Handle error here
+                    return
+                }
+                // Collect the result from the child workflow
+                result, err := childWorkflow.Result()
+                if err != nil {
+                    // Spawn a recovery workflow
+                    recInput := err.Error()
+                    _, err = ctx.SpawnWorkflow("recovery-workflow", recInput, &worker.SpawnWorkflowOpts{})
+                    return
+                }
+                return nil
+            }),
+        },
+    },
+)
+
+```
+
+  </Tabs.Tab>
+</Tabs>
