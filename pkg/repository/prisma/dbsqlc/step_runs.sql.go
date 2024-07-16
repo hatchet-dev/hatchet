@@ -710,9 +710,6 @@ WHERE
     sr."id" = ANY($1::uuid[]) AND
     sr."deletedAt" IS NULL AND
     jr."deletedAt" IS NULL AND
-    wr."deletedAt" IS NULL AND
-    wv."deletedAt" IS NULL AND
-    w."deletedAt" IS NULL AND
     (
         $2::uuid IS NULL OR
         sr."tenantId" = $2::uuid

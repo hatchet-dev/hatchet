@@ -76,9 +76,6 @@ WHERE
     sr."id" = ANY(@ids::uuid[]) AND
     sr."deletedAt" IS NULL AND
     jr."deletedAt" IS NULL AND
-    wr."deletedAt" IS NULL AND
-    wv."deletedAt" IS NULL AND
-    w."deletedAt" IS NULL AND
     (
         sqlc.narg('tenantId')::uuid IS NULL OR
         sr."tenantId" = sqlc.narg('tenantId')::uuid
