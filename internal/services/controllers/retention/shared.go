@@ -41,7 +41,7 @@ func (wc *RetentionControllerImpl) ForTenants(ctx context.Context, f func(ctx co
 	err = g.Wait()
 
 	if err != nil {
-		return fmt.Errorf("could not run run for tenants: %w", err)
+		return fmt.Errorf("could not run for tenants: %w", err)
 	}
 
 	return nil

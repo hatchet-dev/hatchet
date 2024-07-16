@@ -891,24 +891,22 @@ WITH deleted_count AS (
         sra1."stepRunId" IN (SELECT "id" FROM deleted_with_limit)
         AND (sra1."input" IS NOT NULL OR sra1."output" IS NOT NULL OR sra1."error" IS NOT NULL)
 ), cleared_archives AS (
-    UPDATE "StepRunResultArchive" sra2
+    UPDATE "StepRunResultArchive"
     SET
-        sra2."input" = NULL,
-        sra2."output" = NULL,
-        sra2."error" = NULL
+        "input" = NULL,
+        "output" = NULL,
+        "error" = NULL
     WHERE
-        sra2."id" IN (SELECT "id" FROM deleted_archives)
+        "id" IN (SELECT "id" FROM deleted_archives)
 )
 UPDATE
-    "StepRun" sru
+    "StepRun"
 SET
-    sru."input" = NULL,
-    sru."output" = NULL,
-    sru."error" = NULL
-FROM
-    deleted_with_limit e
+    "input" = NULL,
+    "output" = NULL,
+    "error" = NULL
 WHERE
-    sru."id" = e."id"
+    "id" IN (SELECT "id" FROM deleted_with_limit)
 RETURNING
     (SELECT count FROM deleted_count) as total,
     (SELECT count FROM deleted_count) - (SELECT COUNT(*) FROM deleted_with_limit) as remaining,

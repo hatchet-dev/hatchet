@@ -32,13 +32,11 @@ WITH expired_events_count AS (
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
-    "Event" eu
+    "Event"
 SET
-    eu."data" = NULL
-FROM
-    expired_events_with_limit e
+    "data" = NULL
 WHERE
-    eu."id" = e."id"
+    "id" IN (SELECT "id" FROM expired_events_with_limit)
 RETURNING
     (SELECT count FROM expired_events_count) as total,
     (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining,
