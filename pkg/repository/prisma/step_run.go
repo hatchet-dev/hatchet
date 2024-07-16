@@ -244,6 +244,10 @@ func (s *stepRunEngineRepository) ListRunningStepRunsForTicker(ctx context.Conte
 
 	err = tx.Commit(ctx)
 
+	if err != nil {
+		return nil, err
+	}
+
 	return res, nil
 
 }
@@ -651,7 +655,7 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 	return assigned, nil
 }
 
-func (s *stepRunEngineRepository) deferredStepRunEvent(
+func (s *stepRunEngineRepository) DeferredStepRunEvent(
 	stepRunId pgtype.UUID,
 	reason dbsqlc.StepRunEventReason,
 	severity dbsqlc.StepRunEventSeverity,
@@ -679,6 +683,53 @@ func (s *stepRunEngineRepository) deferredStepRunEvent(
 	if err != nil {
 		s.l.Err(err).Msg("could not create deferred step run event")
 	}
+}
+
+func (s *stepRunEngineRepository) UnassignStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error {
+	return deadlockRetry(s.l, func() error {
+		tx, err := s.pool.Begin(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
+		pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+		defer deferRollback(ctx, s.l, tx.Rollback)
+
+		_, err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
+			Steprunid: pgStepRunId,
+			Tenantid:  pgTenantId,
+		})
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("could not release previous worker semaphore: %w", err)
+		}
+
+		_, err = s.queries.UnlinkStepRunFromWorker(ctx, tx, dbsqlc.UnlinkStepRunFromWorkerParams{
+			Steprunid: pgStepRunId,
+			Tenantid:  pgTenantId,
+		})
+
+		if err != nil {
+			return fmt.Errorf("could not unlink step run from worker: %w", err)
+		}
+		_, err = s.queries.UpdateStepRun(ctx, tx, dbsqlc.UpdateStepRunParams{
+			ID:       pgStepRunId,
+			Tenantid: pgTenantId,
+			Status: dbsqlc.NullStepRunStatus{
+				StepRunStatus: dbsqlc.StepRunStatusPENDINGASSIGNMENT,
+				Valid:         true,
+			},
+		})
+
+		if err != nil {
+			return fmt.Errorf("could not update step run status: %w", err)
+		}
+
+		return tx.Commit(ctx)
+	})
 }
 
 func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (string, string, error) {
@@ -714,7 +765,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		var target *errNoWorkerWithSlots
 
 		if errors.As(err, &target) {
-			defer s.deferredStepRunEvent(
+			defer s.DeferredStepRunEvent(
 				stepRun.SRID,
 				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
 				dbsqlc.StepRunEventSeverityWARNING,
@@ -726,7 +777,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		}
 
 		if errors.Is(err, repository.ErrNoWorkerAvailable) {
-			defer s.deferredStepRunEvent(
+			defer s.DeferredStepRunEvent(
 				stepRun.SRID,
 				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
 				dbsqlc.StepRunEventSeverityWARNING,
@@ -736,7 +787,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		}
 
 		if errors.Is(err, repository.ErrRateLimitExceeded) {
-			defer s.deferredStepRunEvent(
+			defer s.DeferredStepRunEvent(
 				stepRun.SRID,
 				dbsqlc.StepRunEventReasonREQUEUEDRATELIMIT,
 				dbsqlc.StepRunEventSeverityWARNING,
@@ -748,7 +799,7 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		return "", "", err
 	}
 
-	defer s.deferredStepRunEvent(
+	defer s.DeferredStepRunEvent(
 		stepRun.SRID,
 		dbsqlc.StepRunEventReasonASSIGNED,
 		dbsqlc.StepRunEventSeverityINFO,
@@ -912,7 +963,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 			}
 
 			// create a deferred event for each of these step runs
-			defer s.deferredStepRunEvent(
+			defer s.DeferredStepRunEvent(
 				laterStepRunCp.ID,
 				dbsqlc.StepRunEventReasonRETRIEDBYUSER,
 				dbsqlc.StepRunEventSeverityINFO,
@@ -1555,7 +1606,7 @@ func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId
 		return nil, err
 	}
 
-	defer s.deferredStepRunEvent(
+	defer s.DeferredStepRunEvent(
 		stepRunUUID,
 		dbsqlc.StepRunEventReasonTIMEOUTREFRESHED,
 		dbsqlc.StepRunEventSeverityINFO,

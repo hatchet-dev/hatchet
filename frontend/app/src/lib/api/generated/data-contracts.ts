@@ -620,6 +620,8 @@ export interface WorkflowRun {
   startedAt?: string;
   /** @format date-time */
   finishedAt?: string;
+  /** @example 1000 */
+  duration?: number;
   /**
    * @format uuid
    * @minLength 36
@@ -640,6 +642,18 @@ export interface WorkflowRun {
 export interface WorkflowRunList {
   rows?: WorkflowRun[];
   pagination?: PaginationResponse;
+}
+
+export enum WorkflowRunOrderByField {
+  CreatedAt = 'createdAt',
+  StartedAt = 'startedAt',
+  FinishedAt = 'finishedAt',
+  Duration = 'duration',
+}
+
+export enum WorkflowRunOrderByDirection {
+  ASC = 'ASC',
+  DESC = 'DESC',
 }
 
 export interface WorkflowRunsMetrics {

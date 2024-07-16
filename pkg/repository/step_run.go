@@ -179,6 +179,8 @@ type StepRunEngineRepository interface {
 
 	AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (workerId string, dispatcherId string, err error)
 
+	UnassignStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error
+
 	GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 
 	GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error)
@@ -194,4 +196,12 @@ type StepRunEngineRepository interface {
 	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
 
 	ResolveRelatedStatuses(ctx context.Context, tenantId pgtype.UUID, stepRunId pgtype.UUID) (*StepRunUpdateInfo, error)
+
+	DeferredStepRunEvent(
+		stepRunId pgtype.UUID,
+		reason dbsqlc.StepRunEventReason,
+		severity dbsqlc.StepRunEventSeverity,
+		message string,
+		data map[string]interface{},
+	)
 }
