@@ -271,32 +271,32 @@ WITH deleted_count AS (
     SELECT COUNT(*) as count
     FROM "StepRun" sr1
     WHERE
-        e1."tenantId" = $1::uuid AND
-        e1."deletedAt" > NOW() + INTERVAL '5 minutes'
-        AND ("input" IS NOT NULL OR "output" IS NOT NULL OR "error" IS NOT NULL)
+        sr1."tenantId" = $1::uuid AND
+        sr1."deletedAt" > NOW() + INTERVAL '5 minutes'
+        AND (sr1."input" IS NOT NULL OR sr1."output" IS NOT NULL OR sr1."error" IS NOT NULL)
 ), deleted_with_limit AS (
     SELECT
         "id"
     FROM "StepRun" sr2
     WHERE
-        e1."tenantId" = $1::uuid AND
-        e1."deletedAt" > NOW() + INTERVAL '5 minutes'
-        AND ("input" IS NOT NULL OR "output" IS NOT NULL OR "error" IS NOT NULL)
+        sr2."tenantId" = $1::uuid AND
+        sr2."deletedAt" > NOW() + INTERVAL '5 minutes'
+        AND (sr2."input" IS NOT NULL OR sr2."output" IS NOT NULL OR sr2."error" IS NOT NULL)
     ORDER BY "deletedAt" ASC
     LIMIT $2
     FOR UPDATE SKIP LOCKED
 ), deleted_archives AS (
     SELECT "id"
-    FROM "StepRunResultArchive" sra
+    FROM "StepRunResultArchive" sra1
     WHERE
-        sra."stepRunId" IN (SELECT "id" FROM deleted_with_limit)
-        AND ("input" IS NOT NULL OR "output" IS NOT NULL OR "error" IS NOT NULL)
+        sra1."stepRunId" IN (SELECT "id" FROM deleted_with_limit)
+        AND (sra1."input" IS NOT NULL OR sra1."output" IS NOT NULL OR sra1."error" IS NOT NULL)
 ), cleared_archives AS (
     UPDATE "StepRunResultArchive" sra
     SET
-        "input" = NULL,
-        "output" = NULL,
-        "error" = NULL
+        sra."input" = NULL,
+        sra."output" = NULL,
+        sra."error" = NULL
     WHERE
         sra."id" IN (SELECT "id" FROM deleted_archives)
 )
@@ -902,7 +902,7 @@ func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, arg Li
 
 const listStartableStepRuns = `-- name: ListStartableStepRuns :many
 WITH job_run AS (
-    SELECT "status"
+    SELECT "status", "deletedAt"
     FROM "JobRun"
     WHERE "id" = $1::uuid
 )
@@ -918,7 +918,7 @@ JOIN
 WHERE
     child_run."jobRunId" = $1::uuid
     AND child_run."deletedAt" IS NULL
-    AND jr."deletedAt" IS NULL
+    AND job_run."deletedAt" IS NULL
     AND child_run."status" = 'PENDING'
     AND job_run."status" = 'RUNNING'
     -- case on whether parentStepRunId is null
