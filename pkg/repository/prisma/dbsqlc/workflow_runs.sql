@@ -704,20 +704,20 @@ expired_runs_with_limit AS (
         "id" IN (SELECT "id" FROM step_runs_to_delete)
 ), update_job_runs AS (
     UPDATE
-        "JobRun"
+        "JobRun" jr
     SET
         "deletedAt" = CURRENT_TIMESTAMP
     WHERE
-        "id" IN (SELECT "id" FROM job_runs_to_delete)
+        jr."id" IN (SELECT "id" FROM job_runs_to_delete)
 )
 UPDATE
-    "WorkflowRun"
+    "WorkflowRun" wr
 SET
     "deletedAt" = CURRENT_TIMESTAMP
 FROM expired_runs_with_limit
 WHERE
-    "id" = expired_runs_with_limit."id" AND
-    "tenantId" = @tenantId::uuid
+    wr."id" = expired_runs_with_limit."id" AND
+    wr."tenantId" = @tenantId::uuid
 RETURNING
     (SELECT count FROM expired_runs_count) as total,
     (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining,
