@@ -29,7 +29,7 @@ WITH deleted_count AS (
         jr2."tenantId" = $1::uuid AND
         jr2."deletedAt" > NOW() + INTERVAL '5 minutes' AND
         jrld2."data" IS NOT NULL
-    ORDER BY "deletedAt" ASC
+    ORDER BY jr2."deletedAt" ASC
     LIMIT $2
     FOR UPDATE SKIP LOCKED
 )

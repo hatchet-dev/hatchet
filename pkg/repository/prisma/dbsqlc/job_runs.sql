@@ -156,7 +156,7 @@ WITH deleted_count AS (
         jr2."tenantId" = @tenantId::uuid AND
         jr2."deletedAt" > NOW() + INTERVAL '5 minutes' AND
         jrld2."data" IS NOT NULL
-    ORDER BY "deletedAt" ASC
+    ORDER BY jr2."deletedAt" ASC
     LIMIT sqlc.arg('limit')
     FOR UPDATE SKIP LOCKED
 )

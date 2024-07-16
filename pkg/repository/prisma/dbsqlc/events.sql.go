@@ -24,10 +24,10 @@ WITH expired_events_count AS (
         "id"
     FROM "Event" e2
     WHERE
-        e1."tenantId" = $1::uuid AND
-        e1."deletedAt" > NOW() + INTERVAL '5 minutes'
-        AND e1."data" IS NOT NULL
-    ORDER BY "deletedAt" ASC
+        e2."tenantId" = $1::uuid AND
+        e2."deletedAt" > NOW() + INTERVAL '5 minutes'
+        AND e2."data" IS NOT NULL
+    ORDER BY e2."deletedAt" ASC
     LIMIT $2
     FOR UPDATE SKIP LOCKED
 )
@@ -448,7 +448,7 @@ WITH expired_events_count AS (
         e2."tenantId" = $1::uuid AND
         e2."createdAt" < $2::timestamp AND
         e2."deletedAt" IS NULL
-    ORDER BY "createdAt" ASC
+    ORDER BY e2."createdAt" ASC
     LIMIT $3
     FOR UPDATE SKIP LOCKED
 )
