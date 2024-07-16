@@ -161,13 +161,13 @@ WITH deleted_count AS (
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
-    "JobRunLookupData"
+    "JobRunLookupData" jrldu
 SET
-    "data" = NULL
+    jrldu."data" = NULL
 FROM
     deleted_with_limit e
 WHERE
-    "id" = e."id"
+    jrldu."id" = e."id"
 RETURNING
     (SELECT count FROM deleted_count) as total,
     (SELECT count FROM deleted_count) - (SELECT COUNT(*) FROM deleted_with_limit) as remaining,

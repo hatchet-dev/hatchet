@@ -21,7 +21,7 @@ WITH expired_events_count AS (
         AND e1."data" IS NOT NULL
 ), expired_events_with_limit AS (
     SELECT
-        "id"
+        e2."id" as "id"
     FROM "Event" e2
     WHERE
         e2."tenantId" = $1::uuid AND
@@ -32,13 +32,13 @@ WITH expired_events_count AS (
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
-    "Event"
+    "Event" eu
 SET
-    "data" = NULL
+    eu."data" = NULL
 FROM
     expired_events_with_limit e
 WHERE
-    "id" = e."id"
+    eu."id" = e."id"
 RETURNING
     (SELECT count FROM expired_events_count) as total,
     (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining,

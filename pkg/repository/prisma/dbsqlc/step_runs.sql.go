@@ -276,7 +276,7 @@ WITH deleted_count AS (
         AND (sr1."input" IS NOT NULL OR sr1."output" IS NOT NULL OR sr1."error" IS NOT NULL)
 ), deleted_with_limit AS (
     SELECT
-        "id"
+        sr2."id"
     FROM "StepRun" sr2
     WHERE
         sr2."tenantId" = $1::uuid AND
@@ -286,7 +286,7 @@ WITH deleted_count AS (
     LIMIT $2
     FOR UPDATE SKIP LOCKED
 ), deleted_archives AS (
-    SELECT "id"
+    SELECT sra1."id" as "id"
     FROM "StepRunResultArchive" sra1
     WHERE
         sra1."stepRunId" IN (SELECT "id" FROM deleted_with_limit)
