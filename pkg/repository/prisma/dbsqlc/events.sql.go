@@ -454,10 +454,8 @@ UPDATE
     "Event"
 SET
     "deletedAt" = CURRENT_TIMESTAMP
-FROM
-    expired_events_with_limit e
 WHERE
-    "id" = e."id"
+    "id" IN (SELECT "id" FROM expired_events_with_limit)
 RETURNING
     (SELECT count FROM expired_events_count) as total,
     (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining,
