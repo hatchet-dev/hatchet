@@ -75,7 +75,7 @@ func NewAPIServer(config *server.ServerConfig) *APIServer {
 }
 
 // APIServerExtensionOpt returns a spec and a way to register handlers with an echo group
-type APIServerExtensionOpt func(config *server.ServerConfig) (*openapi3.T, func(*echo.Group) error, error)
+type APIServerExtensionOpt func(config *server.ServerConfig) (*openapi3.T, func(*echo.Group, *populator.Populator) error, error)
 
 func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 	e, err := t.getCoreEchoService()
@@ -95,13 +95,13 @@ func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 			return nil, err
 		}
 
-		err = t.registerSpec(g, spec)
+		populator, err := t.registerSpec(g, spec)
 
 		if err != nil {
 			return nil, err
 		}
 
-		if err := f(g); err != nil {
+		if err := f(g, populator); err != nil {
 			return nil, err
 		}
 	}
@@ -140,7 +140,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	g := e.Group("")
 
-	if err := t.registerSpec(g, oaspec); err != nil {
+	if _, err := t.registerSpec(g, oaspec); err != nil {
 		return nil, err
 	}
 
@@ -153,7 +153,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	return e, nil
 }
 
-func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) error {
+func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Populator, error) {
 	// application middleware
 	populatorMW := populator.NewPopulator(t.config)
 
@@ -291,7 +291,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) error {
 	mw, err := hatchetmiddleware.NewMiddlewareHandler(spec)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	mw.Use(populatorMW.Middleware)
@@ -301,7 +301,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) error {
 	allHatchetMiddleware, err := mw.Middleware()
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	loggerMiddleware := middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
@@ -355,5 +355,5 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) error {
 		allHatchetMiddleware,
 	)
 
-	return nil
+	return populatorMW, nil
 }

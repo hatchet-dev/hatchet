@@ -369,6 +369,9 @@ model APIToken {
   // when to next alert about expiration
   nextAlertAt DateTime?
 
+  // whether this token is for internal (internal to Hatchet) use
+  internal Boolean @default(false)
+
   // an optional name for the token
   name String?
 

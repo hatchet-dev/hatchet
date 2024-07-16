@@ -22,6 +22,7 @@ import { useSidebar } from '@/components/sidebar-provider';
 import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import useCloudApiMeta from '../auth/hooks/use-cloud-api-meta';
+import useCloudFeatureFlags from '../auth/hooks/use-cloud-feature-flags';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -61,6 +62,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
 
   const meta = useCloudApiMeta();
+  const featureFlags = useCloudFeatureFlags(currTenant.metadata.id);
 
   const onNavLinkClick = useCallback(() => {
     if (window.innerWidth > 768) {
@@ -72,6 +74,27 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
 
   if (sidebarOpen === 'closed') {
     return null;
+  }
+
+  const workers = [
+    <SidebarButtonSecondary
+      key={1}
+      onNavLinkClick={onNavLinkClick}
+      to="/workers/all"
+      name="All Workers"
+    />,
+  ];
+
+  if (featureFlags?.data['managed-worker']) {
+    workers.push(
+      <SidebarButtonSecondary
+        key={2}
+        onNavLinkClick={onNavLinkClick}
+        to="/workers/managed-workers"
+        prefix="/workers/managed-workers"
+        name="Managed Worker Pools"
+      />,
+    );
   }
 
   return (
@@ -119,9 +142,11 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={2}
                 onNavLinkClick={onNavLinkClick}
-                to="/workers"
+                to="/workers/all"
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
+                prefix="/workers"
+                collapsibleChildren={workers}
               />
             </div>
           </div>
@@ -153,17 +178,23 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                   <SidebarButtonSecondary
                     key={3}
                     onNavLinkClick={onNavLinkClick}
+                    to="/tenant-settings/github"
+                    name="Github"
+                  />,
+                  <SidebarButtonSecondary
+                    key={4}
+                    onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/webhooks"
                     name="Webhooks"
                   />,
                   <SidebarButtonSecondary
-                    key={4}
+                    key={5}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/members"
                     name="Members"
                   />,
                   <SidebarButtonSecondary
-                    key={5}
+                    key={6}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/billing-and-limits"
                     name={
@@ -173,13 +204,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     }
                   />,
                   <SidebarButtonSecondary
-                    key={6}
+                    key={7}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/alerting"
                     name="Alerting"
                   />,
                   <SidebarButtonSecondary
-                    key={7}
+                    key={8}
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/ingestors"
                     name="Ingestors"
@@ -249,13 +280,16 @@ function SidebarButtonSecondary({
   onNavLinkClick,
   to,
   name,
+  prefix,
 }: {
   onNavLinkClick: () => void;
   to: string;
   name: string;
+  prefix?: string;
 }) {
   const location = useLocation();
-  const selected = location.pathname === to;
+  const hasPrefix = prefix && location.pathname.startsWith(prefix);
+  const selected = hasPrefix || location.pathname === to;
 
   return (
     <Link to={to} onClick={onNavLinkClick}>

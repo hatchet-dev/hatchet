@@ -13,12 +13,14 @@ INSERT INTO "APIToken" (
     "updatedAt",
     "tenantId",
     "name",
-    "expiresAt"
+    "expiresAt",
+    "internal"
 ) VALUES (
     coalesce(@id::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
     sqlc.narg('tenantId')::uuid,
     sqlc.narg('name')::text,
-    @expiresAt::timestamp
+    @expiresAt::timestamp,
+    COALESCE(sqlc.narg('internal')::boolean, FALSE)
 ) RETURNING *;

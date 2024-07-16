@@ -52,27 +52,33 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		return a.handleNoAuth(c)
 	}
 
-	var err error
+	var cookieErr error
 
 	if r.Security.CookieAuth() {
-		err = a.handleCookieAuth(c)
+		cookieErr = a.handleCookieAuth(c)
 		c.Set("auth_strategy", "cookie")
-	}
 
-	if err != nil && !r.Security.BearerAuth() {
-		return err
-	}
-
-	if err != nil && r.Security.BearerAuth() {
-		err = a.handleBearerAuth(c)
-		c.Set("auth_strategy", "bearer")
-
-		if err == nil {
+		if cookieErr == nil {
 			return nil
 		}
 	}
 
-	return err
+	if cookieErr != nil && !r.Security.BearerAuth() {
+		return cookieErr
+	}
+
+	var bearerErr error
+
+	if r.Security.BearerAuth() {
+		bearerErr = a.handleBearerAuth(c)
+		c.Set("auth_strategy", "bearer")
+
+		if bearerErr == nil {
+			return nil
+		}
+	}
+
+	return bearerErr
 }
 
 func (a *AuthN) handleNoAuth(c echo.Context) error {
