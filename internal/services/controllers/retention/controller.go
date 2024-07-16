@@ -188,6 +188,11 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 
 	cleanup := func() error {
 		cancel()
+
+		if err := rc.s.Shutdown(); err != nil {
+			return fmt.Errorf("could not shutdown scheduler: %w", err)
+		}
+
 		return nil
 	}
 
