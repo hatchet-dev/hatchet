@@ -51,6 +51,9 @@ type CreateWorkflowRunOpts struct {
 
 	// (optional) additional metadata for the workflow run
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+
+	// (optional) the desired worker id for sticky state
+	DesiredWorkerId *string `validate:"omitempty,uuid"`
 }
 
 type CreateGroupKeyRunOpts struct {

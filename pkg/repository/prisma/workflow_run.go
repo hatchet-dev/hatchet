@@ -548,6 +548,14 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 			return nil, err
 		}
 
+		desiredWorkerId := pgtype.UUID{
+			Valid: false,
+		}
+
+		if opts.DesiredWorkerId != nil {
+			desiredWorkerId = sqlchelpers.UUIDFromStr(*opts.DesiredWorkerId)
+		}
+
 		_, err = queries.CreateWorkflowRunStickyState(
 			tx1Ctx,
 			tx,
@@ -555,6 +563,7 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 				Workflowrunid:     sqlcWorkflowRun.ID,
 				Tenantid:          pgTenantId,
 				Workflowversionid: createParams.Workflowversionid,
+				DesiredWorkerId:   desiredWorkerId,
 			},
 		)
 

@@ -129,6 +129,14 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		return nil, fmt.Errorf("could not create workflow run opts: %w", err)
 	}
 
+	if req.DesiredWorkerId != nil {
+		if !workflowVersion.WorkflowVersion.Sticky.Valid {
+			return nil, status.Errorf(codes.Canceled, "workflow version %s does not have sticky enabled", workflowVersion.WorkflowName)
+		}
+
+		createOpts.DesiredWorkerId = req.DesiredWorkerId
+	}
+
 	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
 	if err == metered.ErrResourceExhausted {
