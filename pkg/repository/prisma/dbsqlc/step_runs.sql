@@ -475,12 +475,9 @@ RETURNING *;
 -- name: AcquireWorkerSemaphoreSlotAndAssign :one
 WITH valid_workers AS (
     SELECT
-        w."id",
-        COUNT(wss."id") AS "slots"
+        w."id"
     FROM
         "Worker" w
-    JOIN
-        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NULL
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."dispatcherId" IS NOT NULL
@@ -696,13 +693,13 @@ SELECT
         )
     ) AS worker_labels,
     COALESCE(COUNT(exhausted_rate_limits."key"), 0)::int as "exhaustedRateLimitCount",
-    COALESCE(SUM(valid_workers."slots"),0)::int as "remainingSlots"
+    COALESCE(SUM(weighted_workers."available_slots"),0)::int as "remainingSlots"
 FROM
     (SELECT 1 as filler) as filler_row_subquery -- always return a row
     LEFT JOIN updated_slot ON true
     LEFT JOIN selected_dispatcher ON true
     LEFT JOIN exhausted_rate_limits ON true
-    LEFT JOIN valid_workers ON true
+    LEFT JOIN weighted_workers ON total_weight >= 0
     LEFT JOIN
         evaluated_affinities ea ON updated_slot."workerId" = ea."workerId"
     LEFT JOIN
