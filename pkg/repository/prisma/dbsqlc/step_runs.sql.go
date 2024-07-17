@@ -99,9 +99,11 @@ weighted_workers AS (
         CASE
             WHEN COUNT(*) FILTER (WHERE ea."required" = TRUE AND (ea."desired_key" IS NULL OR ea."is_true" = 0)) > 0 THEN -99999
             ELSE COALESCE(SUM(CASE WHEN is_true = 1 THEN ea."weight" ELSE 0 END), 0)
-        END AS total_weight
+        END AS total_weight,
+        COUNT(wss."id") AS available_slots
     FROM
         evaluated_affinities ea
+    LEFT JOIN "WorkerSemaphoreSlot" wss ON ea."workerId" = wss."workerId" AND wss."stepRunId" IS NULL
     GROUP BY
         ea."workerId"
 ),
@@ -116,6 +118,7 @@ selected_worker AS (
         COALESCE(ww.total_weight, 0) >= 0
     ORDER BY
         COALESCE(ww.total_weight, 0) DESC,
+        COALESCE(ww.available_slots, 0) DESC,
         RANDOM()
     LIMIT 1
 ),
