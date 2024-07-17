@@ -636,8 +636,6 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 		return nil, fmt.Errorf("could not acquire worker semaphore slot: %w", err)
 	}
 
-	fmt.Println("assigned", assigned.RemainingSlots)
-
 	if assigned.RemainingSlots == 0 {
 		return nil, &errNoWorkerWithSlots{totalSlots: int(0)}
 	}
