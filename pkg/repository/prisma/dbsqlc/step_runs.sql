@@ -60,7 +60,8 @@ SELECT
     j."kind" AS "jobKind",
     j."workflowVersionId" AS "workflowVersionId",
     jr."workflowRunId" AS "workflowRunId",
-    a."actionId" AS "actionId"
+    a."actionId" AS "actionId",
+    sqlc.embed(sticky)
 FROM
     "StepRun" sr
 JOIN
@@ -71,6 +72,8 @@ JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
     "Job" j ON jr."jobId" = j."id"
+LEFT JOIN
+    "WorkflowRunStickyState" sticky ON jr."workflowRunId" = sticky."workflowRunId"
 WHERE
     sr."id" = ANY(@ids::uuid[]) AND
     (

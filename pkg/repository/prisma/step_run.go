@@ -620,6 +620,10 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
+	// if stepRun.WorkflowRunStickyState {
+	// 	fmt
+	// }
+
 	// acquire a semaphore slot
 	assigned, err := s.queries.AcquireWorkerSemaphoreSlotAndAssign(ctx, tx, dbsqlc.AcquireWorkerSemaphoreSlotAndAssignParams{
 		Steprunid:   stepRun.SRID,

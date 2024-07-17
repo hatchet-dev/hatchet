@@ -579,6 +579,13 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 		createParams.ScheduleTimeout = sqlchelpers.TextFromStr(*opts.ScheduleTimeout)
 	}
 
+	if opts.Sticky != nil {
+		createParams.Sticky = dbsqlc.NullStickyStrategy{
+			StickyStrategy: dbsqlc.StickyStrategy(*opts.Sticky),
+			Valid:          true,
+		}
+	}
+
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		ctx,
 		tx,

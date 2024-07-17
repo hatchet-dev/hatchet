@@ -45,6 +45,9 @@ type CreateWorkflowVersionOpts struct {
 
 	// (optional) the amount of time for step runs to wait to be scheduled before timing out
 	ScheduleTimeout *string `validate:"omitempty,duration"`
+
+	// (optional) sticky strategy
+	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
 }
 
 type CreateWorkflowConcurrencyOpts struct {

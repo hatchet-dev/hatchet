@@ -16,6 +16,11 @@ message PutWorkflowRequest {
     CreateWorkflowVersionOpts opts = 1;
 }
 
+enum StickyStrategy {
+    SOFT = 0;
+    HARD = 1;
+}
+
 // CreateWorkflowVersionOpts represents options to create a workflow version.
 message CreateWorkflowVersionOpts {
     string name = 1; // (required) the workflow name
@@ -29,6 +34,7 @@ message CreateWorkflowVersionOpts {
     optional string schedule_timeout = 9; // (optional) the timeout for the schedule
     optional string cron_input = 10; // (optional) the input for the cron trigger
     optional CreateWorkflowJobOpts on_failure_job = 11; // (optional) the job to run on failure
+    optional StickyStrategy sticky = 12; // (optional) the sticky strategy for assigning steps to workers
 }
 
 enum ConcurrencyLimitStrategy {

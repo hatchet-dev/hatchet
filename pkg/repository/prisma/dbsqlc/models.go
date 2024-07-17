@@ -418,6 +418,48 @@ func (ns NullStepRunStatus) Value() (driver.Value, error) {
 	return string(ns.StepRunStatus), nil
 }
 
+type StickyStrategy string
+
+const (
+	StickyStrategySOFT StickyStrategy = "SOFT"
+	StickyStrategyHARD StickyStrategy = "HARD"
+)
+
+func (e *StickyStrategy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StickyStrategy(s)
+	case string:
+		*e = StickyStrategy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StickyStrategy: %T", src)
+	}
+	return nil
+}
+
+type NullStickyStrategy struct {
+	StickyStrategy StickyStrategy `json:"StickyStrategy"`
+	Valid          bool           `json:"valid"` // Valid is true if StickyStrategy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStickyStrategy) Scan(value interface{}) error {
+	if value == nil {
+		ns.StickyStrategy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StickyStrategy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStickyStrategy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StickyStrategy), nil
+}
+
 type TenantMemberRole string
 
 const (
@@ -1166,6 +1208,16 @@ type WorkflowRun struct {
 	Duration           pgtype.Int4       `json:"duration"`
 }
 
+type WorkflowRunStickyState struct {
+	ID              int64            `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	TenantId        pgtype.UUID      `json:"tenantId"`
+	WorkflowRunId   pgtype.UUID      `json:"workflowRunId"`
+	DesiredWorkerId pgtype.UUID      `json:"desiredWorkerId"`
+	Strategy        StickyStrategy   `json:"strategy"`
+}
+
 type WorkflowRunTriggeredBy struct {
 	ID           pgtype.UUID      `json:"id"`
 	CreatedAt    pgtype.Timestamp `json:"createdAt"`
@@ -1229,14 +1281,15 @@ type WorkflowTriggers struct {
 }
 
 type WorkflowVersion struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	Version         pgtype.Text      `json:"version"`
-	Order           int64            `json:"order"`
-	WorkflowId      pgtype.UUID      `json:"workflowId"`
-	Checksum        string           `json:"checksum"`
-	ScheduleTimeout string           `json:"scheduleTimeout"`
-	OnFailureJobId  pgtype.UUID      `json:"onFailureJobId"`
+	ID              pgtype.UUID        `json:"id"`
+	CreatedAt       pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp   `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp   `json:"deletedAt"`
+	Version         pgtype.Text        `json:"version"`
+	Order           int64              `json:"order"`
+	WorkflowId      pgtype.UUID        `json:"workflowId"`
+	Checksum        string             `json:"checksum"`
+	ScheduleTimeout string             `json:"scheduleTimeout"`
+	OnFailureJobId  pgtype.UUID        `json:"onFailureJobId"`
+	Sticky          NullStickyStrategy `json:"sticky"`
 }

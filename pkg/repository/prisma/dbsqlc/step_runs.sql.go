@@ -758,7 +758,8 @@ SELECT
     j."kind" AS "jobKind",
     j."workflowVersionId" AS "workflowVersionId",
     jr."workflowRunId" AS "workflowRunId",
-    a."actionId" AS "actionId"
+    a."actionId" AS "actionId",
+    sticky.id, sticky."createdAt", sticky."updatedAt", sticky."tenantId", sticky."workflowRunId", sticky."desiredWorkerId", sticky.strategy
 FROM
     "StepRun" sr
 JOIN
@@ -769,6 +770,8 @@ JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
     "Job" j ON jr."jobId" = j."id"
+LEFT JOIN
+    "WorkflowRunStickyState" sticky ON jr."workflowRunId" = sticky."workflowRunId"
 WHERE
     sr."id" = ANY($1::uuid[]) AND
     (
@@ -783,40 +786,41 @@ type GetStepRunForEngineParams struct {
 }
 
 type GetStepRunForEngineRow struct {
-	SRID                pgtype.UUID      `json:"SR_id"`
-	SRCreatedAt         pgtype.Timestamp `json:"SR_createdAt"`
-	SRUpdatedAt         pgtype.Timestamp `json:"SR_updatedAt"`
-	SRDeletedAt         pgtype.Timestamp `json:"SR_deletedAt"`
-	SRTenantId          pgtype.UUID      `json:"SR_tenantId"`
-	SROrder             int64            `json:"SR_order"`
-	SRWorkerId          pgtype.UUID      `json:"SR_workerId"`
-	SRTickerId          pgtype.UUID      `json:"SR_tickerId"`
-	SRStatus            StepRunStatus    `json:"SR_status"`
-	SRRequeueAfter      pgtype.Timestamp `json:"SR_requeueAfter"`
-	SRScheduleTimeoutAt pgtype.Timestamp `json:"SR_scheduleTimeoutAt"`
-	SRStartedAt         pgtype.Timestamp `json:"SR_startedAt"`
-	SRFinishedAt        pgtype.Timestamp `json:"SR_finishedAt"`
-	SRTimeoutAt         pgtype.Timestamp `json:"SR_timeoutAt"`
-	SRCancelledAt       pgtype.Timestamp `json:"SR_cancelledAt"`
-	SRCancelledReason   pgtype.Text      `json:"SR_cancelledReason"`
-	SRCancelledError    pgtype.Text      `json:"SR_cancelledError"`
-	SRCallerFiles       []byte           `json:"SR_callerFiles"`
-	SRGitRepoBranch     pgtype.Text      `json:"SR_gitRepoBranch"`
-	SRRetryCount        int32            `json:"SR_retryCount"`
-	SRSemaphoreReleased bool             `json:"SR_semaphoreReleased"`
-	JobRunId            pgtype.UUID      `json:"jobRunId"`
-	StepId              pgtype.UUID      `json:"stepId"`
-	StepRetries         int32            `json:"stepRetries"`
-	StepTimeout         pgtype.Text      `json:"stepTimeout"`
-	StepScheduleTimeout string           `json:"stepScheduleTimeout"`
-	StepReadableId      pgtype.Text      `json:"stepReadableId"`
-	StepCustomUserData  []byte           `json:"stepCustomUserData"`
-	JobName             string           `json:"jobName"`
-	JobId               pgtype.UUID      `json:"jobId"`
-	JobKind             JobKind          `json:"jobKind"`
-	WorkflowVersionId   pgtype.UUID      `json:"workflowVersionId"`
-	WorkflowRunId       pgtype.UUID      `json:"workflowRunId"`
-	ActionId            string           `json:"actionId"`
+	SRID                   pgtype.UUID            `json:"SR_id"`
+	SRCreatedAt            pgtype.Timestamp       `json:"SR_createdAt"`
+	SRUpdatedAt            pgtype.Timestamp       `json:"SR_updatedAt"`
+	SRDeletedAt            pgtype.Timestamp       `json:"SR_deletedAt"`
+	SRTenantId             pgtype.UUID            `json:"SR_tenantId"`
+	SROrder                int64                  `json:"SR_order"`
+	SRWorkerId             pgtype.UUID            `json:"SR_workerId"`
+	SRTickerId             pgtype.UUID            `json:"SR_tickerId"`
+	SRStatus               StepRunStatus          `json:"SR_status"`
+	SRRequeueAfter         pgtype.Timestamp       `json:"SR_requeueAfter"`
+	SRScheduleTimeoutAt    pgtype.Timestamp       `json:"SR_scheduleTimeoutAt"`
+	SRStartedAt            pgtype.Timestamp       `json:"SR_startedAt"`
+	SRFinishedAt           pgtype.Timestamp       `json:"SR_finishedAt"`
+	SRTimeoutAt            pgtype.Timestamp       `json:"SR_timeoutAt"`
+	SRCancelledAt          pgtype.Timestamp       `json:"SR_cancelledAt"`
+	SRCancelledReason      pgtype.Text            `json:"SR_cancelledReason"`
+	SRCancelledError       pgtype.Text            `json:"SR_cancelledError"`
+	SRCallerFiles          []byte                 `json:"SR_callerFiles"`
+	SRGitRepoBranch        pgtype.Text            `json:"SR_gitRepoBranch"`
+	SRRetryCount           int32                  `json:"SR_retryCount"`
+	SRSemaphoreReleased    bool                   `json:"SR_semaphoreReleased"`
+	JobRunId               pgtype.UUID            `json:"jobRunId"`
+	StepId                 pgtype.UUID            `json:"stepId"`
+	StepRetries            int32                  `json:"stepRetries"`
+	StepTimeout            pgtype.Text            `json:"stepTimeout"`
+	StepScheduleTimeout    string                 `json:"stepScheduleTimeout"`
+	StepReadableId         pgtype.Text            `json:"stepReadableId"`
+	StepCustomUserData     []byte                 `json:"stepCustomUserData"`
+	JobName                string                 `json:"jobName"`
+	JobId                  pgtype.UUID            `json:"jobId"`
+	JobKind                JobKind                `json:"jobKind"`
+	WorkflowVersionId      pgtype.UUID            `json:"workflowVersionId"`
+	WorkflowRunId          pgtype.UUID            `json:"workflowRunId"`
+	ActionId               string                 `json:"actionId"`
+	WorkflowRunStickyState WorkflowRunStickyState `json:"workflow_run_sticky_state"`
 }
 
 func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepRunForEngineParams) ([]*GetStepRunForEngineRow, error) {
@@ -863,6 +867,13 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.WorkflowVersionId,
 			&i.WorkflowRunId,
 			&i.ActionId,
+			&i.WorkflowRunStickyState.ID,
+			&i.WorkflowRunStickyState.CreatedAt,
+			&i.WorkflowRunStickyState.UpdatedAt,
+			&i.WorkflowRunStickyState.TenantId,
+			&i.WorkflowRunStickyState.WorkflowRunId,
+			&i.WorkflowRunStickyState.DesiredWorkerId,
+			&i.WorkflowRunStickyState.Strategy,
 		); err != nil {
 			return nil, err
 		}

@@ -547,6 +547,22 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 			return nil, err
 		}
 
+		_, err = queries.CreateWorkflowRunStickyState(
+			tx1Ctx,
+			tx,
+			dbsqlc.CreateWorkflowRunStickyStateParams{
+				Workflowrunid:     sqlcWorkflowRun.ID,
+				Tenantid:          pgTenantId,
+				Workflowversionid: createParams.Workflowversionid,
+			},
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		// CreateWorkflowRunStickyState
+
 		var (
 			eventId, cronParentId, scheduledWorkflowId pgtype.UUID
 			cronId                                     pgtype.Text
