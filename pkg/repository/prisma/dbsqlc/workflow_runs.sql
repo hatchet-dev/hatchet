@@ -658,22 +658,7 @@ WHERE
     );
 
 -- name: SoftDeleteExpiredWorkflowRunsWithDependencies :one
-WITH has_more AS (
-    SELECT
-        COUNT(*) as count,
-        CASE
-            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
-            ELSE FALSE
-        END as has_more
-    FROM "WorkflowRun" wr1
-    WHERE
-        wr1."tenantId" = @tenantId::uuid AND
-        wr1."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[])) AND
-        wr1."createdAt" < @createdBefore::timestamp AND
-        wr1."deletedAt" IS NULL
-    LIMIT sqlc.arg('limit') + 1
-),
-expired_runs_with_limit AS (
+WITH for_delete AS (
     SELECT
         "id"
     FROM "WorkflowRun" wr2
@@ -683,15 +668,30 @@ expired_runs_with_limit AS (
         wr2."createdAt" < @createdBefore::timestamp AND
         "deletedAt" IS NULL
     ORDER BY "createdAt" ASC
-    LIMIT sqlc.arg('limit')
+    LIMIT sqlc.arg('limit') +1
     FOR UPDATE SKIP LOCKED
-), job_runs_to_delete AS (
+),
+expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT sqlc.arg('limit')
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+),
+job_runs_to_delete AS (
     SELECT
         "id"
     FROM
         "JobRun"
     WHERE
-        "workflowRunId" IN (SELECT "id" FROM expired_runs_with_limit)
+        "workflowRunId" IN (SELECT "id" FROM expired_with_limit)
         AND "deletedAt" IS NULL
 ), step_runs_to_delete AS (
     SELECT
@@ -720,9 +720,8 @@ UPDATE
     "WorkflowRun" wr
 SET
     "deletedAt" = CURRENT_TIMESTAMP
-FROM expired_runs_with_limit
 WHERE
-    wr."id" = expired_runs_with_limit."id" AND
+    "id" IN (SELECT "id" FROM expired_with_limit) AND
     wr."tenantId" = @tenantId::uuid
 RETURNING
     (SELECT has_more FROM has_more) as has_more;

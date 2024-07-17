@@ -155,72 +155,70 @@ WHERE
     "id" = ANY (sqlc.arg('ids')::uuid[]);
 
 -- name: SoftDeleteExpiredEvents :one
-WITH has_more AS (
+WITH for_delete AS (
     SELECT
-        COUNT(*) as count,
+        "id"
+    FROM "Event" e
+    WHERE
+        e."tenantId" = @tenantId::uuid AND
+        e."createdAt" < @createdBefore::timestamp AND
+        e."deletedAt" IS NULL
+    ORDER BY e2."createdAt" ASC
+    LIMIT sqlc.arg('limit') +1
+    FOR UPDATE SKIP LOCKED
+),expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT sqlc.arg('limit')
+), has_more AS (
+    SELECT
         CASE
             WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
             ELSE FALSE
         END as has_more
-    FROM "Event" e1
-    WHERE
-        e1."tenantId" = @tenantId::uuid AND
-        e1."createdAt" < @createdBefore::timestamp AND
-        e1."deletedAt" IS NULL
-    LIMIT sqlc.arg('limit') + 1
-), expired_events_with_limit AS (
-    SELECT
-        "id"
-    FROM "Event" e2
-    WHERE
-        e2."tenantId" = @tenantId::uuid AND
-        e2."createdAt" < @createdBefore::timestamp AND
-        e2."deletedAt" IS NULL
-    ORDER BY e2."createdAt" ASC
-    LIMIT sqlc.arg('limit')
-    FOR UPDATE SKIP LOCKED
+    FROM for_delete
 )
 UPDATE
     "Event"
 SET
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE
-    "id" IN (SELECT "id" FROM expired_events_with_limit)
+    "id" IN (SELECT "id" FROM expired_with_limit)
 RETURNING
     (SELECT has_more FROM has_more) as has_more;
 
 
 -- name: ClearEventPayloadData :one
-WITH has_more AS (
+WITH for_delete AS (
     SELECT
-        COUNT(*) as count,
+        e1."id" as "id"
+    FROM "Event" e1
+    WHERE
+        e1."tenantId" = @tenantId::uuid AND
+        e1."deletedAt" IS NOT NULL -- TODO change this for all clear queries
+        AND e1."data" IS NOT NULL
+    LIMIT sqlc.arg('limit') + 1
+    FOR UPDATE SKIP LOCKED
+), expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT sqlc.arg('limit')
+),
+has_more AS (
+    SELECT
         CASE
             WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
             ELSE FALSE
         END as has_more
-    FROM "Event" e1
-    WHERE
-        e1."tenantId" = @tenantId::uuid AND
-        e1."deletedAt" > NOW() + INTERVAL '5 minutes'
-        AND e1."data" IS NOT NULL
-    LIMIT sqlc.arg('limit') + 1
-), expired_events_with_limit AS (
-    SELECT
-        e2."id" as "id"
-    FROM "Event" e2
-    WHERE
-        e2."tenantId" = @tenantId::uuid AND
-        e2."deletedAt" > NOW() + INTERVAL '5 minutes'
-        AND e2."data" IS NOT NULL
-    ORDER BY e2."deletedAt" ASC
-    LIMIT sqlc.arg('limit')
-    FOR UPDATE SKIP LOCKED
+    FROM for_delete
 )
 UPDATE
     "Event"
 SET
     "data" = NULL
 WHERE
-    "id" IN (SELECT "id" FROM expired_events_with_limit)
+    "id" IN (SELECT "id" FROM expired_with_limit)
 RETURNING
     (SELECT has_more FROM has_more) as has_more;

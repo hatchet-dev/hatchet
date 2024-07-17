@@ -12,48 +12,47 @@ import (
 )
 
 const clearEventPayloadData = `-- name: ClearEventPayloadData :one
-WITH has_more AS (
+WITH for_delete AS (
     SELECT
-        COUNT(*) as count,
-        CASE
-            WHEN COUNT(*) > $1 THEN TRUE
-            ELSE FALSE
-        END as has_more
+        e1."id" as "id"
     FROM "Event" e1
     WHERE
-        e1."tenantId" = $2::uuid AND
-        e1."deletedAt" > NOW() + INTERVAL '5 minutes'
+        e1."tenantId" = $1::uuid AND
+        e1."deletedAt" IS NOT NULL -- TODO change this for all clear queries
         AND e1."data" IS NOT NULL
-    LIMIT $1 + 1
-), expired_events_with_limit AS (
-    SELECT
-        e2."id" as "id"
-    FROM "Event" e2
-    WHERE
-        e2."tenantId" = $2::uuid AND
-        e2."deletedAt" > NOW() + INTERVAL '5 minutes'
-        AND e2."data" IS NOT NULL
-    ORDER BY e2."deletedAt" ASC
-    LIMIT $1
+    LIMIT $2 + 1
     FOR UPDATE SKIP LOCKED
+), expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT $2
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > $2 THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
 )
 UPDATE
     "Event"
 SET
     "data" = NULL
 WHERE
-    "id" IN (SELECT "id" FROM expired_events_with_limit)
+    "id" IN (SELECT "id" FROM expired_with_limit)
 RETURNING
     (SELECT has_more FROM has_more) as has_more
 `
 
 type ClearEventPayloadDataParams struct {
-	Limit    interface{} `json:"limit"`
 	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    interface{} `json:"limit"`
 }
 
 func (q *Queries) ClearEventPayloadData(ctx context.Context, db DBTX, arg ClearEventPayloadDataParams) (bool, error) {
-	row := db.QueryRow(ctx, clearEventPayloadData, arg.Limit, arg.Tenantid)
+	row := db.QueryRow(ctx, clearEventPayloadData, arg.Tenantid, arg.Limit)
 	var has_more bool
 	err := row.Scan(&has_more)
 	return has_more, err
@@ -429,49 +428,48 @@ func (q *Queries) ListEventsByIDs(ctx context.Context, db DBTX, arg ListEventsBy
 }
 
 const softDeleteExpiredEvents = `-- name: SoftDeleteExpiredEvents :one
-WITH has_more AS (
-    SELECT
-        COUNT(*) as count,
-        CASE
-            WHEN COUNT(*) > $1 THEN TRUE
-            ELSE FALSE
-        END as has_more
-    FROM "Event" e1
-    WHERE
-        e1."tenantId" = $2::uuid AND
-        e1."createdAt" < $3::timestamp AND
-        e1."deletedAt" IS NULL
-    LIMIT $1 + 1
-), expired_events_with_limit AS (
+WITH for_delete AS (
     SELECT
         "id"
-    FROM "Event" e2
+    FROM "Event" e
     WHERE
-        e2."tenantId" = $2::uuid AND
-        e2."createdAt" < $3::timestamp AND
-        e2."deletedAt" IS NULL
+        e."tenantId" = $1::uuid AND
+        e."createdAt" < $2::timestamp AND
+        e."deletedAt" IS NULL
     ORDER BY e2."createdAt" ASC
-    LIMIT $1
+    LIMIT $3 +1
     FOR UPDATE SKIP LOCKED
+),expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT $3
+), has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > $3 THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
 )
 UPDATE
     "Event"
 SET
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE
-    "id" IN (SELECT "id" FROM expired_events_with_limit)
+    "id" IN (SELECT "id" FROM expired_with_limit)
 RETURNING
     (SELECT has_more FROM has_more) as has_more
 `
 
 type SoftDeleteExpiredEventsParams struct {
-	Limit         interface{}      `json:"limit"`
 	Tenantid      pgtype.UUID      `json:"tenantid"`
 	Createdbefore pgtype.Timestamp `json:"createdbefore"`
+	Limit         interface{}      `json:"limit"`
 }
 
 func (q *Queries) SoftDeleteExpiredEvents(ctx context.Context, db DBTX, arg SoftDeleteExpiredEventsParams) (bool, error) {
-	row := db.QueryRow(ctx, softDeleteExpiredEvents, arg.Limit, arg.Tenantid, arg.Createdbefore)
+	row := db.QueryRow(ctx, softDeleteExpiredEvents, arg.Tenantid, arg.Createdbefore, arg.Limit)
 	var has_more bool
 	err := row.Scan(&has_more)
 	return has_more, err

@@ -139,32 +139,32 @@ WHERE
     AND jr."jobId" = @jobId::uuid;
 
 -- name: ClearJobRunLookupData :one
-WITH has_more AS (
-    SELECT
-        COUNT(*) as count,
-        CASE
-            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
-            ELSE FALSE
-        END as has_more
-    FROM "JobRun" jr1
-    LEFT JOIN "JobRunLookupData" jrld1 ON jr1."id" = jrld1."jobRunId"
-    WHERE
-        jr1."tenantId" = @tenantId::uuid AND
-        jr1."deletedAt" > NOW() + INTERVAL '5 minutes' AND
-        jrld1."data" IS NOT NULL
-    LIMIT sqlc.arg('limit') + 1
-), deleted_with_limit AS (
+WITH for_delete AS (
     SELECT
         jrld2."id" as "id"
     FROM "JobRun" jr2
     LEFT JOIN "JobRunLookupData" jrld2 ON jr2."id" = jrld2."jobRunId"
     WHERE
         jr2."tenantId" = @tenantId::uuid AND
-        jr2."deletedAt" > NOW() + INTERVAL '5 minutes' AND
+        jr2."deletedAt" IS NOT NULL AND
         jrld2."data" IS NOT NULL
     ORDER BY jr2."deletedAt" ASC
-    LIMIT sqlc.arg('limit')
+    LIMIT sqlc.arg('limit') + 1
     FOR UPDATE SKIP LOCKED
+),
+deleted_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT sqlc.arg('limit')
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
 )
 UPDATE
     "JobRunLookupData"

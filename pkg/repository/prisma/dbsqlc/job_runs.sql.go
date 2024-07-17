@@ -12,32 +12,32 @@ import (
 )
 
 const clearJobRunLookupData = `-- name: ClearJobRunLookupData :one
-WITH has_more AS (
-    SELECT
-        COUNT(*) as count,
-        CASE
-            WHEN COUNT(*) > $1 THEN TRUE
-            ELSE FALSE
-        END as has_more
-    FROM "JobRun" jr1
-    LEFT JOIN "JobRunLookupData" jrld1 ON jr1."id" = jrld1."jobRunId"
-    WHERE
-        jr1."tenantId" = $2::uuid AND
-        jr1."deletedAt" > NOW() + INTERVAL '5 minutes' AND
-        jrld1."data" IS NOT NULL
-    LIMIT $1 + 1
-), deleted_with_limit AS (
+WITH for_delete AS (
     SELECT
         jrld2."id" as "id"
     FROM "JobRun" jr2
     LEFT JOIN "JobRunLookupData" jrld2 ON jr2."id" = jrld2."jobRunId"
     WHERE
-        jr2."tenantId" = $2::uuid AND
-        jr2."deletedAt" > NOW() + INTERVAL '5 minutes' AND
+        jr2."tenantId" = $1::uuid AND
+        jr2."deletedAt" IS NOT NULL AND
         jrld2."data" IS NOT NULL
     ORDER BY jr2."deletedAt" ASC
-    LIMIT $1
+    LIMIT $2 + 1
     FOR UPDATE SKIP LOCKED
+),
+deleted_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT $2
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > $2 THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
 )
 UPDATE
     "JobRunLookupData"
@@ -50,12 +50,12 @@ RETURNING
 `
 
 type ClearJobRunLookupDataParams struct {
-	Limit    interface{} `json:"limit"`
 	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    interface{} `json:"limit"`
 }
 
 func (q *Queries) ClearJobRunLookupData(ctx context.Context, db DBTX, arg ClearJobRunLookupDataParams) (bool, error) {
-	row := db.QueryRow(ctx, clearJobRunLookupData, arg.Limit, arg.Tenantid)
+	row := db.QueryRow(ctx, clearJobRunLookupData, arg.Tenantid, arg.Limit)
 	var has_more bool
 	err := row.Scan(&has_more)
 	return has_more, err

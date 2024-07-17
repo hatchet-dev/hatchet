@@ -866,37 +866,40 @@ WHERE
 
 
 -- name: ClearStepRunPayloadData :one
-WITH has_more AS (
-    SELECT
-        COUNT(*) as count,
-        CASE
-            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
-            ELSE FALSE
-        END as has_more
-    FROM "StepRun" sr1
-    WHERE
-        sr1."tenantId" = @tenantId::uuid AND
-        sr1."deletedAt" > NOW() + INTERVAL '5 minutes'
-        AND (sr1."input" IS NOT NULL OR sr1."output" IS NOT NULL OR sr1."error" IS NOT NULL)
-    LIMIT sqlc.arg('limit') + 1
-), deleted_with_limit AS (
+WITH for_delete AS (
     SELECT
         sr2."id"
     FROM "StepRun" sr2
     WHERE
         sr2."tenantId" = @tenantId::uuid AND
-        sr2."deletedAt" > NOW() + INTERVAL '5 minutes'
-        AND (sr2."input" IS NOT NULL OR sr2."output" IS NOT NULL OR sr2."error" IS NOT NULL)
+        sr2."deletedAt" IS NOT NULL AND
+        (sr2."input" IS NOT NULL OR sr2."output" IS NOT NULL OR sr2."error" IS NOT NULL)
     ORDER BY "deletedAt" ASC
-    LIMIT sqlc.arg('limit')
+    LIMIT sqlc.arg('limit') + 1
     FOR UPDATE SKIP LOCKED
-), deleted_archives AS (
+),
+deleted_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT sqlc.arg('limit')
+),
+deleted_archives AS (
     SELECT sra1."id" as "id"
     FROM "StepRunResultArchive" sra1
     WHERE
         sra1."stepRunId" IN (SELECT "id" FROM deleted_with_limit)
         AND (sra1."input" IS NOT NULL OR sra1."output" IS NOT NULL OR sra1."error" IS NOT NULL)
-), cleared_archives AS (
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+),
+cleared_archives AS (
     UPDATE "StepRunResultArchive"
     SET
         "input" = NULL,

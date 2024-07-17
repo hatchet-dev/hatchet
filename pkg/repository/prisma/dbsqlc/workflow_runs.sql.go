@@ -1198,40 +1198,40 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 }
 
 const softDeleteExpiredWorkflowRunsWithDependencies = `-- name: SoftDeleteExpiredWorkflowRunsWithDependencies :one
-WITH has_more AS (
-    SELECT
-        COUNT(*) as count,
-        CASE
-            WHEN COUNT(*) > $2 THEN TRUE
-            ELSE FALSE
-        END as has_more
-    FROM "WorkflowRun" wr1
-    WHERE
-        wr1."tenantId" = $1::uuid AND
-        wr1."status" = ANY(cast($3::text[] as "WorkflowRunStatus"[])) AND
-        wr1."createdAt" < $4::timestamp AND
-        wr1."deletedAt" IS NULL
-    LIMIT $2 + 1
-),
-expired_runs_with_limit AS (
+WITH for_delete AS (
     SELECT
         "id"
     FROM "WorkflowRun" wr2
     WHERE
         wr2."tenantId" = $1::uuid AND
-        wr2."status" = ANY(cast($3::text[] as "WorkflowRunStatus"[])) AND
-        wr2."createdAt" < $4::timestamp AND
+        wr2."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
+        wr2."createdAt" < $3::timestamp AND
         "deletedAt" IS NULL
     ORDER BY "createdAt" ASC
-    LIMIT $2
+    LIMIT $4 +1
     FOR UPDATE SKIP LOCKED
-), job_runs_to_delete AS (
+),
+expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT $4
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > $4 THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+),
+job_runs_to_delete AS (
     SELECT
         "id"
     FROM
         "JobRun"
     WHERE
-        "workflowRunId" IN (SELECT "id" FROM expired_runs_with_limit)
+        "workflowRunId" IN (SELECT "id" FROM expired_with_limit)
         AND "deletedAt" IS NULL
 ), step_runs_to_delete AS (
     SELECT
@@ -1260,9 +1260,8 @@ UPDATE
     "WorkflowRun" wr
 SET
     "deletedAt" = CURRENT_TIMESTAMP
-FROM expired_runs_with_limit
 WHERE
-    wr."id" = expired_runs_with_limit."id" AND
+    "id" IN (SELECT "id" FROM expired_with_limit) AND
     wr."tenantId" = $1::uuid
 RETURNING
     (SELECT has_more FROM has_more) as has_more
@@ -1270,17 +1269,17 @@ RETURNING
 
 type SoftDeleteExpiredWorkflowRunsWithDependenciesParams struct {
 	Tenantid      pgtype.UUID      `json:"tenantid"`
-	Limit         interface{}      `json:"limit"`
 	Statuses      []string         `json:"statuses"`
 	Createdbefore pgtype.Timestamp `json:"createdbefore"`
+	Limit         interface{}      `json:"limit"`
 }
 
 func (q *Queries) SoftDeleteExpiredWorkflowRunsWithDependencies(ctx context.Context, db DBTX, arg SoftDeleteExpiredWorkflowRunsWithDependenciesParams) (bool, error) {
 	row := db.QueryRow(ctx, softDeleteExpiredWorkflowRunsWithDependencies,
 		arg.Tenantid,
-		arg.Limit,
 		arg.Statuses,
 		arg.Createdbefore,
+		arg.Limit,
 	)
 	var has_more bool
 	err := row.Scan(&has_more)
