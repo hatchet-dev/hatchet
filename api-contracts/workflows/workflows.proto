@@ -183,6 +183,10 @@ message TriggerWorkflowRequest {
 
     // (optional) additional metadata for the workflow
     optional string additional_metadata = 7;
+
+    // (optional) desired worker id for the workflow run,
+    // requires the workflow definition to have a sticky strategy
+    optional string desired_worker_id = 8;
 }
 
 message TriggerWorkflowResponse {
