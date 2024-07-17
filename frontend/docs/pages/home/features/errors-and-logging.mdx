@@ -1,3 +1,5 @@
+import { Tabs } from "nextra/components";
+
 # Error Handling and Logging in Hatchet
 
 When building workflows with Hatchet, it's helpful to have robust error handling and logging mechanisms in place to ensure you and your team have visibility into workflow execution issues if they arise. Hatchet provides built-in support for capturing and displaying uncaught errors, as well as a convenient way to log arbitrary information during step execution. These features can greatly aid in troubleshooting and debugging your workflows.
@@ -33,6 +35,29 @@ In addition to automatic error handling for uncaught errors, Hatchet provides a 
 
 Here's an example of how to use `context.log()` to log information during step execution:
 
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+from hatchet_sdk import ConcurrencyLimitStrategy
+
+@hatchet.workflow(on_events=["log-test"])
+class LogDemoWorkflow:
+
+    @hatchet.step()
+    def step1(self, context):
+        context.log("Starting step execution")
+        result = some_operation()
+        context.log(f"Operation result: {result}")
+        return {
+          result
+        }
+
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
 ```typescript
 import { Step, Context } from "@hatchet-dev/typescript-sdk";
 
@@ -45,16 +70,35 @@ const myStep: Step<any, any> = async (context: Context<any>) => {
 
   context.log(`Async operation result: ${result}`);
 
-  // Log a message with additional metadata
-  context.log("Step completed successfully", {
-    metadata: { resultLength: result.length },
-  });
-
   return { result };
 };
 
 export default myStep;
 ```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+err = w.RegisterWorkflow(
+	&worker.WorkflowJob{
+		Name: "log-demo-workflow",
+    On: worker.Events("user:create"),
+		Description: "This is an example workflow with logging.",
+		Steps: []*worker.WorkflowStep{
+			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+				ctx.log("Starting step execution")
+        result := someOperation()
+        ctx.log(fmt.Sprintf("Operation result: %v", result))
+
+    		}).SetName("step-one"),
+    },
+  }
+)
+```
+
+  </Tabs.Tab>
+</Tabs>
 
 In this example, the step uses `context.log()` to log messages at different points during its execution. The logged messages, along with any additional metadata, will be associated with the specific step run and can be viewed in the Hatchet dashboard.
 
