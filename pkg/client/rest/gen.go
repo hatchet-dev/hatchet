@@ -129,6 +129,20 @@ const (
 	QUEUENEWEST      WorkflowConcurrencyLimitStrategy = "QUEUE_NEWEST"
 )
 
+// Defines values for WorkflowRunOrderByDirection.
+const (
+	ASC  WorkflowRunOrderByDirection = "ASC"
+	DESC WorkflowRunOrderByDirection = "DESC"
+)
+
+// Defines values for WorkflowRunOrderByField.
+const (
+	CreatedAt  WorkflowRunOrderByField = "createdAt"
+	Duration   WorkflowRunOrderByField = "duration"
+	FinishedAt WorkflowRunOrderByField = "finishedAt"
+	StartedAt  WorkflowRunOrderByField = "startedAt"
+)
+
 // Defines values for WorkflowRunStatus.
 const (
 	WorkflowRunStatusCANCELLED WorkflowRunStatus = "CANCELLED"
@@ -986,6 +1000,7 @@ type WorkflowMetrics struct {
 type WorkflowRun struct {
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 	DisplayName        *string                 `json:"displayName,omitempty"`
+	Duration           *int                    `json:"duration,omitempty"`
 	Error              *string                 `json:"error,omitempty"`
 	FinishedAt         *time.Time              `json:"finishedAt,omitempty"`
 	Input              *map[string]interface{} `json:"input,omitempty"`
@@ -1006,6 +1021,12 @@ type WorkflowRunList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]WorkflowRun      `json:"rows,omitempty"`
 }
+
+// WorkflowRunOrderByDirection defines model for WorkflowRunOrderByDirection.
+type WorkflowRunOrderByDirection string
+
+// WorkflowRunOrderByField defines model for WorkflowRunOrderByField.
+type WorkflowRunOrderByField string
 
 // WorkflowRunStatus defines model for WorkflowRunStatus.
 type WorkflowRunStatus string
@@ -1207,6 +1228,12 @@ type WorkflowRunListParams struct {
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// OrderByField The order by field
+	OrderByField *WorkflowRunOrderByField `form:"orderByField,omitempty" json:"orderByField,omitempty"`
+
+	// OrderByDirection The order by direction
+	OrderByDirection *WorkflowRunOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
 }
 
 // WorkflowRunGetMetricsParams defines parameters for WorkflowRunGetMetrics.
@@ -5095,6 +5122,38 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 		if params.AdditionalMetadata != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByField != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByDirection != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
@@ -14,16 +15,17 @@ import (
 type partitioner struct {
 	s    gocron.Scheduler
 	repo repository.TenantEngineRepository
+	l    *zerolog.Logger
 }
 
-func newPartitioner(repo repository.TenantEngineRepository) (partitioner, error) {
+func newPartitioner(repo repository.TenantEngineRepository, l *zerolog.Logger) (partitioner, error) {
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 
 	if err != nil {
 		return partitioner{}, err
 	}
 
-	return partitioner{s: s, repo: repo}, nil
+	return partitioner{s: s, repo: repo, l: l}, nil
 }
 
 func (p *partitioner) withControllers(ctx context.Context) (*Teardown, string, error) {
@@ -35,24 +37,33 @@ func (p *partitioner) withControllers(ctx context.Context) (*Teardown, string, e
 		return nil, "", fmt.Errorf("could not create engine partition: %w", err)
 	}
 
-	// rebalance partitions on startup
-	err = p.repo.RebalanceAllControllerPartitions(ctx)
+	// rebalance partitions 30 seconds after startup
+	_, err = p.s.NewJob(
+		gocron.OneTimeJob(
+			gocron.OneTimeJobStartDateTime(time.Now().Add(time.Second*30)),
+		),
+		gocron.NewTask(
+			func() {
+				rebalanceAllControllerPartitions(ctx, p.l, p.repo) // nolint: errcheck
+			},
+		),
+	)
 
 	if err != nil {
-		return nil, "", fmt.Errorf("could not rebalance engine partitions: %w", err)
+		return nil, "", fmt.Errorf("could not create rebalance all controller partitions job: %w", err)
 	}
 
 	_, err = p.s.NewJob(
 		gocron.DurationJob(time.Minute*1),
 		gocron.NewTask(
 			func() {
-				rebalanceControllerPartitions(ctx, p.repo) // nolint: errcheck
+				rebalanceInactiveControllerPartitions(ctx, p.l, p.repo) // nolint: errcheck
 			},
 		),
 	)
 
 	if err != nil {
-		return nil, "", fmt.Errorf("could not create rebalance controller partitions job: %w", err)
+		return nil, "", fmt.Errorf("could not create rebalance inactive controller partitions job: %w", err)
 	}
 
 	return &Teardown{
@@ -81,24 +92,33 @@ func (p *partitioner) withTenantWorkers(ctx context.Context) (*Teardown, string,
 		return nil, "", fmt.Errorf("could not create engine partition: %w", err)
 	}
 
-	// rebalance partitions on startup
-	err = p.repo.RebalanceAllTenantWorkerPartitions(ctx)
+	// rebalance partitions 30 seconds after startup
+	_, err = p.s.NewJob(
+		gocron.OneTimeJob(
+			gocron.OneTimeJobStartDateTime(time.Now().Add(time.Second*30)),
+		),
+		gocron.NewTask(
+			func() {
+				rebalanceAllTenantWorkerPartitions(ctx, p.l, p.repo) // nolint: errcheck
+			},
+		),
+	)
 
 	if err != nil {
-		return nil, "", fmt.Errorf("could not rebalance engine partitions: %w", err)
+		return nil, "", fmt.Errorf("could not create rebalance all tenant worker partitions job: %w", err)
 	}
 
 	_, err = p.s.NewJob(
 		gocron.DurationJob(time.Minute*1),
 		gocron.NewTask(
 			func() {
-				rebalanceTenantWorkerPartitions(ctx, p.repo) // nolint: errcheck
+				rebalanceInactiveTenantWorkerPartitions(ctx, p.l, p.repo) // nolint: errcheck
 			},
 		),
 	)
 
 	if err != nil {
-		return nil, "", fmt.Errorf("could not create rebalance tenant worker partitions job: %w", err)
+		return nil, "", fmt.Errorf("could not create rebalance inactive tenant worker partitions job: %w", err)
 	}
 
 	return &Teardown{
@@ -126,10 +146,42 @@ func (p *partitioner) shutdown() error {
 	return p.s.Shutdown()
 }
 
-func rebalanceControllerPartitions(ctx context.Context, r repository.TenantEngineRepository) error {
-	return r.RebalanceInactiveControllerPartitions(ctx)
+func rebalanceAllControllerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+	err := r.RebalanceAllControllerPartitions(ctx)
+
+	if err != nil {
+		l.Err(err).Msg("could not rebalance controller partitions")
+	}
+
+	return err
 }
 
-func rebalanceTenantWorkerPartitions(ctx context.Context, r repository.TenantEngineRepository) error {
-	return r.RebalanceInactiveTenantWorkerPartitions(ctx)
+func rebalanceAllTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+	err := r.RebalanceAllTenantWorkerPartitions(ctx)
+
+	if err != nil {
+		l.Err(err).Msg("could not rebalance tenant worker partitions")
+	}
+
+	return err
+}
+
+func rebalanceInactiveControllerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+	err := r.RebalanceInactiveControllerPartitions(ctx)
+
+	if err != nil {
+		l.Err(err).Msg("could not rebalance inactive controller partitions")
+	}
+
+	return err
+}
+
+func rebalanceInactiveTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+	err := r.RebalanceInactiveTenantWorkerPartitions(ctx)
+
+	if err != nil {
+		l.Err(err).Msg("could not rebalance inactive tenant worker partitions")
+	}
+
+	return err
 }

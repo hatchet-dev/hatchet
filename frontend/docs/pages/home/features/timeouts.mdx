@@ -52,7 +52,7 @@ const myWorkflow: Workflow = {
   <Tabs.Tab>
 ```go
 cleanup, err := run(events, worker.WorkflowJob{
-  Name:        "timeout",
+  Name: "timeout",
   Description: "timeout",
   ScheduleTimeout: "2m",
   Steps: []*worker.WorkflowStep{
@@ -79,7 +79,7 @@ To specify a timeout for an individual step, you can set the `timeout` property 
 def timeout(self, context):
     try:
         print("started step2")
-        context.sleep(5)
+        time.sleep(5)
         print("finished step2")
     except Exception as e:
         print("caught an exception: " + str(e))
@@ -100,16 +100,16 @@ const myStep: CreateStep<any, any> = {
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
-cleanup, err := run(events, worker.WorkflowJob{
-		Name:        "timeout",
-		Description: "timeout",
-		Steps: []*worker.WorkflowStep{
-			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-				time.Sleep(time.Second * 60)
-				return nil, nil
-			}).SetName("step-one").SetTimeout("30s"),
-		},
-	})
+worker.WorkflowJob{
+  Name: "timeout",
+  Description: "timeout",
+  Steps: []*worker.WorkflowStep{
+    worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+      time.Sleep(time.Second * 60)
+      return nil, nil
+    }).SetName("step-one").SetTimeout("30s"),
+  },
+}
 ```
   </Tabs.Tab>
 </Tabs>
@@ -128,6 +128,20 @@ In some cases, you may need to extend the timeout for a step while it is running
 
 For example:
 
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+@hatchet.step(timeout="30s")
+def timeout(self, context):
+    time.sleep(20)
+    context.refresh_timeout("15s")
+    time.sleep(10)
+    return {
+      step1: "step1 results!"
+    }
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
 ```typescript
 const myStep: CreateStep<any, any> = {
   name: "my-step",
@@ -140,6 +154,26 @@ const myStep: CreateStep<any, any> = {
   },
 };
 ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+worker.WorkflowJob{
+		Name: "timeout",
+		Description: "timeout",
+		Steps: []*worker.WorkflowStep{
+			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+				time.Sleep(time.Second * 20)
+				ctx.RefreshTimeout("15s")
+        time.Sleep(time.Second * 10)
+        return return &stepOneOutput{
+					Message: "step1 results!",
+				}, nil
+			}).SetName("step-one").SetTimeout("30s"),
+    },
+}
+```
+  </Tabs.Tab>
+</Tabs>
 
 In this example, the step initially has a timeout of 30 seconds. After 19 seconds, the `refreshTimeout` function is called with an argument of `'15s'`, which extends the timeout by an additional 15 seconds. This allows the step to continue running for a total of 45 seconds (30 seconds initial timeout + 15 seconds refreshed timeout).
 

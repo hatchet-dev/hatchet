@@ -207,36 +207,38 @@ RETURNING *;
 -- name: RebalanceAllControllerPartitions :exec
 WITH active_partitions AS (
     SELECT
-        "id"
+        "id",
+        ROW_NUMBER() OVER () AS row_number
     FROM
         "ControllerPartition"
     WHERE
         "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+),
+tenants_to_update AS (
+    SELECT
+        tenants."id" AS "id",
+        ROW_NUMBER() OVER () AS row_number
+    FROM
+        "Tenant" AS tenants
+    WHERE
+        tenants."slug" != 'internal'
 )
 UPDATE
-    "Tenant" as tenants
+    "Tenant" AS tenants
 SET
-    "controllerPartitionId" = (
-        SELECT
-            "id"
-        FROM
-            active_partitions
-        ORDER BY
-            random()
-        LIMIT 1
-    )
+    "controllerPartitionId" = partitions."id"
+FROM
+    tenants_to_update,
+    active_partitions AS partitions
 WHERE
-    "slug" != 'internal' AND
-    (
-        "controllerPartitionId" IS NULL OR
-        "controllerPartitionId" NOT IN (SELECT "id" FROM active_partitions)
-    )
-RETURNING *;
+    tenants."id" = tenants_to_update."id" AND
+    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1;
 
 -- name: RebalanceInactiveControllerPartitions :exec
 WITH active_partitions AS (
     SELECT
-        "id"
+        "id",
+        ROW_NUMBER() OVER () AS row_number
     FROM
         "ControllerPartition"
     WHERE
@@ -248,25 +250,27 @@ WITH active_partitions AS (
         "ControllerPartition"
     WHERE
         "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
-), update_tenants AS (
-    UPDATE
-        "Tenant" as tenants
-    SET
-        "controllerPartitionId" = (
-            SELECT
-                "id"
-            FROM
-                active_partitions
-            ORDER BY
-                random()
-            LIMIT 1
-        )
+), tenants_to_update AS (
+    SELECT
+        tenants."id" AS "id",
+        ROW_NUMBER() OVER () AS row_number
+    FROM
+        "Tenant" AS tenants
     WHERE
-        "slug" != 'internal' AND
+        tenants."slug" != 'internal' AND
         (
             "controllerPartitionId" IS NULL OR
             "controllerPartitionId" IN (SELECT "id" FROM inactive_partitions)
         )
+), update_tenants AS (
+    UPDATE "Tenant" AS tenants
+    SET "controllerPartitionId" = partitions."id"
+    FROM
+        tenants_to_update,
+        active_partitions AS partitions
+    WHERE
+    tenants."id" = tenants_to_update."id" AND
+    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
 )
 DELETE FROM "ControllerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions);
@@ -285,36 +289,38 @@ RETURNING *;
 -- name: RebalanceAllTenantWorkerPartitions :exec
 WITH active_partitions AS (
     SELECT
-        "id"
+        "id",
+        ROW_NUMBER() OVER () AS row_number
     FROM
         "TenantWorkerPartition"
     WHERE
         "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+),
+tenants_to_update AS (
+    SELECT
+        tenants."id" AS "id",
+        ROW_NUMBER() OVER () AS row_number
+    FROM
+        "Tenant" AS tenants
+    WHERE
+        tenants."slug" != 'internal'
 )
 UPDATE
-    "Tenant" as tenants
+    "Tenant" AS tenants
 SET
-    "workerPartitionId" = (
-        SELECT
-            "id"
-        FROM
-            active_partitions
-        ORDER BY
-            random()
-        LIMIT 1
-    )
+    "workerPartitionId" = partitions."id"
+FROM
+    tenants_to_update,
+    active_partitions AS partitions
 WHERE
-    "slug" != 'internal' AND
-    (
-        "workerPartitionId" IS NULL OR
-        "workerPartitionId" NOT IN (SELECT "id" FROM active_partitions)
-    )
-RETURNING *;
+    tenants."id" = tenants_to_update."id" AND
+    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1;
 
 -- name: RebalanceInactiveTenantWorkerPartitions :exec
 WITH active_partitions AS (
     SELECT
-        "id"
+        "id",
+        ROW_NUMBER() OVER () AS row_number
     FROM
         "TenantWorkerPartition"
     WHERE
@@ -326,25 +332,27 @@ WITH active_partitions AS (
         "TenantWorkerPartition"
     WHERE
         "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
-), update_tenants AS (
-    UPDATE
-        "Tenant" as tenants
-    SET
-        "workerPartitionId" = (
-            SELECT
-                "id"
-            FROM
-                active_partitions
-            ORDER BY
-                random()
-            LIMIT 1
-        )
+), tenants_to_update AS (
+    SELECT
+        tenants."id" AS "id",
+        ROW_NUMBER() OVER () AS row_number
+    FROM
+        "Tenant" AS tenants
     WHERE
-        "slug" != 'internal' AND
+        tenants."slug" != 'internal' AND
         (
             "workerPartitionId" IS NULL OR
             "workerPartitionId" IN (SELECT "id" FROM inactive_partitions)
         )
+), update_tenants AS (
+    UPDATE "Tenant" AS tenants
+    SET "workerPartitionId" = partitions."id"
+    FROM
+        tenants_to_update,
+        active_partitions AS partitions
+    WHERE
+    tenants."id" = tenants_to_update."id" AND
+    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
 )
 DELETE FROM "TenantWorkerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions);

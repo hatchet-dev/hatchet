@@ -13,8 +13,8 @@ import (
 func WithStepRunModel(span trace.Span, stepRun *dbsqlc.GetStepRunForEngineRow) {
 	telemetry.WithAttributes(
 		span,
-		TenantId(stepRun.StepRun.TenantId),
-		StepRunId(stepRun.StepRun.ID),
+		TenantId(stepRun.SRTenantId),
+		StepRunId(stepRun.SRID),
 		Step(stepRun.StepId),
 		JobRunId(stepRun.JobRunId),
 	)

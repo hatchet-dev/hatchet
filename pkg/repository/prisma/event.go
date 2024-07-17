@@ -98,6 +98,7 @@ func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEv
 
 	if opts.AdditionalMetadata != nil {
 		queryParams.AdditionalMetadata = opts.AdditionalMetadata
+		countParams.AdditionalMetadata = opts.AdditionalMetadata
 	}
 
 	orderByField := "createdAt"
@@ -112,6 +113,7 @@ func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEv
 	}
 
 	queryParams.Orderby = orderByField + " " + orderByDirection
+	countParams.Orderby = orderByField + " " + orderByDirection
 
 	tx, err := r.pool.Begin(context.Background())
 

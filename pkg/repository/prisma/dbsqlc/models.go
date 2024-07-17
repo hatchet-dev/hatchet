@@ -598,6 +598,7 @@ type APIToken struct {
 	Name        pgtype.Text      `json:"name"`
 	TenantId    pgtype.UUID      `json:"tenantId"`
 	NextAlertAt pgtype.Timestamp `json:"nextAlertAt"`
+	Internal    bool             `json:"internal"`
 }
 
 type Action struct {
@@ -1093,6 +1094,7 @@ type WorkflowRun struct {
 	ParentId           pgtype.UUID       `json:"parentId"`
 	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
+	Duration           pgtype.Int4       `json:"duration"`
 }
 
 type WorkflowRunTriggeredBy struct {

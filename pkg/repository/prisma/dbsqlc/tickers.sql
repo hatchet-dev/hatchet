@@ -68,18 +68,24 @@ WHERE
 RETURNING *;
 
 -- name: PollStepRuns :many
-WITH stepRunsToTimeout AS (
+WITH inactiveTickers AS (
+    SELECT "id"
+    FROM "Ticker"
+    WHERE
+        "isActive" = false OR
+        "lastHeartbeatAt" < NOW() - INTERVAL '10 seconds'
+),
+stepRunsToTimeout AS (
     SELECT
         stepRun."id"
     FROM
         "StepRun" as stepRun
+    LEFT JOIN inactiveTickers ON stepRun."tickerId" = inactiveTickers."id"
     WHERE
         ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
         AND "timeoutAt" < NOW()
         AND (
-            NOT EXISTS (
-                SELECT 1 FROM "Ticker" WHERE "id" = stepRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
-            )
+            inactiveTickers."id" IS NOT NULL
             OR "tickerId" IS NULL
         )
     LIMIT 1000
@@ -365,3 +371,18 @@ FROM
 WHERE
     na."existingAlert" = false
 RETURNING *;
+
+-- name: PollUnresolvedFailedStepRuns :many
+SELECT
+	sr."id",
+    sr."tenantId"
+FROM "StepRun" sr
+JOIN "JobRun" jr on jr."id" = sr."jobRunId"
+WHERE
+	(
+		(sr."status" = 'FAILED' AND jr."status" != 'FAILED')
+	OR
+		(sr."status" = 'CANCELLED' AND jr."status" != 'CANCELLED')
+	)
+	AND sr."updatedAt" < CURRENT_TIMESTAMP - INTERVAL '5 seconds'
+;

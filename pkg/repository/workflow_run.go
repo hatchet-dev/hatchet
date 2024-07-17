@@ -261,7 +261,7 @@ type ListWorkflowRunsOpts struct {
 	Limit *int
 
 	// (optional) the order by field
-	OrderBy *string `validate:"omitempty,oneof=createdAt"`
+	OrderBy *string `validate:"omitempty,oneof=createdAt finishedAt startedAt duration"`
 
 	// (optional) the order direction
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
@@ -376,6 +376,8 @@ type WorkflowRunEngineRepository interface {
 
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)
+
+	ListActiveQueuedWorkflowVersions(ctx context.Context) ([]*dbsqlc.ListActiveQueuedWorkflowVersionsRow, error)
 
 	// DeleteExpiredWorkflowRuns deletes workflow runs that were created before the given time. It returns the number of deleted runs
 	// and the number of non-deleted runs that match the conditions.

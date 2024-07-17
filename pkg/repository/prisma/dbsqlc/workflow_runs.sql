@@ -1,7 +1,7 @@
 -- name: CountWorkflowRuns :one
-SELECT
-    count(runs) OVER() AS total
-FROM
+WITH runs AS (
+    SELECT runs."id", runs."createdAt"
+    FROM
     "WorkflowRun" as runs
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
@@ -56,7 +56,17 @@ WHERE
     (
         sqlc.narg('finishedAfter')::timestamp IS NULL OR
         runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
-    );
+    )
+    ORDER BY
+        case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+        case when @orderBy = 'createdAt DESC' then runs."createdAt" END DESC,
+        runs."id" ASC
+    LIMIT 10000
+)
+SELECT
+    count(runs) AS total
+FROM
+    runs;
 
 -- name: WorkflowRunsMetricsCount :one
 SELECT
@@ -164,7 +174,13 @@ WHERE
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when @orderBy = 'createdAt DESC' then runs."createdAt" END DESC,
+    case when @orderBy = 'createdAt DESC' THEN runs."createdAt" END DESC,
+    case when @orderBy = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+    case when @orderBy = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+    case when @orderBy = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+    case when @orderBy = 'startedAt DESC' THEN runs."startedAt" END DESC,
+    case when @orderBy = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+    case when @orderBy = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
     runs."id" ASC
 OFFSET
     COALESCE(sqlc.narg('offset'), 0)
@@ -248,12 +264,20 @@ SET "status" = CASE
     WHEN groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN 'FAILED'
     WHEN groupKeyRun.output IS NOT NULL THEN 'QUEUED'
     ELSE "status"
-END, "finishedAt" = CASE
+END,
+"finishedAt" = CASE
     -- Final states are final, cannot be updated
     WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
     -- When one job run has failed or been cancelled, then the workflow is failed
     WHEN groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN NOW()
     ELSE "finishedAt"
+END,
+"duration" = CASE
+    -- duration is final, cannot be changed
+    WHEN "duration" IS NOT NULL THEN "duration"
+    WHEN "startedAt" IS NOT NULL AND groupKeyRun.groupKeyRunStatus IN ('FAILED', 'CANCELLED') THEN
+                EXTRACT(EPOCH FROM (NOW() - "startedAt")) * 1000
+    ELSE "duration"
 END,
 "concurrencyGroupId" = groupKeyRun."output"
 FROM
@@ -293,7 +317,8 @@ SET "status" = CASE
     -- When all job runs have succeeded, then the workflow is succeeded
     WHEN j.succeededRuns > 0 AND j.pendingRuns = 0 AND j.runningRuns = 0 AND j.failedRuns = 0 AND j.cancelledRuns = 0 THEN 'SUCCEEDED'
     ELSE "status"
-END, "finishedAt" = CASE
+END,
+"finishedAt" = CASE
     -- Final states are final, cannot be updated
     WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
     -- We check for running first, because if a job run is running, then the workflow is not finished
@@ -301,12 +326,23 @@ END, "finishedAt" = CASE
     -- When one job run has failed or been cancelled, then the workflow is failed
     WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN NOW()
     ELSE "finishedAt"
-END, "startedAt" = CASE
+END,
+"startedAt" = CASE
     -- Started at is final, cannot be changed
     WHEN "startedAt" IS NOT NULL THEN "startedAt"
     -- If a job is running or in a final state, then the workflow has started
     WHEN j.runningRuns > 0 OR j.succeededRuns > 0 OR j.failedRuns > 0 OR j.cancelledRuns > 0 THEN NOW()
     ELSE "startedAt"
+END,
+"duration" = CASE
+    -- duration is final, cannot be changed
+    WHEN "duration" IS NOT NULL THEN "duration"
+    -- We check for running first, because if a job run is running, then the workflow is not finished
+    WHEN j.runningRuns > 0 THEN NULL
+    -- When one job run has failed or been cancelled, then the workflow is failed
+    WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN
+                    EXTRACT(EPOCH FROM (NOW() - "startedAt")) * 1000
+    ELSE "duration"
 END
 FROM
     jobRuns j
@@ -328,7 +364,10 @@ SET
     END,
     "error" = COALESCE(sqlc.narg('error')::text, "error"),
     "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
-    "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt")
+    "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt"),
+    "duration" =
+        EXTRACT(EPOCH FROM (COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt") - COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt")) * 1000)
+
 WHERE
     "id" = @id::uuid AND
     "tenantId" = @tenantId::uuid
@@ -341,7 +380,8 @@ SET
     "status" = COALESCE(sqlc.narg('status')::"WorkflowRunStatus", "status"),
     "error" = COALESCE(sqlc.narg('error')::text, "error"),
     "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
-    "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt")
+    "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt"),
+    "duration" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt") - COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt")
 WHERE
     "tenantId" = @tenantId::uuid AND
     "id" = ANY(@ids::uuid[])
@@ -623,3 +663,27 @@ DELETE FROM "WorkflowRun"
 WHERE
     "id" IN (SELECT "id" FROM expired_runs_with_limit)
 RETURNING (SELECT count FROM expired_runs_count) as total, (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining, (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted;
+
+-- name: ListActiveQueuedWorkflowVersions :many
+WITH QueuedRuns AS (
+    SELECT DISTINCT ON (wr."workflowVersionId")
+        wr."workflowVersionId",
+        w."tenantId",
+        wr."status",
+        wr."id",
+        wr."concurrencyGroupId"
+    FROM "WorkflowRun" wr
+    JOIN "WorkflowVersion" wv ON wv."id" = wr."workflowVersionId"
+    JOIN "Workflow" w ON w."id" = wv."workflowId"
+    WHERE wr."status" = 'QUEUED'
+		AND wr."concurrencyGroupId" IS NOT NULL
+    ORDER BY wr."workflowVersionId"
+)
+SELECT
+    q."workflowVersionId",
+    q."tenantId",
+    q."status",
+    q."id",
+    q."concurrencyGroupId"
+FROM QueuedRuns q
+GROUP BY q."workflowVersionId", q."tenantId", q."concurrencyGroupId", q."status", q."id";

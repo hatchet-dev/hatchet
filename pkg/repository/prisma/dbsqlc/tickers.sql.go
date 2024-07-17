@@ -498,18 +498,24 @@ func (q *Queries) PollScheduledWorkflows(ctx context.Context, db DBTX, tickerid 
 }
 
 const pollStepRuns = `-- name: PollStepRuns :many
-WITH stepRunsToTimeout AS (
+WITH inactiveTickers AS (
+    SELECT "id"
+    FROM "Ticker"
+    WHERE
+        "isActive" = false OR
+        "lastHeartbeatAt" < NOW() - INTERVAL '10 seconds'
+),
+stepRunsToTimeout AS (
     SELECT
         stepRun."id"
     FROM
         "StepRun" as stepRun
+    LEFT JOIN inactiveTickers ON stepRun."tickerId" = inactiveTickers."id"
     WHERE
         ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
         AND "timeoutAt" < NOW()
         AND (
-            NOT EXISTS (
-                SELECT 1 FROM "Ticker" WHERE "id" = stepRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
-            )
+            inactiveTickers."id" IS NOT NULL
             OR "tickerId" IS NULL
         )
     LIMIT 1000
@@ -761,6 +767,46 @@ func (q *Queries) PollTenantResourceLimitAlerts(ctx context.Context, db DBTX) ([
 			&i.Value,
 			&i.Limit,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pollUnresolvedFailedStepRuns = `-- name: PollUnresolvedFailedStepRuns :many
+SELECT
+	sr."id",
+    sr."tenantId"
+FROM "StepRun" sr
+JOIN "JobRun" jr on jr."id" = sr."jobRunId"
+WHERE
+	(
+		(sr."status" = 'FAILED' AND jr."status" != 'FAILED')
+	OR
+		(sr."status" = 'CANCELLED' AND jr."status" != 'CANCELLED')
+	)
+	AND sr."updatedAt" < CURRENT_TIMESTAMP - INTERVAL '5 seconds'
+`
+
+type PollUnresolvedFailedStepRunsRow struct {
+	ID       pgtype.UUID `json:"id"`
+	TenantId pgtype.UUID `json:"tenantId"`
+}
+
+func (q *Queries) PollUnresolvedFailedStepRuns(ctx context.Context, db DBTX) ([]*PollUnresolvedFailedStepRunsRow, error) {
+	rows, err := db.Query(ctx, pollUnresolvedFailedStepRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*PollUnresolvedFailedStepRunsRow
+	for rows.Next() {
+		var i PollUnresolvedFailedStepRunsRow
+		if err := rows.Scan(&i.ID, &i.TenantId); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

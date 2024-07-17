@@ -37,11 +37,11 @@ export default function MainNav({ user }: MainNavProps) {
   const meta = useApiMeta();
 
   const hasPylon = useMemo(() => {
-    if (!meta.data?.data?.pylonAppId) {
+    if (!meta.data?.pylonAppId) {
       return null;
     }
 
-    return !!meta.data.data.pylonAppId;
+    return !!meta.data.pylonAppId;
   }, [meta]);
 
   const navigate = useNavigate();
