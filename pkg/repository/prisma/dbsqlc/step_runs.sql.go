@@ -279,6 +279,7 @@ WITH has_more AS (
         sr1."tenantId" = $2::uuid AND
         sr1."deletedAt" > NOW() + INTERVAL '5 minutes'
         AND (sr1."input" IS NOT NULL OR sr1."output" IS NOT NULL OR sr1."error" IS NOT NULL)
+    LIMIT $1 + 1
 ), deleted_with_limit AS (
     SELECT
         sr2."id"
