@@ -23,12 +23,18 @@ WITH valid_workers AS (
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
         AND w."isPaused" = false
+        AND (
+            -- sticky worker selection
+            $2::uuid IS NULL
+            OR w."id" = $2::uuid
+        )
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
             INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = $1 AND "Action"."actionId" = $2::text
+            WHERE "Action"."tenantId" = $1 AND "Action"."actionId" = $3::text
         )
+
     GROUP BY w."id"
 ),
 locked_step_runs AS (
@@ -37,7 +43,7 @@ locked_step_runs AS (
     FROM
         "StepRun" sr
     WHERE
-        sr."id" = $3::uuid
+        sr."id" = $4::uuid
     FOR UPDATE SKIP LOCKED
 ),
 desired_workflow_labels AS (
@@ -134,7 +140,7 @@ selected_slot AS (
 ),
 updated_slot AS (
     UPDATE "WorkerSemaphoreSlot"
-    SET "stepRunId" = $3::uuid
+    SET "stepRunId" = $4::uuid
     WHERE "id" = (SELECT "slotId" FROM selected_slot)
     AND "stepRunId" IS NULL
     RETURNING id, "workerId", "stepRunId"
@@ -148,8 +154,8 @@ assign_step_run_to_worker AS (
 	    "tickerId" = NULL,
 	    "updatedAt" = CURRENT_TIMESTAMP,
 	    "timeoutAt" = CASE
-	        WHEN $4::text IS NOT NULL THEN
-	            CURRENT_TIMESTAMP + convert_duration_to_interval($4::text)
+	        WHEN $5::text IS NOT NULL THEN
+	            CURRENT_TIMESTAMP + convert_duration_to_interval($5::text)
 	        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
 	    END
 	WHERE
@@ -253,6 +259,7 @@ GROUP BY
 
 type AcquireWorkerSemaphoreSlotAndAssignParams struct {
 	Tenantid    pgtype.UUID `json:"tenantid"`
+	WorkerId    pgtype.UUID `json:"workerId"`
 	Actionid    string      `json:"actionid"`
 	Steprunid   pgtype.UUID `json:"steprunid"`
 	StepTimeout pgtype.Text `json:"stepTimeout"`
@@ -271,6 +278,7 @@ type AcquireWorkerSemaphoreSlotAndAssignRow struct {
 func (q *Queries) AcquireWorkerSemaphoreSlotAndAssign(ctx context.Context, db DBTX, arg AcquireWorkerSemaphoreSlotAndAssignParams) (*AcquireWorkerSemaphoreSlotAndAssignRow, error) {
 	row := db.QueryRow(ctx, acquireWorkerSemaphoreSlotAndAssign,
 		arg.Tenantid,
+		arg.WorkerId,
 		arg.Actionid,
 		arg.Steprunid,
 		arg.StepTimeout,
@@ -370,6 +378,32 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 		&i.CancelledError,
 	)
 	return &i, err
+}
+
+const checkWorker = `-- name: CheckWorker :one
+SELECT
+    "id"
+FROM
+    "Worker"
+WHERE
+    "tenantId" = $1::uuid
+    AND "dispatcherId" IS NOT NULL
+    AND "isActive" = true
+    AND "isPaused" = false
+    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "id" = $2::uuid
+`
+
+type CheckWorkerParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Workerid pgtype.UUID `json:"workerid"`
+}
+
+func (q *Queries) CheckWorker(ctx context.Context, db DBTX, arg CheckWorkerParams) (pgtype.UUID, error) {
+	row := db.QueryRow(ctx, checkWorker, arg.Tenantid, arg.Workerid)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const countStepRunArchives = `-- name: CountStepRunArchives :one
@@ -759,7 +793,7 @@ SELECT
     j."workflowVersionId" AS "workflowVersionId",
     jr."workflowRunId" AS "workflowRunId",
     a."actionId" AS "actionId",
-    sticky.id, sticky."createdAt", sticky."updatedAt", sticky."tenantId", sticky."workflowRunId", sticky."desiredWorkerId", sticky.strategy
+    sticky."strategy" AS "stickyStrategy"
 FROM
     "StepRun" sr
 JOIN
@@ -786,41 +820,41 @@ type GetStepRunForEngineParams struct {
 }
 
 type GetStepRunForEngineRow struct {
-	SRID                   pgtype.UUID            `json:"SR_id"`
-	SRCreatedAt            pgtype.Timestamp       `json:"SR_createdAt"`
-	SRUpdatedAt            pgtype.Timestamp       `json:"SR_updatedAt"`
-	SRDeletedAt            pgtype.Timestamp       `json:"SR_deletedAt"`
-	SRTenantId             pgtype.UUID            `json:"SR_tenantId"`
-	SROrder                int64                  `json:"SR_order"`
-	SRWorkerId             pgtype.UUID            `json:"SR_workerId"`
-	SRTickerId             pgtype.UUID            `json:"SR_tickerId"`
-	SRStatus               StepRunStatus          `json:"SR_status"`
-	SRRequeueAfter         pgtype.Timestamp       `json:"SR_requeueAfter"`
-	SRScheduleTimeoutAt    pgtype.Timestamp       `json:"SR_scheduleTimeoutAt"`
-	SRStartedAt            pgtype.Timestamp       `json:"SR_startedAt"`
-	SRFinishedAt           pgtype.Timestamp       `json:"SR_finishedAt"`
-	SRTimeoutAt            pgtype.Timestamp       `json:"SR_timeoutAt"`
-	SRCancelledAt          pgtype.Timestamp       `json:"SR_cancelledAt"`
-	SRCancelledReason      pgtype.Text            `json:"SR_cancelledReason"`
-	SRCancelledError       pgtype.Text            `json:"SR_cancelledError"`
-	SRCallerFiles          []byte                 `json:"SR_callerFiles"`
-	SRGitRepoBranch        pgtype.Text            `json:"SR_gitRepoBranch"`
-	SRRetryCount           int32                  `json:"SR_retryCount"`
-	SRSemaphoreReleased    bool                   `json:"SR_semaphoreReleased"`
-	JobRunId               pgtype.UUID            `json:"jobRunId"`
-	StepId                 pgtype.UUID            `json:"stepId"`
-	StepRetries            int32                  `json:"stepRetries"`
-	StepTimeout            pgtype.Text            `json:"stepTimeout"`
-	StepScheduleTimeout    string                 `json:"stepScheduleTimeout"`
-	StepReadableId         pgtype.Text            `json:"stepReadableId"`
-	StepCustomUserData     []byte                 `json:"stepCustomUserData"`
-	JobName                string                 `json:"jobName"`
-	JobId                  pgtype.UUID            `json:"jobId"`
-	JobKind                JobKind                `json:"jobKind"`
-	WorkflowVersionId      pgtype.UUID            `json:"workflowVersionId"`
-	WorkflowRunId          pgtype.UUID            `json:"workflowRunId"`
-	ActionId               string                 `json:"actionId"`
-	WorkflowRunStickyState WorkflowRunStickyState `json:"workflow_run_sticky_state"`
+	SRID                pgtype.UUID        `json:"SR_id"`
+	SRCreatedAt         pgtype.Timestamp   `json:"SR_createdAt"`
+	SRUpdatedAt         pgtype.Timestamp   `json:"SR_updatedAt"`
+	SRDeletedAt         pgtype.Timestamp   `json:"SR_deletedAt"`
+	SRTenantId          pgtype.UUID        `json:"SR_tenantId"`
+	SROrder             int64              `json:"SR_order"`
+	SRWorkerId          pgtype.UUID        `json:"SR_workerId"`
+	SRTickerId          pgtype.UUID        `json:"SR_tickerId"`
+	SRStatus            StepRunStatus      `json:"SR_status"`
+	SRRequeueAfter      pgtype.Timestamp   `json:"SR_requeueAfter"`
+	SRScheduleTimeoutAt pgtype.Timestamp   `json:"SR_scheduleTimeoutAt"`
+	SRStartedAt         pgtype.Timestamp   `json:"SR_startedAt"`
+	SRFinishedAt        pgtype.Timestamp   `json:"SR_finishedAt"`
+	SRTimeoutAt         pgtype.Timestamp   `json:"SR_timeoutAt"`
+	SRCancelledAt       pgtype.Timestamp   `json:"SR_cancelledAt"`
+	SRCancelledReason   pgtype.Text        `json:"SR_cancelledReason"`
+	SRCancelledError    pgtype.Text        `json:"SR_cancelledError"`
+	SRCallerFiles       []byte             `json:"SR_callerFiles"`
+	SRGitRepoBranch     pgtype.Text        `json:"SR_gitRepoBranch"`
+	SRRetryCount        int32              `json:"SR_retryCount"`
+	SRSemaphoreReleased bool               `json:"SR_semaphoreReleased"`
+	JobRunId            pgtype.UUID        `json:"jobRunId"`
+	StepId              pgtype.UUID        `json:"stepId"`
+	StepRetries         int32              `json:"stepRetries"`
+	StepTimeout         pgtype.Text        `json:"stepTimeout"`
+	StepScheduleTimeout string             `json:"stepScheduleTimeout"`
+	StepReadableId      pgtype.Text        `json:"stepReadableId"`
+	StepCustomUserData  []byte             `json:"stepCustomUserData"`
+	JobName             string             `json:"jobName"`
+	JobId               pgtype.UUID        `json:"jobId"`
+	JobKind             JobKind            `json:"jobKind"`
+	WorkflowVersionId   pgtype.UUID        `json:"workflowVersionId"`
+	WorkflowRunId       pgtype.UUID        `json:"workflowRunId"`
+	ActionId            string             `json:"actionId"`
+	StickyStrategy      NullStickyStrategy `json:"stickyStrategy"`
 }
 
 func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepRunForEngineParams) ([]*GetStepRunForEngineRow, error) {
@@ -867,13 +901,7 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.WorkflowVersionId,
 			&i.WorkflowRunId,
 			&i.ActionId,
-			&i.WorkflowRunStickyState.ID,
-			&i.WorkflowRunStickyState.CreatedAt,
-			&i.WorkflowRunStickyState.UpdatedAt,
-			&i.WorkflowRunStickyState.TenantId,
-			&i.WorkflowRunStickyState.WorkflowRunId,
-			&i.WorkflowRunStickyState.DesiredWorkerId,
-			&i.WorkflowRunStickyState.Strategy,
+			&i.StickyStrategy,
 		); err != nil {
 			return nil, err
 		}

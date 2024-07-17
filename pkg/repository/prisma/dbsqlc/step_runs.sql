@@ -61,7 +61,7 @@ SELECT
     j."workflowVersionId" AS "workflowVersionId",
     jr."workflowRunId" AS "workflowRunId",
     a."actionId" AS "actionId",
-    sqlc.embed(sticky)
+    sticky."strategy" AS "stickyStrategy"
 FROM
     "StepRun" sr
 JOIN
@@ -475,6 +475,19 @@ WHERE "stepRunId" = @stepRunId::uuid
   AND "workerId" = (SELECT "workerId" FROM step_run)
 RETURNING *;
 
+-- name: CheckWorker :one
+SELECT
+    "id"
+FROM
+    "Worker"
+WHERE
+    "tenantId" = @tenantId::uuid
+    AND "dispatcherId" IS NOT NULL
+    AND "isActive" = true
+    AND "isPaused" = false
+    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "id" = @workerId::uuid;
+
 -- name: AcquireWorkerSemaphoreSlotAndAssign :one
 WITH valid_workers AS (
     SELECT
@@ -487,12 +500,18 @@ WITH valid_workers AS (
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
         AND w."isPaused" = false
+        AND (
+            -- sticky worker selection
+            sqlc.narg('workerId')::uuid IS NULL
+            OR w."id" = sqlc.narg('workerId')::uuid
+        )
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
             INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
             WHERE "Action"."tenantId" = @tenantId AND "Action"."actionId" = @actionId::text
         )
+
     GROUP BY w."id"
 ),
 locked_step_runs AS (

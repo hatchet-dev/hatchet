@@ -449,6 +449,24 @@ FROM workflow_version
 WHERE workflow_version."sticky" IS NOT NULL
 RETURNING *;
 
+-- name: GetWorkflowRunStickyStateForUpdate :one
+SELECT
+    *
+FROM
+    "WorkflowRunStickyState"
+WHERE
+    "workflowRunId" = @workflowRunId::uuid AND
+    "tenantId" = @tenantId::uuid
+FOR UPDATE;
+
+-- name: UpdateWorkflowRunStickyState :exec
+UPDATE "WorkflowRunStickyState"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "desiredWorkerId" = sqlc.narg('desiredWorkerId')::uuid
+WHERE
+    "workflowRunId" = @workflowRunId::uuid AND
+    "tenantId" = @tenantId::uuid;
 
 -- name: CreateWorkflowRunTriggeredBy :one
 INSERT INTO "WorkflowRunTriggeredBy" (

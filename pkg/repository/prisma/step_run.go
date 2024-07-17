@@ -624,12 +624,48 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 	// 	fmt
 	// }
 
+	var DesiredWorkerId pgtype.UUID
+
+	if stepRun.StickyStrategy.Valid {
+		lockedStickyState, err := s.queries.GetWorkflowRunStickyStateForUpdate(ctx, tx, dbsqlc.GetWorkflowRunStickyStateForUpdateParams{
+			Workflowrunid: stepRun.WorkflowRunId,
+			Tenantid:      stepRun.SRTenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not get workflow run sticky state: %w", err)
+		}
+
+		// confirm the worker is still available
+		if lockedStickyState.DesiredWorkerId.Valid {
+
+			checkedWorker, err := s.queries.CheckWorker(ctx, tx, dbsqlc.CheckWorkerParams{
+				Workerid: lockedStickyState.DesiredWorkerId,
+				Tenantid: stepRun.SRTenantId,
+			})
+
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, fmt.Errorf("could not check worker: %w", err)
+			}
+
+			// if the worker is no longer available, desired worker will be nil and we'll reassign
+			// for soft strategy
+			DesiredWorkerId = lockedStickyState.DesiredWorkerId
+
+			// if the strategy is hard, but the worker is not available, we can break early
+			if stepRun.StickyStrategy.StickyStrategy == dbsqlc.StickyStrategyHARD && !checkedWorker.Valid {
+				return nil, repository.ErrNoWorkerAvailable
+			}
+		}
+	}
+
 	// acquire a semaphore slot
 	assigned, err := s.queries.AcquireWorkerSemaphoreSlotAndAssign(ctx, tx, dbsqlc.AcquireWorkerSemaphoreSlotAndAssignParams{
 		Steprunid:   stepRun.SRID,
 		Actionid:    stepRun.ActionId,
 		StepTimeout: stepRun.StepTimeout,
 		Tenantid:    stepRun.SRTenantId,
+		WorkerId:    DesiredWorkerId,
 	})
 
 	if err != nil {
@@ -647,6 +683,24 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 	if !assigned.WorkerId.Valid || !assigned.DispatcherId.Valid {
 		// this likely means that the step run was skip locked by another assign attempt
 		return nil, repository.ErrStepRunIsNotAssigned
+	}
+
+	if stepRun.StickyStrategy.Valid {
+		// check if the worker is the same as the previous worker
+		workerId := sqlchelpers.UUIDToStr(assigned.WorkerId)
+		previousWorkerId := sqlchelpers.UUIDToStr(DesiredWorkerId)
+
+		if workerId != previousWorkerId {
+			err = s.queries.UpdateWorkflowRunStickyState(ctx, tx, dbsqlc.UpdateWorkflowRunStickyStateParams{
+				Workflowrunid:   stepRun.WorkflowRunId,
+				DesiredWorkerId: assigned.WorkerId,
+				Tenantid:        stepRun.SRTenantId,
+			})
+
+			if err != nil {
+				return nil, fmt.Errorf("could not update sticky state: %w", err)
+			}
+		}
 	}
 
 	err = tx.Commit(ctx)

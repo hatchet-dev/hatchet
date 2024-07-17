@@ -810,6 +810,37 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 	return items, nil
 }
 
+const getWorkflowRunStickyStateForUpdate = `-- name: GetWorkflowRunStickyStateForUpdate :one
+SELECT
+    id, "createdAt", "updatedAt", "tenantId", "workflowRunId", "desiredWorkerId", strategy
+FROM
+    "WorkflowRunStickyState"
+WHERE
+    "workflowRunId" = $1::uuid AND
+    "tenantId" = $2::uuid
+FOR UPDATE
+`
+
+type GetWorkflowRunStickyStateForUpdateParams struct {
+	Workflowrunid pgtype.UUID `json:"workflowrunid"`
+	Tenantid      pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) GetWorkflowRunStickyStateForUpdate(ctx context.Context, db DBTX, arg GetWorkflowRunStickyStateForUpdateParams) (*WorkflowRunStickyState, error) {
+	row := db.QueryRow(ctx, getWorkflowRunStickyStateForUpdate, arg.Workflowrunid, arg.Tenantid)
+	var i WorkflowRunStickyState
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TenantId,
+		&i.WorkflowRunId,
+		&i.DesiredWorkerId,
+		&i.Strategy,
+	)
+	return &i, err
+}
+
 const linkStepRunParents = `-- name: LinkStepRunParents :exec
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
@@ -1491,6 +1522,27 @@ func (q *Queries) UpdateWorkflowRunGroupKey(ctx context.Context, db DBTX, arg Up
 		&i.Duration,
 	)
 	return &i, err
+}
+
+const updateWorkflowRunStickyState = `-- name: UpdateWorkflowRunStickyState :exec
+UPDATE "WorkflowRunStickyState"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "desiredWorkerId" = $1::uuid
+WHERE
+    "workflowRunId" = $2::uuid AND
+    "tenantId" = $3::uuid
+`
+
+type UpdateWorkflowRunStickyStateParams struct {
+	DesiredWorkerId pgtype.UUID `json:"desiredWorkerId"`
+	Workflowrunid   pgtype.UUID `json:"workflowrunid"`
+	Tenantid        pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) UpdateWorkflowRunStickyState(ctx context.Context, db DBTX, arg UpdateWorkflowRunStickyStateParams) error {
+	_, err := db.Exec(ctx, updateWorkflowRunStickyState, arg.DesiredWorkerId, arg.Workflowrunid, arg.Tenantid)
+	return err
 }
 
 const workflowRunsMetricsCount = `-- name: WorkflowRunsMetricsCount :one
