@@ -436,7 +436,7 @@ WITH for_delete AS (
         e."tenantId" = $1::uuid AND
         e."createdAt" < $2::timestamp AND
         e."deletedAt" IS NULL
-    ORDER BY e2."createdAt" ASC
+    ORDER BY e."createdAt" ASC
     LIMIT $3 +1
     FOR UPDATE SKIP LOCKED
 ),expired_with_limit AS (

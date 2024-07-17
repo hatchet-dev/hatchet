@@ -163,7 +163,7 @@ WITH for_delete AS (
         e."tenantId" = @tenantId::uuid AND
         e."createdAt" < @createdBefore::timestamp AND
         e."deletedAt" IS NULL
-    ORDER BY e2."createdAt" ASC
+    ORDER BY e."createdAt" ASC
     LIMIT sqlc.arg('limit') +1
     FOR UPDATE SKIP LOCKED
 ),expired_with_limit AS (
