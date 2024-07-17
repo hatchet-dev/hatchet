@@ -522,7 +522,7 @@ evaluated_affinities AS (
         wa."key" AS worker_key,
         dwl."key" AS desired_key,
         dwl."weight",
-        wa."workerId",
+        vw."id" as "workerId",
         dwl."required",
         COALESCE(dwl."intValue"::text, dwl."strValue") AS input_value,
         CASE
