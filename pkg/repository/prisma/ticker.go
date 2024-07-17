@@ -112,3 +112,7 @@ func (t *tickerRepository) PollExpiringTokens(ctx context.Context) ([]*dbsqlc.Po
 func (t *tickerRepository) PollTenantResourceLimitAlerts(ctx context.Context) ([]*dbsqlc.TenantResourceLimitAlert, error) {
 	return t.queries.PollTenantResourceLimitAlerts(ctx, t.pool)
 }
+
+func (t *tickerRepository) PollUnresolvedFailedStepRuns(ctx context.Context) ([]*dbsqlc.PollUnresolvedFailedStepRunsRow, error) {
+	return t.queries.PollUnresolvedFailedStepRuns(ctx, t.pool)
+}

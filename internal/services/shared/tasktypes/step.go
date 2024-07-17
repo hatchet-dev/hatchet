@@ -152,8 +152,8 @@ func TenantToStepRunRequeueTask(tenant db.TenantModel) *msgqueue.Message {
 
 func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 
 	payload, _ := datautils.ToJSONMap(StepRunRetryTaskPayload{
 		JobRunId:  jobRunId,
@@ -175,8 +175,8 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 
 func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 
 	payload, _ := datautils.ToJSONMap(StepRunReplayTaskPayload{
 		JobRunId:  jobRunId,
@@ -197,8 +197,8 @@ func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byt
 }
 
 func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string) *msgqueue.Message {
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.StepRun.ID)
-	tenantId := sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId)
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 
 	payload, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskPayload{
 		StepRunId:       stepRunId,
@@ -220,7 +220,7 @@ func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string) 
 func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(StepRunTaskPayload{
 		JobRunId:  sqlchelpers.UUIDToStr(stepRun.JobRunId),
-		StepRunId: sqlchelpers.UUIDToStr(stepRun.StepRun.ID),
+		StepRunId: sqlchelpers.UUIDToStr(stepRun.SRID),
 	})
 
 	metadata, _ := datautils.ToJSONMap(StepRunTaskMetadata{
@@ -229,7 +229,7 @@ func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Messa
 		JobName:           stepRun.JobName,
 		JobId:             sqlchelpers.UUIDToStr(stepRun.JobId),
 		WorkflowVersionId: sqlchelpers.UUIDToStr(stepRun.WorkflowVersionId),
-		TenantId:          sqlchelpers.UUIDToStr(stepRun.StepRun.TenantId),
+		TenantId:          sqlchelpers.UUIDToStr(stepRun.SRTenantId),
 	})
 
 	return &msgqueue.Message{

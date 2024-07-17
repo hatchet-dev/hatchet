@@ -87,7 +87,7 @@ export function TenantSwitcher({
               </CommandItem>
             ))}
           </CommandList>
-          {meta?.data?.data.allowCreateTenant && (
+          {meta.data?.allowCreateTenant && (
             <>
               <CommandSeparator />
               <CommandList>

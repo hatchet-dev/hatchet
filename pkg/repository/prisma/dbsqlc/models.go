@@ -644,6 +644,7 @@ type APIToken struct {
 	Name        pgtype.Text      `json:"name"`
 	TenantId    pgtype.UUID      `json:"tenantId"`
 	NextAlertAt pgtype.Timestamp `json:"nextAlertAt"`
+	Internal    bool             `json:"internal"`
 }
 
 type Action struct {
@@ -935,6 +936,7 @@ type Tenant struct {
 	AlertMemberEmails     bool             `json:"alertMemberEmails"`
 	ControllerPartitionId pgtype.Text      `json:"controllerPartitionId"`
 	WorkerPartitionId     pgtype.Text      `json:"workerPartitionId"`
+	DataRetentionPeriod   string           `json:"dataRetentionPeriod"`
 }
 
 type TenantAlertEmailGroup struct {
@@ -1161,6 +1163,7 @@ type WorkflowRun struct {
 	ParentId           pgtype.UUID       `json:"parentId"`
 	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
+	Duration           pgtype.Int4       `json:"duration"`
 }
 
 type WorkflowRunTriggeredBy struct {

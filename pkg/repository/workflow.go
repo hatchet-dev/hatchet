@@ -263,5 +263,5 @@ type WorkflowEngineRepository interface {
 
 	// GetWorkflowVersionById returns a workflow version by its id. It will return db.ErrNotFound if the workflow
 	// version does not exist.
-	GetWorkflowVersionById(ctx context.Context, tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
+	GetWorkflowVersionById(ctx context.Context, tenantId, workflowVersionId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
 }

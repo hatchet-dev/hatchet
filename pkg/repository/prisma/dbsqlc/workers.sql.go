@@ -229,12 +229,9 @@ func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid pgtype
 const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused",
-    COUNT(runs."id") FILTER (WHERE runs."status" = 'RUNNING') AS "runningStepRuns",
     (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
 FROM
     "Worker" workers
-LEFT JOIN
-    "StepRun" AS runs ON runs."workerId" = workers."id" AND runs."status" = 'RUNNING'
 WHERE
     workers."tenantId" = $1
     AND (
@@ -260,7 +257,6 @@ WHERE
         ))
     )
 GROUP BY
-    -- ws."slots",
     workers."id"
 `
 
@@ -272,9 +268,8 @@ type ListWorkersWithStepCountParams struct {
 }
 
 type ListWorkersWithStepCountRow struct {
-	Worker          Worker `json:"worker"`
-	RunningStepRuns int64  `json:"runningStepRuns"`
-	Slots           int64  `json:"slots"`
+	Worker Worker `json:"worker"`
+	Slots  int64  `json:"slots"`
 }
 
 func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg ListWorkersWithStepCountParams) ([]*ListWorkersWithStepCountRow, error) {
@@ -304,7 +299,6 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 			&i.Worker.IsActive,
 			&i.Worker.LastListenerEstablished,
 			&i.Worker.IsPaused,
-			&i.RunningStepRuns,
 			&i.Slots,
 		); err != nil {
 			return nil, err

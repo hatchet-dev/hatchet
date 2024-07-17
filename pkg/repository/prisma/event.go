@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -97,6 +98,7 @@ func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEv
 
 	if opts.AdditionalMetadata != nil {
 		queryParams.AdditionalMetadata = opts.AdditionalMetadata
+		countParams.AdditionalMetadata = opts.AdditionalMetadata
 	}
 
 	orderByField := "createdAt"
@@ -111,6 +113,7 @@ func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEv
 	}
 
 	queryParams.Orderby = orderByField + " " + orderByDirection
+	countParams.Orderby = orderByField + " " + orderByDirection
 
 	tx, err := r.pool.Begin(context.Background())
 
@@ -284,4 +287,22 @@ func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId st
 		Tenantid: pgTenantId,
 		Ids:      pgIds,
 	})
+}
+
+func (r *eventEngineRepository) DeleteExpiredEvents(ctx context.Context, tenantId string, before time.Time) (int, int, error) {
+	resp, err := r.queries.DeleteExpiredEvents(ctx, r.pool, dbsqlc.DeleteExpiredEventsParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Createdbefore: sqlchelpers.TimestampFromTime(before),
+		Limit:         1000,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, 0, nil
+		}
+
+		return 0, 0, err
+	}
+
+	return int(resp.Deleted), int(resp.Remaining), nil
 }

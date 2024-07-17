@@ -51,6 +51,12 @@ func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*
 		tenantId = *opts.ID
 	}
 
+	var dataRetentionPeriod pgtype.Text
+
+	if opts.DataRetentionPeriod != nil {
+		dataRetentionPeriod = sqlchelpers.TextFromStr(*opts.DataRetentionPeriod)
+	}
+
 	tx, err := r.pool.Begin(context.Background())
 
 	if err != nil {
@@ -60,9 +66,10 @@ func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*
 	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
 	createTenant, err := r.queries.CreateTenant(context.Background(), tx, dbsqlc.CreateTenantParams{
-		ID:   sqlchelpers.UUIDFromStr(tenantId),
-		Slug: opts.Slug,
-		Name: opts.Name,
+		ID:                  sqlchelpers.UUIDFromStr(tenantId),
+		Slug:                opts.Slug,
+		Name:                opts.Name,
+		DataRetentionPeriod: dataRetentionPeriod,
 	})
 
 	if err != nil {

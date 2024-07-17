@@ -171,6 +171,9 @@ model Tenant {
   workerPartition   TenantWorkerPartition? @relation(fields: [workerPartitionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   workerPartitionId String?
 
+  // The data retention period for deletable resources. This is a Go duration string.
+  dataRetentionPeriod String @default("720h")
+
   events              Event[]
   workflows           Workflow[]
   jobs                Job[]
@@ -365,6 +368,9 @@ model APIToken {
 
   // when to next alert about expiration
   nextAlertAt DateTime?
+
+  // whether this token is for internal (internal to Hatchet) use
+  internal Boolean @default(false)
 
   // an optional name for the token
   name String?
@@ -859,6 +865,9 @@ model WorkflowRun {
   // the run finished at
   finishedAt DateTime?
 
+  // the duration of the run (ms)
+  duration Int?
+
   // a list of dependents for this workflow run
   children          WorkflowRun[]                 @relation("WorkflowRunChild")
   scheduledChildren WorkflowTriggerScheduledRef[]
@@ -1179,8 +1188,9 @@ model StepRun {
 
   events StepRunEvent[]
 
-  // index for ListStepRunsToRequeue and ListStepRunsToReassign
-  @@index([tenantId, status, requeueAfter, createdAt])
+  @@index([tenantId])
+  @@index([workerId])
+  @@index([createdAt])
   // index for LinkStepRunParents
   @@index([stepId])
   // index for ListStartableStepRuns
@@ -1189,6 +1199,10 @@ model StepRun {
   @@index([id, tenantId])
   // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
   @@index([jobRunId, tenantId, order])
+  // index for ListStepRunsToRequeue, ListStepRunsToReassign
+  @@index([jobRunId, status, tenantId])
+  // index for PollStepRuns
+  @@index([tenantId, status, timeoutAt])
 }
 
 enum StepRunEventReason {

@@ -1,21 +1,22 @@
 {
-    "index": "Introduction",
-    "-- Docker": {
-        "type": "separator",
-        "title": "Docker"
-    },
-    "hatchet-lite": "Hatchet Lite",
-    "docker-compose": "Docker Compose",
-    "-- Kubernetes": {
-        "type": "separator",
-        "title": "Kubernetes"
-    },
-    "kubernetes-quickstart": "Quickstart",
-    "kubernetes-glasskube": "Installing with Glasskube",
-    "networking": "Networking",
-    "-- Managing Hatchet": {
-        "type": "separator",
-        "title": "Managing Hatchet"
-    },
-    "configuration-options": "Configuration Options"
+  "index": "Introduction",
+  "-- Docker": {
+    "type": "separator",
+    "title": "Docker"
+  },
+  "hatchet-lite": "Hatchet Lite",
+  "docker-compose": "Docker Compose",
+  "-- Kubernetes": {
+    "type": "separator",
+    "title": "Kubernetes"
+  },
+  "kubernetes-quickstart": "Quickstart",
+  "kubernetes-glasskube": "Installing with Glasskube",
+  "networking": "Networking",
+  "-- Managing Hatchet": {
+    "type": "separator",
+    "title": "Managing Hatchet"
+  },
+  "configuration-options": "Configuration Options",
+  "data-retention": "Data Retention"
 }

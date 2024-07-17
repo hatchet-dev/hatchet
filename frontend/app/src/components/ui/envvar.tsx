@@ -120,6 +120,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
       {!disabled && (
         <div className="flex items-center">
           <Button
+            variant="secondary"
             onClick={() => {
               const newValues = [
                 ...values,
