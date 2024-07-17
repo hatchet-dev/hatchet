@@ -205,5 +205,5 @@ type StepRunEngineRepository interface {
 		data map[string]interface{},
 	)
 
-	ClearStepRunPayloadData(ctx context.Context, tenantId string) (int, int, error)
+	ClearStepRunPayloadData(ctx context.Context, tenantId string) (bool, error)
 }

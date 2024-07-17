@@ -60,13 +60,13 @@ func (wc *RetentionControllerImpl) runDeleteExpiredEventsTenant(ctx context.Cont
 		}
 
 		// delete expired workflow runs
-		_, remaining, err := wc.repo.Event().SoftDeleteExpiredEvents(ctx, tenantId, createdBefore)
+		hasMore, err := wc.repo.Event().SoftDeleteExpiredEvents(ctx, tenantId, createdBefore)
 
 		if err != nil {
 			return fmt.Errorf("could not delete expired events: %w", err)
 		}
 
-		if remaining == 0 {
+		if !hasMore {
 			return nil
 		}
 	}
@@ -87,13 +87,13 @@ func (wc *RetentionControllerImpl) runClearDeletedEventsPayloadTenant(ctx contex
 		}
 
 		// delete expired workflow runs
-		_, remaining, err := wc.repo.Event().ClearEventPayloadData(ctx, tenantId)
+		hasMore, err := wc.repo.Event().ClearEventPayloadData(ctx, tenantId)
 
 		if err != nil {
 			return fmt.Errorf("could not clear deleted event payload: %w", err)
 		}
 
-		if remaining == 0 {
+		if !hasMore {
 			return nil
 		}
 	}

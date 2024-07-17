@@ -155,13 +155,19 @@ WHERE
     "id" = ANY (sqlc.arg('ids')::uuid[]);
 
 -- name: SoftDeleteExpiredEvents :one
-WITH expired_events_count AS (
-    SELECT COUNT(*) as count
+WITH has_more AS (
+    SELECT
+        COUNT(*) as count,
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
     FROM "Event" e1
     WHERE
         e1."tenantId" = @tenantId::uuid AND
         e1."createdAt" < @createdBefore::timestamp AND
         e1."deletedAt" IS NULL
+    LIMIT sqlc.arg('limit') + 1
 ), expired_events_with_limit AS (
     SELECT
         "id"
@@ -181,19 +187,23 @@ SET
 WHERE
     "id" IN (SELECT "id" FROM expired_events_with_limit)
 RETURNING
-    (SELECT count FROM expired_events_count) as total,
-    (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining,
-    (SELECT COUNT(*) FROM expired_events_with_limit) as deleted;
+    (SELECT has_more FROM has_more) as has_more;
 
 
 -- name: ClearEventPayloadData :one
-WITH expired_events_count AS (
-    SELECT COUNT(*) as count
+WITH has_more AS (
+    SELECT
+        COUNT(*) as count,
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
     FROM "Event" e1
     WHERE
         e1."tenantId" = @tenantId::uuid AND
         e1."deletedAt" > NOW() + INTERVAL '5 minutes'
         AND e1."data" IS NOT NULL
+    LIMIT sqlc.arg('limit') + 1
 ), expired_events_with_limit AS (
     SELECT
         e2."id" as "id"
@@ -213,6 +223,4 @@ SET
 WHERE
     "id" IN (SELECT "id" FROM expired_events_with_limit)
 RETURNING
-    (SELECT count FROM expired_events_count) as total,
-    (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining,
-    (SELECT COUNT(*) FROM expired_events_with_limit) as deleted;
+    (SELECT has_more FROM has_more) as has_more;

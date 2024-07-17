@@ -866,13 +866,19 @@ WHERE
 
 
 -- name: ClearStepRunPayloadData :one
-WITH deleted_count AS (
-    SELECT COUNT(*) as count
+WITH has_more AS (
+    SELECT
+        COUNT(*) as count,
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
     FROM "StepRun" sr1
     WHERE
         sr1."tenantId" = @tenantId::uuid AND
         sr1."deletedAt" > NOW() + INTERVAL '5 minutes'
         AND (sr1."input" IS NOT NULL OR sr1."output" IS NOT NULL OR sr1."error" IS NOT NULL)
+    LIMIT sqlc.arg('limit') + 1
 ), deleted_with_limit AS (
     SELECT
         sr2."id"
@@ -908,6 +914,4 @@ SET
 WHERE
     "id" IN (SELECT "id" FROM deleted_with_limit)
 RETURNING
-    (SELECT count FROM deleted_count) as total,
-    (SELECT count FROM deleted_count) - (SELECT COUNT(*) FROM deleted_with_limit) as remaining,
-    (SELECT COUNT(*) FROM deleted_with_limit) as deleted;
+    (SELECT has_more FROM has_more) as has_more;

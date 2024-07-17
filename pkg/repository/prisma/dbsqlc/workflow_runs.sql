@@ -658,14 +658,20 @@ WHERE
     );
 
 -- name: SoftDeleteExpiredWorkflowRunsWithDependencies :one
-WITH expired_runs_count AS (
-    SELECT COUNT(*) as count
+WITH has_more AS (
+    SELECT
+        COUNT(*) as count,
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
     FROM "WorkflowRun" wr1
     WHERE
         wr1."tenantId" = @tenantId::uuid AND
         wr1."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[])) AND
         wr1."createdAt" < @createdBefore::timestamp AND
         wr1."deletedAt" IS NULL
+    LIMIT sqlc.arg('limit') + 1
 ),
 expired_runs_with_limit AS (
     SELECT
@@ -719,9 +725,7 @@ WHERE
     wr."id" = expired_runs_with_limit."id" AND
     wr."tenantId" = @tenantId::uuid
 RETURNING
-    (SELECT count FROM expired_runs_count) as total,
-    (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining,
-    (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted;
+    (SELECT has_more FROM has_more) as has_more;
 
 
 -- name: ListActiveQueuedWorkflowVersions :many

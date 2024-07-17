@@ -1616,19 +1616,19 @@ func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId
 	return res, nil
 }
 
-func (s *stepRunEngineRepository) ClearStepRunPayloadData(ctx context.Context, tenantId string) (int, int, error) {
-	resp, err := s.queries.ClearStepRunPayloadData(ctx, s.pool, dbsqlc.ClearStepRunPayloadDataParams{
+func (s *stepRunEngineRepository) ClearStepRunPayloadData(ctx context.Context, tenantId string) (bool, error) {
+	hasMore, err := s.queries.ClearStepRunPayloadData(ctx, s.pool, dbsqlc.ClearStepRunPayloadDataParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Limit:    1000,
 	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, 0, nil
+			return false, nil
 		}
 
-		return 0, 0, err
+		return false, err
 	}
 
-	return int(resp.Deleted), int(resp.Remaining), nil
+	return hasMore, nil
 }

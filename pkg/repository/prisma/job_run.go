@@ -112,19 +112,19 @@ func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *db
 	return tx.Commit(context.Background())
 }
 
-func (r *jobRunEngineRepository) ClearJobRunPayloadData(ctx context.Context, tenantId string) (int, int, error) {
-	resp, err := r.queries.ClearJobRunLookupData(ctx, r.pool, dbsqlc.ClearJobRunLookupDataParams{
+func (r *jobRunEngineRepository) ClearJobRunPayloadData(ctx context.Context, tenantId string) (bool, error) {
+	hasMore, err := r.queries.ClearJobRunLookupData(ctx, r.pool, dbsqlc.ClearJobRunLookupDataParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Limit:    1000,
 	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, 0, nil
+			return false, nil
 		}
 
-		return 0, 0, err
+		return false, err
 	}
 
-	return int(resp.Deleted), int(resp.Remaining), nil
+	return hasMore, nil
 }

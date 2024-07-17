@@ -1198,14 +1198,20 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 }
 
 const softDeleteExpiredWorkflowRunsWithDependencies = `-- name: SoftDeleteExpiredWorkflowRunsWithDependencies :one
-WITH expired_runs_count AS (
-    SELECT COUNT(*) as count
+WITH has_more AS (
+    SELECT
+        COUNT(*) as count,
+        CASE
+            WHEN COUNT(*) > $2 THEN TRUE
+            ELSE FALSE
+        END as has_more
     FROM "WorkflowRun" wr1
     WHERE
         wr1."tenantId" = $1::uuid AND
-        wr1."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
-        wr1."createdAt" < $3::timestamp AND
+        wr1."status" = ANY(cast($3::text[] as "WorkflowRunStatus"[])) AND
+        wr1."createdAt" < $4::timestamp AND
         wr1."deletedAt" IS NULL
+    LIMIT $2 + 1
 ),
 expired_runs_with_limit AS (
     SELECT
@@ -1213,11 +1219,11 @@ expired_runs_with_limit AS (
     FROM "WorkflowRun" wr2
     WHERE
         wr2."tenantId" = $1::uuid AND
-        wr2."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
-        wr2."createdAt" < $3::timestamp AND
+        wr2."status" = ANY(cast($3::text[] as "WorkflowRunStatus"[])) AND
+        wr2."createdAt" < $4::timestamp AND
         "deletedAt" IS NULL
     ORDER BY "createdAt" ASC
-    LIMIT $4
+    LIMIT $2
     FOR UPDATE SKIP LOCKED
 ), job_runs_to_delete AS (
     SELECT
@@ -1259,34 +1265,26 @@ WHERE
     wr."id" = expired_runs_with_limit."id" AND
     wr."tenantId" = $1::uuid
 RETURNING
-    (SELECT count FROM expired_runs_count) as total,
-    (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining,
-    (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted
+    (SELECT has_more FROM has_more) as has_more
 `
 
 type SoftDeleteExpiredWorkflowRunsWithDependenciesParams struct {
 	Tenantid      pgtype.UUID      `json:"tenantid"`
+	Limit         interface{}      `json:"limit"`
 	Statuses      []string         `json:"statuses"`
 	Createdbefore pgtype.Timestamp `json:"createdbefore"`
-	Limit         int32            `json:"limit"`
 }
 
-type SoftDeleteExpiredWorkflowRunsWithDependenciesRow struct {
-	Total     int64 `json:"total"`
-	Remaining int32 `json:"remaining"`
-	Deleted   int64 `json:"deleted"`
-}
-
-func (q *Queries) SoftDeleteExpiredWorkflowRunsWithDependencies(ctx context.Context, db DBTX, arg SoftDeleteExpiredWorkflowRunsWithDependenciesParams) (*SoftDeleteExpiredWorkflowRunsWithDependenciesRow, error) {
+func (q *Queries) SoftDeleteExpiredWorkflowRunsWithDependencies(ctx context.Context, db DBTX, arg SoftDeleteExpiredWorkflowRunsWithDependenciesParams) (bool, error) {
 	row := db.QueryRow(ctx, softDeleteExpiredWorkflowRunsWithDependencies,
 		arg.Tenantid,
+		arg.Limit,
 		arg.Statuses,
 		arg.Createdbefore,
-		arg.Limit,
 	)
-	var i SoftDeleteExpiredWorkflowRunsWithDependenciesRow
-	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
-	return &i, err
+	var has_more bool
+	err := row.Scan(&has_more)
+	return has_more, err
 }
 
 const updateManyWorkflowRun = `-- name: UpdateManyWorkflowRun :many

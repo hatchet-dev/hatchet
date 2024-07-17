@@ -39,5 +39,5 @@ type JobRunEngineRepository interface {
 
 	GetJobRunByWorkflowRunIdAndJobId(ctx context.Context, tenantId, workflowRunId, jobId string) (*dbsqlc.GetJobRunByWorkflowRunIdAndJobIdRow, error)
 
-	ClearJobRunPayloadData(ctx context.Context, tenantId string) (int, int, error)
+	ClearJobRunPayloadData(ctx context.Context, tenantId string) (bool, error)
 }

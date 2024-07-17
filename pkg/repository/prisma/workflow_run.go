@@ -247,14 +247,14 @@ func (w *workflowRunEngineRepository) ListActiveQueuedWorkflowVersions(ctx conte
 	return w.queries.ListActiveQueuedWorkflowVersions(ctx, w.pool)
 }
 
-func (w *workflowRunEngineRepository) SoftDeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (int, int, error) {
+func (w *workflowRunEngineRepository) SoftDeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (bool, error) {
 	paramStatuses := make([]string, 0)
 
 	for _, status := range statuses {
 		paramStatuses = append(paramStatuses, string(status))
 	}
 
-	resp, err := w.queries.SoftDeleteExpiredWorkflowRunsWithDependencies(ctx, w.pool, dbsqlc.SoftDeleteExpiredWorkflowRunsWithDependenciesParams{
+	hasMore, err := w.queries.SoftDeleteExpiredWorkflowRunsWithDependencies(ctx, w.pool, dbsqlc.SoftDeleteExpiredWorkflowRunsWithDependenciesParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Statuses:      paramStatuses,
 		Createdbefore: sqlchelpers.TimestampFromTime(before),
@@ -263,13 +263,13 @@ func (w *workflowRunEngineRepository) SoftDeleteExpiredWorkflowRuns(ctx context.
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, 0, nil
+			return false, nil
 		}
 
-		return 0, 0, err
+		return false, err
 	}
 
-	return int(resp.Deleted), int(resp.Remaining), nil
+	return hasMore, nil
 }
 
 func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {

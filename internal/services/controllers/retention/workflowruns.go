@@ -46,7 +46,7 @@ func (wc *RetentionControllerImpl) runDeleteExpiredWorkflowRunsTenant(ctx contex
 		}
 
 		// delete expired workflow runs
-		_, remaining, err := wc.repo.WorkflowRun().SoftDeleteExpiredWorkflowRuns(ctx, tenantId, []dbsqlc.WorkflowRunStatus{
+		hasMore, err := wc.repo.WorkflowRun().SoftDeleteExpiredWorkflowRuns(ctx, tenantId, []dbsqlc.WorkflowRunStatus{
 			dbsqlc.WorkflowRunStatusSUCCEEDED,
 			dbsqlc.WorkflowRunStatusFAILED,
 		}, createdBefore)
@@ -55,7 +55,7 @@ func (wc *RetentionControllerImpl) runDeleteExpiredWorkflowRunsTenant(ctx contex
 			return fmt.Errorf("could not delete expired workflow runs: %w", err)
 		}
 
-		if remaining == 0 {
+		if !hasMore {
 			return nil
 		}
 	}

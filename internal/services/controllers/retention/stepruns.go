@@ -39,13 +39,13 @@ func (wc *RetentionControllerImpl) runDeleteExpireStepRunsTenant(ctx context.Con
 		default:
 		}
 
-		_, remaining, err := wc.repo.StepRun().ClearStepRunPayloadData(ctx, tenantId)
+		hasMore, err := wc.repo.StepRun().ClearStepRunPayloadData(ctx, tenantId)
 
 		if err != nil {
 			return fmt.Errorf("could not delete expired step runs: %w", err)
 		}
 
-		if remaining == 0 {
+		if !hasMore {
 			return nil
 		}
 	}

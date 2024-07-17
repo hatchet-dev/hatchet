@@ -12,23 +12,29 @@ import (
 )
 
 const clearEventPayloadData = `-- name: ClearEventPayloadData :one
-WITH expired_events_count AS (
-    SELECT COUNT(*) as count
+WITH has_more AS (
+    SELECT
+        COUNT(*) as count,
+        CASE
+            WHEN COUNT(*) > $1 THEN TRUE
+            ELSE FALSE
+        END as has_more
     FROM "Event" e1
     WHERE
-        e1."tenantId" = $1::uuid AND
+        e1."tenantId" = $2::uuid AND
         e1."deletedAt" > NOW() + INTERVAL '5 minutes'
         AND e1."data" IS NOT NULL
+    LIMIT $1 + 1
 ), expired_events_with_limit AS (
     SELECT
         e2."id" as "id"
     FROM "Event" e2
     WHERE
-        e2."tenantId" = $1::uuid AND
+        e2."tenantId" = $2::uuid AND
         e2."deletedAt" > NOW() + INTERVAL '5 minutes'
         AND e2."data" IS NOT NULL
     ORDER BY e2."deletedAt" ASC
-    LIMIT $2
+    LIMIT $1
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
@@ -38,27 +44,19 @@ SET
 WHERE
     "id" IN (SELECT "id" FROM expired_events_with_limit)
 RETURNING
-    (SELECT count FROM expired_events_count) as total,
-    (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining,
-    (SELECT COUNT(*) FROM expired_events_with_limit) as deleted
+    (SELECT has_more FROM has_more) as has_more
 `
 
 type ClearEventPayloadDataParams struct {
+	Limit    interface{} `json:"limit"`
 	Tenantid pgtype.UUID `json:"tenantid"`
-	Limit    int32       `json:"limit"`
 }
 
-type ClearEventPayloadDataRow struct {
-	Total     int64 `json:"total"`
-	Remaining int32 `json:"remaining"`
-	Deleted   int64 `json:"deleted"`
-}
-
-func (q *Queries) ClearEventPayloadData(ctx context.Context, db DBTX, arg ClearEventPayloadDataParams) (*ClearEventPayloadDataRow, error) {
-	row := db.QueryRow(ctx, clearEventPayloadData, arg.Tenantid, arg.Limit)
-	var i ClearEventPayloadDataRow
-	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
-	return &i, err
+func (q *Queries) ClearEventPayloadData(ctx context.Context, db DBTX, arg ClearEventPayloadDataParams) (bool, error) {
+	row := db.QueryRow(ctx, clearEventPayloadData, arg.Limit, arg.Tenantid)
+	var has_more bool
+	err := row.Scan(&has_more)
+	return has_more, err
 }
 
 const countEvents = `-- name: CountEvents :one
@@ -431,23 +429,29 @@ func (q *Queries) ListEventsByIDs(ctx context.Context, db DBTX, arg ListEventsBy
 }
 
 const softDeleteExpiredEvents = `-- name: SoftDeleteExpiredEvents :one
-WITH expired_events_count AS (
-    SELECT COUNT(*) as count
+WITH has_more AS (
+    SELECT
+        COUNT(*) as count,
+        CASE
+            WHEN COUNT(*) > $1 THEN TRUE
+            ELSE FALSE
+        END as has_more
     FROM "Event" e1
     WHERE
-        e1."tenantId" = $1::uuid AND
-        e1."createdAt" < $2::timestamp AND
+        e1."tenantId" = $2::uuid AND
+        e1."createdAt" < $3::timestamp AND
         e1."deletedAt" IS NULL
+    LIMIT $1 + 1
 ), expired_events_with_limit AS (
     SELECT
         "id"
     FROM "Event" e2
     WHERE
-        e2."tenantId" = $1::uuid AND
-        e2."createdAt" < $2::timestamp AND
+        e2."tenantId" = $2::uuid AND
+        e2."createdAt" < $3::timestamp AND
         e2."deletedAt" IS NULL
     ORDER BY e2."createdAt" ASC
-    LIMIT $3
+    LIMIT $1
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
@@ -457,26 +461,18 @@ SET
 WHERE
     "id" IN (SELECT "id" FROM expired_events_with_limit)
 RETURNING
-    (SELECT count FROM expired_events_count) as total,
-    (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining,
-    (SELECT COUNT(*) FROM expired_events_with_limit) as deleted
+    (SELECT has_more FROM has_more) as has_more
 `
 
 type SoftDeleteExpiredEventsParams struct {
+	Limit         interface{}      `json:"limit"`
 	Tenantid      pgtype.UUID      `json:"tenantid"`
 	Createdbefore pgtype.Timestamp `json:"createdbefore"`
-	Limit         int32            `json:"limit"`
 }
 
-type SoftDeleteExpiredEventsRow struct {
-	Total     int64 `json:"total"`
-	Remaining int32 `json:"remaining"`
-	Deleted   int64 `json:"deleted"`
-}
-
-func (q *Queries) SoftDeleteExpiredEvents(ctx context.Context, db DBTX, arg SoftDeleteExpiredEventsParams) (*SoftDeleteExpiredEventsRow, error) {
-	row := db.QueryRow(ctx, softDeleteExpiredEvents, arg.Tenantid, arg.Createdbefore, arg.Limit)
-	var i SoftDeleteExpiredEventsRow
-	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
-	return &i, err
+func (q *Queries) SoftDeleteExpiredEvents(ctx context.Context, db DBTX, arg SoftDeleteExpiredEventsParams) (bool, error) {
+	row := db.QueryRow(ctx, softDeleteExpiredEvents, arg.Limit, arg.Tenantid, arg.Createdbefore)
+	var has_more bool
+	err := row.Scan(&has_more)
+	return has_more, err
 }

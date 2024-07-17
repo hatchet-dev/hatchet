@@ -139,14 +139,20 @@ WHERE
     AND jr."jobId" = @jobId::uuid;
 
 -- name: ClearJobRunLookupData :one
-WITH deleted_count AS (
-    SELECT COUNT(*) as count
+WITH has_more AS (
+    SELECT
+        COUNT(*) as count,
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
     FROM "JobRun" jr1
     LEFT JOIN "JobRunLookupData" jrld1 ON jr1."id" = jrld1."jobRunId"
     WHERE
         jr1."tenantId" = @tenantId::uuid AND
         jr1."deletedAt" > NOW() + INTERVAL '5 minutes' AND
         jrld1."data" IS NOT NULL
+    LIMIT sqlc.arg('limit') + 1
 ), deleted_with_limit AS (
     SELECT
         jrld2."id" as "id"
@@ -167,6 +173,4 @@ SET
 WHERE
     "id" IN (SELECT "id" FROM deleted_with_limit)
 RETURNING
-    (SELECT count FROM deleted_count) as total,
-    (SELECT count FROM deleted_count) - (SELECT COUNT(*) FROM deleted_with_limit) as remaining,
-    (SELECT COUNT(*) FROM deleted_with_limit) as deleted;
+    (SELECT has_more FROM has_more) as has_more;

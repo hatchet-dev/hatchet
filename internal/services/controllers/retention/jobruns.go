@@ -39,13 +39,13 @@ func (wc *RetentionControllerImpl) runDeleteExpireJobRunsTenant(ctx context.Cont
 		default:
 		}
 
-		_, remaining, err := wc.repo.JobRun().ClearJobRunPayloadData(ctx, tenantId)
+		hasMore, err := wc.repo.JobRun().ClearJobRunPayloadData(ctx, tenantId)
 
 		if err != nil {
 			return fmt.Errorf("could not delete expired job runs: %w", err)
 		}
 
-		if remaining == 0 {
+		if !hasMore {
 			return nil
 		}
 	}

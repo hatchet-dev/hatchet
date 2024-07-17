@@ -267,11 +267,16 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 }
 
 const clearStepRunPayloadData = `-- name: ClearStepRunPayloadData :one
-WITH deleted_count AS (
-    SELECT COUNT(*) as count
+WITH has_more AS (
+    SELECT
+        COUNT(*) as count,
+        CASE
+            WHEN COUNT(*) > $1 THEN TRUE
+            ELSE FALSE
+        END as has_more
     FROM "StepRun" sr1
     WHERE
-        sr1."tenantId" = $1::uuid AND
+        sr1."tenantId" = $2::uuid AND
         sr1."deletedAt" > NOW() + INTERVAL '5 minutes'
         AND (sr1."input" IS NOT NULL OR sr1."output" IS NOT NULL OR sr1."error" IS NOT NULL)
 ), deleted_with_limit AS (
@@ -279,11 +284,11 @@ WITH deleted_count AS (
         sr2."id"
     FROM "StepRun" sr2
     WHERE
-        sr2."tenantId" = $1::uuid AND
+        sr2."tenantId" = $2::uuid AND
         sr2."deletedAt" > NOW() + INTERVAL '5 minutes'
         AND (sr2."input" IS NOT NULL OR sr2."output" IS NOT NULL OR sr2."error" IS NOT NULL)
     ORDER BY "deletedAt" ASC
-    LIMIT $2
+    LIMIT $1
     FOR UPDATE SKIP LOCKED
 ), deleted_archives AS (
     SELECT sra1."id" as "id"
@@ -309,27 +314,19 @@ SET
 WHERE
     "id" IN (SELECT "id" FROM deleted_with_limit)
 RETURNING
-    (SELECT count FROM deleted_count) as total,
-    (SELECT count FROM deleted_count) - (SELECT COUNT(*) FROM deleted_with_limit) as remaining,
-    (SELECT COUNT(*) FROM deleted_with_limit) as deleted
+    (SELECT has_more FROM has_more) as has_more
 `
 
 type ClearStepRunPayloadDataParams struct {
+	Limit    interface{} `json:"limit"`
 	Tenantid pgtype.UUID `json:"tenantid"`
-	Limit    int32       `json:"limit"`
 }
 
-type ClearStepRunPayloadDataRow struct {
-	Total     int64 `json:"total"`
-	Remaining int32 `json:"remaining"`
-	Deleted   int64 `json:"deleted"`
-}
-
-func (q *Queries) ClearStepRunPayloadData(ctx context.Context, db DBTX, arg ClearStepRunPayloadDataParams) (*ClearStepRunPayloadDataRow, error) {
-	row := db.QueryRow(ctx, clearStepRunPayloadData, arg.Tenantid, arg.Limit)
-	var i ClearStepRunPayloadDataRow
-	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
-	return &i, err
+func (q *Queries) ClearStepRunPayloadData(ctx context.Context, db DBTX, arg ClearStepRunPayloadDataParams) (bool, error) {
+	row := db.QueryRow(ctx, clearStepRunPayloadData, arg.Limit, arg.Tenantid)
+	var has_more bool
+	err := row.Scan(&has_more)
+	return has_more, err
 }
 
 const countStepRunArchives = `-- name: CountStepRunArchives :one
