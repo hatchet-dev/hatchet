@@ -394,6 +394,12 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		onFailureJob = onFailureJobCp
 	}
 
+	var sticky *string
+
+	if req.Opts.Sticky != nil {
+		sticky = repository.StringPtr(req.Opts.Sticky.String())
+	}
+
 	scheduledTriggers := make([]time.Time, 0)
 
 	for _, trigger := range req.Opts.ScheduledTriggers {
@@ -437,6 +443,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		Jobs:              jobs,
 		OnFailureJob:      onFailureJob,
 		ScheduleTimeout:   req.Opts.ScheduleTimeout,
+		Sticky:            sticky,
 	}, nil
 }
 
