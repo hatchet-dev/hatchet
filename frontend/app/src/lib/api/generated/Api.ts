@@ -40,6 +40,7 @@ import {
   LogLineSearch,
   RejectInviteRequest,
   ReplayEventRequest,
+  ReplayWorkflowRunsRequest,
   RerunStepRunRequest,
   SNSIntegration,
   StepRun,
@@ -1337,6 +1338,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       method: 'GET',
       query: query,
       secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Replays a list of workflow runs.
+   *
+   * @tags Workflow Runs
+   * @name WorkflowRunUpdateReplay
+   * @summary Replay workflow runs
+   * @request POST:/api/v1/tenants/{tenant}/workflow-runs/replay
+   * @secure
+   */
+  workflowRunUpdateReplay = (tenant: string, data: ReplayWorkflowRunsRequest, params: RequestParams = {}) =>
+    this.request<WorkflowRunList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflow-runs/replay`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: 'json',
       ...params,
     });

@@ -12,6 +12,19 @@ WorkflowRunOrderByDirection:
     - ASC
     - DESC
 
+ReplayWorkflowRunsRequest:
+  properties:
+    workflowRunIds:
+      type: array
+      items:
+        type: string
+        example: bb214807-246e-43a5-a25d-41761d1cff9e
+        minLength: 36
+        maxLength: 36
+        format: uuid
+  required:
+    - workflowRunIds
+
 WorkflowRun:
   type: object
   properties:
@@ -399,7 +412,6 @@ StepRunArchive:
     - stepRunId
     - order
     - createdAt
-
 
 StepRunArchiveList:
   properties:

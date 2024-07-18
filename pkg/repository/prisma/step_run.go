@@ -665,14 +665,38 @@ func (s *stepRunEngineRepository) DeferredStepRunEvent(
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	deferredStepRunEvent(
+		ctx,
+		s.l,
+		s.pool,
+		s.queries,
+		stepRunId,
+		reason,
+		severity,
+		message,
+		data,
+	)
+}
+
+func deferredStepRunEvent(
+	ctx context.Context,
+	l *zerolog.Logger,
+	dbtx dbsqlc.DBTX,
+	queries *dbsqlc.Queries,
+	stepRunId pgtype.UUID,
+	reason dbsqlc.StepRunEventReason,
+	severity dbsqlc.StepRunEventSeverity,
+	message string,
+	data map[string]interface{},
+) {
 	dataBytes, err := json.Marshal(data)
 
 	if err != nil {
-		s.l.Err(err).Msg("could not marshal deferred step run event data")
+		l.Err(err).Msg("could not marshal deferred step run event data")
 		return
 	}
 
-	err = s.queries.CreateStepRunEvent(ctx, s.pool, dbsqlc.CreateStepRunEventParams{
+	err = queries.CreateStepRunEvent(ctx, dbtx, dbsqlc.CreateStepRunEventParams{
 		Steprunid: stepRunId,
 		Message:   message,
 		Reason:    reason,
@@ -681,7 +705,7 @@ func (s *stepRunEngineRepository) DeferredStepRunEvent(
 	})
 
 	if err != nil {
-		s.l.Err(err).Msg("could not create deferred step run event")
+		l.Err(err).Msg("could not create deferred step run event")
 	}
 }
 
@@ -916,7 +940,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 		}
 
 		// reset the job run, workflow run and all fields as part of the core tx
-		_, err = s.queries.ReplayStepRunResetWorkflowRun(ctx, tx, stepRun.JobRunId)
+		_, err = s.queries.ReplayStepRunResetWorkflowRun(ctx, tx, stepRun.WorkflowRunId)
 
 		if err != nil {
 			return err
@@ -942,7 +966,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 			laterStepRunCp := laterStepRun
 			laterStepRunId := sqlchelpers.UUIDToStr(laterStepRun.ID)
 
-			err = s.archiveStepRunResult(ctx, tx, tenantId, laterStepRunId)
+			err = archiveStepRunResult(ctx, s.queries, tx, tenantId, laterStepRunId)
 
 			if err != nil {
 				return err
@@ -1556,11 +1580,11 @@ func (s *stepRunEngineRepository) ListStartableStepRuns(ctx context.Context, ten
 }
 
 func (s *stepRunEngineRepository) ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error {
-	return s.archiveStepRunResult(ctx, s.pool, tenantId, stepRunId)
+	return archiveStepRunResult(ctx, s.queries, s.pool, tenantId, stepRunId)
 }
 
-func (s *stepRunEngineRepository) archiveStepRunResult(ctx context.Context, db dbsqlc.DBTX, tenantId, stepRunId string) error {
-	_, err := s.queries.ArchiveStepRunResultFromStepRun(ctx, db, dbsqlc.ArchiveStepRunResultFromStepRunParams{
+func archiveStepRunResult(ctx context.Context, queries *dbsqlc.Queries, db dbsqlc.DBTX, tenantId, stepRunId string) error {
+	_, err := queries.ArchiveStepRunResultFromStepRun(ctx, db, dbsqlc.ArchiveStepRunResultFromStepRunParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
 	})

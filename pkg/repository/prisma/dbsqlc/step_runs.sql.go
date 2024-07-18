@@ -1522,29 +1522,21 @@ func (q *Queries) ReplayStepRunResetLaterStepRuns(ctx context.Context, db DBTX, 
 }
 
 const replayStepRunResetWorkflowRun = `-- name: ReplayStepRunResetWorkflowRun :one
-WITH workflow_run_id AS (
-    SELECT
-        "workflowRunId"
-    FROM
-        "JobRun"
-    WHERE
-        "id" = $1::uuid
-)
 UPDATE
     "WorkflowRun"
 SET
-    "status" = 'RUNNING',
+    "status" = 'QUEUED',
     "updatedAt" = CURRENT_TIMESTAMP,
     "startedAt" = NULL,
     "finishedAt" = NULL,
     "duration" = NULL
 WHERE
-    "id" = (SELECT "workflowRunId" FROM workflow_run_id)
+    "id" =  $1::uuid
 RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration
 `
 
-func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, jobrunid pgtype.UUID) (*WorkflowRun, error) {
-	row := db.QueryRow(ctx, replayStepRunResetWorkflowRun, jobrunid)
+func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) (*WorkflowRun, error) {
+	row := db.QueryRow(ctx, replayStepRunResetWorkflowRun, workflowrunid)
 	var i WorkflowRun
 	err := row.Scan(
 		&i.CreatedAt,
@@ -1567,6 +1559,78 @@ func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, jo
 		&i.Duration,
 	)
 	return &i, err
+}
+
+const resetStepRunsByIds = `-- name: ResetStepRunsByIds :many
+UPDATE
+    "StepRun" as sr
+SET
+    "status" = 'PENDING',
+    "scheduleTimeoutAt" = NULL,
+    "finishedAt" = NULL,
+    "startedAt" = NULL,
+    "output" = NULL,
+    "error" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "input" = NULL
+WHERE
+    sr."id" = ANY($1::uuid[]) AND
+    sr."tenantId" = $2::uuid
+RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased"
+`
+
+type ResetStepRunsByIdsParams struct {
+	Ids      []pgtype.UUID `json:"ids"`
+	Tenantid pgtype.UUID   `json:"tenantid"`
+}
+
+func (q *Queries) ResetStepRunsByIds(ctx context.Context, db DBTX, arg ResetStepRunsByIdsParams) ([]*StepRun, error) {
+	rows, err := db.Query(ctx, resetStepRunsByIds, arg.Ids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepRun
+	for rows.Next() {
+		var i StepRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.JobRunId,
+			&i.StepId,
+			&i.Order,
+			&i.WorkerId,
+			&i.TickerId,
+			&i.Status,
+			&i.Input,
+			&i.Output,
+			&i.RequeueAfter,
+			&i.ScheduleTimeoutAt,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.TimeoutAt,
+			&i.CancelledAt,
+			&i.CancelledReason,
+			&i.CancelledError,
+			&i.InputSchema,
+			&i.CallerFiles,
+			&i.GitRepoBranch,
+			&i.RetryCount,
+			&i.SemaphoreReleased,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const resolveLaterStepRuns = `-- name: ResolveLaterStepRuns :many

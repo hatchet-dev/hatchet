@@ -1,0 +1,50 @@
+replayWorkflowRuns:
+  post:
+    x-resources: ["tenant"]
+    description: Replays a list of workflow runs.
+    operationId: workflow-run:update:replay
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/ReplayWorkflowRunsRequest"
+      description: The workflow run ids to replay
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WorkflowRunList"
+        description: Successfully replayed the workflow runs
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "429":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Resource limit exceeded
+    summary: Replay workflow runs
+    tags:
+      - Workflow Runs

@@ -124,6 +124,8 @@ Step:
   $ref: "./workflow.yaml#/Step"
 WorkflowRun:
   $ref: "./workflow_run.yaml#/WorkflowRun"
+ReplayWorkflowRunsRequest:
+  $ref: "./workflow_run.yaml#/ReplayWorkflowRunsRequest"
 WorkflowRunList:
   $ref: "./workflow_run.yaml#/WorkflowRunList"
 WorkflowRunOrderByField:

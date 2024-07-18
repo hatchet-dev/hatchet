@@ -701,24 +701,16 @@ LIMIT
 
 
 -- name: ReplayStepRunResetWorkflowRun :one
-WITH workflow_run_id AS (
-    SELECT
-        "workflowRunId"
-    FROM
-        "JobRun"
-    WHERE
-        "id" = @jobRunId::uuid
-)
 UPDATE
     "WorkflowRun"
 SET
-    "status" = 'RUNNING',
+    "status" = 'QUEUED',
     "updatedAt" = CURRENT_TIMESTAMP,
     "startedAt" = NULL,
     "finishedAt" = NULL,
     "duration" = NULL
 WHERE
-    "id" = (SELECT "workflowRunId" FROM workflow_run_id)
+    "id" =  @workflowRunId::uuid
 RETURNING *;
 
 -- name: ReplayStepRunResetJobRun :one
@@ -802,6 +794,24 @@ FROM
     childStepRuns csr
 WHERE
     sr."id" = csr."id" AND
+    sr."tenantId" = @tenantId::uuid
+RETURNING sr.*;
+
+-- name: ResetStepRunsByIds :many
+UPDATE
+    "StepRun" as sr
+SET
+    "status" = 'PENDING',
+    "scheduleTimeoutAt" = NULL,
+    "finishedAt" = NULL,
+    "startedAt" = NULL,
+    "output" = NULL,
+    "error" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "input" = NULL
+WHERE
+    sr."id" = ANY(@ids::uuid[]) AND
     sr."tenantId" = @tenantId::uuid
 RETURNING sr.*;
 

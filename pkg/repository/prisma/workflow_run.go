@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -270,6 +271,127 @@ func (w *workflowRunEngineRepository) SoftDeleteExpiredWorkflowRuns(ctx context.
 	}
 
 	return hasMore, nil
+}
+
+func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "replay-workflow-run")
+	defer span.End()
+
+	err := deadlockRetry(s.l, func() error {
+		tx, err := s.pool.Begin(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		defer deferRollback(ctx, s.l, tx.Rollback)
+
+		pgWorkflowRunId := sqlchelpers.UUIDFromStr(workflowRunId)
+
+		// reset the job run, workflow run and all fields as part of the core tx
+		_, err = s.queries.ReplayStepRunResetWorkflowRun(ctx, tx, pgWorkflowRunId)
+
+		if err != nil {
+			return fmt.Errorf("error resetting workflow run: %w", err)
+		}
+
+		jobRuns, err := s.queries.ListJobRunsForWorkflowRun(ctx, tx, pgWorkflowRunId)
+
+		if err != nil {
+			return fmt.Errorf("error listing job runs: %w", err)
+		}
+
+		for _, jobRun := range jobRuns {
+			_, err = s.queries.ReplayStepRunResetJobRun(ctx, tx, jobRun.ID)
+
+			if err != nil {
+				return fmt.Errorf("error resetting job run: %w", err)
+			}
+		}
+
+		// get all step runs for the workflow
+		stepRuns, err := s.queries.ListStepRuns(ctx, tx, dbsqlc.ListStepRunsParams{
+			TenantId: sqlchelpers.UUIDFromStr(tenantId),
+			WorkflowRunIds: []pgtype.UUID{
+				sqlchelpers.UUIDFromStr(workflowRunId),
+			},
+		})
+
+		if err != nil {
+			return fmt.Errorf("error listing step runs: %w", err)
+		}
+
+		// archive each of the step run results
+		for _, stepRunId := range stepRuns {
+			err = archiveStepRunResult(ctx, s.queries, tx, tenantId, sqlchelpers.UUIDToStr(stepRunId))
+
+			if err != nil {
+				return fmt.Errorf("error archiving step run result: %w", err)
+			}
+
+			// remove the previous step run result from the job lookup data
+			err = s.queries.UpdateJobRunLookupDataWithStepRun(
+				ctx,
+				tx,
+				dbsqlc.UpdateJobRunLookupDataWithStepRunParams{
+					Steprunid: stepRunId,
+					Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+				},
+			)
+
+			if err != nil {
+				return fmt.Errorf("error updating job run lookup data: %w", err)
+			}
+
+			// create a deferred event for each of these step runs
+			defer deferredStepRunEvent(
+				ctx,
+				s.l,
+				s.pool,
+				s.queries,
+				stepRunId,
+				dbsqlc.StepRunEventReasonRETRIEDBYUSER,
+				dbsqlc.StepRunEventSeverityINFO,
+				"Workflow run was replayed, resetting step run result",
+				nil,
+			)
+		}
+
+		// reset all later step runs to a pending state
+		_, err = s.queries.ResetStepRunsByIds(ctx, tx, dbsqlc.ResetStepRunsByIdsParams{
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Ids:      stepRuns,
+		})
+
+		if err != nil {
+			return fmt.Errorf("error resetting step runs: %w", err)
+		}
+
+		err = tx.Commit(ctx)
+
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	workflowRuns, err := s.queries.GetWorkflowRun(ctx, s.pool, dbsqlc.GetWorkflowRunParams{
+		Ids: []pgtype.UUID{
+			sqlchelpers.UUIDFromStr(workflowRunId),
+		},
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(workflowRuns) != 1 {
+		return nil, repository.ErrWorkflowRunNotFound
+	}
+
+	return workflowRuns[0], nil
 }
 
 func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
