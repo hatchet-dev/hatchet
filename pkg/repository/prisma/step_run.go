@@ -43,8 +43,9 @@ func NewStepRunAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v vali
 }
 
 func (s *stepRunAPIRepository) GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error) {
-	return s.client.StepRun.FindUnique(
+	return s.client.StepRun.FindFirst(
 		db.StepRun.ID.Equals(stepRunId),
+		db.StepRun.DeletedAt.IsNull(),
 	).With(
 		db.StepRun.Children.Fetch(),
 		db.StepRun.ChildWorkflowRuns.Fetch(),
@@ -1613,4 +1614,21 @@ func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId
 		nil)
 
 	return res, nil
+}
+
+func (s *stepRunEngineRepository) ClearStepRunPayloadData(ctx context.Context, tenantId string) (bool, error) {
+	hasMore, err := s.queries.ClearStepRunPayloadData(ctx, s.pool, dbsqlc.ClearStepRunPayloadDataParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Limit:    1000,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return hasMore, nil
 }

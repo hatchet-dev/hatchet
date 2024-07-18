@@ -36,7 +36,8 @@ locked_step_runs AS (
     FROM
         "StepRun" sr
     WHERE
-        sr."id" = $3::uuid
+        sr."id" = $3::uuid AND
+        sr."deletedAt" IS NULL
     FOR UPDATE SKIP LOCKED
 ),
 selected_slot AS (
@@ -196,7 +197,10 @@ WITH step_run_data AS (
         "cancelledReason",
         "cancelledError"
     FROM "StepRun"
-    WHERE "id" = $2::uuid AND "tenantId" = $3::uuid
+    WHERE
+        "id" = $2::uuid
+        AND "tenantId" = $3::uuid
+        AND "deletedAt" IS NULL
 )
 INSERT INTO "StepRunResultArchive" (
     "id",
@@ -260,6 +264,73 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 		&i.CancelledError,
 	)
 	return &i, err
+}
+
+const clearStepRunPayloadData = `-- name: ClearStepRunPayloadData :one
+WITH for_delete AS (
+    SELECT
+        sr2."id"
+    FROM "StepRun" sr2
+    WHERE
+        sr2."tenantId" = $1::uuid AND
+        sr2."deletedAt" IS NOT NULL AND
+        (sr2."input" IS NOT NULL OR sr2."output" IS NOT NULL OR sr2."error" IS NOT NULL)
+    ORDER BY "deletedAt" ASC
+    LIMIT $2 + 1
+    FOR UPDATE SKIP LOCKED
+),
+deleted_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT $2
+),
+deleted_archives AS (
+    SELECT sra1."id" as "id"
+    FROM "StepRunResultArchive" sra1
+    WHERE
+        sra1."stepRunId" IN (SELECT "id" FROM deleted_with_limit)
+        AND (sra1."input" IS NOT NULL OR sra1."output" IS NOT NULL OR sra1."error" IS NOT NULL)
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > $2 THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+),
+cleared_archives AS (
+    UPDATE "StepRunResultArchive"
+    SET
+        "input" = NULL,
+        "output" = NULL,
+        "error" = NULL
+    WHERE
+        "id" IN (SELECT "id" FROM deleted_archives)
+)
+UPDATE
+    "StepRun"
+SET
+    "input" = NULL,
+    "output" = NULL,
+    "error" = NULL
+WHERE
+    "id" IN (SELECT "id" FROM deleted_with_limit)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more
+`
+
+type ClearStepRunPayloadDataParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    interface{} `json:"limit"`
+}
+
+func (q *Queries) ClearStepRunPayloadData(ctx context.Context, db DBTX, arg ClearStepRunPayloadDataParams) (bool, error) {
+	row := db.QueryRow(ctx, clearStepRunPayloadData, arg.Tenantid, arg.Limit)
+	var has_more bool
+	err := row.Scan(&has_more)
+	return has_more, err
 }
 
 const countStepRunArchives = `-- name: CountStepRunArchives :one
@@ -501,6 +572,7 @@ FROM
     "StepRun"
 WHERE
     "id" = $1::uuid AND
+    "deletedAt" IS NULL AND
     "tenantId" = $2::uuid
 `
 
@@ -635,6 +707,8 @@ JOIN
     "Job" j ON jr."jobId" = j."id"
 WHERE
     sr."id" = ANY($1::uuid[]) AND
+    sr."deletedAt" IS NULL AND
+    jr."deletedAt" IS NULL AND
     (
         $2::uuid IS NULL OR
         sr."tenantId" = $2::uuid
@@ -750,6 +824,7 @@ WITH RECURSIVE currStepRun AS (
     FROM "StepRun" sr
     JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
     WHERE sro."A" = (SELECT "id" FROM currStepRun)
+        AND sr."deletedAt" IS NULL
 
     UNION ALL
 
@@ -766,6 +841,7 @@ JOIN
     childStepRuns csr ON sr."id" = csr."id"
 WHERE
     sr."tenantId" = $1::uuid AND
+    sr."deletedAt" IS NULL AND
     sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
 `
 
@@ -825,7 +901,7 @@ func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, arg Li
 
 const listStartableStepRuns = `-- name: ListStartableStepRuns :many
 WITH job_run AS (
-    SELECT "status"
+    SELECT "status", "deletedAt"
     FROM "JobRun"
     WHERE "id" = $1::uuid
 )
@@ -840,6 +916,8 @@ JOIN
     job_run ON true
 WHERE
     child_run."jobRunId" = $1::uuid
+    AND child_run."deletedAt" IS NULL
+    AND job_run."deletedAt" IS NULL
     AND child_run."status" = 'PENDING'
     AND job_run."status" = 'RUNNING'
     -- case on whether parentStepRunId is null
@@ -893,7 +971,8 @@ JOIN
     "StepRun" ON "StepRunResultArchive"."stepRunId" = "StepRun"."id"
 WHERE
     "StepRunResultArchive"."stepRunId" = $1::uuid AND
-    "StepRun"."tenantId" = $2::uuid
+    "StepRun"."tenantId" = $2::uuid AND
+    "StepRun"."deletedAt" IS NULL
 ORDER BY
     "StepRunResultArchive"."createdAt"
 OFFSET
@@ -1010,6 +1089,8 @@ FROM
 JOIN
     "JobRun" ON "StepRun"."jobRunId" = "JobRun"."id"
 WHERE
+    "StepRun"."deletedAt" IS NULL AND
+    "JobRun"."deletedAt" IS NULL AND
     (
         $1::uuid IS NULL OR
         "StepRun"."tenantId" = $1::uuid
@@ -1103,6 +1184,7 @@ FROM
     step_runs_to_reassign
 WHERE
     "StepRun"."id" = step_runs_to_reassign."stepRunId"
+    AND "StepRun"."deletedAt" IS NULL
 RETURNING "StepRun"."id"
 `
 
@@ -1136,6 +1218,8 @@ WITH step_runs AS (
         "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
     WHERE
         sr."tenantId" = $1::uuid
+        AND sr."deletedAt" IS NULL
+        AND jr."deletedAt" IS NULL
         AND sr."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT']::"StepRunStatus"[])
         AND sr."requeueAfter" < NOW()
         AND sr."input" IS NOT NULL
