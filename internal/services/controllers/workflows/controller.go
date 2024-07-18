@@ -194,30 +194,6 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not poll active queues: %w", err)
 	}
 
-	// _, err = wc.s.NewJob(
-	// 	gocron.DurationJob(time.Second*60),
-	// 	gocron.NewTask(
-	// 		wc.runDeleteExpiredWorkflowRuns(ctx),
-	// 	),
-	// )
-
-	// if err != nil {
-	// 	cancel()
-	// 	return nil, fmt.Errorf("could not delete expired workflow runs: %w", err)
-	// }
-
-	// _, err = wc.s.NewJob(
-	// 	gocron.DurationJob(time.Second*60),
-	// 	gocron.NewTask(
-	// 		wc.runDeleteExpiredEvents(ctx),
-	// 	),
-	// )
-
-	// if err != nil {
-	// 	cancel()
-	// 	return nil, fmt.Errorf("could not delete expired events: %w", err)
-	// }
-
 	wc.s.Start()
 
 	f := func(task *msgqueue.Message) error {

@@ -83,6 +83,7 @@ stepRunsToTimeout AS (
     LEFT JOIN inactiveTickers ON stepRun."tickerId" = inactiveTickers."id"
     WHERE
         ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
+        AND "deletedAt" IS NULL
         AND "timeoutAt" < NOW()
         AND (
             inactiveTickers."id" IS NOT NULL
@@ -110,6 +111,7 @@ WITH getGroupKeyRunsToTimeout AS (
     WHERE
         ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
         AND "timeoutAt" < NOW()
+        AND "deletedAt" IS NULL
         AND (
             NOT EXISTS (
                 SELECT 1 FROM "Ticker" WHERE "id" = getGroupKeyRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
@@ -151,12 +153,15 @@ active_cron_schedules AS (
     JOIN
         latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
     WHERE
-        "enabled" = TRUE AND
-        ("tickerId" IS NULL
-        OR NOT EXISTS (
-            SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+        "enabled" = TRUE
+        AND versions."deletedAt" IS NULL
+        AND (
+            "tickerId" IS NULL
+            OR NOT EXISTS (
+                SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+            )
+            OR "tickerId" = @tickerId::uuid
         )
-        OR "tickerId" = @tickerId::uuid)
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
@@ -198,6 +203,8 @@ not_run_scheduled_workflows AS (
     WHERE
         "triggerAt" <= NOW() + INTERVAL '5 seconds'
         AND runTriggeredBy IS NULL
+        AND versions."deletedAt" IS NULL
+        AND workflow."deletedAt" IS NULL
         AND (
             "tickerId" IS NULL
             OR NOT EXISTS (
@@ -245,6 +252,7 @@ failed_run_count_by_tenant AS (
         active_tenant_alerts ON active_tenant_alerts."tenantId" = workflowRun."tenantId"
     WHERE
         "status" = 'FAILED'
+        AND workflowRun."deletedAt" IS NULL
         AND (
             (
                 "lastAlertedAt" IS NULL AND

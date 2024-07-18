@@ -789,6 +789,9 @@ CREATE INDEX "Event_tenantId_createdAt_idx" ON "Event"("tenantId" ASC, "createdA
 CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
 
 -- CreateIndex
+CREATE INDEX "GetGroupKeyRun_deletedAt_idx" ON "GetGroupKeyRun"("deletedAt" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "GetGroupKeyRun_id_key" ON "GetGroupKeyRun"("id" ASC);
 
 -- CreateIndex
@@ -799,6 +802,9 @@ CREATE UNIQUE INDEX "Job_id_key" ON "Job"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Job_workflowVersionId_name_key" ON "Job"("workflowVersionId" ASC, "name" ASC);
+
+-- CreateIndex
+CREATE INDEX "JobRun_deletedAt_idx" ON "JobRun"("deletedAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "JobRun_id_key" ON "JobRun"("id" ASC);
@@ -850,6 +856,9 @@ CREATE UNIQUE INDEX "StepRateLimit_stepId_rateLimitKey_key" ON "StepRateLimit"("
 
 -- CreateIndex
 CREATE INDEX "StepRun_createdAt_idx" ON "StepRun"("createdAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_deletedAt_idx" ON "StepRun"("deletedAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun"("id" ASC);
@@ -987,6 +996,9 @@ CREATE UNIQUE INDEX "WorkerSemaphoreSlot_stepRunId_key" ON "WorkerSemaphoreSlot"
 CREATE INDEX "WorkerSemaphoreSlot_workerId_idx" ON "WorkerSemaphoreSlot"("workerId" ASC);
 
 -- CreateIndex
+CREATE INDEX "Workflow_deletedAt_idx" ON "Workflow"("deletedAt" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Workflow_id_key" ON "Workflow"("id" ASC);
 
 -- CreateIndex
@@ -1000,6 +1012,9 @@ CREATE UNIQUE INDEX "WorkflowConcurrency_workflowVersionId_key" ON "WorkflowConc
 
 -- CreateIndex
 CREATE INDEX "WorkflowRun_createdAt_idx" ON "WorkflowRun"("createdAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRun_deletedAt_idx" ON "WorkflowRun"("deletedAt" ASC);
 
 -- CreateIndex
 CREATE INDEX "WorkflowRun_finishedAt_idx" ON "WorkflowRun"("finishedAt" ASC);
@@ -1063,6 +1078,9 @@ CREATE UNIQUE INDEX "WorkflowTriggers_id_key" ON "WorkflowTriggers"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggers_workflowVersionId_key" ON "WorkflowTriggers"("workflowVersionId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowVersion_deletedAt_idx" ON "WorkflowVersion"("deletedAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowVersion_id_key" ON "WorkflowVersion"("id" ASC);

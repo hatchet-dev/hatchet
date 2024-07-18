@@ -5,6 +5,7 @@ FROM
     "StepRun"
 WHERE
     "id" = @id::uuid AND
+    "deletedAt" IS NULL AND
     "tenantId" = @tenantId::uuid;
 
 -- name: GetStepRunDataForEngine :one
@@ -73,6 +74,8 @@ JOIN
     "Job" j ON jr."jobId" = j."id"
 WHERE
     sr."id" = ANY(@ids::uuid[]) AND
+    sr."deletedAt" IS NULL AND
+    jr."deletedAt" IS NULL AND
     (
         sqlc.narg('tenantId')::uuid IS NULL OR
         sr."tenantId" = sqlc.narg('tenantId')::uuid
@@ -80,7 +83,7 @@ WHERE
 
 -- name: ListStartableStepRuns :many
 WITH job_run AS (
-    SELECT "status"
+    SELECT "status", "deletedAt"
     FROM "JobRun"
     WHERE "id" = @jobRunId::uuid
 )
@@ -95,6 +98,8 @@ JOIN
     job_run ON true
 WHERE
     child_run."jobRunId" = @jobRunId::uuid
+    AND child_run."deletedAt" IS NULL
+    AND job_run."deletedAt" IS NULL
     AND child_run."status" = 'PENDING'
     AND job_run."status" = 'RUNNING'
     -- case on whether parentStepRunId is null
@@ -122,6 +127,8 @@ FROM
 JOIN
     "JobRun" ON "StepRun"."jobRunId" = "JobRun"."id"
 WHERE
+    "StepRun"."deletedAt" IS NULL AND
+    "JobRun"."deletedAt" IS NULL AND
     (
         sqlc.narg('tenantId')::uuid IS NULL OR
         "StepRun"."tenantId" = sqlc.narg('tenantId')::uuid
@@ -290,7 +297,10 @@ WITH step_run_data AS (
         "cancelledReason",
         "cancelledError"
     FROM "StepRun"
-    WHERE "id" = @stepRunId::uuid AND "tenantId" = @tenantId::uuid
+    WHERE
+        "id" = @stepRunId::uuid
+        AND "tenantId" = @tenantId::uuid
+        AND "deletedAt" IS NULL
 )
 INSERT INTO "StepRunResultArchive" (
     "id",
@@ -395,6 +405,7 @@ FROM
     step_runs_to_reassign
 WHERE
     "StepRun"."id" = step_runs_to_reassign."stepRunId"
+    AND "StepRun"."deletedAt" IS NULL
 RETURNING "StepRun"."id";
 
 -- name: ListStepRunsToTimeout :many
@@ -416,6 +427,8 @@ WITH step_runs AS (
         "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
     WHERE
         sr."tenantId" = @tenantId::uuid
+        AND sr."deletedAt" IS NULL
+        AND jr."deletedAt" IS NULL
         AND sr."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT']::"StepRunStatus"[])
         AND sr."requeueAfter" < NOW()
         AND sr."input" IS NOT NULL
@@ -497,7 +510,8 @@ locked_step_runs AS (
     FROM
         "StepRun" sr
     WHERE
-        sr."id" = @stepRunId::uuid
+        sr."id" = @stepRunId::uuid AND
+        sr."deletedAt" IS NULL
     FOR UPDATE SKIP LOCKED
 ),
 selected_slot AS (
@@ -803,6 +817,7 @@ WITH RECURSIVE currStepRun AS (
     FROM "StepRun" sr
     JOIN "_StepRunOrder" sro ON sr."id" = sro."B"
     WHERE sro."A" = (SELECT "id" FROM currStepRun)
+        AND sr."deletedAt" IS NULL
 
     UNION ALL
 
@@ -820,6 +835,7 @@ JOIN
     childStepRuns csr ON sr."id" = csr."id"
 WHERE
     sr."tenantId" = @tenantId::uuid AND
+    sr."deletedAt" IS NULL AND
     sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED');
 
 -- name: ListStepRunArchives :many
@@ -831,7 +847,8 @@ JOIN
     "StepRun" ON "StepRunResultArchive"."stepRunId" = "StepRun"."id"
 WHERE
     "StepRunResultArchive"."stepRunId" = @stepRunId::uuid AND
-    "StepRun"."tenantId" = @tenantId::uuid
+    "StepRun"."tenantId" = @tenantId::uuid AND
+    "StepRun"."deletedAt" IS NULL
 ORDER BY
     "StepRunResultArchive"."createdAt"
 OFFSET
@@ -846,3 +863,58 @@ FROM
     "StepRunResultArchive"
 WHERE
     "stepRunId" = @stepRunId::uuid;
+
+
+-- name: ClearStepRunPayloadData :one
+WITH for_delete AS (
+    SELECT
+        sr2."id"
+    FROM "StepRun" sr2
+    WHERE
+        sr2."tenantId" = @tenantId::uuid AND
+        sr2."deletedAt" IS NOT NULL AND
+        (sr2."input" IS NOT NULL OR sr2."output" IS NOT NULL OR sr2."error" IS NOT NULL)
+    ORDER BY "deletedAt" ASC
+    LIMIT sqlc.arg('limit') + 1
+    FOR UPDATE SKIP LOCKED
+),
+deleted_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT sqlc.arg('limit')
+),
+deleted_archives AS (
+    SELECT sra1."id" as "id"
+    FROM "StepRunResultArchive" sra1
+    WHERE
+        sra1."stepRunId" IN (SELECT "id" FROM deleted_with_limit)
+        AND (sra1."input" IS NOT NULL OR sra1."output" IS NOT NULL OR sra1."error" IS NOT NULL)
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+),
+cleared_archives AS (
+    UPDATE "StepRunResultArchive"
+    SET
+        "input" = NULL,
+        "output" = NULL,
+        "error" = NULL
+    WHERE
+        "id" IN (SELECT "id" FROM deleted_archives)
+)
+UPDATE
+    "StepRun"
+SET
+    "input" = NULL,
+    "output" = NULL,
+    "error" = NULL
+WHERE
+    "id" IN (SELECT "id" FROM deleted_with_limit)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more;

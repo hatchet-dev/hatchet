@@ -13,6 +13,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1 AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         sqlc.narg('workflowVersionId')::uuid IS NULL OR
         workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
@@ -87,6 +90,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = @tenantId::uuid AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         sqlc.narg('workflowId')::uuid IS NULL OR
         workflow."id" = sqlc.narg('workflowId')::uuid
@@ -128,6 +134,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1 AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         sqlc.narg('workflowVersionId')::uuid IS NULL OR
         workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
@@ -200,6 +209,8 @@ WITH workflow_runs AS (
         "WorkflowVersion" workflowVersion ON r2."workflowVersionId" = workflowVersion."id"
     WHERE
         r2."tenantId" = @tenantId::uuid AND
+        r2."deletedAt" IS NULL AND
+        workflowVersion."deletedAt" IS NULL AND
         (r2."status" = 'QUEUED' OR r2."status" = 'RUNNING') AND
         workflowVersion."workflowId" = @workflowId::uuid
     ORDER BY
@@ -254,7 +265,8 @@ WITH groupKeyRun AS (
     FROM "GetGroupKeyRun" as groupKeyRun
     WHERE
         "id" = @groupKeyRunId::uuid AND
-        "tenantId" = @tenantId::uuid
+        "tenantId" = @tenantId::uuid AND
+        "deletedAt" IS NULL
 )
 UPDATE "WorkflowRun" workflowRun
 SET "status" = CASE
@@ -302,6 +314,7 @@ WITH jobRuns AS (
             FROM "JobRun"
             WHERE "id" = @jobRunId::uuid
         ) AND
+        runs."deletedAt" IS NULL AND
         runs."tenantId" = @tenantId::uuid AND
         -- we should not include onFailure jobs in the calculation
         job."kind" = 'DEFAULT'
@@ -608,6 +621,9 @@ LEFT JOIN
 LEFT JOIN
     "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
 WHERE
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     runs."id" = ANY(@ids::uuid[]) AND
     runs."tenantId" = @tenantId::uuid;
 
@@ -619,6 +635,7 @@ FROM
     "WorkflowRun"
 WHERE
     "parentId" = @parentId::uuid AND
+    "deletedAt" IS NULL AND
     "parentStepRunId" = @parentStepRunId::uuid AND
     (
         -- if childKey is set, use that
@@ -640,29 +657,75 @@ WHERE
         (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
     );
 
--- name: DeleteExpiredWorkflowRuns :one
-WITH expired_runs_count AS (
-    SELECT COUNT(*) as count
-    FROM "WorkflowRun" wr1
-    WHERE
-        wr1."tenantId" = @tenantId::uuid AND
-        wr1."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[])) AND
-        wr1."createdAt" < @createdBefore::timestamp
-), expired_runs_with_limit AS (
+-- name: SoftDeleteExpiredWorkflowRunsWithDependencies :one
+WITH for_delete AS (
     SELECT
         "id"
     FROM "WorkflowRun" wr2
     WHERE
         wr2."tenantId" = @tenantId::uuid AND
         wr2."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[])) AND
-        wr2."createdAt" < @createdBefore::timestamp
+        wr2."createdAt" < @createdBefore::timestamp AND
+        "deletedAt" IS NULL
     ORDER BY "createdAt" ASC
+    LIMIT sqlc.arg('limit') +1
+    FOR UPDATE SKIP LOCKED
+),
+expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
     LIMIT sqlc.arg('limit')
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+),
+job_runs_to_delete AS (
+    SELECT
+        "id"
+    FROM
+        "JobRun"
+    WHERE
+        "workflowRunId" IN (SELECT "id" FROM expired_with_limit)
+        AND "deletedAt" IS NULL
+), step_runs_to_delete AS (
+    SELECT
+        "id"
+    FROM
+        "StepRun"
+    WHERE
+        "jobRunId" IN (SELECT "id" FROM job_runs_to_delete)
+        AND "deletedAt" IS NULL
+), update_step_runs AS (
+    UPDATE
+        "StepRun"
+    SET
+        "deletedAt" = CURRENT_TIMESTAMP
+    WHERE
+        "id" IN (SELECT "id" FROM step_runs_to_delete)
+), update_job_runs AS (
+    UPDATE
+        "JobRun" jr
+    SET
+        "deletedAt" = CURRENT_TIMESTAMP
+    WHERE
+        jr."id" IN (SELECT "id" FROM job_runs_to_delete)
 )
-DELETE FROM "WorkflowRun"
+UPDATE
+    "WorkflowRun" wr
+SET
+    "deletedAt" = CURRENT_TIMESTAMP
 WHERE
-    "id" IN (SELECT "id" FROM expired_runs_with_limit)
-RETURNING (SELECT count FROM expired_runs_count) as total, (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining, (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted;
+    "id" IN (SELECT "id" FROM expired_with_limit) AND
+    wr."tenantId" = @tenantId::uuid
+RETURNING
+    (SELECT has_more FROM has_more) as has_more;
+
 
 -- name: ListActiveQueuedWorkflowVersions :many
 WITH QueuedRuns AS (

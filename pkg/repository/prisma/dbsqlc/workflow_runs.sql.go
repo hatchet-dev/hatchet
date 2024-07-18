@@ -26,6 +26,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1 AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         $2::uuid IS NULL OR
         workflowVersion."id" = $2::uuid
@@ -503,56 +506,6 @@ func (q *Queries) CreateWorkflowRunTriggeredBy(ctx context.Context, db DBTX, arg
 	return &i, err
 }
 
-const deleteExpiredWorkflowRuns = `-- name: DeleteExpiredWorkflowRuns :one
-WITH expired_runs_count AS (
-    SELECT COUNT(*) as count
-    FROM "WorkflowRun" wr1
-    WHERE
-        wr1."tenantId" = $1::uuid AND
-        wr1."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
-        wr1."createdAt" < $3::timestamp
-), expired_runs_with_limit AS (
-    SELECT
-        "id"
-    FROM "WorkflowRun" wr2
-    WHERE
-        wr2."tenantId" = $1::uuid AND
-        wr2."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
-        wr2."createdAt" < $3::timestamp
-    ORDER BY "createdAt" ASC
-    LIMIT $4
-)
-DELETE FROM "WorkflowRun"
-WHERE
-    "id" IN (SELECT "id" FROM expired_runs_with_limit)
-RETURNING (SELECT count FROM expired_runs_count) as total, (SELECT count FROM expired_runs_count) - (SELECT COUNT(*) FROM expired_runs_with_limit) as remaining, (SELECT COUNT(*) FROM expired_runs_with_limit) as deleted
-`
-
-type DeleteExpiredWorkflowRunsParams struct {
-	Tenantid      pgtype.UUID      `json:"tenantid"`
-	Statuses      []string         `json:"statuses"`
-	Createdbefore pgtype.Timestamp `json:"createdbefore"`
-	Limit         int32            `json:"limit"`
-}
-
-type DeleteExpiredWorkflowRunsRow struct {
-	Total     int64 `json:"total"`
-	Remaining int32 `json:"remaining"`
-	Deleted   int64 `json:"deleted"`
-}
-
-func (q *Queries) DeleteExpiredWorkflowRuns(ctx context.Context, db DBTX, arg DeleteExpiredWorkflowRunsParams) (*DeleteExpiredWorkflowRunsRow, error) {
-	row := db.QueryRow(ctx, deleteExpiredWorkflowRuns,
-		arg.Tenantid,
-		arg.Statuses,
-		arg.Createdbefore,
-		arg.Limit,
-	)
-	var i DeleteExpiredWorkflowRunsRow
-	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
-	return &i, err
-}
-
 const getChildWorkflowRun = `-- name: GetChildWorkflowRun :one
 SELECT
     "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration
@@ -560,6 +513,7 @@ FROM
     "WorkflowRun"
 WHERE
     "parentId" = $1::uuid AND
+    "deletedAt" IS NULL AND
     "parentStepRunId" = $2::uuid AND
     (
         -- if childKey is set, use that
@@ -673,6 +627,9 @@ LEFT JOIN
 LEFT JOIN
     "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
 WHERE
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     runs."id" = ANY($1::uuid[]) AND
     runs."tenantId" = $2::uuid
 `
@@ -853,6 +810,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1 AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         $2::uuid IS NULL OR
         workflowVersion."id" = $2::uuid
@@ -1042,6 +1002,8 @@ WITH workflow_runs AS (
         "WorkflowVersion" workflowVersion ON r2."workflowVersionId" = workflowVersion."id"
     WHERE
         r2."tenantId" = $1::uuid AND
+        r2."deletedAt" IS NULL AND
+        workflowVersion."deletedAt" IS NULL AND
         (r2."status" = 'QUEUED' OR r2."status" = 'RUNNING') AND
         workflowVersion."workflowId" = $2::uuid
     ORDER BY
@@ -1151,6 +1113,7 @@ WITH jobRuns AS (
             FROM "JobRun"
             WHERE "id" = $1::uuid
         ) AND
+        runs."deletedAt" IS NULL AND
         runs."tenantId" = $2::uuid AND
         -- we should not include onFailure jobs in the calculation
         job."kind" = 'DEFAULT'
@@ -1232,6 +1195,95 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 		&i.Duration,
 	)
 	return &i, err
+}
+
+const softDeleteExpiredWorkflowRunsWithDependencies = `-- name: SoftDeleteExpiredWorkflowRunsWithDependencies :one
+WITH for_delete AS (
+    SELECT
+        "id"
+    FROM "WorkflowRun" wr2
+    WHERE
+        wr2."tenantId" = $1::uuid AND
+        wr2."status" = ANY(cast($2::text[] as "WorkflowRunStatus"[])) AND
+        wr2."createdAt" < $3::timestamp AND
+        "deletedAt" IS NULL
+    ORDER BY "createdAt" ASC
+    LIMIT $4 +1
+    FOR UPDATE SKIP LOCKED
+),
+expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT $4
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > $4 THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+),
+job_runs_to_delete AS (
+    SELECT
+        "id"
+    FROM
+        "JobRun"
+    WHERE
+        "workflowRunId" IN (SELECT "id" FROM expired_with_limit)
+        AND "deletedAt" IS NULL
+), step_runs_to_delete AS (
+    SELECT
+        "id"
+    FROM
+        "StepRun"
+    WHERE
+        "jobRunId" IN (SELECT "id" FROM job_runs_to_delete)
+        AND "deletedAt" IS NULL
+), update_step_runs AS (
+    UPDATE
+        "StepRun"
+    SET
+        "deletedAt" = CURRENT_TIMESTAMP
+    WHERE
+        "id" IN (SELECT "id" FROM step_runs_to_delete)
+), update_job_runs AS (
+    UPDATE
+        "JobRun" jr
+    SET
+        "deletedAt" = CURRENT_TIMESTAMP
+    WHERE
+        jr."id" IN (SELECT "id" FROM job_runs_to_delete)
+)
+UPDATE
+    "WorkflowRun" wr
+SET
+    "deletedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" IN (SELECT "id" FROM expired_with_limit) AND
+    wr."tenantId" = $1::uuid
+RETURNING
+    (SELECT has_more FROM has_more) as has_more
+`
+
+type SoftDeleteExpiredWorkflowRunsWithDependenciesParams struct {
+	Tenantid      pgtype.UUID      `json:"tenantid"`
+	Statuses      []string         `json:"statuses"`
+	Createdbefore pgtype.Timestamp `json:"createdbefore"`
+	Limit         interface{}      `json:"limit"`
+}
+
+func (q *Queries) SoftDeleteExpiredWorkflowRunsWithDependencies(ctx context.Context, db DBTX, arg SoftDeleteExpiredWorkflowRunsWithDependenciesParams) (bool, error) {
+	row := db.QueryRow(ctx, softDeleteExpiredWorkflowRunsWithDependencies,
+		arg.Tenantid,
+		arg.Statuses,
+		arg.Createdbefore,
+		arg.Limit,
+	)
+	var has_more bool
+	err := row.Scan(&has_more)
+	return has_more, err
 }
 
 const updateManyWorkflowRun = `-- name: UpdateManyWorkflowRun :many
@@ -1373,7 +1425,8 @@ WITH groupKeyRun AS (
     FROM "GetGroupKeyRun" as groupKeyRun
     WHERE
         "id" = $2::uuid AND
-        "tenantId" = $1::uuid
+        "tenantId" = $1::uuid AND
+        "deletedAt" IS NULL
 )
 UPDATE "WorkflowRun" workflowRun
 SET "status" = CASE
@@ -1457,6 +1510,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1::uuid AND
+    runs."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
     (
         $2::uuid IS NULL OR
         workflow."id" = $2::uuid
