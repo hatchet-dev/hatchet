@@ -25,7 +25,28 @@ There are two strategies for setting sticky assignment:
 - `SOFT`: The all steps in the workflow will attempt to be assigned to the same worker, but if that worker is unavailable, it will be assigned to another worker.
 - `HARD`: The all steps in the workflow will only be assigned to the same worker. If that worker is unavailable, the step run will not be assigned to another worker and will remain in a pending state until the original worker becomes available or timeout is reached. (See [Scheduling Timeouts](../timeouts.mdx))
 
-<Tabs items={['Typescript', 'Python', 'Golang']}>
+<Tabs items={['Python', 'Typescript', 'Golang']}>
+  <Tabs.Tab>
+```python
+@hatchet.workflow(
+    on_events=["user:create"],
+    sticky=StickyStrategy.SOFT, # <-- specify the sticky strategy
+)
+class StickyWorkflow:
+    @hatchet.step()
+    def step1a(self, context: Context):
+        return {"worker": context.worker.id()}
+
+    @hatchet.step()
+    def step1b(self, context: Context):
+        return {"worker": context.worker.id()}
+
+    @hatchet.step(parents=["step1a", "step1b"])
+    def step2(self, context: Context):
+        return {"worker": context.worker.id()}
+
+````
+  </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
 const myWorkflow: Workflow = {
@@ -39,12 +60,8 @@ const myWorkflow: Workflow = {
     // Define your workflow steps here
   ],
 };
-```
-  </Tabs.Tab>
-  <Tabs.Tab>
-```python
-# TODO add python example
-```
+````
+
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
@@ -66,7 +83,12 @@ However, the child workflow must:
 
 If either condition is not met, an error will be thrown when the child workflow is spawned.
 
-<Tabs items={['Typescript', 'Python', 'Golang']}>
+<Tabs items={['Python', 'Typescript', 'Golang']}>
+  <Tabs.Tab>
+```python
+# TODO add python example
+````
+  </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
 const parentWorkflow: Workflow = {
@@ -95,14 +117,9 @@ const parentWorkflow: Workflow = {
 ````
   </Tabs.Tab>
   <Tabs.Tab>
-```python
-# TODO add python example
-````
-
-  </Tabs.Tab>
-  <Tabs.Tab>
 ```go
 // TODO go example
 ```
   </Tabs.Tab>
 </Tabs>
+````
