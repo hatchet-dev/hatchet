@@ -11,6 +11,7 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import api, {
+  ReplayWorkflowRunsRequest,
   WorkflowRunOrderByDirection,
   WorkflowRunOrderByField,
   WorkflowRunStatus,
@@ -25,7 +26,11 @@ import {
   ToolbarType,
 } from '@/components/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/ui/button';
-import { ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowPathIcon,
+  ArrowPathRoundedSquareIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import { WorkflowRunsMetricsView } from './workflow-runs-metrics';
 import queryClient from '@/query-client';
 import { useApiError } from '@/lib/hooks';
@@ -243,6 +248,22 @@ export function WorkflowRunsTable({
     onError: handleApiError,
   });
 
+  const replayWorkflowRunsMutation = useMutation({
+    mutationKey: ['workflow-run:update:replay', tenant.metadata.id],
+    mutationFn: async (data: ReplayWorkflowRunsRequest) => {
+      await api.workflowRunUpdateReplay(tenant.metadata.id, data);
+    },
+    onSuccess: () => {
+      setRowSelection({});
+
+      // bit hacky, but workflow run statuses aren't updated immediately after replay
+      setTimeout(() => {
+        listWorkflowRunsQuery.refetch();
+      }, 1000);
+    },
+    onError: handleApiError,
+  });
+
   const workflowKeyFilters = useMemo((): FilterOption[] => {
     return (
       workflowKeys?.rows?.map((key) => ({
@@ -316,7 +337,23 @@ export function WorkflowRunsTable({
       aria-label="Cancel Selected Runs"
     >
       <XMarkIcon className={`mr-2 h-4 w-4 transition-transform`} />
-      Cancel Selected Runs
+      Cancel
+    </Button>,
+    <Button
+      disabled={!Object.values(rowSelection).some((selected) => !!selected)}
+      key="replay"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        replayWorkflowRunsMutation.mutate({
+          workflowRunIds: selectedRuns.map((run) => run.metadata.id),
+        });
+      }}
+      variant={'outline'}
+      aria-label="Replay Selected Runs"
+    >
+      <ArrowPathRoundedSquareIcon className="mr-2 h-4 w-4 transition-transform" />
+      Replay
     </Button>,
     <Button
       key="refresh"

@@ -113,6 +113,23 @@ export default function ExpandedWorkflowRun() {
     onError: handleApiError,
   });
 
+  const replayWorkflowRunsMutation = useMutation({
+    mutationKey: ['workflow-run:update:replay', tenant.metadata.id],
+    mutationFn: async () => {
+      if (!runQuery.data) {
+        return;
+      }
+
+      await api.workflowRunUpdateReplay(tenant.metadata.id, {
+        workflowRunIds: [runQuery.data?.metadata.id],
+      });
+    },
+    onSuccess: () => {
+      runQuery.refetch();
+    },
+    onError: handleApiError,
+  });
+
   if (runQuery.isLoading || !runQuery.data) {
     return <Loading />;
   }
@@ -167,6 +184,16 @@ export default function ExpandedWorkflowRun() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
+                <DropdownMenuItem
+                  disabled={
+                    !WORKFLOW_RUN_TERMINAL_STATUSES.includes(run.status)
+                  }
+                  onClick={() => {
+                    replayWorkflowRunsMutation.mutate();
+                  }}
+                >
+                  Replay workflow
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={WORKFLOW_RUN_TERMINAL_STATUSES.includes(run.status)}
                   onClick={() => {

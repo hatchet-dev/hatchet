@@ -5,6 +5,31 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 )
 
+type ReplayWorkflowRunTaskPayload struct {
+	WorkflowRunId string `json:"workflow_run_id" validate:"required,uuid"`
+}
+
+type ReplayWorkflowRunTaskMetadata struct {
+	TenantId string `json:"tenant_id" validate:"required,uuid"`
+}
+
+func WorkflowRunReplayToTask(tenantId, workflowRunId string) *msgqueue.Message {
+	payload, _ := datautils.ToJSONMap(ReplayWorkflowRunTaskPayload{
+		WorkflowRunId: workflowRunId,
+	})
+
+	metadata, _ := datautils.ToJSONMap(ReplayWorkflowRunTaskMetadata{
+		TenantId: tenantId,
+	})
+
+	return &msgqueue.Message{
+		ID:       "replay-workflow-run",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	}
+}
+
 type WorkflowRunQueuedTaskPayload struct {
 	WorkflowRunId string `json:"workflow_run_id" validate:"required,uuid"`
 }

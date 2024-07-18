@@ -487,6 +487,16 @@ type ReplayEventRequest struct {
 	EventIds []openapi_types.UUID `json:"eventIds"`
 }
 
+// ReplayWorkflowRunsRequest defines model for ReplayWorkflowRunsRequest.
+type ReplayWorkflowRunsRequest struct {
+	WorkflowRunIds []openapi_types.UUID `json:"workflowRunIds"`
+}
+
+// ReplayWorkflowRunsResponse defines model for ReplayWorkflowRunsResponse.
+type ReplayWorkflowRunsResponse struct {
+	WorkflowRuns []WorkflowRun `json:"workflowRuns"`
+}
+
 // RerunStepRunRequest defines model for RerunStepRunRequest.
 type RerunStepRunRequest struct {
 	Input map[string]interface{} `json:"input"`
@@ -1317,6 +1327,9 @@ type StepRunUpdateRerunJSONRequestBody = RerunStepRunRequest
 // WebhookCreateJSONRequestBody defines body for WebhookCreate for application/json ContentType.
 type WebhookCreateJSONRequestBody = WebhookWorkerCreateRequest
 
+// WorkflowRunUpdateReplayJSONRequestBody defines body for WorkflowRunUpdateReplay for application/json ContentType.
+type WorkflowRunUpdateReplayJSONRequestBody = ReplayWorkflowRunsRequest
+
 // WorkflowRunCancelJSONRequestBody defines body for WorkflowRunCancel for application/json ContentType.
 type WorkflowRunCancelJSONRequestBody = WorkflowRunsCancelRequest
 
@@ -1572,6 +1585,11 @@ type ClientInterface interface {
 
 	// WorkerList request
 	WorkerList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowRunUpdateReplayWithBody request with any body
+	WorkflowRunUpdateReplayWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WorkflowRunUpdateReplay(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunGet request
 	WorkflowRunGet(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2348,6 +2366,30 @@ func (c *Client) WebhookCreate(ctx context.Context, tenant openapi_types.UUID, b
 
 func (c *Client) WorkerList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkerListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowRunUpdateReplayWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunUpdateReplayRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowRunUpdateReplay(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunUpdateReplayRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4856,6 +4898,53 @@ func NewWorkerListRequest(server string, tenant openapi_types.UUID) (*http.Reque
 	return req, nil
 }
 
+// NewWorkflowRunUpdateReplayRequest calls the generic WorkflowRunUpdateReplay builder with application/json body
+func NewWorkflowRunUpdateReplayRequest(server string, tenant openapi_types.UUID, body WorkflowRunUpdateReplayJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWorkflowRunUpdateReplayRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewWorkflowRunUpdateReplayRequestWithBody generates requests for WorkflowRunUpdateReplay with any type of body
+func NewWorkflowRunUpdateReplayRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflow-runs/replay", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewWorkflowRunGetRequest generates requests for WorkflowRunGet
 func NewWorkflowRunGetRequest(server string, tenant openapi_types.UUID, workflowRun openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -6379,6 +6468,11 @@ type ClientWithResponsesInterface interface {
 	// WorkerListWithResponse request
 	WorkerListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerListResponse, error)
 
+	// WorkflowRunUpdateReplayWithBodyWithResponse request with any body
+	WorkflowRunUpdateReplayWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunUpdateReplayResponse, error)
+
+	WorkflowRunUpdateReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowRunUpdateReplayResponse, error)
+
 	// WorkflowRunGetWithResponse request
 	WorkflowRunGetWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowRunGetResponse, error)
 
@@ -7557,6 +7651,31 @@ func (r WorkerListResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowRunUpdateReplayResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ReplayWorkflowRunsResponse
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON429      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowRunUpdateReplayResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowRunUpdateReplayResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowRunGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -8723,6 +8842,23 @@ func (c *ClientWithResponses) WorkerListWithResponse(ctx context.Context, tenant
 		return nil, err
 	}
 	return ParseWorkerListResponse(rsp)
+}
+
+// WorkflowRunUpdateReplayWithBodyWithResponse request with arbitrary body returning *WorkflowRunUpdateReplayResponse
+func (c *ClientWithResponses) WorkflowRunUpdateReplayWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunUpdateReplayResponse, error) {
+	rsp, err := c.WorkflowRunUpdateReplayWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowRunUpdateReplayResponse(rsp)
+}
+
+func (c *ClientWithResponses) WorkflowRunUpdateReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowRunUpdateReplayResponse, error) {
+	rsp, err := c.WorkflowRunUpdateReplay(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowRunUpdateReplayResponse(rsp)
 }
 
 // WorkflowRunGetWithResponse request returning *WorkflowRunGetResponse
@@ -10805,6 +10941,53 @@ func ParseWorkerListResponse(rsp *http.Response) (*WorkerListResponse, error) {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowRunUpdateReplayResponse parses an HTTP response from a WorkflowRunUpdateReplayWithResponse call
+func ParseWorkflowRunUpdateReplayResponse(rsp *http.Response) (*WorkflowRunUpdateReplayResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowRunUpdateReplayResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ReplayWorkflowRunsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 

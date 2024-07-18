@@ -639,6 +639,15 @@ export interface WorkflowRun {
   additionalMetadata?: Record<string, any>;
 }
 
+export interface ReplayWorkflowRunsRequest {
+  /** @maxLength 500 */
+  workflowRunIds: string[];
+}
+
+export interface ReplayWorkflowRunsResponse {
+  workflowRuns: WorkflowRun[];
+}
+
 export interface WorkflowRunList {
   rows?: WorkflowRun[];
   pagination?: PaginationResponse;

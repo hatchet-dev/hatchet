@@ -750,3 +750,21 @@ SELECT
     q."concurrencyGroupId"
 FROM QueuedRuns q
 GROUP BY q."workflowVersionId", q."tenantId", q."concurrencyGroupId", q."status", q."id";
+
+-- name: ReplayWorkflowRunResetJobRun :one
+UPDATE
+    "JobRun"
+SET
+    -- We set this to pending so that the entire workflow starts fresh, and we
+    -- don't accidentally trigger on failure jobs
+    "status" = 'PENDING',
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "startedAt" = NULL,
+    "finishedAt" = NULL,
+    "timeoutAt" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "cancelledError" = NULL
+WHERE
+    "id" = @jobRunId::uuid
+RETURNING *;
