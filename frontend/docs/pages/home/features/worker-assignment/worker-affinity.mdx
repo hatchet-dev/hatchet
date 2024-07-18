@@ -14,7 +14,18 @@ Specific steps can then specify desired label state to ensure that workflows are
 
 Labels can be set on workers when they are registered with the Hatchet service. Labels are key-value pairs that can be used to specify worker capabilities, resource availability, or other criteria that can be used to match workflows to workers. Values can be strings or numbers, and multiple labels can be set on a worker.
 
-<Tabs items={['Typescript', 'Python', 'Golang']}>
+<Tabs items={['Python', 'Typescript', 'Golang']}>
+  <Tabs.Tab>
+```python
+worker = hatchet.worker(
+    "affinity-worker",
+    labels={
+        "model": "fancy-ai-model-v2",
+        "memory": 512,
+    },
+)
+```
+  </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
   const worker = await hatchet.worker('affinity-worker', {
@@ -23,11 +34,6 @@ Labels can be set on workers when they are registered with the Hatchet service. 
       memory: 512,
     },
   });
-```
-  </Tabs.Tab>
-  <Tabs.Tab>
-```python
-# TODO add python example
 ```
   </Tabs.Tab>
   <Tabs.Tab>
@@ -53,6 +59,25 @@ You can specify desired worker label state for specific steps in a workflow by s
 - `weight` (optional, default: `100`): The weight of the label. Higher weights are prioritized over lower weights when selecting a worker for the step. If multiple workers have the same highest weight, the worker with the highest sum of weights will be selected. Ignored if `required` is `true`.
 
 <Tabs items={['Typescript', 'Python', 'Golang']}>
+  <Tabs.Tab>
+```python
+@hatchet.step(
+    desired_worker_labels={
+        "model": {
+            "value": "fancy-ai-model-v2",
+            "weight": 10
+        },
+        "memory": {
+            "value": 256,
+            "required": True,
+            "comparator": WorkerLabelComparator.GREATER_THAN,
+        }
+    },
+)
+async def step(self, context: Context):
+    return {"worker": context.worker.id()}
+```
+  </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
 const affinity: Workflow = {
@@ -81,11 +106,6 @@ const affinity: Workflow = {
 ```
   </Tabs.Tab>
   <Tabs.Tab>
-```python
-# TODO add python example
-```
-  </Tabs.Tab>
-  <Tabs.Tab>
 ```go
 // TODO go example
 ```
@@ -104,7 +124,12 @@ const affinity: Workflow = {
 
 Labels can also be set dynamically on workers using the `upsertLabels` method. This can be useful when worker state changes over time, such as when a new model is loaded into memory or when a worker's resource availability changes.
 
-<Tabs items={['Typescript', 'Python', 'Golang']}>
+<Tabs items={['Python', 'Typescript', 'Golang']}>
+  <Tabs.Tab>
+```python
+# TODO add python example
+```
+  </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
   const affinity: Workflow = {
@@ -132,11 +157,6 @@ Labels can also be set dynamically on workers using the `upsertLabels` method. T
       },
     ],
   };
-```
-  </Tabs.Tab>
-  <Tabs.Tab>
-```python
-# TODO add python example
 ```
   </Tabs.Tab>
   <Tabs.Tab>
