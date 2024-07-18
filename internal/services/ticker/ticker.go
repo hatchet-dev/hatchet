@@ -9,12 +9,15 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 type Ticker interface {
@@ -37,6 +40,8 @@ type TickerImpl struct {
 	dv datautils.DataDecoderValidator
 
 	tickerId string
+
+	partitionId string
 }
 
 type TickerOpt func(*TickerOpts)
@@ -51,6 +56,8 @@ type TickerOpts struct {
 	ta           *alerting.TenantAlertManager
 
 	dv datautils.DataDecoderValidator
+
+	partitionId string
 }
 
 func defaultTickerOpts() *TickerOpts {
@@ -92,6 +99,12 @@ func WithTenantAlerter(ta *alerting.TenantAlertManager) TickerOpt {
 	}
 }
 
+func WithPartitionId(pid string) TickerOpt {
+	return func(opts *TickerOpts) {
+		opts.partitionId = pid
+	}
+}
+
 func New(fs ...TickerOpt) (*TickerImpl, error) {
 	opts := defaultTickerOpts()
 
@@ -113,6 +126,10 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 
 	if opts.ta == nil {
 		return nil, fmt.Errorf("tenant alerter is required. use WithTenantAlerter")
+	}
+
+	if opts.partitionId == "" {
+		return nil, fmt.Errorf("partition id is required. use WithPartitionId")
 	}
 
 	newLogger := opts.l.With().Str("service", "ticker").Logger()
@@ -350,21 +367,61 @@ func (t *TickerImpl) runStreamEventCleanup(ctx context.Context) func() {
 	}
 }
 
+func (t *TickerImpl) runWorkerSemaphoreSlotResolverTenant(ctx context.Context, tenant *dbsqlc.Tenant) error {
+	tenantId := tenant.ID
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	tenantIdStr := sqlchelpers.UUIDToStr(tenantId)
+
+	t.l.Debug().Msgf("ticker: resolving orphaned worker semaphore slots for tenant %s", tenantIdStr)
+
+	n, err := t.repo.Worker().ResolveWorkerSemaphoreSlots(ctx, tenantId)
+
+	if n.HasResolved {
+		t.l.Warn().Msgf("resolved orphaned worker semaphore slots for tenant %s", tenantIdStr)
+	}
+
+	if err != nil {
+		t.l.Err(err).Msgf("could not resolve orphaned worker semaphore slots for tenant %s", tenantIdStr)
+	}
+
+	if !n.HasResolved {
+		t.l.Debug().Msgf("no orphaned worker semaphore slots for tenant %s", tenantIdStr)
+	}
+
+	return nil
+}
+
 func (t *TickerImpl) runWorkerSemaphoreSlotResolver(ctx context.Context) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		// we set requeueAfter to 4 seconds in the future to avoid requeuing the same step run multiple times
+		ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
 
 		t.l.Debug().Msgf("ticker: resolving orphaned worker semaphore slots")
 
-		n, err := t.repo.Worker().ResolveWorkerSemaphoreSlots(ctx)
-
-		if n > 0 {
-			t.l.Warn().Msgf("resolved %d orphaned worker semaphore slots", n)
-		}
+		// list all tenants
+		tenants, err := t.repo.Tenant().ListTenantsByControllerPartition(ctx, t.partitionId)
 
 		if err != nil {
-			t.l.Err(err).Msg("could ")
+			t.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		g := new(errgroup.Group)
+
+		for i := range tenants {
+			g.Go(func() error {
+				return t.runWorkerSemaphoreSlotResolverTenant(ctx, tenants[i])
+			})
+		}
+
+		err = g.Wait()
+
+		if err != nil {
+			t.l.Err(err).Msg("could not run worker semaphore slot resolver")
 		}
 	}
 }

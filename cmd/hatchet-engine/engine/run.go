@@ -132,29 +132,6 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
-	if sc.HasService("ticker") {
-		t, err := ticker.New(
-			ticker.WithMessageQueue(sc.MessageQueue),
-			ticker.WithRepository(sc.EngineRepository),
-			ticker.WithLogger(sc.Logger),
-			ticker.WithTenantAlerter(sc.TenantAlerter),
-			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create ticker: %w", err)
-		}
-
-		cleanup, err := t.Start()
-		if err != nil {
-			return nil, fmt.Errorf("could not start ticker: %w", err)
-		}
-		teardown = append(teardown, Teardown{
-			Name: "ticker",
-			Fn:   cleanup,
-		})
-	}
-
 	if sc.HasService("eventscontroller") {
 		ec, err := events.New(
 			events.WithMessageQueue(sc.MessageQueue),
@@ -178,7 +155,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 
 	// FIXME: jobscontroller and workflowscontroller are deprecated service names, but there's not a clear upgrade
 	// path for old config files.
-	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
+	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") || sc.HasService("ticker") {
 		partitionTeardown, partitionId, err := p.withControllers(ctx)
 
 		if err != nil {
@@ -186,6 +163,30 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		}
 
 		teardown = append(teardown, *partitionTeardown)
+
+		if sc.HasService("ticker") {
+			t, err := ticker.New(
+				ticker.WithMessageQueue(sc.MessageQueue),
+				ticker.WithRepository(sc.EngineRepository),
+				ticker.WithLogger(sc.Logger),
+				ticker.WithTenantAlerter(sc.TenantAlerter),
+				ticker.WithEntitlementsRepository(sc.EntitlementRepository),
+				ticker.WithPartitionId(partitionId),
+			)
+
+			if err != nil {
+				return nil, fmt.Errorf("could not create ticker: %w", err)
+			}
+
+			cleanup, err := t.Start()
+			if err != nil {
+				return nil, fmt.Errorf("could not start ticker: %w", err)
+			}
+			teardown = append(teardown, Teardown{
+				Name: "ticker",
+				Fn:   cleanup,
+			})
+		}
 
 		jc, err := jobs.New(
 			jobs.WithAlerter(sc.Alerter),
