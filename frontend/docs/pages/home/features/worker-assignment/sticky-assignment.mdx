@@ -86,7 +86,25 @@ If either condition is not met, an error will be thrown when the child workflow 
 <Tabs items={['Python', 'Typescript', 'Golang']}>
   <Tabs.Tab>
 ```python
-# TODO add python example
+@hatchet.workflow(
+    on_events=["sticky:parent"],
+)
+class StickyWorkflow:
+    @hatchet.step(parents=["step1a", "step1b"])
+    async def parent_step(self, context: Context):
+        ref = context.spawn_workflow('StickyChildWorkflow', {}, options={"sticky": True})
+        await ref.result()
+        return {"worker": context.worker.id()}
+
+@hatchet.workflow(
+  on_events=["sticky:child"],
+  sticky=StickyStrategy.SOFT
+)
+class StickyChildWorkflow:
+  @hatchet.step()
+  def child(self, context: Context):
+    return {"worker": context.worker.id()}
+
 ````
   </Tabs.Tab>
   <Tabs.Tab>
@@ -115,6 +133,7 @@ const parentWorkflow: Workflow = {
 };
 
 ````
+
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
@@ -122,4 +141,3 @@ const parentWorkflow: Workflow = {
 ```
   </Tabs.Tab>
 </Tabs>
-````
