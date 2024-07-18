@@ -1098,6 +1098,49 @@ func (q *Queries) PopWorkflowRunsRoundRobin(ctx context.Context, db DBTX, arg Po
 	return items, nil
 }
 
+const replayWorkflowRunResetJobRun = `-- name: ReplayWorkflowRunResetJobRun :one
+UPDATE
+    "JobRun"
+SET
+    -- We set this to pending so that the entire workflow starts fresh, and we
+    -- don't accidentally trigger on failure jobs
+    "status" = 'PENDING',
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "startedAt" = NULL,
+    "finishedAt" = NULL,
+    "timeoutAt" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "cancelledError" = NULL
+WHERE
+    "id" = $1::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobId", "tickerId", status, result, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId"
+`
+
+func (q *Queries) ReplayWorkflowRunResetJobRun(ctx context.Context, db DBTX, jobrunid pgtype.UUID) (*JobRun, error) {
+	row := db.QueryRow(ctx, replayWorkflowRunResetJobRun, jobrunid)
+	var i JobRun
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.JobId,
+		&i.TickerId,
+		&i.Status,
+		&i.Result,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.TimeoutAt,
+		&i.CancelledAt,
+		&i.CancelledReason,
+		&i.CancelledError,
+		&i.WorkflowRunId,
+	)
+	return &i, err
+}
+
 const resolveWorkflowRunStatus = `-- name: ResolveWorkflowRunStatus :one
 WITH jobRuns AS (
     SELECT sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,

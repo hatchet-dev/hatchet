@@ -25,7 +25,7 @@ replayWorkflowRuns:
         content:
           application/json:
             schema:
-              $ref: "../../components/schemas/_index.yaml#/WorkflowRunList"
+              $ref: "../../components/schemas/_index.yaml#/ReplayWorkflowRunsResponse"
         description: Successfully replayed the workflow runs
       "400":
         content:

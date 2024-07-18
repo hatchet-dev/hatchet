@@ -302,7 +302,7 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 		}
 
 		for _, jobRun := range jobRuns {
-			_, err = s.queries.ReplayStepRunResetJobRun(ctx, tx, jobRun.ID)
+			_, err = s.queries.ReplayWorkflowRunResetJobRun(ctx, tx, jobRun.ID)
 
 			if err != nil {
 				return fmt.Errorf("error resetting job run: %w", err)

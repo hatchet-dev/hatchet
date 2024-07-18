@@ -1,8 +1,6 @@
 package workflowruns
 
 import (
-	"math"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/labstack/echo/v4"
 
@@ -71,23 +69,9 @@ func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request 
 		rows[i] = *transformers.ToWorkflowRunFromSQLC(workflowCp)
 	}
 
-	// use the total rows and limit to calculate the total pages
-	totalPages := int64(math.Ceil(float64(newWorkflowRuns.Count) / float64(limit)))
-	currPage := 1 + int64(math.Ceil(float64(0)/float64(limit)))
-	nextPage := currPage + 1
-
-	if currPage == totalPages {
-		nextPage = currPage
-	}
-
 	return gen.WorkflowRunUpdateReplay200JSONResponse(
-		gen.WorkflowRunList{
-			Rows: &rows,
-			Pagination: &gen.PaginationResponse{
-				NumPages:    &totalPages,
-				CurrentPage: &currPage,
-				NextPage:    &nextPage,
-			},
+		gen.ReplayWorkflowRunsResponse{
+			WorkflowRuns: rows,
 		},
 	), nil
 }

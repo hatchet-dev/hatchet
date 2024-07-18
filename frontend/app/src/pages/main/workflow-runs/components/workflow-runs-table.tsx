@@ -255,7 +255,11 @@ export function WorkflowRunsTable({
     },
     onSuccess: () => {
       setRowSelection({});
-      listWorkflowRunsQuery.refetch();
+
+      // bit hacky, but workflow run statuses aren't updated immediately after replay
+      setTimeout(() => {
+        listWorkflowRunsQuery.refetch();
+      }, 1000);
     },
     onError: handleApiError,
   });

@@ -16,6 +16,7 @@ ReplayWorkflowRunsRequest:
   properties:
     workflowRunIds:
       type: array
+      maxLength: 500
       items:
         type: string
         example: bb214807-246e-43a5-a25d-41761d1cff9e
@@ -24,6 +25,15 @@ ReplayWorkflowRunsRequest:
         format: uuid
   required:
     - workflowRunIds
+
+ReplayWorkflowRunsResponse:
+  properties:
+    workflowRuns:
+      type: array
+      items:
+        $ref: "#/WorkflowRun"
+  required:
+    - workflowRuns
 
 WorkflowRun:
   type: object

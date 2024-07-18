@@ -640,7 +640,12 @@ export interface WorkflowRun {
 }
 
 export interface ReplayWorkflowRunsRequest {
+  /** @maxLength 500 */
   workflowRunIds: string[];
+}
+
+export interface ReplayWorkflowRunsResponse {
+  workflowRuns: WorkflowRun[];
 }
 
 export interface WorkflowRunList {

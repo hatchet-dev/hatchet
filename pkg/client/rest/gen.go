@@ -492,6 +492,11 @@ type ReplayWorkflowRunsRequest struct {
 	WorkflowRunIds []openapi_types.UUID `json:"workflowRunIds"`
 }
 
+// ReplayWorkflowRunsResponse defines model for ReplayWorkflowRunsResponse.
+type ReplayWorkflowRunsResponse struct {
+	WorkflowRuns []WorkflowRun `json:"workflowRuns"`
+}
+
 // RerunStepRunRequest defines model for RerunStepRunRequest.
 type RerunStepRunRequest struct {
 	Input map[string]interface{} `json:"input"`
@@ -7649,7 +7654,7 @@ func (r WorkerListResponse) StatusCode() int {
 type WorkflowRunUpdateReplayResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *WorkflowRunList
+	JSON200      *ReplayWorkflowRunsResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON429      *APIErrors
@@ -10957,7 +10962,7 @@ func ParseWorkflowRunUpdateReplayResponse(rsp *http.Response) (*WorkflowRunUpdat
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest WorkflowRunList
+		var dest ReplayWorkflowRunsResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

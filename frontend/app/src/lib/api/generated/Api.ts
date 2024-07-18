@@ -41,6 +41,7 @@ import {
   RejectInviteRequest,
   ReplayEventRequest,
   ReplayWorkflowRunsRequest,
+  ReplayWorkflowRunsResponse,
   RerunStepRunRequest,
   SNSIntegration,
   StepRun,
@@ -1351,7 +1352,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   workflowRunUpdateReplay = (tenant: string, data: ReplayWorkflowRunsRequest, params: RequestParams = {}) =>
-    this.request<WorkflowRunList, APIErrors>({
+    this.request<ReplayWorkflowRunsResponse, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflow-runs/replay`,
       method: 'POST',
       body: data,
