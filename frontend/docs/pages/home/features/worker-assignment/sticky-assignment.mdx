@@ -8,6 +8,10 @@ import { Tabs, Callout } from "nextra/components";
 
 Sticky assignment is a workflow property that allows you to specify that all steps of a workflow should be assigned to the same worker for the duration of its execution. This can be useful in situations like when you need to maintain expensive local memory state across multiple steps in a workflow or ensure that certain workflows are processed by the same worker for consistency.
 
+<Callout type="warn">
+  This feature is only compatible with long lived workers, and not webhook workers.
+</Callout>
+
 ## Setting Sticky Assignment
 
 Sticky assignment is set on the workflow level by adding the `sticky` property to the workflow definition. When a workflow is marked as sticky, all steps within that workflow will be assigned to the same worker for the duration of the workflow execution.
