@@ -370,28 +370,39 @@ func (t *TickerImpl) runStreamEventCleanup(ctx context.Context) func() {
 func (t *TickerImpl) runWorkerSemaphoreSlotResolverTenant(ctx context.Context, tenant *dbsqlc.Tenant) error {
 	tenantId := tenant.ID
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
 	tenantIdStr := sqlchelpers.UUIDToStr(tenantId)
 
 	t.l.Debug().Msgf("ticker: resolving orphaned worker semaphore slots for tenant %s", tenantIdStr)
 
-	n, err := t.repo.Worker().ResolveWorkerSemaphoreSlots(ctx, tenantId)
+	// keep resolving until the context is done
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
 
-	if n.HasResolved {
-		t.l.Warn().Msgf("resolved orphaned worker semaphore slots for tenant %s", tenantIdStr)
+		n, err := t.repo.Worker().ResolveWorkerSemaphoreSlots(ctx, tenantId)
+
+		if n.HasResolved {
+			t.l.Warn().Msgf("resolved orphaned worker semaphore slots for tenant %s", tenantIdStr)
+		}
+
+		if err != nil {
+			t.l.Err(err).Msgf("could not resolve orphaned worker semaphore slots for tenant %s", tenantIdStr)
+		}
+
+		if !n.HasResolved {
+			t.l.Debug().Msgf("no orphaned worker semaphore slots for tenant %s", tenantIdStr)
+		}
+
+		if !n.HasMore {
+			return nil
+		}
 	}
-
-	if err != nil {
-		t.l.Err(err).Msgf("could not resolve orphaned worker semaphore slots for tenant %s", tenantIdStr)
-	}
-
-	if !n.HasResolved {
-		t.l.Debug().Msgf("no orphaned worker semaphore slots for tenant %s", tenantIdStr)
-	}
-
-	return nil
 }
 
 func (t *TickerImpl) runWorkerSemaphoreSlotResolver(ctx context.Context) func() {
