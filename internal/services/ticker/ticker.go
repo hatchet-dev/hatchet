@@ -150,6 +150,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		dv:           opts.dv,
 		tickerId:     opts.tickerId,
 		ta:           opts.ta,
+		partitionId:  opts.partitionId,
 	}, nil
 }
 
