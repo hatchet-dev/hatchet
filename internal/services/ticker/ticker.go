@@ -370,9 +370,6 @@ func (t *TickerImpl) runStreamEventCleanup(ctx context.Context) func() {
 func (t *TickerImpl) runWorkerSemaphoreSlotResolverTenant(ctx context.Context, tenant *dbsqlc.Tenant) error {
 	tenantId := tenant.ID
 
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-
 	tenantIdStr := sqlchelpers.UUIDToStr(tenantId)
 
 	t.l.Debug().Msgf("ticker: resolving orphaned worker semaphore slots for tenant %s", tenantIdStr)
@@ -387,16 +384,13 @@ func (t *TickerImpl) runWorkerSemaphoreSlotResolverTenant(ctx context.Context, t
 
 		n, err := t.repo.Worker().ResolveWorkerSemaphoreSlots(ctx, tenantId)
 
-		if n.HasResolved {
-			t.l.Warn().Msgf("resolved orphaned worker semaphore slots for tenant %s", tenantIdStr)
-		}
-
 		if err != nil {
 			t.l.Err(err).Msgf("could not resolve orphaned worker semaphore slots for tenant %s", tenantIdStr)
+			return err
 		}
 
-		if !n.HasResolved {
-			t.l.Debug().Msgf("no orphaned worker semaphore slots for tenant %s", tenantIdStr)
+		if n.HasResolved {
+			t.l.Warn().Msgf("resolved orphaned worker semaphore slots for tenant %s", tenantIdStr)
 		}
 
 		if !n.HasMore {
@@ -407,8 +401,7 @@ func (t *TickerImpl) runWorkerSemaphoreSlotResolverTenant(ctx context.Context, t
 
 func (t *TickerImpl) runWorkerSemaphoreSlotResolver(ctx context.Context) func() {
 	return func() {
-		// we set requeueAfter to 4 seconds in the future to avoid requeuing the same step run multiple times
-		ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
 
 		t.l.Debug().Msgf("ticker: resolving orphaned worker semaphore slots")
