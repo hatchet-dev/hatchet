@@ -191,9 +191,7 @@ func (t *MessageQueueImpl) Subscribe(
 func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) error {
 	// create a new fanout exchange for the tenant
 
-	// TODO!!
 	tID := "queue_" + strings.ReplaceAll(tenantId, "-", "_")
-	log.Printf("registering tenant queue %s / %s", tenantId, tID)
 
 	if _, ok := t.channels[tID]; !ok {
 		t.channels[tID] = make(chan *pq.Notification, 9999999)
@@ -230,13 +228,8 @@ func (t *MessageQueueImpl) initQueue(q msgqueue.Queue) (string, error) {
 	// if the queue has a subscriber key, bind it to the fanout exchange
 	if q.FanoutExchangeKey() != "" {
 		t.l.Debug().Msgf("binding queue: %s to exchange: %s", name, q.FanoutExchangeKey())
-
-		log.Printf("binding queue: %s to exchange: %s", name, q.FanoutExchangeKey())
-		// TODO
 		panic("unimplemented")
 	}
-
-	log.Printf("listening to queue: %s", name)
 
 	if _, ok := t.channels[name]; !ok {
 		t.channels[name] = make(chan *pq.Notification, 9999999)
@@ -322,11 +315,8 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 					// if this is a tenant msg, publish to the tenant exchange
 					if msg.TenantID() != "" {
-						log.Printf("ALSO PUBLISHING TO TENANT EXCHANGE: %s", msg.TenantID())
-
 						// determine if the tenant exchange exists
 						if _, ok := t.tenantIdCache.Get(msg.TenantID()); !ok {
-							log.Printf("registering tenant exchange: %s", msg.TenantID())
 							// register the tenant exchange
 							err = t.RegisterTenant(ctx, msg.TenantID())
 
@@ -382,14 +372,13 @@ func (t *MessageQueueImpl) subscribe(
 				return
 			case msg, ok := <-t.channels[name]:
 				if !ok {
-					log.Printf("channel %s not found", name)
+					t.l.Warn().Msgf("channel %s not found", name)
 					continue
 				}
 				if msg.Channel != name {
-					log.Printf("declined - received message! %s vs name %s with payload %s", msg.Channel, name, msg.Extra)
+					t.l.Warn().Msgf("received unamtched message! %s vs name %s with payload %s", msg.Channel, name, msg.Extra)
 					continue
 				}
-				log.Printf("accepted - received message! %s vs name %s with payload %s", msg.Channel, name, msg.Extra)
 
 				wg.Add(1)
 
