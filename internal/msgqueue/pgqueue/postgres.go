@@ -196,7 +196,7 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 	log.Printf("registering tenant queue %s / %s", tenantId, tID)
 
 	if _, ok := t.channels[tID]; !ok {
-		t.channels[tID] = make(chan *pq.Notification)
+		t.channels[tID] = make(chan *pq.Notification, 9999999)
 	}
 
 	if err := t.listener.Listen(tID); err != nil && !errors.Is(err, pq.ErrChannelAlreadyOpen) {
@@ -239,7 +239,7 @@ func (t *MessageQueueImpl) initQueue(q msgqueue.Queue) (string, error) {
 	log.Printf("listening to queue: %s", name)
 
 	if _, ok := t.channels[name]; !ok {
-		t.channels[name] = make(chan *pq.Notification)
+		t.channels[name] = make(chan *pq.Notification, 9999999)
 	}
 
 	if err := t.listener.Listen(name); err != nil && !errors.Is(err, pq.ErrChannelAlreadyOpen) {
