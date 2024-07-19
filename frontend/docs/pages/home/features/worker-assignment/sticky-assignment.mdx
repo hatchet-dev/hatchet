@@ -9,7 +9,8 @@ import { Tabs, Callout } from "nextra/components";
 Sticky assignment is a workflow property that allows you to specify that all steps of a workflow should be assigned to the same worker for the duration of its execution. This can be useful in situations like when you need to maintain expensive local memory state across multiple steps in a workflow or ensure that certain workflows are processed by the same worker for consistency.
 
 <Callout type="warn">
-  This feature is only compatible with long lived workers, and not webhook workers.
+  This feature is only compatible with long lived workers, and not webhook
+  workers.
 </Callout>
 
 ## Setting Sticky Assignment
@@ -99,15 +100,16 @@ class StickyWorkflow:
         ref = context.spawn_workflow('StickyChildWorkflow', {}, options={"sticky": True})
         await ref.result()
         return {"worker": context.worker.id()}
-
+````
+```python
 @hatchet.workflow(
-  on_events=["sticky:child"],
-  sticky=StickyStrategy.SOFT
+on_events=["sticky:child"],
+sticky=StickyStrategy.SOFT
 )
 class StickyChildWorkflow:
-  @hatchet.step()
-  def child(self, context: Context):
-    return {"worker": context.worker.id()}
+@hatchet.step()
+def child(self, context: Context):
+return {"worker": context.worker.id()}
 
 ````
   </Tabs.Tab>
