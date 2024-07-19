@@ -127,7 +127,26 @@ Labels can also be set dynamically on workers using the `upsertLabels` method. T
 <Tabs items={['Python', 'Typescript', 'Golang']}>
   <Tabs.Tab>
 ```python
-# TODO add python example
+    @hatchet.step(
+        desired_worker_labels={
+            "model": {"value": "fancy-vision-model", "weight": 10},
+            "memory": {
+                "value": 256,
+                "required": True,
+                "comparator": WorkerLabelComparator.GREATER_THAN,
+            },
+        },
+    )
+    async def step(self, context: Context):
+        if context.worker.get_labels().get("model") != "fancy-vision-model":
+            context.worker.upsert_labels({"model": "unset"})
+            # DO WORK TO EVICT OLD MODEL / LOAD NEW MODEL
+            evictModel()
+            loadNewModel("fancy-vision-model")
+            context.worker.upsert_labels({"model": "fancy-vision-model"})
+
+        return {"worker": context.worker.id()}
+
 ```
   </Tabs.Tab>
   <Tabs.Tab>
@@ -146,9 +165,9 @@ Labels can also be set dynamically on workers using the `upsertLabels` method. T
         },
         run: async (ctx) => {
           if (ctx.worker.labels().model !== 'fancy-vision-model') {
-            await evictModel();
             await ctx.worker.upsertLabels({ model: undefined });
-            await loadNewModel();
+            await evictModel();
+            await loadNewModel("fancy-vision-model");
             await ctx.worker.upsertLabels({ model: 'fancy-vision-model' });
           }
           // DO WORK
