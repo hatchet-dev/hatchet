@@ -85,12 +85,36 @@ WHERE
     "id" = @id::uuid
 RETURNING *;
 
--- name: ResolveWorkerSemaphoreSlots :execrows
-UPDATE "WorkerSemaphoreSlot" wss
-SET "stepRunId" = null
-FROM "StepRun" sr
-WHERE wss."stepRunId" = sr."id"
-    AND sr."status" NOT IN ('RUNNING', 'ASSIGNED');
+-- name: ResolveWorkerSemaphoreSlots :one
+WITH to_count AS (
+    SELECT wss."id"
+    FROM "WorkerSemaphoreSlot" wss
+    JOIN "StepRun" sr ON wss."stepRunId" = sr."id"
+        AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
+        AND sr."tenantId" = @tenantId::uuid
+    ORDER BY RANDOM()
+    LIMIT 1001
+    FOR UPDATE SKIP LOCKED
+),
+to_resolve AS (
+    SELECT * FROM to_count LIMIT 1000
+),
+update_result AS (
+    UPDATE "WorkerSemaphoreSlot" wss
+    SET "stepRunId" = null
+    WHERE wss."id" IN (SELECT "id" FROM to_resolve)
+    RETURNING wss."id"
+)
+SELECT
+	CASE
+		WHEN COUNT(*) > 0 THEN TRUE
+		ELSE FALSE
+	END AS "hasResolved",
+	CASE
+		WHEN COUNT(*) > 1000 THEN TRUE
+		ELSE FALSE
+	END AS "hasMore"
+FROM to_count;
 
 -- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (

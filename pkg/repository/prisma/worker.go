@@ -379,8 +379,8 @@ func (w *workerEngineRepository) UpdateWorkersByName(ctx context.Context, params
 	return err
 }
 
-func (w *workerEngineRepository) ResolveWorkerSemaphoreSlots(ctx context.Context) (int64, error) {
-	return w.queries.ResolveWorkerSemaphoreSlots(ctx, w.pool)
+func (w *workerEngineRepository) ResolveWorkerSemaphoreSlots(ctx context.Context, tenantId pgtype.UUID) (*dbsqlc.ResolveWorkerSemaphoreSlotsRow, error) {
+	return w.queries.ResolveWorkerSemaphoreSlots(ctx, w.pool, tenantId)
 }
 
 func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error) {

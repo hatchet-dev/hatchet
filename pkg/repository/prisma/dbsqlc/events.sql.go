@@ -11,6 +11,53 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearEventPayloadData = `-- name: ClearEventPayloadData :one
+WITH for_delete AS (
+    SELECT
+        e1."id" as "id"
+    FROM "Event" e1
+    WHERE
+        e1."tenantId" = $1::uuid AND
+        e1."deletedAt" IS NOT NULL -- TODO change this for all clear queries
+        AND e1."data" IS NOT NULL
+    LIMIT $2 + 1
+    FOR UPDATE SKIP LOCKED
+), expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT $2
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > $2 THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+)
+UPDATE
+    "Event"
+SET
+    "data" = NULL
+WHERE
+    "id" IN (SELECT "id" FROM expired_with_limit)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more
+`
+
+type ClearEventPayloadDataParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    interface{} `json:"limit"`
+}
+
+func (q *Queries) ClearEventPayloadData(ctx context.Context, db DBTX, arg ClearEventPayloadDataParams) (bool, error) {
+	row := db.QueryRow(ctx, clearEventPayloadData, arg.Tenantid, arg.Limit)
+	var has_more bool
+	err := row.Scan(&has_more)
+	return has_more, err
+}
+
 const countEvents = `-- name: CountEvents :one
 WITH events AS (
     SELECT
@@ -27,6 +74,7 @@ WITH events AS (
         "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
     WHERE
         events."tenantId" = $1 AND
+        events."deletedAt" IS NOT NULL AND
         (
             $2::text[] IS NULL OR
             events."key" = ANY($2::text[])
@@ -148,54 +196,13 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 	return &i, err
 }
 
-const deleteExpiredEvents = `-- name: DeleteExpiredEvents :one
-WITH expired_events_count AS (
-    SELECT COUNT(*) as count
-    FROM "Event" e1
-    WHERE
-        e1."tenantId" = $1::uuid AND
-        e1."createdAt" < $2::timestamp
-), expired_events_with_limit AS (
-    SELECT
-        "id"
-    FROM "Event" e2
-    WHERE
-        e2."tenantId" = $1::uuid AND
-        e2."createdAt" < $2::timestamp
-    ORDER BY "createdAt" ASC
-    LIMIT $3
-)
-DELETE FROM "Event"
-WHERE
-    "id" IN (SELECT "id" FROM expired_events_with_limit)
-RETURNING (SELECT count FROM expired_events_count) as total, (SELECT count FROM expired_events_count) - (SELECT COUNT(*) FROM expired_events_with_limit) as remaining, (SELECT COUNT(*) FROM expired_events_with_limit) as deleted
-`
-
-type DeleteExpiredEventsParams struct {
-	Tenantid      pgtype.UUID      `json:"tenantid"`
-	Createdbefore pgtype.Timestamp `json:"createdbefore"`
-	Limit         int32            `json:"limit"`
-}
-
-type DeleteExpiredEventsRow struct {
-	Total     int64 `json:"total"`
-	Remaining int32 `json:"remaining"`
-	Deleted   int64 `json:"deleted"`
-}
-
-func (q *Queries) DeleteExpiredEvents(ctx context.Context, db DBTX, arg DeleteExpiredEventsParams) (*DeleteExpiredEventsRow, error) {
-	row := db.QueryRow(ctx, deleteExpiredEvents, arg.Tenantid, arg.Createdbefore, arg.Limit)
-	var i DeleteExpiredEventsRow
-	err := row.Scan(&i.Total, &i.Remaining, &i.Deleted)
-	return &i, err
-}
-
 const getEventForEngine = `-- name: GetEventForEngine :one
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
 FROM
     "Event"
 WHERE
+    "deletedAt" IS NOT NULL AND
     "id" = $1::uuid
 `
 
@@ -223,6 +230,7 @@ SELECT
 FROM
     "Event"
 WHERE
+    events."deletedAt" IS NOT NULL AND
     "createdAt" >= NOW() - INTERVAL '1 week'
 GROUP BY
     event_hour
@@ -379,6 +387,7 @@ SELECT
 FROM
     "Event" as events
 WHERE
+    events."deletedAt" IS NOT NULL AND
     "tenantId" = $1::uuid AND
     "id" = ANY ($2::uuid[])
 `
@@ -416,4 +425,52 @@ func (q *Queries) ListEventsByIDs(ctx context.Context, db DBTX, arg ListEventsBy
 		return nil, err
 	}
 	return items, nil
+}
+
+const softDeleteExpiredEvents = `-- name: SoftDeleteExpiredEvents :one
+WITH for_delete AS (
+    SELECT
+        "id"
+    FROM "Event" e
+    WHERE
+        e."tenantId" = $1::uuid AND
+        e."createdAt" < $2::timestamp AND
+        e."deletedAt" IS NULL
+    ORDER BY e."createdAt" ASC
+    LIMIT $3 +1
+    FOR UPDATE SKIP LOCKED
+),expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT $3
+), has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > $3 THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+)
+UPDATE
+    "Event"
+SET
+    "deletedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" IN (SELECT "id" FROM expired_with_limit)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more
+`
+
+type SoftDeleteExpiredEventsParams struct {
+	Tenantid      pgtype.UUID      `json:"tenantid"`
+	Createdbefore pgtype.Timestamp `json:"createdbefore"`
+	Limit         interface{}      `json:"limit"`
+}
+
+func (q *Queries) SoftDeleteExpiredEvents(ctx context.Context, db DBTX, arg SoftDeleteExpiredEventsParams) (bool, error) {
+	row := db.QueryRow(ctx, softDeleteExpiredEvents, arg.Tenantid, arg.Createdbefore, arg.Limit)
+	var has_more bool
+	err := row.Scan(&has_more)
+	return has_more, err
 }

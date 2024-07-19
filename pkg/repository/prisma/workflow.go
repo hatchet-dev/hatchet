@@ -163,38 +163,37 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 }
 
 func (r *workflowAPIRepository) GetWorkflowById(workflowId string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindUnique(
+	return r.client.Workflow.FindFirst(
 		db.Workflow.ID.Equals(workflowId),
+		db.Workflow.DeletedAt.IsNull(),
 	).With(
 		defaultWorkflowPopulator()...,
 	).Exec(context.Background())
 }
 
 func (r *workflowAPIRepository) GetWorkflowByName(tenantId, workflowName string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindUnique(
+	return r.client.Workflow.FindFirst(
 		db.Workflow.TenantIDName(
 			db.Workflow.TenantID.Equals(tenantId),
 			db.Workflow.Name.Equals(workflowName),
 		),
+		db.Workflow.DeletedAt.IsNull(),
 	).With(
 		defaultWorkflowPopulator()...,
 	).Exec(context.Background())
 }
 
 func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (*db.WorkflowVersionModel, error) {
-	return r.client.WorkflowVersion.FindUnique(
+	return r.client.WorkflowVersion.FindFirst(
 		db.WorkflowVersion.ID.Equals(workflowVersionId),
+		db.WorkflowVersion.DeletedAt.IsNull(),
 	).With(
 		defaultWorkflowVersionPopulator()...,
 	).Exec(context.Background())
 }
 
-func (r *workflowAPIRepository) DeleteWorkflow(tenantId, workflowId string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindUnique(
-		db.Workflow.ID.Equals(workflowId),
-	).With(
-		defaultWorkflowPopulator()...,
-	).Delete().Exec(context.Background())
+func (r *workflowAPIRepository) DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error) {
+	return r.queries.SoftDeleteWorkflow(context.Background(), r.pool, sqlchelpers.UUIDFromStr(workflowId))
 }
 
 func (r *workflowAPIRepository) GetWorkflowMetrics(tenantId, workflowId string, opts *repository.GetWorkflowMetricsOpts) (*repository.WorkflowMetrics, error) {

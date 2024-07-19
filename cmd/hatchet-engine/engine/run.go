@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/workflows"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
@@ -132,29 +133,6 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
-	if sc.HasService("ticker") {
-		t, err := ticker.New(
-			ticker.WithMessageQueue(sc.MessageQueue),
-			ticker.WithRepository(sc.EngineRepository),
-			ticker.WithLogger(sc.Logger),
-			ticker.WithTenantAlerter(sc.TenantAlerter),
-			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create ticker: %w", err)
-		}
-
-		cleanup, err := t.Start()
-		if err != nil {
-			return nil, fmt.Errorf("could not start ticker: %w", err)
-		}
-		teardown = append(teardown, Teardown{
-			Name: "ticker",
-			Fn:   cleanup,
-		})
-	}
-
 	if sc.HasService("eventscontroller") {
 		ec, err := events.New(
 			events.WithMessageQueue(sc.MessageQueue),
@@ -176,17 +154,45 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
+	var partitionId string
+
 	// FIXME: jobscontroller and workflowscontroller are deprecated service names, but there's not a clear upgrade
 	// path for old config files.
-	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
-		partitionTeardown, partitionId, err := p.withControllers(ctx)
-
+	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") || sc.HasService("retention") || sc.HasService("ticker") {
+		partitionTeardown, pId, err := p.withControllers(ctx)
+		partitionId = pId
 		if err != nil {
 			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
 
 		teardown = append(teardown, *partitionTeardown)
+	}
 
+	if sc.HasService("ticker") {
+		t, err := ticker.New(
+			ticker.WithMessageQueue(sc.MessageQueue),
+			ticker.WithRepository(sc.EngineRepository),
+			ticker.WithLogger(sc.Logger),
+			ticker.WithTenantAlerter(sc.TenantAlerter),
+			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
+			ticker.WithPartitionId(partitionId),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create ticker: %w", err)
+		}
+
+		cleanup, err := t.Start()
+		if err != nil {
+			return nil, fmt.Errorf("could not start ticker: %w", err)
+		}
+		teardown = append(teardown, Teardown{
+			Name: "ticker",
+			Fn:   cleanup,
+		})
+	}
+
+	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
 		jc, err := jobs.New(
 			jobs.WithAlerter(sc.Alerter),
 			jobs.WithMessageQueue(sc.MessageQueue),
@@ -227,6 +233,28 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		teardown = append(teardown, Teardown{
 			Name: "workflows controller",
 			Fn:   cleanupWorkflows,
+		})
+	}
+
+	if sc.HasService("retention") {
+		rc, err := retention.New(
+			retention.WithAlerter(sc.Alerter),
+			retention.WithRepository(sc.EngineRepository),
+			retention.WithLogger(sc.Logger),
+			retention.WithTenantAlerter(sc.TenantAlerter),
+			retention.WithPartitionId(partitionId),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("could not create retention controller: %w", err)
+		}
+
+		cleanupRetention, err := rc.Start()
+		if err != nil {
+			return nil, fmt.Errorf("could not start retention controller: %w", err)
+		}
+		teardown = append(teardown, Teardown{
+			Name: "retention controller",
+			Fn:   cleanupRetention,
 		})
 	}
 

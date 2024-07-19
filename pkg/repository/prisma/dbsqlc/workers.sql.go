@@ -311,20 +311,48 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 	return items, nil
 }
 
-const resolveWorkerSemaphoreSlots = `-- name: ResolveWorkerSemaphoreSlots :execrows
-UPDATE "WorkerSemaphoreSlot" wss
-SET "stepRunId" = null
-FROM "StepRun" sr
-WHERE wss."stepRunId" = sr."id"
-    AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
+const resolveWorkerSemaphoreSlots = `-- name: ResolveWorkerSemaphoreSlots :one
+WITH to_count AS (
+    SELECT wss."id"
+    FROM "WorkerSemaphoreSlot" wss
+    JOIN "StepRun" sr ON wss."stepRunId" = sr."id"
+        AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
+        AND sr."tenantId" = $1::uuid
+    ORDER BY RANDOM()
+    LIMIT 1001
+    FOR UPDATE SKIP LOCKED
+),
+to_resolve AS (
+    SELECT id FROM to_count LIMIT 1000
+),
+update_result AS (
+    UPDATE "WorkerSemaphoreSlot" wss
+    SET "stepRunId" = null
+    WHERE wss."id" IN (SELECT "id" FROM to_resolve)
+    RETURNING wss."id"
+)
+SELECT
+	CASE
+		WHEN COUNT(*) > 0 THEN TRUE
+		ELSE FALSE
+	END AS "hasResolved",
+	CASE
+		WHEN COUNT(*) > 1000 THEN TRUE
+		ELSE FALSE
+	END AS "hasMore"
+FROM to_count
 `
 
-func (q *Queries) ResolveWorkerSemaphoreSlots(ctx context.Context, db DBTX) (int64, error) {
-	result, err := db.Exec(ctx, resolveWorkerSemaphoreSlots)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+type ResolveWorkerSemaphoreSlotsRow struct {
+	HasResolved bool `json:"hasResolved"`
+	HasMore     bool `json:"hasMore"`
+}
+
+func (q *Queries) ResolveWorkerSemaphoreSlots(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*ResolveWorkerSemaphoreSlotsRow, error) {
+	row := db.QueryRow(ctx, resolveWorkerSemaphoreSlots, tenantid)
+	var i ResolveWorkerSemaphoreSlotsRow
+	err := row.Scan(&i.HasResolved, &i.HasMore)
+	return &i, err
 }
 
 const stubWorkerSemaphoreSlots = `-- name: StubWorkerSemaphoreSlots :exec
