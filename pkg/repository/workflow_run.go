@@ -54,6 +54,9 @@ type CreateWorkflowRunOpts struct {
 
 	// (optional) the desired worker id for sticky state
 	DesiredWorkerId *string `validate:"omitempty,uuid"`
+
+	// (optional) the deduplication value for the workflow run
+	DedupeValue *string `validate:"omitempty"`
 }
 
 type CreateGroupKeyRunOpts struct {
@@ -360,7 +363,17 @@ type WorkflowRunAPIRepository interface {
 	GetWorkflowRunById(tenantId, runId string) (*db.WorkflowRunModel, error)
 }
 
-var ErrWorkflowRunNotFound = fmt.Errorf("workflow run not found")
+var (
+	ErrWorkflowRunNotFound = fmt.Errorf("workflow run not found")
+)
+
+type ErrDedupeValueExists struct {
+	DedupeValue string
+}
+
+func (e ErrDedupeValueExists) Error() string {
+	return fmt.Sprintf("workflow run with dedupe value %s already exists", e.DedupeValue)
+}
 
 type WorkflowRunEngineRepository interface {
 	RegisterCreateCallback(callback Callback[*dbsqlc.WorkflowRun])

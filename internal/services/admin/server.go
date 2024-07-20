@@ -139,6 +139,15 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 
 	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
+	dedupeTarget := repository.ErrDedupeValueExists{}
+
+	if errors.As(err, &dedupeTarget) {
+		return nil, status.Error(
+			codes.AlreadyExists,
+			fmt.Sprintf("workflow run with deduplication value %s already exists", dedupeTarget.DedupeValue),
+		)
+	}
+
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: workflow run limit exceeded for tenant")
 	}

@@ -37,6 +37,16 @@ CREATE TABLE "WorkflowRunStickyState" (
 );
 
 -- CreateTable
+CREATE TABLE "WorkflowRunDedupe" (
+    "id" BIGSERIAL NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "tenantId" UUID NOT NULL,
+    "workflowId" UUID NOT NULL,
+    "value" TEXT NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "WorkerLabel" (
     "id" BIGSERIAL NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -59,6 +69,15 @@ CREATE UNIQUE INDEX "StepDesiredWorkerLabel_stepId_key_key" ON "StepDesiredWorke
 CREATE UNIQUE INDEX "WorkflowRunStickyState_workflowRunId_key" ON "WorkflowRunStickyState"("workflowRunId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WorkflowRunDedupe_id_key" ON "WorkflowRunDedupe"("id");
+
+-- CreateIndex
+CREATE INDEX "WorkflowRunDedupe_tenantId_value_idx" ON "WorkflowRunDedupe"("tenantId", "value");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowRunDedupe_tenantId_workflowId_value_key" ON "WorkflowRunDedupe"("tenantId", "workflowId", "value");
+
+-- CreateIndex
 CREATE INDEX "WorkerLabel_workerId_idx" ON "WorkerLabel"("workerId");
 
 -- CreateIndex
@@ -69,6 +88,9 @@ ALTER TABLE "StepDesiredWorkerLabel" ADD CONSTRAINT "StepDesiredWorkerLabel_step
 
 -- AddForeignKey
 ALTER TABLE "WorkflowRunStickyState" ADD CONSTRAINT "WorkflowRunStickyState_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowRunDedupe" ADD CONSTRAINT "WorkflowRunDedupe_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerLabel" ADD CONSTRAINT "WorkerLabel_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;

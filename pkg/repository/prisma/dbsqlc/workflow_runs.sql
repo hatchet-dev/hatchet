@@ -437,6 +437,26 @@ INSERT INTO "WorkflowRun" (
     @additionalMetadata::jsonb
 ) RETURNING *;
 
+-- name: CreateWorkflowRunDedupe :one
+WITH workflow_id AS (
+    SELECT w."id" FROM "Workflow" w
+    JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
+    WHERE wv."id" = @workflowVersionId::uuid
+)
+INSERT INTO "WorkflowRunDedupe" (
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowId",
+    "value"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @tenantId::uuid,
+    (SELECT "id" FROM workflow_id),
+    sqlc.narg('value')::text
+) RETURNING *;
+
 -- name: CreateWorkflowRunStickyState :one
 WITH workflow_version AS (
     SELECT "sticky"

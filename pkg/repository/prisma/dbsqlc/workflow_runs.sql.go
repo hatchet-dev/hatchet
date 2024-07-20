@@ -445,6 +445,47 @@ func (q *Queries) CreateWorkflowRun(ctx context.Context, db DBTX, arg CreateWork
 	return &i, err
 }
 
+const createWorkflowRunDedupe = `-- name: CreateWorkflowRunDedupe :one
+WITH workflow_id AS (
+    SELECT w."id" FROM "Workflow" w
+    JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
+    WHERE wv."id" = $3::uuid
+)
+INSERT INTO "WorkflowRunDedupe" (
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowId",
+    "value"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    (SELECT "id" FROM workflow_id),
+    $2::text
+) RETURNING id, "createdAt", "updatedAt", "tenantId", "workflowId", value
+`
+
+type CreateWorkflowRunDedupeParams struct {
+	Tenantid          pgtype.UUID `json:"tenantid"`
+	Value             pgtype.Text `json:"value"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+}
+
+func (q *Queries) CreateWorkflowRunDedupe(ctx context.Context, db DBTX, arg CreateWorkflowRunDedupeParams) (*WorkflowRunDedupe, error) {
+	row := db.QueryRow(ctx, createWorkflowRunDedupe, arg.Tenantid, arg.Value, arg.Workflowversionid)
+	var i WorkflowRunDedupe
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TenantId,
+		&i.WorkflowId,
+		&i.Value,
+	)
+	return &i, err
+}
+
 const createWorkflowRunStickyState = `-- name: CreateWorkflowRunStickyState :one
 WITH workflow_version AS (
     SELECT "sticky"
