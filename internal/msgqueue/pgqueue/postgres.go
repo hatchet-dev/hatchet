@@ -52,8 +52,8 @@ func (t *MessageQueueImpl) IsReady() bool {
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
 
 type MessageQueueImplOpts struct {
-	l   *zerolog.Logger
-	url string
+	l          *zerolog.Logger
+	connstring string
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
@@ -70,9 +70,9 @@ func WithLogger(l *zerolog.Logger) MessageQueueImplOpt {
 	}
 }
 
-func WithURL(url string) MessageQueueImplOpt {
+func WithConnString(url string) MessageQueueImplOpt {
 	return func(opts *MessageQueueImplOpts) {
-		opts.url = url
+		opts.connstring = url
 	}
 }
 
@@ -95,9 +95,8 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		l:        opts.l,
 	}
 
-	var conninfo = "user=hatchet password=hatchet dbname=hatchet sslmode=disable host=localhost port=5431"
-
-	db, err := sql.Open("postgres", conninfo)
+	// TODO rewrite this to sqlc
+	db, err := sql.Open("postgres", opts.connstring)
 	if err != nil {
 		panic(err)
 	}
@@ -113,7 +112,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 
 	t.channels = make(map[string]chan *pq.Notification)
 
-	t.listener = pq.NewListener(conninfo, minReconn, maxReconn, reportProblem)
+	t.listener = pq.NewListener(opts.connstring, minReconn, maxReconn, reportProblem)
 	t.db = db
 
 	t.msgs = make(chan *msgWithQueue)

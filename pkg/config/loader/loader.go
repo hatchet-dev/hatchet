@@ -221,7 +221,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		if cf.MessageQueue.Kind == "postgres" {
 			mqCleanup, mq = pgqueue.New(
 				pgqueue.WithLogger(&l),
-				pgqueue.WithURL(cf.MessageQueue.Postgres.URL),
+				pgqueue.WithConnString(cf.MessageQueue.Postgres.ConnectionString),
 			)
 		} else {
 			mqCleanup, mq = rabbitmq.New(
