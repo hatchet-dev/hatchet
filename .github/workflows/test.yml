@@ -261,6 +261,8 @@ jobs:
           . .env
           set +a
 
+          set -eu
+
           go run ./cmd/hatchet-admin quickstart
 
           # use postgres queue here
@@ -268,6 +270,9 @@ jobs:
 
           go run ./cmd/hatchet-engine --config ./generated/ &
           go run ./cmd/hatchet-api --config ./generated/ &
+
+          grep "kind: postgres" ./generated/server.yaml -A 5
+
           sleep 30
 
       - name: Test

@@ -269,7 +269,7 @@ type RabbitMQConfigFile struct {
 }
 
 type PostgresConfigFile struct {
-	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"postgres://hatchet:hatchet@postgres:5432/hatchet"`
+	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"postgres://hatchet:hatchet@postgres:5431/hatchet"`
 }
 
 type ConfigFileEmail struct {
