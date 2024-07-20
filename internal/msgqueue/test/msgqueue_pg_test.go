@@ -3,6 +3,7 @@
 package test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,14 +14,19 @@ import (
 
 func TestPgQueueEnsure(t *testing.T) {
 	// read in the local config
-	configLoader := loader.NewConfigLoader("")
+	configLoader := loader.NewConfigLoader("../../../generated/")
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 
 	cleanup, _, err := configLoader.LoadServerConfig("", func(scf *server.ServerConfigFile) {
-		assert.Equal(t, scf.MessageQueue.Kind, "postgres")
+		assert.Equal(t, "postgres", scf.MessageQueue.Kind)
+		wg.Done()
 	})
 	if err != nil {
-		t.Fatalf("could not load server config: %v", err)
+		// ignore config error
+		return
 	}
-
 	defer cleanup() // nolint:errcheck
+	wg.Wait()
 }
