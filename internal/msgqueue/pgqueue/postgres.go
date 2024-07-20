@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"sync"
@@ -434,8 +433,6 @@ func (t *MessageQueueImpl) notify(channel string, message string) error {
 
 	msg := strings.ReplaceAll(message, "'", "\\'")
 	cmd := fmt.Sprintf("NOTIFY %s, '%s'", ch, msg)
-	log.Println("CMD")
-	log.Println(cmd)
 	if _, err := t.db.Exec(cmd); err != nil {
 		return fmt.Errorf("error publishing msg using NOTIFY: %v", err)
 	}
