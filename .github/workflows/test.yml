@@ -261,7 +261,7 @@ jobs:
           . .env
           set +a
 
-          set -eu
+          set -eux
 
           go run ./cmd/hatchet-admin quickstart
 
@@ -271,6 +271,7 @@ jobs:
           go run ./cmd/hatchet-engine --config ./generated/ &
           go run ./cmd/hatchet-api --config ./generated/ &
 
+          cat ./generated/server.yaml
           grep "kind: postgres" ./generated/server.yaml -A 5
 
           sleep 30
