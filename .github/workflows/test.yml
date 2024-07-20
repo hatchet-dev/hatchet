@@ -277,7 +277,7 @@ jobs:
 
       - name: Test
         run: |
-          go test -tags e2e ./... -p 1 -v -failfast
+          go test -tags e2e,pgqueue ./... -p 1 -v -failfast
 
       - name: Teardown
         run: docker compose down
