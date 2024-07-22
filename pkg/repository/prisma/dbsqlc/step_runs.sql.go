@@ -621,38 +621,53 @@ SELECT
     sr."input",
     sr."output",
     sr."error",
-    jrld."data" AS "jobRunLookupData"
+    jrld."data" AS "jobRunLookupData",
+    wr."additionalMetadata",
+    wr."childIndex",
+    wr."childKey",
+    wr."parentId"
 FROM
     "StepRun" sr
 JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
     "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
+JOIN
+    -- Take advantage of composite index on "JobRun"("workflowRunId", "tenantId")
+    "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = $1::uuid
 WHERE
-    sr."id" = $1::uuid AND
-    sr."tenantId" = $2::uuid
+    sr."id" = $2::uuid AND
+    sr."tenantId" = $1::uuid
 `
 
 type GetStepRunDataForEngineParams struct {
-	ID       pgtype.UUID `json:"id"`
 	Tenantid pgtype.UUID `json:"tenantid"`
+	ID       pgtype.UUID `json:"id"`
 }
 
 type GetStepRunDataForEngineRow struct {
-	Input            []byte      `json:"input"`
-	Output           []byte      `json:"output"`
-	Error            pgtype.Text `json:"error"`
-	JobRunLookupData []byte      `json:"jobRunLookupData"`
+	Input              []byte      `json:"input"`
+	Output             []byte      `json:"output"`
+	Error              pgtype.Text `json:"error"`
+	JobRunLookupData   []byte      `json:"jobRunLookupData"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	ChildIndex         pgtype.Int4 `json:"childIndex"`
+	ChildKey           pgtype.Text `json:"childKey"`
+	ParentId           pgtype.UUID `json:"parentId"`
 }
 
 func (q *Queries) GetStepRunDataForEngine(ctx context.Context, db DBTX, arg GetStepRunDataForEngineParams) (*GetStepRunDataForEngineRow, error) {
-	row := db.QueryRow(ctx, getStepRunDataForEngine, arg.ID, arg.Tenantid)
+	row := db.QueryRow(ctx, getStepRunDataForEngine, arg.Tenantid, arg.ID)
 	var i GetStepRunDataForEngineRow
 	err := row.Scan(
 		&i.Input,
 		&i.Output,
 		&i.Error,
 		&i.JobRunLookupData,
+		&i.AdditionalMetadata,
+		&i.ChildIndex,
+		&i.ChildKey,
+		&i.ParentId,
 	)
 	return &i, err
 }

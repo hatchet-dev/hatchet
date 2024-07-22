@@ -52,7 +52,7 @@ func (worker *subscribedWorker) StartStepRun(
 
 	stepName := stepRun.StepReadableId.String
 
-	return worker.stream.Send(&contracts.AssignedAction{
+	action := &contracts.AssignedAction{
 		TenantId:      tenantId,
 		JobId:         sqlchelpers.UUIDToStr(stepRun.JobId),
 		JobName:       stepRun.JobName,
@@ -65,7 +65,27 @@ func (worker *subscribedWorker) StartStepRun(
 		StepName:      stepName,
 		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
 		RetryCount:    stepRun.SRRetryCount,
-	})
+	}
+
+	if stepRunData.AdditionalMetadata != nil {
+		metadataStr := string(stepRunData.AdditionalMetadata)
+		action.AdditionalMetadata = &metadataStr
+	}
+
+	if stepRunData.ChildIndex.Valid {
+		action.ChildWorkflowIndex = &stepRunData.ChildIndex.Int32
+	}
+
+	if stepRunData.ChildKey.Valid {
+		action.ChildWorkflowKey = &stepRunData.ChildKey.String
+	}
+
+	if stepRunData.ParentId.Valid {
+		parentId := sqlchelpers.UUIDToStr(stepRunData.ParentId)
+		action.ParentWorkflowRunId = &parentId
+	}
+
+	return worker.stream.Send(action)
 }
 
 func (worker *subscribedWorker) StartGroupKeyAction(

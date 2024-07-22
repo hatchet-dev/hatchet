@@ -103,6 +103,18 @@ message AssignedAction {
 
     // the count number of the retry attempt
     int32 retryCount = 13;
+
+    // (optional) additional metadata set on the workflow
+    optional string additional_metadata = 14;
+
+    // (optional) the child workflow index (if this is a child workflow)
+    optional int32 child_workflow_index = 15;
+
+    // (optional) the child workflow key (if this is a child workflow)
+    optional string child_workflow_key = 16;
+
+    // (optional) the parent workflow run id (if this is a child workflow)
+    optional string parent_workflow_run_id = 17;
 }
 
 message WorkerListenRequest {
