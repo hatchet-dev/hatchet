@@ -182,8 +182,6 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 		return nil, err
 	}
 
-	s.l.Error().Msgf("Received upsert worker affinities request for worker %s", request.WorkerId)
-
 	return &contracts.UpsertWorkerLabelsResponse{
 		TenantId: sqlchelpers.UUIDToStr(tenant.ID),
 		WorkerId: request.WorkerId,
