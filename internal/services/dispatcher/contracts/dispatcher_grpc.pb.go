@@ -37,6 +37,7 @@ type DispatcherClient interface {
 	Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error)
 	RefreshTimeout(ctx context.Context, in *RefreshTimeoutRequest, opts ...grpc.CallOption) (*RefreshTimeoutResponse, error)
 	ReleaseSlot(ctx context.Context, in *ReleaseSlotRequest, opts ...grpc.CallOption) (*ReleaseSlotResponse, error)
+	UpsertWorkerLabels(ctx context.Context, in *UpsertWorkerLabelsRequest, opts ...grpc.CallOption) (*UpsertWorkerLabelsResponse, error)
 }
 
 type dispatcherClient struct {
@@ -246,6 +247,15 @@ func (c *dispatcherClient) ReleaseSlot(ctx context.Context, in *ReleaseSlotReque
 	return out, nil
 }
 
+func (c *dispatcherClient) UpsertWorkerLabels(ctx context.Context, in *UpsertWorkerLabelsRequest, opts ...grpc.CallOption) (*UpsertWorkerLabelsResponse, error) {
+	out := new(UpsertWorkerLabelsResponse)
+	err := c.cc.Invoke(ctx, "/Dispatcher/UpsertWorkerLabels", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DispatcherServer is the server API for Dispatcher service.
 // All implementations must embed UnimplementedDispatcherServer
 // for forward compatibility
@@ -265,6 +275,7 @@ type DispatcherServer interface {
 	Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error)
 	RefreshTimeout(context.Context, *RefreshTimeoutRequest) (*RefreshTimeoutResponse, error)
 	ReleaseSlot(context.Context, *ReleaseSlotRequest) (*ReleaseSlotResponse, error)
+	UpsertWorkerLabels(context.Context, *UpsertWorkerLabelsRequest) (*UpsertWorkerLabelsResponse, error)
 	mustEmbedUnimplementedDispatcherServer()
 }
 
@@ -307,6 +318,9 @@ func (UnimplementedDispatcherServer) RefreshTimeout(context.Context, *RefreshTim
 }
 func (UnimplementedDispatcherServer) ReleaseSlot(context.Context, *ReleaseSlotRequest) (*ReleaseSlotResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReleaseSlot not implemented")
+}
+func (UnimplementedDispatcherServer) UpsertWorkerLabels(context.Context, *UpsertWorkerLabelsRequest) (*UpsertWorkerLabelsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertWorkerLabels not implemented")
 }
 func (UnimplementedDispatcherServer) mustEmbedUnimplementedDispatcherServer() {}
 
@@ -554,6 +568,24 @@ func _Dispatcher_ReleaseSlot_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dispatcher_UpsertWorkerLabels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertWorkerLabelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).UpsertWorkerLabels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/Dispatcher/UpsertWorkerLabels",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).UpsertWorkerLabels(ctx, req.(*UpsertWorkerLabelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Dispatcher_ServiceDesc is the grpc.ServiceDesc for Dispatcher service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -592,6 +624,10 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReleaseSlot",
 			Handler:    _Dispatcher_ReleaseSlot_Handler,
+		},
+		{
+			MethodName: "UpsertWorkerLabels",
+			Handler:    _Dispatcher_UpsertWorkerLabels_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

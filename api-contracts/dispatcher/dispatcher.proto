@@ -31,6 +31,14 @@ service Dispatcher {
     rpc RefreshTimeout(RefreshTimeoutRequest) returns (RefreshTimeoutResponse) {}
 
     rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
+
+    rpc UpsertWorkerLabels(UpsertWorkerLabelsRequest) returns (UpsertWorkerLabelsResponse) {}
+}
+
+message WorkerLabels {
+    // value of the label
+    optional string strValue = 1;
+    optional int32 intValue = 2;
 }
 
 message WorkerRegisterRequest {
@@ -45,6 +53,9 @@ message WorkerRegisterRequest {
 
     // (optional) the max number of runs this worker can handle
     optional int32 maxRuns = 4;
+
+    // (optional) worker labels (i.e. state or other metadata)
+    map<string, WorkerLabels> labels = 5;
 }
 
 message WorkerRegisterResponse {
@@ -56,6 +67,23 @@ message WorkerRegisterResponse {
 
     // the name of the worker
     string workerName = 3;
+}
+
+message UpsertWorkerLabelsRequest {
+    // the name of the worker
+    string workerId = 1;
+
+    // (optional) the worker labels
+    map<string, WorkerLabels> labels = 2;
+}
+
+
+message UpsertWorkerLabelsResponse {
+    // the tenant id
+    string tenantId = 1;
+
+    // the id of the worker
+    string workerId = 2;
 }
 
 enum ActionType {

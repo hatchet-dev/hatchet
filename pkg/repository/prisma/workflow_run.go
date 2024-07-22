@@ -670,6 +670,31 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 			return nil, err
 		}
 
+		desiredWorkerId := pgtype.UUID{
+			Valid: false,
+		}
+
+		if opts.DesiredWorkerId != nil {
+			desiredWorkerId = sqlchelpers.UUIDFromStr(*opts.DesiredWorkerId)
+		}
+
+		_, err = queries.CreateWorkflowRunStickyState(
+			tx1Ctx,
+			tx,
+			dbsqlc.CreateWorkflowRunStickyStateParams{
+				Workflowrunid:     sqlcWorkflowRun.ID,
+				Tenantid:          pgTenantId,
+				Workflowversionid: createParams.Workflowversionid,
+				DesiredWorkerId:   desiredWorkerId,
+			},
+		)
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("failed to create workflow run sticky state: %w", err)
+		}
+
+		// CreateWorkflowRunStickyState
+
 		var (
 			eventId, cronParentId, scheduledWorkflowId pgtype.UUID
 			cronId                                     pgtype.Text

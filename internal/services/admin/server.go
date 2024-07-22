@@ -129,6 +129,14 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		return nil, fmt.Errorf("could not create workflow run opts: %w", err)
 	}
 
+	if req.DesiredWorkerId != nil {
+		if !workflowVersion.WorkflowVersion.Sticky.Valid {
+			return nil, status.Errorf(codes.Canceled, "workflow version %s does not have sticky enabled", workflowVersion.WorkflowName)
+		}
+
+		createOpts.DesiredWorkerId = req.DesiredWorkerId
+	}
+
 	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
 	if err == metered.ErrResourceExhausted {
@@ -394,6 +402,12 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		onFailureJob = onFailureJobCp
 	}
 
+	var sticky *string
+
+	if req.Opts.Sticky != nil {
+		sticky = repository.StringPtr(req.Opts.Sticky.String())
+	}
+
 	scheduledTriggers := make([]time.Time, 0)
 
 	for _, trigger := range req.Opts.ScheduledTriggers {
@@ -437,6 +451,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		Jobs:              jobs,
 		OnFailureJob:      onFailureJob,
 		ScheduleTimeout:   req.Opts.ScheduleTimeout,
+		Sticky:            sticky,
 	}, nil
 }
 
@@ -454,11 +469,36 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 
 		retries := int(stepCp.Retries)
 
+		var affinity *map[string]repository.DesiredWorkerLabelOpts
+
+		if stepCp.WorkerLabels != nil {
+			affinity = &map[string]repository.DesiredWorkerLabelOpts{}
+			for k, v := range stepCp.WorkerLabels {
+
+				var c *string
+
+				if v.Comparator != nil {
+					cPtr := v.Comparator.String()
+					c = &cPtr
+				}
+
+				(*affinity)[k] = repository.DesiredWorkerLabelOpts{
+					Key:        k,
+					StrValue:   v.StrValue,
+					IntValue:   v.IntValue,
+					Required:   v.Required,
+					Weight:     v.Weight,
+					Comparator: c,
+				}
+			}
+		}
+
 		steps[j] = repository.CreateWorkflowStepOpts{
-			ReadableId: stepCp.ReadableId,
-			Action:     parsedAction.String(),
-			Parents:    stepCp.Parents,
-			Retries:    &retries,
+			ReadableId:          stepCp.ReadableId,
+			Action:              parsedAction.String(),
+			Parents:             stepCp.Parents,
+			Retries:             &retries,
+			DesiredWorkerLabels: affinity,
 		}
 
 		if stepCp.Timeout != "" {
