@@ -1100,7 +1100,10 @@ WITH versions AS (
     WHERE "workflowId" = $1::uuid
 )
 UPDATE "Workflow"
-SET "deletedAt" = CURRENT_TIMESTAMP
+SET
+    -- set name to the current name plus a random suffix to avoid conflicts
+    "name" = "name" || '-' || gen_random_uuid(),
+    "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = $1::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
 `
