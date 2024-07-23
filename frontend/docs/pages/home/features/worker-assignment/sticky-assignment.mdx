@@ -167,7 +167,31 @@ const parentWorkflow: Workflow = {
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
-# GO Support for sticky child workflows is coming soon, ping us to escalate this feature
+	err = w.RegisterWorkflow(
+		&worker.WorkflowJob{
+			On:             worker.Events("user:create:sticky"),
+			Name:           "sticky",
+			Description:    "sticky",
+			Steps: []*worker.WorkflowStep{
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+
+					sticky := true
+
+					_, err = ctx.SpawnWorkflow("sticky-child", nil, &worker.SpawnWorkflowOpts{
+						Sticky: &sticky,
+					})
+
+					if err != nil {
+						return nil, fmt.Errorf("error spawning workflow: %w", err)
+					}
+
+					return &stepOneOutput{
+						Message: ctx.Worker().ID(),
+					}, nil
+				}).SetName("step-one"),
+			},
+		},
+	)
 ```
   </Tabs.Tab>
 </Tabs>

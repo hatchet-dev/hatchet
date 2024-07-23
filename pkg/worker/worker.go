@@ -70,6 +70,8 @@ type Worker struct {
 
 	actions map[string]Action
 
+	registered_workflows map[string]bool
+
 	l *zerolog.Logger
 
 	cancelMap sync.Map
@@ -192,15 +194,16 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 	}
 
 	w := &Worker{
-		client:          opts.client,
-		name:            opts.name,
-		l:               opts.l,
-		actions:         map[string]Action{},
-		alerter:         opts.alerter,
-		middlewares:     mws,
-		maxRuns:         opts.maxRuns,
-		initActionNames: opts.actions,
-		labels:          opts.labels,
+		client:               opts.client,
+		name:                 opts.name,
+		l:                    opts.l,
+		actions:              map[string]Action{},
+		alerter:              opts.alerter,
+		middlewares:          mws,
+		maxRuns:              opts.maxRuns,
+		initActionNames:      opts.actions,
+		labels:               opts.labels,
+		registered_workflows: map[string]bool{},
 	}
 
 	mws.add(w.panicMiddleware)
@@ -250,6 +253,9 @@ func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
 	if ok && wf.On == nil {
 		return fmt.Errorf("workflow must have an trigger defined via the `On` field")
 	}
+
+	w.registered_workflows[wf.Name] = true
+
 	return w.On(workflow.ToWorkflowTrigger(), workflow)
 }
 

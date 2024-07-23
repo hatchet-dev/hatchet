@@ -247,7 +247,8 @@ func (h *hatchetContext) inc() {
 }
 
 type SpawnWorkflowOpts struct {
-	Key *string
+	Key    *string
+	Sticky *bool
 }
 
 func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, error) {
@@ -274,6 +275,16 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		opts = &SpawnWorkflowOpts{}
 	}
 
+	var desiredWorker *string
+
+	if opts.Sticky != nil {
+		if _, exists := h.w.worker.registered_workflows[workflowName]; !exists {
+			return nil, fmt.Errorf("cannot run with sticky: workflow %s is not registered on this worker", workflowName)
+		}
+
+		desiredWorker = &h.w.id
+	}
+
 	listener, err := h.saveOrLoadListener()
 
 	if err != nil {
@@ -292,6 +303,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 			ParentStepRunId: h.StepRunId(),
 			ChildIndex:      h.index(),
 			ChildKey:        opts.Key,
+			DesiredWorkerId: desiredWorker,
 		},
 	)
 

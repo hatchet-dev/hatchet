@@ -21,6 +21,7 @@ type ChildWorkflowOpts struct {
 	ParentStepRunId string
 	ChildIndex      int
 	ChildKey        *string
+	DesiredWorkerId *string
 }
 
 type AdminClient interface {
@@ -216,6 +217,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		ParentStepRunId: &opts.ParentStepRunId,
 		ChildIndex:      &childIndex,
 		ChildKey:        opts.ChildKey,
+		DesiredWorkerId: opts.DesiredWorkerId,
 	})
 
 	if err != nil {

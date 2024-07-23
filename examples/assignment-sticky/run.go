@@ -34,6 +34,17 @@ func run() (func() error, error) {
 			StickyStrategy: types.StickyStrategyPtr(types.StickyStrategy_SOFT),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+
+					sticky := true
+
+					_, err = ctx.SpawnWorkflow("step-one", nil, &worker.SpawnWorkflowOpts{
+						Sticky: &sticky,
+					})
+
+					if err != nil {
+						return nil, fmt.Errorf("error spawning workflow: %w", err)
+					}
+
 					return &stepOneOutput{
 						Message: ctx.Worker().ID(),
 					}, nil
