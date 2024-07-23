@@ -175,23 +175,25 @@ const parentWorkflow: Workflow = {
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 
-					sticky := true
+    				sticky := true
 
-					_, err = ctx.SpawnWorkflow("sticky-child", nil, &worker.SpawnWorkflowOpts{
-						Sticky: &sticky,
-					})
+    				_, err = ctx.SpawnWorkflow("sticky-child", nil, &worker.SpawnWorkflowOpts{
+    					Sticky: &sticky,
+    				})
 
-					if err != nil {
-						return nil, fmt.Errorf("error spawning workflow: %w", err)
-					}
+    				if err != nil {
+    					return nil, fmt.Errorf("error spawning workflow: %w", err)
+    				}
 
-					return &stepOneOutput{
-						Message: ctx.Worker().ID(),
-					}, nil
-				}).SetName("step-one"),
-			},
-		},
-	)
+    				return &stepOneOutput{
+    					Message: ctx.Worker().ID(),
+    				}, nil
+    			}).SetName("step-one"),
+    		},
+    	},
+    )
+
 ```
   </Tabs.Tab>
 </Tabs>
+```
