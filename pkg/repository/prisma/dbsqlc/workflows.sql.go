@@ -647,7 +647,8 @@ INSERT INTO "WorkflowVersion" (
     "checksum",
     "version",
     "workflowId",
-    "scheduleTimeout"
+    "scheduleTimeout",
+    "sticky"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -656,19 +657,21 @@ INSERT INTO "WorkflowVersion" (
     $5::text,
     $6::text,
     $7::uuid,
-    coalesce($8::text, '5m')
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId"
+    coalesce($8::text, '5m'),
+    $9::"StickyStrategy"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky
 `
 
 type CreateWorkflowVersionParams struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	Deletedat       pgtype.Timestamp `json:"deletedat"`
-	Checksum        string           `json:"checksum"`
-	Version         pgtype.Text      `json:"version"`
-	Workflowid      pgtype.UUID      `json:"workflowid"`
-	ScheduleTimeout pgtype.Text      `json:"scheduleTimeout"`
+	ID              pgtype.UUID        `json:"id"`
+	CreatedAt       pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp   `json:"updatedAt"`
+	Deletedat       pgtype.Timestamp   `json:"deletedat"`
+	Checksum        string             `json:"checksum"`
+	Version         pgtype.Text        `json:"version"`
+	Workflowid      pgtype.UUID        `json:"workflowid"`
+	ScheduleTimeout pgtype.Text        `json:"scheduleTimeout"`
+	Sticky          NullStickyStrategy `json:"sticky"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -681,6 +684,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.Version,
 		arg.Workflowid,
 		arg.ScheduleTimeout,
+		arg.Sticky,
 	)
 	var i WorkflowVersion
 	err := row.Scan(
@@ -694,6 +698,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.Checksum,
 		&i.ScheduleTimeout,
 		&i.OnFailureJobId,
+		&i.Sticky,
 	)
 	return &i, err
 }
@@ -751,7 +756,7 @@ func (q *Queries) GetWorkflowLatestVersion(ctx context.Context, db DBTX, workflo
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId",
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky,
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns"
@@ -800,6 +805,7 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.Checksum,
 			&i.WorkflowVersion.ScheduleTimeout,
 			&i.WorkflowVersion.OnFailureJobId,
+			&i.WorkflowVersion.Sticky,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -818,7 +824,7 @@ const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
 WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky
 `
 
 type LinkOnFailureJobParams struct {
@@ -840,6 +846,7 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 		&i.Checksum,
 		&i.ScheduleTimeout,
 		&i.OnFailureJobId,
+		&i.Sticky,
 	)
 	return &i, err
 }
@@ -854,7 +861,7 @@ FROM (
         "Workflow" as workflows
     LEFT JOIN
         (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
+            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
         ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
     LEFT JOIN
         "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
@@ -1100,7 +1107,10 @@ WITH versions AS (
     WHERE "workflowId" = $1::uuid
 )
 UPDATE "Workflow"
-SET "deletedAt" = CURRENT_TIMESTAMP
+SET
+    -- set name to the current name plus a random suffix to avoid conflicts
+    "name" = "name" || '-' || gen_random_uuid(),
+    "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = $1::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
 `

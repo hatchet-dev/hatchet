@@ -170,6 +170,8 @@ WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 Worker:
   $ref: "./worker.yaml#/Worker"
+WorkerLabel:
+  $ref: "./worker.yaml#/WorkerLabel"
 UpdateWorkerRequest:
   $ref: "./worker.yaml#/UpdateWorkerRequest"
 APIToken:

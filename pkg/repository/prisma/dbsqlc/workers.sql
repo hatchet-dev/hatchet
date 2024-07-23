@@ -185,3 +185,36 @@ WHERE
         OR "lastListenerEstablished" <= sqlc.narg('lastListenerEstablished')::timestamp
         )
 RETURNING *;
+
+-- name: ListWorkerLabels :many
+SELECT
+    "id",
+    "key",
+    "intValue",
+    "strValue",
+    "createdAt",
+    "updatedAt"
+FROM "WorkerLabel" wl
+WHERE wl."workerId" = @workerId::uuid;
+
+-- name: UpsertWorkerLabel :one
+INSERT INTO "WorkerLabel" (
+    "createdAt",
+    "updatedAt",
+    "workerId",
+    "key",
+    "intValue",
+    "strValue"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @workerId::uuid,
+    @key::text,
+    sqlc.narg('intValue')::int,
+    sqlc.narg('strValue')::text
+) ON CONFLICT ("workerId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = sqlc.narg('intValue')::int,
+    "strValue" = sqlc.narg('strValue')::text
+RETURNING *;

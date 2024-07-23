@@ -105,9 +105,8 @@ APIResourceMeta:
       type: string
       description: "the id of this resource, in UUID format"
       example: bb214807-246e-43a5-a25d-41761d1cff9e
-      minLength: 36
+      minLength: 0
       maxLength: 36
-      format: uuid
     createdAt:
       type: string
       description: the time that this resource was created

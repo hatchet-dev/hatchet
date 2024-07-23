@@ -178,6 +178,54 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 	return err
 }
 
+const listWorkerLabels = `-- name: ListWorkerLabels :many
+SELECT
+    "id",
+    "key",
+    "intValue",
+    "strValue",
+    "createdAt",
+    "updatedAt"
+FROM "WorkerLabel" wl
+WHERE wl."workerId" = $1::uuid
+`
+
+type ListWorkerLabelsRow struct {
+	ID        int64            `json:"id"`
+	Key       string           `json:"key"`
+	IntValue  pgtype.Int4      `json:"intValue"`
+	StrValue  pgtype.Text      `json:"strValue"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+}
+
+func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid pgtype.UUID) ([]*ListWorkerLabelsRow, error) {
+	rows, err := db.Query(ctx, listWorkerLabels, workerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListWorkerLabelsRow
+	for rows.Next() {
+		var i ListWorkerLabelsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.IntValue,
+			&i.StrValue,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused",
@@ -501,6 +549,56 @@ func (q *Queries) UpsertService(ctx context.Context, db DBTX, arg UpsertServiceP
 		&i.Name,
 		&i.Description,
 		&i.TenantId,
+	)
+	return &i, err
+}
+
+const upsertWorkerLabel = `-- name: UpsertWorkerLabel :one
+INSERT INTO "WorkerLabel" (
+    "createdAt",
+    "updatedAt",
+    "workerId",
+    "key",
+    "intValue",
+    "strValue"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    $2::text,
+    $3::int,
+    $4::text
+) ON CONFLICT ("workerId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = $3::int,
+    "strValue" = $4::text
+RETURNING id, "createdAt", "updatedAt", "workerId", key, "strValue", "intValue"
+`
+
+type UpsertWorkerLabelParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	Key      string      `json:"key"`
+	IntValue pgtype.Int4 `json:"intValue"`
+	StrValue pgtype.Text `json:"strValue"`
+}
+
+func (q *Queries) UpsertWorkerLabel(ctx context.Context, db DBTX, arg UpsertWorkerLabelParams) (*WorkerLabel, error) {
+	row := db.QueryRow(ctx, upsertWorkerLabel,
+		arg.Workerid,
+		arg.Key,
+		arg.IntValue,
+		arg.StrValue,
+	)
+	var i WorkerLabel
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkerId,
+		&i.Key,
+		&i.StrValue,
+		&i.IntValue,
 	)
 	return &i, err
 }

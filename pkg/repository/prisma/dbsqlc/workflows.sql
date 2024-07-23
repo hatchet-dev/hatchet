@@ -161,7 +161,8 @@ INSERT INTO "WorkflowVersion" (
     "checksum",
     "version",
     "workflowId",
-    "scheduleTimeout"
+    "scheduleTimeout",
+    "sticky"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -170,7 +171,8 @@ INSERT INTO "WorkflowVersion" (
     @checksum::text,
     sqlc.narg('version')::text,
     @workflowId::uuid,
-    coalesce(sqlc.narg('scheduleTimeout')::text, '5m')
+    coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
+    sqlc.narg('sticky')::"StickyStrategy"
 ) RETURNING *;
 
 -- name: CreateWorkflowConcurrency :one
@@ -493,6 +495,9 @@ WITH versions AS (
     WHERE "workflowId" = @id::uuid
 )
 UPDATE "Workflow"
-SET "deletedAt" = CURRENT_TIMESTAMP
+SET
+    -- set name to the current name plus a random suffix to avoid conflicts
+    "name" = "name" || '-' || gen_random_uuid(),
+    "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = @id::uuid
 RETURNING *;

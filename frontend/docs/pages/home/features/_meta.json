@@ -8,6 +8,7 @@
   "streaming": "Streaming",
   "triggering-runs": "Triggering Runs",
   "rate-limits": "Global Rate Limits",
+  "worker-assignment": "Worker Assignment",
   "additional-metadata": "Additional Metadata",
   "advanced": "Advanced"
 }

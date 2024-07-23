@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -176,7 +177,13 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 
 	workerId := sqlchelpers.UUIDToStr(worker.ID)
 
-	s.l.Debug().Msgf("Registered worker with ID: %s", workerId)
+	if request.Labels != nil {
+		_, err = s.upsertLabels(ctx, worker.ID, request.Labels)
+
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// return the worker id to the worker
 	return &contracts.WorkerRegisterResponse{
@@ -184,6 +191,49 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		WorkerId:   workerId,
 		WorkerName: worker.Name,
 	}, nil
+}
+
+func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contracts.UpsertWorkerLabelsRequest) (*contracts.UpsertWorkerLabelsResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	_, err := s.upsertLabels(ctx, sqlchelpers.UUIDFromStr(request.WorkerId), request.Labels)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.UpsertWorkerLabelsResponse{
+		TenantId: sqlchelpers.UUIDToStr(tenant.ID),
+		WorkerId: request.WorkerId,
+	}, nil
+}
+
+func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId pgtype.UUID, request map[string]*contracts.WorkerLabels) ([]*dbsqlc.WorkerLabel, error) {
+	affinities := make([]repository.UpsertWorkerLabelOpts, 0, len(request))
+
+	for key, config := range request {
+
+		err := s.v.Validate(config)
+
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid affinity config: %s", err.Error())
+		}
+
+		affinities = append(affinities, repository.UpsertWorkerLabelOpts{
+			Key:      key,
+			IntValue: config.IntValue,
+			StrValue: config.StrValue,
+		})
+	}
+
+	res, err := s.repo.Worker().UpsertWorkerLabels(ctx, workerId, affinities)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("could not upsert worker affinities for worker %s", sqlchelpers.UUIDToStr(workerId))
+		return nil, err
+	}
+
+	return res, nil
 }
 
 // Subscribe handles a subscribe request from a client

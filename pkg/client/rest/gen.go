@@ -223,7 +223,7 @@ type APIResourceMeta struct {
 	CreatedAt time.Time `json:"createdAt"`
 
 	// Id the id of this resource, in UUID format
-	Id openapi_types.UUID `json:"id"`
+	Id string `json:"id"`
 
 	// UpdatedAt the time that this resource was last updated
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -925,6 +925,9 @@ type Worker struct {
 	// DispatcherId the id of the assigned dispatcher, in UUID format
 	DispatcherId *openapi_types.UUID `json:"dispatcherId,omitempty"`
 
+	// Labels The current label state of the worker.
+	Labels *[]WorkerLabel `json:"labels,omitempty"`
+
 	// LastHeartbeatAt The time this worker last sent a heartbeat.
 	LastHeartbeatAt *time.Time `json:"lastHeartbeatAt,omitempty"`
 
@@ -947,6 +950,16 @@ type Worker struct {
 
 // WorkerStatus The status of the worker.
 type WorkerStatus string
+
+// WorkerLabel defines model for WorkerLabel.
+type WorkerLabel struct {
+	// Key The key of the label.
+	Key      string          `json:"key"`
+	Metadata APIResourceMeta `json:"metadata"`
+
+	// Value The value of the label.
+	Value *string `json:"value,omitempty"`
+}
 
 // WorkerList defines model for WorkerList.
 type WorkerList struct {
