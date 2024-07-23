@@ -284,6 +284,8 @@ type WorkflowStep struct {
 	Retries int
 
 	RateLimit []RateLimit
+
+	DesiredLabels *map[string]*types.DesiredWorkerLabel
 }
 
 type RateLimit struct {
@@ -304,6 +306,11 @@ func Fn(f any) *WorkflowStep {
 
 func (w *WorkflowStep) SetName(name string) *WorkflowStep {
 	w.Name = name
+	return w
+}
+
+func (w *WorkflowStep) SetDesiredLabels(labels map[string]*types.DesiredWorkerLabel) *WorkflowStep {
+	w.DesiredLabels = &labels
 	return w
 }
 
@@ -375,12 +382,13 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 	res.Id = w.GetStepId(index)
 
 	res.APIStep = types.WorkflowStep{
-		Name:     res.Id,
-		ID:       w.GetStepId(index),
-		Timeout:  w.Timeout,
-		ActionID: w.GetActionId(svcName, index),
-		Parents:  []string{},
-		Retries:  w.Retries,
+		Name:          res.Id,
+		ID:            w.GetStepId(index),
+		Timeout:       w.Timeout,
+		ActionID:      w.GetActionId(svcName, index),
+		Parents:       []string{},
+		Retries:       w.Retries,
+		DesiredLabels: w.DesiredLabels,
 	}
 
 	for _, rateLimit := range w.RateLimit {

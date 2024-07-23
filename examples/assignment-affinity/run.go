@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -39,20 +40,32 @@ func run() (func() error, error) {
 
 					model := ctx.Worker().GetLabels()["model"]
 
-					if model != "fancy-ai-model-v2" {
+					if model != "fancy-ai-model-v3" {
 						ctx.Worker().UpsertLabels(map[string]interface{}{
 							"model": nil,
 						})
 						// Do something to load the model
 						ctx.Worker().UpsertLabels(map[string]interface{}{
-							"model": "fancy-ai-model-v2",
+							"model": "fancy-ai-model-v3",
 						})
 					}
 
 					return &stepOneOutput{
 						Message: ctx.Worker().ID(),
 					}, nil
-				}).SetName("step-one"),
+				}).
+					SetName("step-one").
+					SetDesiredLabels(map[string]*types.DesiredWorkerLabel{
+						"model": {
+							Value:  "fancy-ai-model-v3",
+							Weight: 10,
+						},
+						"memory": {
+							Value:      512,
+							Required:   true,
+							Comparator: types.WorkerLabelComparator_GREATER_THAN,
+						},
+					}),
 			},
 		},
 	)
