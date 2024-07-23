@@ -23,7 +23,7 @@ type HatchetWorkerContext interface {
 
 	GetLabels() map[string]interface{}
 
-	SetLabels(labels map[string]interface{}) error
+	UpsertLabels(labels map[string]interface{}) error
 }
 
 type HatchetContext interface {
@@ -383,8 +383,14 @@ func (wc *hatchetWorkerContext) GetLabels() map[string]interface{} {
 	return *wc.worker.labels
 }
 
-func (wc *hatchetWorkerContext) SetLabels(labels map[string]interface{}) error {
+func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) error {
+
+	err := wc.worker.client.Dispatcher().UpsertWorkerLabels(wc.Context, wc.id, labels)
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert labels: %w", err)
+	}
+
 	wc.worker.labels = &labels
-	panic("not implemented")
 	return nil
 }

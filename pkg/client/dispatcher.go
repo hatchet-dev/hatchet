@@ -26,6 +26,8 @@ type DispatcherClient interface {
 	ReleaseSlot(ctx context.Context, stepRunId string) error
 
 	RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error
+
+	UpsertWorkerLabels(ctx context.Context, workerId string, labels map[string]interface{}) error
 }
 
 const (
@@ -193,33 +195,8 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	}
 
 	if req.Labels != nil {
-		labels := map[string]*dispatchercontracts.WorkerLabels{}
 
-		for k, v := range *req.Labels {
-			label := dispatchercontracts.WorkerLabels{}
-
-			switch value := v.(type) {
-			case string:
-				strValue := value
-				label.StrValue = &strValue
-			case int:
-				intValue := int32(value)
-				label.IntValue = &intValue
-			case int32:
-				label.IntValue = &value
-			case int64:
-				intValue := int32(value)
-				label.IntValue = &intValue
-			default:
-				// For any other type, convert to string
-				strValue := fmt.Sprintf("%v", value)
-				label.StrValue = &strValue
-			}
-
-			labels[k] = &label
-		}
-
-		registerReq.Labels = labels
+		registerReq.Labels = mapLabels(req.Labels)
 	}
 
 	if req.MaxRuns != nil {
@@ -541,4 +518,48 @@ func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId str
 	}
 
 	return nil
+}
+
+func (a *dispatcherClientImpl) UpsertWorkerLabels(ctx context.Context, workerId string, req map[string]interface{}) error {
+	labels := mapLabels(&req)
+
+	_, err := a.client.UpsertWorkerLabels(a.ctx.newContext(ctx), &dispatchercontracts.UpsertWorkerLabelsRequest{
+		WorkerId: workerId,
+		Labels:   labels,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func mapLabels(req *map[string]interface{}) map[string]*dispatchercontracts.WorkerLabels {
+	labels := map[string]*dispatchercontracts.WorkerLabels{}
+
+	for k, v := range *req {
+		label := dispatchercontracts.WorkerLabels{}
+
+		switch value := v.(type) {
+		case string:
+			strValue := value
+			label.StrValue = &strValue
+		case int:
+			intValue := int32(value)
+			label.IntValue = &intValue
+		case int32:
+			label.IntValue = &value
+		case int64:
+			intValue := int32(value)
+			label.IntValue = &intValue
+		default:
+			// For any other type, convert to string
+			strValue := fmt.Sprintf("%v", value)
+			label.StrValue = &strValue
+		}
+
+		labels[k] = &label
+	}
+	return labels
 }

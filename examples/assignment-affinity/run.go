@@ -37,7 +37,17 @@ func run() (func() error, error) {
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 
-					fmt.Println(ctx.Worker().GetLabels())
+					model := ctx.Worker().GetLabels()["model"]
+
+					if model != "fancy-ai-model-v2" {
+						ctx.Worker().UpsertLabels(map[string]interface{}{
+							"model": nil,
+						})
+						// Do something to load the model
+						ctx.Worker().UpsertLabels(map[string]interface{}{
+							"model": "fancy-ai-model-v2",
+						})
+					}
 
 					return &stepOneOutput{
 						Message: ctx.Worker().ID(),
