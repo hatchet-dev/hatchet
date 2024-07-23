@@ -190,10 +190,8 @@ RETURNING *;
 SELECT
     "id",
     "key",
-    CASE
-        WHEN wl."intValue" IS NOT NULL THEN wl."intValue"::text
-        WHEN wl."strValue" IS NOT NULL THEN wl."strValue"::text
-    END AS value,
+    "intValue",
+    "strValue",
     "createdAt",
     "updatedAt"
 FROM "WorkerLabel" wl

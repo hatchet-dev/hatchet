@@ -17,11 +17,15 @@ func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 	for i := range labels {
 
 		var value *string
-		if v, ok := labels[i].Value.(string); ok {
-			value = &v
-		} else if v, ok := labels[i].Value.(*string); ok {
-			value = v
-		} else {
+
+		switch {
+		case labels[i].IntValue.Valid:
+			intValue := labels[i].IntValue.Int32
+			stringValue := fmt.Sprintf("%d", intValue)
+			value = &stringValue
+		case labels[i].StrValue.Valid:
+			value = &labels[i].StrValue.String
+		default:
 			value = nil
 		}
 

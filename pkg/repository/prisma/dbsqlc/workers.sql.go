@@ -182,10 +182,8 @@ const listWorkerLabels = `-- name: ListWorkerLabels :many
 SELECT
     "id",
     "key",
-    CASE
-        WHEN wl."intValue" IS NOT NULL THEN wl."intValue"::text
-        WHEN wl."strValue" IS NOT NULL THEN wl."strValue"::text
-    END AS value,
+    "intValue",
+    "strValue",
     "createdAt",
     "updatedAt"
 FROM "WorkerLabel" wl
@@ -195,7 +193,8 @@ WHERE wl."workerId" = $1::uuid
 type ListWorkerLabelsRow struct {
 	ID        int64            `json:"id"`
 	Key       string           `json:"key"`
-	Value     interface{}      `json:"value"`
+	IntValue  pgtype.Int4      `json:"intValue"`
+	StrValue  pgtype.Text      `json:"strValue"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
 }
@@ -212,7 +211,8 @@ func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid pgtype
 		if err := rows.Scan(
 			&i.ID,
 			&i.Key,
-			&i.Value,
+			&i.IntValue,
+			&i.StrValue,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
