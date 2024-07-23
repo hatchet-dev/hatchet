@@ -63,7 +63,7 @@ func run() (func() error, error) {
 						"memory": {
 							Value:      512,
 							Required:   true,
-							Comparator: types.WorkerLabelComparator_GREATER_THAN,
+							Comparator: types.ComparatorPtr(types.WorkerLabelComparator_GREATER_THAN),
 						},
 					}),
 			},

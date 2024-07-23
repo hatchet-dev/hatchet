@@ -81,11 +81,15 @@ const (
 	WorkerLabelComparator_LESS_THAN_OR_EQUAL    WorkerLabelComparator = 5
 )
 
+func ComparatorPtr(v WorkerLabelComparator) *WorkerLabelComparator {
+	return &v
+}
+
 type DesiredWorkerLabel struct {
-	Value      any                   `yaml:"value,omitempty"`
-	Required   bool                  `yaml:"required,omitempty"`
-	Weight     int32                 `yaml:"weight,omitempty"`
-	Comparator WorkerLabelComparator `yaml:"comparator,omitempty"`
+	Value      any                    `yaml:"value,omitempty"`
+	Required   bool                   `yaml:"required,omitempty"`
+	Weight     int32                  `yaml:"weight,omitempty"`
+	Comparator *WorkerLabelComparator `yaml:"comparator,omitempty"`
 }
 
 type WorkflowStep struct {
