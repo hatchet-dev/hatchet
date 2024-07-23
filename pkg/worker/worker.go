@@ -85,6 +85,8 @@ type Worker struct {
 	maxRuns *int
 
 	initActionNames []string
+
+	labels *map[string]interface{}
 }
 
 type WorkerOpt func(*WorkerOpts)
@@ -99,6 +101,8 @@ type WorkerOpts struct {
 	maxRuns      *int
 
 	actions []string
+
+	labels *map[string]interface{}
 }
 
 func defaultWorkerOpts() *WorkerOpts {
@@ -161,6 +165,12 @@ func WithMaxRuns(maxRuns int) WorkerOpt {
 	}
 }
 
+func WithLabels(labels map[string]interface{}) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.labels = &labels
+	}
+}
+
 // NewWorker creates a new worker instance
 func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 	opts := defaultWorkerOpts()
@@ -171,6 +181,12 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 
 	mws := newMiddlewares()
 
+	for _, value := range *opts.labels {
+		if reflect.TypeOf(value).Kind() != reflect.String && reflect.TypeOf(value).Kind() != reflect.Int {
+			return nil, fmt.Errorf("invalid label value: %v", value)
+		}
+	}
+
 	w := &Worker{
 		client:          opts.client,
 		name:            opts.name,
@@ -180,6 +196,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		middlewares:     mws,
 		maxRuns:         opts.maxRuns,
 		initActionNames: opts.actions,
+		labels:          opts.labels,
 	}
 
 	mws.add(w.panicMiddleware)
@@ -316,6 +333,7 @@ func (w *Worker) Start() (func() error, error) {
 		WorkerName: w.name,
 		Actions:    actionNames,
 		MaxRuns:    w.maxRuns,
+		Labels:     w.labels,
 	})
 
 	if err != nil {

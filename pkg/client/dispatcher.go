@@ -39,6 +39,7 @@ type GetActionListenerRequest struct {
 	Services   []string
 	Actions    []string
 	MaxRuns    *int
+	Labels     *map[string]interface{}
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -189,6 +190,36 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		WorkerName: req.WorkerName,
 		Actions:    req.Actions,
 		Services:   req.Services,
+	}
+
+	if req.Labels != nil {
+		labels := map[string]*dispatchercontracts.WorkerLabels{}
+
+		for k, v := range *req.Labels {
+			label := dispatchercontracts.WorkerLabels{}
+
+			switch value := v.(type) {
+			case string:
+				strValue := value
+				label.StrValue = &strValue
+			case int:
+				intValue := int32(value)
+				label.IntValue = &intValue
+			case int32:
+				label.IntValue = &value
+			case int64:
+				intValue := int32(value)
+				label.IntValue = &intValue
+			default:
+				// For any other type, convert to string
+				strValue := fmt.Sprintf("%v", value)
+				label.StrValue = &strValue
+			}
+
+			labels[k] = &label
+		}
+
+		registerReq.Labels = labels
 	}
 
 	if req.MaxRuns != nil {
