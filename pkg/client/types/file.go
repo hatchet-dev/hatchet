@@ -25,6 +25,8 @@ type Workflow struct {
 	Jobs map[string]WorkflowJob `yaml:"jobs"`
 
 	OnFailureJob *WorkflowJob `yaml:"onFailureJob,omitempty"`
+
+	Sticky bool `yaml:"sticky,omitempty"`
 }
 
 type WorkflowConcurrencyLimitStrategy string

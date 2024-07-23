@@ -183,9 +183,11 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 
 	mws := newMiddlewares()
 
-	for _, value := range *opts.labels {
-		if reflect.TypeOf(value).Kind() != reflect.String && reflect.TypeOf(value).Kind() != reflect.Int {
-			return nil, fmt.Errorf("invalid label value: %v", value)
+	if opts.labels != nil {
+		for _, value := range *opts.labels {
+			if reflect.TypeOf(value).Kind() != reflect.String && reflect.TypeOf(value).Kind() != reflect.Int {
+				return nil, fmt.Errorf("invalid label value: %v", value)
+			}
 		}
 	}
 
