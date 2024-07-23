@@ -264,6 +264,11 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		CronTriggers:  workflow.Triggers.Cron,
 	}
 
+	if workflow.StickyStrategy != nil {
+		s := admincontracts.StickyStrategy(*workflow.StickyStrategy)
+		opts.Sticky = &s
+	}
+
 	if workflow.Concurrency != nil {
 		opts.Concurrency = &admincontracts.WorkflowConcurrencyOpts{
 			Action: workflow.Concurrency.ActionID,

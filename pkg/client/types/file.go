@@ -9,6 +9,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type StickyStrategy int32
+
+const (
+	StickyStrategy_SOFT StickyStrategy = 0
+	StickyStrategy_HARD StickyStrategy = 1
+)
+
+func StickyStrategyPtr(v StickyStrategy) *StickyStrategy {
+	return &v
+}
+
 type Workflow struct {
 	Name string `yaml:"name,omitempty"`
 
@@ -26,7 +37,7 @@ type Workflow struct {
 
 	OnFailureJob *WorkflowJob `yaml:"onFailureJob,omitempty"`
 
-	Sticky bool `yaml:"sticky,omitempty"`
+	StickyStrategy *StickyStrategy `yaml:"sticky,omitempty"`
 }
 
 type WorkflowConcurrencyLimitStrategy string

@@ -151,6 +151,8 @@ type WorkflowJob struct {
 	OnFailure *WorkflowJob
 
 	ScheduleTimeout string
+
+	StickyStrategy *types.StickyStrategy
 }
 
 type WorkflowConcurrency struct {
@@ -215,6 +217,10 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 		if j.Concurrency.limitStrategy != nil {
 			w.Concurrency.LimitStrategy = *j.Concurrency.limitStrategy
 		}
+	}
+
+	if j.StickyStrategy != nil {
+		w.StickyStrategy = j.StickyStrategy
 	}
 
 	return w
