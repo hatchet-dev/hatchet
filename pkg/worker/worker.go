@@ -87,6 +87,8 @@ type Worker struct {
 	initActionNames []string
 
 	labels *map[string]interface{}
+
+	id *string
 }
 
 type WorkerOpt func(*WorkerOpts)
@@ -329,12 +331,14 @@ func (w *Worker) Start() (func() error, error) {
 		actionNames = append(actionNames, action.Name())
 	}
 
-	listener, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
+	listener, id, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
 		WorkerName: w.name,
 		Actions:    actionNames,
 		MaxRuns:    w.maxRuns,
 		Labels:     w.labels,
 	})
+
+	w.id = id
 
 	if err != nil {
 		cancel()
@@ -426,7 +430,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 
 	w.cancelMap.Store(assignedAction.StepRunId, cancel)
 
-	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l)
+	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l, w)
 
 	if err != nil {
 		return fmt.Errorf("could not create hatchet context: %w", err)
@@ -524,7 +528,7 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 
 	w.cancelConcurrencyMap.Store(assignedAction.WorkflowRunId, cancel)
 
-	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l)
+	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l, w)
 
 	if err != nil {
 		return fmt.Errorf("could not create hatchet context: %w", err)

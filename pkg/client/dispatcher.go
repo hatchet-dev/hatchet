@@ -17,7 +17,7 @@ import (
 )
 
 type DispatcherClient interface {
-	GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, error)
+	GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error)
 
 	SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
@@ -180,10 +180,10 @@ type actionListenerImpl struct {
 	listenerStrategy ListenerStrategy
 }
 
-func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetActionListenerRequest) (*actionListenerImpl, error) {
+func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetActionListenerRequest) (*actionListenerImpl, *string, error) {
 	// validate the request
 	if err := d.v.Validate(req); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	registerReq := &dispatchercontracts.WorkerRegisterRequest{
@@ -231,7 +231,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	resp, err := d.client.Register(d.ctx.newContext(ctx), registerReq)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not register the worker: %w", err)
+		return nil, nil, fmt.Errorf("could not register the worker: %w", err)
 	}
 
 	d.l.Debug().Msgf("Registered worker with id: %s", resp.WorkerId)
@@ -242,7 +242,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not subscribe to the worker: %w", err)
+		return nil, nil, fmt.Errorf("could not subscribe to the worker: %w", err)
 	}
 
 	return &actionListenerImpl{
@@ -254,7 +254,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		tenantId:         d.tenantId,
 		ctx:              d.ctx,
 		listenerStrategy: ListenerStrategyV2,
-	}, nil
+	}, &resp.WorkerId, nil
 }
 
 func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error) {
@@ -422,7 +422,7 @@ func (a *actionListenerImpl) Unregister() error {
 	return nil
 }
 
-func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, error) {
+func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error) {
 	return d.newActionListener(ctx, req)
 }
 

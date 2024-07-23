@@ -36,8 +36,11 @@ func run() (func() error, error) {
 			Description: "affinity",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+
+					fmt.Println(ctx.Worker().GetLabels())
+
 					return &stepOneOutput{
-						Message: "done",
+						Message: ctx.Worker().ID(),
 					}, nil
 				}).SetName("step-one"),
 			},
