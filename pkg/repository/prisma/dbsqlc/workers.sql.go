@@ -319,11 +319,11 @@ WITH to_count AS (
         AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
         AND sr."tenantId" = $1::uuid
     ORDER BY RANDOM()
-    LIMIT 1001
+    LIMIT 11
     FOR UPDATE SKIP LOCKED
 ),
 to_resolve AS (
-    SELECT id FROM to_count LIMIT 1000
+    SELECT id FROM to_count LIMIT 10
 ),
 update_result AS (
     UPDATE "WorkerSemaphoreSlot" wss
@@ -337,7 +337,7 @@ SELECT
 		ELSE FALSE
 	END AS "hasResolved",
 	CASE
-		WHEN COUNT(*) > 1000 THEN TRUE
+		WHEN COUNT(*) > 10 THEN TRUE
 		ELSE FALSE
 	END AS "hasMore"
 FROM to_count
