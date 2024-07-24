@@ -182,7 +182,7 @@ func (t *MessageQueueImpl) Subscribe(
 ) (func() error, error) {
 	t.l.Debug().Msgf("subscribing to queue: %s", q.Name())
 
-	cleanup := t.subscribe(t.identity, q, preAck, postAck)
+	cleanup := t.subscribe(q, preAck, postAck)
 	return cleanup, nil
 }
 
@@ -347,7 +347,6 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 }
 
 func (t *MessageQueueImpl) subscribe(
-	subId string,
 	q msgqueue.Queue,
 	preAck msgqueue.AckHook,
 	postAck msgqueue.AckHook,
@@ -418,9 +417,9 @@ func (t *MessageQueueImpl) subscribe(
 	cleanup := func() error {
 		cancel()
 
-		t.l.Debug().Msgf("shutting down subscriber: %s", subId)
+		t.l.Debug().Msgf("shutting down subscriber: %s", t.identity)
 		wg.Wait()
-		t.l.Debug().Msgf("successfully shut down subscriber: %s", subId)
+		t.l.Debug().Msgf("successfully shut down subscriber: %s", t.identity)
 		return nil
 	}
 
