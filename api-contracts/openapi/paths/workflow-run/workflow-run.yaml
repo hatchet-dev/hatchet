@@ -48,3 +48,47 @@ replayWorkflowRuns:
     summary: Replay workflow runs
     tags:
       - Workflow Runs
+getWorkflowRunInput:
+  get:
+    x-resources: ["tenant", "workflow-run"]
+    description: Get the input for a workflow run.
+    operationId: workflow-run:get:input
+    parameters:
+      - description: The workflow run id
+        in: path
+        name: workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+        description: Successfully retrieved the workflow run input
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Workflow run not found
+    summary: Get workflow run input
+    tags:
+      - Workflow Runs

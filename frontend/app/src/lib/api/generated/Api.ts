@@ -1606,4 +1606,21 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       secure: true,
       ...params,
     });
+  /**
+   * @description Get the input for a workflow run.
+   *
+   * @tags Workflow Runs
+   * @name WorkflowRunGetInput
+   * @summary Get workflow run input
+   * @request GET:/api/v1/workflow-runs/{workflow-run}/input
+   * @secure
+   */
+  workflowRunGetInput = (workflowRun: string, params: RequestParams = {}) =>
+    this.request<Record<string, any>, APIErrors>({
+      path: `/api/v1/workflow-runs/${workflowRun}/input`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
 }

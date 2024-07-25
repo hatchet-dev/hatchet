@@ -353,6 +353,8 @@ type WorkflowRunAPIRepository interface {
 	// Counts by status
 	WorkflowRunMetricsCount(tenantId string, opts *WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error)
 
+	GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error)
+
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*db.WorkflowRunModel, error)
 
