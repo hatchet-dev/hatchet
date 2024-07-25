@@ -767,6 +767,21 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 	return items, nil
 }
 
+const getWorkflowRunInput = `-- name: GetWorkflowRunInput :one
+SELECT jld."data" AS lookupData
+FROM "JobRun" jr
+JOIN "JobRunLookupData" jld ON jr."id" = jld."jobRunId"
+WHERE jld."data" ? 'input' AND jr."workflowRunId" = $1::uuid
+LIMIT 1
+`
+
+func (q *Queries) GetWorkflowRunInput(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) ([]byte, error) {
+	row := db.QueryRow(ctx, getWorkflowRunInput, workflowrunid)
+	var lookupdata []byte
+	err := row.Scan(&lookupdata)
+	return lookupdata, err
+}
+
 const getWorkflowRunStickyStateForUpdate = `-- name: GetWorkflowRunStickyStateForUpdate :one
 SELECT
     id, "createdAt", "updatedAt", "tenantId", "workflowRunId", "desiredWorkerId", strategy

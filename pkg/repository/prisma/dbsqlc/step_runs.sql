@@ -875,12 +875,11 @@ OFFSET
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
 
-
 -- name: ReplayStepRunResetWorkflowRun :one
 UPDATE
     "WorkflowRun"
 SET
-    "status" = 'QUEUED',
+    "status" = 'PENDING',
     "updatedAt" = CURRENT_TIMESTAMP,
     "startedAt" = NULL,
     "finishedAt" = NULL,

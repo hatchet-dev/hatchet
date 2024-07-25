@@ -812,3 +812,10 @@ SET
 WHERE
     "id" = @jobRunId::uuid
 RETURNING *;
+
+-- name: GetWorkflowRunInput :one
+SELECT jld."data" AS lookupData
+FROM "JobRun" jr
+JOIN "JobRunLookupData" jld ON jr."id" = jld."jobRunId"
+WHERE jld."data" ? 'input' AND jr."workflowRunId" = @workflowRunId::uuid
+LIMIT 1;

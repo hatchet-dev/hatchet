@@ -179,6 +179,10 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow-run:get', tenant, workflowRun],
       queryFn: async () => (await api.workflowRunGet(tenant, workflowRun)).data,
     }),
+    getInput: (tenant: string, workflowRun: string) => ({
+      queryKey: ['workflow-run:get:input', tenant, workflowRun],
+      queryFn: async () => (await api.workflowRunGetInput(workflowRun)).data,
+    }),
     metrics: (tenant: string, query: WorkflowRunMetrics) => ({
       queryKey: ['workflow-run:metrics', tenant, query],
       queryFn: async () =>

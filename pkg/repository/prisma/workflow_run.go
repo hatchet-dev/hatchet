@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -69,6 +70,26 @@ func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(tenantId string, opts
 	}
 
 	return workflowRunMetricsCount(context.Background(), w.pool, w.queries, tenantId, opts)
+}
+
+func (w *workflowRunAPIRepository) GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error) {
+	lookupData := datautils.JobRunLookupData{}
+
+	jsonBytes, err := w.queries.GetWorkflowRunInput(
+		context.Background(),
+		w.pool,
+		sqlchelpers.UUIDFromStr(workflowRunId),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(jsonBytes, &lookupData); err != nil {
+		return nil, err
+	}
+
+	return lookupData.Input, nil
 }
 
 func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*db.WorkflowRunModel, error) {

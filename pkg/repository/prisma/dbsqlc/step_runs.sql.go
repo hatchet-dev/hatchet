@@ -1700,7 +1700,7 @@ const replayStepRunResetWorkflowRun = `-- name: ReplayStepRunResetWorkflowRun :o
 UPDATE
     "WorkflowRun"
 SET
-    "status" = 'QUEUED',
+    "status" = 'PENDING',
     "updatedAt" = CURRENT_TIMESTAMP,
     "startedAt" = NULL,
     "finishedAt" = NULL,
