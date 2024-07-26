@@ -88,7 +88,7 @@ type Worker struct {
 
 	initActionNames []string
 
-	labels *map[string]interface{}
+	labels map[string]interface{}
 
 	id *string
 }
@@ -106,7 +106,7 @@ type WorkerOpts struct {
 
 	actions []string
 
-	labels *map[string]interface{}
+	labels map[string]interface{}
 }
 
 func defaultWorkerOpts() *WorkerOpts {
@@ -171,7 +171,7 @@ func WithMaxRuns(maxRuns int) WorkerOpt {
 
 func WithLabels(labels map[string]interface{}) WorkerOpt {
 	return func(opts *WorkerOpts) {
-		opts.labels = &labels
+		opts.labels = labels
 	}
 }
 
@@ -186,7 +186,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 	mws := newMiddlewares()
 
 	if opts.labels != nil {
-		for _, value := range *opts.labels {
+		for _, value := range opts.labels {
 			if reflect.TypeOf(value).Kind() != reflect.String && reflect.TypeOf(value).Kind() != reflect.Int {
 				return nil, fmt.Errorf("invalid label value: %v", value)
 			}

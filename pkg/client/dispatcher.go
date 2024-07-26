@@ -41,7 +41,7 @@ type GetActionListenerRequest struct {
 	Services   []string
 	Actions    []string
 	MaxRuns    *int
-	Labels     *map[string]interface{}
+	Labels     map[string]interface{}
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -521,7 +521,7 @@ func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId str
 }
 
 func (a *dispatcherClientImpl) UpsertWorkerLabels(ctx context.Context, workerId string, req map[string]interface{}) error {
-	labels := mapLabels(&req)
+	labels := mapLabels(req)
 
 	_, err := a.client.UpsertWorkerLabels(a.ctx.newContext(ctx), &dispatchercontracts.UpsertWorkerLabelsRequest{
 		WorkerId: workerId,
@@ -535,10 +535,10 @@ func (a *dispatcherClientImpl) UpsertWorkerLabels(ctx context.Context, workerId 
 	return nil
 }
 
-func mapLabels(req *map[string]interface{}) map[string]*dispatchercontracts.WorkerLabels {
+func mapLabels(req map[string]interface{}) map[string]*dispatchercontracts.WorkerLabels {
 	labels := map[string]*dispatchercontracts.WorkerLabels{}
 
-	for k, v := range *req {
+	for k, v := range req {
 		label := dispatchercontracts.WorkerLabels{}
 
 		switch value := v.(type) {

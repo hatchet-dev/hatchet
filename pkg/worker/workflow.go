@@ -291,7 +291,7 @@ type WorkflowStep struct {
 
 	RateLimit []RateLimit
 
-	DesiredLabels *map[string]*types.DesiredWorkerLabel
+	DesiredLabels map[string]*types.DesiredWorkerLabel
 }
 
 type RateLimit struct {
@@ -316,7 +316,7 @@ func (w *WorkflowStep) SetName(name string) *WorkflowStep {
 }
 
 func (w *WorkflowStep) SetDesiredLabels(labels map[string]*types.DesiredWorkerLabel) *WorkflowStep {
-	w.DesiredLabels = &labels
+	w.DesiredLabels = labels
 	return w
 }
 

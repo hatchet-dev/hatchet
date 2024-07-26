@@ -128,7 +128,7 @@ type CreateWorkflowStepOpts struct {
 	RateLimits []CreateWorkflowStepRateLimitOpts `validate:"dive"`
 
 	// (optional) desired worker affinity state for this step
-	DesiredWorkerLabels *map[string]DesiredWorkerLabelOpts `validate:"omitempty"`
+	DesiredWorkerLabels map[string]DesiredWorkerLabelOpts `validate:"omitempty"`
 }
 
 type DesiredWorkerLabelOpts struct {

@@ -364,8 +364,8 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 		}
 
 		if step.DesiredLabels != nil {
-			stepOpt.WorkerLabels = make(map[string]*admincontracts.DesiredWorkerLabels, len(*step.DesiredLabels))
-			for key, desiredLabel := range *step.DesiredLabels {
+			stepOpt.WorkerLabels = make(map[string]*admincontracts.DesiredWorkerLabels, len(step.DesiredLabels))
+			for key, desiredLabel := range step.DesiredLabels {
 				stepOpt.WorkerLabels[key] = &admincontracts.DesiredWorkerLabels{
 					Required: &desiredLabel.Required,
 					Weight:   &desiredLabel.Weight,

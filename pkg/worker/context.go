@@ -396,7 +396,7 @@ func (wc *hatchetWorkerContext) ID() string {
 }
 
 func (wc *hatchetWorkerContext) GetLabels() map[string]interface{} {
-	return *wc.worker.labels
+	return wc.worker.labels
 }
 
 func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) error {
@@ -411,6 +411,6 @@ func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) erro
 		return fmt.Errorf("failed to upsert labels: %w", err)
 	}
 
-	wc.worker.labels = &labels
+	wc.worker.labels = labels
 	return nil
 }

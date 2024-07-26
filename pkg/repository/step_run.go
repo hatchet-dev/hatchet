@@ -41,7 +41,7 @@ type CreateStepRunEventOpts struct {
 
 	EventSeverity *dbsqlc.StepRunEventSeverity
 
-	EventData *map[string]interface{}
+	EventData map[string]interface{}
 }
 
 type UpdateStepRunOpts struct {
