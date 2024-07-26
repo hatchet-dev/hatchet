@@ -765,7 +765,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
 				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
 				EventMessage:  repository.StringPtr("Worker has become inactive"),
-				EventData:     &eventData,
+				EventData:     eventData,
 			})
 
 			if err != nil {

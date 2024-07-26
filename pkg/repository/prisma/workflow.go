@@ -839,10 +839,10 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 			return "", err
 		}
 
-		if stepOpts.DesiredWorkerLabels != nil && len(*stepOpts.DesiredWorkerLabels) > 0 {
-			for i := range *stepOpts.DesiredWorkerLabels {
-				key := (*stepOpts.DesiredWorkerLabels)[i].Key
-				value := (*stepOpts.DesiredWorkerLabels)[i]
+		if stepOpts.DesiredWorkerLabels != nil && len(stepOpts.DesiredWorkerLabels) > 0 {
+			for i := range stepOpts.DesiredWorkerLabels {
+				key := (stepOpts.DesiredWorkerLabels)[i].Key
+				value := (stepOpts.DesiredWorkerLabels)[i]
 
 				if key == "" {
 					continue

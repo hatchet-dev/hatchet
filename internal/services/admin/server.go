@@ -478,10 +478,10 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 
 		retries := int(stepCp.Retries)
 
-		var affinity *map[string]repository.DesiredWorkerLabelOpts
+		var affinity map[string]repository.DesiredWorkerLabelOpts
 
 		if stepCp.WorkerLabels != nil {
-			affinity = &map[string]repository.DesiredWorkerLabelOpts{}
+			affinity = map[string]repository.DesiredWorkerLabelOpts{}
 			for k, v := range stepCp.WorkerLabels {
 
 				var c *string
@@ -491,7 +491,7 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 					c = &cPtr
 				}
 
-				(*affinity)[k] = repository.DesiredWorkerLabelOpts{
+				(affinity)[k] = repository.DesiredWorkerLabelOpts{
 					Key:        k,
 					StrValue:   v.StrValue,
 					IntValue:   v.IntValue,

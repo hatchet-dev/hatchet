@@ -70,7 +70,31 @@ const myWorkflow: Workflow = {
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
-// TODO add go example
+	err = w.RegisterWorkflow(
+		&worker.WorkflowJob{
+			On:             worker.Events("user:create:sticky"),
+			Name:           "sticky",
+			Description:    "sticky",
+			StickyStrategy: types.StickyStrategyPtr(types.StickyStrategy_SOFT),
+			Steps: []*worker.WorkflowStep{
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					return &stepOneOutput{
+						Message: ctx.Worker().ID(),
+					}, nil
+				}).SetName("step-one"),
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					return &stepOneOutput{
+						Message: ctx.Worker().ID(),
+					}, nil
+				}).SetName("step-two"),
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					return &stepOneOutput{
+						Message: ctx.Worker().ID(),
+					}, nil
+				}).SetName("step-three").AddParents("step-one", "step-two"),
+			},
+		},
+	)
 ```
   </Tabs.Tab>
 </Tabs>
@@ -143,7 +167,33 @@ const parentWorkflow: Workflow = {
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
-// TODO go example
+	err = w.RegisterWorkflow(
+		&worker.WorkflowJob{
+			On:             worker.Events("user:create:sticky"),
+			Name:           "sticky",
+			Description:    "sticky",
+			Steps: []*worker.WorkflowStep{
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+
+    				sticky := true
+
+    				_, err = ctx.SpawnWorkflow("sticky-child", nil, &worker.SpawnWorkflowOpts{
+    					Sticky: &sticky,
+    				})
+
+    				if err != nil {
+    					return nil, fmt.Errorf("error spawning workflow: %w", err)
+    				}
+
+    				return &stepOneOutput{
+    					Message: ctx.Worker().ID(),
+    				}, nil
+    			}).SetName("step-one"),
+    		},
+    	},
+    )
+
 ```
   </Tabs.Tab>
 </Tabs>
+```
