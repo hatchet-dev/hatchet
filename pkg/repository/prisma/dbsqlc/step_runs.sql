@@ -13,13 +13,20 @@ SELECT
     sr."input",
     sr."output",
     sr."error",
-    jrld."data" AS "jobRunLookupData"
+    jrld."data" AS "jobRunLookupData",
+    wr."additionalMetadata",
+    wr."childIndex",
+    wr."childKey",
+    wr."parentId"
 FROM
     "StepRun" sr
 JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
     "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
+JOIN
+    -- Take advantage of composite index on "JobRun"("workflowRunId", "tenantId")
+    "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = @tenantId::uuid
 WHERE
     sr."id" = @id::uuid AND
     sr."tenantId" = @tenantId::uuid;
