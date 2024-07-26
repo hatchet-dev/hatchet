@@ -108,7 +108,7 @@ type hatchetContext struct {
 
 type hatchetWorkerContext struct {
 	context.Context
-	id     string
+	id     *string
 	worker *Worker
 }
 
@@ -126,7 +126,7 @@ func newHatchetContext(
 		l:       l,
 		w: &hatchetWorkerContext{
 			Context: ctx,
-			id:      *w.id,
+			id:      w.id,
 			worker:  w,
 		},
 	}
@@ -282,7 +282,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 			return nil, fmt.Errorf("cannot run with sticky: workflow %s is not registered on this worker", workflowName)
 		}
 
-		desiredWorker = &h.w.id
+		desiredWorker = h.w.id
 	}
 
 	listener, err := h.saveOrLoadListener()
@@ -388,7 +388,11 @@ func (wc *hatchetWorkerContext) GetContext() context.Context {
 }
 
 func (wc *hatchetWorkerContext) ID() string {
-	return wc.id
+	if wc.id == nil {
+		return ""
+	}
+
+	return *wc.id
 }
 
 func (wc *hatchetWorkerContext) GetLabels() map[string]interface{} {
@@ -397,7 +401,11 @@ func (wc *hatchetWorkerContext) GetLabels() map[string]interface{} {
 
 func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) error {
 
-	err := wc.worker.client.Dispatcher().UpsertWorkerLabels(wc.Context, wc.id, labels)
+	if wc.id == nil {
+		return fmt.Errorf("worker id is nil, cannot upsert labels (are on web worker?)")
+	}
+
+	err := wc.worker.client.Dispatcher().UpsertWorkerLabels(wc.Context, *wc.id, labels)
 
 	if err != nil {
 		return fmt.Errorf("failed to upsert labels: %w", err)
