@@ -43,7 +43,7 @@ type DedupeViolationErr struct {
 }
 
 func (d *DedupeViolationErr) Error() string {
-	return d.details
+	return fmt.Sprintf("DedupeViolationErr: %s", d.details)
 }
 
 type adminClientImpl struct {
@@ -201,9 +201,9 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &request)
 
 	if err != nil {
-		if status.Code(err) != codes.AlreadyExists {
+		if status.Code(err) == codes.AlreadyExists {
 			return "", &DedupeViolationErr{
-				details: fmt.Sprintf("could not trigger child workflow: %s", err.Error()),
+				details: fmt.Sprintf("could not trigger workflow: %s", err.Error()),
 			}
 		}
 
@@ -237,7 +237,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 	})
 
 	if err != nil {
-		if status.Code(err) != codes.AlreadyExists {
+		if status.Code(err) == codes.AlreadyExists {
 			return "", &DedupeViolationErr{
 				details: fmt.Sprintf("could not trigger child workflow: %s", err.Error()),
 			}
