@@ -9,6 +9,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -34,6 +36,14 @@ type AdminClient interface {
 	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
 
 	PutRateLimit(key string, opts *types.RateLimitOpts) error
+}
+
+type DedupeViolationErr struct {
+	details string
+}
+
+func (d *DedupeViolationErr) Error() string {
+	return fmt.Sprintf("DedupeViolationErr: %s", d.details)
 }
 
 type adminClientImpl struct {
@@ -191,6 +201,12 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &request)
 
 	if err != nil {
+		if status.Code(err) == codes.AlreadyExists {
+			return "", &DedupeViolationErr{
+				details: fmt.Sprintf("could not trigger workflow: %s", err.Error()),
+			}
+		}
+
 		return "", fmt.Errorf("could not trigger workflow: %w", err)
 	}
 
@@ -221,6 +237,12 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 	})
 
 	if err != nil {
+		if status.Code(err) == codes.AlreadyExists {
+			return "", &DedupeViolationErr{
+				details: fmt.Sprintf("could not trigger child workflow: %s", err.Error()),
+			}
+		}
+
 		return "", fmt.Errorf("could not trigger child workflow: %w", err)
 	}
 

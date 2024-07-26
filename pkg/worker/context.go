@@ -321,6 +321,22 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	}, nil
 }
 
+func (h *hatchetContext) AdditionalMetadata() map[string]string {
+	return h.a.AdditionalMetadata
+}
+
+func (h *hatchetContext) ChildIndex() *int32 {
+	return h.a.ChildIndex
+}
+
+func (h *hatchetContext) ChildKey() *string {
+	return h.a.ChildKey
+}
+
+func (h *hatchetContext) ParentWorkflowRunId() *string {
+	return h.a.ParentWorkflowRunId
+}
+
 func (h *hatchetContext) populateStepDataForGroupKeyRun() error {
 	if h.stepData != nil {
 		return nil

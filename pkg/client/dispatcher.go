@@ -97,6 +97,18 @@ type Action struct {
 
 	// the count of the retry attempt
 	RetryCount int32 `json:"retryCount"`
+
+	// the additional metadata for the workflow run
+	AdditionalMetadata map[string]string
+
+	// the child index for the workflow run
+	ChildIndex *int32
+
+	// the child key for the workflow run
+	ChildKey *string
+
+	// the parent workflow run id
+	ParentWorkflowRunId *string
 }
 
 type WorkerActionListener interface {
@@ -329,21 +341,36 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 
 			unquoted := assignedAction.ActionPayload
 
+			var additionalMetadata map[string]string
+
+			if assignedAction.AdditionalMetadata != nil {
+				err := json.Unmarshal([]byte(*assignedAction.AdditionalMetadata), &additionalMetadata)
+
+				if err != nil {
+					a.l.Error().Err(err).Msgf("could not unmarshal additional metadata")
+					continue
+				}
+			}
+
 			ch <- &Action{
-				TenantId:         assignedAction.TenantId,
-				WorkflowRunId:    assignedAction.WorkflowRunId,
-				GetGroupKeyRunId: assignedAction.GetGroupKeyRunId,
-				WorkerId:         a.workerId,
-				JobId:            assignedAction.JobId,
-				JobName:          assignedAction.JobName,
-				JobRunId:         assignedAction.JobRunId,
-				StepId:           assignedAction.StepId,
-				StepName:         assignedAction.StepName,
-				StepRunId:        assignedAction.StepRunId,
-				ActionId:         assignedAction.ActionId,
-				ActionType:       actionType,
-				ActionPayload:    []byte(unquoted),
-				RetryCount:       assignedAction.RetryCount,
+				TenantId:            assignedAction.TenantId,
+				WorkflowRunId:       assignedAction.WorkflowRunId,
+				GetGroupKeyRunId:    assignedAction.GetGroupKeyRunId,
+				WorkerId:            a.workerId,
+				JobId:               assignedAction.JobId,
+				JobName:             assignedAction.JobName,
+				JobRunId:            assignedAction.JobRunId,
+				StepId:              assignedAction.StepId,
+				StepName:            assignedAction.StepName,
+				StepRunId:           assignedAction.StepRunId,
+				ActionId:            assignedAction.ActionId,
+				ActionType:          actionType,
+				ActionPayload:       []byte(unquoted),
+				RetryCount:          assignedAction.RetryCount,
+				AdditionalMetadata:  additionalMetadata,
+				ChildIndex:          assignedAction.ChildWorkflowIndex,
+				ChildKey:            assignedAction.ChildWorkflowKey,
+				ParentWorkflowRunId: assignedAction.ParentWorkflowRunId,
 			}
 		}
 	}()
