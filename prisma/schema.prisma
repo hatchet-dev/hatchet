@@ -206,6 +206,7 @@ model Tenant {
   limits              TenantResourceLimit[]
   limitAlerts         TenantResourceLimitAlert[]
   webhookWorkers      WebhookWorker[]
+  dedupes             WorkflowRunDedupe[]
 
   @@index([controllerPartitionId])
   @@index([workerPartitionId])
@@ -926,6 +927,29 @@ model WorkflowRun {
   @@index([finishedAt])
   @@index([status])
   @@index([deletedAt])
+}
+
+model WorkflowRunDedupe {
+  id        BigInt   @unique @default(autoincrement()) @db.BigInt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // the parent workflow
+  workflowId String @db.Uuid
+
+  // the workflow run id which used this dedupe value
+  workflowRunId String @db.Uuid
+
+  // the dedupe value
+  value String
+
+  // DO NOT REMOVE - this uniqueness constraint is cased on in code
+  @@unique([tenantId, workflowId, value])
+  @@index([tenantId, value])
 }
 
 model GetGroupKeyRun {

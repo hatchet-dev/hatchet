@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -678,6 +679,43 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 				return nil, err
 			}
 			createParams.Additionalmetadata = additionalMetadataBytes
+
+			// if additional metadata contains a "dedupe" key, use it as the dedupe value
+			if dedupeValue, ok := opts.AdditionalMetadata["dedupe"]; ok {
+				if dedupeStr, ok := dedupeValue.(string); ok {
+					opts.DedupeValue = &dedupeStr
+				}
+
+				if dedupeInt, ok := dedupeValue.(int); ok {
+					dedupeStr := fmt.Sprintf("%d", dedupeInt)
+					opts.DedupeValue = &dedupeStr
+				}
+			}
+		}
+
+		// create the dedupe value
+		if opts.DedupeValue != nil {
+			_, err = queries.CreateWorkflowRunDedupe(
+				tx1Ctx,
+				tx,
+				dbsqlc.CreateWorkflowRunDedupeParams{
+					Tenantid:          pgTenantId,
+					Workflowversionid: sqlchelpers.UUIDFromStr(opts.WorkflowVersionId),
+					Value:             sqlchelpers.TextFromStr(*opts.DedupeValue),
+					Workflowrunid:     sqlchelpers.UUIDFromStr(workflowRunId),
+				},
+			)
+
+			if err != nil {
+				// if this is a unique violation, return stable error
+				if isUniqueViolationOnDedupe(err) {
+					return nil, repository.ErrDedupeValueExists{
+						DedupeValue: *opts.DedupeValue,
+					}
+				}
+
+				return nil, err
+			}
 		}
 
 		// create a workflow
@@ -843,6 +881,14 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 		err = tx.Commit(tx1Ctx)
 
 		if err != nil {
+			// check unique violation again on commit, to account for inserts which were uncommitted
+			// at the time of the first check
+			if isUniqueViolationOnDedupe(err) {
+				return nil, repository.ErrDedupeValueExists{
+					DedupeValue: *opts.DedupeValue,
+				}
+			}
+
 			return nil, err
 		}
 
@@ -885,4 +931,13 @@ func defaultWorkflowRunPopulator() []db.WorkflowRunRelationWith {
 			),
 		),
 	}
+}
+
+func isUniqueViolationOnDedupe(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(err.Error(), "WorkflowRunDedupe_tenantId_workflowId_value_key") &&
+		strings.Contains(err.Error(), "SQLSTATE 23505")
 }

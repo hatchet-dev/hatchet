@@ -680,6 +680,17 @@ CREATE TABLE "WorkflowRun" (
 );
 
 -- CreateTable
+CREATE TABLE "WorkflowRunDedupe" (
+    "id" BIGSERIAL NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "tenantId" UUID NOT NULL,
+    "workflowId" UUID NOT NULL,
+    "workflowRunId" UUID NOT NULL,
+    "value" TEXT NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "WorkflowRunStickyState" (
     "id" BIGSERIAL NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1099,6 +1110,15 @@ CREATE INDEX "WorkflowRun_tenantId_idx" ON "WorkflowRun"("tenantId" ASC);
 CREATE INDEX "WorkflowRun_workflowVersionId_idx" ON "WorkflowRun"("workflowVersionId" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WorkflowRunDedupe_id_key" ON "WorkflowRunDedupe"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkflowRunDedupe_tenantId_value_idx" ON "WorkflowRunDedupe"("tenantId" ASC, "value" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowRunDedupe_tenantId_workflowId_value_key" ON "WorkflowRunDedupe"("tenantId" ASC, "workflowId" ASC, "value" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunStickyState_workflowRunId_key" ON "WorkflowRunStickyState"("workflowRunId" ASC);
 
 -- CreateIndex
@@ -1391,6 +1411,9 @@ ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_tenantId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_workflowVersionId_fkey" FOREIGN KEY ("workflowVersionId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowRunDedupe" ADD CONSTRAINT "WorkflowRunDedupe_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowRunStickyState" ADD CONSTRAINT "WorkflowRunStickyState_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
