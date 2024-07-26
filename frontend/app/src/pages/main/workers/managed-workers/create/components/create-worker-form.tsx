@@ -109,7 +109,7 @@ export const createOrUpdateManagedWorkerSchema = z.object({
     ),
   }),
   runtimeConfig: z.object({
-    numReplicas: z.number().min(1).max(16),
+    numReplicas: z.number().min(0).max(16),
     envVars: z.record(z.string()),
     cpuKind: z.string(),
     cpus: z.number(),
@@ -468,7 +468,7 @@ export default function CreateWorkerForm({
 
                       field.onChange(parseInt(e.target.value));
                     }}
-                    min={1}
+                    min={0}
                     max={16}
                     id="numReplicas"
                     placeholder="1"
