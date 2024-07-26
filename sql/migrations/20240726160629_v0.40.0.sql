@@ -17,7 +17,7 @@ CREATE INDEX "WorkerLabel_workerId_idx" ON "WorkerLabel" ("workerId");
 -- Create index "WorkerLabel_workerId_key_key" to table: "WorkerLabel"
 CREATE UNIQUE INDEX "WorkerLabel_workerId_key_key" ON "WorkerLabel" ("workerId", "key");
 -- Create "WorkflowRunDedupe" table
-CREATE TABLE "WorkflowRunDedupe" ("id" bigserial NOT NULL, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "tenantId" uuid NOT NULL, "workflowId" uuid NOT NULL, "value" text NOT NULL, CONSTRAINT "WorkflowRunDedupe_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant" ("id") ON UPDATE CASCADE ON DELETE CASCADE);
+CREATE TABLE "WorkflowRunDedupe" ("id" bigserial NOT NULL, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "tenantId" uuid NOT NULL, "workflowId" uuid NOT NULL, "workflowRunId" uuid NOT NULL, "value" text NOT NULL, CONSTRAINT "WorkflowRunDedupe_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant" ("id") ON UPDATE CASCADE ON DELETE CASCADE);
 -- Create index "WorkflowRunDedupe_id_key" to table: "WorkflowRunDedupe"
 CREATE UNIQUE INDEX "WorkflowRunDedupe_id_key" ON "WorkflowRunDedupe" ("id");
 -- Create index "WorkflowRunDedupe_tenantId_value_idx" to table: "WorkflowRunDedupe"

@@ -664,6 +664,11 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 				if dedupeStr, ok := dedupeValue.(string); ok {
 					opts.DedupeValue = &dedupeStr
 				}
+
+				if dedupeInt, ok := dedupeValue.(int); ok {
+					dedupeStr := fmt.Sprintf("%d", dedupeInt)
+					opts.DedupeValue = &dedupeStr
+				}
 			}
 		}
 
@@ -676,6 +681,7 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 					Tenantid:          pgTenantId,
 					Workflowversionid: sqlchelpers.UUIDFromStr(opts.WorkflowVersionId),
 					Value:             sqlchelpers.TextFromStr(*opts.DedupeValue),
+					Workflowrunid:     sqlchelpers.UUIDFromStr(workflowRunId),
 				},
 			)
 

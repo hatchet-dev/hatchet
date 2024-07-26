@@ -448,12 +448,14 @@ INSERT INTO "WorkflowRunDedupe" (
     "updatedAt",
     "tenantId",
     "workflowId",
+    "workflowRunId",
     "value"
 ) VALUES (
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
     @tenantId::uuid,
     (SELECT "id" FROM workflow_id),
+    @workflowRunId::uuid,
     sqlc.narg('value')::text
 ) RETURNING *;
 

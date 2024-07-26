@@ -1209,12 +1209,13 @@ type WorkflowRun struct {
 }
 
 type WorkflowRunDedupe struct {
-	ID         int64            `json:"id"`
-	CreatedAt  pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
-	TenantId   pgtype.UUID      `json:"tenantId"`
-	WorkflowId pgtype.UUID      `json:"workflowId"`
-	Value      string           `json:"value"`
+	ID            int64            `json:"id"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	TenantId      pgtype.UUID      `json:"tenantId"`
+	WorkflowId    pgtype.UUID      `json:"workflowId"`
+	WorkflowRunId pgtype.UUID      `json:"workflowRunId"`
+	Value         string           `json:"value"`
 }
 
 type WorkflowRunStickyState struct {

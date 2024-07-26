@@ -941,9 +941,13 @@ model WorkflowRunDedupe {
   // the parent workflow
   workflowId String @db.Uuid
 
+  // the workflow run id which used this dedupe value
+  workflowRunId String @db.Uuid
+
   // the dedupe value
   value String
 
+  // DO NOT REMOVE - this uniqueness constraint is cased on in code
   @@unique([tenantId, workflowId, value])
   @@index([tenantId, value])
 }

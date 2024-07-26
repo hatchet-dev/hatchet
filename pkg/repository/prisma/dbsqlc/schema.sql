@@ -686,6 +686,7 @@ CREATE TABLE "WorkflowRunDedupe" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "tenantId" UUID NOT NULL,
     "workflowId" UUID NOT NULL,
+    "workflowRunId" UUID NOT NULL,
     "value" TEXT NOT NULL
 );
 
