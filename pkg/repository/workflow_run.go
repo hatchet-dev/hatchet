@@ -70,12 +70,25 @@ func WithParent(
 	parentId, parentStepRunId string,
 	childIndex int,
 	childKey *string,
+	additionalMetadata map[string]interface{},
+	parentAdditionalMetadata map[string]interface{},
 ) CreateWorkflowRunOpt {
 	return func(opts *CreateWorkflowRunOpts) {
 		opts.ParentId = &parentId
 		opts.ParentStepRunId = &parentStepRunId
 		opts.ChildIndex = &childIndex
 		opts.ChildKey = childKey
+
+		opts.AdditionalMetadata = parentAdditionalMetadata
+
+		if opts.AdditionalMetadata == nil {
+			opts.AdditionalMetadata = make(map[string]interface{})
+		}
+
+		for k, v := range additionalMetadata {
+			opts.AdditionalMetadata[k] = v
+		}
+
 	}
 }
 
@@ -113,6 +126,7 @@ func GetCreateWorkflowRunOptsFromParent(
 	childIndex int,
 	childKey *string,
 	additionalMetadata map[string]interface{},
+	parentAdditionalMetadata map[string]interface{},
 ) (*CreateWorkflowRunOpts, error) {
 	if input == nil {
 		input = []byte("{}")
@@ -124,10 +138,9 @@ func GetCreateWorkflowRunOptsFromParent(
 		ManualTriggerInput: StringPtr(string(input)),
 		TriggeredBy:        string(datautils.TriggeredByParent),
 		InputData:          input,
-		AdditionalMetadata: additionalMetadata,
 	}
 
-	WithParent(parentId, parentStepRunId, childIndex, childKey)(opts)
+	WithParent(parentId, parentStepRunId, childIndex, childKey, additionalMetadata, parentAdditionalMetadata)(opts)
 
 	if workflowVersion.ConcurrencyLimitStrategy.Valid {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
