@@ -31,7 +31,9 @@ func IsFinalJobRunStatus(status dbsqlc.JobRunStatus) bool {
 }
 
 func IsFinalWorkflowRunStatus(status dbsqlc.WorkflowRunStatus) bool {
-	return status != dbsqlc.WorkflowRunStatusPENDING && status != dbsqlc.WorkflowRunStatusRUNNING && status != dbsqlc.WorkflowRunStatusQUEUED
+	return status != dbsqlc.WorkflowRunStatusPENDING &&
+		status != dbsqlc.WorkflowRunStatusRUNNING &&
+		status != dbsqlc.WorkflowRunStatusQUEUED
 }
 
 type CreateStepRunEventOpts struct {
