@@ -281,6 +281,9 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	}
 
 	if sc.HasService("grpc") {
+
+		cacheInstance := cache.New(10 * time.Second)
+
 		// create the dispatcher
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
@@ -288,7 +291,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
-			dispatcher.WithCache(cache.New(10*time.Second)),
+			dispatcher.WithCache(cacheInstance),
 		)
 
 		if err != nil {
