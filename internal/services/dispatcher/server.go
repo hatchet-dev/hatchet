@@ -624,7 +624,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 		wg.Add(1)
 		defer wg.Done()
 
-		e, err := s.tenantTaskToWorkflowEvent(task, tenantId, workflowRunId)
+		e, err := s.tenantTaskToWorkflowEventByRunId(task, tenantId, workflowRunId)
 
 		if err != nil {
 			s.l.Error().Err(err).Msgf("could not convert task to workflow event")
@@ -1412,7 +1412,7 @@ func (s *DispatcherImpl) taskToWorkflowEvent(task *msgqueue.Message, tenantId st
 	return workflowEvent, nil
 }
 
-func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenantId string, workflowRunIds ...string) (*contracts.WorkflowEvent, error) {
+func (s *DispatcherImpl) tenantTaskToWorkflowEventByRunId(task *msgqueue.Message, tenantId string, workflowRunIds ...string) (*contracts.WorkflowEvent, error) {
 
 	workflowEvent, err := s.taskToWorkflowEvent(task, tenantId,
 		func(e *contracts.WorkflowEvent) (*bool, error) {
@@ -1421,7 +1421,8 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenan
 		},
 		func(e *contracts.WorkflowEvent) (bool, error) {
 			// hangup on complete
-			return e.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN && e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, nil
+			return e.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN &&
+				e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, nil
 		},
 	)
 
