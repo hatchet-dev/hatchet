@@ -30,6 +30,7 @@ type DispatcherClient interface {
 	// Heartbeat is a method for workers to send heartbeats to the dispatcher
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 	SubscribeToWorkflowEvents(ctx context.Context, in *SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsClient, error)
+	SubscribeToWorkflowEventsByAdditionalMeta(ctx context.Context, in *SubscribeToWorkflowEventsByAdditionalMetaRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsByAdditionalMetaClient, error)
 	SubscribeToWorkflowRuns(ctx context.Context, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowRunsClient, error)
 	SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
@@ -162,8 +163,40 @@ func (x *dispatcherSubscribeToWorkflowEventsClient) Recv() (*WorkflowEvent, erro
 	return m, nil
 }
 
+func (c *dispatcherClient) SubscribeToWorkflowEventsByAdditionalMeta(ctx context.Context, in *SubscribeToWorkflowEventsByAdditionalMetaRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsByAdditionalMetaClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[3], "/Dispatcher/SubscribeToWorkflowEventsByAdditionalMeta", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dispatcherSubscribeToWorkflowEventsByAdditionalMetaClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Dispatcher_SubscribeToWorkflowEventsByAdditionalMetaClient interface {
+	Recv() (*WorkflowEvent, error)
+	grpc.ClientStream
+}
+
+type dispatcherSubscribeToWorkflowEventsByAdditionalMetaClient struct {
+	grpc.ClientStream
+}
+
+func (x *dispatcherSubscribeToWorkflowEventsByAdditionalMetaClient) Recv() (*WorkflowEvent, error) {
+	m := new(WorkflowEvent)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *dispatcherClient) SubscribeToWorkflowRuns(ctx context.Context, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowRunsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[3], "/Dispatcher/SubscribeToWorkflowRuns", opts...)
+	stream, err := c.cc.NewStream(ctx, &Dispatcher_ServiceDesc.Streams[4], "/Dispatcher/SubscribeToWorkflowRuns", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -268,6 +301,7 @@ type DispatcherServer interface {
 	// Heartbeat is a method for workers to send heartbeats to the dispatcher
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error
+	SubscribeToWorkflowEventsByAdditionalMeta(*SubscribeToWorkflowEventsByAdditionalMetaRequest, Dispatcher_SubscribeToWorkflowEventsByAdditionalMetaServer) error
 	SubscribeToWorkflowRuns(Dispatcher_SubscribeToWorkflowRunsServer) error
 	SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error)
@@ -297,6 +331,9 @@ func (UnimplementedDispatcherServer) Heartbeat(context.Context, *HeartbeatReques
 }
 func (UnimplementedDispatcherServer) SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribeToWorkflowEvents not implemented")
+}
+func (UnimplementedDispatcherServer) SubscribeToWorkflowEventsByAdditionalMeta(*SubscribeToWorkflowEventsByAdditionalMetaRequest, Dispatcher_SubscribeToWorkflowEventsByAdditionalMetaServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToWorkflowEventsByAdditionalMeta not implemented")
 }
 func (UnimplementedDispatcherServer) SubscribeToWorkflowRuns(Dispatcher_SubscribeToWorkflowRunsServer) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribeToWorkflowRuns not implemented")
@@ -431,6 +468,27 @@ type dispatcherSubscribeToWorkflowEventsServer struct {
 }
 
 func (x *dispatcherSubscribeToWorkflowEventsServer) Send(m *WorkflowEvent) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Dispatcher_SubscribeToWorkflowEventsByAdditionalMeta_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeToWorkflowEventsByAdditionalMetaRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DispatcherServer).SubscribeToWorkflowEventsByAdditionalMeta(m, &dispatcherSubscribeToWorkflowEventsByAdditionalMetaServer{stream})
+}
+
+type Dispatcher_SubscribeToWorkflowEventsByAdditionalMetaServer interface {
+	Send(*WorkflowEvent) error
+	grpc.ServerStream
+}
+
+type dispatcherSubscribeToWorkflowEventsByAdditionalMetaServer struct {
+	grpc.ServerStream
+}
+
+func (x *dispatcherSubscribeToWorkflowEventsByAdditionalMetaServer) Send(m *WorkflowEvent) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -644,6 +702,11 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "SubscribeToWorkflowEvents",
 			Handler:       _Dispatcher_SubscribeToWorkflowEvents_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "SubscribeToWorkflowEventsByAdditionalMeta",
+			Handler:       _Dispatcher_SubscribeToWorkflowEventsByAdditionalMeta_Handler,
 			ServerStreams: true,
 		},
 		{

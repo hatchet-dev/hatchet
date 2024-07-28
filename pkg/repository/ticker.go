@@ -36,7 +36,7 @@ type TickerEngineRepository interface {
 	Delete(ctx context.Context, tickerId string) error
 
 	// PollStepRuns looks for step runs who are close to past their timeoutAt value and are in a running state
-	PollStepRuns(ctx context.Context, tickerId string) ([]*dbsqlc.StepRun, error)
+	PollStepRuns(ctx context.Context, tickerId string) ([]*dbsqlc.PollStepRunsRow, error)
 
 	// PollJobRuns looks for get group key runs who are close to past their timeoutAt value and are in a running state
 	PollGetGroupKeyRuns(ctx context.Context, tickerId string) ([]*dbsqlc.GetGroupKeyRun, error)

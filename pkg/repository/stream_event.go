@@ -30,4 +30,7 @@ type StreamEventsEngineRepository interface {
 
 	// CleanupStreamEvents deletes all stale StreamEvents.
 	CleanupStreamEvents(ctx context.Context) error
+
+	// GetStreamEventMeta
+	GetStreamEventMeta(ctx context.Context, tenantId string, stepRunId string) (*dbsqlc.GetStreamEventMetaRow, error)
 }

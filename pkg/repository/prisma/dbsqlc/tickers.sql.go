@@ -513,9 +513,17 @@ WITH inactiveTickers AS (
 ),
 stepRunsToTimeout AS (
     SELECT
-        stepRun."id"
+        stepRun."id",
+        stepRun."tenantId" as "tenantId",
+        jobRun."workflowRunId" as "workflowRunId",
+        step."retries" as "retries",
+        stepRun."retryCount" as "retryCount"
     FROM
         "StepRun" as stepRun
+    JOIN
+        "JobRun" as jobRun ON stepRun."jobRunId" = jobRun."id"
+    JOIN
+        "Step" as step ON stepRun."stepId" = step."id"
     LEFT JOIN inactiveTickers ON stepRun."tickerId" = inactiveTickers."id"
     WHERE
         ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
@@ -536,46 +544,32 @@ FROM
     stepRunsToTimeout
 WHERE
     stepRuns."id" = stepRunsToTimeout."id"
-RETURNING stepruns.id, stepruns."createdAt", stepruns."updatedAt", stepruns."deletedAt", stepruns."tenantId", stepruns."jobRunId", stepruns."stepId", stepruns."order", stepruns."workerId", stepruns."tickerId", stepruns.status, stepruns.input, stepruns.output, stepruns."requeueAfter", stepruns."scheduleTimeoutAt", stepruns.error, stepruns."startedAt", stepruns."finishedAt", stepruns."timeoutAt", stepruns."cancelledAt", stepruns."cancelledReason", stepruns."cancelledError", stepruns."inputSchema", stepruns."callerFiles", stepruns."gitRepoBranch", stepruns."retryCount", stepruns."semaphoreReleased"
+RETURNING steprunstotimeout.id, steprunstotimeout."tenantId", steprunstotimeout."workflowRunId", steprunstotimeout.retries, steprunstotimeout."retryCount"
 `
 
-func (q *Queries) PollStepRuns(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*StepRun, error) {
+type PollStepRunsRow struct {
+	ID            pgtype.UUID `json:"id"`
+	TenantId      pgtype.UUID `json:"tenantId"`
+	WorkflowRunId pgtype.UUID `json:"workflowRunId"`
+	Retries       int32       `json:"retries"`
+	RetryCount    int32       `json:"retryCount"`
+}
+
+func (q *Queries) PollStepRuns(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*PollStepRunsRow, error) {
 	rows, err := db.Query(ctx, pollStepRuns, tickerid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*StepRun
+	var items []*PollStepRunsRow
 	for rows.Next() {
-		var i StepRun
+		var i PollStepRunsRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
 			&i.TenantId,
-			&i.JobRunId,
-			&i.StepId,
-			&i.Order,
-			&i.WorkerId,
-			&i.TickerId,
-			&i.Status,
-			&i.Input,
-			&i.Output,
-			&i.RequeueAfter,
-			&i.ScheduleTimeoutAt,
-			&i.Error,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.TimeoutAt,
-			&i.CancelledAt,
-			&i.CancelledReason,
-			&i.CancelledError,
-			&i.InputSchema,
-			&i.CallerFiles,
-			&i.GitRepoBranch,
+			&i.WorkflowRunId,
+			&i.Retries,
 			&i.RetryCount,
-			&i.SemaphoreReleased,
 		); err != nil {
 			return nil, err
 		}

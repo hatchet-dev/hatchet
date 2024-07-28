@@ -18,6 +18,8 @@ service Dispatcher {
 
     rpc SubscribeToWorkflowEvents(SubscribeToWorkflowEventsRequest) returns (stream WorkflowEvent) {}
 
+    rpc SubscribeToWorkflowEventsByAdditionalMeta(SubscribeToWorkflowEventsByAdditionalMetaRequest) returns (stream WorkflowEvent) {}
+
     rpc SubscribeToWorkflowRuns(stream SubscribeToWorkflowRunsRequest) returns (stream WorkflowRunEvent) {}
 
     rpc SendStepActionEvent(StepActionEvent) returns (ActionEventResponse) {}
@@ -237,6 +239,14 @@ message ActionEventResponse {
 message SubscribeToWorkflowEventsRequest {
     // the id of the workflow run
     string workflowRunId = 1;
+}
+
+message SubscribeToWorkflowEventsByAdditionalMetaRequest {
+    // the key of the additional meta field to subscribe to
+    string key = 1;
+
+    // the value of the additional meta field to subscribe to
+    string value = 2;
 }
 
 message SubscribeToWorkflowRunsRequest {

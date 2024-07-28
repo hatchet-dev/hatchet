@@ -1391,6 +1391,7 @@ func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelled
 		DispatcherId: dispatcherId,
 	})
 
+	// TODO add additional metadata
 	return &msgqueue.Message{
 		ID:       "step-run-cancelled",
 		Payload:  payload,
