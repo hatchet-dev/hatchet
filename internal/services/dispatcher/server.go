@@ -539,8 +539,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 					delete(activeRunIds, e.WorkflowRunId)
 				}
 
-				fmt.Println("Active runs:", len(activeRunIds))
-
 				// Only return true to hang up if we've seen at least one run and all runs are completed
 				if len(activeRunIds) == 0 {
 					return true, nil
