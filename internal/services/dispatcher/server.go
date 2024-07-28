@@ -1430,6 +1430,11 @@ func (s *DispatcherImpl) tenantTaskToWorkflowEventByAdditionalMeta(task *msgqueu
 			s.cache,
 			fmt.Sprintf("wfram-%s-%s-%s", tenantId, e.WorkflowRunId, tinyHash(key, value)),
 			func() (*bool, error) {
+
+				if e.WorkflowRunId == "" {
+					return nil, nil
+				}
+
 				am, err := s.repo.WorkflowRun().GetWorkflowRunAdditionalMeta(context.Background(), tenantId, e.WorkflowRunId)
 
 				if err != nil {
