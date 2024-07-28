@@ -503,7 +503,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 	s.l.Debug().Msgf("Received subscribe request for additional meta key-value: {%s: %s}", key, value)
 
 	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-
 	if err != nil {
 		return err
 	}
@@ -511,28 +510,44 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 
-	// if the workflow run is in a final state, hang up the connection
-	// workflowRun, err := s.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
-
-	// if err != nil {
-	// 	if errors.Is(err, repository.ErrWorkflowRunNotFound) {
-	// 		return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
-	// 	}
-
-	// 	return err
-	// }
-
-	// if repository.IsFinalWorkflowRunStatus(workflowRun.WorkflowRun.Status) {
-	// 	return nil
-	// }
-
 	wg := sync.WaitGroup{}
+
+	// Keep track of active workflow run IDs
+	activeRunIds := make(map[string]struct{})
+	var mu sync.Mutex // Mutex to protect activeRunIds
 
 	f := func(task *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
 
-		e, err := s.tenantTaskToWorkflowEventByAdditionalMeta(task, tenantId, key, value)
+		e, err := s.tenantTaskToWorkflowEventByAdditionalMeta(
+			task, tenantId, key, value,
+			func(e *contracts.WorkflowEvent) (bool, error) {
+				mu.Lock()
+				defer mu.Unlock()
+
+				if e.WorkflowRunId == "" {
+					return false, nil
+				}
+
+				if e.ResourceType != contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN &&
+					e.EventType != contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED {
+					// Add the run ID to active runs
+					activeRunIds[e.WorkflowRunId] = struct{}{}
+				} else {
+					// Remove the completed run from active runs
+					delete(activeRunIds, e.WorkflowRunId)
+				}
+
+				fmt.Println("Active runs:", len(activeRunIds))
+
+				// Only return true to hang up if we've seen at least one run and all runs are completed
+				if len(activeRunIds) == 0 {
+					return true, nil
+				}
+
+				return false, nil
+			})
 
 		if err != nil {
 			s.l.Error().Err(err).Msgf("could not convert task to workflow event")
@@ -1261,7 +1276,7 @@ func UnmarshalPayload[T any](payload interface{}) (T, error) {
 	return result, nil
 }
 
-func (s *DispatcherImpl) taskToWorkflowEvent(task *msgqueue.Message, tenantId string, filter func(task *contracts.WorkflowEvent) (*bool, error)) (*contracts.WorkflowEvent, error) {
+func (s *DispatcherImpl) taskToWorkflowEvent(task *msgqueue.Message, tenantId string, filter func(task *contracts.WorkflowEvent) (*bool, error), hangupFunc func(task *contracts.WorkflowEvent) (bool, error)) (*contracts.WorkflowEvent, error) {
 	workflowEvent := &contracts.WorkflowEvent{}
 
 	var stepRunId string
@@ -1355,7 +1370,6 @@ func (s *DispatcherImpl) taskToWorkflowEvent(task *msgqueue.Message, tenantId st
 		workflowEvent.ResourceId = workflowRunId
 		workflowEvent.WorkflowRunId = workflowRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
-		workflowEvent.Hangup = true
 	}
 
 	match, err := filter(workflowEvent)
@@ -1367,6 +1381,17 @@ func (s *DispatcherImpl) taskToWorkflowEvent(task *msgqueue.Message, tenantId st
 	if match != nil && !*match {
 		// if not a match, we don't return it
 		return nil, nil
+	}
+
+	hangup, err := hangupFunc(workflowEvent)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if hangup {
+		workflowEvent.Hangup = true
+		return workflowEvent, nil
 	}
 
 	if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_STEP_RUN {
@@ -1384,10 +1409,6 @@ func (s *DispatcherImpl) taskToWorkflowEvent(task *msgqueue.Message, tenantId st
 
 			workflowEvent.EventPayload = string(streamEvent.Message)
 		}
-
-	} else if workflowEvent.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN {
-		// TODO case this better
-		workflowEvent.Hangup = true
 	}
 
 	return workflowEvent, nil
@@ -1395,10 +1416,16 @@ func (s *DispatcherImpl) taskToWorkflowEvent(task *msgqueue.Message, tenantId st
 
 func (s *DispatcherImpl) tenantTaskToWorkflowEvent(task *msgqueue.Message, tenantId string, workflowRunIds ...string) (*contracts.WorkflowEvent, error) {
 
-	workflowEvent, err := s.taskToWorkflowEvent(task, tenantId, func(e *contracts.WorkflowEvent) (*bool, error) {
-		hit := contains(workflowRunIds, e.WorkflowRunId)
-		return &hit, nil
-	})
+	workflowEvent, err := s.taskToWorkflowEvent(task, tenantId,
+		func(e *contracts.WorkflowEvent) (*bool, error) {
+			hit := contains(workflowRunIds, e.WorkflowRunId)
+			return &hit, nil
+		},
+		func(e *contracts.WorkflowEvent) (bool, error) {
+			// hangup on complete
+			return e.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN && e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, nil
+		},
+	)
 
 	if err != nil {
 		return nil, err
@@ -1424,45 +1451,50 @@ func tinyHash(key, value string) string {
 	return encoded[:11]
 }
 
-func (s *DispatcherImpl) tenantTaskToWorkflowEventByAdditionalMeta(task *msgqueue.Message, tenantId string, key string, value string) (*contracts.WorkflowEvent, error) {
-	workflowEvent, err := s.taskToWorkflowEvent(task, tenantId, func(e *contracts.WorkflowEvent) (*bool, error) {
-		return cache.MakeCacheable[bool](
-			s.cache,
-			fmt.Sprintf("wfram-%s-%s-%s", tenantId, e.WorkflowRunId, tinyHash(key, value)),
-			func() (*bool, error) {
+func (s *DispatcherImpl) tenantTaskToWorkflowEventByAdditionalMeta(task *msgqueue.Message, tenantId string, key string, value string, hangup func(e *contracts.WorkflowEvent) (bool, error)) (*contracts.WorkflowEvent, error) {
+	workflowEvent, err := s.taskToWorkflowEvent(
+		task,
+		tenantId,
+		func(e *contracts.WorkflowEvent) (*bool, error) {
+			return cache.MakeCacheable[bool](
+				s.cache,
+				fmt.Sprintf("wfram-%s-%s-%s", tenantId, e.WorkflowRunId, tinyHash(key, value)),
+				func() (*bool, error) {
 
-				if e.WorkflowRunId == "" {
-					return nil, nil
-				}
+					if e.WorkflowRunId == "" {
+						return nil, nil
+					}
 
-				am, err := s.repo.WorkflowRun().GetWorkflowRunAdditionalMeta(context.Background(), tenantId, e.WorkflowRunId)
+					am, err := s.repo.WorkflowRun().GetWorkflowRunAdditionalMeta(context.Background(), tenantId, e.WorkflowRunId)
 
-				if err != nil {
-					return nil, err
-				}
+					if err != nil {
+						return nil, err
+					}
 
-				if am.AdditionalMetadata == nil {
+					if am.AdditionalMetadata == nil {
+						f := false
+						return &f, nil
+					}
+
+					var additionalMetaMap map[string]interface{}
+					err = json.Unmarshal(am.AdditionalMetadata, &additionalMetaMap)
+					if err != nil {
+						return nil, err
+					}
+
+					if v, ok := (additionalMetaMap)[key]; ok && v == value {
+						t := true
+						return &t, nil
+					}
+
 					f := false
 					return &f, nil
-				}
 
-				var additionalMetaMap map[string]interface{}
-				err = json.Unmarshal(am.AdditionalMetadata, &additionalMetaMap)
-				if err != nil {
-					return nil, err
-				}
-
-				if v, ok := (additionalMetaMap)[key]; ok && v == value {
-					t := true
-					return &t, nil
-				}
-
-				f := false
-				return &f, nil
-
-			},
-		)
-	})
+				},
+			)
+		},
+		hangup,
+	)
 
 	if err != nil {
 		return nil, err
