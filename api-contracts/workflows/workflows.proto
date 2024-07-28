@@ -21,6 +21,12 @@ enum StickyStrategy {
     HARD = 1;
 }
 
+enum WorkflowKind {
+    FUNCTION = 0;
+    DURABLE = 1;
+    DAG = 2;
+}
+
 // CreateWorkflowVersionOpts represents options to create a workflow version.
 message CreateWorkflowVersionOpts {
     string name = 1; // (required) the workflow name
@@ -35,6 +41,7 @@ message CreateWorkflowVersionOpts {
     optional string cron_input = 10; // (optional) the input for the cron trigger
     optional CreateWorkflowJobOpts on_failure_job = 11; // (optional) the job to run on failure
     optional StickyStrategy sticky = 12; // (optional) the sticky strategy for assigning steps to workers
+    optional WorkflowKind kind = 13; // (optional) the kind of workflow
 }
 
 enum ConcurrencyLimitStrategy {

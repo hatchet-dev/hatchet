@@ -53,6 +53,10 @@ WHERE
         "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
+        sqlc.narg('kinds')::text[] IS NULL OR
+        workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
+    ) AND
+    (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
         runs."createdAt" > sqlc.narg('createdAfter')::timestamp
     ) AND
@@ -172,6 +176,10 @@ WHERE
     (
         sqlc.narg('statuses')::text[] IS NULL OR
         "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+    ) AND
+    (
+        sqlc.narg('kinds')::text[] IS NULL OR
+        workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
     ) AND
     (
         sqlc.narg('createdAfter')::timestamp IS NULL OR

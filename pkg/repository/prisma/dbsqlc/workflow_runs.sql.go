@@ -66,16 +66,20 @@ WHERE
         "status" = ANY(cast($10::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
-        $11::timestamp IS NULL OR
-        runs."createdAt" > $11::timestamp
+        $11::text[] IS NULL OR
+        workflowVersion."kind" = ANY(cast($11::text[] as "WorkflowKind"[]))
     ) AND
     (
         $12::timestamp IS NULL OR
-        runs."finishedAt" > $12::timestamp
+        runs."createdAt" > $12::timestamp
+    ) AND
+    (
+        $13::timestamp IS NULL OR
+        runs."finishedAt" > $13::timestamp
     )
     ORDER BY
-        case when $13 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-        case when $13 = 'createdAt DESC' then runs."createdAt" END DESC,
+        case when $14 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+        case when $14 = 'createdAt DESC' then runs."createdAt" END DESC,
         runs."id" ASC
     LIMIT 10000
 )
@@ -96,6 +100,7 @@ type CountWorkflowRunsParams struct {
 	EventId            pgtype.UUID      `json:"eventId"`
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
+	Kinds              []string         `json:"kinds"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
 	Orderby            interface{}      `json:"orderby"`
@@ -113,6 +118,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.EventId,
 		arg.GroupKey,
 		arg.Statuses,
+		arg.Kinds,
 		arg.CreatedAfter,
 		arg.FinishedAfter,
 		arg.Orderby,
@@ -711,7 +717,7 @@ const getWorkflowRun = `-- name: GetWorkflowRun :many
 SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration,
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
-    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky,
+    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky, workflowversion.kind,
     workflow."name" as "workflowName",
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
@@ -802,6 +808,7 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 			&i.WorkflowVersion.ScheduleTimeout,
 			&i.WorkflowVersion.OnFailureJobId,
 			&i.WorkflowVersion.Sticky,
+			&i.WorkflowVersion.Kind,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -945,7 +952,7 @@ SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration,
     workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description,
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
-    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky,
+    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky, workflowversion.kind,
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable events field
     events.id, events.key, events."createdAt", events."updatedAt"
 FROM
@@ -1000,27 +1007,31 @@ WHERE
         "status" = ANY(cast($10::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
-        $11::timestamp IS NULL OR
-        runs."createdAt" > $11::timestamp
+        $11::text[] IS NULL OR
+        workflowVersion."kind" = ANY(cast($11::text[] as "WorkflowKind"[]))
     ) AND
     (
         $12::timestamp IS NULL OR
-        runs."finishedAt" > $12::timestamp
+        runs."createdAt" > $12::timestamp
+    ) AND
+    (
+        $13::timestamp IS NULL OR
+        runs."finishedAt" > $13::timestamp
     )
 ORDER BY
-    case when $13 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when $13 = 'createdAt DESC' THEN runs."createdAt" END DESC,
-    case when $13 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
-    case when $13 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
-    case when $13 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
-    case when $13 = 'startedAt DESC' THEN runs."startedAt" END DESC,
-    case when $13 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
-    case when $13 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
+    case when $14 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+    case when $14 = 'createdAt DESC' THEN runs."createdAt" END DESC,
+    case when $14 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+    case when $14 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+    case when $14 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+    case when $14 = 'startedAt DESC' THEN runs."startedAt" END DESC,
+    case when $14 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+    case when $14 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
     runs."id" ASC
 OFFSET
-    COALESCE($14, 0)
+    COALESCE($15, 0)
 LIMIT
-    COALESCE($15, 50)
+    COALESCE($16, 50)
 `
 
 type ListWorkflowRunsParams struct {
@@ -1034,6 +1045,7 @@ type ListWorkflowRunsParams struct {
 	EventId            pgtype.UUID      `json:"eventId"`
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
+	Kinds              []string         `json:"kinds"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
 	Orderby            interface{}      `json:"orderby"`
@@ -1064,6 +1076,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 		arg.EventId,
 		arg.GroupKey,
 		arg.Statuses,
+		arg.Kinds,
 		arg.CreatedAfter,
 		arg.FinishedAfter,
 		arg.Orderby,
@@ -1125,6 +1138,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 			&i.WorkflowVersion.ScheduleTimeout,
 			&i.WorkflowVersion.OnFailureJobId,
 			&i.WorkflowVersion.Sticky,
+			&i.WorkflowVersion.Kind,
 			&i.ID,
 			&i.Key,
 			&i.CreatedAt,

@@ -632,6 +632,49 @@ func (ns NullWorkerLabelComparator) Value() (driver.Value, error) {
 	return string(ns.WorkerLabelComparator), nil
 }
 
+type WorkflowKind string
+
+const (
+	WorkflowKindFUNCTION WorkflowKind = "FUNCTION"
+	WorkflowKindDURABLE  WorkflowKind = "DURABLE"
+	WorkflowKindDAG      WorkflowKind = "DAG"
+)
+
+func (e *WorkflowKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkflowKind(s)
+	case string:
+		*e = WorkflowKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkflowKind: %T", src)
+	}
+	return nil
+}
+
+type NullWorkflowKind struct {
+	WorkflowKind WorkflowKind `json:"WorkflowKind"`
+	Valid        bool         `json:"valid"` // Valid is true if WorkflowKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkflowKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkflowKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkflowKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkflowKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkflowKind), nil
+}
+
 type WorkflowRunStatus string
 
 const (
@@ -1302,4 +1345,5 @@ type WorkflowVersion struct {
 	ScheduleTimeout string             `json:"scheduleTimeout"`
 	OnFailureJobId  pgtype.UUID        `json:"onFailureJobId"`
 	Sticky          NullStickyStrategy `json:"sticky"`
+	Kind            WorkflowKind       `json:"kind"`
 }

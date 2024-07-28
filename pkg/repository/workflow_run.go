@@ -260,6 +260,9 @@ type ListWorkflowRunsOpts struct {
 	// (optional) the status of the workflow run
 	Statuses *[]db.WorkflowRunStatus
 
+	// (optional) a list of kinds to filter by
+	Kinds *[]dbsqlc.WorkflowKind
+
 	// (optional) number of events to skip
 	Offset *int
 
