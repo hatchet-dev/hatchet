@@ -184,6 +184,13 @@ func (w *workflowRunEngineRepository) GetWorkflowRunById(ctx context.Context, te
 	return runs[0], nil
 }
 
+func (w *workflowRunEngineRepository) GetWorkflowRunAdditionalMeta(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunAdditionalMetaRow, error) {
+	return w.queries.GetWorkflowRunAdditionalMeta(ctx, w.pool, dbsqlc.GetWorkflowRunAdditionalMetaParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
+	})
+}
+
 func (w *workflowRunEngineRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err

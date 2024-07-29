@@ -1002,6 +1002,36 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 	return items, nil
 }
 
+const getStepRunMeta = `-- name: GetStepRunMeta :one
+SELECT
+    jr."workflowRunId" AS "workflowRunId",
+    sr."retryCount" AS "retryCount",
+    s."retries" as "retries"
+FROM "StepRun" sr
+JOIN "Step" s ON sr."stepId" = s."id"
+JOIN "JobRun" jr ON sr."jobRunId" = jr."id"
+WHERE sr."id" = $1::uuid
+AND sr."tenantId" = $2::uuid
+`
+
+type GetStepRunMetaParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+}
+
+type GetStepRunMetaRow struct {
+	WorkflowRunId pgtype.UUID `json:"workflowRunId"`
+	RetryCount    int32       `json:"retryCount"`
+	Retries       int32       `json:"retries"`
+}
+
+func (q *Queries) GetStepRunMeta(ctx context.Context, db DBTX, arg GetStepRunMetaParams) (*GetStepRunMetaRow, error) {
+	row := db.QueryRow(ctx, getStepRunMeta, arg.Steprunid, arg.Tenantid)
+	var i GetStepRunMetaRow
+	err := row.Scan(&i.WorkflowRunId, &i.RetryCount, &i.Retries)
+	return &i, err
+}
+
 const listNonFinalChildStepRuns = `-- name: ListNonFinalChildStepRuns :many
 WITH RECURSIVE currStepRun AS (
     SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased"

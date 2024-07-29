@@ -824,6 +824,34 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 	return items, nil
 }
 
+const getWorkflowRunAdditionalMeta = `-- name: GetWorkflowRunAdditionalMeta :one
+SELECT
+    "additionalMetadata",
+    "id"
+FROM
+    "WorkflowRun"
+WHERE
+    "id" = $1::uuid AND
+    "tenantId" = $2::uuid
+`
+
+type GetWorkflowRunAdditionalMetaParams struct {
+	Workflowrunid pgtype.UUID `json:"workflowrunid"`
+	Tenantid      pgtype.UUID `json:"tenantid"`
+}
+
+type GetWorkflowRunAdditionalMetaRow struct {
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	ID                 pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) GetWorkflowRunAdditionalMeta(ctx context.Context, db DBTX, arg GetWorkflowRunAdditionalMetaParams) (*GetWorkflowRunAdditionalMetaRow, error) {
+	row := db.QueryRow(ctx, getWorkflowRunAdditionalMeta, arg.Workflowrunid, arg.Tenantid)
+	var i GetWorkflowRunAdditionalMetaRow
+	err := row.Scan(&i.AdditionalMetadata, &i.ID)
+	return &i, err
+}
+
 const getWorkflowRunInput = `-- name: GetWorkflowRunInput :one
 SELECT jld."data" AS lookupData
 FROM "JobRun" jr

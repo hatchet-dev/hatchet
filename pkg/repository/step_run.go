@@ -31,7 +31,9 @@ func IsFinalJobRunStatus(status dbsqlc.JobRunStatus) bool {
 }
 
 func IsFinalWorkflowRunStatus(status dbsqlc.WorkflowRunStatus) bool {
-	return status != dbsqlc.WorkflowRunStatusPENDING && status != dbsqlc.WorkflowRunStatusRUNNING && status != dbsqlc.WorkflowRunStatusQUEUED
+	return status != dbsqlc.WorkflowRunStatusPENDING &&
+		status != dbsqlc.WorkflowRunStatusRUNNING &&
+		status != dbsqlc.WorkflowRunStatusQUEUED
 }
 
 type CreateStepRunEventOpts struct {
@@ -184,6 +186,8 @@ type StepRunEngineRepository interface {
 	GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 
 	GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error)
+
+	GetStepRunMetaForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunMetaRow, error)
 
 	// QueueStepRun is like UpdateStepRun, except that it will only update the step run if it is in
 	// a pending state.

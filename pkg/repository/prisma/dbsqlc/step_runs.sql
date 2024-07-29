@@ -31,6 +31,17 @@ WHERE
     sr."id" = @id::uuid AND
     sr."tenantId" = @tenantId::uuid;
 
+-- name: GetStepRunMeta :one
+SELECT
+    jr."workflowRunId" AS "workflowRunId",
+    sr."retryCount" AS "retryCount",
+    s."retries" as "retries"
+FROM "StepRun" sr
+JOIN "Step" s ON sr."stepId" = s."id"
+JOIN "JobRun" jr ON sr."jobRunId" = jr."id"
+WHERE sr."id" = @stepRunId::uuid
+AND sr."tenantId" = @tenantId::uuid;
+
 -- name: GetStepRunForEngine :many
 SELECT
     DISTINCT ON (sr."id")

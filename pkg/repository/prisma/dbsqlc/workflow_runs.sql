@@ -492,6 +492,16 @@ FROM workflow_version
 WHERE workflow_version."sticky" IS NOT NULL
 RETURNING *;
 
+-- name: GetWorkflowRunAdditionalMeta :one
+SELECT
+    "additionalMetadata",
+    "id"
+FROM
+    "WorkflowRun"
+WHERE
+    "id" = @workflowRunId::uuid AND
+    "tenantId" = @tenantId::uuid;
+
 -- name: GetWorkflowRunStickyStateForUpdate :one
 SELECT
     *

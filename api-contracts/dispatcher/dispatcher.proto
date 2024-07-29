@@ -236,7 +236,13 @@ message ActionEventResponse {
 
 message SubscribeToWorkflowEventsRequest {
     // the id of the workflow run
-    string workflowRunId = 1;
+    optional string workflowRunId = 1;
+
+    // the key of the additional meta field to subscribe to
+    optional string additionalMetaKey = 2;
+
+    // the value of the additional meta field to subscribe to
+    optional string additionalMetaValue = 3;
 }
 
 message SubscribeToWorkflowRunsRequest {

@@ -23,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 )
 
 type Teardown struct {
@@ -280,6 +281,9 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	}
 
 	if sc.HasService("grpc") {
+
+		cacheInstance := cache.New(10 * time.Second)
+
 		// create the dispatcher
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
@@ -287,6 +291,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
+			dispatcher.WithCache(cacheInstance),
 		)
 
 		if err != nil {
@@ -362,6 +367,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 				if err != nil {
 					return fmt.Errorf("failed to cleanup dispatcher: %w", err)
 				}
+
+				cacheInstance.Stop()
 				return nil
 			})
 

@@ -1214,7 +1214,9 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 		err = ec.mq.AddMessage(
 			ctx,
 			msgqueue.QueueTypeFromDispatcherID(dispatcherId),
-			stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, *repository.StringPtr(eventMessage)),
+			stepRunCancelledTask(
+				tenantId, stepRunId, workerId, dispatcherId, *repository.StringPtr(eventMessage),
+				sqlchelpers.UUIDToStr(stepRun.WorkflowRunId), &stepRun.StepRetries, &stepRun.SRRetryCount),
 		)
 
 		if err != nil {
@@ -1326,7 +1328,9 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	err = ec.mq.AddMessage(
 		ctx,
 		msgqueue.QueueTypeFromDispatcherID(dispatcherId),
-		stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, reason),
+		stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, reason,
+			sqlchelpers.UUIDToStr(stepRun.WorkflowRunId), &stepRun.StepRetries, &stepRun.SRRetryCount,
+		),
 	)
 
 	if err != nil {
@@ -1379,11 +1383,14 @@ func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *ms
 	}
 }
 
-func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelledReason string) *msgqueue.Message {
+func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelledReason string, runId string, retries *int32, retryCount *int32) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelledTaskPayload{
+		WorkflowRunId:   runId,
 		StepRunId:       stepRunId,
 		WorkerId:        workerId,
 		CancelledReason: cancelledReason,
+		StepRetries:     retries,
+		RetryCount:      retryCount,
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunCancelledTaskMetadata{
@@ -1391,6 +1398,7 @@ func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelled
 		DispatcherId: dispatcherId,
 	})
 
+	// TODO add additional metadata
 	return &msgqueue.Message{
 		ID:       "step-run-cancelled",
 		Payload:  payload,

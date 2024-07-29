@@ -137,6 +137,10 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 			additionalMetadata,
 			parentAdditionalMeta,
 		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create workflow run opts: %w", err)
+		}
 	} else {
 		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input), additionalMetadata)
 	}

@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -36,12 +37,13 @@ type Dispatcher interface {
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
-	s    gocron.Scheduler
-	mq   msgqueue.MessageQueue
-	l    *zerolog.Logger
-	dv   datautils.DataDecoderValidator
-	v    validator.Validator
-	repo repository.EngineRepository
+	s     gocron.Scheduler
+	mq    msgqueue.MessageQueue
+	l     *zerolog.Logger
+	dv    datautils.DataDecoderValidator
+	v     validator.Validator
+	repo  repository.EngineRepository
+	cache cache.Cacheable
 
 	entitlements repository.EntitlementsRepository
 
@@ -121,6 +123,7 @@ type DispatcherOpts struct {
 	entitlements repository.EntitlementsRepository
 	dispatcherId string
 	alerter      hatcheterrors.Alerter
+	cache        cache.Cacheable
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -177,6 +180,12 @@ func WithDispatcherId(dispatcherId string) DispatcherOpt {
 	}
 }
 
+func WithCache(cache cache.Cacheable) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.cache = cache
+	}
+}
+
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -194,6 +203,10 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	if opts.entitlements == nil {
 		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
+	}
+
+	if opts.cache == nil {
+		return nil, fmt.Errorf("cache is required. use WithCache")
 	}
 
 	newLogger := opts.l.With().Str("service", "dispatcher").Logger()
@@ -220,6 +233,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		workers:      &workers{},
 		s:            s,
 		a:            a,
+		cache:        opts.cache,
 	}, nil
 }
 
