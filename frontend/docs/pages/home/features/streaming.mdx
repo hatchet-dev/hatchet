@@ -248,7 +248,9 @@ for await (const event of listener) {
 
 ## Streaming by Additional Metadata
 
-Often it is helpful to stream from multiple workflows (i.e. child workflows spawned from a parent) to achieve this, you can
+Often it is helpful to stream from multiple workflows (i.e. child workflows spawned from a parent) to achieve this, you can specify an [additional meta](/features/additional-metadata) key-value pair before runing a workflow that can then be used to subscribe to all events from workflows that have the same key-value pair.
+
+Since additinoal metadata is propegated from parent to child workflows, this can be used to track all events from a specific workflow run.
 
 Here's an example of how to create a listener:
 
@@ -313,6 +315,8 @@ for await (const event of stream) {
 ```
 
   </Tabs.Tab>
+  <Tabs.Tab>
+
 ```go copy
 // Generate a random stream key to use to track all
 // stream events for this workflow run.
@@ -325,24 +329,25 @@ streamValue := fmt.Sprintf("stream-event-%d", rand.Intn(100)+1)
 // This key gets propagated to all child workflows
 // and can have an arbitrary property name.
 \_, err = c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{
-Index: 0,
-},
-client.WithRunMetadata(map[string]interface{}{
-streamKey: streamValue,
-}),
+    Index: 0,
+  },
+    client.WithRunMetadata(map[string]interface{}{
+    streamKey: streamValue,
+  }),
 )
 
 if err != nil {
-panic(err)
+  panic(err)
 }
 
 // Stream all events for the additional meta key value
 err = c.Subscribe().StreamByAdditionalMetadata(interruptCtx, streamKey, streamValue, func(event client.StreamEvent) error {
-fmt.Println(string(event.Message))
-return nil
+  fmt.Println(string(event.Message))
+  return nil
 })
+```
 
-````
+</Tabs.Tab>
 </Tabs>
 
 ## Consuming Streams on Frontend
@@ -364,7 +369,7 @@ def event_stream_generator(workflowRunId):
                 "messageId": workflowRunId
             })
             yield "data: " + data + "\n\n"
-````
+```
 
 Next, create a streaming `GET` endpoint that the client connects to in order to receive real-time progress updates:
 
