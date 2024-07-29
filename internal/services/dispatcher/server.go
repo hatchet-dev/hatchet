@@ -488,11 +488,13 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
-	return s.subscribeToWorkflowEventsByWorkflowRunId(request.WorkflowRunId, stream)
-}
+	if request.WorkflowRunId != nil {
+		return s.subscribeToWorkflowEventsByWorkflowRunId(*request.WorkflowRunId, stream)
+	} else if request.AdditionalMetaKey != nil && request.AdditionalMetaValue != nil {
+		return s.subscribeToWorkflowEventsByAdditionalMeta(*request.AdditionalMetaKey, *request.AdditionalMetaKey, stream)
+	}
 
-func (s *DispatcherImpl) SubscribeToWorkflowEventsByAdditionalMeta(request *contracts.SubscribeToWorkflowEventsByAdditionalMetaRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsByAdditionalMetaServer) error {
-	return s.subscribeToWorkflowEventsByAdditionalMeta(request.Key, request.Value, stream)
+	return status.Errorf(codes.InvalidArgument, "either workflow run id or additional meta key-value must be provided")
 }
 
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher

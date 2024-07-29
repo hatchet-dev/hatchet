@@ -256,7 +256,7 @@ func newSubscribe(conn *grpc.ClientConn, opts *sharedClientOpts) SubscribeClient
 
 func (r *subscribeClientImpl) On(ctx context.Context, workflowRunId string, handler RunHandler) error {
 	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
-		WorkflowRunId: workflowRunId,
+		WorkflowRunId: &workflowRunId,
 	})
 
 	if err != nil {
@@ -286,7 +286,7 @@ func (r *subscribeClientImpl) On(ctx context.Context, workflowRunId string, hand
 
 func (r *subscribeClientImpl) Stream(ctx context.Context, workflowRunId string, handler StreamHandler) error {
 	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
-		WorkflowRunId: workflowRunId,
+		WorkflowRunId: &workflowRunId,
 	})
 
 	if err != nil {
