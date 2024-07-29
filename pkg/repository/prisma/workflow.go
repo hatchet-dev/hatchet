@@ -585,6 +585,13 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 		}
 	}
 
+	if opts.Kind != nil {
+		createParams.Kind = dbsqlc.NullWorkflowKind{
+			WorkflowKind: dbsqlc.WorkflowKind(*opts.Kind),
+			Valid:        true,
+		}
+	}
+
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		ctx,
 		tx,

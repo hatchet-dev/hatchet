@@ -513,6 +513,17 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		countParams.Statuses = statuses
 	}
 
+	if opts.Kinds != nil {
+		kinds := make([]string, 0)
+
+		for _, kind := range *opts.Kinds {
+			kinds = append(kinds, string(kind))
+		}
+
+		queryParams.Kinds = kinds
+		countParams.Kinds = kinds
+	}
+
 	if opts.CreatedAfter != nil {
 		countParams.CreatedAfter = sqlchelpers.TimestampFromTime(*opts.CreatedAfter)
 		queryParams.CreatedAfter = sqlchelpers.TimestampFromTime(*opts.CreatedAfter)

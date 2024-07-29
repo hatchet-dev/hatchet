@@ -41,6 +41,9 @@ CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
 CREATE TYPE "WorkerLabelComparator" AS ENUM ('EQUAL', 'NOT_EQUAL', 'GREATER_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN', 'LESS_THAN_OR_EQUAL');
 
 -- CreateEnum
+CREATE TYPE "WorkflowKind" AS ENUM ('FUNCTION', 'DURABLE', 'DAG');
+
+-- CreateEnum
 CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED');
 
 -- CreateTable
@@ -787,6 +790,7 @@ CREATE TABLE "WorkflowVersion" (
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
     "onFailureJobId" UUID,
     "sticky" "StickyStrategy",
+    "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );

@@ -126,6 +126,8 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		return fmt.Errorf("error starting worker: %w", err)
 	}
 
+	<-ch
+
 	if err := cleanup(); err != nil {
 		return fmt.Errorf("error cleaning up: %w", err)
 	}

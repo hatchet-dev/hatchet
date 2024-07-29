@@ -129,6 +129,13 @@ const (
 	QUEUENEWEST      WorkflowConcurrencyLimitStrategy = "QUEUE_NEWEST"
 )
 
+// Defines values for WorkflowKind.
+const (
+	DAG      WorkflowKind = "DAG"
+	DURABLE  WorkflowKind = "DURABLE"
+	FUNCTION WorkflowKind = "FUNCTION"
+)
+
 // Defines values for WorkflowRunOrderByDirection.
 const (
 	ASC  WorkflowRunOrderByDirection = "ASC"
@@ -1003,6 +1010,12 @@ type WorkflowConcurrencyLimitStrategy string
 // WorkflowID A workflow ID.
 type WorkflowID = string
 
+// WorkflowKind defines model for WorkflowKind.
+type WorkflowKind string
+
+// WorkflowKindList defines model for WorkflowKindList.
+type WorkflowKindList = []WorkflowKind
+
 // WorkflowList defines model for WorkflowList.
 type WorkflowList struct {
 	Metadata   *APIResourceMeta    `json:"metadata,omitempty"`
@@ -1248,6 +1261,9 @@ type WorkflowRunListParams struct {
 
 	// Statuses A list of workflow run statuses to filter by
 	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// Kinds A list of workflow kinds to filter by
+	Kinds *WorkflowKindList `form:"kinds,omitempty" json:"kinds,omitempty"`
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
@@ -5223,6 +5239,22 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 		if params.Statuses != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Kinds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "kinds", runtime.ParamLocationQuery, *params.Kinds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

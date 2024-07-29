@@ -162,7 +162,8 @@ INSERT INTO "WorkflowVersion" (
     "version",
     "workflowId",
     "scheduleTimeout",
-    "sticky"
+    "sticky",
+    "kind"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -172,7 +173,8 @@ INSERT INTO "WorkflowVersion" (
     sqlc.narg('version')::text,
     @workflowId::uuid,
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
-    sqlc.narg('sticky')::"StickyStrategy"
+    sqlc.narg('sticky')::"StickyStrategy",
+    coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG')
 ) RETURNING *;
 
 -- name: CreateWorkflowConcurrency :one

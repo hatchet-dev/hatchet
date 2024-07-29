@@ -464,6 +464,12 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		cronInput = []byte(*req.Opts.CronInput)
 	}
 
+	var kind *string
+
+	if req.Opts.Kind != nil {
+		kind = repository.StringPtr(req.Opts.Kind.String())
+	}
+
 	return &repository.CreateWorkflowVersionOpts{
 		Name:              req.Opts.Name,
 		Concurrency:       concurrency,
@@ -477,6 +483,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		OnFailureJob:      onFailureJob,
 		ScheduleTimeout:   req.Opts.ScheduleTimeout,
 		Sticky:            sticky,
+		Kind:              kind,
 	}, nil
 }
 

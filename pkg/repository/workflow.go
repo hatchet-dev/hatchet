@@ -48,6 +48,9 @@ type CreateWorkflowVersionOpts struct {
 
 	// (optional) sticky strategy
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
+
+	// (optional) the workflow kind
+	Kind *string `validate:"omitempty,oneof=FUNCTION DURABLE DAG"`
 }
 
 type CreateWorkflowConcurrencyOpts struct {

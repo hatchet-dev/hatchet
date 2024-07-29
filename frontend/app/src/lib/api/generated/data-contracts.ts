@@ -687,6 +687,14 @@ export enum WorkflowRunStatus {
 
 export type WorkflowRunStatusList = WorkflowRunStatus[];
 
+export enum WorkflowKind {
+  FUNCTION = 'FUNCTION',
+  DURABLE = 'DURABLE',
+  DAG = 'DAG',
+}
+
+export type WorkflowKindList = WorkflowKind[];
+
 export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }

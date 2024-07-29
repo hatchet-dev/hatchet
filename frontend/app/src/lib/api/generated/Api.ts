@@ -74,6 +74,7 @@ import {
   WorkerList,
   Workflow,
   WorkflowID,
+  WorkflowKindList,
   WorkflowList,
   WorkflowMetrics,
   WorkflowRun,
@@ -1322,6 +1323,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       parentStepRunId?: string;
       /** A list of workflow run statuses to filter by */
       statuses?: WorkflowRunStatusList;
+      /** A list of workflow kinds to filter by */
+      kinds?: WorkflowKindList;
       /**
        * A list of metadata key value pairs to filter by
        * @example ["key1:value1","key2:value2"]

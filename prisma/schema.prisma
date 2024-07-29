@@ -475,6 +475,12 @@ enum StickyStrategy {
   HARD
 }
 
+enum WorkflowKind {
+  FUNCTION
+  DURABLE
+  DAG
+}
+
 model WorkflowVersion {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -513,6 +519,9 @@ model WorkflowVersion {
 
   // the scheduled runs for the workflow
   scheduled WorkflowTriggerScheduledRef[]
+
+  // the kind of workflow
+  kind WorkflowKind @default(DAG)
 
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")

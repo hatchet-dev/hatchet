@@ -648,7 +648,8 @@ INSERT INTO "WorkflowVersion" (
     "version",
     "workflowId",
     "scheduleTimeout",
-    "sticky"
+    "sticky",
+    "kind"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -658,8 +659,9 @@ INSERT INTO "WorkflowVersion" (
     $6::text,
     $7::uuid,
     coalesce($8::text, '5m'),
-    $9::"StickyStrategy"
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky
+    $9::"StickyStrategy",
+    coalesce($10::"WorkflowKind", 'DAG')
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind
 `
 
 type CreateWorkflowVersionParams struct {
@@ -672,6 +674,7 @@ type CreateWorkflowVersionParams struct {
 	Workflowid      pgtype.UUID        `json:"workflowid"`
 	ScheduleTimeout pgtype.Text        `json:"scheduleTimeout"`
 	Sticky          NullStickyStrategy `json:"sticky"`
+	Kind            NullWorkflowKind   `json:"kind"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -685,6 +688,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.Workflowid,
 		arg.ScheduleTimeout,
 		arg.Sticky,
+		arg.Kind,
 	)
 	var i WorkflowVersion
 	err := row.Scan(
@@ -699,6 +703,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.ScheduleTimeout,
 		&i.OnFailureJobId,
 		&i.Sticky,
+		&i.Kind,
 	)
 	return &i, err
 }
@@ -756,7 +761,7 @@ func (q *Queries) GetWorkflowLatestVersion(ctx context.Context, db DBTX, workflo
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky,
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind,
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns"
@@ -806,6 +811,7 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.ScheduleTimeout,
 			&i.WorkflowVersion.OnFailureJobId,
 			&i.WorkflowVersion.Sticky,
+			&i.WorkflowVersion.Kind,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -824,7 +830,7 @@ const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
 WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind
 `
 
 type LinkOnFailureJobParams struct {
@@ -847,6 +853,7 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 		&i.ScheduleTimeout,
 		&i.OnFailureJobId,
 		&i.Sticky,
+		&i.Kind,
 	)
 	return &i, err
 }
@@ -861,7 +868,7 @@ FROM (
         "Workflow" as workflows
     LEFT JOIN
         (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
+            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
         ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
     LEFT JOIN
         "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
