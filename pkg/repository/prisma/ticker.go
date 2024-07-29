@@ -85,10 +85,6 @@ func (t *tickerRepository) Delete(ctx context.Context, tickerId string) error {
 	return err
 }
 
-func (t *tickerRepository) PollStepRuns(ctx context.Context, tickerId string) ([]*dbsqlc.PollStepRunsRow, error) {
-	return t.queries.PollStepRuns(ctx, t.pool, sqlchelpers.UUIDFromStr(tickerId))
-}
-
 func (t *tickerRepository) PollGetGroupKeyRuns(ctx context.Context, tickerId string) ([]*dbsqlc.GetGroupKeyRun, error) {
 	return t.queries.PollGetGroupKeyRuns(ctx, t.pool, sqlchelpers.UUIDFromStr(tickerId))
 }
