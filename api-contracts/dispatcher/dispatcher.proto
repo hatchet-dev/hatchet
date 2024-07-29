@@ -239,10 +239,10 @@ message SubscribeToWorkflowEventsRequest {
     optional string workflowRunId = 1;
 
     // the key of the additional meta field to subscribe to
-    optional string additional_meta_key = 2;
+    optional string additionalMetaKey = 2;
 
     // the value of the additional meta field to subscribe to
-    optional string additional_meta_value = 3;
+    optional string additionalMetaValue = 3;
 }
 
 message SubscribeToWorkflowRunsRequest {
