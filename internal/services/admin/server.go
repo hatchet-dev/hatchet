@@ -111,6 +111,21 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	if isParentTriggered {
+		parent, err := a.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId)))
+
+		if err != nil {
+			return nil, fmt.Errorf("could not get parent workflow run: %w", err)
+		}
+
+		var parentAdditionalMeta map[string]interface{}
+
+		if parent.WorkflowRun.AdditionalMetadata != nil {
+			err := json.Unmarshal(parent.WorkflowRun.AdditionalMetadata, &parentAdditionalMeta)
+			if err != nil {
+				return nil, fmt.Errorf("could not unmarshal parent additional metadata: %w", err)
+			}
+		}
+
 		createOpts, err = repository.GetCreateWorkflowRunOptsFromParent(
 			workflowVersion,
 			[]byte(req.Input),
@@ -120,6 +135,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 			int(*req.ChildIndex),
 			req.ChildKey,
 			additionalMetadata,
+			parentAdditionalMeta,
 		)
 	} else {
 		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input), additionalMetadata)
