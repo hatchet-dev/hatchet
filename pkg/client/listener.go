@@ -228,6 +228,8 @@ type SubscribeClient interface {
 
 	Stream(ctx context.Context, workflowRunId string, handler StreamHandler) error
 
+	StreamByAdditionalMetadata(ctx context.Context, key string, value string, handler StreamHandler) error
+
 	SubscribeToWorkflowRunEvents(ctx context.Context) (*WorkflowRunsListener, error)
 }
 
@@ -287,6 +289,39 @@ func (r *subscribeClientImpl) On(ctx context.Context, workflowRunId string, hand
 func (r *subscribeClientImpl) Stream(ctx context.Context, workflowRunId string, handler StreamHandler) error {
 	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
 		WorkflowRunId: &workflowRunId,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for {
+		event, err := stream.Recv()
+
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+
+			return err
+		}
+
+		if event.EventType != dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
+			continue
+		}
+
+		if err := handler(StreamEvent{
+			Message: []byte(event.EventPayload),
+		}); err != nil {
+			return err
+		}
+	}
+}
+
+func (r *subscribeClientImpl) StreamByAdditionalMetadata(ctx context.Context, key string, value string, handler StreamHandler) error {
+	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
+		AdditionalMetaKey:   &key,
+		AdditionalMetaValue: &value,
 	})
 
 	if err != nil {

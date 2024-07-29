@@ -27,7 +27,7 @@ Listeners are used to subscribe to the event stream for a specific workflow run.
 
 Here's an example of how to create a listener:
 
-<Tabs items={['Python', 'Typescript']}>
+<Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -59,6 +59,26 @@ async function listen_for_files() {
 ```
 
   </Tabs.Tab>
+```go copy
+workflowRunId, err := c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{
+  Index: 0,
+})
+
+if err != nil {
+panic(err)
+}
+
+err = c.Subscribe().Stream(interruptCtx, workflowRunId, func(event client.StreamEvent) error {
+fmt.Println(string(event.Message))
+
+return nil
+})
+
+if err != nil {
+panic(err)
+}
+
+````
 </Tabs>
 
 ## Streaming from a Step Context
@@ -75,7 +95,7 @@ def step1(self, context: Context):
     context.put_stream('hello from step1')
     # continue with the step run...
     return {"step1": "results"}
-```
+````
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -225,6 +245,106 @@ for await (const event of listener) {
 
 </Tabs.Tab>
 </Tabs>
+
+## Streaming by Additional Metadata
+
+Often it is helpful to stream from multiple workflows (i.e. child workflows spawned from a parent) to achieve this, you can
+
+Here's an example of how to create a listener:
+
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+# Generate a random stream key to use to track all
+# stream events for this workflow run.
+streamKey = "streamKey"
+streamVal = f"sk-{random.randint(1, 100)}"
+
+# Specify the stream key as additional metadata
+# when running the workflow.
+
+# This key gets propagated to all child workflows
+# and can have an arbitrary property name.
+
+workflowRun = hatchet.admin.run_workflow(
+    "Parent",
+    {"n": 2},
+    options={"additional_metadata": {streamKey: streamVal}},
+)
+
+# Stream all events for the additional meta key value
+listener = hatchet.listener.stream_by_additional_metadata(streamKey, streamVal)
+
+async for event in listener:
+    print(event.type, event.payload)
+
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript copy
+// Generate a random stream key to use to track all
+// stream events for this workflow run.
+const streamKey = "streamKey";
+const streamVal = `sk-${Math.random().toString(36).substring(7)}`;
+
+// Specify the stream key as additional metadata
+// when running the workflow.
+
+// This key gets propagated to all child workflows
+// and can have an arbitrary property name.
+await hatchet.admin.runWorkflow(
+  "parent-workflow",
+  {},
+  { additionalMetadata: { [streamKey]: streamVal } },
+);
+
+// Stream all events for the additional meta key value
+const stream = await hatchet.listener.streamByAdditionalMeta(
+  streamKey,
+  streamVal,
+);
+
+for await (const event of stream) {
+  console.log("event received", event);
+}
+```
+
+  </Tabs.Tab>
+```go copy
+// Generate a random stream key to use to track all
+// stream events for this workflow run.
+streamKey := "streamKey"
+streamValue := fmt.Sprintf("stream-event-%d", rand.Intn(100)+1)
+
+// Specify the stream key as additional metadata
+// when running the workflow.
+
+// This key gets propagated to all child workflows
+// and can have an arbitrary property name.
+\_, err = c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{
+Index: 0,
+},
+client.WithRunMetadata(map[string]interface{}{
+streamKey: streamValue,
+}),
+)
+
+if err != nil {
+panic(err)
+}
+
+// Stream all events for the additional meta key value
+err = c.Subscribe().StreamByAdditionalMetadata(interruptCtx, streamKey, streamValue, func(event client.StreamEvent) error {
+fmt.Println(string(event.Message))
+return nil
+})
+
+````
+</Tabs>
+
 ## Consuming Streams on Frontend
 
 To consume a stream from the backend, create a Streaming Response endpoint to "proxy" the stream from the Hatchet workflow run.
@@ -244,7 +364,7 @@ def event_stream_generator(workflowRunId):
                 "messageId": workflowRunId
             })
             yield "data: " + data + "\n\n"
-```
+````
 
 Next, create a streaming `GET` endpoint that the client connects to in order to receive real-time progress updates:
 
