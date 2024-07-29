@@ -367,6 +367,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 				if err != nil {
 					return fmt.Errorf("failed to cleanup dispatcher: %w", err)
 				}
+
+				cacheInstance.Stop()
 				return nil
 			})
 
