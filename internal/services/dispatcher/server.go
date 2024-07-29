@@ -488,10 +488,14 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
+
+	fmt.Println("SubscribeToWorkflowEvents")
+	fmt.Println(request)
+
 	if request.WorkflowRunId != nil {
 		return s.subscribeToWorkflowEventsByWorkflowRunId(*request.WorkflowRunId, stream)
 	} else if request.AdditionalMetaKey != nil && request.AdditionalMetaValue != nil {
-		return s.subscribeToWorkflowEventsByAdditionalMeta(*request.AdditionalMetaKey, *request.AdditionalMetaKey, stream)
+		return s.subscribeToWorkflowEventsByAdditionalMeta(*request.AdditionalMetaKey, *request.AdditionalMetaValue, stream)
 	}
 
 	return status.Errorf(codes.InvalidArgument, "either workflow run id or additional meta key-value must be provided")
@@ -502,7 +506,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	s.l.Debug().Msgf("Received subscribe request for additional meta key-value: {%s: %s}", key, value)
+	s.l.Error().Msgf("Received subscribe request for additional meta key-value: {%s: %s}", key, value)
 
 	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
 	if err != nil {
