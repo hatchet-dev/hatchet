@@ -84,6 +84,9 @@ type ConfigFileRuntime struct {
 	// Default limit values
 	Limits LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
 
+	// RequeueLimit is the number of times a message will be requeued in each attempt
+	RequeueLimit int `mapstructure:"requeueLimit" json:"requeueLimit,omitempty" default:"100"`
+
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
 
@@ -267,6 +270,7 @@ type MessageQueueConfigFile struct {
 
 type RabbitMQConfigFile struct {
 	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
+	Qos int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
 }
 
 type ConfigFileEmail struct {
@@ -448,6 +452,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.kind", "SERVER_MSGQUEUE_KIND")
 	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_MSGQUEUE_RABBITMQ_URL")
 
+	// throughput options
+	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
+	_ = v.BindEnv("runtime.requeueLimit", "SERVER_REQUEUE_LIMIT")
+
 	// tls options
 	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")
 	_ = v.BindEnv("tls.tlsCert", "SERVER_TLS_CERT")
@@ -465,6 +473,7 @@ func BindAllEnv(v *viper.Viper) {
 	// otel options
 	_ = v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
+	_ = v.BindEnv("otel.traceIdRatio", "SERVER_OTEL_TRACE_ID_RATIO")
 
 	// tenant alerting options
 	_ = v.BindEnv("tenantAlerting.slack.enabled", "SERVER_TENANT_ALERTING_SLACK_ENABLED")
