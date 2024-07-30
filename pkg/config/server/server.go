@@ -267,6 +267,7 @@ type MessageQueueConfigFile struct {
 
 type RabbitMQConfigFile struct {
 	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
+	Qos int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
 }
 
 type ConfigFileEmail struct {
@@ -447,6 +448,9 @@ func BindAllEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("msgQueue.kind", "SERVER_MSGQUEUE_KIND")
 	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_MSGQUEUE_RABBITMQ_URL")
+
+	// throughput options
+	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_QOS")
 
 	// tls options
 	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")
