@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -200,9 +201,10 @@ type stepRunEngineRepository struct {
 	v       validator.Validator
 	l       *zerolog.Logger
 	queries *dbsqlc.Queries
+	cf      *server.ConfigFileRuntime
 }
 
-func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.StepRunEngineRepository {
+func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) repository.StepRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &stepRunEngineRepository{
@@ -210,6 +212,7 @@ func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *ze
 		v:       v,
 		l:       l,
 		queries: queries,
+		cf:      cf,
 	}
 }
 
@@ -332,8 +335,8 @@ func (s *stepRunEngineRepository) ListStepRunsToRequeue(ctx context.Context, ten
 		return nil, err
 	}
 
-	if limit > 100 {
-		limit = 100
+	if limit > int32(s.cf.RequeueLimit) {
+		limit = int32(s.cf.RequeueLimit)
 	}
 
 	// get the step run and make sure it's still in pending

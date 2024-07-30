@@ -182,7 +182,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		},
 		Pool:                  pool,
 		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
-		EngineRepository:      prisma.NewEngineRepository(pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
+		EngineRepository:      prisma.NewEngineRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
 		EntitlementRepository: entitlementRepo,
 		Seed:                  cf.Seed,
 	}, nil

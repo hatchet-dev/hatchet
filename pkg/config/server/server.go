@@ -84,6 +84,9 @@ type ConfigFileRuntime struct {
 	// Default limit values
 	Limits LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
 
+	// RequeueLimit is the number of times a message will be requeued in each attempt
+	RequeueLimit int `mapstructure:"requeueLimit" json:"requeueLimit,omitempty" default:"100"`
+
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
 
@@ -450,7 +453,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_MSGQUEUE_RABBITMQ_URL")
 
 	// throughput options
-	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_QOS")
+	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
+	_ = v.BindEnv("runtime.requeueLimit", "SERVER_REQUEUE_LIMIT")
 
 	// tls options
 	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")
