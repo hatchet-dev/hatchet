@@ -149,7 +149,20 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 
 	startedAt := time.Now()
 
+	// TODO - make this configurable
 	_, err := jc.s.NewJob(
+		gocron.DurationJob(time.Second*15),
+		gocron.NewTask(
+			jc.runPgStat(),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run requeue: %w", err)
+	}
+
+	_, err = jc.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			jc.runStepRunRequeue(ctx, startedAt),
@@ -590,6 +603,33 @@ func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msg
 	}
 
 	return ec.queueStepRun(ctx, metadata.TenantId, metadata.StepId, payload.StepRunId)
+}
+
+func (jc *JobsControllerImpl) runPgStat() func() {
+	return func() {
+		s := jc.repo.Health().PgStat()
+
+		jc.l.Warn().Msg(fmt.Sprintf(
+			"Stat{\n"+
+				"  Constructing: %d\n"+
+				"  Acquired: %d\n"+
+				"  Idle: %d\n"+
+				"  Max: %d\n"+
+				"  Acquire Count: %d\n"+
+				"  Acquire Duration: %s\n"+
+				"  Empty Acquire Count: %d\n"+
+				"  Canceled Acquire Count: %d\n"+
+				"}",
+			s.ConstructingConns(),
+			s.AcquireCount(),
+			s.IdleConns(),
+			s.MaxConns(),
+			s.AcquireCount(),
+			s.AcquireDuration(),
+			s.EmptyAcquireCount(),
+			s.CanceledAcquireCount(),
+		))
+	}
 }
 
 func (jc *JobsControllerImpl) runStepRunRequeue(ctx context.Context, startedAt time.Time) func() {
