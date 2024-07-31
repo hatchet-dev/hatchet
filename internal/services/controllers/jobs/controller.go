@@ -611,6 +611,7 @@ func (jc *JobsControllerImpl) runPgStat() func() {
 
 		jc.l.Warn().Msg(fmt.Sprintf(
 			"Stat{\n"+
+				" Total Connections: %d\n"+
 				"  Constructing: %d\n"+
 				"  Acquired: %d\n"+
 				"  Idle: %d\n"+
@@ -620,6 +621,7 @@ func (jc *JobsControllerImpl) runPgStat() func() {
 				"  Empty Acquire Count: %d\n"+
 				"  Canceled Acquire Count: %d\n"+
 				"}",
+			s.TotalConns(),
 			s.ConstructingConns(),
 			s.AcquireCount(),
 			s.IdleConns(),
