@@ -616,7 +616,6 @@ func (jc *JobsControllerImpl) runPgStat() func() {
 				"  Acquired: %d\n"+
 				"  Idle: %d\n"+
 				"  Max: %d\n"+
-				"  Acquire Count: %d\n"+
 				"  Acquire Duration: %s\n"+
 				"  Empty Acquire Count: %d\n"+
 				"  Canceled Acquire Count: %d\n"+
@@ -626,7 +625,6 @@ func (jc *JobsControllerImpl) runPgStat() func() {
 			s.AcquireCount(),
 			s.IdleConns(),
 			s.MaxConns(),
-			s.AcquireCount(),
 			s.AcquireDuration(),
 			s.EmptyAcquireCount(),
 			s.CanceledAcquireCount(),
