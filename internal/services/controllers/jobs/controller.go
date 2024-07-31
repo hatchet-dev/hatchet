@@ -705,15 +705,9 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 
 	batchSize := 10
 
-	for i := 0; i < len(stepRuns); i += batchSize {
-
-		// Check if the context is done before starting a new batch
-		if ctx.Err() != nil {
-			break
-		}
-
+	for i := 0; i < len(stepRuns); {
 		end := i + batchSize
-		if end > len(stepRuns) {
+		if end > len(stepRuns)-1 {
 			end = len(stepRuns)
 		}
 
