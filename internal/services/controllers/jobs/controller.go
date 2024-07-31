@@ -648,29 +648,52 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 
 	g := new(errgroup.Group)
 
-	for i := range stepRuns {
-		stepRunCp := stepRuns[i]
+	batchSize := 10
+
+	for i := 0; i < len(stepRuns); i += batchSize {
+
+		// Check if the context is done before starting a new batch
+		if ctx.Err() != nil {
+			break
+		}
+
+		end := i + batchSize
+		if end > len(stepRuns) {
+			end = len(stepRuns)
+		}
+
+		group := stepRuns[i:end]
 
 		// wrap in func to get defer on the span to avoid leaking spans
 		g.Go(func() error {
-			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue-step-run")
+			scheduleCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancel()
+
+			scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-requeue-step-run")
 			defer span.End()
 
-			now := time.Now().UTC()
-			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
+			for _, stepRunCp := range group {
+				scheduleTimeoutAt := stepRunCp.SRScheduleTimeoutAt.Time
 
-			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-			scheduleTimeoutAt := stepRunCp.SRScheduleTimeoutAt.Time
+				// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
+				// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
+				now := time.Now().UTC()
+				isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
-			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
-			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
-			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
-
-			if isTimedOut {
-				return ec.cancelStepRun(ctx, tenantId, stepRunId, "SCHEDULING_TIMED_OUT")
+				if isTimedOut {
+					err := ec.cancelStepRun(scheduleCtx, tenantId, sqlchelpers.UUIDToStr(stepRunCp.SRID), "SCHEDULING_TIMED_OUT")
+					if err != nil {
+						return err
+					}
+				} else {
+					err := ec.scheduleStepRun(scheduleCtx, tenantId, stepRunCp)
+					if err != nil {
+						return err
+					}
+				}
 			}
 
-			return ec.scheduleStepRun(ctx, tenantId, stepRunCp)
+			return nil
 		})
 	}
 
