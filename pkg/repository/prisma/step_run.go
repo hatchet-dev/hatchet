@@ -825,6 +825,11 @@ func (s *stepRunEngineRepository) UnassignStepRunFromWorker(ctx context.Context,
 }
 
 func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (string, string, error) {
+
+	if ctx.Err() != nil {
+		return "", "", ctx.Err()
+	}
+
 	err := s.releaseWorkerSemaphore(ctx, stepRun)
 
 	if err != nil {
