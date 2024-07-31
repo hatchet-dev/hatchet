@@ -379,6 +379,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
+		dc.Pool.Close()
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
