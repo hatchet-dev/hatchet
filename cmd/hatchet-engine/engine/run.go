@@ -25,6 +25,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+
+	"golang.org/x/sync/errgroup"
 )
 
 type Teardown struct {
