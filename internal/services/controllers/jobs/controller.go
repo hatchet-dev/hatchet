@@ -705,7 +705,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 
 	batchSize := 10
 
-	for i := 0; i < len(stepRuns); {
+	for i := 0; i < len(stepRuns); i += batchSize {
 		end := i + batchSize
 		if end > len(stepRuns)-1 {
 			end = len(stepRuns)
@@ -721,7 +721,8 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 			scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-requeue-step-run")
 			defer span.End()
 
-			for _, stepRunCp := range group {
+			for k := range group {
+				stepRunCp := group[k]
 				scheduleTimeoutAt := stepRunCp.SRScheduleTimeoutAt.Time
 
 				// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
