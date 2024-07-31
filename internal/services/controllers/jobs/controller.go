@@ -40,6 +40,8 @@ type JobsControllerImpl struct {
 	s           gocron.Scheduler
 	a           *hatcheterrors.Wrapped
 	partitionId string
+
+	requeueMutexes map[string]*sync.Mutex
 }
 
 type JobsControllerOpt func(*JobsControllerOpts)
@@ -132,13 +134,14 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 	a.WithData(map[string]interface{}{"service": "jobs-controller"})
 
 	return &JobsControllerImpl{
-		mq:          opts.mq,
-		l:           opts.l,
-		repo:        opts.repo,
-		dv:          opts.dv,
-		s:           s,
-		a:           a,
-		partitionId: opts.partitionId,
+		mq:             opts.mq,
+		l:              opts.l,
+		repo:           opts.repo,
+		dv:             opts.dv,
+		s:              s,
+		a:              a,
+		partitionId:    opts.partitionId,
+		requeueMutexes: make(map[string]*sync.Mutex),
 	}, nil
 }
 
@@ -673,6 +676,18 @@ func (jc *JobsControllerImpl) runStepRunRequeue(ctx context.Context, startedAt t
 
 // handleStepRunRequeue looks for any step runs that haven't been assigned that are past their requeue time
 func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenantId string) error {
+
+	// we want only one requeue running at a time for a tenant
+	if ec.requeueMutexes[tenantId] == nil {
+		ec.requeueMutexes[tenantId] = &sync.Mutex{}
+	}
+
+	if !ec.requeueMutexes[tenantId].TryLock() {
+		return nil
+	}
+
+	defer ec.requeueMutexes[tenantId].Unlock()
+
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-requeue")
 	defer span.End()
 
