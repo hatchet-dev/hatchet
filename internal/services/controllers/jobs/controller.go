@@ -715,7 +715,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 
 		// wrap in func to get defer on the span to avoid leaking spans
 		g.Go(func() error {
-			scheduleCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
 
 			scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-requeue-step-run")
