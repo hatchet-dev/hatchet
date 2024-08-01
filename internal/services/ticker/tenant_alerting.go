@@ -11,7 +11,7 @@ import (
 
 func (t *TickerImpl) runPollTenantAlerts(ctx context.Context) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 		defer cancel()
 
 		t.l.Debug().Msgf("ticker: polling tenant alerts")
@@ -43,7 +43,7 @@ func (t *TickerImpl) runPollTenantAlerts(ctx context.Context) func() {
 
 func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
 		t.l.Debug().Msg("ticker: polling expiring tokens")
@@ -77,7 +77,7 @@ func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 
 func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
 		t.l.Debug().Msg("ticker: resolving tenant resource limits")
