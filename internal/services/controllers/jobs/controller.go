@@ -808,16 +808,16 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 		ec.l.Info().Msgf("reassigning %d step runs", num)
 	}
 
-	g := new(errgroup.Group)
+	return MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
 
-	for i := range stepRuns {
-		stepRunCp := stepRuns[i]
+		scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-reassign-step-run")
+		defer span.End()
 
-		// wrap in func to get defer on the span to avoid leaking spans
-		g.Go(func() error {
-			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign-step-run")
-			defer span.End()
-
+		for i := range group {
+			stepRunCp := stepRuns[i]
+			// wrap in func to get defer on the span to avoid leaking spans
 			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
 
 			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
@@ -829,7 +829,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
 			if isTimedOut {
-				return ec.cancelStepRun(ctx, tenantId, stepRunId, "SCHEDULING_TIMED_OUT")
+				return ec.cancelStepRun(scheduleCtx, tenantId, stepRunId, "SCHEDULING_TIMED_OUT")
 			}
 
 			eventData := map[string]interface{}{
@@ -837,7 +837,7 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 			}
 
 			// TODO: batch this query to avoid n+1 issues
-			err = ec.repo.StepRun().CreateStepRunEvent(ctx, tenantId, stepRunId, repository.CreateStepRunEventOpts{
+			err = ec.repo.StepRun().CreateStepRunEvent(scheduleCtx, tenantId, stepRunId, repository.CreateStepRunEventOpts{
 				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
 				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
 				EventMessage:  repository.StringPtr("Worker has become inactive"),
@@ -847,12 +847,10 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 			if err != nil {
 				return fmt.Errorf("could not create step run event: %w", err)
 			}
+		}
 
-			return nil
-		})
-	}
-
-	return g.Wait()
+		return nil
+	})
 }
 
 func (jc *JobsControllerImpl) runStepRunTimeout(ctx context.Context) func() {
@@ -903,23 +901,28 @@ func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenan
 		ec.l.Info().Msgf("timing out %d step runs", num)
 	}
 
-	g := new(errgroup.Group)
+	return MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
 
-	for i := range stepRuns {
-		stepRunCp := stepRuns[i]
+		scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-timeout-step-run")
+		defer span.End()
 
-		// wrap in func to get defer on the span to avoid leaking spans
-		g.Go(func() error {
-			ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout-step-run")
+		for i := range stepRuns {
+			stepRunCp := stepRuns[i]
+
 			defer span.End()
 
 			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
 
-			return ec.failStepRun(ctx, tenantId, stepRunId, "TIMED_OUT", time.Now().UTC())
-		})
-	}
+			err = ec.failStepRun(scheduleCtx, tenantId, stepRunId, "TIMED_OUT", time.Now().UTC())
+			if err != nil {
+				return err
+			}
+		}
 
-	return g.Wait()
+		return nil
+	})
 }
 
 func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId, stepRunId string) error {
