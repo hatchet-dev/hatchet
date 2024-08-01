@@ -674,6 +674,25 @@ func (jc *JobsControllerImpl) runStepRunRequeue(ctx context.Context, startedAt t
 	}
 }
 
+func MakeBatched[T any](batchSize int, things []T, fn func(group []T) error) error {
+	g := new(errgroup.Group)
+
+	for i := 0; i < len(things); i += batchSize {
+		end := i + batchSize
+		if end > len(things) {
+			end = len(things)
+		}
+
+		group := things[i:end]
+
+		g.Go(func() error {
+			return fn(group)
+		})
+	}
+
+	return g.Wait()
+}
+
 // handleStepRunRequeue looks for any step runs that haven't been assigned that are past their requeue time
 func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenantId string) error {
 
@@ -701,53 +720,37 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 		ec.l.Info().Msgf("requeueing %d step runs", num)
 	}
 
-	g := new(errgroup.Group)
+	return MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
 
-	batchSize := 10
+		scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-requeue-step-run")
+		defer span.End()
 
-	for i := 0; i < len(stepRuns); i += batchSize {
-		end := i + batchSize
-		if end > len(stepRuns)-1 {
-			end = len(stepRuns)
-		}
+		for k := range group {
+			stepRunCp := group[k]
+			scheduleTimeoutAt := stepRunCp.SRScheduleTimeoutAt.Time
 
-		group := stepRuns[i:end]
+			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
+			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
+			now := time.Now().UTC()
+			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
-		// wrap in func to get defer on the span to avoid leaking spans
-		g.Go(func() error {
-			scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
-			defer cancel()
-
-			scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-requeue-step-run")
-			defer span.End()
-
-			for k := range group {
-				stepRunCp := group[k]
-				scheduleTimeoutAt := stepRunCp.SRScheduleTimeoutAt.Time
-
-				// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
-				// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
-				now := time.Now().UTC()
-				isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
-
-				if isTimedOut {
-					err := ec.cancelStepRun(scheduleCtx, tenantId, sqlchelpers.UUIDToStr(stepRunCp.SRID), "SCHEDULING_TIMED_OUT")
-					if err != nil {
-						return err
-					}
-				} else {
-					err := ec.scheduleStepRun(scheduleCtx, tenantId, stepRunCp)
-					if err != nil {
-						return err
-					}
+			if isTimedOut {
+				err := ec.cancelStepRun(scheduleCtx, tenantId, sqlchelpers.UUIDToStr(stepRunCp.SRID), "SCHEDULING_TIMED_OUT")
+				if err != nil {
+					return err
+				}
+			} else {
+				err := ec.scheduleStepRun(scheduleCtx, tenantId, stepRunCp)
+				if err != nil {
+					return err
 				}
 			}
+		}
 
-			return nil
-		})
-	}
-
-	return g.Wait()
+		return nil
+	})
 }
 
 func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt time.Time) func() {
