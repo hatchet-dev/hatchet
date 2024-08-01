@@ -981,7 +981,6 @@ type Workflow struct {
 
 	// Jobs The jobs of the workflow.
 	Jobs     *[]Job          `json:"jobs,omitempty"`
-	LastRun  *WorkflowRun    `json:"lastRun,omitempty"`
 	Metadata APIResourceMeta `json:"metadata"`
 
 	// Name The name of the workflow.

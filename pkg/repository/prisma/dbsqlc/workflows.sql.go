@@ -861,64 +861,22 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 const listWorkflows = `-- name: ListWorkflows :many
 SELECT
     workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description
-FROM (
-    SELECT
-        DISTINCT ON(workflows."id") workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description
-    FROM
-        "Workflow" as workflows
-    LEFT JOIN
-        (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
-        ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
-    LEFT JOIN
-        "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
-    LEFT JOIN
-        "WorkflowTriggerEventRef" as workflowTriggerEventRef ON workflowTrigger."id" = workflowTriggerEventRef."parentId"
-    WHERE
-        workflows."tenantId" = $1
-        AND workflows."deletedAt" IS NULL
-        AND workflowVersion."deletedAt" IS NULL
-        AND
-        (
-            $2::text IS NULL OR
-            workflows."id" IN (
-                SELECT
-                    DISTINCT ON(t1."workflowId") t1."workflowId"
-                FROM
-                    "WorkflowVersion" AS t1
-                    LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
-                WHERE
-                    (
-                        j2."id" IN (
-                            SELECT
-                                t3."parentId"
-                            FROM
-                                "public"."WorkflowTriggerEventRef" AS t3
-                            WHERE
-                                t3."eventKey" = $2::text
-                                AND t3."parentId" IS NOT NULL
-                        )
-                        AND j2."id" IS NOT NULL
-                        AND t1."workflowId" IS NOT NULL
-                    )
-                ORDER BY
-                    t1."workflowId" DESC
-            )
-        )
-    ORDER BY workflows."id" DESC
-) as workflows
+FROM
+    "Workflow" as workflows
+WHERE
+    workflows."tenantId" = $1 AND
+    workflows."deletedAt" IS NULL
 ORDER BY
-    case when $3 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
-    case when $3 = 'createdAt DESC' then workflows."createdAt" END DESC
+    case when $2 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
+    case when $2 = 'createdAt DESC' then workflows."createdAt" END DESC
 OFFSET
-    COALESCE($4, 0)
+    COALESCE($3, 0)
 LIMIT
-    COALESCE($5, 50)
+    COALESCE($4, 50)
 `
 
 type ListWorkflowsParams struct {
 	TenantId pgtype.UUID `json:"tenantId"`
-	EventKey pgtype.Text `json:"eventKey"`
 	Orderby  interface{} `json:"orderby"`
 	Offset   interface{} `json:"offset"`
 	Limit    interface{} `json:"limit"`
@@ -931,7 +889,6 @@ type ListWorkflowsRow struct {
 func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsParams) ([]*ListWorkflowsRow, error) {
 	rows, err := db.Query(ctx, listWorkflows,
 		arg.TenantId,
-		arg.EventKey,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,

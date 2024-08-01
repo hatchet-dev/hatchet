@@ -1767,7 +1767,7 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1::uuid AND
-    runs."created" > NOW - INTERVAL '1 day' AND
+    runs."createdAt" > NOW - INTERVAL '1 day' AND
     runs."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND

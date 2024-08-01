@@ -11,19 +11,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
-func ToWorkflow(workflow *db.WorkflowModel, lastRun *db.WorkflowRunModel) (*gen.Workflow, error) {
+func ToWorkflow(workflow *db.WorkflowModel) (*gen.Workflow, error) {
 	res := &gen.Workflow{
 		Metadata: *toAPIMetadata(workflow.ID, workflow.CreatedAt, workflow.UpdatedAt),
 		Name:     workflow.Name,
-	}
-
-	if lastRun != nil {
-		var err error
-		res.LastRun, err = ToWorkflowRun(lastRun)
-
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	if description, ok := workflow.Description(); ok {
@@ -160,7 +151,7 @@ func ToWorkflowVersion(workflow *db.WorkflowModel, version *db.WorkflowVersionMo
 
 	if workflow != nil {
 		var err error
-		res.Workflow, err = ToWorkflow(workflow, nil)
+		res.Workflow, err = ToWorkflow(workflow)
 
 		if err != nil {
 			return nil, err
@@ -337,6 +328,10 @@ func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
 		Name:        row.Name,
 		Description: &row.Description.String,
 	}
+
+	// if lastRunAt != nil && !lastRunAt.IsZero() {
+	// 	res.LastRunAt = lastRunAt
+	// }
 
 	return res
 }

@@ -502,7 +502,6 @@ export interface Workflow {
   versions?: WorkflowVersionMeta[];
   /** The tags of the workflow. */
   tags?: WorkflowTag[];
-  lastRun?: WorkflowRun;
   /** The jobs of the workflow. */
   jobs?: Job[];
 }
