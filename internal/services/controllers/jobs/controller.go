@@ -41,7 +41,9 @@ type JobsControllerImpl struct {
 	a           *hatcheterrors.Wrapped
 	partitionId string
 
-	requeueMutexes map[string]*sync.Mutex
+	requeueMutexes  map[string]*sync.Mutex
+	reassignMutexes map[string]*sync.Mutex
+	timeoutMutexes  map[string]*sync.Mutex
 }
 
 type JobsControllerOpt func(*JobsControllerOpts)
@@ -795,6 +797,17 @@ func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt 
 // runStepRunReassignTenant looks for step runs that have been assigned to a worker but have not started,
 // or have been running but the worker has become inactive.
 func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tenantId string) error {
+	// we want only one requeue running at a time for a tenant
+	if ec.reassignMutexes[tenantId] == nil {
+		ec.reassignMutexes[tenantId] = &sync.Mutex{}
+	}
+
+	if !ec.reassignMutexes[tenantId].TryLock() {
+		return nil
+	}
+
+	defer ec.reassignMutexes[tenantId].Unlock()
+
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign")
 	defer span.End()
 
@@ -888,6 +901,16 @@ func (jc *JobsControllerImpl) runStepRunTimeout(ctx context.Context) func() {
 
 // runStepRunTimeoutTenant looks for step runs that are timed out in the tenant.
 func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenantId string) error {
+	if ec.timeoutMutexes[tenantId] == nil {
+		ec.timeoutMutexes[tenantId] = &sync.Mutex{}
+	}
+
+	if !ec.timeoutMutexes[tenantId].TryLock() {
+		return nil
+	}
+
+	defer ec.timeoutMutexes[tenantId].Unlock()
+
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout")
 	defer span.End()
 
