@@ -505,13 +505,31 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 }
 
 const listTenantsByControllerPartitionId = `-- name: ListTenantsByControllerPartitionId :many
-WITH update_partition AS (
+WITH selected_partition AS (
+    SELECT
+        id, "createdAt", "updatedAt", "lastHeartbeat"
+    FROM
+        "ControllerPartition" p1
+    WHERE
+        p1."id" = $1::text
+),
+for_update AS (
+    SELECT
+        id, "createdAt", "updatedAt", "lastHeartbeat"
+    FROM
+        selected_partition
+    FOR UPDATE SKIP LOCKED
+),
+updated AS (
     UPDATE
-        "ControllerPartition"
+        "ControllerPartition" p2
     SET
         "lastHeartbeat" = NOW()
+    FROM
+        -- ONLY update if there is no lock contention
+        for_update
     WHERE
-        "id" = $1::text
+        p2."id" = $1::text
 )
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod"
