@@ -136,14 +136,16 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 	a.WithData(map[string]interface{}{"service": "jobs-controller"})
 
 	return &JobsControllerImpl{
-		mq:             opts.mq,
-		l:              opts.l,
-		repo:           opts.repo,
-		dv:             opts.dv,
-		s:              s,
-		a:              a,
-		partitionId:    opts.partitionId,
-		requeueMutexes: make(map[string]*sync.Mutex),
+		mq:              opts.mq,
+		l:               opts.l,
+		repo:            opts.repo,
+		dv:              opts.dv,
+		s:               s,
+		a:               a,
+		partitionId:     opts.partitionId,
+		requeueMutexes:  make(map[string]*sync.Mutex),
+		reassignMutexes: make(map[string]*sync.Mutex),
+		timeoutMutexes:  make(map[string]*sync.Mutex),
 	}, nil
 }
 
