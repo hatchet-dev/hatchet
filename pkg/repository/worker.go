@@ -90,7 +90,7 @@ type WorkerEngineRepository interface {
 
 	// UpdateWorker updates a worker in the repository.
 	// It will only update the worker if there is no lock on the worker, else it will skip.
-	UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeatAt time.Time) (*dbsqlc.Worker, error)
+	UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeatAt time.Time) error
 
 	// DeleteWorker removes the worker from the database
 	DeleteWorker(ctx context.Context, tenantId, workerId string) error

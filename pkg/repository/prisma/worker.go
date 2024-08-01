@@ -370,12 +370,18 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 	return worker, nil
 }
 
-func (w *workerEngineRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeat time.Time) (*dbsqlc.Worker, error) {
+func (w *workerEngineRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeat time.Time) error {
 
-	return w.queries.UpdateWorkerHeartbeat(ctx, w.pool, dbsqlc.UpdateWorkerHeartbeatParams{
+	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, dbsqlc.UpdateWorkerHeartbeatParams{
 		ID:              sqlchelpers.UUIDFromStr(workerId),
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
 	})
+
+	if err != nil && err != pgx.ErrNoRows {
+		return fmt.Errorf("could not update worker heartbeat: %w", err)
+	}
+
+	return nil
 }
 
 func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, workerId string) error {
