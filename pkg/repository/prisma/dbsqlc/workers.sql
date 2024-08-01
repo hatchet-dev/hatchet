@@ -71,6 +71,29 @@ INSERT INTO "Worker" (
     sqlc.narg('maxRuns')::int
 ) RETURNING *;
 
+-- name: UpdateWorkerHeartbeat :one
+WITH to_update AS (
+    SELECT
+        "id"
+    FROM
+        "Worker"
+    WHERE
+        "id" = @id::uuid
+        AND (
+            "lastHeartbeatAt" IS NULL
+            OR "lastHeartbeatAt" <= sqlc.narg('lastHeartbeatAt')::timestamp
+        )
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "Worker"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "lastHeartbeatAt" = sqlc.narg('lastHeartbeatAt')::timestamp
+WHERE
+    "id" IN (SELECT "id" FROM to_update)
+RETURNING *;
+
 -- name: UpdateWorker :one
 UPDATE
     "Worker"
