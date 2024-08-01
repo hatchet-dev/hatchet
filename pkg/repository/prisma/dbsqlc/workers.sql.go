@@ -462,6 +462,55 @@ func (q *Queries) UpdateWorkerActiveStatus(ctx context.Context, db DBTX, arg Upd
 	return &i, err
 }
 
+const updateWorkerHeartbeat = `-- name: UpdateWorkerHeartbeat :one
+WITH to_update AS (
+    SELECT
+        "id"
+    FROM
+        "Worker"
+    WHERE
+        "id" = $2::uuid
+        AND (
+            "lastHeartbeatAt" IS NULL
+            OR "lastHeartbeatAt" <= $1::timestamp
+        )
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "Worker"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "lastHeartbeatAt" = $1::timestamp
+WHERE
+    "id" IN (SELECT "id" FROM to_update)
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused"
+`
+
+type UpdateWorkerHeartbeatParams struct {
+	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
+	ID              pgtype.UUID      `json:"id"`
+}
+
+func (q *Queries) UpdateWorkerHeartbeat(ctx context.Context, db DBTX, arg UpdateWorkerHeartbeatParams) (*Worker, error) {
+	row := db.QueryRow(ctx, updateWorkerHeartbeat, arg.LastHeartbeatAt, arg.ID)
+	var i Worker
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.LastHeartbeatAt,
+		&i.Name,
+		&i.DispatcherId,
+		&i.MaxRuns,
+		&i.IsActive,
+		&i.LastListenerEstablished,
+		&i.IsPaused,
+	)
+	return &i, err
+}
+
 const updateWorkersByName = `-- name: UpdateWorkersByName :many
 UPDATE "Worker"
 SET "isActive" = $1::boolean

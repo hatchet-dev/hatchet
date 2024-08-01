@@ -293,6 +293,8 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 	})
 }
 
+// UpdateWorker updates a worker in the repository.
+// It will only update the worker if there is no lock on the worker, else it will skip.
 func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, workerId string, opts *repository.UpdateWorkerOpts) (*dbsqlc.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
@@ -366,6 +368,14 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 	}
 
 	return worker, nil
+}
+
+func (w *workerEngineRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeat time.Time) (*dbsqlc.Worker, error) {
+
+	return w.queries.UpdateWorkerHeartbeat(ctx, w.pool, dbsqlc.UpdateWorkerHeartbeatParams{
+		ID:              sqlchelpers.UUIDFromStr(workerId),
+		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
+	})
 }
 
 func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, workerId string) error {

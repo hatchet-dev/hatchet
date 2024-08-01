@@ -451,17 +451,14 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	// if we haven't seen the dispatcher for 6 seconds (one interval plus latency), reject the heartbeat as the client
 	// should reconnect
 	if worker.DispatcherLastHeartbeatAt.Time.Before(time.Now().Add(-6 * time.Second)) {
-		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
+		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: dispatcher latency: %s, %s", req.WorkerId, sqlchelpers.UUIDToStr(worker.DispatcherId))
 	}
 
 	if worker.LastListenerEstablished.Valid && !worker.IsActive {
-		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
+		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
 	}
 
-	_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, req.WorkerId, &repository.UpdateWorkerOpts{
-		// use the system time for heartbeat
-		LastHeartbeatAt: &heartbeatAt,
-	})
+	_, err = s.repo.Worker().UpdateWorkerHeartbeat(ctx, tenantId, req.WorkerId, heartbeatAt)
 
 	if err != nil {
 		return nil, err
