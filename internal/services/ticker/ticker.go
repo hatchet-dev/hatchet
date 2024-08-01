@@ -271,17 +271,17 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	// poll to resolve worker semaphore slots every 1 minute
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Minute*1),
-		gocron.NewTask(
-			t.runWorkerSemaphoreSlotResolver(ctx),
-		),
-	)
+	// _, err = t.s.NewJob(
+	// 	gocron.DurationJob(time.Minute*1),
+	// 	gocron.NewTask(
+	// 		t.runWorkerSemaphoreSlotResolver(ctx),
+	// 	),
+	// )
 
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule worker semaphore slot resolver polling: %w", err)
-	}
+	// if err != nil {
+	// 	cancel()
+	// 	return nil, fmt.Errorf("could not schedule worker semaphore slot resolver polling: %w", err)
+	// }
 
 	// poll to resolve unresolved failed step runs every 30 seconds
 	// _, err = t.s.NewJob(
