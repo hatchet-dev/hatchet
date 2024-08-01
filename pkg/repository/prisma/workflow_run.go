@@ -57,15 +57,15 @@ func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.Ca
 	w.callbacks = append(w.callbacks, callback)
 }
 
-func (w *workflowRunAPIRepository) ListWorkflowRuns(tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
+func (w *workflowRunAPIRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return listWorkflowRuns(context.Background(), w.pool, w.queries, w.l, tenantId, opts)
+	return listWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, opts)
 }
 
-func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(tenantId string, opts *repository.WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error) {
+func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(ctx context.Context, tenantId string, opts *repository.WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}

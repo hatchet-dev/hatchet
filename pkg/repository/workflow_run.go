@@ -367,10 +367,10 @@ type WorkflowRunAPIRepository interface {
 	RegisterCreateCallback(callback Callback[*db.WorkflowRunModel])
 
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
-	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
+	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
 
 	// Counts by status
-	WorkflowRunMetricsCount(tenantId string, opts *WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error)
+	WorkflowRunMetricsCount(ctx context.Context, tenantId string, opts *WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error)
 
 	GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error)
 

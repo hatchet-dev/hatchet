@@ -1,10 +1,12 @@
 package events
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 
@@ -89,7 +91,10 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 		listOpts.AdditionalMetadata = additionalMetadataBytes
 	}
 
-	listRes, err := t.config.APIRepository.Event().ListEvents(tenant.ID, listOpts)
+	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
+	defer cancel()
+
+	listRes, err := t.config.APIRepository.Event().ListEvents(dbCtx, tenant.ID, listOpts)
 
 	if err != nil {
 		return nil, err
