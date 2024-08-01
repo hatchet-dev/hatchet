@@ -10,7 +10,7 @@ WHERE
 -- name: CountEvents :one
 WITH events AS (
     SELECT
-        events."id", events."createdAt"
+        events."id"
     FROM
         "Event" as events
     LEFT JOIN
@@ -27,7 +27,7 @@ WITH events AS (
         (
             sqlc.narg('keys')::text[] IS NULL OR
             events."key" = ANY(sqlc.narg('keys')::text[])
-            ) AND
+        ) AND
         (
             sqlc.narg('additionalMetadata')::jsonb IS NULL OR
             events."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
@@ -35,17 +35,16 @@ WITH events AS (
         (
             (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR
             (workflow."id" = ANY(sqlc.narg('workflows')::text[]::uuid[]))
-            ) AND
+        ) AND
         (
             sqlc.narg('search')::text IS NULL OR
+            workflow.name like concat('%', sqlc.narg('search')::text, '%') OR
             jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
         ) AND
-            (
-                sqlc.narg('statuses')::text[] IS NULL OR
-                "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
-            )
-    GROUP BY
-        events."id"
+        (
+            sqlc.narg('statuses')::text[] IS NULL OR
+            "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+        )
     ORDER BY
         case when @orderBy = 'createdAt ASC' THEN events."createdAt" END ASC ,
         case when @orderBy = 'createdAt DESC' then events."createdAt" END DESC
@@ -80,9 +79,9 @@ INSERT INTO "Event" (
 ) RETURNING *;
 
 -- name: ListEvents :many
-WITH events AS (
+WITH filtered_events AS (
     SELECT
-        events.*
+        events."id"
     FROM
         "Event" as events
     LEFT JOIN
@@ -95,6 +94,7 @@ WITH events AS (
         "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
     WHERE
         events."tenantId" = $1 AND
+        events."deletedAt" IS NOT NULL AND
         (
             sqlc.narg('keys')::text[] IS NULL OR
             events."key" = ANY(sqlc.narg('keys')::text[])
@@ -132,7 +132,9 @@ SELECT
     sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
     sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns
 FROM
-    events
+    filtered_events
+JOIN
+    "Event" as events ON events."id" = filtered_events."id"
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
 LEFT JOIN
