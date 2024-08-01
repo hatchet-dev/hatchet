@@ -470,10 +470,6 @@ WITH to_update AS (
         "Worker"
     WHERE
         "id" = $2::uuid
-        AND (
-            "lastHeartbeatAt" IS NULL
-            OR "lastHeartbeatAt" <= $1::timestamp
-        )
     FOR UPDATE SKIP LOCKED
 )
 UPDATE

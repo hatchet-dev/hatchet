@@ -79,10 +79,6 @@ WITH to_update AS (
         "Worker"
     WHERE
         "id" = @id::uuid
-        AND (
-            "lastHeartbeatAt" IS NULL
-            OR "lastHeartbeatAt" <= sqlc.narg('lastHeartbeatAt')::timestamp
-        )
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
