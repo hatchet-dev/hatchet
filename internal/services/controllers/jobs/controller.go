@@ -158,6 +158,18 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 
 	// TODO - make this configurable
 	_, err := jc.s.NewJob(
+		gocron.DurationJob(time.Second*20),
+		gocron.NewTask(
+			jc.runPartitionHeartbeat(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run requeue: %w", err)
+	}
+
+	_, err = jc.s.NewJob(
 		gocron.DurationJob(time.Second*15),
 		gocron.NewTask(
 			jc.runPgStat(),
@@ -639,6 +651,23 @@ func (jc *JobsControllerImpl) runPgStat() func() {
 	}
 }
 
+func (jc *JobsControllerImpl) runPartitionHeartbeat(ctx context.Context) func() {
+	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
+		defer span.End()
+
+		err := jc.repo.Tenant().UpdatePartitionHeartbeat(ctx, jc.partitionId)
+
+		if err != nil {
+			jc.l.Err(err).Msg("could not heartbeat partition")
+		}
+	}
+
+}
+
 func (jc *JobsControllerImpl) runStepRunRequeue(ctx context.Context, startedAt time.Time) func() {
 	return func() {
 		// if we are within 15 seconds of the started time, then we should not requeue step runs
@@ -725,7 +754,7 @@ func (ec *JobsControllerImpl) runStepRunRequeueTenant(ctx context.Context, tenan
 	}
 
 	return MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
-		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
 
 		scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-requeue-step-run")
