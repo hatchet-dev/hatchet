@@ -166,12 +166,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		return nil, nil
 	}
 
-	if _, err := t.initQueue(sub, msgqueue.SCHEDULING_QUEUE); err != nil {
-		t.l.Debug().Msgf("error initializing queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
 	// create publisher go func
 	cleanup1 := t.startPublishing()
 
@@ -316,7 +310,7 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 				select {
 				case <-ctx.Done():
-					break
+					return
 				case msg := <-t.msgs:
 					go func(msg *msgWithQueue) {
 						body, err := json.Marshal(msg)

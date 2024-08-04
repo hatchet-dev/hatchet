@@ -519,6 +519,109 @@ WHERE
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "id" = @workerId::uuid;
 
+-- name: ListStepRunsToAssign :many
+WITH step_runs AS (
+    SELECT
+        sr."id",
+        sr."createdAt",
+        row_number() OVER (PARTITION BY s."actionId" ORDER BY sr."createdAt" ASC) AS group_rn,
+        s."actionId",
+        s."timeout" AS "stepTimeout"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    WHERE
+        sr."status" = 'PENDING_ASSIGNMENT'
+        AND sr."tenantId" = @tenantId::uuid
+        AND sr."deletedAt" IS NULL
+    ORDER BY
+        group_rn, sr."createdAt" ASC
+    LIMIT
+        1000
+)
+SELECT
+    sr."id",
+    sr."actionId",
+    sr."group_rn",
+    sr."stepTimeout"
+FROM
+    step_runs sr
+FOR UPDATE SKIP LOCKED;
+
+-- name: ListSemaphoreSlotsToAssign :many
+WITH actions AS (
+    SELECT
+        "id",
+        "actionId"
+    FROM
+        "Action"
+    WHERE
+        "tenantId" = @tenantId::uuid AND
+        "actionId" = ANY(@actionIds::text[])
+), valid_workers AS (
+    SELECT
+        w."id",
+        a."actionId",
+        w."dispatcherId"
+    FROM
+        "Worker" w
+    JOIN
+        "_ActionToWorker" atw ON w."id" = atw."B"
+    JOIN
+        actions a ON atw."A" = a."id"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+        AND w."isPaused" = false
+)
+SELECT
+    wss."id",
+    vw."id" AS "workerId",
+    vw."dispatcherId",
+    vw."actionId"
+FROM
+    "WorkerSemaphoreSlot" wss
+JOIN
+    valid_workers vw ON wss."workerId" = vw."id"
+WHERE
+    wss."stepRunId" IS NULL
+FOR UPDATE SKIP LOCKED;
+
+-- name: BulkAssignStepRunsToWorkers :many
+WITH updated_step_runs AS (
+    UPDATE
+        "StepRun" sr
+    SET
+        "status" = 'ASSIGNED',
+        "workerId" = input."workerId",
+        "tickerId" = NULL,
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "timeoutAt" = CURRENT_TIMESTAMP + convert_duration_to_interval(input."stepTimeout")
+    FROM (
+        SELECT
+            unnest(@stepRunIds::uuid[]) AS "id",
+            unnest(@stepRunTimeouts::text[]) AS "stepTimeout",
+            unnest(@workerIds::uuid[]) AS "workerId"
+    ) AS input
+    WHERE
+        sr."id" = input."id"
+)
+UPDATE
+    "WorkerSemaphoreSlot" wss
+SET
+    "stepRunId" = input."stepRunId"
+FROM (
+    SELECT
+        unnest(@slotIds::uuid[]) AS "id",
+        unnest(@stepRunIds::uuid[]) AS "stepRunId"
+) AS input
+WHERE
+    wss."id" = input."id"
+RETURNING wss."id";
+
 -- name: AcquireWorkerSemaphoreSlotAndAssign :one
 WITH valid_workers AS (
     SELECT

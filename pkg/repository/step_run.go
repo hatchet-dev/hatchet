@@ -148,6 +148,12 @@ type StepRunAPIRepository interface {
 	ListStepRunArchives(tenantId, stepRunId string, opts *ListStepRunArchivesOpts) (*ListStepRunArchivesResult, error)
 }
 
+type QueueStepRunResult struct {
+	StepRunId    string
+	WorkerId     string
+	DispatcherId string
+}
+
 type StepRunEngineRepository interface {
 	// ListStepRunsForWorkflowRun returns a list of step runs for a workflow run.
 	ListStepRuns(ctx context.Context, tenantId string, opts *ListStepRunsOpts) ([]*dbsqlc.GetStepRunForEngineRow, error)
@@ -192,6 +198,8 @@ type StepRunEngineRepository interface {
 	// QueueStepRun is like UpdateStepRun, except that it will only update the step run if it is in
 	// a pending state.
 	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
+
+	QueueStepRuns(ctx context.Context, tenantId string) ([]QueueStepRunResult, bool, error)
 
 	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 

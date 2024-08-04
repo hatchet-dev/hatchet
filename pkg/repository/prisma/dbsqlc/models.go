@@ -964,6 +964,7 @@ type StepRun struct {
 	GitRepoBranch     pgtype.Text      `json:"gitRepoBranch"`
 	RetryCount        int32            `json:"retryCount"`
 	SemaphoreReleased bool             `json:"semaphoreReleased"`
+	Queue             string           `json:"queue"`
 }
 
 type StepRunEvent struct {

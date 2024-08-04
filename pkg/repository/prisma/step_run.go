@@ -824,6 +824,137 @@ func (s *stepRunEngineRepository) UnassignStepRunFromWorker(ctx context.Context,
 	})
 }
 
+func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId string) ([]repository.QueueStepRunResult, bool, error) {
+	if ctx.Err() != nil {
+		return nil, false, ctx.Err()
+	}
+
+	tx, err := s.pool.Begin(ctx)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer deferRollback(ctx, s.l, tx.Rollback)
+
+	stepRunsToAssign, err := s.queries.ListStepRunsToAssign(ctx, tx, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not list step runs to assign: %w", err)
+	}
+
+	// get a list of unique actions
+	uniqueActions := make(map[string]bool)
+
+	for _, row := range stepRunsToAssign {
+		uniqueActions[row.ActionId] = true
+	}
+
+	uniqueActionsArr := make([]string, 0, len(uniqueActions))
+
+	for action := range uniqueActions {
+		uniqueActionsArr = append(uniqueActionsArr, action)
+	}
+
+	slots, err := s.queries.ListSemaphoreSlotsToAssign(ctx, tx, dbsqlc.ListSemaphoreSlotsToAssignParams{
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Actionids: uniqueActionsArr,
+	})
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not list semaphore slots to assign: %w", err)
+	}
+
+	// NOTE(abelanger5): this is a version of the assignment problem. There is a more optimal solution i.e. optimal
+	// matching which can run in polynomial time. This is a naive approach which assigns the first steps which were
+	// queued to the first slots which are seen.
+	actionsToSlots := make(map[string]map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow)
+	slotsToActions := make(map[string][]string)
+
+	for _, slot := range slots {
+		slotId := sqlchelpers.UUIDToStr(slot.ID)
+
+		if _, ok := actionsToSlots[slot.ActionId]; !ok {
+			actionsToSlots[slot.ActionId] = make(map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow)
+		}
+
+		actionsToSlots[slot.ActionId][slotId] = slot
+
+		if _, ok := slotsToActions[slotId]; !ok {
+			slotsToActions[slotId] = make([]string, 0)
+		}
+
+		slotsToActions[slotId] = append(slotsToActions[slotId], slot.ActionId)
+	}
+
+	// match slots to step runs in the order the step runs were returned
+	stepRunIds := make([]pgtype.UUID, 0)
+	slotIds := make([]pgtype.UUID, 0)
+	workerIds := make([]pgtype.UUID, 0)
+	stepRunTimeouts := make([]string, 0)
+
+	res := make([]repository.QueueStepRunResult, 0)
+
+	exhaustedActions := make(map[string]bool)
+
+	for _, stepRun := range stepRunsToAssign {
+		if len(actionsToSlots[stepRun.ActionId]) == 0 {
+			exhaustedActions[stepRun.ActionId] = true
+			continue
+		}
+
+		slot := popRandMapValue(actionsToSlots[stepRun.ActionId])
+
+		// delete from all other actions
+		for _, action := range slotsToActions[sqlchelpers.UUIDToStr(slot.ID)] {
+			delete(actionsToSlots[action], sqlchelpers.UUIDToStr(slot.ID))
+		}
+
+		stepRunIds = append(stepRunIds, stepRun.ID)
+		stepRunTimeouts = append(stepRunTimeouts, stepRun.StepTimeout.String)
+		slotIds = append(slotIds, slot.ID)
+		workerIds = append(workerIds, slot.WorkerId)
+
+		res = append(res, repository.QueueStepRunResult{
+			StepRunId:    sqlchelpers.UUIDToStr(stepRun.ID),
+			WorkerId:     sqlchelpers.UUIDToStr(slot.WorkerId),
+			DispatcherId: sqlchelpers.UUIDToStr(slot.DispatcherId),
+		})
+	}
+
+	if len(stepRunIds) == 0 {
+		return []repository.QueueStepRunResult{}, false, nil
+	}
+
+	_, err = s.queries.BulkAssignStepRunsToWorkers(ctx, tx, dbsqlc.BulkAssignStepRunsToWorkersParams{
+		Steprunids:      stepRunIds,
+		Stepruntimeouts: stepRunTimeouts,
+		Slotids:         slotIds,
+		Workerids:       workerIds,
+	})
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not bulk assign step runs to workers: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return res, len(exhaustedActions) != len(uniqueActions), nil
+}
+
+func popRandMapValue(m map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow) *dbsqlc.ListSemaphoreSlotsToAssignRow {
+	for k, v := range m {
+		delete(m, k)
+		return v
+	}
+
+	return nil
+}
+
 func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (string, string, error) {
 
 	if ctx.Err() != nil {
