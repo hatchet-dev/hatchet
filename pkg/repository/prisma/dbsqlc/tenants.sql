@@ -36,33 +36,16 @@ SELECT
 FROM
     "Tenant" as tenants;
 
+-- name: ControllerPartitionHeartbeat :one
+UPDATE
+    "ControllerPartition" p
+SET
+    "lastHeartbeat" = NOW()
+WHERE
+    p."id" = sqlc.arg('controllerPartitionId')::text
+RETURNING *;
+
 -- name: ListTenantsByControllerPartitionId :many
-WITH selected_partition AS (
-    SELECT
-        *
-    FROM
-        "ControllerPartition" p1
-    WHERE
-        p1."id" = sqlc.arg('controllerPartitionId')::text
-),
-for_update AS (
-    SELECT
-        *
-    FROM
-        selected_partition
-    FOR UPDATE SKIP LOCKED
-),
-updated AS (
-    UPDATE
-        "ControllerPartition" p2
-    SET
-        "lastHeartbeat" = NOW()
-    FROM
-        -- ONLY update if there is no lock contention
-        for_update
-    WHERE
-        p2."id" = sqlc.arg('controllerPartitionId')::text
-)
 SELECT
     *
 FROM

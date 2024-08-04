@@ -158,6 +158,18 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 
 	// TODO - make this configurable
 	_, err := jc.s.NewJob(
+		gocron.DurationJob(time.Second*20),
+		gocron.NewTask(
+			jc.runPartitionHeartbeat(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run requeue: %w", err)
+	}
+
+	_, err = jc.s.NewJob(
 		gocron.DurationJob(time.Second*15),
 		gocron.NewTask(
 			jc.runPgStat(),
@@ -641,6 +653,23 @@ func (jc *JobsControllerImpl) runPgStat() func() {
 			s.CanceledAcquireCount(),
 		))
 	}
+}
+
+func (jc *JobsControllerImpl) runPartitionHeartbeat(ctx context.Context) func() {
+	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
+		defer span.End()
+
+		err := jc.repo.Tenant().UpdatePartitionHeartbeat(ctx, jc.partitionId)
+
+		if err != nil {
+			jc.l.Err(err).Msg("could not heartbeat partition")
+		}
+	}
+
 }
 
 func MakeBatched[T any](batchSize int, things []T, fn func(group []T) error) error {
