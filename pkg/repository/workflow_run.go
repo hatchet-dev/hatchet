@@ -51,6 +51,12 @@ type CreateWorkflowRunOpts struct {
 
 	// (optional) additional metadata for the workflow run
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+
+	// (optional) the desired worker id for sticky state
+	DesiredWorkerId *string `validate:"omitempty,uuid"`
+
+	// (optional) the deduplication value for the workflow run
+	DedupeValue *string `validate:"omitempty"`
 }
 
 type CreateGroupKeyRunOpts struct {
@@ -64,12 +70,25 @@ func WithParent(
 	parentId, parentStepRunId string,
 	childIndex int,
 	childKey *string,
+	additionalMetadata map[string]interface{},
+	parentAdditionalMetadata map[string]interface{},
 ) CreateWorkflowRunOpt {
 	return func(opts *CreateWorkflowRunOpts) {
 		opts.ParentId = &parentId
 		opts.ParentStepRunId = &parentStepRunId
 		opts.ChildIndex = &childIndex
 		opts.ChildKey = childKey
+
+		opts.AdditionalMetadata = parentAdditionalMetadata
+
+		if opts.AdditionalMetadata == nil {
+			opts.AdditionalMetadata = make(map[string]interface{})
+		}
+
+		for k, v := range additionalMetadata {
+			opts.AdditionalMetadata[k] = v
+		}
+
 	}
 }
 
@@ -107,6 +126,7 @@ func GetCreateWorkflowRunOptsFromParent(
 	childIndex int,
 	childKey *string,
 	additionalMetadata map[string]interface{},
+	parentAdditionalMetadata map[string]interface{},
 ) (*CreateWorkflowRunOpts, error) {
 	if input == nil {
 		input = []byte("{}")
@@ -118,10 +138,9 @@ func GetCreateWorkflowRunOptsFromParent(
 		ManualTriggerInput: StringPtr(string(input)),
 		TriggeredBy:        string(datautils.TriggeredByParent),
 		InputData:          input,
-		AdditionalMetadata: additionalMetadata,
 	}
 
-	WithParent(parentId, parentStepRunId, childIndex, childKey)(opts)
+	WithParent(parentId, parentStepRunId, childIndex, childKey, additionalMetadata, parentAdditionalMetadata)(opts)
 
 	if workflowVersion.ConcurrencyLimitStrategy.Valid {
 		opts.GetGroupKeyRun = &CreateGroupKeyRunOpts{
@@ -254,6 +273,9 @@ type ListWorkflowRunsOpts struct {
 	// (optional) the status of the workflow run
 	Statuses *[]db.WorkflowRunStatus
 
+	// (optional) a list of kinds to filter by
+	Kinds *[]dbsqlc.WorkflowKind
+
 	// (optional) number of events to skip
 	Offset *int
 
@@ -350,6 +372,8 @@ type WorkflowRunAPIRepository interface {
 	// Counts by status
 	WorkflowRunMetricsCount(tenantId string, opts *WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error)
 
+	GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error)
+
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*db.WorkflowRunModel, error)
 
@@ -357,7 +381,17 @@ type WorkflowRunAPIRepository interface {
 	GetWorkflowRunById(tenantId, runId string) (*db.WorkflowRunModel, error)
 }
 
-var ErrWorkflowRunNotFound = fmt.Errorf("workflow run not found")
+var (
+	ErrWorkflowRunNotFound = fmt.Errorf("workflow run not found")
+)
+
+type ErrDedupeValueExists struct {
+	DedupeValue string
+}
+
+func (e ErrDedupeValueExists) Error() string {
+	return fmt.Sprintf("workflow run with dedupe value %s already exists", e.DedupeValue)
+}
 
 type WorkflowRunEngineRepository interface {
 	RegisterCreateCallback(callback Callback[*dbsqlc.WorkflowRun])
@@ -377,9 +411,13 @@ type WorkflowRunEngineRepository interface {
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)
 
+	GetWorkflowRunAdditionalMeta(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunAdditionalMetaRow, error)
+
+	ReplayWorkflowRun(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunRow, error)
+
 	ListActiveQueuedWorkflowVersions(ctx context.Context) ([]*dbsqlc.ListActiveQueuedWorkflowVersionsRow, error)
 
 	// DeleteExpiredWorkflowRuns deletes workflow runs that were created before the given time. It returns the number of deleted runs
 	// and the number of non-deleted runs that match the conditions.
-	DeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (int, int, error)
+	SoftDeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (bool, error)
 }

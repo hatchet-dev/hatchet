@@ -206,12 +206,15 @@ active_cron_schedules AS (
     JOIN
         latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
     WHERE
-        "enabled" = TRUE AND
-        ("tickerId" IS NULL
-        OR NOT EXISTS (
-            SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+        "enabled" = TRUE
+        AND versions."deletedAt" IS NULL
+        AND (
+            "tickerId" IS NULL
+            OR NOT EXISTS (
+                SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+            )
+            OR "tickerId" = $1::uuid
         )
-        OR "tickerId" = $1::uuid)
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
@@ -336,6 +339,7 @@ WITH getGroupKeyRunsToTimeout AS (
     WHERE
         ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
         AND "timeoutAt" < NOW()
+        AND "deletedAt" IS NULL
         AND (
             NOT EXISTS (
                 SELECT 1 FROM "Ticker" WHERE "id" = getGroupKeyRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
@@ -423,6 +427,8 @@ not_run_scheduled_workflows AS (
     WHERE
         "triggerAt" <= NOW() + INTERVAL '5 seconds'
         AND runTriggeredBy IS NULL
+        AND versions."deletedAt" IS NULL
+        AND workflow."deletedAt" IS NULL
         AND (
             "tickerId" IS NULL
             OR NOT EXISTS (
@@ -497,89 +503,6 @@ func (q *Queries) PollScheduledWorkflows(ctx context.Context, db DBTX, tickerid 
 	return items, nil
 }
 
-const pollStepRuns = `-- name: PollStepRuns :many
-WITH inactiveTickers AS (
-    SELECT "id"
-    FROM "Ticker"
-    WHERE
-        "isActive" = false OR
-        "lastHeartbeatAt" < NOW() - INTERVAL '10 seconds'
-),
-stepRunsToTimeout AS (
-    SELECT
-        stepRun."id"
-    FROM
-        "StepRun" as stepRun
-    LEFT JOIN inactiveTickers ON stepRun."tickerId" = inactiveTickers."id"
-    WHERE
-        ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
-        AND "timeoutAt" < NOW()
-        AND (
-            inactiveTickers."id" IS NOT NULL
-            OR "tickerId" IS NULL
-        )
-    LIMIT 1000
-    FOR UPDATE SKIP LOCKED
-)
-UPDATE
-    "StepRun" as stepRuns
-SET
-    "tickerId" = $1::uuid
-FROM
-    stepRunsToTimeout
-WHERE
-    stepRuns."id" = stepRunsToTimeout."id"
-RETURNING stepruns.id, stepruns."createdAt", stepruns."updatedAt", stepruns."deletedAt", stepruns."tenantId", stepruns."jobRunId", stepruns."stepId", stepruns."order", stepruns."workerId", stepruns."tickerId", stepruns.status, stepruns.input, stepruns.output, stepruns."requeueAfter", stepruns."scheduleTimeoutAt", stepruns.error, stepruns."startedAt", stepruns."finishedAt", stepruns."timeoutAt", stepruns."cancelledAt", stepruns."cancelledReason", stepruns."cancelledError", stepruns."inputSchema", stepruns."callerFiles", stepruns."gitRepoBranch", stepruns."retryCount", stepruns."semaphoreReleased"
-`
-
-func (q *Queries) PollStepRuns(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, pollStepRuns, tickerid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*StepRun
-	for rows.Next() {
-		var i StepRun
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.TenantId,
-			&i.JobRunId,
-			&i.StepId,
-			&i.Order,
-			&i.WorkerId,
-			&i.TickerId,
-			&i.Status,
-			&i.Input,
-			&i.Output,
-			&i.RequeueAfter,
-			&i.ScheduleTimeoutAt,
-			&i.Error,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.TimeoutAt,
-			&i.CancelledAt,
-			&i.CancelledReason,
-			&i.CancelledError,
-			&i.InputSchema,
-			&i.CallerFiles,
-			&i.GitRepoBranch,
-			&i.RetryCount,
-			&i.SemaphoreReleased,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const pollTenantAlerts = `-- name: PollTenantAlerts :many
 WITH active_tenant_alerts AS (
     SELECT
@@ -601,6 +524,7 @@ failed_run_count_by_tenant AS (
         active_tenant_alerts ON active_tenant_alerts."tenantId" = workflowRun."tenantId"
     WHERE
         "status" = 'FAILED'
+        AND workflowRun."deletedAt" IS NULL
         AND (
             (
                 "lastAlertedAt" IS NULL AND

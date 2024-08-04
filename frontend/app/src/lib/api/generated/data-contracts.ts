@@ -125,8 +125,7 @@ export interface PaginationResponse {
 export interface APIResourceMeta {
   /**
    * the id of this resource, in UUID format
-   * @format uuid
-   * @minLength 36
+   * @minLength 0
    * @maxLength 36
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
@@ -639,6 +638,15 @@ export interface WorkflowRun {
   additionalMetadata?: Record<string, any>;
 }
 
+export interface ReplayWorkflowRunsRequest {
+  /** @maxLength 500 */
+  workflowRunIds: string[];
+}
+
+export interface ReplayWorkflowRunsResponse {
+  workflowRuns: WorkflowRun[];
+}
+
 export interface WorkflowRunList {
   rows?: WorkflowRun[];
   pagination?: PaginationResponse;
@@ -678,6 +686,14 @@ export enum WorkflowRunStatus {
 }
 
 export type WorkflowRunStatusList = WorkflowRunStatus[];
+
+export enum WorkflowKind {
+  FUNCTION = 'FUNCTION',
+  DURABLE = 'DURABLE',
+  DAG = 'DAG',
+}
+
+export type WorkflowKindList = WorkflowKind[];
 
 export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
@@ -877,6 +893,16 @@ export interface Worker {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   dispatcherId?: string;
+  /** The current label state of the worker. */
+  labels?: WorkerLabel[];
+}
+
+export interface WorkerLabel {
+  metadata: APIResourceMeta;
+  /** The key of the label. */
+  key: string;
+  /** The value of the label. */
+  value?: string;
 }
 
 export interface UpdateWorkerRequest {

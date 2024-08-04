@@ -184,8 +184,9 @@ func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
 }
 
 func (r *eventAPIRepository) GetEventById(id string) (*db.EventModel, error) {
-	return r.client.Event.FindUnique(
+	return r.client.Event.FindFirst(
 		db.Event.ID.Equals(id),
+		db.Event.DeletedAt.IsNull(),
 	).Exec(context.Background())
 }
 
@@ -193,6 +194,7 @@ func (r *eventAPIRepository) ListEventsById(tenantId string, ids []string) ([]db
 	return r.client.Event.FindMany(
 		db.Event.ID.In(ids),
 		db.Event.TenantID.Equals(tenantId),
+		db.Event.DeletedAt.IsNull(),
 	).Exec(context.Background())
 }
 
@@ -289,8 +291,8 @@ func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId st
 	})
 }
 
-func (r *eventEngineRepository) DeleteExpiredEvents(ctx context.Context, tenantId string, before time.Time) (int, int, error) {
-	resp, err := r.queries.DeleteExpiredEvents(ctx, r.pool, dbsqlc.DeleteExpiredEventsParams{
+func (r *eventEngineRepository) SoftDeleteExpiredEvents(ctx context.Context, tenantId string, before time.Time) (bool, error) {
+	hasMore, err := r.queries.SoftDeleteExpiredEvents(ctx, r.pool, dbsqlc.SoftDeleteExpiredEventsParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Createdbefore: sqlchelpers.TimestampFromTime(before),
 		Limit:         1000,
@@ -298,11 +300,28 @@ func (r *eventEngineRepository) DeleteExpiredEvents(ctx context.Context, tenantI
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, 0, nil
+			return false, nil
 		}
 
-		return 0, 0, err
+		return false, err
 	}
 
-	return int(resp.Deleted), int(resp.Remaining), nil
+	return hasMore, nil
+}
+
+func (r *eventEngineRepository) ClearEventPayloadData(ctx context.Context, tenantId string) (bool, error) {
+	hasMore, err := r.queries.ClearEventPayloadData(ctx, r.pool, dbsqlc.ClearEventPayloadDataParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Limit:    1000,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return hasMore, nil
 }

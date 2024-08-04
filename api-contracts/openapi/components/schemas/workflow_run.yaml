@@ -12,6 +12,29 @@ WorkflowRunOrderByDirection:
     - ASC
     - DESC
 
+ReplayWorkflowRunsRequest:
+  properties:
+    workflowRunIds:
+      type: array
+      maxLength: 500
+      items:
+        type: string
+        example: bb214807-246e-43a5-a25d-41761d1cff9e
+        minLength: 36
+        maxLength: 36
+        format: uuid
+  required:
+    - workflowRunIds
+
+ReplayWorkflowRunsResponse:
+  properties:
+    workflowRuns:
+      type: array
+      items:
+        $ref: "#/WorkflowRun"
+  required:
+    - workflowRuns
+
 WorkflowRun:
   type: object
   properties:
@@ -129,6 +152,18 @@ WorkflowRunStatus:
     - FAILED
     - CANCELLED
     - QUEUED
+
+WorkflowKind:
+  type: string
+  enum:
+    - FUNCTION
+    - DURABLE
+    - DAG
+
+WorkflowKindList:
+  type: array
+  items:
+    $ref: "#/WorkflowKind"
 
 WorkflowRunStatusList:
   type: array
@@ -399,7 +434,6 @@ StepRunArchive:
     - stepRunId
     - order
     - createdAt
-
 
 StepRunArchiveList:
   properties:

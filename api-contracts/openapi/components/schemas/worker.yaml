@@ -1,3 +1,18 @@
+WorkerLabel:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    key:
+      type: string
+      description: The key of the label.
+    value:
+      type: string
+      description: The value of the label.
+  required:
+    - metadata
+    - key
+  type: object
+
 Worker:
   properties:
     metadata:
@@ -45,6 +60,11 @@ Worker:
       minLength: 36
       maxLength: 36
       format: uuid
+    labels:
+      type: array
+      description: The current label state of the worker.
+      items:
+        $ref: "./_index.yaml#/WorkerLabel"
   required:
     - metadata
     - name

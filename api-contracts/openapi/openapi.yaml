@@ -126,6 +126,8 @@ paths:
     $ref: "./paths/step-run/step-run.yaml#/listArchives"
   /api/v1/tenants/{tenant}/workflows/runs:
     $ref: "./paths/workflow/workflow.yaml#/workflowRuns"
+  /api/v1/tenants/{tenant}/workflow-runs/replay:
+    $ref: "./paths/workflow-run/workflow-run.yaml#/replayWorkflowRuns"
   /api/v1/tenants/{tenant}/workflows/runs/metrics:
     $ref: "./paths/workflow/workflow.yaml#/workflowRunsMetrics"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}:
@@ -146,3 +148,5 @@ paths:
     $ref: "./paths/webhook-worker/webhook-worker.yaml#/webhookworkers"
   /api/v1/webhook-workers/{webhook}:
     $ref: "./paths/webhook-worker/webhook-worker.yaml#/webhookworker"
+  /api/v1/workflow-runs/{workflow-run}/input:
+    $ref: "./paths/workflow-run/workflow-run.yaml#/getWorkflowRunInput"

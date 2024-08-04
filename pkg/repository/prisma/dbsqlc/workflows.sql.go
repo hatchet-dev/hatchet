@@ -58,6 +58,8 @@ JOIN
     "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
 WHERE
     r1."tenantId" = $1::uuid AND
+    workflowVersion."deletedAt" IS NULL AND
+    r1."deletedAt" IS NULL AND
     (
         $2::"WorkflowRunStatus" IS NULL OR
         r1."status" = $2::"WorkflowRunStatus"
@@ -86,6 +88,8 @@ JOIN
     "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
 WHERE
     r1."tenantId" = $1::uuid AND
+    workflowVersion."deletedAt" IS NULL AND
+    r1."deletedAt" IS NULL AND
     (
         $2::"WorkflowRunStatus" IS NULL OR
         r1."status" = $2::"WorkflowRunStatus"
@@ -124,6 +128,7 @@ FROM
     "Workflow" as workflows
 WHERE
     workflows."tenantId" = $1 AND
+    workflows."deletedAt" IS NULL AND
     (
         $2::text IS NULL OR
         workflows."id" IN (
@@ -642,7 +647,9 @@ INSERT INTO "WorkflowVersion" (
     "checksum",
     "version",
     "workflowId",
-    "scheduleTimeout"
+    "scheduleTimeout",
+    "sticky",
+    "kind"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -651,19 +658,23 @@ INSERT INTO "WorkflowVersion" (
     $5::text,
     $6::text,
     $7::uuid,
-    coalesce($8::text, '5m')
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId"
+    coalesce($8::text, '5m'),
+    $9::"StickyStrategy",
+    coalesce($10::"WorkflowKind", 'DAG')
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind
 `
 
 type CreateWorkflowVersionParams struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	Deletedat       pgtype.Timestamp `json:"deletedat"`
-	Checksum        string           `json:"checksum"`
-	Version         pgtype.Text      `json:"version"`
-	Workflowid      pgtype.UUID      `json:"workflowid"`
-	ScheduleTimeout pgtype.Text      `json:"scheduleTimeout"`
+	ID              pgtype.UUID        `json:"id"`
+	CreatedAt       pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp   `json:"updatedAt"`
+	Deletedat       pgtype.Timestamp   `json:"deletedat"`
+	Checksum        string             `json:"checksum"`
+	Version         pgtype.Text        `json:"version"`
+	Workflowid      pgtype.UUID        `json:"workflowid"`
+	ScheduleTimeout pgtype.Text        `json:"scheduleTimeout"`
+	Sticky          NullStickyStrategy `json:"sticky"`
+	Kind            NullWorkflowKind   `json:"kind"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -676,6 +687,8 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.Version,
 		arg.Workflowid,
 		arg.ScheduleTimeout,
+		arg.Sticky,
+		arg.Kind,
 	)
 	var i WorkflowVersion
 	err := row.Scan(
@@ -689,6 +702,8 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.Checksum,
 		&i.ScheduleTimeout,
 		&i.OnFailureJobId,
+		&i.Sticky,
+		&i.Kind,
 	)
 	return &i, err
 }
@@ -700,7 +715,8 @@ FROM
     "Workflow" as workflows
 WHERE
     workflows."tenantId" = $1::uuid AND
-    workflows."name" = $2::text
+    workflows."name" = $2::text AND
+    workflows."deletedAt" IS NULL
 `
 
 type GetWorkflowByNameParams struct {
@@ -729,7 +745,8 @@ SELECT
 FROM
     "WorkflowVersion" as workflowVersions
 WHERE
-    workflowVersions."workflowId" = $1::uuid
+    workflowVersions."workflowId" = $1::uuid AND
+    workflowVersions."deletedAt" IS NULL
 ORDER BY
     workflowVersions."order" DESC
 LIMIT 1
@@ -744,7 +761,7 @@ func (q *Queries) GetWorkflowLatestVersion(ctx context.Context, db DBTX, workflo
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId",
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind,
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns"
@@ -756,7 +773,9 @@ LEFT JOIN
     "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
 WHERE
     workflowVersions."id" = ANY($1::uuid[]) AND
-    w."tenantId" = $2::uuid
+    w."tenantId" = $2::uuid AND
+    w."deletedAt" IS NULL AND
+    workflowVersions."deletedAt" IS NULL
 `
 
 type GetWorkflowVersionForEngineParams struct {
@@ -791,6 +810,8 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.Checksum,
 			&i.WorkflowVersion.ScheduleTimeout,
 			&i.WorkflowVersion.OnFailureJobId,
+			&i.WorkflowVersion.Sticky,
+			&i.WorkflowVersion.Kind,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -809,7 +830,7 @@ const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
 WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind
 `
 
 type LinkOnFailureJobParams struct {
@@ -831,6 +852,8 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 		&i.Checksum,
 		&i.ScheduleTimeout,
 		&i.OnFailureJobId,
+		&i.Sticky,
+		&i.Kind,
 	)
 	return &i, err
 }
@@ -845,7 +868,7 @@ FROM (
         "Workflow" as workflows
     LEFT JOIN
         (
-            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId" FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
+            SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
         ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
     LEFT JOIN
         "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
@@ -853,6 +876,8 @@ FROM (
         "WorkflowTriggerEventRef" as workflowTriggerEventRef ON workflowTrigger."id" = workflowTriggerEventRef."parentId"
     WHERE
         workflows."tenantId" = $1
+        AND workflows."deletedAt" IS NULL
+        AND workflowVersion."deletedAt" IS NULL
         AND
         (
             $2::text IS NULL OR
@@ -944,6 +969,8 @@ LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
 LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
 WHERE
     (j1."tenantId"::uuid = $1 AND j1.id IS NOT NULL)
+    AND j1."deletedAt" IS NULL
+    AND "WorkflowVersion"."deletedAt" IS NULL
     AND
     (j2.id IN (
         SELECT t3."parentId"
@@ -997,6 +1024,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1 AND
+    runs."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
     (
         $2::text IS NULL OR
         workflow."id" IN (
@@ -1075,6 +1105,36 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 		return nil, err
 	}
 	return items, nil
+}
+
+const softDeleteWorkflow = `-- name: SoftDeleteWorkflow :one
+WITH versions AS (
+    UPDATE "WorkflowVersion"
+    SET "deletedAt" = CURRENT_TIMESTAMP
+    WHERE "workflowId" = $1::uuid
+)
+UPDATE "Workflow"
+SET
+    -- set name to the current name plus a random suffix to avoid conflicts
+    "name" = "name" || '-' || gen_random_uuid(),
+    "deletedAt" = CURRENT_TIMESTAMP
+WHERE "id" = $1::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
+`
+
+func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id pgtype.UUID) (*Workflow, error) {
+	row := db.QueryRow(ctx, softDeleteWorkflow, id)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.Name,
+		&i.Description,
+	)
+	return &i, err
 }
 
 const upsertAction = `-- name: UpsertAction :one

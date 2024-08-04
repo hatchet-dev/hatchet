@@ -37,7 +37,7 @@ type ServerConfigFile struct {
 
 	MessageQueue MessageQueueConfigFile `mapstructure:"msgQueue" json:"msgQueue,omitempty"`
 
-	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"health\", \"ticker\", \"grpc\", \"eventscontroller\", \"queue\", \"webhookscontroller\", \"heartbeater\"]"`
+	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"health\", \"ticker\", \"grpc\", \"eventscontroller\", \"queue\", \"webhookscontroller\", \"heartbeater\", \"retention\"]"`
 
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 
@@ -72,6 +72,9 @@ type ConfigFileRuntime struct {
 	// GRPCInsecure controls whether the grpc server is insecure or uses certs
 	GRPCInsecure bool `mapstructure:"grpcInsecure" json:"grpcInsecure,omitempty" default:"false"`
 
+	// GRPCMaxMsgSize is the maximum message size that the grpc server will accept
+	GRPCMaxMsgSize int `mapstructure:"grpcMaxMsgSize" json:"grpcMaxMsgSize,omitempty" default:"4194304"`
+
 	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
 	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
 
@@ -80,6 +83,9 @@ type ConfigFileRuntime struct {
 
 	// Default limit values
 	Limits LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
+
+	// RequeueLimit is the number of times a message will be requeued in each attempt
+	RequeueLimit int `mapstructure:"requeueLimit" json:"requeueLimit,omitempty" default:"100"`
 
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
@@ -266,6 +272,7 @@ type MessageQueueConfigFile struct {
 
 type RabbitMQConfigFile struct {
 	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
+	Qos int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
 }
 
 type PostgresConfigFile struct {
@@ -366,6 +373,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
+	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
@@ -448,6 +456,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_TASKQUEUE_RABBITMQ_URL")
 	_ = v.BindEnv("msgQueue.postgres.url", "SERVER_TASKQUEUE_POSTGRES_URL")
 
+	// throughput options
+	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
+	_ = v.BindEnv("runtime.requeueLimit", "SERVER_REQUEUE_LIMIT")
+
 	// tls options
 	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")
 	_ = v.BindEnv("tls.tlsCert", "SERVER_TLS_CERT")
@@ -465,6 +477,7 @@ func BindAllEnv(v *viper.Viper) {
 	// otel options
 	_ = v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
+	_ = v.BindEnv("otel.traceIdRatio", "SERVER_OTEL_TRACE_ID_RATIO")
 
 	// tenant alerting options
 	_ = v.BindEnv("tenantAlerting.slack.enabled", "SERVER_TENANT_ALERTING_SLACK_ENABLED")

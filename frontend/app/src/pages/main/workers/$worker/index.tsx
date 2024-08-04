@@ -204,6 +204,30 @@ export default function ExpandedWorkflowRun() {
             );
           })}
         </div>
+        <Separator className="my-4" />
+        <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+          Worker Labels
+        </h3>
+        <div className="mb-4 text-sm">
+          Worker labels are key-value pairs that can be used to prioritize
+          assignment of steps to specific workers.{' '}
+          <a href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels">
+            Learn more.
+          </a>
+        </div>
+        <div className="flex gap-2">
+          {!worker.labels || worker.labels.length === 0 ? (
+            <>
+              <>No Labels Assigned.</>
+            </>
+          ) : (
+            worker.labels?.map(({ key, value }) => (
+              <Badge key={key}>
+                {key}:{value}
+              </Badge>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

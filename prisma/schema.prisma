@@ -206,6 +206,7 @@ model Tenant {
   limits              TenantResourceLimit[]
   limitAlerts         TenantResourceLimitAlert[]
   webhookWorkers      WebhookWorker[]
+  dedupes             WorkflowRunDedupe[]
 
   @@index([controllerPartitionId])
   @@index([workerPartitionId])
@@ -466,6 +467,18 @@ model Workflow {
 
   // workflow names are unique per tenant
   @@unique([tenantId, name])
+  @@index([deletedAt])
+}
+
+enum StickyStrategy {
+  SOFT
+  HARD
+}
+
+enum WorkflowKind {
+  FUNCTION
+  DURABLE
+  DAG
 }
 
 model WorkflowVersion {
@@ -491,6 +504,9 @@ model WorkflowVersion {
   // concurrency limits for the workflow
   concurrency WorkflowConcurrency?
 
+  // sticky strategy for the workflow to assign steps to the same worker
+  sticky StickyStrategy?
+
   // the declared jobs
   jobs Job[]
 
@@ -504,8 +520,13 @@ model WorkflowVersion {
   // the scheduled runs for the workflow
   scheduled WorkflowTriggerScheduledRef[]
 
+  // the kind of workflow
+  kind WorkflowKind @default(DAG)
+
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")
+
+  @@index([deletedAt])
 }
 
 enum ConcurrencyLimitStrategy {
@@ -710,6 +731,27 @@ model Action {
   @@unique([tenantId, actionId])
 }
 
+model StepDesiredWorkerLabel {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  step   Step   @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepId String @db.Uuid
+
+  key      String
+  strValue String?
+  intValue Int?
+
+  required   Boolean
+  comparator WorkerLabelComparator
+  weight     Int
+
+  @@unique([stepId, key])
+  @@index([stepId])
+}
+
 model Step {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -752,6 +794,8 @@ model Step {
   scheduleTimeout String @default("5m")
 
   rateLimits StepRateLimit[]
+
+  workerLabels StepDesiredWorkerLabel[]
 
   // readable ids are unique per job
   @@unique([jobId, readableId])
@@ -806,6 +850,23 @@ enum WorkflowRunStatus {
   FAILED
 }
 
+model WorkflowRunStickyState {
+  id        BigInt   @id @default(autoincrement()) @db.BigInt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  tenantId  String   @db.Uuid
+
+  // the parent workflow run
+  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workflowRunId String      @unique @db.Uuid
+
+  // the sticky state
+  desiredWorkerId String? @db.Uuid
+
+  // the sticky state value
+  strategy StickyStrategy
+}
+
 model WorkflowRun {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -832,6 +893,8 @@ model WorkflowRun {
   jobRuns JobRun[]
 
   triggeredBy WorkflowRunTriggeredBy?
+
+  sticky WorkflowRunStickyState?
 
   // the run error
   error String?
@@ -872,6 +935,30 @@ model WorkflowRun {
   @@index([tenantId, createdAt])
   @@index([finishedAt])
   @@index([status])
+  @@index([deletedAt])
+}
+
+model WorkflowRunDedupe {
+  id        BigInt   @unique @default(autoincrement()) @db.BigInt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // the parent workflow
+  workflowId String @db.Uuid
+
+  // the workflow run id which used this dedupe value
+  workflowRunId String @db.Uuid
+
+  // the dedupe value
+  value String
+
+  // DO NOT REMOVE - this uniqueness constraint is cased on in code
+  @@unique([tenantId, workflowId, value])
+  @@index([tenantId, value])
 }
 
 model GetGroupKeyRun {
@@ -879,7 +966,7 @@ model GetGroupKeyRun {
   id        String    @id @unique @default(uuid()) @db.Uuid
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
-  deletedAt DateTime?
+  deletedAt DateTime? // TODO verify we're setting this
 
   // the parent tenant
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -932,6 +1019,8 @@ model GetGroupKeyRun {
 
   // errors while cancelling the run
   cancelledError String?
+
+  @@index([deletedAt])
 }
 
 model WorkflowRunTriggeredBy {
@@ -1030,6 +1119,7 @@ model JobRun {
 
   // index for ResolveWorkflowRunStatus and ListJobRunsForWorkflowRun
   @@index([workflowRunId, tenantId])
+  @@index([deletedAt])
 }
 
 model JobRunLookupData {
@@ -1180,6 +1270,7 @@ model StepRun {
   @@index([jobRunId, status, tenantId])
   // index for PollStepRuns
   @@index([tenantId, status, timeoutAt])
+  @@index([deletedAt])
 }
 
 enum StepRunEventReason {
@@ -1307,12 +1398,40 @@ model Ticker {
   tenantAlerts TenantAlertingSettings[]
 }
 
+enum WorkerLabelComparator {
+  EQUAL
+  NOT_EQUAL
+  GREATER_THAN
+  GREATER_THAN_OR_EQUAL
+  LESS_THAN
+  LESS_THAN_OR_EQUAL
+}
+
+model WorkerLabel {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workerId String @db.Uuid
+
+  key      String
+  strValue String?
+  intValue Int?
+
+  @@unique([workerId, key])
+  @@index([workerId])
+}
+
 model Worker {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
+
+  labels WorkerLabel[]
 
   // the parent tenant
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)

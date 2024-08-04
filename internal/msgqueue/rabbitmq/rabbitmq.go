@@ -41,6 +41,8 @@ type MessageQueueImpl struct {
 	msgs     chan *msgWithQueue
 	identity string
 
+	qos int
+
 	l *zerolog.Logger
 
 	ready bool
@@ -58,6 +60,7 @@ type MessageQueueImplOpt func(*MessageQueueImplOpts)
 type MessageQueueImplOpts struct {
 	l   *zerolog.Logger
 	url string
+	qos int
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
@@ -80,6 +83,12 @@ func WithURL(url string) MessageQueueImplOpt {
 	}
 }
 
+func WithQos(qos int) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
+		opts.qos = qos
+	}
+}
+
 // New creates a new MessageQueueImpl.
 func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -97,6 +106,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		ctx:      ctx,
 		identity: identity(),
 		l:        opts.l,
+		qos:      opts.qos,
 	}
 
 	constructor := func(context.Context) (*amqp.Connection, error) {
@@ -405,7 +415,7 @@ func (t *MessageQueueImpl) subscribe(
 			}
 
 			// We'd like to limit to 1k TPS per engine. The max channels on an instance is 10.
-			err = sub.Qos(100, 0, false)
+			err = sub.Qos(t.qos, 0, false)
 
 			if err != nil {
 				t.l.Error().Msgf("cannot set qos: %v", err)

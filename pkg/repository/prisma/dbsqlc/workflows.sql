@@ -5,6 +5,7 @@ FROM
     "Workflow" as workflows
 WHERE
     workflows."tenantId" = $1 AND
+    workflows."deletedAt" IS NULL AND
     (
         sqlc.narg('eventKey')::text IS NULL OR
         workflows."id" IN (
@@ -43,6 +44,9 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1 AND
+    runs."deletedAt" IS NULL AND
+    workflow."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
     (
         sqlc.narg('eventKey')::text IS NULL OR
         workflow."id" IN (
@@ -90,6 +94,8 @@ FROM (
         "WorkflowTriggerEventRef" as workflowTriggerEventRef ON workflowTrigger."id" = workflowTriggerEventRef."parentId"
     WHERE
         workflows."tenantId" = $1
+        AND workflows."deletedAt" IS NULL
+        AND workflowVersion."deletedAt" IS NULL
         AND
         (
             sqlc.narg('eventKey')::text IS NULL OR
@@ -155,7 +161,9 @@ INSERT INTO "WorkflowVersion" (
     "checksum",
     "version",
     "workflowId",
-    "scheduleTimeout"
+    "scheduleTimeout",
+    "sticky",
+    "kind"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -164,7 +172,9 @@ INSERT INTO "WorkflowVersion" (
     @checksum::text,
     sqlc.narg('version')::text,
     @workflowId::uuid,
-    coalesce(sqlc.narg('scheduleTimeout')::text, '5m')
+    coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
+    sqlc.narg('sticky')::"StickyStrategy",
+    coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG')
 ) RETURNING *;
 
 -- name: CreateWorkflowConcurrency :one
@@ -370,6 +380,8 @@ LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
 LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
 WHERE
     (j1."tenantId"::uuid = @tenantId AND j1.id IS NOT NULL)
+    AND j1."deletedAt" IS NULL
+    AND "WorkflowVersion"."deletedAt" IS NULL
     AND
     (j2.id IN (
         SELECT t3."parentId"
@@ -400,7 +412,9 @@ LEFT JOIN
     "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
 WHERE
     workflowVersions."id" = ANY(@ids::uuid[]) AND
-    w."tenantId" = @tenantId::uuid;
+    w."tenantId" = @tenantId::uuid AND
+    w."deletedAt" IS NULL AND
+    workflowVersions."deletedAt" IS NULL;
 
 -- name: GetWorkflowByName :one
 SELECT
@@ -409,7 +423,8 @@ FROM
     "Workflow" as workflows
 WHERE
     workflows."tenantId" = @tenantId::uuid AND
-    workflows."name" = @name::text;
+    workflows."name" = @name::text AND
+    workflows."deletedAt" IS NULL;
 
 -- name: CreateSchedules :many
 INSERT INTO "WorkflowTriggerScheduledRef" (
@@ -430,7 +445,8 @@ SELECT
 FROM
     "WorkflowVersion" as workflowVersions
 WHERE
-    workflowVersions."workflowId" = @workflowId::uuid
+    workflowVersions."workflowId" = @workflowId::uuid AND
+    workflowVersions."deletedAt" IS NULL
 ORDER BY
     workflowVersions."order" DESC
 LIMIT 1;
@@ -443,6 +459,8 @@ JOIN
     "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
 WHERE
     r1."tenantId" = @tenantId::uuid AND
+    workflowVersion."deletedAt" IS NULL AND
+    r1."deletedAt" IS NULL AND
     (
         sqlc.narg('status')::"WorkflowRunStatus" IS NULL OR
         r1."status" = sqlc.narg('status')::"WorkflowRunStatus"
@@ -463,8 +481,25 @@ JOIN
     "WorkflowVersion" workflowVersion ON r1."workflowVersionId" = workflowVersion."id"
 WHERE
     r1."tenantId" = @tenantId::uuid AND
+    workflowVersion."deletedAt" IS NULL AND
+    r1."deletedAt" IS NULL AND
     (
         sqlc.narg('status')::"WorkflowRunStatus" IS NULL OR
         r1."status" = sqlc.narg('status')::"WorkflowRunStatus"
     ) AND
     workflowVersion."workflowId" = @workflowId::uuid;
+
+
+-- name: SoftDeleteWorkflow :one
+WITH versions AS (
+    UPDATE "WorkflowVersion"
+    SET "deletedAt" = CURRENT_TIMESTAMP
+    WHERE "workflowId" = @id::uuid
+)
+UPDATE "Workflow"
+SET
+    -- set name to the current name plus a random suffix to avoid conflicts
+    "name" = "name" || '-' || gen_random_uuid(),
+    "deletedAt" = CURRENT_TIMESTAMP
+WHERE "id" = @id::uuid
+RETURNING *;

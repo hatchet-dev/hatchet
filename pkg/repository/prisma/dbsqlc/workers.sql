@@ -85,12 +85,36 @@ WHERE
     "id" = @id::uuid
 RETURNING *;
 
--- name: ResolveWorkerSemaphoreSlots :execrows
-UPDATE "WorkerSemaphoreSlot" wss
-SET "stepRunId" = null
-FROM "StepRun" sr
-WHERE wss."stepRunId" = sr."id"
-    AND sr."status" NOT IN ('RUNNING', 'ASSIGNED');
+-- name: ResolveWorkerSemaphoreSlots :one
+WITH to_count AS (
+    SELECT wss."id"
+    FROM "WorkerSemaphoreSlot" wss
+    JOIN "StepRun" sr ON wss."stepRunId" = sr."id"
+        AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
+        AND sr."tenantId" = @tenantId::uuid
+    ORDER BY RANDOM()
+    LIMIT 11
+    FOR UPDATE SKIP LOCKED
+),
+to_resolve AS (
+    SELECT * FROM to_count LIMIT 10
+),
+update_result AS (
+    UPDATE "WorkerSemaphoreSlot" wss
+    SET "stepRunId" = null
+    WHERE wss."id" IN (SELECT "id" FROM to_resolve)
+    RETURNING wss."id"
+)
+SELECT
+	CASE
+		WHEN COUNT(*) > 0 THEN TRUE
+		ELSE FALSE
+	END AS "hasResolved",
+	CASE
+		WHEN COUNT(*) > 10 THEN TRUE
+		ELSE FALSE
+	END AS "hasMore"
+FROM to_count;
 
 -- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (
@@ -160,4 +184,37 @@ WHERE
         "lastListenerEstablished" IS NULL
         OR "lastListenerEstablished" <= sqlc.narg('lastListenerEstablished')::timestamp
         )
+RETURNING *;
+
+-- name: ListWorkerLabels :many
+SELECT
+    "id",
+    "key",
+    "intValue",
+    "strValue",
+    "createdAt",
+    "updatedAt"
+FROM "WorkerLabel" wl
+WHERE wl."workerId" = @workerId::uuid;
+
+-- name: UpsertWorkerLabel :one
+INSERT INTO "WorkerLabel" (
+    "createdAt",
+    "updatedAt",
+    "workerId",
+    "key",
+    "intValue",
+    "strValue"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @workerId::uuid,
+    @key::text,
+    sqlc.narg('intValue')::int,
+    sqlc.narg('strValue')::text
+) ON CONFLICT ("workerId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = sqlc.narg('intValue')::int,
+    "strValue" = sqlc.narg('strValue')::text
 RETURNING *;

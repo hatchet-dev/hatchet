@@ -9,6 +9,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type StickyStrategy int32
+
+const (
+	StickyStrategy_SOFT StickyStrategy = 0
+	StickyStrategy_HARD StickyStrategy = 1
+)
+
+func StickyStrategyPtr(v StickyStrategy) *StickyStrategy {
+	return &v
+}
+
 type Workflow struct {
 	Name string `yaml:"name,omitempty"`
 
@@ -25,6 +36,8 @@ type Workflow struct {
 	Jobs map[string]WorkflowJob `yaml:"jobs"`
 
 	OnFailureJob *WorkflowJob `yaml:"onFailureJob,omitempty"`
+
+	StickyStrategy *StickyStrategy `yaml:"sticky,omitempty"`
 }
 
 type WorkflowConcurrencyLimitStrategy string
@@ -70,15 +83,38 @@ type WorkflowJob struct {
 	Steps []WorkflowStep `yaml:"steps"`
 }
 
+type WorkerLabelComparator int32
+
+const (
+	WorkerLabelComparator_EQUAL                 WorkerLabelComparator = 0
+	WorkerLabelComparator_NOT_EQUAL             WorkerLabelComparator = 1
+	WorkerLabelComparator_GREATER_THAN          WorkerLabelComparator = 2
+	WorkerLabelComparator_GREATER_THAN_OR_EQUAL WorkerLabelComparator = 3
+	WorkerLabelComparator_LESS_THAN             WorkerLabelComparator = 4
+	WorkerLabelComparator_LESS_THAN_OR_EQUAL    WorkerLabelComparator = 5
+)
+
+func ComparatorPtr(v WorkerLabelComparator) *WorkerLabelComparator {
+	return &v
+}
+
+type DesiredWorkerLabel struct {
+	Value      any                    `yaml:"value,omitempty"`
+	Required   bool                   `yaml:"required,omitempty"`
+	Weight     int32                  `yaml:"weight,omitempty"`
+	Comparator *WorkerLabelComparator `yaml:"comparator,omitempty"`
+}
+
 type WorkflowStep struct {
-	Name       string                 `yaml:"name,omitempty"`
-	ID         string                 `yaml:"id,omitempty"`
-	ActionID   string                 `yaml:"action"`
-	Timeout    string                 `yaml:"timeout,omitempty"`
-	With       map[string]interface{} `yaml:"with,omitempty"`
-	Parents    []string               `yaml:"parents,omitempty"`
-	Retries    int                    `yaml:"retries"`
-	RateLimits []RateLimit            `yaml:"rateLimits,omitempty"`
+	Name          string                         `yaml:"name,omitempty"`
+	ID            string                         `yaml:"id,omitempty"`
+	ActionID      string                         `yaml:"action"`
+	Timeout       string                         `yaml:"timeout,omitempty"`
+	With          map[string]interface{}         `yaml:"with,omitempty"`
+	Parents       []string                       `yaml:"parents,omitempty"`
+	Retries       int                            `yaml:"retries"`
+	RateLimits    []RateLimit                    `yaml:"rateLimits,omitempty"`
+	DesiredLabels map[string]*DesiredWorkerLabel `yaml:"desiredLabels,omitempty"`
 }
 
 type RateLimit struct {

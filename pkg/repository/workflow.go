@@ -45,6 +45,12 @@ type CreateWorkflowVersionOpts struct {
 
 	// (optional) the amount of time for step runs to wait to be scheduled before timing out
 	ScheduleTimeout *string `validate:"omitempty,duration"`
+
+	// (optional) sticky strategy
+	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
+
+	// (optional) the workflow kind
+	Kind *string `validate:"omitempty,oneof=FUNCTION DURABLE DAG"`
 }
 
 type CreateWorkflowConcurrencyOpts struct {
@@ -123,6 +129,29 @@ type CreateWorkflowStepOpts struct {
 
 	// (optional) rate limits for this step
 	RateLimits []CreateWorkflowStepRateLimitOpts `validate:"dive"`
+
+	// (optional) desired worker affinity state for this step
+	DesiredWorkerLabels map[string]DesiredWorkerLabelOpts `validate:"omitempty"`
+}
+
+type DesiredWorkerLabelOpts struct {
+	// (required) the label key
+	Key string `validate:"required"`
+
+	// (required if StringValue is nil) the label integer value
+	IntValue *int32 `validate:"omitnil,required_without=StrValue"`
+
+	// (required if StrValue is nil) the label string value
+	StrValue *string `validate:"omitnil,required_without=IntValue"`
+
+	// (optional) if the label is required
+	Required *bool `validate:"omitempty"`
+
+	// (optional) the weight of the label for scheduling (default: 100)
+	Weight *int32 `validate:"omitempty"`
+
+	// (optional) the label comparator for scheduling (default: EQUAL)
+	Comparator *string `validate:"omitempty,oneof=EQUAL NOT_EQUAL GREATER_THAN LESS_THAN GREATER_THAN_OR_EQUAL LESS_THAN_OR_EQUAL"`
 }
 
 type CreateWorkflowStepRateLimitOpts struct {
@@ -208,7 +237,7 @@ type WorkflowAPIRepository interface {
 	GetWorkflowVersionById(tenantId, workflowId string) (*db.WorkflowVersionModel, error)
 
 	// DeleteWorkflow deletes a workflow for a given tenant.
-	DeleteWorkflow(tenantId, workflowId string) (*db.WorkflowModel, error)
+	DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error)
 
 	// GetWorkflowVersionMetrics returns the metrics for a given workflow version.
 	GetWorkflowMetrics(tenantId, workflowId string, opts *GetWorkflowMetricsOpts) (*WorkflowMetrics, error)

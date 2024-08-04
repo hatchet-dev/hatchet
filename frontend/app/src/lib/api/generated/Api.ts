@@ -40,6 +40,8 @@ import {
   LogLineSearch,
   RejectInviteRequest,
   ReplayEventRequest,
+  ReplayWorkflowRunsRequest,
+  ReplayWorkflowRunsResponse,
   RerunStepRunRequest,
   SNSIntegration,
   StepRun,
@@ -72,6 +74,7 @@ import {
   WorkerList,
   Workflow,
   WorkflowID,
+  WorkflowKindList,
   WorkflowList,
   WorkflowMetrics,
   WorkflowRun,
@@ -1320,6 +1323,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       parentStepRunId?: string;
       /** A list of workflow run statuses to filter by */
       statuses?: WorkflowRunStatusList;
+      /** A list of workflow kinds to filter by */
+      kinds?: WorkflowKindList;
       /**
        * A list of metadata key value pairs to filter by
        * @example ["key1:value1","key2:value2"]
@@ -1337,6 +1342,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       method: 'GET',
       query: query,
       secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Replays a list of workflow runs.
+   *
+   * @tags Workflow Runs
+   * @name WorkflowRunUpdateReplay
+   * @summary Replay workflow runs
+   * @request POST:/api/v1/tenants/{tenant}/workflow-runs/replay
+   * @secure
+   */
+  workflowRunUpdateReplay = (tenant: string, data: ReplayWorkflowRunsRequest, params: RequestParams = {}) =>
+    this.request<ReplayWorkflowRunsResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflow-runs/replay`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: 'json',
       ...params,
     });
@@ -1583,6 +1607,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/webhook-workers/${webhook}`,
       method: 'DELETE',
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Get the input for a workflow run.
+   *
+   * @tags Workflow Runs
+   * @name WorkflowRunGetInput
+   * @summary Get workflow run input
+   * @request GET:/api/v1/workflow-runs/{workflow-run}/input
+   * @secure
+   */
+  workflowRunGetInput = (workflowRun: string, params: RequestParams = {}) =>
+    this.request<Record<string, any>, APIErrors>({
+      path: `/api/v1/workflow-runs/${workflowRun}/input`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
       ...params,
     });
 }

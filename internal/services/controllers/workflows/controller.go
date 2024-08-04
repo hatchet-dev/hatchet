@@ -194,30 +194,6 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not poll active queues: %w", err)
 	}
 
-	// _, err = wc.s.NewJob(
-	// 	gocron.DurationJob(time.Second*60),
-	// 	gocron.NewTask(
-	// 		wc.runDeleteExpiredWorkflowRuns(ctx),
-	// 	),
-	// )
-
-	// if err != nil {
-	// 	cancel()
-	// 	return nil, fmt.Errorf("could not delete expired workflow runs: %w", err)
-	// }
-
-	// _, err = wc.s.NewJob(
-	// 	gocron.DurationJob(time.Second*60),
-	// 	gocron.NewTask(
-	// 		wc.runDeleteExpiredEvents(ctx),
-	// 	),
-	// )
-
-	// if err != nil {
-	// 	cancel()
-	// 	return nil, fmt.Errorf("could not delete expired events: %w", err)
-	// }
-
 	wc.s.Start()
 
 	f := func(task *msgqueue.Message) error {
@@ -226,7 +202,7 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 
 		err := wc.handleTask(context.Background(), task)
 		if err != nil {
-			wc.l.Error().Err(err).Msg("could not handle job task")
+			wc.l.Error().Err(err).Msg("could not handle workflow task")
 			return err
 		}
 
@@ -271,6 +247,8 @@ func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *msgqueu
 	}()
 
 	switch task.ID {
+	case "replay-workflow-run":
+		return wc.handleReplayWorkflowRun(ctx, task)
 	case "workflow-run-queued":
 		return wc.handleWorkflowRunQueued(ctx, task)
 	case "get-group-key-run-started":
@@ -286,6 +264,39 @@ func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *msgqueu
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
+}
+
+func (wc *WorkflowsControllerImpl) handleReplayWorkflowRun(ctx context.Context, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpan(ctx, "replay-workflow-run") // nolint:ineffassign
+	defer span.End()
+
+	payload := tasktypes.ReplayWorkflowRunTaskPayload{}
+	metadata := tasktypes.ReplayWorkflowRunTaskMetadata{}
+
+	err := wc.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode replay workflow run task payload: %w", err)
+	}
+
+	err = wc.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode replay workflow run task metadata: %w", err)
+	}
+
+	_, err = wc.repo.WorkflowRun().ReplayWorkflowRun(ctx, metadata.TenantId, payload.WorkflowRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not replay workflow run: %w", err)
+	}
+
+	// push a task that the workflow run is queued
+	return wc.mq.AddMessage(
+		ctx,
+		msgqueue.WORKFLOW_PROCESSING_QUEUE,
+		tasktypes.WorkflowRunQueuedToTask(metadata.TenantId, payload.WorkflowRunId),
+	)
 }
 
 func (ec *WorkflowsControllerImpl) handleGroupKeyRunStarted(ctx context.Context, task *msgqueue.Message) error {

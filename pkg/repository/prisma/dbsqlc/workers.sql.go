@@ -178,6 +178,54 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 	return err
 }
 
+const listWorkerLabels = `-- name: ListWorkerLabels :many
+SELECT
+    "id",
+    "key",
+    "intValue",
+    "strValue",
+    "createdAt",
+    "updatedAt"
+FROM "WorkerLabel" wl
+WHERE wl."workerId" = $1::uuid
+`
+
+type ListWorkerLabelsRow struct {
+	ID        int64            `json:"id"`
+	Key       string           `json:"key"`
+	IntValue  pgtype.Int4      `json:"intValue"`
+	StrValue  pgtype.Text      `json:"strValue"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+}
+
+func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid pgtype.UUID) ([]*ListWorkerLabelsRow, error) {
+	rows, err := db.Query(ctx, listWorkerLabels, workerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListWorkerLabelsRow
+	for rows.Next() {
+		var i ListWorkerLabelsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.IntValue,
+			&i.StrValue,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused",
@@ -263,20 +311,48 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 	return items, nil
 }
 
-const resolveWorkerSemaphoreSlots = `-- name: ResolveWorkerSemaphoreSlots :execrows
-UPDATE "WorkerSemaphoreSlot" wss
-SET "stepRunId" = null
-FROM "StepRun" sr
-WHERE wss."stepRunId" = sr."id"
-    AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
+const resolveWorkerSemaphoreSlots = `-- name: ResolveWorkerSemaphoreSlots :one
+WITH to_count AS (
+    SELECT wss."id"
+    FROM "WorkerSemaphoreSlot" wss
+    JOIN "StepRun" sr ON wss."stepRunId" = sr."id"
+        AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
+        AND sr."tenantId" = $1::uuid
+    ORDER BY RANDOM()
+    LIMIT 11
+    FOR UPDATE SKIP LOCKED
+),
+to_resolve AS (
+    SELECT id FROM to_count LIMIT 10
+),
+update_result AS (
+    UPDATE "WorkerSemaphoreSlot" wss
+    SET "stepRunId" = null
+    WHERE wss."id" IN (SELECT "id" FROM to_resolve)
+    RETURNING wss."id"
+)
+SELECT
+	CASE
+		WHEN COUNT(*) > 0 THEN TRUE
+		ELSE FALSE
+	END AS "hasResolved",
+	CASE
+		WHEN COUNT(*) > 10 THEN TRUE
+		ELSE FALSE
+	END AS "hasMore"
+FROM to_count
 `
 
-func (q *Queries) ResolveWorkerSemaphoreSlots(ctx context.Context, db DBTX) (int64, error) {
-	result, err := db.Exec(ctx, resolveWorkerSemaphoreSlots)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+type ResolveWorkerSemaphoreSlotsRow struct {
+	HasResolved bool `json:"hasResolved"`
+	HasMore     bool `json:"hasMore"`
+}
+
+func (q *Queries) ResolveWorkerSemaphoreSlots(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*ResolveWorkerSemaphoreSlotsRow, error) {
+	row := db.QueryRow(ctx, resolveWorkerSemaphoreSlots, tenantid)
+	var i ResolveWorkerSemaphoreSlotsRow
+	err := row.Scan(&i.HasResolved, &i.HasMore)
+	return &i, err
 }
 
 const stubWorkerSemaphoreSlots = `-- name: StubWorkerSemaphoreSlots :exec
@@ -473,6 +549,56 @@ func (q *Queries) UpsertService(ctx context.Context, db DBTX, arg UpsertServiceP
 		&i.Name,
 		&i.Description,
 		&i.TenantId,
+	)
+	return &i, err
+}
+
+const upsertWorkerLabel = `-- name: UpsertWorkerLabel :one
+INSERT INTO "WorkerLabel" (
+    "createdAt",
+    "updatedAt",
+    "workerId",
+    "key",
+    "intValue",
+    "strValue"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    $2::text,
+    $3::int,
+    $4::text
+) ON CONFLICT ("workerId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = $3::int,
+    "strValue" = $4::text
+RETURNING id, "createdAt", "updatedAt", "workerId", key, "strValue", "intValue"
+`
+
+type UpsertWorkerLabelParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	Key      string      `json:"key"`
+	IntValue pgtype.Int4 `json:"intValue"`
+	StrValue pgtype.Text `json:"strValue"`
+}
+
+func (q *Queries) UpsertWorkerLabel(ctx context.Context, db DBTX, arg UpsertWorkerLabelParams) (*WorkerLabel, error) {
+	row := db.QueryRow(ctx, upsertWorkerLabel,
+		arg.Workerid,
+		arg.Key,
+		arg.IntValue,
+		arg.StrValue,
+	)
+	var i WorkerLabel
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkerId,
+		&i.Key,
+		&i.StrValue,
+		&i.IntValue,
 	)
 	return &i, err
 }

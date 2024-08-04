@@ -183,7 +183,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		},
 		Pool:                  pool,
 		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
-		EngineRepository:      prisma.NewEngineRepository(pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
+		EngineRepository:      prisma.NewEngineRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
 		EntitlementRepository: entitlementRepo,
 		Seed:                  cf.Seed,
 	}, nil
@@ -227,7 +227,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 			mqCleanup, mq = rabbitmq.New(
 				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 				rabbitmq.WithLogger(&l),
-			)
+				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos))
 		}
 
 		ing, err = ingestor.NewIngestor(

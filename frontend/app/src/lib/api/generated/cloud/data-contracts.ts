@@ -219,7 +219,7 @@ export interface CreateBuildStepRequest {
 
 export interface CreateManagedWorkerRuntimeConfigRequest {
   /**
-   * @min 1
+   * @min 0
    * @max 16
    */
   numReplicas: number;

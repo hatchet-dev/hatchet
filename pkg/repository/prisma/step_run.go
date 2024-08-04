@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -43,8 +44,9 @@ func NewStepRunAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v vali
 }
 
 func (s *stepRunAPIRepository) GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error) {
-	return s.client.StepRun.FindUnique(
+	return s.client.StepRun.FindFirst(
 		db.StepRun.ID.Equals(stepRunId),
+		db.StepRun.DeletedAt.IsNull(),
 	).With(
 		db.StepRun.Children.Fetch(),
 		db.StepRun.ChildWorkflowRuns.Fetch(),
@@ -199,9 +201,10 @@ type stepRunEngineRepository struct {
 	v       validator.Validator
 	l       *zerolog.Logger
 	queries *dbsqlc.Queries
+	cf      *server.ConfigFileRuntime
 }
 
-func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.StepRunEngineRepository {
+func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) repository.StepRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &stepRunEngineRepository{
@@ -209,7 +212,15 @@ func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *ze
 		v:       v,
 		l:       l,
 		queries: queries,
+		cf:      cf,
 	}
+}
+
+func (s *stepRunEngineRepository) GetStepRunMetaForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunMetaRow, error) {
+	return s.queries.GetStepRunMeta(ctx, s.pool, dbsqlc.GetStepRunMetaParams{
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+	})
 }
 
 func (s *stepRunEngineRepository) ListRunningStepRunsForTicker(ctx context.Context, tickerId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
@@ -324,8 +335,8 @@ func (s *stepRunEngineRepository) ListStepRunsToRequeue(ctx context.Context, ten
 		return nil, err
 	}
 
-	if limit > 100 {
-		limit = 100
+	if limit > int32(s.cf.RequeueLimit) {
+		limit = int32(s.cf.RequeueLimit)
 	}
 
 	// get the step run and make sure it's still in pending
@@ -620,12 +631,52 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
+	// if stepRun.WorkflowRunStickyState {
+	// 	fmt
+	// }
+
+	var DesiredWorkerId pgtype.UUID
+
+	if stepRun.StickyStrategy.Valid {
+		lockedStickyState, err := s.queries.GetWorkflowRunStickyStateForUpdate(ctx, tx, dbsqlc.GetWorkflowRunStickyStateForUpdateParams{
+			Workflowrunid: stepRun.WorkflowRunId,
+			Tenantid:      stepRun.SRTenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not get workflow run sticky state: %w", err)
+		}
+
+		// confirm the worker is still available
+		if lockedStickyState.DesiredWorkerId.Valid {
+
+			checkedWorker, err := s.queries.CheckWorker(ctx, tx, dbsqlc.CheckWorkerParams{
+				Workerid: lockedStickyState.DesiredWorkerId,
+				Tenantid: stepRun.SRTenantId,
+			})
+
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, fmt.Errorf("could not check worker: %w", err)
+			}
+
+			// if the worker is no longer available, desired worker will be nil and we'll reassign
+			// for soft strategy
+			DesiredWorkerId = lockedStickyState.DesiredWorkerId
+
+			// if the strategy is hard, but the worker is not available, we can break early
+			if stepRun.StickyStrategy.StickyStrategy == dbsqlc.StickyStrategyHARD && !checkedWorker.Valid {
+				return nil, repository.ErrNoWorkerAvailable
+			}
+		}
+	}
+
 	// acquire a semaphore slot
 	assigned, err := s.queries.AcquireWorkerSemaphoreSlotAndAssign(ctx, tx, dbsqlc.AcquireWorkerSemaphoreSlotAndAssignParams{
 		Steprunid:   stepRun.SRID,
 		Actionid:    stepRun.ActionId,
 		StepTimeout: stepRun.StepTimeout,
 		Tenantid:    stepRun.SRTenantId,
+		WorkerId:    DesiredWorkerId,
 	})
 
 	if err != nil {
@@ -643,6 +694,24 @@ func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Conte
 	if !assigned.WorkerId.Valid || !assigned.DispatcherId.Valid {
 		// this likely means that the step run was skip locked by another assign attempt
 		return nil, repository.ErrStepRunIsNotAssigned
+	}
+
+	if stepRun.StickyStrategy.Valid {
+		// check if the worker is the same as the previous worker
+		workerId := sqlchelpers.UUIDToStr(assigned.WorkerId)
+		previousWorkerId := sqlchelpers.UUIDToStr(DesiredWorkerId)
+
+		if workerId != previousWorkerId {
+			err = s.queries.UpdateWorkflowRunStickyState(ctx, tx, dbsqlc.UpdateWorkflowRunStickyStateParams{
+				Workflowrunid:   stepRun.WorkflowRunId,
+				DesiredWorkerId: assigned.WorkerId,
+				Tenantid:        stepRun.SRTenantId,
+			})
+
+			if err != nil {
+				return nil, fmt.Errorf("could not update sticky state: %w", err)
+			}
+		}
 	}
 
 	err = tx.Commit(ctx)
@@ -664,14 +733,38 @@ func (s *stepRunEngineRepository) DeferredStepRunEvent(
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	deferredStepRunEvent(
+		ctx,
+		s.l,
+		s.pool,
+		s.queries,
+		stepRunId,
+		reason,
+		severity,
+		message,
+		data,
+	)
+}
+
+func deferredStepRunEvent(
+	ctx context.Context,
+	l *zerolog.Logger,
+	dbtx dbsqlc.DBTX,
+	queries *dbsqlc.Queries,
+	stepRunId pgtype.UUID,
+	reason dbsqlc.StepRunEventReason,
+	severity dbsqlc.StepRunEventSeverity,
+	message string,
+	data map[string]interface{},
+) {
 	dataBytes, err := json.Marshal(data)
 
 	if err != nil {
-		s.l.Err(err).Msg("could not marshal deferred step run event data")
+		l.Err(err).Msg("could not marshal deferred step run event data")
 		return
 	}
 
-	err = s.queries.CreateStepRunEvent(ctx, s.pool, dbsqlc.CreateStepRunEventParams{
+	err = queries.CreateStepRunEvent(ctx, dbtx, dbsqlc.CreateStepRunEventParams{
 		Steprunid: stepRunId,
 		Message:   message,
 		Reason:    reason,
@@ -680,7 +773,7 @@ func (s *stepRunEngineRepository) DeferredStepRunEvent(
 	})
 
 	if err != nil {
-		s.l.Err(err).Msg("could not create deferred step run event")
+		l.Err(err).Msg("could not create deferred step run event")
 	}
 }
 
@@ -763,13 +856,24 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 	if err != nil {
 		var target *errNoWorkerWithSlots
 
+		labels, labelErr := s.queries.GetStepDesiredWorkerLabels(ctx, s.pool, stepRun.StepId)
+
+		if labelErr != nil {
+			return "", "", fmt.Errorf("could not get step desired worker labels: %w", err)
+		}
+
+		semaphoreExtra := s.unmarshalSemaphoreExtraData(nil, &labels)
+
 		if errors.As(err, &target) {
 			defer s.DeferredStepRunEvent(
 				stepRun.SRID,
 				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
 				dbsqlc.StepRunEventSeverityWARNING,
 				"No worker available",
-				nil,
+				map[string]interface{}{
+					"worker_id": nil,
+					"semaphore": semaphoreExtra,
+				},
 			)
 
 			return "", "", repository.ErrNoWorkerAvailable
@@ -781,7 +885,10 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
 				dbsqlc.StepRunEventSeverityWARNING,
 				"No worker available",
-				nil,
+				map[string]interface{}{
+					"worker_id": nil,
+					"semaphore": semaphoreExtra,
+				},
 			)
 		}
 
@@ -791,12 +898,14 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 				dbsqlc.StepRunEventReasonREQUEUEDRATELIMIT,
 				dbsqlc.StepRunEventSeverityWARNING,
 				"Rate limit exceeded",
-				nil,
+				nil, // TODO add label data
 			)
 		}
 
 		return "", "", err
 	}
+
+	semaphoreExtra := s.unmarshalSemaphoreExtraData(assigned, nil)
 
 	defer s.DeferredStepRunEvent(
 		stepRun.SRID,
@@ -805,10 +914,57 @@ func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, ste
 		fmt.Sprintf("Assigned to worker %s", sqlchelpers.UUIDToStr(assigned.WorkerId)),
 		map[string]interface{}{
 			"worker_id": sqlchelpers.UUIDToStr(assigned.WorkerId),
+			"semaphore": semaphoreExtra,
 		},
 	)
 
 	return sqlchelpers.UUIDToStr(assigned.WorkerId), sqlchelpers.UUIDToStr(assigned.DispatcherId), nil
+}
+
+func (s *stepRunEngineRepository) unmarshalSemaphoreExtraData(semaphore *dbsqlc.AcquireWorkerSemaphoreSlotAndAssignRow, desiredLabelBytes *[]byte) map[string]interface{} {
+	// Initialize the result maps
+	var desiredLabels []map[string]interface{}
+	var workerLabels []map[string]interface{}
+
+	// Check if desiredLabelBytes is not nil and unmarshal it
+	switch {
+	case desiredLabelBytes != nil:
+		err := json.Unmarshal(*desiredLabelBytes, &desiredLabels)
+		if err != nil && err.Error() != "unexpected end of JSON input" {
+			s.l.Warn().Err(err).Msg("failed to unmarshal desiredLabelBytes")
+		}
+	case semaphore != nil:
+		// If desiredLabelBytes is nil, use semaphore.DesiredLabels
+		err := json.Unmarshal(semaphore.DesiredLabels, &desiredLabels)
+		if err != nil {
+			s.l.Warn().Err(err).Msg("failed to unmarshal semaphore.DesiredLabels")
+		}
+
+	default:
+		s.l.Warn().Msg("semaphore is nil, cannot unmarshal DesiredLabels")
+	}
+
+	// Unmarshal WorkerLabels from semaphore if it's not nil
+	if semaphore != nil && semaphore.WorkerLabels != nil {
+		err := json.Unmarshal(semaphore.WorkerLabels, &workerLabels)
+		if err != nil {
+			s.l.Warn().Err(err).Msg("failed to unmarshal semaphore.WorkerLabels")
+		}
+	}
+
+	// Filter values of desiredLabels where desiredLabels.key is empty
+	// HACK this is a workaround for the fact that the sqlc query sometimes returns null rows
+	filteredDesiredLabels := make([]map[string]interface{}, 0)
+	for _, label := range desiredLabels {
+		if label["key"] != "" && label["key"] != nil {
+			filteredDesiredLabels = append(filteredDesiredLabels, label)
+		}
+	}
+
+	return map[string]interface{}{
+		"desired_worker_labels": filteredDesiredLabels,
+		"actual_worker_labels":  workerLabels,
+	}
 }
 
 func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *repository.StepRunUpdateInfo, error) {
@@ -915,7 +1071,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 		}
 
 		// reset the job run, workflow run and all fields as part of the core tx
-		_, err = s.queries.ReplayStepRunResetWorkflowRun(ctx, tx, stepRun.JobRunId)
+		_, err = s.queries.ReplayStepRunResetWorkflowRun(ctx, tx, stepRun.WorkflowRunId)
 
 		if err != nil {
 			return err
@@ -941,7 +1097,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 			laterStepRunCp := laterStepRun
 			laterStepRunId := sqlchelpers.UUIDToStr(laterStepRun.ID)
 
-			err = s.archiveStepRunResult(ctx, tx, tenantId, laterStepRunId)
+			err = archiveStepRunResult(ctx, s.queries, tx, tenantId, laterStepRunId)
 
 			if err != nil {
 				return err
@@ -1555,11 +1711,11 @@ func (s *stepRunEngineRepository) ListStartableStepRuns(ctx context.Context, ten
 }
 
 func (s *stepRunEngineRepository) ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error {
-	return s.archiveStepRunResult(ctx, s.pool, tenantId, stepRunId)
+	return archiveStepRunResult(ctx, s.queries, s.pool, tenantId, stepRunId)
 }
 
-func (s *stepRunEngineRepository) archiveStepRunResult(ctx context.Context, db dbsqlc.DBTX, tenantId, stepRunId string) error {
-	_, err := s.queries.ArchiveStepRunResultFromStepRun(ctx, db, dbsqlc.ArchiveStepRunResultFromStepRunParams{
+func archiveStepRunResult(ctx context.Context, queries *dbsqlc.Queries, db dbsqlc.DBTX, tenantId, stepRunId string) error {
+	_, err := queries.ArchiveStepRunResultFromStepRun(ctx, db, dbsqlc.ArchiveStepRunResultFromStepRunParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
 	})
@@ -1613,4 +1769,21 @@ func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId
 		nil)
 
 	return res, nil
+}
+
+func (s *stepRunEngineRepository) ClearStepRunPayloadData(ctx context.Context, tenantId string) (bool, error) {
+	hasMore, err := s.queries.ClearStepRunPayloadData(ctx, s.pool, dbsqlc.ClearStepRunPayloadDataParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Limit:    1000,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return hasMore, nil
 }
