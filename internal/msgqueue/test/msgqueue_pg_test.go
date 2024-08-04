@@ -24,8 +24,7 @@ func TestPgQueueEnsure(t *testing.T) {
 		wg.Done()
 	})
 	if err != nil {
-		// ignore config error
-		return
+		t.Errorf("error loading server config: %v", err)
 	}
 	defer cleanup() // nolint:errcheck
 	wg.Wait()
