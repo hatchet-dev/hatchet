@@ -326,6 +326,7 @@ CREATE TABLE "StepRun" (
     "gitRepoBranch" TEXT,
     "retryCount" INTEGER NOT NULL DEFAULT 0,
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
+    "queue" TEXT NOT NULL DEFAULT 'default',
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );
@@ -944,6 +945,9 @@ CREATE INDEX "StepRun_jobRunId_status_tenantId_idx" ON "StepRun"("jobRunId" ASC,
 
 -- CreateIndex
 CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, "tenantId" ASC, "order" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRun_queue_createdAt_idx" ON "StepRun"("queue" ASC, "createdAt" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);

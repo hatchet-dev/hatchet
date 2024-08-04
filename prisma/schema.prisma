@@ -1184,6 +1184,8 @@ model StepRun {
 
   order BigInt @default(autoincrement()) @db.BigInt
 
+  queue String @default("default")
+
   // the worker assigned to this job
   worker   Worker? @relation(fields: [workerId], references: [id])
   workerId String? @db.Uuid
@@ -1271,6 +1273,8 @@ model StepRun {
   // index for PollStepRuns
   @@index([tenantId, status, timeoutAt])
   @@index([deletedAt])
+  // TODO: verify that this index is useful
+  @@index([queue, createdAt])
 }
 
 enum StepRunEventReason {
