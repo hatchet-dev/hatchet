@@ -44,6 +44,8 @@ func (o *operation) run(l *zerolog.Logger, scheduler func(context.Context, strin
 
 	go func() {
 		defer func() {
+			o.mu.Lock()
+			defer o.mu.Unlock()
 			o.isRunning = false
 		}()
 
