@@ -53,6 +53,10 @@ WHERE
         "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
+        sqlc.narg('kinds')::text[] IS NULL OR
+        workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
+    ) AND
+    (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
         runs."createdAt" > sqlc.narg('createdAfter')::timestamp
     ) AND
@@ -172,6 +176,10 @@ WHERE
     (
         sqlc.narg('statuses')::text[] IS NULL OR
         "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+    ) AND
+    (
+        sqlc.narg('kinds')::text[] IS NULL OR
+        workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
     ) AND
     (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
@@ -436,6 +444,82 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('parentStepRunId')::uuid,
     @additionalMetadata::jsonb
 ) RETURNING *;
+
+-- name: CreateWorkflowRunDedupe :one
+WITH workflow_id AS (
+    SELECT w."id" FROM "Workflow" w
+    JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
+    WHERE wv."id" = @workflowVersionId::uuid
+)
+INSERT INTO "WorkflowRunDedupe" (
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowId",
+    "workflowRunId",
+    "value"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @tenantId::uuid,
+    (SELECT "id" FROM workflow_id),
+    @workflowRunId::uuid,
+    sqlc.narg('value')::text
+) RETURNING *;
+
+-- name: CreateWorkflowRunStickyState :one
+WITH workflow_version AS (
+    SELECT "sticky"
+    FROM "WorkflowVersion"
+    WHERE "id" = @workflowVersionId::uuid
+)
+INSERT INTO "WorkflowRunStickyState" (
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowRunId",
+    "desiredWorkerId",
+    "strategy"
+)
+SELECT
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @tenantId::uuid,
+    @workflowRunId::uuid,
+    sqlc.narg('desiredWorkerId')::uuid,
+    workflow_version."sticky"
+FROM workflow_version
+WHERE workflow_version."sticky" IS NOT NULL
+RETURNING *;
+
+-- name: GetWorkflowRunAdditionalMeta :one
+SELECT
+    "additionalMetadata",
+    "id"
+FROM
+    "WorkflowRun"
+WHERE
+    "id" = @workflowRunId::uuid AND
+    "tenantId" = @tenantId::uuid;
+
+-- name: GetWorkflowRunStickyStateForUpdate :one
+SELECT
+    *
+FROM
+    "WorkflowRunStickyState"
+WHERE
+    "workflowRunId" = @workflowRunId::uuid AND
+    "tenantId" = @tenantId::uuid
+FOR UPDATE;
+
+-- name: UpdateWorkflowRunStickyState :exec
+UPDATE "WorkflowRunStickyState"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "desiredWorkerId" = sqlc.narg('desiredWorkerId')::uuid
+WHERE
+    "workflowRunId" = @workflowRunId::uuid AND
+    "tenantId" = @tenantId::uuid;
 
 -- name: CreateWorkflowRunTriggeredBy :one
 INSERT INTO "WorkflowRunTriggeredBy" (
@@ -768,3 +852,10 @@ SET
 WHERE
     "id" = @jobRunId::uuid
 RETURNING *;
+
+-- name: GetWorkflowRunInput :one
+SELECT jld."data" AS lookupData
+FROM "JobRun" jr
+JOIN "JobRunLookupData" jld ON jr."id" = jld."jobRunId"
+WHERE jld."data" ? 'input' AND jr."workflowRunId" = @workflowRunId::uuid
+LIMIT 1;

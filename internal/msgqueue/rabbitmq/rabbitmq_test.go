@@ -29,6 +29,7 @@ func TestMessageQueueIntegration(t *testing.T) {
 	// Initialize the task queue implementation
 	cleanup, tq := rabbitmq.New(
 		rabbitmq.WithURL(url),
+		rabbitmq.WithQos(100),
 	)
 	defer cleanup() // nolint: errcheck
 
@@ -111,6 +112,7 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	// Initialize the task queue implementation
 	cleanup, tq := rabbitmq.New(
 		rabbitmq.WithURL(url),
+		rabbitmq.WithQos(100),
 	)
 	defer cleanup() // nolint: errcheck
 
@@ -169,6 +171,7 @@ func TestDeadLetteringExceedRetriesFailure(t *testing.T) {
 	// Initialize the task queue implementation
 	cleanup, tq := rabbitmq.New(
 		rabbitmq.WithURL(url),
+		rabbitmq.WithQos(100),
 	)
 	defer cleanup() // nolint: errcheck
 

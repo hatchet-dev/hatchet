@@ -39,8 +39,9 @@ type WorkflowRunQueuedTaskMetadata struct {
 }
 
 type WorkflowRunFinishedTask struct {
-	WorkflowRunId string `json:"workflow_run_id" validate:"required,uuid"`
-	Status        string `json:"status" validate:"required"`
+	WorkflowRunId      string                 `json:"workflow_run_id" validate:"required,uuid"`
+	Status             string                 `json:"status" validate:"required"`
+	AdditionalMetadata map[string]interface{} `json:"additional_metadata"`
 }
 
 type WorkflowRunFinishedTaskMetadata struct {

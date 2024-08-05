@@ -54,7 +54,7 @@ type WebhookWorkerOpts struct {
 // TODO do not expose this to the end-user client somehow
 func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	listener, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
+	listener, _, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
 		WorkerName: w.name,
 		Actions:    w.initActionNames,
 		MaxRuns:    w.maxRuns,

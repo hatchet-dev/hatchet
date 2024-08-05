@@ -93,11 +93,11 @@ WITH to_count AS (
         AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
         AND sr."tenantId" = @tenantId::uuid
     ORDER BY RANDOM()
-    LIMIT 1001
+    LIMIT 11
     FOR UPDATE SKIP LOCKED
 ),
 to_resolve AS (
-    SELECT * FROM to_count LIMIT 1000
+    SELECT * FROM to_count LIMIT 10
 ),
 update_result AS (
     UPDATE "WorkerSemaphoreSlot" wss
@@ -111,7 +111,7 @@ SELECT
 		ELSE FALSE
 	END AS "hasResolved",
 	CASE
-		WHEN COUNT(*) > 1000 THEN TRUE
+		WHEN COUNT(*) > 10 THEN TRUE
 		ELSE FALSE
 	END AS "hasMore"
 FROM to_count;
@@ -184,4 +184,37 @@ WHERE
         "lastListenerEstablished" IS NULL
         OR "lastListenerEstablished" <= sqlc.narg('lastListenerEstablished')::timestamp
         )
+RETURNING *;
+
+-- name: ListWorkerLabels :many
+SELECT
+    "id",
+    "key",
+    "intValue",
+    "strValue",
+    "createdAt",
+    "updatedAt"
+FROM "WorkerLabel" wl
+WHERE wl."workerId" = @workerId::uuid;
+
+-- name: UpsertWorkerLabel :one
+INSERT INTO "WorkerLabel" (
+    "createdAt",
+    "updatedAt",
+    "workerId",
+    "key",
+    "intValue",
+    "strValue"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @workerId::uuid,
+    @key::text,
+    sqlc.narg('intValue')::int,
+    sqlc.narg('strValue')::text
+) ON CONFLICT ("workerId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = sqlc.narg('intValue')::int,
+    "strValue" = sqlc.narg('strValue')::text
 RETURNING *;

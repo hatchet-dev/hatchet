@@ -96,3 +96,33 @@ func (q *Queries) GetStreamEvent(ctx context.Context, db DBTX, arg GetStreamEven
 	)
 	return &i, err
 }
+
+const getStreamEventMeta = `-- name: GetStreamEventMeta :one
+SELECT
+    jr."workflowRunId" AS "workflowRunId",
+    sr."retryCount" AS "retryCount",
+    s."retries" as "retries"
+FROM "StepRun" sr
+JOIN "Step" s ON sr."stepId" = s."id"
+JOIN "JobRun" jr ON sr."jobRunId" = jr."id"
+WHERE sr."id" = $1::uuid
+AND sr."tenantId" = $2::uuid
+`
+
+type GetStreamEventMetaParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+}
+
+type GetStreamEventMetaRow struct {
+	WorkflowRunId pgtype.UUID `json:"workflowRunId"`
+	RetryCount    int32       `json:"retryCount"`
+	Retries       int32       `json:"retries"`
+}
+
+func (q *Queries) GetStreamEventMeta(ctx context.Context, db DBTX, arg GetStreamEventMetaParams) (*GetStreamEventMetaRow, error) {
+	row := db.QueryRow(ctx, getStreamEventMeta, arg.Steprunid, arg.Tenantid)
+	var i GetStreamEventMetaRow
+	err := row.Scan(&i.WorkflowRunId, &i.RetryCount, &i.Retries)
+	return &i, err
+}

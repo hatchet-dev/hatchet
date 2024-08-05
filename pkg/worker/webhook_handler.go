@@ -112,7 +112,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 			return
 		}
 
-		ctx, err := newHatchetContext(r.Context(), actionWithPayload, w.client, w.l)
+		ctx, err := newHatchetContext(r.Context(), actionWithPayload, w.client, w.l, w)
 		if err != nil {
 			w.l.Error().Err(err).Msg("error creating context")
 			writer.WriteHeader(http.StatusInternalServerError)

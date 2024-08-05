@@ -12,12 +12,28 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
+type HatchetWorkerContext interface {
+	context.Context
+
+	SetContext(ctx context.Context)
+
+	GetContext() context.Context
+
+	ID() string
+
+	GetLabels() map[string]interface{}
+
+	UpsertLabels(labels map[string]interface{}) error
+}
+
 type HatchetContext interface {
 	context.Context
 
 	SetContext(ctx context.Context)
 
 	GetContext() context.Context
+
+	Worker() HatchetWorkerContext
 
 	StepOutput(step string, target interface{}) error
 
@@ -76,6 +92,9 @@ type StepData map[string]interface{}
 
 type hatchetContext struct {
 	context.Context
+
+	w *hatchetWorkerContext
+
 	a        *client.Action
 	stepData *StepRunData
 	c        client.Client
@@ -87,17 +106,29 @@ type hatchetContext struct {
 	listenerMu sync.Mutex
 }
 
+type hatchetWorkerContext struct {
+	context.Context
+	id     *string
+	worker *Worker
+}
+
 func newHatchetContext(
 	ctx context.Context,
 	action *client.Action,
 	client client.Client,
 	l *zerolog.Logger,
+	w *Worker,
 ) (HatchetContext, error) {
 	c := &hatchetContext{
 		Context: ctx,
 		a:       action,
 		c:       client,
 		l:       l,
+		w: &hatchetWorkerContext{
+			Context: ctx,
+			id:      w.id,
+			worker:  w,
+		},
 	}
 
 	if action.GetGroupKeyRunId != "" {
@@ -123,6 +154,10 @@ func (h *hatchetContext) client() client.Client {
 
 func (h *hatchetContext) action() *client.Action {
 	return h.a
+}
+
+func (h *hatchetContext) Worker() HatchetWorkerContext {
+	return h.w
 }
 
 func (h *hatchetContext) SetContext(ctx context.Context) {
@@ -212,7 +247,8 @@ func (h *hatchetContext) inc() {
 }
 
 type SpawnWorkflowOpts struct {
-	Key *string
+	Key    *string
+	Sticky *bool
 }
 
 func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, error) {
@@ -239,6 +275,16 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		opts = &SpawnWorkflowOpts{}
 	}
 
+	var desiredWorker *string
+
+	if opts.Sticky != nil {
+		if _, exists := h.w.worker.registered_workflows[workflowName]; !exists {
+			return nil, fmt.Errorf("cannot run with sticky: workflow %s is not registered on this worker", workflowName)
+		}
+
+		desiredWorker = h.w.id
+	}
+
 	listener, err := h.saveOrLoadListener()
 
 	if err != nil {
@@ -257,6 +303,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 			ParentStepRunId: h.StepRunId(),
 			ChildIndex:      h.index(),
 			ChildKey:        opts.Key,
+			DesiredWorkerId: desiredWorker,
 		},
 	)
 
@@ -272,6 +319,22 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		l:             h.l,
 		listener:      listener,
 	}, nil
+}
+
+func (h *hatchetContext) AdditionalMetadata() map[string]string {
+	return h.a.AdditionalMetadata
+}
+
+func (h *hatchetContext) ChildIndex() *int32 {
+	return h.a.ChildIndex
+}
+
+func (h *hatchetContext) ChildKey() *string {
+	return h.a.ChildKey
+}
+
+func (h *hatchetContext) ParentWorkflowRunId() *string {
+	return h.a.ParentWorkflowRunId
 }
 
 func (h *hatchetContext) populateStepDataForGroupKeyRun() error {
@@ -329,5 +392,41 @@ func toTarget(data interface{}, target interface{}) error {
 		return err
 	}
 
+	return nil
+}
+
+func (wc *hatchetWorkerContext) SetContext(ctx context.Context) {
+	wc.Context = ctx
+}
+
+func (wc *hatchetWorkerContext) GetContext() context.Context {
+	return wc.Context
+}
+
+func (wc *hatchetWorkerContext) ID() string {
+	if wc.id == nil {
+		return ""
+	}
+
+	return *wc.id
+}
+
+func (wc *hatchetWorkerContext) GetLabels() map[string]interface{} {
+	return wc.worker.labels
+}
+
+func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) error {
+
+	if wc.id == nil {
+		return fmt.Errorf("worker id is nil, cannot upsert labels (are on web worker?)")
+	}
+
+	err := wc.worker.client.Dispatcher().UpsertWorkerLabels(wc.Context, *wc.id, labels)
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert labels: %w", err)
+	}
+
+	wc.worker.labels = labels
 	return nil
 }

@@ -153,6 +153,18 @@ WorkflowRunStatus:
     - CANCELLED
     - QUEUED
 
+WorkflowKind:
+  type: string
+  enum:
+    - FUNCTION
+    - DURABLE
+    - DAG
+
+WorkflowKindList:
+  type: array
+  items:
+    $ref: "#/WorkflowKind"
+
 WorkflowRunStatusList:
   type: array
   items:

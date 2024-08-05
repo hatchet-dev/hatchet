@@ -125,6 +125,10 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 	return workers, nil
 }
 
+func (w *workerAPIRepository) ListWorkerLabels(tenantId, workerId string) ([]*dbsqlc.ListWorkerLabelsRow, error) {
+	return w.queries.ListWorkerLabels(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+}
+
 func (w *workerAPIRepository) UpdateWorker(tenantId, workerId string, opts repository.ApiUpdateWorkerOpts) (*dbsqlc.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
@@ -391,4 +395,47 @@ func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, t
 	}
 
 	return worker, nil
+}
+
+func (w *workerEngineRepository) UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*dbsqlc.WorkerLabel, error) {
+	if len(opts) == 0 {
+		return nil, nil
+	}
+
+	affinities := make([]*dbsqlc.WorkerLabel, 0, len(opts))
+
+	for _, opt := range opts {
+
+		intValue := pgtype.Int4{Valid: false}
+		if opt.IntValue != nil {
+			intValue = pgtype.Int4{
+				Int32: *opt.IntValue,
+				Valid: true,
+			}
+		}
+
+		strValue := pgtype.Text{Valid: false}
+		if opt.StrValue != nil {
+			strValue = pgtype.Text{
+				String: *opt.StrValue,
+				Valid:  true,
+			}
+		}
+
+		dbsqlcOpts := dbsqlc.UpsertWorkerLabelParams{
+			Workerid: workerId,
+			Key:      opt.Key,
+			IntValue: intValue,
+			StrValue: strValue,
+		}
+
+		affinity, err := w.queries.UpsertWorkerLabel(ctx, w.pool, dbsqlcOpts)
+		if err != nil {
+			return nil, fmt.Errorf("could not update worker affinity state: %w", err)
+		}
+
+		affinities = append(affinities, affinity)
+	}
+
+	return affinities, nil
 }

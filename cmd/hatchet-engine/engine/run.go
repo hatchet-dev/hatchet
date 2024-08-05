@@ -23,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 )
 
 type Teardown struct {
@@ -33,12 +34,14 @@ type Teardown struct {
 func init() {
 	svcName := os.Getenv("SERVER_OTEL_SERVICE_NAME")
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
+	traceIdRatio := os.Getenv("SERVER_OTEL_TRACE_ID_RATIO")
 
 	// we do this to we get the tracer set globally, which is needed by some of the otel
 	// integrations for the database before start
 	_, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:  svcName,
 		CollectorURL: collectorURL,
+		TraceIdRatio: traceIdRatio,
 	})
 
 	if err != nil {
@@ -100,6 +103,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:  sc.OpenTelemetry.ServiceName,
 		CollectorURL: sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio: sc.OpenTelemetry.TraceIdRatio,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
@@ -280,6 +284,9 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	}
 
 	if sc.HasService("grpc") {
+
+		cacheInstance := cache.New(10 * time.Second)
+
 		// create the dispatcher
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
@@ -287,6 +294,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
+			dispatcher.WithCache(cacheInstance),
 		)
 
 		if err != nil {
@@ -362,6 +370,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 				if err != nil {
 					return fmt.Errorf("failed to cleanup dispatcher: %w", err)
 				}
+
+				cacheInstance.Stop()
 				return nil
 			})
 

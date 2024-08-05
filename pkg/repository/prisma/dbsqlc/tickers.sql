@@ -67,41 +67,6 @@ WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;
 
--- name: PollStepRuns :many
-WITH inactiveTickers AS (
-    SELECT "id"
-    FROM "Ticker"
-    WHERE
-        "isActive" = false OR
-        "lastHeartbeatAt" < NOW() - INTERVAL '10 seconds'
-),
-stepRunsToTimeout AS (
-    SELECT
-        stepRun."id"
-    FROM
-        "StepRun" as stepRun
-    LEFT JOIN inactiveTickers ON stepRun."tickerId" = inactiveTickers."id"
-    WHERE
-        ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
-        AND "deletedAt" IS NULL
-        AND "timeoutAt" < NOW()
-        AND (
-            inactiveTickers."id" IS NOT NULL
-            OR "tickerId" IS NULL
-        )
-    LIMIT 1000
-    FOR UPDATE SKIP LOCKED
-)
-UPDATE
-    "StepRun" as stepRuns
-SET
-    "tickerId" = @tickerId::uuid
-FROM
-    stepRunsToTimeout
-WHERE
-    stepRuns."id" = stepRunsToTimeout."id"
-RETURNING stepRuns.*;
-
 -- name: PollGetGroupKeyRuns :many
 WITH getGroupKeyRunsToTimeout AS (
     SELECT

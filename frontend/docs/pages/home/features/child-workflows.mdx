@@ -222,6 +222,29 @@ For example, to spawn a recovery workflow if a child workflow fails:
 <Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
+```python
+@hatchet.workflow("fanout:create")
+class Parent:
+    @hatchet.step()
+    async def spawn(self, context: Context):
+        try:
+            (
+                await context.aio.spawn_workflow(
+                  "Child", {"a": str(i)}, key=f"child{i}"
+                )
+            ).result()
+        except Exception as e:
+          # Spawn a recovery workflow
+          context.spawn_workflow("recovery-workflow", { "error": str(e) });
+
+        return {}
+
+```
+
+  </Tabs.Tab>
+
+  <Tabs.Tab>
+
 ```typescript
 const parentWorkflow: Workflow = {
   id: "parent-workflow",
@@ -252,28 +275,7 @@ const parentWorkflow: Workflow = {
 ```
 
   </Tabs.Tab>
-  <Tabs.Tab>
 
-```python
-@hatchet.workflow("fanout:create")
-class Parent:
-    @hatchet.step()
-    async def spawn(self, context: Context):
-        try:
-            (
-                await context.aio.spawn_workflow(
-                  "Child", {"a": str(i)}, key=f"child{i}"
-                )
-            ).result()
-        except Exception as e:
-          # Spawn a recovery workflow
-          context.spawn_workflow("recovery-workflow", { "error": str(e) });
-
-        return {}
-
-```
-
-  </Tabs.Tab>
   <Tabs.Tab>
 
 ```go

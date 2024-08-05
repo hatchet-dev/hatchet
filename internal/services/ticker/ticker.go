@@ -181,18 +181,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
 	}
 
-	// _, err = t.s.NewJob(
-	// 	gocron.DurationJob(time.Second*1),
-	// 	gocron.NewTask(
-	// 		t.runPollStepRuns(ctx),
-	// 	),
-	// )
-
-	// if err != nil {
-	// 	cancel()
-	// 	return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
-	// }
-
 	_, err = t.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(

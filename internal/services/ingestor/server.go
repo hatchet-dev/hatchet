@@ -102,6 +102,12 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
+	meta, err := i.streamEventRepository.GetStreamEventMeta(ctx, tenantId, req.StepRunId)
+
+	if err != nil {
+		return nil, err
+	}
+
 	streamEvent, err := i.streamEventRepository.PutStreamEvent(ctx, tenantId, &opts)
 
 	if err != nil {
@@ -114,7 +120,9 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 		return nil, err
 	}
 
-	err = i.mq.AddMessage(context.Background(), q, streamEventToTask(streamEvent))
+	e := streamEventToTask(streamEvent, sqlchelpers.UUIDToStr(meta.WorkflowRunId), &meta.RetryCount, &meta.Retries)
+
+	err = i.mq.AddMessage(context.Background(), q, e)
 
 	if err != nil {
 		return nil, err
@@ -176,13 +184,16 @@ func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
 	}, nil
 }
 
-func streamEventToTask(e *dbsqlc.StreamEvent) *msgqueue.Message {
+func streamEventToTask(e *dbsqlc.StreamEvent, workflowRunId string, retryCount *int32, retries *int32) *msgqueue.Message {
 	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
 
 	payloadTyped := tasktypes.StepRunStreamEventTaskPayload{
+		WorkflowRunId: workflowRunId,
 		StepRunId:     sqlchelpers.UUIDToStr(e.StepRunId),
 		CreatedAt:     e.CreatedAt.Time.String(),
 		StreamEventId: strconv.FormatInt(e.ID, 10),
+		RetryCount:    retryCount,
+		StepRetries:   retries,
 	}
 
 	payload, _ := datautils.ToJSONMap(payloadTyped)

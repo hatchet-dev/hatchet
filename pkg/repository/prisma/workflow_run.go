@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -69,6 +71,26 @@ func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(tenantId string, opts
 	}
 
 	return workflowRunMetricsCount(context.Background(), w.pool, w.queries, tenantId, opts)
+}
+
+func (w *workflowRunAPIRepository) GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error) {
+	lookupData := datautils.JobRunLookupData{}
+
+	jsonBytes, err := w.queries.GetWorkflowRunInput(
+		context.Background(),
+		w.pool,
+		sqlchelpers.UUIDFromStr(workflowRunId),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(jsonBytes, &lookupData); err != nil {
+		return nil, err
+	}
+
+	return lookupData.Input, nil
 }
 
 func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*db.WorkflowRunModel, error) {
@@ -160,6 +182,13 @@ func (w *workflowRunEngineRepository) GetWorkflowRunById(ctx context.Context, te
 	}
 
 	return runs[0], nil
+}
+
+func (w *workflowRunEngineRepository) GetWorkflowRunAdditionalMeta(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunAdditionalMetaRow, error) {
+	return w.queries.GetWorkflowRunAdditionalMeta(ctx, w.pool, dbsqlc.GetWorkflowRunAdditionalMetaParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
+	})
 }
 
 func (w *workflowRunEngineRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
@@ -491,6 +520,17 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		countParams.Statuses = statuses
 	}
 
+	if opts.Kinds != nil {
+		kinds := make([]string, 0)
+
+		for _, kind := range *opts.Kinds {
+			kinds = append(kinds, string(kind))
+		}
+
+		queryParams.Kinds = kinds
+		countParams.Kinds = kinds
+	}
+
 	if opts.CreatedAfter != nil {
 		countParams.CreatedAfter = sqlchelpers.TimestampFromTime(*opts.CreatedAfter)
 		queryParams.CreatedAfter = sqlchelpers.TimestampFromTime(*opts.CreatedAfter)
@@ -657,6 +697,43 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 				return nil, err
 			}
 			createParams.Additionalmetadata = additionalMetadataBytes
+
+			// if additional metadata contains a "dedupe" key, use it as the dedupe value
+			if dedupeValue, ok := opts.AdditionalMetadata["dedupe"]; ok {
+				if dedupeStr, ok := dedupeValue.(string); ok {
+					opts.DedupeValue = &dedupeStr
+				}
+
+				if dedupeInt, ok := dedupeValue.(int); ok {
+					dedupeStr := fmt.Sprintf("%d", dedupeInt)
+					opts.DedupeValue = &dedupeStr
+				}
+			}
+		}
+
+		// create the dedupe value
+		if opts.DedupeValue != nil {
+			_, err = queries.CreateWorkflowRunDedupe(
+				tx1Ctx,
+				tx,
+				dbsqlc.CreateWorkflowRunDedupeParams{
+					Tenantid:          pgTenantId,
+					Workflowversionid: sqlchelpers.UUIDFromStr(opts.WorkflowVersionId),
+					Value:             sqlchelpers.TextFromStr(*opts.DedupeValue),
+					Workflowrunid:     sqlchelpers.UUIDFromStr(workflowRunId),
+				},
+			)
+
+			if err != nil {
+				// if this is a unique violation, return stable error
+				if isUniqueViolationOnDedupe(err) {
+					return nil, repository.ErrDedupeValueExists{
+						DedupeValue: *opts.DedupeValue,
+					}
+				}
+
+				return nil, err
+			}
 		}
 
 		// create a workflow
@@ -669,6 +746,31 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 		if err != nil {
 			return nil, err
 		}
+
+		desiredWorkerId := pgtype.UUID{
+			Valid: false,
+		}
+
+		if opts.DesiredWorkerId != nil {
+			desiredWorkerId = sqlchelpers.UUIDFromStr(*opts.DesiredWorkerId)
+		}
+
+		_, err = queries.CreateWorkflowRunStickyState(
+			tx1Ctx,
+			tx,
+			dbsqlc.CreateWorkflowRunStickyStateParams{
+				Workflowrunid:     sqlcWorkflowRun.ID,
+				Tenantid:          pgTenantId,
+				Workflowversionid: createParams.Workflowversionid,
+				DesiredWorkerId:   desiredWorkerId,
+			},
+		)
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("failed to create workflow run sticky state: %w", err)
+		}
+
+		// CreateWorkflowRunStickyState
 
 		var (
 			eventId, cronParentId, scheduledWorkflowId pgtype.UUID
@@ -797,6 +899,14 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 		err = tx.Commit(tx1Ctx)
 
 		if err != nil {
+			// check unique violation again on commit, to account for inserts which were uncommitted
+			// at the time of the first check
+			if isUniqueViolationOnDedupe(err) {
+				return nil, repository.ErrDedupeValueExists{
+					DedupeValue: *opts.DedupeValue,
+				}
+			}
+
 			return nil, err
 		}
 
@@ -839,4 +949,13 @@ func defaultWorkflowRunPopulator() []db.WorkflowRunRelationWith {
 			),
 		),
 	}
+}
+
+func isUniqueViolationOnDedupe(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(err.Error(), "WorkflowRunDedupe_tenantId_workflowId_value_key") &&
+		strings.Contains(err.Error(), "SQLSTATE 23505")
 }

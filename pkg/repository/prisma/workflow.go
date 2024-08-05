@@ -578,6 +578,20 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 		createParams.ScheduleTimeout = sqlchelpers.TextFromStr(*opts.ScheduleTimeout)
 	}
 
+	if opts.Sticky != nil {
+		createParams.Sticky = dbsqlc.NullStickyStrategy{
+			StickyStrategy: dbsqlc.StickyStrategy(*opts.Sticky),
+			Valid:          true,
+		}
+	}
+
+	if opts.Kind != nil {
+		createParams.Kind = dbsqlc.NullWorkflowKind{
+			WorkflowKind: dbsqlc.WorkflowKind(*opts.Kind),
+			Valid:        true,
+		}
+	}
+
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		ctx,
 		tx,
@@ -830,6 +844,55 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 
 		if err != nil {
 			return "", err
+		}
+
+		if stepOpts.DesiredWorkerLabels != nil && len(stepOpts.DesiredWorkerLabels) > 0 {
+			for i := range stepOpts.DesiredWorkerLabels {
+				key := (stepOpts.DesiredWorkerLabels)[i].Key
+				value := (stepOpts.DesiredWorkerLabels)[i]
+
+				if key == "" {
+					continue
+				}
+
+				opts := dbsqlc.UpsertDesiredWorkerLabelParams{
+					Stepid: sqlchelpers.UUIDFromStr(stepId),
+					Key:    key,
+				}
+
+				if value.IntValue != nil {
+					opts.IntValue = sqlchelpers.ToInt(*value.IntValue)
+				}
+
+				if value.StrValue != nil {
+					opts.StrValue = sqlchelpers.TextFromStr(*value.StrValue)
+				}
+
+				if value.Weight != nil {
+					opts.Weight = sqlchelpers.ToInt(*value.Weight)
+				}
+
+				if value.Required != nil {
+					opts.Required = sqlchelpers.BoolFromBoolean(*value.Required)
+				}
+
+				if value.Comparator != nil {
+					opts.Comparator = dbsqlc.NullWorkerLabelComparator{
+						WorkerLabelComparator: dbsqlc.WorkerLabelComparator(*value.Comparator),
+						Valid:                 true,
+					}
+				}
+
+				_, err = r.queries.UpsertDesiredWorkerLabel(
+					ctx,
+					tx,
+					opts,
+				)
+
+				if err != nil {
+					return "", err
+				}
+			}
 		}
 
 		if len(stepOpts.Parents) > 0 {

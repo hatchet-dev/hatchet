@@ -1,6 +1,7 @@
 package transformers
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,6 +10,36 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
+
+func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
+	resp := make([]gen.WorkerLabel, len(labels))
+
+	for i := range labels {
+
+		var value *string
+
+		switch {
+		case labels[i].IntValue.Valid:
+			intValue := labels[i].IntValue.Int32
+			stringValue := fmt.Sprintf("%d", intValue)
+			value = &stringValue
+		case labels[i].StrValue.Valid:
+			value = &labels[i].StrValue.String
+		default:
+			value = nil
+		}
+
+		id := fmt.Sprintf("%d", labels[i].ID)
+
+		resp[i] = gen.WorkerLabel{
+			Metadata: *toAPIMetadata(id, labels[i].CreatedAt.Time, labels[i].UpdatedAt.Time),
+			Key:      labels[i].Key,
+			Value:    value,
+		}
+	}
+
+	return &resp
+}
 
 func ToWorker(worker *db.WorkerModel) *gen.Worker {
 

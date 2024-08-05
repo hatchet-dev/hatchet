@@ -33,5 +33,13 @@ func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequest
 
 	workerResp.RecentStepRuns = &respStepRuns
 
+	affinity, err := t.config.APIRepository.Worker().ListWorkerLabels(worker.TenantID, worker.ID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	workerResp.Labels = transformers.ToWorkerLabels(affinity)
+
 	return gen.WorkerGet200JSONResponse(workerResp), nil
 }

@@ -418,6 +418,48 @@ func (ns NullStepRunStatus) Value() (driver.Value, error) {
 	return string(ns.StepRunStatus), nil
 }
 
+type StickyStrategy string
+
+const (
+	StickyStrategySOFT StickyStrategy = "SOFT"
+	StickyStrategyHARD StickyStrategy = "HARD"
+)
+
+func (e *StickyStrategy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StickyStrategy(s)
+	case string:
+		*e = StickyStrategy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StickyStrategy: %T", src)
+	}
+	return nil
+}
+
+type NullStickyStrategy struct {
+	StickyStrategy StickyStrategy `json:"StickyStrategy"`
+	Valid          bool           `json:"valid"` // Valid is true if StickyStrategy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStickyStrategy) Scan(value interface{}) error {
+	if value == nil {
+		ns.StickyStrategy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StickyStrategy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStickyStrategy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StickyStrategy), nil
+}
+
 type TenantMemberRole string
 
 const (
@@ -542,6 +584,95 @@ func (ns NullVcsProvider) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.VcsProvider), nil
+}
+
+type WorkerLabelComparator string
+
+const (
+	WorkerLabelComparatorEQUAL              WorkerLabelComparator = "EQUAL"
+	WorkerLabelComparatorNOTEQUAL           WorkerLabelComparator = "NOT_EQUAL"
+	WorkerLabelComparatorGREATERTHAN        WorkerLabelComparator = "GREATER_THAN"
+	WorkerLabelComparatorGREATERTHANOREQUAL WorkerLabelComparator = "GREATER_THAN_OR_EQUAL"
+	WorkerLabelComparatorLESSTHAN           WorkerLabelComparator = "LESS_THAN"
+	WorkerLabelComparatorLESSTHANOREQUAL    WorkerLabelComparator = "LESS_THAN_OR_EQUAL"
+)
+
+func (e *WorkerLabelComparator) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkerLabelComparator(s)
+	case string:
+		*e = WorkerLabelComparator(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkerLabelComparator: %T", src)
+	}
+	return nil
+}
+
+type NullWorkerLabelComparator struct {
+	WorkerLabelComparator WorkerLabelComparator `json:"WorkerLabelComparator"`
+	Valid                 bool                  `json:"valid"` // Valid is true if WorkerLabelComparator is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkerLabelComparator) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkerLabelComparator, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkerLabelComparator.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkerLabelComparator) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkerLabelComparator), nil
+}
+
+type WorkflowKind string
+
+const (
+	WorkflowKindFUNCTION WorkflowKind = "FUNCTION"
+	WorkflowKindDURABLE  WorkflowKind = "DURABLE"
+	WorkflowKindDAG      WorkflowKind = "DAG"
+)
+
+func (e *WorkflowKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkflowKind(s)
+	case string:
+		*e = WorkflowKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkflowKind: %T", src)
+	}
+	return nil
+}
+
+type NullWorkflowKind struct {
+	WorkflowKind WorkflowKind `json:"WorkflowKind"`
+	Valid        bool         `json:"valid"` // Valid is true if WorkflowKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkflowKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkflowKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkflowKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkflowKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkflowKind), nil
 }
 
 type WorkflowRunStatus string
@@ -778,6 +909,19 @@ type Step struct {
 	CustomUserData  []byte           `json:"customUserData"`
 	Retries         int32            `json:"retries"`
 	ScheduleTimeout string           `json:"scheduleTimeout"`
+}
+
+type StepDesiredWorkerLabel struct {
+	ID         int64                 `json:"id"`
+	CreatedAt  pgtype.Timestamp      `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp      `json:"updatedAt"`
+	StepId     pgtype.UUID           `json:"stepId"`
+	Key        string                `json:"key"`
+	StrValue   pgtype.Text           `json:"strValue"`
+	IntValue   pgtype.Int4           `json:"intValue"`
+	Required   bool                  `json:"required"`
+	Comparator WorkerLabelComparator `json:"comparator"`
+	Weight     int32                 `json:"weight"`
 }
 
 type StepOrder struct {
@@ -1045,6 +1189,16 @@ type Worker struct {
 	IsPaused                bool             `json:"isPaused"`
 }
 
+type WorkerLabel struct {
+	ID        int64            `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	WorkerId  pgtype.UUID      `json:"workerId"`
+	Key       string           `json:"key"`
+	StrValue  pgtype.Text      `json:"strValue"`
+	IntValue  pgtype.Int4      `json:"intValue"`
+}
+
 type WorkerSemaphore struct {
 	WorkerId pgtype.UUID `json:"workerId"`
 	Slots    int32       `json:"slots"`
@@ -1095,6 +1249,26 @@ type WorkflowRun struct {
 	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
 	Duration           pgtype.Int4       `json:"duration"`
+}
+
+type WorkflowRunDedupe struct {
+	ID            int64            `json:"id"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	TenantId      pgtype.UUID      `json:"tenantId"`
+	WorkflowId    pgtype.UUID      `json:"workflowId"`
+	WorkflowRunId pgtype.UUID      `json:"workflowRunId"`
+	Value         string           `json:"value"`
+}
+
+type WorkflowRunStickyState struct {
+	ID              int64            `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	TenantId        pgtype.UUID      `json:"tenantId"`
+	WorkflowRunId   pgtype.UUID      `json:"workflowRunId"`
+	DesiredWorkerId pgtype.UUID      `json:"desiredWorkerId"`
+	Strategy        StickyStrategy   `json:"strategy"`
 }
 
 type WorkflowRunTriggeredBy struct {
@@ -1160,14 +1334,16 @@ type WorkflowTriggers struct {
 }
 
 type WorkflowVersion struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	Version         pgtype.Text      `json:"version"`
-	Order           int64            `json:"order"`
-	WorkflowId      pgtype.UUID      `json:"workflowId"`
-	Checksum        string           `json:"checksum"`
-	ScheduleTimeout string           `json:"scheduleTimeout"`
-	OnFailureJobId  pgtype.UUID      `json:"onFailureJobId"`
+	ID              pgtype.UUID        `json:"id"`
+	CreatedAt       pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp   `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp   `json:"deletedAt"`
+	Version         pgtype.Text        `json:"version"`
+	Order           int64              `json:"order"`
+	WorkflowId      pgtype.UUID        `json:"workflowId"`
+	Checksum        string             `json:"checksum"`
+	ScheduleTimeout string             `json:"scheduleTimeout"`
+	OnFailureJobId  pgtype.UUID        `json:"onFailureJobId"`
+	Sticky          NullStickyStrategy `json:"sticky"`
+	Kind            WorkflowKind       `json:"kind"`
 }
