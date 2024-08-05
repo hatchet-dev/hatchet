@@ -739,11 +739,11 @@ func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt 
 // or have been running but the worker has become inactive.
 func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tenantId string) error {
 	// we want only one requeue running at a time for a tenant
+	ec.mutexMutex.Lock()
 	if ec.reassignMutexes[tenantId] == nil {
-		ec.mutexMutex.Lock()
 		ec.reassignMutexes[tenantId] = &sync.Mutex{}
-		ec.mutexMutex.Unlock()
 	}
+	ec.mutexMutex.Unlock()
 
 	if !ec.reassignMutexes[tenantId].TryLock() {
 		return nil
@@ -844,11 +844,11 @@ func (jc *JobsControllerImpl) runStepRunTimeout(ctx context.Context) func() {
 
 // runStepRunTimeoutTenant looks for step runs that are timed out in the tenant.
 func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenantId string) error {
+	ec.mutexMutex.Lock()
 	if ec.timeoutMutexes[tenantId] == nil {
-		ec.mutexMutex.Lock()
 		ec.timeoutMutexes[tenantId] = &sync.Mutex{}
-		ec.mutexMutex.Unlock()
 	}
+	ec.mutexMutex.Unlock()
 
 	if !ec.timeoutMutexes[tenantId].TryLock() {
 		return nil
