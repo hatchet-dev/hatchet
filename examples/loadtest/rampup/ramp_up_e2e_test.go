@@ -74,7 +74,7 @@ func TestRampUp(t *testing.T) {
 	}()
 
 	// TODO instead of waiting, figure out when the engine setup is complete
-	time.Sleep(10 * time.Second)
+	time.Sleep(15 * time.Second)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
