@@ -99,7 +99,7 @@ func (o *operation) run(l *zerolog.Logger, scheduler func(context.Context, strin
 
 		f()
 
-		for o.shouldContinue {
+		for o.getContinue() {
 			f()
 		}
 	}()
@@ -110,6 +110,13 @@ func (o *operation) setContinue(shouldContinue bool) {
 	defer o.mu.Unlock()
 
 	o.shouldContinue = shouldContinue
+}
+
+func (o *operation) getContinue() bool {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+
+	return o.shouldContinue
 }
 
 func (p *Partition) Start() (func() error, error) {
@@ -223,7 +230,6 @@ func (p *Partition) runTenantQueues(ctx context.Context) func() {
 
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
-			fmt.Println("RUNNING FOR TENANT", tenantId)
 
 			if _, ok := p.tenantOperations[tenantId]; !ok {
 				p.tenantOperations[tenantId] = &operation{
