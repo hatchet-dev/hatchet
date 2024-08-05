@@ -9,7 +9,6 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
@@ -187,8 +186,6 @@ func (p *Partition) runTenantQueues(ctx context.Context) func() {
 			return
 		}
 
-		g := new(errgroup.Group)
-
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
 
@@ -198,18 +195,7 @@ func (p *Partition) runTenantQueues(ctx context.Context) func() {
 				}
 			}
 
-			op := p.tenantOperations[tenantId]
-
-			g.Go(func() error {
-				op.run(p.l, p.scheduleStepRuns)
-				return nil
-			})
-		}
-
-		err = g.Wait()
-
-		if err != nil {
-			p.l.Err(err).Msg("could not run step run requeue")
+			p.tenantOperations[tenantId].run(p.l, p.scheduleStepRuns)
 		}
 	}
 }

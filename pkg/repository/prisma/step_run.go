@@ -843,6 +843,10 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		return nil, false, fmt.Errorf("could not list step runs to assign: %w", err)
 	}
 
+	if len(stepRunsToAssign) == 0 {
+		return []repository.QueueStepRunResult{}, false, nil
+	}
+
 	// get a list of unique actions
 	uniqueActions := make(map[string]bool)
 
@@ -922,10 +926,6 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		})
 	}
 
-	if len(stepRunIds) == 0 {
-		return []repository.QueueStepRunResult{}, false, nil
-	}
-
 	_, err = s.queries.BulkAssignStepRunsToWorkers(ctx, tx, dbsqlc.BulkAssignStepRunsToWorkersParams{
 		Steprunids:      stepRunIds,
 		Stepruntimeouts: stepRunTimeouts,
@@ -943,7 +943,17 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		return nil, false, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
-	return res, len(exhaustedActions) != len(uniqueActions), nil
+	// if at least one of the actions got all step runs assigned, and there are slots remaining, return true
+	for action := range uniqueActions {
+		if _, ok := exhaustedActions[action]; !ok {
+			// check if there are slots remaining
+			if len(actionsToSlots[action]) > 0 {
+				return res, true, nil
+			}
+		}
+	}
+
+	return res, false, nil
 }
 
 func popRandMapValue(m map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow) *dbsqlc.ListSemaphoreSlotsToAssignRow {
