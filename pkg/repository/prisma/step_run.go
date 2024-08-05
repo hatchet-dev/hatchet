@@ -936,6 +936,15 @@ func (s *stepRunEngineRepository) UnassignStepRunFromWorker(ctx context.Context,
 	})
 }
 
+type debugInfo struct {
+	UniqueActions          []string       `json:"unique_actions"`
+	TotalStepRuns          int            `json:"total_step_runs"`
+	TotalStepRunsAssigned  int            `json:"total_step_runs_assigned"`
+	TotalSlots             int            `json:"total_slots"`
+	StartingSlotsPerAction map[string]int `json:"starting_slots"`
+	EndingSlotsPerAction   map[string]int `json:"ending_slots"`
+}
+
 func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId string) ([]repository.QueueStepRunResult, bool, error) {
 	if ctx.Err() != nil {
 		return nil, false, ctx.Err()
@@ -1003,16 +1012,11 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		slotsToActions[slotId] = append(slotsToActions[slotId], slot.ActionId)
 	}
 
-	// print debug information
+	// assemble debug information
+	startingSlotsPerAction := make(map[string]int)
+
 	for action, slots := range actionsToSlots {
-		s.l.Warn().Msg(fmt.Sprintf(
-			"Starting Action Slots{\n"+
-				" Action: %s\n"+
-				"  Slots: %d\n"+
-				"}",
-			action,
-			len(slots),
-		))
+		startingSlotsPerAction[action] = len(slots)
 	}
 
 	// match slots to step runs in the order the step runs were returned
@@ -1073,16 +1077,31 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	}
 
 	// print debug information
+	endingSlotsPerAction := make(map[string]int)
 	for action, slots := range actionsToSlots {
-		s.l.Warn().Msg(fmt.Sprintf(
-			"Ending Action Slots{\n"+
-				" Action: %s\n"+
-				"  Slots: %d\n"+
-				"}",
-			action,
-			len(slots),
-		))
+		endingSlotsPerAction[action] = len(slots)
 	}
+
+	defer func() {
+		// pretty-print json with 2 spaces
+		debugInfo := debugInfo{
+			UniqueActions:          uniqueActionsArr,
+			TotalStepRuns:          len(stepRunsToAssign),
+			TotalStepRunsAssigned:  len(stepRunIds),
+			TotalSlots:             len(slots),
+			StartingSlotsPerAction: startingSlotsPerAction,
+			EndingSlotsPerAction:   endingSlotsPerAction,
+		}
+
+		debugInfoBytes, err := json.MarshalIndent(debugInfo, "", "  ")
+
+		if err != nil {
+			s.l.Warn().Err(err).Msg("could not marshal debug info")
+			return
+		}
+
+		s.l.Warn().Msg(string(debugInfoBytes))
+	}()
 
 	// if at least one of the actions got all step runs assigned, and there are slots remaining, return true
 	for action := range uniqueActions {
