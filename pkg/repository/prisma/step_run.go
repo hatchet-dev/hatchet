@@ -777,6 +777,118 @@ func deferredStepRunEvent(
 	}
 }
 
+func (s *stepRunEngineRepository) bulkStepRunsAssigned(
+	stepRunIds []pgtype.UUID,
+	workerIds []pgtype.UUID,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	messages := make([]string, len(stepRunIds))
+	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
+	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
+	data := make([]map[string]interface{}, len(stepRunIds))
+
+	for i := range stepRunIds {
+		workerId := sqlchelpers.UUIDToStr(workerIds[i])
+		messages[i] = fmt.Sprintf("Assigned to worker %s", workerId)
+		reasons[i] = dbsqlc.StepRunEventReasonASSIGNED
+		severities[i] = dbsqlc.StepRunEventSeverityINFO
+		data[i] = map[string]interface{}{"worker_id": workerId}
+	}
+
+	deferredBulkStepRunEvents(
+		ctx,
+		s.l,
+		s.pool,
+		s.queries,
+		stepRunIds,
+		reasons,
+		severities,
+		messages,
+		data,
+	)
+}
+
+func (s *stepRunEngineRepository) bulkStepRunsUnassigned(
+	stepRunIds []pgtype.UUID,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	messages := make([]string, len(stepRunIds))
+	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
+	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
+	data := make([]map[string]interface{}, len(stepRunIds))
+
+	for i := range stepRunIds {
+		messages[i] = "No worker available"
+		reasons[i] = dbsqlc.StepRunEventReasonREQUEUEDNOWORKER
+		severities[i] = dbsqlc.StepRunEventSeverityWARNING
+		// TODO: semaphore extra data
+		data[i] = map[string]interface{}{}
+	}
+
+	deferredBulkStepRunEvents(
+		ctx,
+		s.l,
+		s.pool,
+		s.queries,
+		stepRunIds,
+		reasons,
+		severities,
+		messages,
+		data,
+	)
+}
+
+func deferredBulkStepRunEvents(
+	ctx context.Context,
+	l *zerolog.Logger,
+	dbtx dbsqlc.DBTX,
+	queries *dbsqlc.Queries,
+	stepRunIds []pgtype.UUID,
+	reasons []dbsqlc.StepRunEventReason,
+	severities []dbsqlc.StepRunEventSeverity,
+	messages []string,
+	data []map[string]interface{},
+) {
+	inputData := [][]byte{}
+	inputReasons := []string{}
+	inputSeverities := []string{}
+
+	for _, d := range data {
+		dataBytes, err := json.Marshal(d)
+
+		if err != nil {
+			l.Err(err).Msg("could not marshal deferred step run event data")
+			return
+		}
+
+		inputData = append(inputData, dataBytes)
+	}
+
+	for _, r := range reasons {
+		inputReasons = append(inputReasons, string(r))
+	}
+
+	for _, s := range severities {
+		inputSeverities = append(inputSeverities, string(s))
+	}
+
+	err := queries.BulkCreateStepRunEvent(ctx, dbtx, dbsqlc.BulkCreateStepRunEventParams{
+		Steprunids: stepRunIds,
+		Reasons:    inputReasons,
+		Severities: inputSeverities,
+		Messages:   messages,
+		Data:       inputData,
+	})
+
+	if err != nil {
+		l.Err(err).Msg("could not create deferred step run event")
+	}
+}
+
 func (s *stepRunEngineRepository) UnassignStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error {
 	return deadlockRetry(s.l, func() error {
 		tx, err := s.pool.Begin(ctx)
@@ -896,6 +1008,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	slotIds := make([]pgtype.UUID, 0)
 	workerIds := make([]pgtype.UUID, 0)
 	stepRunTimeouts := make([]string, 0)
+	unassignedStepRunIds := make([]pgtype.UUID, 0)
 
 	res := make([]repository.QueueStepRunResult, 0)
 
@@ -904,6 +1017,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	for _, stepRun := range stepRunsToAssign {
 		if len(actionsToSlots[stepRun.ActionId]) == 0 {
 			exhaustedActions[stepRun.ActionId] = true
+			unassignedStepRunIds = append(unassignedStepRunIds, stepRun.ID)
 			continue
 		}
 
@@ -938,6 +1052,9 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	}
 
 	err = tx.Commit(ctx)
+
+	defer s.bulkStepRunsAssigned(stepRunIds, workerIds)
+	defer s.bulkStepRunsUnassigned(unassignedStepRunIds)
 
 	if err != nil {
 		return nil, false, fmt.Errorf("could not commit transaction: %w", err)

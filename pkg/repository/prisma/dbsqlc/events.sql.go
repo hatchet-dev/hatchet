@@ -74,7 +74,7 @@ WITH events AS (
         "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
     WHERE
         events."tenantId" = $1 AND
-        events."deletedAt" IS NOT NULL AND
+        events."deletedAt" IS NULL AND
         (
             $2::text[] IS NULL OR
             events."key" = ANY($2::text[])
@@ -201,7 +201,7 @@ SELECT
 FROM
     "Event"
 WHERE
-    "deletedAt" IS NOT NULL AND
+    "deletedAt" IS NULL AND
     "id" = $1::uuid
 `
 
@@ -278,7 +278,7 @@ WITH filtered_events AS (
         "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
     WHERE
         events."tenantId" = $1 AND
-        events."deletedAt" IS NOT NULL AND
+        events."deletedAt" IS NULL AND
         (
             $2::text[] IS NULL OR
             events."key" = ANY($2::text[])
@@ -399,7 +399,7 @@ SELECT
 FROM
     "Event" as events
 WHERE
-    events."deletedAt" IS NOT NULL AND
+    events."deletedAt" IS NULL AND
     "tenantId" = $1::uuid AND
     "id" = ANY ($2::uuid[])
 `

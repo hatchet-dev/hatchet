@@ -1100,6 +1100,25 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 
 	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
+	// recheck the tenant queue
+	tenant, err := ec.repo.Tenant().GetTenantByID(ctx, metadata.TenantId)
+
+	if err != nil {
+		return fmt.Errorf("could not get tenant: %w", err)
+	}
+
+	if tenant.ControllerPartitionId.Valid {
+		err = ec.mq.AddMessage(
+			ctx,
+			msgqueue.QueueTypeFromPartitionID(tenant.ControllerPartitionId.String),
+			tasktypes.CheckTenantQueueToTask(metadata.TenantId),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not add message to tenant partition queue: %w", err)
+		}
+	}
+
 	// queue the next step runs
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
 	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)

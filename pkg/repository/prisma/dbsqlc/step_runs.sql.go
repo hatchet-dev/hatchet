@@ -449,6 +449,83 @@ func (q *Queries) BulkAssignStepRunsToWorkers(ctx context.Context, db DBTX, arg 
 	return items, nil
 }
 
+const bulkCreateStepRunEvent = `-- name: BulkCreateStepRunEvent :exec
+WITH input_values AS (
+    SELECT
+        CURRENT_TIMESTAMP AS "timeFirstSeen",
+        CURRENT_TIMESTAMP AS "timeLastSeen",
+        unnest($1::uuid[]) AS "stepRunId",
+        unnest(cast($2::text[] as"StepRunEventReason"[])) AS "reason",
+        unnest(cast($3::text[] as "StepRunEventSeverity"[])) AS "severity",
+        unnest($4::text[]) AS "message",
+        1 AS "count",
+        unnest($5::jsonb[]) AS "data"
+),
+updated AS (
+    UPDATE "StepRunEvent"
+    SET
+        "timeLastSeen" = CURRENT_TIMESTAMP,
+        "message" = input_values."message",
+        "count" = "StepRunEvent"."count" + 1,
+        "data" = input_values."data"
+    FROM input_values
+    WHERE
+        "StepRunEvent"."stepRunId" = input_values."stepRunId"
+        AND "StepRunEvent"."reason" = input_values."reason"
+        AND "StepRunEvent"."severity" = input_values."severity"
+        AND "StepRunEvent"."id" = (
+            SELECT "id"
+            FROM "StepRunEvent"
+            WHERE "stepRunId" = input_values."stepRunId"
+            ORDER BY "id" DESC
+            LIMIT 1
+        )
+    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data
+)
+INSERT INTO "StepRunEvent" (
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+)
+SELECT
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+FROM input_values
+WHERE NOT EXISTS (
+    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId"
+)
+`
+
+type BulkCreateStepRunEventParams struct {
+	Steprunids []pgtype.UUID `json:"steprunids"`
+	Reasons    []string      `json:"reasons"`
+	Severities []string      `json:"severities"`
+	Messages   []string      `json:"messages"`
+	Data       [][]byte      `json:"data"`
+}
+
+func (q *Queries) BulkCreateStepRunEvent(ctx context.Context, db DBTX, arg BulkCreateStepRunEventParams) error {
+	_, err := db.Exec(ctx, bulkCreateStepRunEvent,
+		arg.Steprunids,
+		arg.Reasons,
+		arg.Severities,
+		arg.Messages,
+		arg.Data,
+	)
+	return err
+}
+
 const checkWorker = `-- name: CheckWorker :one
 SELECT
     "id"

@@ -4,7 +4,7 @@ SELECT
 FROM
     "Event"
 WHERE
-    "deletedAt" IS NOT NULL AND
+    "deletedAt" IS NULL AND
     "id" = @id::uuid;
 
 -- name: CountEvents :one
@@ -23,7 +23,7 @@ WITH events AS (
         "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
     WHERE
         events."tenantId" = $1 AND
-        events."deletedAt" IS NOT NULL AND
+        events."deletedAt" IS NULL AND
         (
             sqlc.narg('keys')::text[] IS NULL OR
             events."key" = ANY(sqlc.narg('keys')::text[])
@@ -94,7 +94,7 @@ WITH filtered_events AS (
         "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
     WHERE
         events."tenantId" = $1 AND
-        events."deletedAt" IS NOT NULL AND
+        events."deletedAt" IS NULL AND
         (
             sqlc.narg('keys')::text[] IS NULL OR
             events."key" = ANY(sqlc.narg('keys')::text[])
@@ -162,7 +162,7 @@ SELECT
 FROM
     "Event" as events
 WHERE
-    events."deletedAt" IS NOT NULL AND
+    events."deletedAt" IS NULL AND
     "tenantId" = @tenantId::uuid AND
     "id" = ANY (sqlc.arg('ids')::uuid[]);
 

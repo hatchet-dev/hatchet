@@ -255,8 +255,6 @@ func (p *Partition) scheduleStepRuns(ctx context.Context, tenantId string) (bool
 		return false, fmt.Errorf("could not list startable step runs: %w", err)
 	}
 
-	fmt.Println("ASSIGNED STEP RUNS", len(queueResults))
-
 	for _, queueResult := range queueResults {
 		// send a task to the dispatcher
 		err = p.mq.AddMessage(
