@@ -1003,6 +1003,18 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		slotsToActions[slotId] = append(slotsToActions[slotId], slot.ActionId)
 	}
 
+	// print debug information
+	for action, slots := range actionsToSlots {
+		s.l.Warn().Msg(fmt.Sprintf(
+			"Starting Action Slots{\n"+
+				" Action: %s\n"+
+				"  Slots: %d\n"+
+				"}",
+			action,
+			len(slots),
+		))
+	}
+
 	// match slots to step runs in the order the step runs were returned
 	stepRunIds := make([]pgtype.UUID, 0)
 	slotIds := make([]pgtype.UUID, 0)
@@ -1058,6 +1070,18 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 
 	if err != nil {
 		return nil, false, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	// print debug information
+	for action, slots := range actionsToSlots {
+		s.l.Warn().Msg(fmt.Sprintf(
+			"Ending Action Slots{\n"+
+				" Action: %s\n"+
+				"  Slots: %d\n"+
+				"}",
+			action,
+			len(slots),
+		))
 	}
 
 	// if at least one of the actions got all step runs assigned, and there are slots remaining, return true
