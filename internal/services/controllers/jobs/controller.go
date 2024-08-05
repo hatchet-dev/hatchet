@@ -44,6 +44,8 @@ type JobsControllerImpl struct {
 	requeueMutexes  map[string]*sync.Mutex
 	reassignMutexes map[string]*sync.Mutex
 	timeoutMutexes  map[string]*sync.Mutex
+
+	mutexMutex sync.Mutex
 }
 
 type JobsControllerOpt func(*JobsControllerOpts)
@@ -146,6 +148,7 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 		requeueMutexes:  make(map[string]*sync.Mutex),
 		reassignMutexes: make(map[string]*sync.Mutex),
 		timeoutMutexes:  make(map[string]*sync.Mutex),
+		mutexMutex:      sync.Mutex{},
 	}, nil
 }
 
@@ -737,7 +740,9 @@ func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt 
 func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tenantId string) error {
 	// we want only one requeue running at a time for a tenant
 	if ec.reassignMutexes[tenantId] == nil {
+		ec.mutexMutex.Lock()
 		ec.reassignMutexes[tenantId] = &sync.Mutex{}
+		ec.mutexMutex.Unlock()
 	}
 
 	if !ec.reassignMutexes[tenantId].TryLock() {
@@ -840,7 +845,9 @@ func (jc *JobsControllerImpl) runStepRunTimeout(ctx context.Context) func() {
 // runStepRunTimeoutTenant looks for step runs that are timed out in the tenant.
 func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenantId string) error {
 	if ec.timeoutMutexes[tenantId] == nil {
+		ec.mutexMutex.Lock()
 		ec.timeoutMutexes[tenantId] = &sync.Mutex{}
+		ec.mutexMutex.Unlock()
 	}
 
 	if !ec.timeoutMutexes[tenantId].TryLock() {
