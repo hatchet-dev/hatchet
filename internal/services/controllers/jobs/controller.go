@@ -227,9 +227,11 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
 	}
 
-	p := &Partition{
-		JobsControllerImpl: jc,
-		tenantOperations:   make(map[string]*operation),
+	p, err := NewPartition(jc.mq, jc.l, jc.repo, jc.dv, jc.a, jc.partitionId)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create partition: %w", err)
 	}
 
 	partitionCleanup, err := p.Start()

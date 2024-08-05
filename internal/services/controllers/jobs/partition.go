@@ -10,17 +10,52 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 type Partition struct {
-	*JobsControllerImpl
+	mq          msgqueue.MessageQueue
+	l           *zerolog.Logger
+	repo        repository.EngineRepository
+	dv          datautils.DataDecoderValidator
+	s           gocron.Scheduler
+	a           *hatcheterrors.Wrapped
+	partitionId string
 
 	tenantOperations map[string]*operation
+}
+
+func NewPartition(
+	mq msgqueue.MessageQueue,
+	l *zerolog.Logger,
+	repo repository.EngineRepository,
+	dv datautils.DataDecoderValidator,
+	a *hatcheterrors.Wrapped,
+	partitionId string,
+) (*Partition, error) {
+	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create scheduler: %w", err)
+	}
+
+	return &Partition{
+		mq:               mq,
+		l:                l,
+		repo:             repo,
+		dv:               dv,
+		s:                s,
+		a:                a,
+		partitionId:      partitionId,
+		tenantOperations: make(map[string]*operation),
+	}, nil
 }
 
 type operation struct {
@@ -188,6 +223,7 @@ func (p *Partition) runTenantQueues(ctx context.Context) func() {
 
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			fmt.Println("RUNNING FOR TENANT", tenantId)
 
 			if _, ok := p.tenantOperations[tenantId]; !ok {
 				p.tenantOperations[tenantId] = &operation{

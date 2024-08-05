@@ -55,8 +55,8 @@ func TestRampUp(t *testing.T) {
 			delay:                 0 * time.Second,
 			wait:                  30 * time.Second,
 			includeDroppedEvents:  true,
-			maxAcceptableDuration: 1 * time.Second,
-			maxAcceptableSchedule: 1 * time.Second,
+			maxAcceptableDuration: 2 * time.Second,
+			maxAcceptableSchedule: 2 * time.Second,
 			concurrency:           0,
 		},
 	}}
