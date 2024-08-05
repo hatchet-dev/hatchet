@@ -37,6 +37,8 @@ type subscribedWorker struct {
 
 	// finished is used to signal closure of a client subscribing goroutine
 	finished chan<- bool
+
+	sendMu sync.Mutex
 }
 
 func (worker *subscribedWorker) StartStepRun(
@@ -89,6 +91,9 @@ func (worker *subscribedWorker) StartStepRun(
 		action.ParentWorkflowRunId = &parentId
 	}
 
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
+
 	return worker.stream.Send(action)
 }
 
@@ -103,6 +108,9 @@ func (worker *subscribedWorker) StartGroupKeyAction(
 	inputData := getGroupKeyRun.GetGroupKeyRun.Input
 	workflowRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.WorkflowRunId)
 	getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.GetGroupKeyRun.ID)
+
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
 
 	return worker.stream.Send(&contracts.AssignedAction{
 		TenantId:         tenantId,
@@ -121,6 +129,9 @@ func (worker *subscribedWorker) CancelStepRun(
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run") // nolint:ineffassign
 	defer span.End()
+
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
 
 	return worker.stream.Send(&contracts.AssignedAction{
 		TenantId:      tenantId,
@@ -517,7 +528,8 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 
 	// Keep track of active workflow run IDs
 	activeRunIds := make(map[string]struct{})
-	var mu sync.Mutex // Mutex to protect activeRunIds
+	var mu sync.Mutex     // Mutex to protect activeRunIds
+	var sendMu sync.Mutex // Mutex to protect sending messages
 
 	f := func(task *msgqueue.Message) error {
 		wg.Add(1)
@@ -558,7 +570,9 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 		}
 
 		// send the task to the client
+		sendMu.Lock()
 		err = stream.Send(e)
+		sendMu.Unlock()
 
 		if err != nil {
 			cancel() // FIXME is this necessary?
@@ -623,6 +637,8 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 
 	wg := sync.WaitGroup{}
 
+	sendMu := sync.Mutex{}
+
 	f := func(task *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
@@ -637,7 +653,9 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 		}
 
 		// send the task to the client
+		sendMu.Lock()
 		err = stream.Send(e)
+		sendMu.Unlock()
 
 		if err != nil {
 			cancel() // FIXME is this necessary?
@@ -744,10 +762,13 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	}
 
 	wg := sync.WaitGroup{}
+	sendMu := sync.Mutex{}
 
 	sendEvent := func(e *contracts.WorkflowRunEvent) error {
 		// send the task to the client
+		sendMu.Lock()
 		err := server.Send(e)
+		sendMu.Unlock()
 
 		if err != nil {
 			cancel() // FIXME is this necessary?
