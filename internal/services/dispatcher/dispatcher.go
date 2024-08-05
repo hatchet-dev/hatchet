@@ -486,6 +486,14 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	}
 
 	if success {
+		defer d.repo.StepRun().DeferredStepRunEvent(
+			stepRun.SRID,
+			dbsqlc.StepRunEventReasonSENTTOWORKER,
+			dbsqlc.StepRunEventSeverityINFO,
+			"Sent step run to the assigned worker",
+			nil,
+		)
+
 		return nil
 	}
 
