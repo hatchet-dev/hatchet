@@ -252,7 +252,7 @@ func (p *Partition) scheduleStepRuns(ctx context.Context, tenantId string) (bool
 	queueResults, shouldContinue, err := p.repo.StepRun().QueueStepRuns(dbCtx, tenantId)
 
 	if err != nil {
-		return false, fmt.Errorf("could not list startable step runs: %w", err)
+		return false, fmt.Errorf("could not queue step runs: %w", err)
 	}
 
 	for _, queueResult := range queueResults {

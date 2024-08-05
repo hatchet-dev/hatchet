@@ -106,17 +106,23 @@ RETURNING *;
 
 -- name: ResolveWorkerSemaphoreSlots :one
 WITH to_count AS (
-    SELECT wss."id"
-    FROM "WorkerSemaphoreSlot" wss
-    JOIN "StepRun" sr ON wss."stepRunId" = sr."id"
-        AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
-        AND sr."tenantId" = @tenantId::uuid
-    ORDER BY RANDOM()
-    LIMIT 11
-    FOR UPDATE SKIP LOCKED
+    SELECT
+        wss."id"
+    FROM
+        "Worker" w
+    LEFT JOIN
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NOT NULL
+    JOIN "StepRun" sr ON wss."stepRunId" = sr."id" AND sr."status" NOT IN ('RUNNING', 'ASSIGNED') AND sr."tenantId" = @tenantId::uuid
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        -- necessary because isActive is set to false immediately when the stream closes
+        AND w."isActive" = true
+        AND w."isPaused" = false
+    LIMIT 21
 ),
 to_resolve AS (
-    SELECT * FROM to_count LIMIT 10
+    SELECT * FROM to_count LIMIT 20
 ),
 update_result AS (
     UPDATE "WorkerSemaphoreSlot" wss

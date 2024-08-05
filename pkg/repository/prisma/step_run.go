@@ -1824,10 +1824,12 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 		}
 	}
 
+	// if we're updating the status, and the status update is not updated to RUNNING,
+	// release the semaphore slot (all other state transitions should release the semaphore slot)
 	if updateParams.Status.Valid &&
-		repository.IsFinalStepRunStatus(updateParams.Status.StepRunStatus) &&
 		// the semaphore has not already been released manually
 		!updateStepRun.SemaphoreReleased &&
+		updateStepRun.Status != dbsqlc.StepRunStatusRUNNING &&
 		// we must have actually updated the status to a different state
 		string(innerStepRun.Status) != string(updateStepRun.Status) {
 
