@@ -637,7 +637,7 @@ func (jc *JobsControllerImpl) runPgStat() func() {
 	return func() {
 		s := jc.repo.Health().PgStat()
 
-		jc.l.Warn().Msg(fmt.Sprintf(
+		jc.l.Debug().Msg(fmt.Sprintf(
 			"Stat{\n"+
 				" Total Connections: %d\n"+
 				"  Constructing: %d\n"+

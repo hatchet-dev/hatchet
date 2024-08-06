@@ -674,6 +674,29 @@ WHERE
     sr."id" = input."id"
 RETURNING sr."id";
 
+-- name: GetDesiredLabels :many
+SELECT
+    "key",
+    "strValue",
+    "intValue",
+    "required",
+    "weight",
+    "comparator"
+FROM
+    "StepDesiredWorkerLabel"
+WHERE
+    "stepId" = @stepId::uuid;
+
+-- name: GetWorkerLabels :many
+SELECT
+    "key",
+    "strValue",
+    "intValue"
+FROM
+    "WorkerLabel"
+WHERE
+    "workerId" = @workerId::uuid;
+
 -- name: AcquireWorkerSemaphoreSlotAndAssign :one
 WITH valid_workers AS (
     SELECT

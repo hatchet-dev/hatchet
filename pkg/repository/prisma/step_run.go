@@ -990,6 +990,25 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		uniqueActionsArr = append(uniqueActionsArr, action)
 	}
 
+	// GET UNIQUE STEP IDS
+	stepSet := set(stepRunsToAssign, func(x *dbsqlc.ListStepRunsToAssignRow) string {
+		return sqlchelpers.UUIDToStr(x.ID)
+	})
+
+	desiredLabels := make(map[string][]*dbsqlc.GetDesiredLabelsRow)
+	hasDesired := false
+
+	// GET DESIRED LABELS
+	// OPTIMIZATION: CACHEABLE
+	for _, stepId := range stepSet {
+		labels, err := s.queries.GetDesiredLabels(ctx, tx, sqlchelpers.UUIDFromStr(stepId))
+		if err != nil {
+			return emptyRes, fmt.Errorf("could not get desired labels: %w", err)
+		}
+		desiredLabels[stepId] = labels
+		hasDesired = true
+	}
+
 	slots, err := s.queries.ListSemaphoreSlotsToAssign(ctx, tx, dbsqlc.ListSemaphoreSlotsToAssignParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Actionids: uniqueActionsArr,
@@ -999,20 +1018,46 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		return emptyRes, fmt.Errorf("could not list semaphore slots to assign: %w", err)
 	}
 
+	workerLabels := make(map[string][]*dbsqlc.GetWorkerLabelsRow)
+
+	if hasDesired {
+		// GET UNIQUE WORKER IDS
+		workerSet := set(slots, func(x *dbsqlc.ListSemaphoreSlotsToAssignRow) string {
+			return sqlchelpers.UUIDToStr(x.WorkerId)
+		})
+
+		// GET WORKER LABELS
+		for _, workerId := range workerSet {
+			labels, err := s.queries.GetWorkerLabels(ctx, tx, sqlchelpers.UUIDFromStr(workerId))
+			if err != nil {
+				return emptyRes, fmt.Errorf("could not get worker labels: %w", err)
+			}
+			workerLabels[workerId] = labels
+		}
+	}
+
+	workerWeights := computeStepToWorkerWeights(desiredLabels, workerLabels)
+
 	// NOTE(abelanger5): this is a version of the assignment problem. There is a more optimal solution i.e. optimal
 	// matching which can run in polynomial time. This is a naive approach which assigns the first steps which were
 	// queued to the first slots which are seen.
-	actionsToSlots := make(map[string]map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow)
+	actionsToSlots := make(map[string]map[string]map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow)
 	slotsToActions := make(map[string][]string)
 
 	for _, slot := range slots {
 		slotId := sqlchelpers.UUIDToStr(slot.ID)
 
 		if _, ok := actionsToSlots[slot.ActionId]; !ok {
-			actionsToSlots[slot.ActionId] = make(map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow)
+			actionsToSlots[slot.ActionId] = make(map[string]map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow)
 		}
 
-		actionsToSlots[slot.ActionId][slotId] = slot
+		workerId := sqlchelpers.UUIDToStr(slot.WorkerId)
+
+		if _, ok := actionsToSlots[slot.ActionId][workerId]; !ok {
+			actionsToSlots[slot.ActionId][workerId] = make(map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow)
+		}
+
+		actionsToSlots[slot.ActionId][workerId][slotId] = slot
 
 		if _, ok := slotsToActions[slotId]; !ok {
 			slotsToActions[slotId] = make([]string, 0)
@@ -1056,11 +1101,23 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 			continue
 		}
 
-		slot := popRandMapValue(actionsToSlots[stepRun.ActionId])
+		slot, w := pickTopSlot(
+			sqlchelpers.UUIDToStr(stepRun.StepId),
+			actionsToSlots[stepRun.ActionId],
+			workerWeights,
+		)
+		workerWeights = w // update worker weights
 
 		// delete from all other actions
-		for _, action := range slotsToActions[sqlchelpers.UUIDToStr(slot.ID)] {
-			delete(actionsToSlots[action], sqlchelpers.UUIDToStr(slot.ID))
+		if slot == nil {
+			s.l.Warn().Msgf("No slot available for step run %s", sqlchelpers.UUIDToStr(stepRun.ID))
+			continue
+		}
+
+		slotId := sqlchelpers.UUIDToStr(slot.ID)
+		s.l.Warn().Msgf("Assigning step run to slot %s", slotId)
+		for _, action := range slotsToActions[slotId] {
+			delete(actionsToSlots[action], slotId)
 		}
 
 		stepRunIds = append(stepRunIds, stepRun.ID)
@@ -1170,6 +1227,102 @@ func popRandMapValue(m map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow) *dbsqlc
 	}
 
 	return nil
+}
+
+type Weights map[string]map[string]int
+
+func set[T any](x []T, key func(x T) string) []string {
+	ids := make(map[string]struct{})
+	for _, k := range x {
+		ids[key(k)] = struct{}{}
+	}
+
+	uniqueIds := make([]string, 0, len(ids))
+	for id := range ids {
+		uniqueIds = append(uniqueIds, id)
+	}
+
+	return uniqueIds
+}
+
+func computeWeight(s []*dbsqlc.GetDesiredLabelsRow, l []*dbsqlc.GetWorkerLabelsRow) int {
+	totalWeight := 0
+
+	for _, desiredLabel := range s {
+		labelFound := false
+		for _, workerLabel := range l {
+			if desiredLabel.Key == workerLabel.Key {
+				labelFound = true
+				switch desiredLabel.Comparator {
+				case dbsqlc.WorkerLabelComparatorEQUAL:
+					if (desiredLabel.StrValue.Valid && workerLabel.StrValue.Valid && desiredLabel.StrValue.String == workerLabel.StrValue.String) ||
+						(desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && desiredLabel.IntValue.Int32 == workerLabel.IntValue.Int32) {
+						totalWeight += int(desiredLabel.Weight)
+					}
+				case dbsqlc.WorkerLabelComparatorNOTEQUAL:
+					if (desiredLabel.StrValue.Valid && workerLabel.StrValue.Valid && desiredLabel.StrValue.String != workerLabel.StrValue.String) ||
+						(desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && desiredLabel.IntValue.Int32 != workerLabel.IntValue.Int32) {
+						totalWeight += int(desiredLabel.Weight)
+					}
+				case dbsqlc.WorkerLabelComparatorGREATERTHAN:
+					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 > desiredLabel.IntValue.Int32 {
+						totalWeight += int(desiredLabel.Weight)
+					}
+				case dbsqlc.WorkerLabelComparatorLESSTHAN:
+					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 < desiredLabel.IntValue.Int32 {
+						totalWeight += int(desiredLabel.Weight)
+					}
+				case dbsqlc.WorkerLabelComparatorGREATERTHANOREQUAL:
+					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 >= desiredLabel.IntValue.Int32 {
+						totalWeight += int(desiredLabel.Weight)
+					}
+				case dbsqlc.WorkerLabelComparatorLESSTHANOREQUAL:
+					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 <= desiredLabel.IntValue.Int32 {
+						totalWeight += int(desiredLabel.Weight)
+					}
+				}
+				break // Move to the next desired label
+			}
+		}
+
+		// If the label is required but not found, return -1 to indicate an invalid match
+		if desiredLabel.Required && !labelFound {
+			return -1
+		}
+	}
+
+	return totalWeight
+}
+
+func computeStepToWorkerWeights(s map[string][]*dbsqlc.GetDesiredLabelsRow, w map[string][]*dbsqlc.GetWorkerLabelsRow) *Weights {
+	weights := make(Weights)
+
+	for workerId, worker := range w {
+		weights[workerId] = make(map[string]int)
+		for stepId, desired := range s {
+			weights[workerId][stepId] = computeWeight(desired, worker)
+		}
+	}
+
+	return &weights
+}
+
+func pickTopSlot(stepId string, slots map[string]map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow, w *Weights) (*dbsqlc.ListSemaphoreSlotsToAssignRow, *Weights) {
+	var topWorker string
+	var maxTotalWeight int
+
+	for workerId := range *w {
+		weight := (*w)[workerId][stepId]
+
+		if weight > maxTotalWeight {
+			topWorker = workerId
+			maxTotalWeight = weight
+		}
+	}
+
+	slot := popRandMapValue(slots[topWorker])
+
+	return slot, w
 }
 
 func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (string, string, error) {
