@@ -179,7 +179,7 @@ INSERT INTO "StepRunQueue" (
 )
 VALUES (
     @queue::text,
-    (SELECT max("maxAssignedBlockAddr") FROM "StepRunPtr" WHERE "tenantId" = @tenantId::uuid),
+    COALESCE((SELECT max("maxAssignedBlockAddr") FROM "StepRunPtr" WHERE "tenantId" = @tenantId::uuid), 0),
     @tenantId::uuid
 ) ON CONFLICT ("tenantId", "queue")
 DO UPDATE SET
