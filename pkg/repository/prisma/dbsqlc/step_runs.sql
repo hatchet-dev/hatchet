@@ -547,7 +547,8 @@ WITH
             "StepRun" sr
         WHERE
             "status" != 'PENDING_ASSIGNMENT' AND
-            "tenantId" = @tenantId::uuid
+            "tenantId" = @tenantId::uuid AND
+            "queueOrder" != 9223372036854775807
         ORDER BY "queueOrder" DESC
         LIMIT 1
     )
@@ -562,6 +563,8 @@ SET
     )
 FROM
     max_assigned_id
+WHERE
+    ptrs."tenantId" = @tenantId::uuid
 RETURNING ptrs.*;
 
 -- name: ListStepRunsToAssign :many

@@ -2564,7 +2564,8 @@ WITH
             "StepRun" sr
         WHERE
             "status" != 'PENDING_ASSIGNMENT' AND
-            "tenantId" = $1::uuid
+            "tenantId" = $1::uuid AND
+            "queueOrder" != 9223372036854775807
         ORDER BY "queueOrder" DESC
         LIMIT 1
     )
@@ -2579,6 +2580,8 @@ SET
     )
 FROM
     max_assigned_id
+WHERE
+    ptrs."tenantId" = $1::uuid
 RETURNING ptrs."maxAssignedBlockAddr", ptrs."tenantId"
 `
 
