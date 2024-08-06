@@ -41,13 +41,21 @@ FROM generate_series(1, sqlc.narg('maxRuns')::int);
 SELECT
     wss."id" as "slot",
     sr."id" AS "stepRunId",
-    sr."status" AS "status"
+    sr."status" AS "status",
+    s."actionId",
+    sr."timeoutAt" AS "timeoutAt",
+    sr."startedAt" AS "startedAt",
+	jr."workflowRunId" AS "workflowRunId"
 FROM
     "WorkerSemaphoreSlot" wss
 JOIN
     "Worker" w ON wss."workerId" = w."id"
 LEFT JOIN
     "StepRun" sr ON wss."stepRunId" = sr."id"
+LEFT JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+LEFT JOIN
+	"Step" s ON sr."stepId" = s."id"
 WHERE
     wss."workerId" = @workerId::uuid AND
     w."tenantId" = @tenantId::uuid
@@ -57,13 +65,28 @@ ORDER BY
 -- name: ListRecentStepRunsForWorker :many
 SELECT
     sr."id" AS "id",
-    sr."status" AS "status"
+	s."actionId",
+    sr."status" AS "status",
+    sr."createdAt" AS "createdAt",
+    sr."updatedAt" AS "updatedAt",
+    sr."finishedAt" AS "finishedAt",
+    sr."cancelledAt" AS "cancelledAt",
+    sr."timeoutAt" AS "timeoutAt",
+    sr."startedAt" AS "startedAt",
+	jr."workflowRunId" AS "workflowRunId"
 FROM
     "StepRun" sr
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+	"Step" s ON sr."stepId" = s."id"
 WHERE
     sr."workerId" = @workerId::uuid
-    AND sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
-    AND sr."tenantId" = @tenantId::uuid;
+    and sr."status" = ANY(cast(sqlc.narg('statuses')::text[] as "StepRunStatus"[]))
+    AND sr."tenantId" = @tenantId::uuid
+ORDER BY
+    sr."startedAt" DESC
+LIMIT 15;
 
 -- name: GetWorkerForEngine :one
 SELECT

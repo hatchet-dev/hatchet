@@ -26,6 +26,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import WorkerSlotGrid from './components/slot-grid';
 import { useState } from 'react';
+import { DataTable } from '@/components/molecules/data-table/data-table';
+import { columns } from './components/step-runs-columns';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -95,8 +99,10 @@ export default function ExpandedWorkflowRun() {
   const params = useParams();
   invariant(params.worker);
 
+  const [filterFailed, setFilterFailed] = useState(false);
+
   const workerQuery = useQuery({
-    ...queries.workers.get(params.worker),
+    ...queries.workers.get(params.worker, { recentFailed: filterFailed }),
     refetchInterval: 3000,
   });
 
@@ -112,7 +118,9 @@ export default function ExpandedWorkflowRun() {
       (await api.workerUpdate(worker!.metadata.id, data)).data,
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: queries.workers.get(worker!.metadata.id).queryKey,
+        queryKey: queries.workers.get(worker!.metadata.id, {
+          recentFailed: filterFailed,
+        }).queryKey,
       });
     },
     onError: handleApiError,
@@ -215,14 +223,30 @@ export default function ExpandedWorkflowRun() {
         <WorkerSlotGrid slots={worker.slots} />
 
         <Separator className="my-4" />
-        <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-          Recent Step Runs
-        </h3>
-        {/* <DataTable
+        <div className="flex flex-row justify-between">
+          <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+            Recent Step Runs
+          </h3>
+
+          <div className="flex flex-row items-center gap-2">
+            <Label htmlFor="sa" className="text-sm">
+              Filter Failed{' '}
+            </Label>
+            <Switch
+              id="sa"
+              checked={filterFailed}
+              onClick={async () => {
+                setFilterFailed((x) => !x);
+              }}
+            />
+          </div>
+        </div>
+        <DataTable
+          isLoading={workerQuery.isLoading}
           columns={columns}
           data={worker.recentStepRuns || []}
           filters={[]}
-        /> */}
+        />
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Worker Actions

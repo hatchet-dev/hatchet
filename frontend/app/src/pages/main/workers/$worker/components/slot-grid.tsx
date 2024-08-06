@@ -1,10 +1,12 @@
+import RelativeDate from '@/components/molecules/relative-date';
 import {
   Tooltip,
   TooltipProvider,
   TooltipTrigger,
+  TooltipContent,
 } from '@/components/ui/tooltip';
 import { SemaphoreSlots } from '@/lib/api';
-import { TooltipContent } from '@radix-ui/react-tooltip';
+import { Link } from 'react-router-dom';
 
 const statusColors = {
   PENDING: 'bg-yellow-500',
@@ -38,15 +40,29 @@ const WorkerSlotGrid: React.FC<WorkerSlotGridProps> = ({ slots = [] }) => {
                 <span className="sr-only">{slot.stepRunId}</span>
               </div>
             </TooltipTrigger>
-            <TooltipContent side="top" className="tooltip-content">
-              <div className="bg-white text-black p-2 rounded shadow-md">
-                <div>
-                  <strong>ID:</strong> {slot.stepRunId}
-                </div>
-                <div>
-                  <strong>Status:</strong> {slot.status || 'UNDEFINED'}
-                </div>
-              </div>
+            <TooltipContent side="top">
+              {slot.status ? (
+                <>
+                  <div>
+                    <Link to={'/workflow-runs/' + slot.workflowRunId}>
+                      <div className="pl-0 cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+                        {slot.actionId}:{slot.workflowRunId?.split('-')[0]}
+                      </div>
+                    </Link>
+                  </div>
+                  <div>
+                    <strong>Status</strong> {slot.status || 'UNDEFINED'}
+                  </div>
+                  <div>
+                    Started <RelativeDate date={slot.startedAt} />
+                  </div>
+                  <div>
+                    Timeout <RelativeDate date={slot.timeoutAt} />
+                  </div>
+                </>
+              ) : (
+                <>Waiting for run</>
+              )}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

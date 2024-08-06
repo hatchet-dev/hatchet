@@ -869,7 +869,39 @@ export interface SemaphoreSlots {
    * @format uuid
    */
   stepRunId?: string;
+  /** The action id. */
+  actionId?: string;
+  /**
+   * The time this slot was started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The time this slot will timeout.
+   * @format date-time
+   */
+  timeoutAt?: string;
+  /**
+   * The workflow run id.
+   * @format uuid
+   */
+  workflowRunId?: string;
   status?: StepRunStatus;
+}
+
+export interface RecentStepRuns {
+  metadata: APIResourceMeta;
+  /** The action id. */
+  actionId: string;
+  status: StepRunStatus;
+  /** @format date-time */
+  startedAt?: string;
+  /** @format date-time */
+  finishedAt?: string;
+  /** @format date-time */
+  cancelledAt?: string;
+  /** @format uuid */
+  workflowRunId: string;
 }
 
 export interface Worker {
@@ -892,6 +924,8 @@ export interface Worker {
   actions?: string[];
   /** The semaphore slot state for the worker. */
   slots?: SemaphoreSlots[];
+  /** The recent step runs for the worker. */
+  recentStepRuns?: RecentStepRuns[];
   /** The status of the worker. */
   status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
   /** The maximum number of runs this worker can execute concurrently. */
