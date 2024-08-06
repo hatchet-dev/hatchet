@@ -858,6 +858,20 @@ export interface WorkerList {
   rows?: Worker[];
 }
 
+export interface SemaphoreSlots {
+  /**
+   * The slot name.
+   * @format uuid
+   */
+  slot: string;
+  /**
+   * The step run id.
+   * @format uuid
+   */
+  stepRunId?: string;
+  status?: StepRunStatus;
+}
+
 export interface Worker {
   metadata: APIResourceMeta;
   /** The name of the worker. */
@@ -876,8 +890,8 @@ export interface Worker {
   lastListenerEstablished?: string;
   /** The actions this worker can perform. */
   actions?: string[];
-  /** The recent step runs for this worker. */
-  recentStepRuns?: StepRun[];
+  /** The semaphore slot state for the worker. */
+  slots?: SemaphoreSlots[];
   /** The status of the worker. */
   status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
   /** The maximum number of runs this worker can execute concurrently. */

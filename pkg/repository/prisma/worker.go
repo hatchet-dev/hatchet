@@ -51,25 +51,11 @@ func (w *workerAPIRepository) GetWorkerById(workerId string) (*db.WorkerModel, e
 	).Exec(context.Background())
 }
 
-func (w *workerAPIRepository) ListRecentWorkerStepRuns(tenantId, workerId string) ([]db.StepRunModel, error) {
-	return w.client.StepRun.FindMany(
-		db.StepRun.WorkerID.Equals(workerId),
-		db.StepRun.TenantID.Equals(tenantId),
-	).Take(10).OrderBy(
-		db.StepRun.CreatedAt.Order(db.SortOrderDesc),
-	).With(
-		db.StepRun.Children.Fetch(),
-		db.StepRun.Parents.Fetch(),
-		db.StepRun.JobRun.Fetch().With(
-			db.JobRun.WorkflowRun.Fetch(),
-		),
-		db.StepRun.Step.Fetch().With(
-			db.Step.Job.Fetch().With(
-				db.Job.Workflow.Fetch(),
-			),
-			db.Step.Action.Fetch(),
-		),
-	).Exec(context.Background())
+func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, error) {
+	return w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, dbsqlc.ListSemaphoreSlotsWithStateForWorkerParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
 }
 
 func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error) {

@@ -9,7 +9,32 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
+
+func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow) *[]gen.SemaphoreSlots {
+	resp := make([]gen.SemaphoreSlots, len(slots))
+
+	for i := range slots {
+		slot := slots[i]
+
+		slotId := uuid.MustParse(sqlchelpers.UUIDToStr(slot.Slot))
+
+		var stepRunId uuid.UUID
+
+		if slot.StepRunId.Valid {
+			stepRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.StepRunId))
+		}
+
+		resp[i] = gen.SemaphoreSlots{
+			Slot:      slotId,
+			StepRunId: &stepRunId,
+			Status:    (*gen.StepRunStatus)(&slot.Status.StepRunStatus),
+		}
+	}
+
+	return &resp
+}
 
 func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 	resp := make([]gen.WorkerLabel, len(labels))

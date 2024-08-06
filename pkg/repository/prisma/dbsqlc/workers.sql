@@ -36,6 +36,35 @@ INSERT INTO "WorkerSemaphoreSlot" ("id", "workerId")
 SELECT gen_random_uuid(), @workerId::uuid
 FROM generate_series(1, sqlc.narg('maxRuns')::int);
 
+
+-- name: ListSemaphoreSlotsWithStateForWorker :many
+SELECT
+    wss."id" as "slot",
+    sr."id" AS "stepRunId",
+    sr."status" AS "status"
+FROM
+    "WorkerSemaphoreSlot" wss
+JOIN
+    "Worker" w ON wss."workerId" = w."id"
+LEFT JOIN
+    "StepRun" sr ON wss."stepRunId" = sr."id"
+WHERE
+    wss."workerId" = @workerId::uuid AND
+    w."tenantId" = @tenantId::uuid
+ORDER BY
+    wss."id" ASC;
+
+-- name: ListRecentStepRunsForWorker :many
+SELECT
+    sr."id" AS "id",
+    sr."status" AS "status"
+FROM
+    "StepRun" sr
+WHERE
+    sr."workerId" = @workerId::uuid
+    AND sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
+    AND sr."tenantId" = @tenantId::uuid;
+
 -- name: GetWorkerForEngine :one
 SELECT
     w."id" AS "id",

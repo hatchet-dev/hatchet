@@ -178,6 +178,97 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 	return err
 }
 
+const listRecentStepRunsForWorker = `-- name: ListRecentStepRunsForWorker :many
+SELECT
+    sr."id" AS "id",
+    sr."status" AS "status"
+FROM
+    "StepRun" sr
+WHERE
+    sr."workerId" = $1::uuid
+    AND sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
+    AND sr."tenantId" = $2::uuid
+`
+
+type ListRecentStepRunsForWorkerParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+type ListRecentStepRunsForWorkerRow struct {
+	ID     pgtype.UUID   `json:"id"`
+	Status StepRunStatus `json:"status"`
+}
+
+func (q *Queries) ListRecentStepRunsForWorker(ctx context.Context, db DBTX, arg ListRecentStepRunsForWorkerParams) ([]*ListRecentStepRunsForWorkerRow, error) {
+	rows, err := db.Query(ctx, listRecentStepRunsForWorker, arg.Workerid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListRecentStepRunsForWorkerRow
+	for rows.Next() {
+		var i ListRecentStepRunsForWorkerRow
+		if err := rows.Scan(&i.ID, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
+SELECT
+    wss."id" as "slot",
+    sr."id" AS "stepRunId",
+    sr."status" AS "status"
+FROM
+    "WorkerSemaphoreSlot" wss
+JOIN
+    "Worker" w ON wss."workerId" = w."id"
+LEFT JOIN
+    "StepRun" sr ON wss."stepRunId" = sr."id"
+WHERE
+    wss."workerId" = $1::uuid AND
+    w."tenantId" = $2::uuid
+ORDER BY
+    wss."id" ASC
+`
+
+type ListSemaphoreSlotsWithStateForWorkerParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+type ListSemaphoreSlotsWithStateForWorkerRow struct {
+	Slot      pgtype.UUID       `json:"slot"`
+	StepRunId pgtype.UUID       `json:"stepRunId"`
+	Status    NullStepRunStatus `json:"status"`
+}
+
+func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {
+	rows, err := db.Query(ctx, listSemaphoreSlotsWithStateForWorker, arg.Workerid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListSemaphoreSlotsWithStateForWorkerRow
+	for rows.Next() {
+		var i ListSemaphoreSlotsWithStateForWorkerRow
+		if err := rows.Scan(&i.Slot, &i.StepRunId, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkerLabels = `-- name: ListWorkerLabels :many
 SELECT
     "id",
