@@ -1080,11 +1080,15 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	stepRunTimeouts := make([]string, 0)
 	unassignedStepRunIds := make([]pgtype.UUID, 0)
 
-	exhaustedActions := make(map[string]bool)
+	allStepRunsWithActionAssigned := make(map[string]bool)
+
+	for _, uniqueAction := range uniqueActionsArr {
+		allStepRunsWithActionAssigned[uniqueAction] = true
+	}
 
 	for _, stepRun := range stepRunsToAssign {
 		if len(actionsToSlots[stepRun.ActionId]) == 0 {
-			exhaustedActions[stepRun.ActionId] = true
+			allStepRunsWithActionAssigned[stepRun.ActionId] = false
 			unassignedStepRunIds = append(unassignedStepRunIds, stepRun.ID)
 			continue
 		}
@@ -1198,7 +1202,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 
 	// if at least one of the actions got all step runs assigned, and there are slots remaining, return true
 	for action := range uniqueActions {
-		if _, ok := exhaustedActions[action]; !ok {
+		if _, ok := allStepRunsWithActionAssigned[action]; ok {
 			// check if there are slots remaining
 			if len(actionsToSlots[action]) > 0 {
 				shouldContinue = true
