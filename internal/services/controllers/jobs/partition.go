@@ -66,24 +66,20 @@ type operation struct {
 }
 
 func (o *operation) run(l *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
-	if o.isRunning {
+	if o.getRunning() {
 		return
 	}
 
-	o.isRunning = true
-	o.shouldContinue = false
+	o.setRunning(true)
 
 	go func() {
 		defer func() {
-			o.mu.Lock()
-			defer o.mu.Unlock()
-			o.isRunning = false
+			o.setRunning(false)
 		}()
 
 		f := func() {
+			o.setContinue(false)
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
@@ -94,7 +90,11 @@ func (o *operation) run(l *zerolog.Logger, scheduler func(context.Context, strin
 				return
 			}
 
-			o.setContinue(shouldContinue)
+			// if a continue was set during execution of the scheduler, we'd like to continue no matter what.
+			// if a continue was not set, we'd like to set it to the value returned by the scheduler.
+			if !o.getContinue() {
+				o.setContinue(shouldContinue)
+			}
 		}
 
 		f()
@@ -103,6 +103,20 @@ func (o *operation) run(l *zerolog.Logger, scheduler func(context.Context, strin
 			f()
 		}
 	}()
+}
+
+func (o *operation) setRunning(isRunning bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	o.isRunning = isRunning
+}
+
+func (o *operation) getRunning() bool {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+
+	return o.isRunning
 }
 
 func (o *operation) setContinue(shouldContinue bool) {
