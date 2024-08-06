@@ -6,6 +6,9 @@ WITH active_controller_partitions AS (
         "ControllerPartition"
     WHERE
         "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+), queue_ptr AS (
+    INSERT INTO "StepRunPtr" ("tenantId")
+    VALUES (sqlc.arg('id')::uuid)
 )
 INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod")
 VALUES (
