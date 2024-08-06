@@ -85,7 +85,7 @@ WHERE
     and sr."status" = ANY(cast(sqlc.narg('statuses')::text[] as "StepRunStatus"[]))
     AND sr."tenantId" = @tenantId::uuid
 ORDER BY
-    sr."createdAt" DESC
+    sr."startedAt" DESC
 LIMIT 15;
 
 -- name: GetWorkerForEngine :one

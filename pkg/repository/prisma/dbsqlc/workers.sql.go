@@ -201,7 +201,7 @@ WHERE
     and sr."status" = ANY(cast($2::text[] as "StepRunStatus"[]))
     AND sr."tenantId" = $3::uuid
 ORDER BY
-    sr."createdAt" DESC
+    sr."startedAt" DESC
 LIMIT 15
 `
 
