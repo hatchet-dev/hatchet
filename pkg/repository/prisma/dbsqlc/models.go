@@ -382,6 +382,7 @@ const (
 	StepRunStatusSUCCEEDED         StepRunStatus = "SUCCEEDED"
 	StepRunStatusFAILED            StepRunStatus = "FAILED"
 	StepRunStatusCANCELLED         StepRunStatus = "CANCELLED"
+	StepRunStatusCANCELLING        StepRunStatus = "CANCELLING"
 )
 
 func (e *StepRunStatus) Scan(src interface{}) error {
@@ -966,6 +967,7 @@ type StepRun struct {
 	RetryCount        int32            `json:"retryCount"`
 	SemaphoreReleased bool             `json:"semaphoreReleased"`
 	Queue             string           `json:"queue"`
+	QueueOrder        int64            `json:"queueOrder"`
 }
 
 type StepRunEvent struct {
@@ -983,6 +985,18 @@ type StepRunEvent struct {
 type StepRunOrder struct {
 	A pgtype.UUID `json:"A"`
 	B pgtype.UUID `json:"B"`
+}
+
+type StepRunPtr struct {
+	MaxAssignedBlockAddr int64       `json:"maxAssignedBlockAddr"`
+	TenantId             pgtype.UUID `json:"tenantId"`
+}
+
+type StepRunQueue struct {
+	ID        int64       `json:"id"`
+	Queue     string      `json:"queue"`
+	BlockAddr int64       `json:"blockAddr"`
+	TenantId  pgtype.UUID `json:"tenantId"`
 }
 
 type StepRunResultArchive struct {

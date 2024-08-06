@@ -322,6 +322,49 @@ func (q *Queries) CreateJobRuns(ctx context.Context, db DBTX, arg CreateJobRunsP
 	return items, nil
 }
 
+const createStepRun = `-- name: CreateStepRun :exec
+INSERT INTO "StepRun" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "jobRunId",
+    "stepId",
+    "status",
+    "requeueAfter",
+    "callerFiles",
+    "queue"
+)
+SELECT
+    gen_random_uuid(),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    $2::uuid,
+    $3::uuid,
+    'PENDING', -- default status
+    CURRENT_TIMESTAMP + INTERVAL '5 seconds',
+    '{}',
+    $4::text
+`
+
+type CreateStepRunParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Jobrunid pgtype.UUID `json:"jobrunid"`
+	Stepid   pgtype.UUID `json:"stepid"`
+	Queue    pgtype.Text `json:"queue"`
+}
+
+func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunParams) error {
+	_, err := db.Exec(ctx, createStepRun,
+		arg.Tenantid,
+		arg.Jobrunid,
+		arg.Stepid,
+		arg.Queue,
+	)
+	return err
+}
+
 const createStepRuns = `-- name: CreateStepRuns :exec
 WITH job_id AS (
     SELECT "jobId"
@@ -965,6 +1008,46 @@ func (q *Queries) ListActiveQueuedWorkflowVersions(ctx context.Context, db DBTX)
 			&i.ID,
 			&i.ConcurrencyGroupId,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepsForJob = `-- name: ListStepsForJob :many
+WITH job_id AS (
+    SELECT "jobId"
+    FROM "JobRun"
+    WHERE "id" = $1::uuid
+)
+SELECT
+    s."id",
+    s."actionId"
+FROM
+    "Step" s, job_id
+WHERE
+    s."jobId" = job_id."jobId"
+`
+
+type ListStepsForJobRow struct {
+	ID       pgtype.UUID `json:"id"`
+	ActionId string      `json:"actionId"`
+}
+
+func (q *Queries) ListStepsForJob(ctx context.Context, db DBTX, jobrunid pgtype.UUID) ([]*ListStepsForJobRow, error) {
+	rows, err := db.Query(ctx, listStepsForJob, jobrunid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListStepsForJobRow
+	for rows.Next() {
+		var i ListStepsForJobRow
+		if err := rows.Scan(&i.ID, &i.ActionId); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

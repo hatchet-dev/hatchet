@@ -263,24 +263,58 @@ func (p *Partition) scheduleStepRuns(ctx context.Context, tenantId string) (bool
 	dbCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	queueResults, shouldContinue, err := p.repo.StepRun().QueueStepRuns(dbCtx, tenantId)
+	queueResults, err := p.repo.StepRun().QueueStepRuns(dbCtx, tenantId)
 
 	if err != nil {
 		return false, fmt.Errorf("could not queue step runs: %w", err)
 	}
 
-	for _, queueResult := range queueResults {
+	for _, queueResult := range queueResults.Queued {
 		// send a task to the dispatcher
-		err = p.mq.AddMessage(
+		innerErr := p.mq.AddMessage(
 			ctx,
 			msgqueue.QueueTypeFromDispatcherID(queueResult.DispatcherId),
 			stepRunAssignedTask(tenantId, queueResult.StepRunId, queueResult.WorkerId, queueResult.DispatcherId),
 		)
 
-		if err != nil {
-			err = multierror.Append(err, fmt.Errorf("could not send queued step run: %w", err))
+		if innerErr != nil {
+			err = multierror.Append(err, fmt.Errorf("could not send queued step run: %w", innerErr))
 		}
 	}
 
-	return shouldContinue, err
+	for _, toCancel := range queueResults.SchedulingTimedOut {
+		innerErr := p.mq.AddMessage(
+			ctx,
+			msgqueue.JOB_PROCESSING_QUEUE,
+			getStepRunCancelTask(
+				tenantId,
+				toCancel,
+				"SCHEDULING_TIMED_OUT",
+			),
+		)
+
+		if innerErr != nil {
+			err = multierror.Append(err, fmt.Errorf("could not send cancel step run event: %w", innerErr))
+		}
+	}
+
+	return queueResults.Continue, err
+}
+
+func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
+	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskPayload{
+		StepRunId:       stepRunId,
+		CancelledReason: reason,
+	})
+
+	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskMetadata{
+		TenantId: tenantId,
+	})
+
+	return &msgqueue.Message{
+		ID:       "step-run-cancel",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	}
 }

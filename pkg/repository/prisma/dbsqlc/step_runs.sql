@@ -171,6 +171,24 @@ WHERE
         "StepRun"."tickerId" = sqlc.narg('tickerId')::uuid
     );
 
+-- name: GetStepRunQueueOrder :one
+INSERT INTO "StepRunQueue" (
+    "queue",
+    "blockAddr",
+    "tenantId"
+)
+VALUES (
+    @queue::text,
+    (SELECT max("maxAssignedBlockAddr") FROM "StepRunPtr" WHERE "tenantId" = @tenantId::uuid),
+    @tenantId::uuid
+) ON CONFLICT ("tenantId", "queue")
+DO UPDATE SET
+    "blockAddr" = GREATEST(
+        "StepRunQueue"."blockAddr" + 1,
+        (SELECT max("maxAssignedBlockAddr") FROM "StepRunPtr" WHERE "tenantId" = @tenantId::uuid)
+    )
+RETURNING "id" + 1024 * "blockAddr" as "queueOrder";
+
 -- name: UpdateStepRun :one
 UPDATE
     "StepRun"
@@ -215,6 +233,7 @@ SET
         WHEN sqlc.narg('rerun')::boolean THEN NULL
         ELSE COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
     END,
+    "queueOrder" = COALESCE(sqlc.narg('queueOrder')::int, "queueOrder"),
     "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount"),
     "semaphoreReleased" = COALESCE(sqlc.narg('semaphoreReleased')::boolean, "semaphoreReleased")
 WHERE
@@ -519,34 +538,53 @@ WHERE
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "id" = @workerId::uuid;
 
+-- name: UpdateStepRunPtrs :one
+WITH
+    max_assigned_id AS (
+        SELECT
+            "queueOrder" qo
+        FROM
+            "StepRun" sr
+        WHERE
+            "status" != 'PENDING_ASSIGNMENT' AND
+            "tenantId" = @tenantId::uuid
+        ORDER BY "queueOrder" DESC
+        LIMIT 1
+    )
+UPDATE "StepRunPtr" ptrs
+SET
+    "maxAssignedBlockAddr" = COALESCE(
+        FLOOR((SELECT qo FROM max_assigned_id)::decimal / 1024),
+        COALESCE(
+            (SELECT MAX("blockAddr") FROM "StepRunQueue" WHERE "tenantId" = @tenantId::uuid),
+            0
+        )
+    )
+FROM
+    max_assigned_id
+RETURNING ptrs.*;
+
 -- name: ListStepRunsToAssign :many
-WITH step_runs AS (
-    SELECT
-        sr."id",
-        sr."createdAt",
-        row_number() OVER (PARTITION BY s."actionId" ORDER BY sr."createdAt" ASC) AS group_rn,
-        s."actionId",
-        s."timeout" AS "stepTimeout"
-    FROM
-        "StepRun" sr
-    JOIN
-        "Step" s ON sr."stepId" = s."id"
-    WHERE
-        sr."status" = 'PENDING_ASSIGNMENT'
-        AND sr."tenantId" = @tenantId::uuid
-        AND sr."deletedAt" IS NULL
-    ORDER BY
-        group_rn, sr."createdAt" ASC
-    LIMIT
-        1000
-)
 SELECT
     sr."id",
-    sr."actionId",
-    sr."group_rn",
-    sr."stepTimeout"
+    sr."createdAt",
+    sr."scheduleTimeoutAt",
+    sr."queueOrder",
+    s."id" AS "stepId",
+    s."actionId",
+    s."timeout" AS "stepTimeout"
 FROM
-    step_runs sr
+    "StepRun" sr
+JOIN
+    "Step" s ON sr."stepId" = s."id"
+WHERE
+    sr."status" = 'PENDING_ASSIGNMENT'
+    AND sr."tenantId" = @tenantId::uuid
+    AND sr."deletedAt" IS NULL
+ORDER BY
+    sr."queueOrder" ASC
+LIMIT
+    1000
 FOR UPDATE SKIP LOCKED;
 
 -- name: ListSemaphoreSlotsToAssign :many
@@ -621,6 +659,20 @@ FROM (
 WHERE
     wss."id" = input."id"
 RETURNING wss."id";
+
+-- name: BulkMarkStepRunsAsCancelling :many
+UPDATE
+    "StepRun" sr
+SET
+    "status" = 'CANCELLING',
+    "updatedAt" = CURRENT_TIMESTAMP
+FROM (
+    SELECT
+        unnest(@stepRunIds::uuid[]) AS "id"
+    ) AS input
+WHERE
+    sr."id" = input."id"
+RETURNING sr."id";
 
 -- name: AcquireWorkerSemaphoreSlotAndAssign :one
 WITH valid_workers AS (

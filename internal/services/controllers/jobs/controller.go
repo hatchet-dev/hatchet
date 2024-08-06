@@ -295,8 +295,8 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 		return ec.handleStepRunFinished(ctx, task)
 	case "step-run-failed":
 		return ec.handleStepRunFailed(ctx, task)
-	case "step-run-cancelled":
-		return ec.handleStepRunCancelled(ctx, task)
+	case "step-run-cancel":
+		return ec.handleStepRunCancel(ctx, task)
 	case "step-run-timed-out":
 		return ec.handleStepRunTimedOut(ctx, task)
 	}
@@ -1302,12 +1302,12 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *m
 	return ec.failStepRun(ctx, metadata.TenantId, payload.StepRunId, "TIMED_OUT", time.Now().UTC())
 }
 
-func (ec *JobsControllerImpl) handleStepRunCancelled(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-cancelled")
+func (ec *JobsControllerImpl) handleStepRunCancel(ctx context.Context, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-cancel")
 	defer span.End()
 
-	payload := tasktypes.StepRunNotifyCancelTaskPayload{}
-	metadata := tasktypes.StepRunNotifyCancelTaskMetadata{}
+	payload := tasktypes.StepRunCancelTaskPayload{}
+	metadata := tasktypes.StepRunCancelTaskMetadata{}
 
 	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
 

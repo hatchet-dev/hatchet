@@ -945,15 +945,21 @@ type debugInfo struct {
 	EndingSlotsPerAction   map[string]int `json:"ending_slots"`
 }
 
-func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId string) ([]repository.QueueStepRunResult, bool, error) {
+func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId string) (repository.QueueStepRunsResult, error) {
+	emptyRes := repository.QueueStepRunsResult{
+		Queued:             []repository.QueuedStepRun{},
+		SchedulingTimedOut: []string{},
+		Continue:           false,
+	}
+
 	if ctx.Err() != nil {
-		return nil, false, ctx.Err()
+		return emptyRes, ctx.Err()
 	}
 
 	tx, err := s.pool.Begin(ctx)
 
 	if err != nil {
-		return nil, false, err
+		return emptyRes, err
 	}
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
@@ -961,11 +967,14 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	stepRunsToAssign, err := s.queries.ListStepRunsToAssign(ctx, tx, sqlchelpers.UUIDFromStr(tenantId))
 
 	if err != nil {
-		return nil, false, fmt.Errorf("could not list step runs to assign: %w", err)
+		return emptyRes, fmt.Errorf("could not list step runs to assign: %w", err)
 	}
 
+	queuedStepRuns := make([]repository.QueuedStepRun, 0)
+	timedOutStepRuns := make([]pgtype.UUID, 0)
+
 	if len(stepRunsToAssign) == 0 {
-		return []repository.QueueStepRunResult{}, false, nil
+		return emptyRes, nil
 	}
 
 	// get a list of unique actions
@@ -987,7 +996,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	})
 
 	if err != nil {
-		return nil, false, fmt.Errorf("could not list semaphore slots to assign: %w", err)
+		return emptyRes, fmt.Errorf("could not list semaphore slots to assign: %w", err)
 	}
 
 	// NOTE(abelanger5): this is a version of the assignment problem. There is a more optimal solution i.e. optimal
@@ -1026,14 +1035,24 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	stepRunTimeouts := make([]string, 0)
 	unassignedStepRunIds := make([]pgtype.UUID, 0)
 
-	res := make([]repository.QueueStepRunResult, 0)
-
 	exhaustedActions := make(map[string]bool)
 
 	for _, stepRun := range stepRunsToAssign {
 		if len(actionsToSlots[stepRun.ActionId]) == 0 {
 			exhaustedActions[stepRun.ActionId] = true
 			unassignedStepRunIds = append(unassignedStepRunIds, stepRun.ID)
+			continue
+		}
+
+		// if the current time is after the scheduleTimeoutAt, then mark this as timed out
+		now := time.Now().UTC().UTC()
+		scheduleTimeoutAt := stepRun.ScheduleTimeoutAt.Time
+
+		// timed out if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
+		isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
+
+		if isTimedOut {
+			timedOutStepRuns = append(timedOutStepRuns, stepRun.ID)
 			continue
 		}
 
@@ -1049,7 +1068,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		slotIds = append(slotIds, slot.ID)
 		workerIds = append(workerIds, slot.WorkerId)
 
-		res = append(res, repository.QueueStepRunResult{
+		queuedStepRuns = append(queuedStepRuns, repository.QueuedStepRun{
 			StepRunId:    sqlchelpers.UUIDToStr(stepRun.ID),
 			WorkerId:     sqlchelpers.UUIDToStr(slot.WorkerId),
 			DispatcherId: sqlchelpers.UUIDToStr(slot.DispatcherId),
@@ -1064,7 +1083,22 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	})
 
 	if err != nil {
-		return nil, false, fmt.Errorf("could not bulk assign step runs to workers: %w", err)
+		return emptyRes, fmt.Errorf("could not bulk assign step runs to workers: %w", err)
+	}
+
+	// if there are step runs to place in a cancelling state, do so
+	if len(timedOutStepRuns) > 0 {
+		_, err = s.queries.BulkMarkStepRunsAsCancelling(ctx, tx, timedOutStepRuns)
+
+		if err != nil {
+			return emptyRes, fmt.Errorf("could not bulk mark step runs as cancelling: %w", err)
+		}
+	}
+
+	_, err = s.queries.UpdateStepRunPtrs(ctx, tx, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return emptyRes, err
 	}
 
 	err = tx.Commit(ctx)
@@ -1073,7 +1107,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	defer s.bulkStepRunsUnassigned(unassignedStepRunIds)
 
 	if err != nil {
-		return nil, false, fmt.Errorf("could not commit transaction: %w", err)
+		return emptyRes, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
 	// print debug information
@@ -1103,17 +1137,30 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		s.l.Warn().Msg(string(debugInfoBytes))
 	}()
 
+	shouldContinue := false
+
 	// if at least one of the actions got all step runs assigned, and there are slots remaining, return true
 	for action := range uniqueActions {
 		if _, ok := exhaustedActions[action]; !ok {
 			// check if there are slots remaining
 			if len(actionsToSlots[action]) > 0 {
-				return res, true, nil
+				shouldContinue = true
+				break
 			}
 		}
 	}
 
-	return res, false, nil
+	timedOutStepRunsStr := make([]string, len(timedOutStepRuns))
+
+	for i, id := range timedOutStepRuns {
+		timedOutStepRunsStr[i] = sqlchelpers.UUIDToStr(id)
+	}
+
+	return repository.QueueStepRunsResult{
+		Queued:             queuedStepRuns,
+		SchedulingTimedOut: timedOutStepRunsStr,
+		Continue:           shouldContinue,
+	}, nil
 }
 
 func popRandMapValue(m map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow) *dbsqlc.ListSemaphoreSlotsToAssignRow {
@@ -1833,6 +1880,29 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 ) (*dbsqlc.GetStepRunForEngineRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "update-step-run-core") // nolint:ineffassign
 	defer span.End()
+
+	// if the status is set to pending assignment (and was not previously), update the queue order
+	if updateParams.Status.Valid &&
+		innerStepRun.Status != dbsqlc.StepRunStatusPENDINGASSIGNMENT &&
+		updateParams.Status.StepRunStatus == dbsqlc.StepRunStatusPENDINGASSIGNMENT {
+		queueOrder, err := s.queries.GetStepRunQueueOrder(
+			ctx,
+			tx,
+			dbsqlc.GetStepRunQueueOrderParams{
+				Queue:    innerStepRun.Queue,
+				Tenantid: updateParams.Tenantid,
+			},
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		updateParams.QueueOrder = pgtype.Int4{
+			Int32: queueOrder,
+			Valid: true,
+		}
+	}
 
 	updateStepRun, err := s.queries.UpdateStepRun(ctx, tx, updateParams)
 

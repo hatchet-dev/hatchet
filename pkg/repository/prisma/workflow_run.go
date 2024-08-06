@@ -871,17 +871,32 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 				return nil, err
 			}
 
-			err = queries.CreateStepRuns(
+			// list steps for the job
+			steps, err := queries.ListStepsForJob(
 				tx1Ctx,
 				tx,
-				dbsqlc.CreateStepRunsParams{
-					Jobrunid: jobRunId,
-					Tenantid: pgTenantId,
-				},
+				jobRunId,
 			)
 
 			if err != nil {
 				return nil, err
+			}
+
+			for _, step := range steps {
+				err = queries.CreateStepRun(
+					tx1Ctx,
+					tx,
+					dbsqlc.CreateStepRunParams{
+						Tenantid: createParams.Tenantid,
+						Jobrunid: jobRunId,
+						Stepid:   step.ID,
+						Queue:    sqlchelpers.TextFromStr(step.ActionId),
+					},
+				)
+
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			// link all step runs with correct parents/children

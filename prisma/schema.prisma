@@ -1150,11 +1150,26 @@ enum StepRunStatus {
 
   // running states
   RUNNING
+  CANCELLING
 
   // final states
   SUCCEEDED
   FAILED
   CANCELLED
+}
+
+model StepRunQueue {
+  id        BigInt @id @default(autoincrement()) @db.BigInt
+  queue     String
+  blockAddr BigInt
+  tenantId  String @db.Uuid
+
+  @@unique([tenantId, queue])
+}
+
+model StepRunPtr {
+  maxAssignedBlockAddr BigInt @default(0) @db.BigInt
+  tenantId             String @id @unique @db.Uuid
 }
 
 model StepRun {
@@ -1184,7 +1199,8 @@ model StepRun {
 
   order BigInt @default(autoincrement()) @db.BigInt
 
-  queue String @default("default")
+  queue      String @default("default")
+  queueOrder BigInt @default(0) @db.BigInt
 
   // the worker assigned to this job
   worker   Worker? @relation(fields: [workerId], references: [id])
@@ -1273,8 +1289,8 @@ model StepRun {
   // index for PollStepRuns
   @@index([tenantId, status, timeoutAt])
   @@index([deletedAt])
-  // TODO: verify that this index is useful
-  @@index([queue, createdAt])
+  // index for ListStepRunsToAssign
+  @@index([status, tenantId, deletedAt, queueOrder])
 }
 
 enum StepRunEventReason {

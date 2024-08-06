@@ -639,6 +639,45 @@ INSERT INTO "JobRunLookupData" (
     )
 ) RETURNING *;
 
+-- name: CreateStepRun :exec
+INSERT INTO "StepRun" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "jobRunId",
+    "stepId",
+    "status",
+    "requeueAfter",
+    "callerFiles",
+    "queue"
+)
+SELECT
+    gen_random_uuid(),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @tenantId::uuid,
+    @jobRunId::uuid,
+    @stepId::uuid,
+    'PENDING', -- default status
+    CURRENT_TIMESTAMP + INTERVAL '5 seconds',
+    '{}',
+    sqlc.narg('queue')::text;
+
+-- name: ListStepsForJob :many
+WITH job_id AS (
+    SELECT "jobId"
+    FROM "JobRun"
+    WHERE "id" = @jobRunId::uuid
+)
+SELECT
+    s."id",
+    s."actionId"
+FROM
+    "Step" s, job_id
+WHERE
+    s."jobId" = job_id."jobId";
+
 -- name: CreateStepRuns :exec
 WITH job_id AS (
     SELECT "jobId"

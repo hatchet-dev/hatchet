@@ -148,10 +148,16 @@ type StepRunAPIRepository interface {
 	ListStepRunArchives(tenantId, stepRunId string, opts *ListStepRunArchivesOpts) (*ListStepRunArchivesResult, error)
 }
 
-type QueueStepRunResult struct {
+type QueuedStepRun struct {
 	StepRunId    string
 	WorkerId     string
 	DispatcherId string
+}
+
+type QueueStepRunsResult struct {
+	Queued             []QueuedStepRun
+	SchedulingTimedOut []string
+	Continue           bool
 }
 
 type StepRunEngineRepository interface {
@@ -199,7 +205,7 @@ type StepRunEngineRepository interface {
 	// a pending state.
 	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
 
-	QueueStepRuns(ctx context.Context, tenantId string) ([]QueueStepRunResult, bool, error)
+	QueueStepRuns(ctx context.Context, tenantId string) (QueueStepRunsResult, error)
 
 	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
