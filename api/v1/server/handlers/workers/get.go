@@ -11,26 +11,27 @@ import (
 func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
 	worker := ctx.Get("worker").(*db.WorkerModel)
 
-	slotState, err := t.config.APIRepository.Worker().ListWorkerState(worker.TenantID, worker.ID)
+	slotState, recent, err := t.config.APIRepository.Worker().ListWorkerState(worker.TenantID, worker.ID)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// respStepRuns := make([]gen.StepRun, len(stepRuns))
+	respStepRuns := make([]gen.RecentStepRuns, len(recent))
 
-	// for i := range stepRuns {
-	// 	genStepRun, err := transformers.ToStepRun(&stepRuns[i])
+	for i := range recent {
+		genStepRun, err := transformers.ToRecentStepRun(recent[i])
 
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
+		if err != nil {
+			return nil, err
+		}
 
-	// 	respStepRuns[i] = *genStepRun
-	// }
+		respStepRuns[i] = *genStepRun
+	}
 
 	workerResp := *transformers.ToWorker(worker)
 
+	workerResp.RecentStepRuns = &respStepRuns
 	workerResp.Slots = transformers.ToSlotState(slotState)
 
 	affinity, err := t.config.APIRepository.Worker().ListWorkerLabels(worker.TenantID, worker.ID)

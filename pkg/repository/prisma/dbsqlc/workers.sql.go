@@ -181,13 +181,28 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 const listRecentStepRunsForWorker = `-- name: ListRecentStepRunsForWorker :many
 SELECT
     sr."id" AS "id",
-    sr."status" AS "status"
+	s."actionId",
+    sr."status" AS "status",
+    sr."createdAt" AS "createdAt",
+    sr."updatedAt" AS "updatedAt",
+    sr."finishedAt" AS "finishedAt",
+    sr."cancelledAt" AS "cancelledAt",
+    sr."timeoutAt" AS "timeoutAt",
+    sr."startedAt" AS "startedAt",
+	jr."workflowRunId" AS "workflowRunId"
 FROM
     "StepRun" sr
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+	"Step" s ON sr."stepId" = s."id"
 WHERE
     sr."workerId" = $1::uuid
     AND sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
     AND sr."tenantId" = $2::uuid
+ORDER BY
+    sr."createdAt" DESC
+LIMIT 15
 `
 
 type ListRecentStepRunsForWorkerParams struct {
@@ -196,8 +211,16 @@ type ListRecentStepRunsForWorkerParams struct {
 }
 
 type ListRecentStepRunsForWorkerRow struct {
-	ID     pgtype.UUID   `json:"id"`
-	Status StepRunStatus `json:"status"`
+	ID            pgtype.UUID      `json:"id"`
+	ActionId      string           `json:"actionId"`
+	Status        StepRunStatus    `json:"status"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	FinishedAt    pgtype.Timestamp `json:"finishedAt"`
+	CancelledAt   pgtype.Timestamp `json:"cancelledAt"`
+	TimeoutAt     pgtype.Timestamp `json:"timeoutAt"`
+	StartedAt     pgtype.Timestamp `json:"startedAt"`
+	WorkflowRunId pgtype.UUID      `json:"workflowRunId"`
 }
 
 func (q *Queries) ListRecentStepRunsForWorker(ctx context.Context, db DBTX, arg ListRecentStepRunsForWorkerParams) ([]*ListRecentStepRunsForWorkerRow, error) {
@@ -209,7 +232,18 @@ func (q *Queries) ListRecentStepRunsForWorker(ctx context.Context, db DBTX, arg 
 	var items []*ListRecentStepRunsForWorkerRow
 	for rows.Next() {
 		var i ListRecentStepRunsForWorkerRow
-		if err := rows.Scan(&i.ID, &i.Status); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.ActionId,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.FinishedAt,
+			&i.CancelledAt,
+			&i.TimeoutAt,
+			&i.StartedAt,
+			&i.WorkflowRunId,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -224,13 +258,21 @@ const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithSta
 SELECT
     wss."id" as "slot",
     sr."id" AS "stepRunId",
-    sr."status" AS "status"
+    sr."status" AS "status",
+    s."actionId",
+    sr."timeoutAt" AS "timeoutAt",
+    sr."startedAt" AS "startedAt",
+	jr."workflowRunId" AS "workflowRunId"
 FROM
     "WorkerSemaphoreSlot" wss
 JOIN
     "Worker" w ON wss."workerId" = w."id"
 LEFT JOIN
     "StepRun" sr ON wss."stepRunId" = sr."id"
+LEFT JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+LEFT JOIN
+	"Step" s ON sr."stepId" = s."id"
 WHERE
     wss."workerId" = $1::uuid AND
     w."tenantId" = $2::uuid
@@ -244,9 +286,13 @@ type ListSemaphoreSlotsWithStateForWorkerParams struct {
 }
 
 type ListSemaphoreSlotsWithStateForWorkerRow struct {
-	Slot      pgtype.UUID       `json:"slot"`
-	StepRunId pgtype.UUID       `json:"stepRunId"`
-	Status    NullStepRunStatus `json:"status"`
+	Slot          pgtype.UUID       `json:"slot"`
+	StepRunId     pgtype.UUID       `json:"stepRunId"`
+	Status        NullStepRunStatus `json:"status"`
+	ActionId      pgtype.Text       `json:"actionId"`
+	TimeoutAt     pgtype.Timestamp  `json:"timeoutAt"`
+	StartedAt     pgtype.Timestamp  `json:"startedAt"`
+	WorkflowRunId pgtype.UUID       `json:"workflowRunId"`
 }
 
 func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {
@@ -258,7 +304,15 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 	var items []*ListSemaphoreSlotsWithStateForWorkerRow
 	for rows.Next() {
 		var i ListSemaphoreSlotsWithStateForWorkerRow
-		if err := rows.Scan(&i.Slot, &i.StepRunId, &i.Status); err != nil {
+		if err := rows.Scan(
+			&i.Slot,
+			&i.StepRunId,
+			&i.Status,
+			&i.ActionId,
+			&i.TimeoutAt,
+			&i.StartedAt,
+			&i.WorkflowRunId,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

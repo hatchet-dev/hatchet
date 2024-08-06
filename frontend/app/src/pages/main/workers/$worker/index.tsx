@@ -26,6 +26,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import WorkerSlotGrid from './components/slot-grid';
 import { useState } from 'react';
+import { DataTable } from '@/components/molecules/data-table/data-table';
+import { columns } from './components/step-runs-columns';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -218,11 +220,11 @@ export default function ExpandedWorkflowRun() {
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Recent Step Runs
         </h3>
-        {/* <DataTable
+        <DataTable
           columns={columns}
           data={worker.recentStepRuns || []}
           filters={[]}
-        /> */}
+        />
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Worker Actions

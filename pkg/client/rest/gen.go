@@ -484,6 +484,18 @@ type QueueMetrics struct {
 	NumRunning int `json:"numRunning"`
 }
 
+// RecentStepRuns defines model for RecentStepRuns.
+type RecentStepRuns struct {
+	// ActionId The action id.
+	ActionId      string             `json:"actionId"`
+	CancelledAt   *time.Time         `json:"cancelledAt,omitempty"`
+	FinishedAt    *time.Time         `json:"finishedAt,omitempty"`
+	Metadata      APIResourceMeta    `json:"metadata"`
+	StartedAt     *time.Time         `json:"startedAt,omitempty"`
+	Status        StepRunStatus      `json:"status"`
+	WorkflowRunId openapi_types.UUID `json:"workflowRunId"`
+}
+
 // RejectInviteRequest defines model for RejectInviteRequest.
 type RejectInviteRequest struct {
 	Invite string `json:"invite" validate:"required,uuid"`
@@ -524,12 +536,24 @@ type SNSIntegration struct {
 
 // SemaphoreSlots defines model for SemaphoreSlots.
 type SemaphoreSlots struct {
+	// ActionId The action id.
+	ActionId *string `json:"actionId,omitempty"`
+
 	// Slot The slot name.
-	Slot   openapi_types.UUID `json:"slot"`
-	Status *StepRunStatus     `json:"status,omitempty"`
+	Slot openapi_types.UUID `json:"slot"`
+
+	// StartedAt The time this slot was started.
+	StartedAt *time.Time     `json:"startedAt,omitempty"`
+	Status    *StepRunStatus `json:"status,omitempty"`
 
 	// StepRunId The step run id.
 	StepRunId *openapi_types.UUID `json:"stepRunId,omitempty"`
+
+	// TimeoutAt The time this slot will timeout.
+	TimeoutAt *time.Time `json:"timeoutAt,omitempty"`
+
+	// WorkflowRunId The workflow run id.
+	WorkflowRunId *openapi_types.UUID `json:"workflowRunId,omitempty"`
 }
 
 // SlackWebhook defines model for SlackWebhook.
@@ -957,6 +981,9 @@ type Worker struct {
 
 	// Name The name of the worker.
 	Name string `json:"name"`
+
+	// RecentStepRuns The recent step runs for the worker.
+	RecentStepRuns *[]RecentStepRuns `json:"recentStepRuns,omitempty"`
 
 	// Slots The semaphore slot state for the worker.
 	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
