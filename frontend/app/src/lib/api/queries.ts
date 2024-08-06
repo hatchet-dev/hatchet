@@ -236,7 +236,7 @@ export const queries = createQueryKeyStore({
         recentFailed: boolean;
       },
     ) => ({
-      queryKey: ['worker:get', worker],
+      queryKey: ['worker:get', worker, query.recentFailed],
       queryFn: async () => (await api.workerGet(worker, query)).data,
     }),
   },

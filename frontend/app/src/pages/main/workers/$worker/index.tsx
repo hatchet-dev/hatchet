@@ -99,7 +99,6 @@ export default function ExpandedWorkflowRun() {
   const params = useParams();
   invariant(params.worker);
 
-  const [filterChanged, setFilterChanged] = useState(false);
   const [filterFailed, setFilterFailed] = useState(false);
 
   const workerQuery = useQuery({
@@ -238,15 +237,12 @@ export default function ExpandedWorkflowRun() {
               checked={filterFailed}
               onClick={async () => {
                 setFilterFailed((x) => !x);
-                setFilterChanged(true);
-                await workerQuery.refetch();
-                setFilterChanged(false);
               }}
             />
           </div>
         </div>
         <DataTable
-          isLoading={workerQuery.isLoading || filterChanged}
+          isLoading={workerQuery.isLoading}
           columns={columns}
           data={worker.recentStepRuns || []}
           filters={[]}
