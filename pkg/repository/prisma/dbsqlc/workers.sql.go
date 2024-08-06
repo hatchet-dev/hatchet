@@ -615,22 +615,13 @@ func (q *Queries) UpdateWorkerActiveStatus(ctx context.Context, db DBTX, arg Upd
 }
 
 const updateWorkerHeartbeat = `-- name: UpdateWorkerHeartbeat :one
-WITH to_update AS (
-    SELECT
-        "id"
-    FROM
-        "Worker"
-    WHERE
-        "id" = $2::uuid
-    FOR UPDATE SKIP LOCKED
-)
 UPDATE
     "Worker"
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "lastHeartbeatAt" = $1::timestamp
 WHERE
-    "id" IN (SELECT "id" FROM to_update)
+    "id" = $2::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused"
 `
 

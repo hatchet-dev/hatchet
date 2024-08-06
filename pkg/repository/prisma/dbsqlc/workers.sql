@@ -124,22 +124,13 @@ INSERT INTO "Worker" (
 ) RETURNING *;
 
 -- name: UpdateWorkerHeartbeat :one
-WITH to_update AS (
-    SELECT
-        "id"
-    FROM
-        "Worker"
-    WHERE
-        "id" = @id::uuid
-    FOR UPDATE SKIP LOCKED
-)
 UPDATE
     "Worker"
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "lastHeartbeatAt" = sqlc.narg('lastHeartbeatAt')::timestamp
 WHERE
-    "id" IN (SELECT "id" FROM to_update)
+    "id" = @id::uuid
 RETURNING *;
 
 -- name: UpdateWorker :one
