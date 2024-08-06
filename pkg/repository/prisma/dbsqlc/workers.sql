@@ -82,7 +82,7 @@ JOIN
 	"Step" s ON sr."stepId" = s."id"
 WHERE
     sr."workerId" = @workerId::uuid
-    AND sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
+    and sr."status" = ANY(cast(sqlc.narg('statuses')::text[] as "StepRunStatus"[]))
     AND sr."tenantId" = @tenantId::uuid
 ORDER BY
     sr."createdAt" DESC

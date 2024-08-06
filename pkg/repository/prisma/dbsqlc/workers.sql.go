@@ -198,8 +198,8 @@ JOIN
 	"Step" s ON sr."stepId" = s."id"
 WHERE
     sr."workerId" = $1::uuid
-    AND sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
-    AND sr."tenantId" = $2::uuid
+    and sr."status" = ANY(cast($2::text[] as "StepRunStatus"[]))
+    AND sr."tenantId" = $3::uuid
 ORDER BY
     sr."createdAt" DESC
 LIMIT 15
@@ -207,6 +207,7 @@ LIMIT 15
 
 type ListRecentStepRunsForWorkerParams struct {
 	Workerid pgtype.UUID `json:"workerid"`
+	Statuses []string    `json:"statuses"`
 	Tenantid pgtype.UUID `json:"tenantid"`
 }
 
@@ -224,7 +225,7 @@ type ListRecentStepRunsForWorkerRow struct {
 }
 
 func (q *Queries) ListRecentStepRunsForWorker(ctx context.Context, db DBTX, arg ListRecentStepRunsForWorkerParams) ([]*ListRecentStepRunsForWorkerRow, error) {
-	rows, err := db.Query(ctx, listRecentStepRunsForWorker, arg.Workerid, arg.Tenantid)
+	rows, err := db.Query(ctx, listRecentStepRunsForWorker, arg.Workerid, arg.Statuses, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}

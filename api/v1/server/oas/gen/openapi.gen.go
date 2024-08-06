@@ -1332,6 +1332,12 @@ type WorkflowRunGetMetricsParams struct {
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
+// WorkerGetParams defines parameters for WorkerGet.
+type WorkerGetParams struct {
+	// RecentFailed Filter recent by failed
+	RecentFailed *bool `form:"recentFailed,omitempty" json:"recentFailed,omitempty"`
+}
+
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
 type WorkflowGetMetricsParams struct {
 	// Status A status of workflow run statuses to filter by
@@ -1624,7 +1630,7 @@ type ServerInterface interface {
 	WebhookDelete(ctx echo.Context, webhook openapi_types.UUID) error
 	// Get worker
 	// (GET /api/v1/workers/{worker})
-	WorkerGet(ctx echo.Context, worker openapi_types.UUID) error
+	WorkerGet(ctx echo.Context, worker openapi_types.UUID, params WorkerGetParams) error
 	// Update worker
 	// (PATCH /api/v1/workers/{worker})
 	WorkerUpdate(ctx echo.Context, worker openapi_types.UUID) error
@@ -3138,8 +3144,17 @@ func (w *ServerInterfaceWrapper) WorkerGet(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params WorkerGetParams
+	// ------------- Optional query parameter "recentFailed" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "recentFailed", ctx.QueryParams(), &params.RecentFailed)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter recentFailed: %s", err))
+	}
+
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.WorkerGet(ctx, worker)
+	err = w.Handler.WorkerGet(ctx, worker, params)
 	return err
 }
 
@@ -5835,6 +5850,7 @@ func (response WebhookDelete405JSONResponse) VisitWebhookDeleteResponse(w http.R
 
 type WorkerGetRequestObject struct {
 	Worker openapi_types.UUID `json:"worker"`
+	Params WorkerGetParams
 }
 
 type WorkerGetResponseObject interface {
@@ -8120,10 +8136,11 @@ func (sh *strictHandler) WebhookDelete(ctx echo.Context, webhook openapi_types.U
 }
 
 // WorkerGet operation middleware
-func (sh *strictHandler) WorkerGet(ctx echo.Context, worker openapi_types.UUID) error {
+func (sh *strictHandler) WorkerGet(ctx echo.Context, worker openapi_types.UUID, params WorkerGetParams) error {
 	var request WorkerGetRequestObject
 
 	request.Worker = worker
+	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkerGet(ctx, request.(WorkerGetRequestObject))
@@ -8516,16 +8533,16 @@ var swaggerSpec = []string{
 	"btcg/eUZ1k3EJ22UwM2Ttr8P6Sjq7kTL3Il0DDaTZAowfkyy0C5LxbNxXJJ6sn2dSL2WY25OxzibgXiq",
 	"JtolZSNgkIUKUZ04f0PinJNVmdIdmCiDUyrIsrpLH2+BazWSM/2h6U2wjQRjlxhGIq9zc70JPV2SkKvO",
 	"w19A2ISHoXgHYTcdDA2ipqXHYaHe0ME38YPjK+MNhVPc35OUhXas+ZJqoi1nhDk+r9iVGdnBMiPqjcWm",
-	"MiM9RV9l5lBMwf5wyXQ2XJx4rQfHjGY+Rm3a8JbfLl13YZElgp527OjemYoiLQqK9CTpND6Z30TI7o/k",
-	"7wQtb+oFeo4MhzIgVKfZ/ovzjrymvzXfcVpsftp+FWZbOE1sNTQOWNJrY11YnhrLw9X1QMf9hqj1ARvd",
-	"kWW/l9oVRVDwtZbfy2FcpVprGUcMs13B1i0VbP2i4z52eUa22KTWJXHqKmoUiSiKkd3e5FeAOSWdtLhA",
-	"FRkU9Vy7/YfvXa9QEsCOm3bjbXqNYpYpQ8NUTZfCUE6c0OL+tHtssP4skiXPrE67Mx8Ty5N4w5nglKJI",
-	"d6ici7j4Rn0dW7RISdwF7jCkivEE9TXkuC+f4W4GjD2fzRLXChDkRllBYZ1+g88lYF5DRqyYZSZIr0s0",
-	"25VjuaTXzhXXb0hwkQxNp3XOxxvewANeDB+XK/PoXlh9JyXXjYFd9r3BhN1McE6pA4Y9xlURIBATxVMI",
-	"exPI3gGzpTcXgn/HzWGCDLRdbfOE0kK5w+0ayFyrV5bqyXe1K19XJO5c/V0pBxsqdzY9ENNCNAvZgF0r",
-	"70qp4ySWf+eN39B963uQyxuWcmJTV1QFO3m3UypgQYobUgGlnDkI4QTFSMaqtBE5Rc+20ue8mLOTQ9+Z",
-	"HNL2dsXLqUaZnXDaQeGkb9DycmoxAm4MQQYzFQHXM8bEwexByos8i/wT33/5+vK/AQAA//8375tBmIsB",
-	"AA==",
+	"MiM9RV9l5lBMwf5wyXQ2XJx4rQfHjGY+Rm3a8EbfLq0Ecn3kIVoZDOjNcPzsTQCKoC3CjDf7KJtUpNo4",
+	"SSII4q1UMFkiumrHdISdKV3SonJJT9Jo49v8TRzj/hr/azPNRp+658hwqDdClaftP23vyGv6o/Ydp8Xm",
+	"N/RXYbaFY8tWrOOAZdc2FqDlObg8Ll6PqNxvCI8fsNEdWfZ7KZJRRB9fa4nEHMZVysKWccQw21WG3VJl",
+	"2C867mOX92qLTWpde6eudEeR8aIY2e3xfwWYU3ZLi5takapRz7Xbf2Hf9a4mAey4aTcewdcoZpl6N0zV",
+	"dKlA5cQJLS5qu8cG609XWfLM6rQ78zGxPIk3nAlOuZB0h8pJj4uP4dexRYvcx13gDkNOGs+EX0My/fKp",
+	"9GbA2DvdLEOuAEFulBUU1uk3+GwytGxVRqyYziZIr8to25VjuaTXzhXXb0hwkQxNp3VezhvewANeDB+X",
+	"qyfpXsF9JyXXjYFd9r3BhN1McE6pA4Y9xlURIBATxVMIexPIHhyz5VEXgn/HzWGCDLRdbfNW00Jdxe0a",
+	"yFzLZJYK13dFMl9XJO5coV8pBxtKhDa9RNNCNAvZgF1L/Eqp4ySWf+eN39B963uQyxuWcmJTV1QFO3m3",
+	"UypgQYobUgGlnDkI4QTFSAbFtBE5Rc+20ue8mLOTQ9+ZHNL2dsXLqUaZnXDaQeGkb9Dycmox1G4MQQYz",
+	"FWrXMwbfwexByos8i/wT33/5+vK/AQAA//8g2t+HAYwBAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

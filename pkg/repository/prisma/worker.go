@@ -51,7 +51,7 @@ func (w *workerAPIRepository) GetWorkerById(workerId string) (*db.WorkerModel, e
 	).Exec(context.Background())
 }
 
-func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error) {
+func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, failed bool) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error) {
 	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, dbsqlc.ListSemaphoreSlotsWithStateForWorkerParams{
 		Workerid: sqlchelpers.UUIDFromStr(workerId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
@@ -61,9 +61,16 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string) ([]*dbs
 		return nil, nil, fmt.Errorf("could not list worker slot state: %w", err)
 	}
 
+	var statuses = []string{"SUCCEEDED", "FAILED", "CANCELLED"}
+
+	if failed {
+		statuses = []string{"FAILED", "CANCELLED"}
+	}
+
 	recent, err := w.queries.ListRecentStepRunsForWorker(context.Background(), w.pool, dbsqlc.ListRecentStepRunsForWorkerParams{
 		Workerid: sqlchelpers.UUIDFromStr(workerId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Statuses: statuses,
 	})
 
 	if err != nil {

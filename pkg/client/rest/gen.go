@@ -1329,6 +1329,12 @@ type WorkflowRunGetMetricsParams struct {
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
+// WorkerGetParams defines parameters for WorkerGet.
+type WorkerGetParams struct {
+	// RecentFailed Filter recent by failed
+	RecentFailed *bool `form:"recentFailed,omitempty" json:"recentFailed,omitempty"`
+}
+
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
 type WorkflowGetMetricsParams struct {
 	// Status A status of workflow run statuses to filter by
@@ -1729,7 +1735,7 @@ type ClientInterface interface {
 	WebhookDelete(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkerGet request
-	WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WorkerGet(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkerUpdateWithBody request with any body
 	WorkerUpdateWithBody(ctx context.Context, worker openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2780,8 +2786,8 @@ func (c *Client) WebhookDelete(ctx context.Context, webhook openapi_types.UUID, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkerGetRequest(c.Server, worker)
+func (c *Client) WorkerGet(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkerGetRequest(c.Server, worker, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5961,7 +5967,7 @@ func NewWebhookDeleteRequest(server string, webhook openapi_types.UUID) (*http.R
 }
 
 // NewWorkerGetRequest generates requests for WorkerGet
-func NewWorkerGetRequest(server string, worker openapi_types.UUID) (*http.Request, error) {
+func NewWorkerGetRequest(server string, worker openapi_types.UUID, params *WorkerGetParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5984,6 +5990,28 @@ func NewWorkerGetRequest(server string, worker openapi_types.UUID) (*http.Reques
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.RecentFailed != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "recentFailed", runtime.ParamLocationQuery, *params.RecentFailed); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -6676,7 +6704,7 @@ type ClientWithResponsesInterface interface {
 	WebhookDeleteWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookDeleteResponse, error)
 
 	// WorkerGetWithResponse request
-	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
+	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
 
 	// WorkerUpdateWithBodyWithResponse request with any body
 	WorkerUpdateWithBodyWithResponse(ctx context.Context, worker openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkerUpdateResponse, error)
@@ -9248,8 +9276,8 @@ func (c *ClientWithResponses) WebhookDeleteWithResponse(ctx context.Context, web
 }
 
 // WorkerGetWithResponse request returning *WorkerGetResponse
-func (c *ClientWithResponses) WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error) {
-	rsp, err := c.WorkerGet(ctx, worker, reqEditors...)
+func (c *ClientWithResponses) WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error) {
+	rsp, err := c.WorkerGet(ctx, worker, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
