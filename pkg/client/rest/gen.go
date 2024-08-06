@@ -522,6 +522,16 @@ type SNSIntegration struct {
 	TopicArn string `json:"topicArn"`
 }
 
+// SemaphoreSlots defines model for SemaphoreSlots.
+type SemaphoreSlots struct {
+	// Slot The slot name.
+	Slot   openapi_types.UUID `json:"slot"`
+	Status *StepRunStatus     `json:"status,omitempty"`
+
+	// StepRunId The step run id.
+	StepRunId *openapi_types.UUID `json:"stepRunId,omitempty"`
+}
+
 // SlackWebhook defines model for SlackWebhook.
 type SlackWebhook struct {
 	// ChannelId The channel id associated with this slack webhook.
@@ -948,8 +958,8 @@ type Worker struct {
 	// Name The name of the worker.
 	Name string `json:"name"`
 
-	// RecentStepRuns The recent step runs for this worker.
-	RecentStepRuns *[]StepRun `json:"recentStepRuns,omitempty"`
+	// Slots The semaphore slot state for the worker.
+	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
 
 	// Status The status of the worker.
 	Status *WorkerStatus `json:"status,omitempty"`
