@@ -849,6 +849,24 @@ type LogLine struct {
 	Metadata  []byte           `json:"metadata"`
 }
 
+type Queue struct {
+	ID       int64       `json:"id"`
+	TenantId pgtype.UUID `json:"tenantId"`
+	Name     string      `json:"name"`
+}
+
+type QueueItem struct {
+	ID                int64            `json:"id"`
+	StepRunId         pgtype.UUID      `json:"stepRunId"`
+	StepId            pgtype.UUID      `json:"stepId"`
+	ActionId          pgtype.Text      `json:"actionId"`
+	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
+	StepTimeout       pgtype.Text      `json:"stepTimeout"`
+	IsQueued          bool             `json:"isQueued"`
+	TenantId          pgtype.UUID      `json:"tenantId"`
+	Queue             string           `json:"queue"`
+}
+
 type RateLimit struct {
 	TenantId   pgtype.UUID      `json:"tenantId"`
 	Key        string           `json:"key"`

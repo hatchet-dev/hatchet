@@ -883,6 +883,19 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 			}
 
 			for _, step := range steps {
+				err = queries.UpsertQueue(
+					tx1Ctx,
+					tx,
+					dbsqlc.UpsertQueueParams{
+						Tenantid: pgTenantId,
+						Name:     step.ActionId,
+					},
+				)
+
+				if err != nil {
+					return nil, err
+				}
+
 				err = queries.CreateStepRun(
 					tx1Ctx,
 					tx,

@@ -199,6 +199,30 @@ CREATE TABLE "LogLine" (
 );
 
 -- CreateTable
+CREATE TABLE "Queue" (
+    "id" BIGSERIAL NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+
+    CONSTRAINT "Queue_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "QueueItem" (
+    "id" BIGSERIAL NOT NULL,
+    "stepRunId" UUID,
+    "stepId" UUID,
+    "actionId" TEXT,
+    "scheduleTimeoutAt" TIMESTAMP(3),
+    "stepTimeout" TEXT,
+    "isQueued" BOOLEAN NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "queue" TEXT NOT NULL,
+
+    CONSTRAINT "QueueItem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "RateLimit" (
     "tenantId" UUID NOT NULL,
     "key" TEXT NOT NULL,
@@ -904,6 +928,12 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_key" ON "JobRunLookupData"("jobRu
 
 -- CreateIndex
 CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupData"("jobRunId" ASC, "tenantId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);
+
+-- CreateIndex
+CREATE INDEX "QueueItem_isQueued_queue_idx" ON "QueueItem"("isQueued" ASC, "queue" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RateLimit_tenantId_key_key" ON "RateLimit"("tenantId" ASC, "key" ASC);

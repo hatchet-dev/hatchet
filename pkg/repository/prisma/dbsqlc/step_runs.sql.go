@@ -1031,6 +1031,7 @@ SELECT
     sr."updatedAt" AS "SR_updatedAt",
     sr."deletedAt" AS "SR_deletedAt",
     sr."tenantId" AS "SR_tenantId",
+    sr."queue" AS "SR_queue",
     sr."order" AS "SR_order",
     sr."workerId" AS "SR_workerId",
     sr."tickerId" AS "SR_tickerId",
@@ -1059,6 +1060,7 @@ SELECT
     j."id" AS "jobId",
     j."kind" AS "jobKind",
     j."workflowVersionId" AS "workflowVersionId",
+    jr."status" AS "jobRunStatus",
     jr."workflowRunId" AS "workflowRunId",
     a."actionId" AS "actionId",
     sticky."strategy" AS "stickyStrategy"
@@ -1095,6 +1097,7 @@ type GetStepRunForEngineRow struct {
 	SRUpdatedAt         pgtype.Timestamp   `json:"SR_updatedAt"`
 	SRDeletedAt         pgtype.Timestamp   `json:"SR_deletedAt"`
 	SRTenantId          pgtype.UUID        `json:"SR_tenantId"`
+	SRQueue             string             `json:"SR_queue"`
 	SROrder             int64              `json:"SR_order"`
 	SRWorkerId          pgtype.UUID        `json:"SR_workerId"`
 	SRTickerId          pgtype.UUID        `json:"SR_tickerId"`
@@ -1122,6 +1125,7 @@ type GetStepRunForEngineRow struct {
 	JobId               pgtype.UUID        `json:"jobId"`
 	JobKind             JobKind            `json:"jobKind"`
 	WorkflowVersionId   pgtype.UUID        `json:"workflowVersionId"`
+	JobRunStatus        JobRunStatus       `json:"jobRunStatus"`
 	WorkflowRunId       pgtype.UUID        `json:"workflowRunId"`
 	ActionId            string             `json:"actionId"`
 	StickyStrategy      NullStickyStrategy `json:"stickyStrategy"`
@@ -1142,6 +1146,7 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.SRUpdatedAt,
 			&i.SRDeletedAt,
 			&i.SRTenantId,
+			&i.SRQueue,
 			&i.SROrder,
 			&i.SRWorkerId,
 			&i.SRTickerId,
@@ -1169,6 +1174,7 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.JobId,
 			&i.JobKind,
 			&i.WorkflowVersionId,
+			&i.JobRunStatus,
 			&i.WorkflowRunId,
 			&i.ActionId,
 			&i.StickyStrategy,
@@ -2556,37 +2562,27 @@ func (q *Queries) UpdateStepRunOverridesData(ctx context.Context, db DBTX, arg U
 }
 
 const updateStepRunPtrs = `-- name: UpdateStepRunPtrs :one
-WITH
-    max_assigned_id AS (
-        SELECT
-            "queueOrder" qo
-        FROM
-            "StepRun" sr
-        WHERE
-            "status" != 'PENDING_ASSIGNMENT' AND
-            "tenantId" = $1::uuid AND
-            "queueOrder" != 9223372036854775807
-        ORDER BY "queueOrder" DESC
-        LIMIT 1
-    )
 UPDATE "StepRunPtr" ptrs
 SET
-    "maxAssignedBlockAddr" = COALESCE(
-        FLOOR((SELECT qo FROM max_assigned_id)::decimal / 1024),
+    ptrs."maxAssignedBlockAddr" = COALESCE(
+        FLOOR($1::int / 1024),
         COALESCE(
-            (SELECT MAX("blockAddr") FROM "StepRunQueue" WHERE "tenantId" = $1::uuid),
+            (SELECT MAX("blockAddr") FROM "StepRunQueue" WHERE "tenantId" = $2::uuid),
             0
         )
     )
-FROM
-    max_assigned_id
 WHERE
-    ptrs."tenantId" = $1::uuid
+    ptrs."tenantId" = $2::uuid
 RETURNING ptrs."maxAssignedBlockAddr", ptrs."tenantId"
 `
 
-func (q *Queries) UpdateStepRunPtrs(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*StepRunPtr, error) {
-	row := db.QueryRow(ctx, updateStepRunPtrs, tenantid)
+type UpdateStepRunPtrsParams struct {
+	MaxQueueOrder int32       `json:"maxQueueOrder"`
+	Tenantid      pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) UpdateStepRunPtrs(ctx context.Context, db DBTX, arg UpdateStepRunPtrsParams) (*StepRunPtr, error) {
+	row := db.QueryRow(ctx, updateStepRunPtrs, arg.MaxQueueOrder, arg.Tenantid)
 	var i StepRunPtr
 	err := row.Scan(&i.MaxAssignedBlockAddr, &i.TenantId)
 	return &i, err

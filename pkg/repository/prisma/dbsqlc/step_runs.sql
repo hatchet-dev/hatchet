@@ -50,6 +50,7 @@ SELECT
     sr."updatedAt" AS "SR_updatedAt",
     sr."deletedAt" AS "SR_deletedAt",
     sr."tenantId" AS "SR_tenantId",
+    sr."queue" AS "SR_queue",
     sr."order" AS "SR_order",
     sr."workerId" AS "SR_workerId",
     sr."tickerId" AS "SR_tickerId",
@@ -78,6 +79,7 @@ SELECT
     j."id" AS "jobId",
     j."kind" AS "jobKind",
     j."workflowVersionId" AS "workflowVersionId",
+    jr."status" AS "jobRunStatus",
     jr."workflowRunId" AS "workflowRunId",
     a."actionId" AS "actionId",
     sticky."strategy" AS "stickyStrategy"
@@ -539,30 +541,15 @@ WHERE
     AND "id" = @workerId::uuid;
 
 -- name: UpdateStepRunPtrs :one
-WITH
-    max_assigned_id AS (
-        SELECT
-            "queueOrder" qo
-        FROM
-            "StepRun" sr
-        WHERE
-            "status" != 'PENDING_ASSIGNMENT' AND
-            "tenantId" = @tenantId::uuid AND
-            "queueOrder" != 9223372036854775807
-        ORDER BY "queueOrder" DESC
-        LIMIT 1
-    )
 UPDATE "StepRunPtr" ptrs
 SET
-    "maxAssignedBlockAddr" = COALESCE(
-        FLOOR((SELECT qo FROM max_assigned_id)::decimal / 1024),
+    ptrs."maxAssignedBlockAddr" = COALESCE(
+        FLOOR(sqlc.arg('maxQueueOrder')::int / 1024),
         COALESCE(
             (SELECT MAX("blockAddr") FROM "StepRunQueue" WHERE "tenantId" = @tenantId::uuid),
             0
         )
     )
-FROM
-    max_assigned_id
 WHERE
     ptrs."tenantId" = @tenantId::uuid
 RETURNING ptrs.*;

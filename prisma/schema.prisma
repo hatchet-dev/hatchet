@@ -1293,6 +1293,32 @@ model StepRun {
   @@index([status, tenantId, deletedAt, queueOrder])
 }
 
+model Queue {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  tenantId String @db.Uuid
+  name     String
+
+  @@unique([tenantId, name])
+}
+
+model QueueItem {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  // optional params which are specific to step runs
+  stepRunId         String?   @db.Uuid
+  stepId            String?   @db.Uuid
+  actionId          String?
+  scheduleTimeoutAt DateTime?
+  stepTimeout       String?
+
+  isQueued Boolean
+  tenantId String  @db.Uuid
+  queue    String
+
+  @@index([isQueued, queue])
+}
+
 enum StepRunEventReason {
   REQUEUED_NO_WORKER
   REQUEUED_RATE_LIMIT
