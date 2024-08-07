@@ -60,7 +60,7 @@ CREATE UNIQUE INDEX "StepRunPtr_tenantId_key" ON "StepRunPtr"("tenantId");
 CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId", "name");
 
 -- CreateIndex
-CREATE INDEX "QueueItem_isQueued_queue_idx" ON "QueueItem"("isQueued", "queue");
+CREATE INDEX "QueueItem_isQueued_queue_id_idx" ON "QueueItem"("isQueued", "queue", "id");
 
 -- CreateIndex
 CREATE INDEX "StepRun_status_tenantId_deletedAt_queueOrder_idx" ON "StepRun"("status", "tenantId", "deletedAt", "queueOrder");
