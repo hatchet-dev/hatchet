@@ -1109,6 +1109,8 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 
 		if isTimedOut {
 			timedOutStepRuns = append(timedOutStepRuns, qi.StepRunId)
+			// mark as queued so that we don't requeue
+			queuedItems = append(queuedItems, qi.ID)
 			continue
 		}
 
