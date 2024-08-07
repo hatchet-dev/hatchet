@@ -13,8 +13,8 @@ import (
 )
 
 type JWTManager interface {
-	GenerateTenantToken(ctx context.Context, tenantId, name string) (*Token, error)
-	UpsertTenantToken(ctx context.Context, tenantId, name, id string) (string, error)
+	GenerateTenantToken(ctx context.Context, tenantId, name string, internal bool, expires *time.Time) (*Token, error)
+	UpsertTenantToken(ctx context.Context, tenantId, name, id string, internal bool, expires *time.Time) (string, error)
 	ValidateTenantToken(ctx context.Context, token string) (string, error)
 }
 
@@ -53,7 +53,7 @@ type Token struct {
 	Token     string
 }
 
-func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId, name string, id *string) (*Token, error) {
+func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId, name string, id *string, expires *time.Time) (*Token, error) {
 	// Retrieve the JWT Signer primitive from privateKeysetHandle.
 	signer, err := jwt.NewSigner(j.encryption.GetPrivateJWTHandle())
 
@@ -61,7 +61,7 @@ func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId, name string,
 		return nil, fmt.Errorf("failed to create JWT Signer: %v", err)
 	}
 
-	tokenId, expiresAt, opts := j.getJWTOptionsForTenant(tenantId, id)
+	tokenId, expiresAt, opts := j.getJWTOptionsForTenant(tenantId, id, expires)
 
 	rawJWT, err := jwt.NewRawJWT(opts)
 
@@ -82,8 +82,8 @@ func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId, name string,
 	}, nil
 }
 
-func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name string) (*Token, error) {
-	token, err := j.createToken(ctx, tenantId, name, nil)
+func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name string, internal bool, expires *time.Time) (*Token, error) {
+	token, err := j.createToken(ctx, tenantId, name, nil, expires)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +94,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name
 		ExpiresAt: token.ExpiresAt,
 		TenantId:  &tenantId,
 		Name:      &name,
+		Internal:  internal,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to write token to database: %v", err)
@@ -102,8 +103,8 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name
 	return token, nil
 }
 
-func (j *jwtManagerImpl) UpsertTenantToken(ctx context.Context, tenantId, name, id string) (string, error) {
-	token, err := j.createToken(ctx, tenantId, name, &id)
+func (j *jwtManagerImpl) UpsertTenantToken(ctx context.Context, tenantId, name, id string, internal bool, expires *time.Time) (string, error) {
+	token, err := j.createToken(ctx, tenantId, name, &id, expires)
 	if err != nil {
 		return "", err
 	}
@@ -114,6 +115,7 @@ func (j *jwtManagerImpl) UpsertTenantToken(ctx context.Context, tenantId, name, 
 		ExpiresAt: token.ExpiresAt,
 		TenantId:  &tenantId,
 		Name:      &name,
+		Internal:  internal,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to write token to database: %v", err)
@@ -196,8 +198,14 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	return subject, nil
 }
 
-func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId string, id *string) (tokenId string, expiresAt time.Time, opts *jwt.RawJWTOptions) {
-	expiresAt = time.Now().Add(90 * 24 * time.Hour)
+func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId string, id *string, expires *time.Time) (tokenId string, expiresAt time.Time, opts *jwt.RawJWTOptions) {
+
+	if expires != nil {
+		expiresAt = *expires
+	} else {
+		expiresAt = time.Now().Add(90 * 24 * time.Hour)
+	}
+
 	iAt := time.Now()
 	audience := j.opts.Audience
 	subject := tenantId

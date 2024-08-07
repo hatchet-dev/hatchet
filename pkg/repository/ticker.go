@@ -35,9 +35,6 @@ type TickerEngineRepository interface {
 	// Delete deletes a ticker.
 	Delete(ctx context.Context, tickerId string) error
 
-	// PollStepRuns looks for step runs who are close to past their timeoutAt value and are in a running state
-	PollStepRuns(ctx context.Context, tickerId string) ([]*dbsqlc.StepRun, error)
-
 	// PollJobRuns looks for get group key runs who are close to past their timeoutAt value and are in a running state
 	PollGetGroupKeyRuns(ctx context.Context, tickerId string) ([]*dbsqlc.GetGroupKeyRun, error)
 
@@ -51,6 +48,9 @@ type TickerEngineRepository interface {
 	PollExpiringTokens(ctx context.Context) ([]*dbsqlc.PollExpiringTokensRow, error)
 
 	PollTenantResourceLimitAlerts(ctx context.Context) ([]*dbsqlc.TenantResourceLimitAlert, error)
+
+	PollUnresolvedFailedStepRuns(ctx context.Context) ([]*dbsqlc.PollUnresolvedFailedStepRunsRow, error)
+
 	// // AddJobRun assigns a job run to a ticker.
 	// AddJobRun(tickerId string, jobRun *db.JobRunModel) (*db.TickerModel, error)
 

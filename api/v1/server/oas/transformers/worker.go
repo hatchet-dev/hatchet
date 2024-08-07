@@ -1,6 +1,7 @@
 package transformers
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,6 +10,36 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
+
+func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
+	resp := make([]gen.WorkerLabel, len(labels))
+
+	for i := range labels {
+
+		var value *string
+
+		switch {
+		case labels[i].IntValue.Valid:
+			intValue := labels[i].IntValue.Int32
+			stringValue := fmt.Sprintf("%d", intValue)
+			value = &stringValue
+		case labels[i].StrValue.Valid:
+			value = &labels[i].StrValue.String
+		default:
+			value = nil
+		}
+
+		id := fmt.Sprintf("%d", labels[i].ID)
+
+		resp[i] = gen.WorkerLabel{
+			Metadata: *toAPIMetadata(id, labels[i].CreatedAt.Time, labels[i].UpdatedAt.Time),
+			Key:      labels[i].Key,
+			Value:    value,
+		}
+	}
+
+	return &resp
+}
 
 func ToWorker(worker *db.WorkerModel) *gen.Worker {
 
@@ -19,6 +50,10 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 	}
 
 	status := gen.ACTIVE
+
+	if worker.IsPaused {
+		status = gen.PAUSED
+	}
 
 	if lastHeartbeat, ok := worker.LastHeartbeatAt(); ok && lastHeartbeat.Add(4*time.Second).Before(time.Now()) {
 		status = gen.INACTIVE
@@ -63,7 +98,7 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 	return res
 }
 
-func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64, slots *int) *gen.Worker {
+func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
@@ -71,11 +106,19 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, stepCount *int64, slots *int) *gen.Work
 
 	status := gen.ACTIVE
 
+	if worker.IsPaused {
+		status = gen.PAUSED
+	}
+
 	if worker.LastHeartbeatAt.Time.Add(5 * time.Second).Before(time.Now()) {
 		status = gen.INACTIVE
 	}
 
-	availableRuns := maxRuns - *slots
+	var availableRuns int
+
+	if slots != nil {
+		availableRuns = maxRuns - *slots
+	}
 
 	res := &gen.Worker{
 		Metadata:      *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),

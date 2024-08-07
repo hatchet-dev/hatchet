@@ -66,7 +66,6 @@ tasks:
       - task: generate-sqlc
   seed-dev:
     cmds:
-      - sh ./hack/dev/run-go-with-env.sh run github.com/steebchen/prisma-client-go migrate dev --skip-generate
       - SEED_DEVELOPMENT=true sh ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
   start-dev:
     deps:
@@ -150,6 +149,9 @@ tasks:
   lint-frontend:
     cmds:
       - cd frontend/app/ && pnpm run lint:check
+  format-prisma:
+    cmds:
+      - go run github.com/steebchen/prisma-client-go format
   kill-query-engines:
     cmds:
       - ps -A | grep 'prisma-query-engine-darwin-arm64' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
@@ -175,4 +177,5 @@ tasks:
     deps:
       - pre-commit-install
     cmds:
+      - task: format-prisma
       - pre-commit run --all-files || pre-commit run --all-files

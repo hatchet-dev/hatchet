@@ -182,6 +182,18 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule get group key run reassign: %w", err)
 	}
 
+	_, err = wc.s.NewJob(
+		gocron.DurationJob(time.Second*15),
+		gocron.NewTask(
+			wc.runPollActiveQueues(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not poll active queues: %w", err)
+	}
+
 	wc.s.Start()
 
 	f := func(task *msgqueue.Message) error {
@@ -190,7 +202,7 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 
 		err := wc.handleTask(context.Background(), task)
 		if err != nil {
-			wc.l.Error().Err(err).Msg("could not handle job task")
+			wc.l.Error().Err(err).Msg("could not handle workflow task")
 			return err
 		}
 
@@ -235,6 +247,8 @@ func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *msgqueu
 	}()
 
 	switch task.ID {
+	case "replay-workflow-run":
+		return wc.handleReplayWorkflowRun(ctx, task)
 	case "workflow-run-queued":
 		return wc.handleWorkflowRunQueued(ctx, task)
 	case "get-group-key-run-started":
@@ -250,6 +264,39 @@ func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *msgqueu
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
+}
+
+func (wc *WorkflowsControllerImpl) handleReplayWorkflowRun(ctx context.Context, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpan(ctx, "replay-workflow-run") // nolint:ineffassign
+	defer span.End()
+
+	payload := tasktypes.ReplayWorkflowRunTaskPayload{}
+	metadata := tasktypes.ReplayWorkflowRunTaskMetadata{}
+
+	err := wc.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode replay workflow run task payload: %w", err)
+	}
+
+	err = wc.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode replay workflow run task metadata: %w", err)
+	}
+
+	_, err = wc.repo.WorkflowRun().ReplayWorkflowRun(ctx, metadata.TenantId, payload.WorkflowRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not replay workflow run: %w", err)
+	}
+
+	// push a task that the workflow run is queued
+	return wc.mq.AddMessage(
+		ctx,
+		msgqueue.WORKFLOW_PROCESSING_QUEUE,
+		tasktypes.WorkflowRunQueuedToTask(metadata.TenantId, payload.WorkflowRunId),
+	)
 }
 
 func (ec *WorkflowsControllerImpl) handleGroupKeyRunStarted(ctx context.Context, task *msgqueue.Message) error {
@@ -326,27 +373,73 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context
 
 	errGroup.Go(func() error {
 		workflowVersionId := sqlchelpers.UUIDToStr(groupKeyRun.WorkflowVersionId)
-		workflowVersion, err := wc.repo.Workflow().GetWorkflowVersionById(ctx, metadata.TenantId, workflowVersionId)
 
-		if err != nil {
-			return fmt.Errorf("could not get workflow version: %w", err)
-		}
-
-		if workflowVersion.ConcurrencyLimitStrategy.Valid {
-			switch workflowVersion.ConcurrencyLimitStrategy.ConcurrencyLimitStrategy {
-			case dbsqlc.ConcurrencyLimitStrategyCANCELINPROGRESS:
-				err = wc.queueByCancelInProgress(ctx, metadata.TenantId, payload.GroupKey, workflowVersion)
-			case dbsqlc.ConcurrencyLimitStrategyGROUPROUNDROBIN:
-				err = wc.queueByGroupRoundRobin(ctx, metadata.TenantId, workflowVersion)
-			default:
-				return fmt.Errorf("unimplemented concurrency limit strategy: %s", workflowVersion.ConcurrencyLimitStrategy.ConcurrencyLimitStrategy)
-			}
-		}
+		err := wc.bumpQueue(ctx, metadata.TenantId, workflowVersionId, &payload.GroupKey)
 
 		return err
 	})
 
 	return errGroup.Wait()
+}
+
+func (wc *WorkflowsControllerImpl) runPollActiveQueues(ctx context.Context) func() {
+	return func() {
+
+		wc.l.Debug().Msg("polling active queues")
+
+		toQueueList, err := wc.repo.WorkflowRun().ListActiveQueuedWorkflowVersions(ctx)
+
+		if err != nil {
+			wc.l.Error().Err(err).Msg("could not list active queued workflow versions")
+			return
+		}
+
+		errGroup := new(errgroup.Group)
+
+		for i := range toQueueList {
+			toQueue := toQueueList[i]
+			errGroup.Go(func() error {
+				workflowVersionId := sqlchelpers.UUIDToStr(toQueue.WorkflowVersionId)
+				tenantId := sqlchelpers.UUIDToStr(toQueue.TenantId)
+				var key *string
+				if toQueue.ConcurrencyGroupId.Valid {
+					key = &toQueue.ConcurrencyGroupId.String
+				}
+				err := wc.bumpQueue(ctx, tenantId, workflowVersionId, key)
+				return err
+			})
+		}
+
+		err = errGroup.Wait()
+
+		if err != nil {
+			wc.l.Error().Err(err)
+		}
+	}
+}
+func (wc *WorkflowsControllerImpl) bumpQueue(ctx context.Context, tenantId string, workflowVersionId string, groupKey *string) error {
+
+	workflowVersion, err := wc.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
+
+	if err != nil {
+		return fmt.Errorf("could not get workflow version: %w", err)
+	}
+
+	if workflowVersion.ConcurrencyLimitStrategy.Valid {
+		switch workflowVersion.ConcurrencyLimitStrategy.ConcurrencyLimitStrategy {
+		case dbsqlc.ConcurrencyLimitStrategyCANCELINPROGRESS:
+			if groupKey == nil {
+				return fmt.Errorf("group key is required for cancel in progress strategy")
+			}
+			err = wc.queueByCancelInProgress(ctx, tenantId, *groupKey, workflowVersion)
+		case dbsqlc.ConcurrencyLimitStrategyGROUPROUNDROBIN:
+			err = wc.queueByGroupRoundRobin(ctx, tenantId, workflowVersion)
+		default:
+			return fmt.Errorf("unimplemented concurrency limit strategy: %s", workflowVersion.ConcurrencyLimitStrategy.ConcurrencyLimitStrategy)
+		}
+	}
+
+	return err
 }
 
 func (wc *WorkflowsControllerImpl) handleGroupKeyRunFailed(ctx context.Context, task *msgqueue.Message) error {

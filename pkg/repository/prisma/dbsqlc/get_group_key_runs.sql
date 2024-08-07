@@ -41,6 +41,9 @@ JOIN
     "Action" a ON wc."getConcurrencyGroupId" = a."id" AND a."tenantId" = ggr."tenantId"
 WHERE
     ggr."id" = ANY(@ids::uuid[]) AND
+    ggr."deletedAt" IS NULL AND
+    wr."deletedAt" IS NULL AND
+    wv."deletedAt" IS NULL AND
     ggr."tenantId" = @tenantId::uuid;
 
 -- name: ListGetGroupKeyRunsToReassign :many
@@ -55,6 +58,7 @@ WITH valid_workers AS (
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
+        AND w."isPaused" = false
     GROUP BY
         w."id"
 ),
@@ -79,6 +83,7 @@ group_key_runs AS (
         "Worker" w ON ggr."workerId" = w."id"
     WHERE
         ggr."tenantId" = @tenantId::uuid
+        AND ggr."deletedAt" IS NULL
         AND ((
             ggr."status" = 'RUNNING'
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
@@ -140,6 +145,7 @@ group_key_runs AS (
         "Worker" w ON ggr."workerId" = w."id"
     WHERE
         ggr."tenantId" = @tenantId::uuid
+        AND ggr."deletedAt" IS NULL
         AND ggr."requeueAfter" < NOW()
         AND (ggr."status" = 'PENDING' OR ggr."status" = 'PENDING_ASSIGNMENT')
     ORDER BY
@@ -183,6 +189,9 @@ WITH get_group_key_run AS (
     JOIN
         "Action" a ON wc."getConcurrencyGroupId" = a."id"
     WHERE
+        wr."deletedAt" IS NULL AND
+        ggr."deletedAt" IS NULL AND
+        wv."deletedAt" IS NULL AND
         ggr."id" = @getGroupKeyRunId::uuid AND
         ggr."tenantId" = @tenantId::uuid
 ), valid_workers AS (
@@ -243,5 +252,6 @@ SET
 WHERE
     "id" = @getGroupKeyRunId::uuid AND
     "tenantId" = @tenantId::uuid AND
+    "deletedAt" IS NULL AND
     EXISTS (SELECT 1 FROM selected_ticker)
 RETURNING "GetGroupKeyRun"."id", "GetGroupKeyRun"."tickerId";

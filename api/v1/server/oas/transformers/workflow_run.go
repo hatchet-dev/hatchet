@@ -368,12 +368,19 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 
 	}
 
+	var duration int
+
+	if run.Duration.Valid {
+		duration = int(run.Duration.Int32)
+	}
+
 	res := &gen.WorkflowRun{
 		Metadata:           *toAPIMetadata(workflowRunId, run.CreatedAt.Time, run.UpdatedAt.Time),
 		DisplayName:        &run.DisplayName.String,
 		TenantId:           pgUUIDToStr(run.TenantId),
 		StartedAt:          startedAt,
 		FinishedAt:         finishedAt,
+		Duration:           &duration,
 		Status:             gen.WorkflowRunStatus(run.Status),
 		WorkflowVersionId:  pgUUIDToStr(run.WorkflowVersionId),
 		WorkflowVersion:    workflowVersion,

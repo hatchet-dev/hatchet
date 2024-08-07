@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/workflows"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
@@ -22,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 )
 
 type Teardown struct {
@@ -32,12 +34,14 @@ type Teardown struct {
 func init() {
 	svcName := os.Getenv("SERVER_OTEL_SERVICE_NAME")
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
+	traceIdRatio := os.Getenv("SERVER_OTEL_TRACE_ID_RATIO")
 
 	// we do this to we get the tracer set globally, which is needed by some of the otel
 	// integrations for the database before start
 	_, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:  svcName,
 		CollectorURL: collectorURL,
+		TraceIdRatio: traceIdRatio,
 	})
 
 	if err != nil {
@@ -99,12 +103,13 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:  sc.OpenTelemetry.ServiceName,
 		CollectorURL: sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio: sc.OpenTelemetry.TraceIdRatio,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
-	p, err := newPartitioner(sc.EngineRepository.Tenant())
+	p, err := newPartitioner(sc.EngineRepository.Tenant(), l)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)
@@ -132,29 +137,6 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
-	if sc.HasService("ticker") {
-		t, err := ticker.New(
-			ticker.WithMessageQueue(sc.MessageQueue),
-			ticker.WithRepository(sc.EngineRepository),
-			ticker.WithLogger(sc.Logger),
-			ticker.WithTenantAlerter(sc.TenantAlerter),
-			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create ticker: %w", err)
-		}
-
-		cleanup, err := t.Start()
-		if err != nil {
-			return nil, fmt.Errorf("could not start ticker: %w", err)
-		}
-		teardown = append(teardown, Teardown{
-			Name: "ticker",
-			Fn:   cleanup,
-		})
-	}
-
 	if sc.HasService("eventscontroller") {
 		ec, err := events.New(
 			events.WithMessageQueue(sc.MessageQueue),
@@ -176,17 +158,45 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
+	var partitionId string
+
 	// FIXME: jobscontroller and workflowscontroller are deprecated service names, but there's not a clear upgrade
 	// path for old config files.
-	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
-		partitionTeardown, partitionId, err := p.withControllers(ctx)
-
+	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") || sc.HasService("retention") || sc.HasService("ticker") {
+		partitionTeardown, pId, err := p.withControllers(ctx)
+		partitionId = pId
 		if err != nil {
 			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
 
 		teardown = append(teardown, *partitionTeardown)
+	}
 
+	if sc.HasService("ticker") {
+		t, err := ticker.New(
+			ticker.WithMessageQueue(sc.MessageQueue),
+			ticker.WithRepository(sc.EngineRepository),
+			ticker.WithLogger(sc.Logger),
+			ticker.WithTenantAlerter(sc.TenantAlerter),
+			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
+			ticker.WithPartitionId(partitionId),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create ticker: %w", err)
+		}
+
+		cleanup, err := t.Start()
+		if err != nil {
+			return nil, fmt.Errorf("could not start ticker: %w", err)
+		}
+		teardown = append(teardown, Teardown{
+			Name: "ticker",
+			Fn:   cleanup,
+		})
+	}
+
+	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
 		jc, err := jobs.New(
 			jobs.WithAlerter(sc.Alerter),
 			jobs.WithMessageQueue(sc.MessageQueue),
@@ -230,6 +240,28 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
+	if sc.HasService("retention") {
+		rc, err := retention.New(
+			retention.WithAlerter(sc.Alerter),
+			retention.WithRepository(sc.EngineRepository),
+			retention.WithLogger(sc.Logger),
+			retention.WithTenantAlerter(sc.TenantAlerter),
+			retention.WithPartitionId(partitionId),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("could not create retention controller: %w", err)
+		}
+
+		cleanupRetention, err := rc.Start()
+		if err != nil {
+			return nil, fmt.Errorf("could not start retention controller: %w", err)
+		}
+		teardown = append(teardown, Teardown{
+			Name: "retention controller",
+			Fn:   cleanupRetention,
+		})
+	}
+
 	if sc.HasService("heartbeater") {
 		h, err := heartbeat.New(
 			heartbeat.WithMessageQueue(sc.MessageQueue),
@@ -252,6 +284,9 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	}
 
 	if sc.HasService("grpc") {
+
+		cacheInstance := cache.New(10 * time.Second)
+
 		// create the dispatcher
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
@@ -259,6 +294,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			dispatcher.WithRepository(sc.EngineRepository),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
+			dispatcher.WithCache(cacheInstance),
 		)
 
 		if err != nil {
@@ -334,6 +370,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 				if err != nil {
 					return fmt.Errorf("failed to cleanup dispatcher: %w", err)
 				}
+
+				cacheInstance.Stop()
 				return nil
 			})
 

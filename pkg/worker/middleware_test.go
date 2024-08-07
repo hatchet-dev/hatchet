@@ -84,6 +84,10 @@ func (c *testHatchetContext) client() client.Client {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) Worker() HatchetWorkerContext {
+	panic("not implemented")
+}
+
 func TestAddMiddleware(t *testing.T) {
 	m := middlewares{}
 	middlewareFunc := func(ctx HatchetContext, next func(HatchetContext) error) error {

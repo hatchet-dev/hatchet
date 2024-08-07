@@ -17,7 +17,7 @@ import (
 )
 
 type DispatcherClient interface {
-	GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, error)
+	GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error)
 
 	SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
@@ -26,6 +26,8 @@ type DispatcherClient interface {
 	ReleaseSlot(ctx context.Context, stepRunId string) error
 
 	RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error
+
+	UpsertWorkerLabels(ctx context.Context, workerId string, labels map[string]interface{}) error
 }
 
 const (
@@ -39,6 +41,7 @@ type GetActionListenerRequest struct {
 	Services   []string
 	Actions    []string
 	MaxRuns    *int
+	Labels     map[string]interface{}
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -94,6 +97,18 @@ type Action struct {
 
 	// the count of the retry attempt
 	RetryCount int32 `json:"retryCount"`
+
+	// the additional metadata for the workflow run
+	AdditionalMetadata map[string]string
+
+	// the child index for the workflow run
+	ChildIndex *int32
+
+	// the child key for the workflow run
+	ChildKey *string
+
+	// the parent workflow run id
+	ParentWorkflowRunId *string
 }
 
 type WorkerActionListener interface {
@@ -179,16 +194,21 @@ type actionListenerImpl struct {
 	listenerStrategy ListenerStrategy
 }
 
-func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetActionListenerRequest) (*actionListenerImpl, error) {
+func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetActionListenerRequest) (*actionListenerImpl, *string, error) {
 	// validate the request
 	if err := d.v.Validate(req); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	registerReq := &dispatchercontracts.WorkerRegisterRequest{
 		WorkerName: req.WorkerName,
 		Actions:    req.Actions,
 		Services:   req.Services,
+	}
+
+	if req.Labels != nil {
+
+		registerReq.Labels = mapLabels(req.Labels)
 	}
 
 	if req.MaxRuns != nil {
@@ -200,7 +220,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	resp, err := d.client.Register(d.ctx.newContext(ctx), registerReq)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not register the worker: %w", err)
+		return nil, nil, fmt.Errorf("could not register the worker: %w", err)
 	}
 
 	d.l.Debug().Msgf("Registered worker with id: %s", resp.WorkerId)
@@ -211,7 +231,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not subscribe to the worker: %w", err)
+		return nil, nil, fmt.Errorf("could not subscribe to the worker: %w", err)
 	}
 
 	return &actionListenerImpl{
@@ -223,7 +243,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		tenantId:         d.tenantId,
 		ctx:              d.ctx,
 		listenerStrategy: ListenerStrategyV2,
-	}, nil
+	}, &resp.WorkerId, nil
 }
 
 func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error) {
@@ -321,21 +341,36 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 
 			unquoted := assignedAction.ActionPayload
 
+			var additionalMetadata map[string]string
+
+			if assignedAction.AdditionalMetadata != nil {
+				err := json.Unmarshal([]byte(*assignedAction.AdditionalMetadata), &additionalMetadata)
+
+				if err != nil {
+					a.l.Error().Err(err).Msgf("could not unmarshal additional metadata")
+					continue
+				}
+			}
+
 			ch <- &Action{
-				TenantId:         assignedAction.TenantId,
-				WorkflowRunId:    assignedAction.WorkflowRunId,
-				GetGroupKeyRunId: assignedAction.GetGroupKeyRunId,
-				WorkerId:         a.workerId,
-				JobId:            assignedAction.JobId,
-				JobName:          assignedAction.JobName,
-				JobRunId:         assignedAction.JobRunId,
-				StepId:           assignedAction.StepId,
-				StepName:         assignedAction.StepName,
-				StepRunId:        assignedAction.StepRunId,
-				ActionId:         assignedAction.ActionId,
-				ActionType:       actionType,
-				ActionPayload:    []byte(unquoted),
-				RetryCount:       assignedAction.RetryCount,
+				TenantId:            assignedAction.TenantId,
+				WorkflowRunId:       assignedAction.WorkflowRunId,
+				GetGroupKeyRunId:    assignedAction.GetGroupKeyRunId,
+				WorkerId:            a.workerId,
+				JobId:               assignedAction.JobId,
+				JobName:             assignedAction.JobName,
+				JobRunId:            assignedAction.JobRunId,
+				StepId:              assignedAction.StepId,
+				StepName:            assignedAction.StepName,
+				StepRunId:           assignedAction.StepRunId,
+				ActionId:            assignedAction.ActionId,
+				ActionType:          actionType,
+				ActionPayload:       []byte(unquoted),
+				RetryCount:          assignedAction.RetryCount,
+				AdditionalMetadata:  additionalMetadata,
+				ChildIndex:          assignedAction.ChildWorkflowIndex,
+				ChildKey:            assignedAction.ChildWorkflowKey,
+				ParentWorkflowRunId: assignedAction.ParentWorkflowRunId,
 			}
 		}
 	}()
@@ -391,7 +426,7 @@ func (a *actionListenerImpl) Unregister() error {
 	return nil
 }
 
-func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, error) {
+func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error) {
 	return d.newActionListener(ctx, req)
 }
 
@@ -510,4 +545,48 @@ func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId str
 	}
 
 	return nil
+}
+
+func (a *dispatcherClientImpl) UpsertWorkerLabels(ctx context.Context, workerId string, req map[string]interface{}) error {
+	labels := mapLabels(req)
+
+	_, err := a.client.UpsertWorkerLabels(a.ctx.newContext(ctx), &dispatchercontracts.UpsertWorkerLabelsRequest{
+		WorkerId: workerId,
+		Labels:   labels,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func mapLabels(req map[string]interface{}) map[string]*dispatchercontracts.WorkerLabels {
+	labels := map[string]*dispatchercontracts.WorkerLabels{}
+
+	for k, v := range req {
+		label := dispatchercontracts.WorkerLabels{}
+
+		switch value := v.(type) {
+		case string:
+			strValue := value
+			label.StrValue = &strValue
+		case int:
+			intValue := int32(value)
+			label.IntValue = &intValue
+		case int32:
+			label.IntValue = &value
+		case int64:
+			intValue := int32(value)
+			label.IntValue = &intValue
+		default:
+			// For any other type, convert to string
+			strValue := fmt.Sprintf("%v", value)
+			label.StrValue = &strValue
+		}
+
+		labels[k] = &label
+	}
+	return labels
 }

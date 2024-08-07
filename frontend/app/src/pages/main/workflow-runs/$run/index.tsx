@@ -2,6 +2,7 @@ import { Separator } from '@/components/ui/separator';
 import api, {
   StepRun,
   StepRunStatus,
+  WorkflowRun,
   WorkflowRunStatus,
   queries,
 } from '@/lib/api';
@@ -28,6 +29,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { BiDotsVertical } from 'react-icons/bi';
 import { useApiError } from '@/lib/hooks';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { CodeEditor } from '@/components/ui/code-editor';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -43,6 +51,8 @@ export default function ExpandedWorkflowRun() {
 
   const params = useParams();
   invariant(params.run);
+
+  const [showInputDialog, setShowInputDialog] = useState(false);
 
   const runQuery = useQuery({
     ...queries.workflowRuns.get(tenant.metadata.id, params.run),
@@ -113,6 +123,23 @@ export default function ExpandedWorkflowRun() {
     onError: handleApiError,
   });
 
+  const replayWorkflowRunsMutation = useMutation({
+    mutationKey: ['workflow-run:update:replay', tenant.metadata.id],
+    mutationFn: async () => {
+      if (!runQuery.data) {
+        return;
+      }
+
+      await api.workflowRunUpdateReplay(tenant.metadata.id, {
+        workflowRunIds: [runQuery.data?.metadata.id],
+      });
+    },
+    onSuccess: () => {
+      runQuery.refetch();
+    },
+    onError: handleApiError,
+  });
+
   if (runQuery.isLoading || !runQuery.data) {
     return <Loading />;
   }
@@ -168,6 +195,23 @@ export default function ExpandedWorkflowRun() {
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem
+                  onClick={() => {
+                    setShowInputDialog(true);
+                  }}
+                >
+                  View workflow input
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={
+                    !WORKFLOW_RUN_TERMINAL_STATUSES.includes(run.status)
+                  }
+                  onClick={() => {
+                    replayWorkflowRunsMutation.mutate();
+                  }}
+                >
+                  Replay workflow
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   disabled={WORKFLOW_RUN_TERMINAL_STATUSES.includes(run.status)}
                   onClick={() => {
                     cancelWorkflowRunMutation.mutate();
@@ -179,6 +223,16 @@ export default function ExpandedWorkflowRun() {
             </DropdownMenu>
           </div>
         </div>
+        <Dialog
+          open={!!showInputDialog}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowInputDialog(false);
+            }
+          }}
+        >
+          {showInputDialog && <WorkflowRunInputDialog wr={run} />}
+        </Dialog>
         <div className="flex flex-row justify-start items-center gap-2">
           <div className="text-sm text-gray-700 dark:text-gray-300">
             Created <RelativeDate date={run?.metadata.createdAt} />
@@ -323,5 +377,35 @@ function TriggeringCronSection({ cron }: { cron: string }) {
     <div className="text-sm text-gray-700 dark:text-gray-300">
       Triggered by cron {cron} which {prettyInterval}
     </div>
+  );
+}
+
+function WorkflowRunInputDialog({ wr }: { wr: WorkflowRun }) {
+  const getInputQuery = useQuery({
+    ...queries.workflowRuns.getInput(wr.tenantId, wr.metadata.id),
+  });
+
+  if (getInputQuery.isLoading) {
+    return <Loading />;
+  }
+
+  if (!getInputQuery.data) {
+    return null;
+  }
+
+  const input = getInputQuery.data;
+
+  return (
+    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+      <DialogHeader>
+        <DialogTitle>{wr.displayName} Input</DialogTitle>
+      </DialogHeader>
+      <CodeEditor
+        language="json"
+        className="my-4"
+        height="400px"
+        code={JSON.stringify(input, null, 2)}
+      />
+    </DialogContent>
   );
 }

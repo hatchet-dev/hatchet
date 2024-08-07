@@ -7,6 +7,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type ListStepRunsOpts struct {
@@ -29,7 +31,9 @@ func IsFinalJobRunStatus(status dbsqlc.JobRunStatus) bool {
 }
 
 func IsFinalWorkflowRunStatus(status dbsqlc.WorkflowRunStatus) bool {
-	return status != dbsqlc.WorkflowRunStatusPENDING && status != dbsqlc.WorkflowRunStatusRUNNING && status != dbsqlc.WorkflowRunStatusQUEUED
+	return status != dbsqlc.WorkflowRunStatusPENDING &&
+		status != dbsqlc.WorkflowRunStatusRUNNING &&
+		status != dbsqlc.WorkflowRunStatusQUEUED
 }
 
 type CreateStepRunEventOpts struct {
@@ -39,7 +43,7 @@ type CreateStepRunEventOpts struct {
 
 	EventSeverity *dbsqlc.StepRunEventSeverity
 
-	EventData *map[string]interface{}
+	EventData map[string]interface{}
 }
 
 type UpdateStepRunOpts struct {
@@ -93,6 +97,7 @@ func StepRunEventSeverityPtr(severity dbsqlc.StepRunEventSeverity) *dbsqlc.StepR
 var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
 var ErrNoWorkerAvailable = fmt.Errorf("no worker available")
 var ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded")
+var ErrStepRunIsNotAssigned = fmt.Errorf("step run is not assigned")
 
 type StepRunUpdateInfo struct {
 	JobRunFinalState      bool
@@ -153,6 +158,8 @@ type StepRunEngineRepository interface {
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
 	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
+	ListStepRunsToTimeout(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+
 	UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *StepRunUpdateInfo, error)
 
 	ReplayStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
@@ -174,7 +181,13 @@ type StepRunEngineRepository interface {
 
 	AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (workerId string, dispatcherId string, err error)
 
+	UnassignStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error
+
 	GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
+
+	GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error)
+
+	GetStepRunMetaForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunMetaRow, error)
 
 	// QueueStepRun is like UpdateStepRun, except that it will only update the step run if it is in
 	// a pending state.
@@ -185,4 +198,16 @@ type StepRunEngineRepository interface {
 	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error
 
 	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
+
+	ResolveRelatedStatuses(ctx context.Context, tenantId pgtype.UUID, stepRunId pgtype.UUID) (*StepRunUpdateInfo, error)
+
+	DeferredStepRunEvent(
+		stepRunId pgtype.UUID,
+		reason dbsqlc.StepRunEventReason,
+		severity dbsqlc.StepRunEventSeverity,
+		message string,
+		data map[string]interface{},
+	)
+
+	ClearStepRunPayloadData(ctx context.Context, tenantId string) (bool, error)
 }

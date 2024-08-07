@@ -137,3 +137,40 @@ WHERE
     jr."tenantId" = @tenantId::uuid
     AND jr."workflowRunId" = @workflowRunId::uuid
     AND jr."jobId" = @jobId::uuid;
+
+-- name: ClearJobRunLookupData :one
+WITH for_delete AS (
+    SELECT
+        jrld2."id" as "id"
+    FROM "JobRun" jr2
+    LEFT JOIN "JobRunLookupData" jrld2 ON jr2."id" = jrld2."jobRunId"
+    WHERE
+        jr2."tenantId" = @tenantId::uuid AND
+        jr2."deletedAt" IS NOT NULL AND
+        jrld2."data" IS NOT NULL
+    ORDER BY jr2."deletedAt" ASC
+    LIMIT sqlc.arg('limit') + 1
+    FOR UPDATE SKIP LOCKED
+),
+deleted_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT sqlc.arg('limit')
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+)
+UPDATE
+    "JobRunLookupData"
+SET
+    "data" = NULL
+WHERE
+    "id" IN (SELECT "id" FROM deleted_with_limit)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more;

@@ -17,8 +17,7 @@ type WebhookHandlerOptions struct {
 }
 
 type HealthCheckResponse struct {
-	Actions   []string `json:"actions"`
-	Workflows []string `json:"workflows"`
+	Actions []string `json:"actions"`
 }
 
 func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...workflowConverter) http.HandlerFunc {
@@ -76,8 +75,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 			}
 
 			res := HealthCheckResponse{
-				Actions:   actions,
-				Workflows: w.workflows,
+				Actions: actions,
 			}
 			data, err := json.Marshal(res)
 			if err != nil {
@@ -114,7 +112,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 			return
 		}
 
-		ctx, err := newHatchetContext(r.Context(), actionWithPayload, w.client, w.l)
+		ctx, err := newHatchetContext(r.Context(), actionWithPayload, w.client, w.l, w)
 		if err != nil {
 			w.l.Error().Err(err).Msg("error creating context")
 			writer.WriteHeader(http.StatusInternalServerError)

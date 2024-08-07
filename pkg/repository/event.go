@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -85,4 +86,12 @@ type EventEngineRepository interface {
 	GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error)
 
 	ListEventsByIds(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.Event, error)
+
+	// DeleteExpiredEvents deletes events that were created before the given time. It returns the number of deleted events
+	// and the number of non-deleted events that match the conditions.
+	SoftDeleteExpiredEvents(ctx context.Context, tenantId string, before time.Time) (bool, error)
+
+	// ClearEventPayloadData removes the potentially large payload data of events that were created before the given time.
+	// It returns the number of events that were updated and the number of events that were not updated.
+	ClearEventPayloadData(ctx context.Context, tenantId string) (bool, error)
 }

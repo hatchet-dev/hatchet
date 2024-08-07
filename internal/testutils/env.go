@@ -79,7 +79,7 @@ func Prepare(t *testing.T) {
 		}
 	}
 
-	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "default")
+	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "default", false, nil)
 	if err != nil {
 		t.Fatalf("could not generate default token: %v", err)
 	}

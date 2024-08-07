@@ -6,6 +6,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type CreateWorkerOpts struct {
@@ -52,6 +54,16 @@ type ListWorkersOpts struct {
 	Assignable *bool
 }
 
+type UpsertWorkerLabelOpts struct {
+	Key      string
+	IntValue *int32
+	StrValue *string
+}
+
+type ApiUpdateWorkerOpts struct {
+	IsPaused *bool
+}
+
 type WorkerAPIRepository interface {
 	// ListWorkers lists workers for the tenant
 	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error)
@@ -61,6 +73,12 @@ type WorkerAPIRepository interface {
 
 	// GetWorkerById returns a worker by its id.
 	GetWorkerById(workerId string) (*db.WorkerModel, error)
+
+	// ListWorkerLabels returns a list of labels config for a worker
+	ListWorkerLabels(tenantId, workerId string) ([]*dbsqlc.ListWorkerLabelsRow, error)
+
+	// UpdateWorker updates a worker for a given tenant.
+	UpdateWorker(tenantId string, workerId string, opts ApiUpdateWorkerOpts) (*dbsqlc.Worker, error)
 }
 
 type WorkerEngineRepository interface {
@@ -78,7 +96,9 @@ type WorkerEngineRepository interface {
 
 	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
 
-	ResolveWorkerSemaphoreSlots(ctx context.Context) (int64, error)
+	ResolveWorkerSemaphoreSlots(ctx context.Context, tenantId pgtype.UUID) (*dbsqlc.ResolveWorkerSemaphoreSlotsRow, error)
 
 	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error)
+
+	UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*dbsqlc.WorkerLabel, error)
 }

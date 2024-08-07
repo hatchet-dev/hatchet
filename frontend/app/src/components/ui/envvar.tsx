@@ -33,7 +33,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
     if (!values) {
       setValues([]);
     }
-  }, [values]);
+  }, [setValues, values]);
 
   const handleValueChange = (index: number, key: string, value: any) => {
     const newValues = [...values];
@@ -120,6 +120,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
       {!disabled && (
         <div className="flex items-center">
           <Button
+            variant="secondary"
             onClick={() => {
               const newValues = [
                 ...values,

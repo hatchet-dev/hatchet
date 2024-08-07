@@ -149,6 +149,10 @@ type WorkflowJob struct {
 	Steps []*WorkflowStep
 
 	OnFailure *WorkflowJob
+
+	ScheduleTimeout string
+
+	StickyStrategy *types.StickyStrategy
 }
 
 type WorkflowConcurrency struct {
@@ -195,9 +199,10 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 	}
 
 	w := types.Workflow{
-		Name:         namespace + j.Name,
-		Jobs:         jobs,
-		OnFailureJob: onFailureJob,
+		Name:            namespace + j.Name,
+		Jobs:            jobs,
+		OnFailureJob:    onFailureJob,
+		ScheduleTimeout: j.ScheduleTimeout,
 	}
 
 	if j.Concurrency != nil {
@@ -212,6 +217,10 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 		if j.Concurrency.limitStrategy != nil {
 			w.Concurrency.LimitStrategy = *j.Concurrency.limitStrategy
 		}
+	}
+
+	if j.StickyStrategy != nil {
+		w.StickyStrategy = j.StickyStrategy
 	}
 
 	return w
@@ -281,6 +290,8 @@ type WorkflowStep struct {
 	Retries int
 
 	RateLimit []RateLimit
+
+	DesiredLabels map[string]*types.DesiredWorkerLabel
 }
 
 type RateLimit struct {
@@ -301,6 +312,11 @@ func Fn(f any) *WorkflowStep {
 
 func (w *WorkflowStep) SetName(name string) *WorkflowStep {
 	w.Name = name
+	return w
+}
+
+func (w *WorkflowStep) SetDesiredLabels(labels map[string]*types.DesiredWorkerLabel) *WorkflowStep {
+	w.DesiredLabels = labels
 	return w
 }
 
@@ -372,12 +388,13 @@ func (w *WorkflowStep) ToWorkflowStep(wfName, svcName string, index int, namespa
 	res.Id = w.GetStepId(index)
 
 	res.APIStep = types.WorkflowStep{
-		Name:     res.Id,
-		ID:       w.GetStepId(index),
-		Timeout:  w.Timeout,
-		ActionID: w.GetActionId(wfName, svcName, index),
-		Parents:  []string{},
-		Retries:  w.Retries,
+		Name:          res.Id,
+		ID:            w.GetStepId(index),
+		Timeout:       w.Timeout,
+		ActionID:      w.GetActionId(wfName, svcName, index),
+		Parents:       []string{},
+		Retries:       w.Retries,
+		DesiredLabels: w.DesiredLabels,
 	}
 
 	for _, rateLimit := range w.RateLimit {

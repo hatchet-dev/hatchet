@@ -34,7 +34,7 @@ export default function Members() {
         </h2>
         <Separator className="my-4" />
         <MembersList />
-        {meta?.data?.data.allowInvites && (
+        {meta.data?.allowInvites && (
           <>
             <Separator className="my-4" />
             <InvitesList />

@@ -125,8 +125,7 @@ export interface PaginationResponse {
 export interface APIResourceMeta {
   /**
    * the id of this resource, in UUID format
-   * @format uuid
-   * @minLength 36
+   * @minLength 0
    * @maxLength 36
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
@@ -234,17 +233,17 @@ export interface TenantMemberList {
 }
 
 export enum TenantMemberRole {
-  OWNER = "OWNER",
-  ADMIN = "ADMIN",
-  MEMBER = "MEMBER",
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  MEMBER = 'MEMBER',
 }
 
 export enum TenantResource {
-  WORKER = "WORKER",
-  EVENT = "EVENT",
-  WORKFLOW_RUN = "WORKFLOW_RUN",
-  CRON = "CRON",
-  SCHEDULE = "SCHEDULE",
+  WORKER = 'WORKER',
+  EVENT = 'EVENT',
+  WORKFLOW_RUN = 'WORKFLOW_RUN',
+  CRON = 'CRON',
+  SCHEDULE = 'SCHEDULE',
 }
 
 export interface TenantResourceLimit {
@@ -464,12 +463,12 @@ export interface EventWorkflowRunSummary {
 }
 
 export enum EventOrderByField {
-  CreatedAt = "createdAt",
+  CreatedAt = 'createdAt',
 }
 
 export enum EventOrderByDirection {
-  Asc = "asc",
-  Desc = "desc",
+  Asc = 'asc',
+  Desc = 'desc',
 }
 
 export type EventSearch = string;
@@ -515,7 +514,7 @@ export interface WorkflowConcurrency {
    */
   maxRuns: number;
   /** The strategy to use when the concurrency limit is reached. */
-  limitStrategy: "CANCEL_IN_PROGRESS" | "DROP_NEWEST" | "QUEUE_NEWEST" | "GROUP_ROUND_ROBIN";
+  limitStrategy: 'CANCEL_IN_PROGRESS' | 'DROP_NEWEST' | 'QUEUE_NEWEST' | 'GROUP_ROUND_ROBIN';
   /** An action which gets the concurrency group for the WorkflowRun. */
   getConcurrencyGroup: string;
 }
@@ -620,6 +619,8 @@ export interface WorkflowRun {
   startedAt?: string;
   /** @format date-time */
   finishedAt?: string;
+  /** @example 1000 */
+  duration?: number;
   /**
    * @format uuid
    * @minLength 36
@@ -637,9 +638,30 @@ export interface WorkflowRun {
   additionalMetadata?: Record<string, any>;
 }
 
+export interface ReplayWorkflowRunsRequest {
+  /** @maxLength 500 */
+  workflowRunIds: string[];
+}
+
+export interface ReplayWorkflowRunsResponse {
+  workflowRuns: WorkflowRun[];
+}
+
 export interface WorkflowRunList {
   rows?: WorkflowRun[];
   pagination?: PaginationResponse;
+}
+
+export enum WorkflowRunOrderByField {
+  CreatedAt = 'createdAt',
+  StartedAt = 'startedAt',
+  FinishedAt = 'finishedAt',
+  Duration = 'duration',
+}
+
+export enum WorkflowRunOrderByDirection {
+  ASC = 'ASC',
+  DESC = 'DESC',
 }
 
 export interface WorkflowRunsMetrics {
@@ -655,36 +677,44 @@ export interface WorkflowRunsMetricsCounts {
 }
 
 export enum WorkflowRunStatus {
-  PENDING = "PENDING",
-  RUNNING = "RUNNING",
-  SUCCEEDED = "SUCCEEDED",
-  FAILED = "FAILED",
-  CANCELLED = "CANCELLED",
-  QUEUED = "QUEUED",
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  QUEUED = 'QUEUED',
 }
 
 export type WorkflowRunStatusList = WorkflowRunStatus[];
+
+export enum WorkflowKind {
+  FUNCTION = 'FUNCTION',
+  DURABLE = 'DURABLE',
+  DAG = 'DAG',
+}
+
+export type WorkflowKindList = WorkflowKind[];
 
 export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
 
 export enum JobRunStatus {
-  PENDING = "PENDING",
-  RUNNING = "RUNNING",
-  SUCCEEDED = "SUCCEEDED",
-  FAILED = "FAILED",
-  CANCELLED = "CANCELLED",
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 
 export enum StepRunStatus {
-  PENDING = "PENDING",
-  PENDING_ASSIGNMENT = "PENDING_ASSIGNMENT",
-  ASSIGNED = "ASSIGNED",
-  RUNNING = "RUNNING",
-  SUCCEEDED = "SUCCEEDED",
-  FAILED = "FAILED",
-  CANCELLED = "CANCELLED",
+  PENDING = 'PENDING',
+  PENDING_ASSIGNMENT = 'PENDING_ASSIGNMENT',
+  ASSIGNED = 'ASSIGNED',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 
 export interface JobRun {
@@ -754,26 +784,26 @@ export interface StepRun {
 }
 
 export enum StepRunEventReason {
-  REQUEUED_NO_WORKER = "REQUEUED_NO_WORKER",
-  REQUEUED_RATE_LIMIT = "REQUEUED_RATE_LIMIT",
-  SCHEDULING_TIMED_OUT = "SCHEDULING_TIMED_OUT",
-  ASSIGNED = "ASSIGNED",
-  STARTED = "STARTED",
-  FINISHED = "FINISHED",
-  FAILED = "FAILED",
-  RETRYING = "RETRYING",
-  CANCELLED = "CANCELLED",
-  TIMEOUT_REFRESHED = "TIMEOUT_REFRESHED",
-  REASSIGNED = "REASSIGNED",
-  TIMED_OUT = "TIMED_OUT",
-  SLOT_RELEASED = "SLOT_RELEASED",
-  RETRIED_BY_USER = "RETRIED_BY_USER",
+  REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
+  REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
+  SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
+  ASSIGNED = 'ASSIGNED',
+  STARTED = 'STARTED',
+  FINISHED = 'FINISHED',
+  FAILED = 'FAILED',
+  RETRYING = 'RETRYING',
+  CANCELLED = 'CANCELLED',
+  TIMEOUT_REFRESHED = 'TIMEOUT_REFRESHED',
+  REASSIGNED = 'REASSIGNED',
+  TIMED_OUT = 'TIMED_OUT',
+  SLOT_RELEASED = 'SLOT_RELEASED',
+  RETRIED_BY_USER = 'RETRIED_BY_USER',
 }
 
 export enum StepRunEventSeverity {
-  INFO = "INFO",
-  WARNING = "WARNING",
-  CRITICAL = "CRITICAL",
+  INFO = 'INFO',
+  WARNING = 'WARNING',
+  CRITICAL = 'CRITICAL',
 }
 
 export interface StepRunEvent {
@@ -850,7 +880,7 @@ export interface Worker {
   /** The recent step runs for this worker. */
   recentStepRuns?: StepRun[];
   /** The status of the worker. */
-  status?: "ACTIVE" | "INACTIVE";
+  status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
   /** The maximum number of runs this worker can execute concurrently. */
   maxRuns?: number;
   /** The number of runs this worker can execute concurrently. */
@@ -863,6 +893,21 @@ export interface Worker {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   dispatcherId?: string;
+  /** The current label state of the worker. */
+  labels?: WorkerLabel[];
+}
+
+export interface WorkerLabel {
+  metadata: APIResourceMeta;
+  /** The key of the label. */
+  key: string;
+  /** The value of the label. */
+  value?: string;
+}
+
+export interface UpdateWorkerRequest {
+  /** Whether the worker is paused and cannot accept new runs. */
+  isPaused?: boolean;
 }
 
 export interface APIToken {
@@ -885,6 +930,8 @@ export interface CreateAPITokenRequest {
    * @maxLength 255
    */
   name: string;
+  /** The duration for which the token is valid. */
+  expiresIn?: string;
 }
 
 export interface CreateAPITokenResponse {
@@ -936,8 +983,8 @@ export interface PullRequest {
 }
 
 export enum PullRequestState {
-  Open = "open",
-  Closed = "closed",
+  Open = 'open',
+  Closed = 'closed',
 }
 
 export interface LogLine {
@@ -953,10 +1000,10 @@ export interface LogLine {
 }
 
 export enum LogLineLevel {
-  DEBUG = "DEBUG",
-  INFO = "INFO",
-  WARN = "WARN",
-  ERROR = "ERROR",
+  DEBUG = 'DEBUG',
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
 }
 
 export interface LogLineList {
@@ -965,12 +1012,12 @@ export interface LogLineList {
 }
 
 export enum LogLineOrderByField {
-  CreatedAt = "createdAt",
+  CreatedAt = 'createdAt',
 }
 
 export enum LogLineOrderByDirection {
-  Asc = "asc",
-  Desc = "desc",
+  Asc = 'asc',
+  Desc = 'desc',
 }
 
 export type LogLineSearch = string;

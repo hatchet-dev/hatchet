@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ type TracerOpts struct {
 	ServiceName  string
 	CollectorURL string
 	Insecure     bool
+	TraceIdRatio string
 }
 
 func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
@@ -63,9 +65,19 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 		return nil, fmt.Errorf("failed to set resources: %w", err)
 	}
 
+	var traceIdRatio float64 = 1
+
+	if opts.TraceIdRatio != "" {
+		traceIdRatio, err = strconv.ParseFloat(opts.TraceIdRatio, 64)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse traceIdRatio: %w", err)
+		}
+	}
+
 	otel.SetTracerProvider(
 		sdktrace.NewTracerProvider(
-			sdktrace.WithSampler(sdktrace.AlwaysSample()),
+			sdktrace.WithSampler(sdktrace.TraceIDRatioBased(traceIdRatio)),
 			sdktrace.WithBatcher(exporter),
 			sdktrace.WithResource(resources),
 		),

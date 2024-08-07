@@ -9,6 +9,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -21,6 +23,7 @@ type ChildWorkflowOpts struct {
 	ParentStepRunId string
 	ChildIndex      int
 	ChildKey        *string
+	DesiredWorkerId *string
 }
 
 type AdminClient interface {
@@ -33,6 +36,14 @@ type AdminClient interface {
 	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
 
 	PutRateLimit(key string, opts *types.RateLimitOpts) error
+}
+
+type DedupeViolationErr struct {
+	details string
+}
+
+func (d *DedupeViolationErr) Error() string {
+	return fmt.Sprintf("DedupeViolationErr: %s", d.details)
 }
 
 type adminClientImpl struct {
@@ -190,6 +201,12 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &request)
 
 	if err != nil {
+		if status.Code(err) == codes.AlreadyExists {
+			return "", &DedupeViolationErr{
+				details: fmt.Sprintf("could not trigger workflow: %s", err.Error()),
+			}
+		}
+
 		return "", fmt.Errorf("could not trigger workflow: %w", err)
 	}
 
@@ -216,9 +233,16 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		ParentStepRunId: &opts.ParentStepRunId,
 		ChildIndex:      &childIndex,
 		ChildKey:        opts.ChildKey,
+		DesiredWorkerId: opts.DesiredWorkerId,
 	})
 
 	if err != nil {
+		if status.Code(err) == codes.AlreadyExists {
+			return "", &DedupeViolationErr{
+				details: fmt.Sprintf("could not trigger child workflow: %s", err.Error()),
+			}
+		}
+
 		return "", fmt.Errorf("could not trigger child workflow: %w", err)
 	}
 
@@ -264,6 +288,11 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		CronTriggers:  workflow.Triggers.Cron,
 	}
 
+	if workflow.StickyStrategy != nil {
+		s := admincontracts.StickyStrategy(*workflow.StickyStrategy)
+		opts.Sticky = &s
+	}
+
 	if workflow.Concurrency != nil {
 		opts.Concurrency = &admincontracts.WorkflowConcurrencyOpts{
 			Action: workflow.Concurrency.ActionID,
@@ -282,6 +311,10 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		if workflow.Concurrency.MaxRuns != 0 {
 			opts.Concurrency.MaxRuns = workflow.Concurrency.MaxRuns
 		}
+	}
+
+	if workflow.ScheduleTimeout != "" {
+		opts.ScheduleTimeout = &workflow.ScheduleTimeout
 	}
 
 	if workflow.OnFailureJob != nil {
@@ -350,6 +383,40 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 				Key:   rateLimit.Key,
 				Units: int32(rateLimit.Units),
 			})
+		}
+
+		if step.DesiredLabels != nil {
+			stepOpt.WorkerLabels = make(map[string]*admincontracts.DesiredWorkerLabels, len(step.DesiredLabels))
+			for key, desiredLabel := range step.DesiredLabels {
+				stepOpt.WorkerLabels[key] = &admincontracts.DesiredWorkerLabels{
+					Required: &desiredLabel.Required,
+					Weight:   &desiredLabel.Weight,
+				}
+
+				switch value := desiredLabel.Value.(type) {
+				case string:
+					strValue := value
+					stepOpt.WorkerLabels[key].StrValue = &strValue
+				case int:
+					intValue := int32(value)
+					stepOpt.WorkerLabels[key].IntValue = &intValue
+				case int32:
+					stepOpt.WorkerLabels[key].IntValue = &value
+				case int64:
+					intValue := int32(value)
+					stepOpt.WorkerLabels[key].IntValue = &intValue
+				default:
+					// For any other type, convert to string
+					strValue := fmt.Sprintf("%v", value)
+					stepOpt.WorkerLabels[key].StrValue = &strValue
+				}
+
+				if desiredLabel.Comparator != nil {
+					c := admincontracts.WorkerLabelComparator(*desiredLabel.Comparator)
+					stepOpt.WorkerLabels[key].Comparator = &c
+				}
+
+			}
 		}
 
 		stepOpts[i] = stepOpt

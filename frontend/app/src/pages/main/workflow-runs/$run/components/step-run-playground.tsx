@@ -315,18 +315,18 @@ export function StepRunPlayground({
               )}
             </div>
             <div className="flex-grow flex-col flex gap-4 w-1/2 ">
-              <Tabs defaultValue="output" className="flex flex-col">
+              <Tabs defaultValue="events" className="flex flex-col">
                 <div className="flex flex-row justify-between items-center">
                   <div className="flex flex-row justify-start items-center gap-6 mb-2">
                     <TabsList>
+                      <TabsTrigger value="events" className="px-8">
+                        Events
+                      </TabsTrigger>
                       <TabsTrigger value="output" className="px-8">
                         Output
                       </TabsTrigger>
                       <TabsTrigger value="logs" className="px-8">
                         Logs
-                      </TabsTrigger>
-                      <TabsTrigger value="events" className="px-8">
-                        Events
                       </TabsTrigger>
                     </TabsList>
                   </div>
@@ -339,7 +339,9 @@ export function StepRunPlayground({
                     className="px-2"
                   />
                 </div>
-
+                <TabsContent value="events">
+                  <StepRunEvents stepRun={stepRun} />
+                </TabsContent>
                 <TabsContent value="output">
                   <StepRunOutput
                     output={output}
@@ -356,9 +358,6 @@ export function StepRunPlayground({
                 </TabsContent>
                 <TabsContent value="logs">
                   <StepRunLogs stepRun={stepRun} />
-                </TabsContent>
-                <TabsContent value="events">
-                  <StepRunEvents stepRun={stepRun} />
                 </TabsContent>
               </Tabs>
 

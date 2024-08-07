@@ -10,7 +10,13 @@ import {
 } from '@tanstack/react-table';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import api, { WorkflowRunStatus, queries } from '@/lib/api';
+import api, {
+  ReplayWorkflowRunsRequest,
+  WorkflowRunOrderByDirection,
+  WorkflowRunOrderByField,
+  WorkflowRunStatus,
+  queries,
+} from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
@@ -20,7 +26,11 @@ import {
   ToolbarType,
 } from '@/components/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/ui/button';
-import { ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowPathIcon,
+  ArrowPathRoundedSquareIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import { WorkflowRunsMetricsView } from './workflow-runs-metrics';
 import queryClient from '@/query-client';
 import { useApiError } from '@/lib/hooks';
@@ -78,11 +88,11 @@ export function WorkflowRunsTable({
     const newSearchParams = new URLSearchParams(searchParams);
     if (sorting.length) {
       newSearchParams.set(
-        'sort',
+        'orderDirection',
         sorting.map((s) => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(','),
       );
     } else {
-      newSearchParams.delete('sort');
+      newSearchParams.delete('orderDirection');
     }
     if (columnFilters.length) {
       newSearchParams.set('filters', JSON.stringify(columnFilters));
@@ -142,6 +152,36 @@ export function WorkflowRunsTable({
     return filter?.value as Array<string>;
   }, [columnFilters]);
 
+  const orderByDirection = useMemo(():
+    | WorkflowRunOrderByDirection
+    | undefined => {
+    if (!sorting.length) {
+      return;
+    }
+
+    return sorting[0]?.desc
+      ? WorkflowRunOrderByDirection.DESC
+      : WorkflowRunOrderByDirection.ASC;
+  }, [sorting]);
+
+  const orderByField = useMemo((): WorkflowRunOrderByField | undefined => {
+    if (!sorting.length) {
+      return;
+    }
+
+    switch (sorting[0]?.id) {
+      case 'Duration':
+        return WorkflowRunOrderByField.Duration;
+      case 'Finished at':
+        return WorkflowRunOrderByField.FinishedAt;
+      case 'Started at':
+        return WorkflowRunOrderByField.StartedAt;
+      case 'Seen at':
+      default:
+        return WorkflowRunOrderByField.CreatedAt;
+    }
+  }, [sorting]);
+
   const listWorkflowRunsQuery = useQuery({
     ...queries.workflowRuns.list(tenant.metadata.id, {
       offset,
@@ -150,6 +190,8 @@ export function WorkflowRunsTable({
       workflowId: workflow,
       parentWorkflowRunId,
       parentStepRunId,
+      orderByDirection,
+      orderByField,
       additionalMetadata: AdditionalMetadataFilter,
     }),
     refetchInterval,
@@ -202,6 +244,22 @@ export function WorkflowRunsTable({
       queryClient.invalidateQueries({
         queryKey: queries.workflowRuns.list(tenant.metadata.id, {}).queryKey,
       });
+    },
+    onError: handleApiError,
+  });
+
+  const replayWorkflowRunsMutation = useMutation({
+    mutationKey: ['workflow-run:update:replay', tenant.metadata.id],
+    mutationFn: async (data: ReplayWorkflowRunsRequest) => {
+      await api.workflowRunUpdateReplay(tenant.metadata.id, data);
+    },
+    onSuccess: () => {
+      setRowSelection({});
+
+      // bit hacky, but workflow run statuses aren't updated immediately after replay
+      setTimeout(() => {
+        listWorkflowRunsQuery.refetch();
+      }, 1000);
     },
     onError: handleApiError,
   });
@@ -279,7 +337,23 @@ export function WorkflowRunsTable({
       aria-label="Cancel Selected Runs"
     >
       <XMarkIcon className={`mr-2 h-4 w-4 transition-transform`} />
-      Cancel Selected Runs
+      Cancel
+    </Button>,
+    <Button
+      disabled={!Object.values(rowSelection).some((selected) => !!selected)}
+      key="replay"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        replayWorkflowRunsMutation.mutate({
+          workflowRunIds: selectedRuns.map((run) => run.metadata.id),
+        });
+      }}
+      variant={'outline'}
+      aria-label="Replay Selected Runs"
+    >
+      <ArrowPathRoundedSquareIcon className="mr-2 h-4 w-4 transition-transform" />
+      Replay
     </Button>,
     <Button
       key="refresh"
@@ -306,7 +380,34 @@ export function WorkflowRunsTable({
     <>
       {metricsQuery.data && (
         <div className="mb-4">
-          <WorkflowRunsMetricsView metrics={metricsQuery.data} />
+          <WorkflowRunsMetricsView
+            metrics={metricsQuery.data}
+            onClick={(status) => {
+              setColumnFilters((prev) => {
+                const statusFilter = prev.find(
+                  (filter) => filter.id === 'status',
+                );
+                if (statusFilter) {
+                  prev = prev.filter((filter) => filter.id !== 'status');
+                }
+
+                if (
+                  JSON.stringify(statusFilter?.value) ===
+                  JSON.stringify([status])
+                ) {
+                  return prev;
+                }
+
+                return [
+                  ...prev,
+                  {
+                    id: 'status',
+                    value: [status],
+                  },
+                ];
+              });
+            }}
+          />
         </div>
       )}
       <DataTable
@@ -328,6 +429,7 @@ export function WorkflowRunsTable({
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
         pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
+        showColumnToggle={true}
       />
     </>
   );

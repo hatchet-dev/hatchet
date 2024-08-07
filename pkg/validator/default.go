@@ -18,7 +18,7 @@ const (
 	HatchetNameErr = "Hatchet names must match the regex ^[a-zA-Z0-9\\.\\-_]+$"
 	ActionIDErr    = "Invalid action ID. Action IDs must be in the format <integrationId>:<verb>"
 	CronErr        = "Invalid cron expression"
-	DurationErr    = "Invalid duration. Durations must be in the format <number><unit>, where unit is one of: 's', 'm', 'h', 'd', 'w', 'M', 'y'"
+	DurationErr    = "Invalid duration. Durations must be in the format <number><unit>, where unit is one of: 's', 'm', 'h'"
 )
 
 type APIErrors gen.APIErrors

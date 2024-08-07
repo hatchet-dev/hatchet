@@ -31,6 +31,14 @@ service Dispatcher {
     rpc RefreshTimeout(RefreshTimeoutRequest) returns (RefreshTimeoutResponse) {}
 
     rpc ReleaseSlot(ReleaseSlotRequest) returns (ReleaseSlotResponse) {}
+
+    rpc UpsertWorkerLabels(UpsertWorkerLabelsRequest) returns (UpsertWorkerLabelsResponse) {}
+}
+
+message WorkerLabels {
+    // value of the label
+    optional string strValue = 1;
+    optional int32 intValue = 2;
 }
 
 message WorkerRegisterRequest {
@@ -45,6 +53,9 @@ message WorkerRegisterRequest {
 
     // (optional) the max number of runs this worker can handle
     optional int32 maxRuns = 4;
+
+    // (optional) worker labels (i.e. state or other metadata)
+    map<string, WorkerLabels> labels = 5;
 }
 
 message WorkerRegisterResponse {
@@ -56,6 +67,23 @@ message WorkerRegisterResponse {
 
     // the name of the worker
     string workerName = 3;
+}
+
+message UpsertWorkerLabelsRequest {
+    // the name of the worker
+    string workerId = 1;
+
+    // (optional) the worker labels
+    map<string, WorkerLabels> labels = 2;
+}
+
+
+message UpsertWorkerLabelsResponse {
+    // the tenant id
+    string tenantId = 1;
+
+    // the id of the worker
+    string workerId = 2;
 }
 
 enum ActionType {
@@ -103,6 +131,18 @@ message AssignedAction {
 
     // the count number of the retry attempt
     int32 retryCount = 13;
+
+    // (optional) additional metadata set on the workflow
+    optional string additional_metadata = 14;
+
+    // (optional) the child workflow index (if this is a child workflow)
+    optional int32 child_workflow_index = 15;
+
+    // (optional) the child workflow key (if this is a child workflow)
+    optional string child_workflow_key = 16;
+
+    // (optional) the parent workflow run id (if this is a child workflow)
+    optional string parent_workflow_run_id = 17;
 }
 
 message WorkerListenRequest {
@@ -196,7 +236,13 @@ message ActionEventResponse {
 
 message SubscribeToWorkflowEventsRequest {
     // the id of the workflow run
-    string workflowRunId = 1;
+    optional string workflowRunId = 1;
+
+    // the key of the additional meta field to subscribe to
+    optional string additionalMetaKey = 2;
+
+    // the value of the additional meta field to subscribe to
+    optional string additionalMetaValue = 3;
 }
 
 message SubscribeToWorkflowRunsRequest {

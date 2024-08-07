@@ -32,6 +32,7 @@ SET
 WHERE
     "id" = $1::uuid AND
     "tenantId" = $2::uuid AND
+    "deletedAt" IS NULL AND
     EXISTS (SELECT 1 FROM selected_ticker)
 RETURNING "GetGroupKeyRun"."id", "GetGroupKeyRun"."tickerId"
 `
@@ -70,6 +71,9 @@ WITH get_group_key_run AS (
     JOIN
         "Action" a ON wc."getConcurrencyGroupId" = a."id"
     WHERE
+        wr."deletedAt" IS NULL AND
+        ggr."deletedAt" IS NULL AND
+        wv."deletedAt" IS NULL AND
         ggr."id" = $1::uuid AND
         ggr."tenantId" = $2::uuid
 ), valid_workers AS (
@@ -148,6 +152,9 @@ JOIN
     "Action" a ON wc."getConcurrencyGroupId" = a."id" AND a."tenantId" = ggr."tenantId"
 WHERE
     ggr."id" = ANY($1::uuid[]) AND
+    ggr."deletedAt" IS NULL AND
+    wr."deletedAt" IS NULL AND
+    wv."deletedAt" IS NULL AND
     ggr."tenantId" = $2::uuid
 `
 
@@ -221,6 +228,7 @@ WITH valid_workers AS (
         w."tenantId" = $1::uuid
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
+        AND w."isPaused" = false
     GROUP BY
         w."id"
 ),
@@ -245,6 +253,7 @@ group_key_runs AS (
         "Worker" w ON ggr."workerId" = w."id"
     WHERE
         ggr."tenantId" = $1::uuid
+        AND ggr."deletedAt" IS NULL
         AND ((
             ggr."status" = 'RUNNING'
             AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
@@ -347,6 +356,7 @@ group_key_runs AS (
         "Worker" w ON ggr."workerId" = w."id"
     WHERE
         ggr."tenantId" = $1::uuid
+        AND ggr."deletedAt" IS NULL
         AND ggr."requeueAfter" < NOW()
         AND (ggr."status" = 'PENDING' OR ggr."status" = 'PENDING_ASSIGNMENT')
     ORDER BY

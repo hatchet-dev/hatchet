@@ -42,7 +42,7 @@ func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tes
 			t.Fatal(err.Error())
 		}
 
-		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token")
+		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token", false, nil)
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -83,7 +83,7 @@ func TestRevokeTenantToken(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token")
+		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token", false, nil)
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -143,7 +143,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token")
+		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token", false, nil)
 
 		if err != nil {
 			t.Fatal(err.Error())
