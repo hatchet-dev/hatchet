@@ -21,6 +21,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
@@ -35,12 +37,13 @@ type Dispatcher interface {
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
-	s    gocron.Scheduler
-	mq   msgqueue.MessageQueue
-	l    *zerolog.Logger
-	dv   datautils.DataDecoderValidator
-	v    validator.Validator
-	repo repository.EngineRepository
+	s     gocron.Scheduler
+	mq    msgqueue.MessageQueue
+	l     *zerolog.Logger
+	dv    datautils.DataDecoderValidator
+	v     validator.Validator
+	repo  repository.EngineRepository
+	cache cache.Cacheable
 
 	entitlements repository.EntitlementsRepository
 
@@ -120,6 +123,7 @@ type DispatcherOpts struct {
 	entitlements repository.EntitlementsRepository
 	dispatcherId string
 	alerter      hatcheterrors.Alerter
+	cache        cache.Cacheable
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -176,6 +180,12 @@ func WithDispatcherId(dispatcherId string) DispatcherOpt {
 	}
 }
 
+func WithCache(cache cache.Cacheable) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.cache = cache
+	}
+}
+
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -193,6 +203,10 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	if opts.entitlements == nil {
 		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
+	}
+
+	if opts.cache == nil {
+		return nil, fmt.Errorf("cache is required. use WithCache")
 	}
 
 	newLogger := opts.l.With().Str("service", "dispatcher").Logger()
@@ -219,6 +233,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		workers:      &workers{},
 		s:            s,
 		a:            a,
+		cache:        opts.cache,
 	}, nil
 }
 
@@ -437,6 +452,11 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
+	if len(workers) == 0 {
+		d.l.Warn().Msgf("worker %s not found, ignoring task for step run %s", payload.WorkerId, payload.StepRunId)
+		return nil
+	}
+
 	// load the step run from the database
 	stepRun, err := d.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
@@ -444,16 +464,22 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
+	data, err := d.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run data: %w", err)
+	}
+
 	servertel.WithStepRunModel(span, stepRun)
 
 	var multiErr error
 	var success bool
 
-	for _, w := range workers {
-		err = w.StartStepRun(ctx, metadata.TenantId, stepRun)
+	for i, w := range workers {
+		err = w.StartStepRun(ctx, metadata.TenantId, stepRun, data)
 
 		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker: %w", err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker (%d): %w", i, err))
 		} else {
 			success = true
 		}
@@ -461,6 +487,21 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 
 	if success {
 		return nil
+	}
+
+	defer d.repo.StepRun().DeferredStepRunEvent(
+		stepRun.SRID,
+		dbsqlc.StepRunEventReasonREASSIGNED,
+		dbsqlc.StepRunEventSeverityWARNING,
+		"Could not send step run to assigned worker",
+		nil,
+	)
+
+	// we were unable to send the step run to any worker, revert the step run to pending assignment
+	err = d.repo.StepRun().UnassignStepRunFromWorker(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID))
+
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("💥 could not revert step run: %w", err))
 	}
 
 	return multiErr

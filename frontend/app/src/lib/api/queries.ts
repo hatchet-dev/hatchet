@@ -7,6 +7,8 @@ import { WebhookWorkerCreateRequest } from '.';
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
+export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
+export type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
 type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
 
 export const queries = createQueryKeyStore({
@@ -14,6 +16,64 @@ export const queries = createQueryKeyStore({
     billing: (tenant: string) => ({
       queryKey: ['billing-state:get', tenant],
       queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
+    }),
+    getManagedWorker: (worker: string) => ({
+      queryKey: ['managed-worker:get', worker],
+      queryFn: async () => (await cloudApi.managedWorkerGet(worker)).data,
+    }),
+    listManagedWorkers: (tenant: string) => ({
+      queryKey: ['managed-worker:list', tenant],
+      queryFn: async () => (await cloudApi.managedWorkerList(tenant)).data,
+    }),
+    listManagedWorkerInstances: (managedWorkerId: string) => ({
+      queryKey: ['managed-worker:list:instances', managedWorkerId],
+      queryFn: async () =>
+        (await cloudApi.managedWorkerInstancesList(managedWorkerId)).data,
+    }),
+    getManagedWorkerLogs: (
+      managedWorkerId: string,
+      query: ListCloudLogsQuery,
+    ) => ({
+      queryKey: ['managed-worker:get:logs', managedWorkerId, query],
+      queryFn: async () =>
+        (await cloudApi.logList(managedWorkerId, query)).data,
+    }),
+    getBuild: (buildId: string) => ({
+      queryKey: ['build:get', buildId],
+      queryFn: async () => (await cloudApi.buildGet(buildId)).data,
+    }),
+    getBuildLogs: (buildId: string) => ({
+      queryKey: ['build-logs:list', buildId],
+      queryFn: async () => (await cloudApi.buildLogsList(buildId)).data,
+    }),
+    getManagedWorkerCpuMetrics: (
+      managedWorkerId: string,
+      query: GetCloudMetricsQuery,
+    ) => ({
+      queryKey: ['managed-worker:get:cpu-metrics', managedWorkerId, query],
+      queryFn: async () =>
+        (await cloudApi.metricsCpuGet(managedWorkerId, query)).data,
+    }),
+    getManagedWorkerMemoryMetrics: (
+      managedWorkerId: string,
+      query: GetCloudMetricsQuery,
+    ) => ({
+      queryKey: ['managed-worker:get:memory-metrics', managedWorkerId],
+      queryFn: async () =>
+        (await cloudApi.metricsMemoryGet(managedWorkerId, query)).data,
+    }),
+    getManagedWorkerDiskMetrics: (
+      managedWorkerId: string,
+      query: GetCloudMetricsQuery,
+    ) => ({
+      queryKey: ['managed-worker:get:disk-metrics', managedWorkerId],
+      queryFn: async () =>
+        (await cloudApi.metricsDiskGet(managedWorkerId, query)).data,
+    }),
+    listManagedWorkerEvents: (managedWorkerId: string) => ({
+      queryKey: ['managed-worker:get:events', managedWorkerId],
+      queryFn: async () =>
+        (await cloudApi.managedWorkerEventsList(managedWorkerId)).data,
     }),
   },
   user: {
@@ -118,6 +178,10 @@ export const queries = createQueryKeyStore({
     get: (tenant: string, workflowRun: string) => ({
       queryKey: ['workflow-run:get', tenant, workflowRun],
       queryFn: async () => (await api.workflowRunGet(tenant, workflowRun)).data,
+    }),
+    getInput: (tenant: string, workflowRun: string) => ({
+      queryKey: ['workflow-run:get:input', tenant, workflowRun],
+      queryFn: async () => (await api.workflowRunGetInput(workflowRun)).data,
     }),
     metrics: (tenant: string, query: WorkflowRunMetrics) => ({
       queryKey: ['workflow-run:metrics', tenant, query],

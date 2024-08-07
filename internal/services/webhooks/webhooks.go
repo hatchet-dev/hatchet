@@ -132,7 +132,7 @@ func (c *WebhooksController) check() error {
 
 				expiresAt := time.Now().Add(100 * 365 * 24 * time.Hour) // 100 years
 
-				tok, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker", &expiresAt)
+				tok, err := c.sc.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "webhook-worker", true, &expiresAt)
 				if err != nil {
 					c.sc.Logger.Error().Err(err).Msgf("could not generate token for webhook worker %s of tenant %s", id, tenantId)
 					return
@@ -177,8 +177,7 @@ func (c *WebhooksController) check() error {
 }
 
 type HealthCheckResponse struct {
-	Actions   []string `json:"actions"`
-	Workflows []string `json:"workflows"`
+	Actions []string `json:"actions"`
 }
 
 func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheckResponse, error) {
@@ -216,14 +215,13 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 	}
 
 	ww, err := webhook.New(webhook.WorkerOpts{
-		Token:     token,
-		ID:        id,
-		Secret:    secret,
-		URL:       webhookWorker.Url,
-		Name:      webhookWorker.Name,
-		TenantID:  tenantId,
-		Actions:   h.Actions,
-		Workflows: h.Workflows,
+		Token:    token,
+		ID:       id,
+		Secret:   secret,
+		URL:      webhookWorker.Url,
+		Name:     webhookWorker.Name,
+		TenantID: tenantId,
+		Actions:  h.Actions,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create webhook worker: %w", err)
@@ -243,7 +241,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
-		wfsHashLast := hash(h.Workflows)
+
 		actionsHashLast := hash(h.Actions)
 
 		healthCheckErrors := 0
@@ -272,10 +270,9 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 					continue
 				}
 
-				wfsHash := hash(h.Workflows)
 				actionsHash := hash(h.Actions)
 
-				if wfsHash != wfsHashLast || actionsHash != actionsHashLast {
+				if actionsHash != actionsHashLast {
 					c.sc.Logger.Debug().Msgf("webhook worker %s of tenant %s health check changed, updating", id, tenantId)
 
 					// update the webhook workflow, and restart worker
@@ -300,7 +297,6 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 					continue
 				}
 
-				wfsHashLast = wfsHash
 				actionsHashLast = actionsHash
 
 				if healthCheckErrors > 0 {

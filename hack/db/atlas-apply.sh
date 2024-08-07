@@ -55,7 +55,7 @@ if [ $? -eq 0 ] && [ -n "$MIGRATION_NAME" ]; then
     --baseline "$MIGRATION_NAME" \
     --dir "file://sql/migrations"
 else
-  echo "No prisma migration found. Applying all migrations..."
+  echo "No prisma migration found. Applying migrations via atlas..."
 
   atlas migrate apply \
     --url "$DATABASE_URL" \

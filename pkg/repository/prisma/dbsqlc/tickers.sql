@@ -67,33 +67,6 @@ WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;
 
--- name: PollStepRuns :many
-WITH stepRunsToTimeout AS (
-    SELECT
-        stepRun."id"
-    FROM
-        "StepRun" as stepRun
-    WHERE
-        ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
-        AND "timeoutAt" < NOW()
-        AND (
-            NOT EXISTS (
-                SELECT 1 FROM "Ticker" WHERE "id" = stepRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
-            )
-            OR "tickerId" IS NULL
-        )
-    FOR UPDATE SKIP LOCKED
-)
-UPDATE
-    "StepRun" as stepRuns
-SET
-    "tickerId" = @tickerId::uuid
-FROM
-    stepRunsToTimeout
-WHERE
-    stepRuns."id" = stepRunsToTimeout."id"
-RETURNING stepRuns.*;
-
 -- name: PollGetGroupKeyRuns :many
 WITH getGroupKeyRunsToTimeout AS (
     SELECT
@@ -103,6 +76,7 @@ WITH getGroupKeyRunsToTimeout AS (
     WHERE
         ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
         AND "timeoutAt" < NOW()
+        AND "deletedAt" IS NULL
         AND (
             NOT EXISTS (
                 SELECT 1 FROM "Ticker" WHERE "id" = getGroupKeyRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
@@ -144,12 +118,15 @@ active_cron_schedules AS (
     JOIN
         latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
     WHERE
-        "enabled" = TRUE AND
-        ("tickerId" IS NULL
-        OR NOT EXISTS (
-            SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+        "enabled" = TRUE
+        AND versions."deletedAt" IS NULL
+        AND (
+            "tickerId" IS NULL
+            OR NOT EXISTS (
+                SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+            )
+            OR "tickerId" = @tickerId::uuid
         )
-        OR "tickerId" = @tickerId::uuid)
     FOR UPDATE SKIP LOCKED
 )
 UPDATE
@@ -191,6 +168,8 @@ not_run_scheduled_workflows AS (
     WHERE
         "triggerAt" <= NOW() + INTERVAL '5 seconds'
         AND runTriggeredBy IS NULL
+        AND versions."deletedAt" IS NULL
+        AND workflow."deletedAt" IS NULL
         AND (
             "tickerId" IS NULL
             OR NOT EXISTS (
@@ -238,6 +217,7 @@ failed_run_count_by_tenant AS (
         active_tenant_alerts ON active_tenant_alerts."tenantId" = workflowRun."tenantId"
     WHERE
         "status" = 'FAILED'
+        AND workflowRun."deletedAt" IS NULL
         AND (
             (
                 "lastAlertedAt" IS NULL AND
@@ -364,3 +344,18 @@ FROM
 WHERE
     na."existingAlert" = false
 RETURNING *;
+
+-- name: PollUnresolvedFailedStepRuns :many
+SELECT
+	sr."id",
+    sr."tenantId"
+FROM "StepRun" sr
+JOIN "JobRun" jr on jr."id" = sr."jobRunId"
+WHERE
+	(
+		(sr."status" = 'FAILED' AND jr."status" != 'FAILED')
+	OR
+		(sr."status" = 'CANCELLED' AND jr."status" != 'CANCELLED')
+	)
+	AND sr."updatedAt" < CURRENT_TIMESTAMP - INTERVAL '5 seconds'
+;

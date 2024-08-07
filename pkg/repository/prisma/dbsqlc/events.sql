@@ -4,39 +4,57 @@ SELECT
 FROM
     "Event"
 WHERE
+    "deletedAt" IS NOT NULL AND
     "id" = @id::uuid;
 
 -- name: CountEvents :one
+WITH events AS (
+    SELECT
+        events."id", events."createdAt"
+    FROM
+        "Event" as events
+    LEFT JOIN
+        "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
+    LEFT JOIN
+        "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
+    LEFT JOIN
+        "WorkflowVersion" as workflowVersion ON workflowVersion."id" = runs."workflowVersionId"
+    LEFT JOIN
+        "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+    WHERE
+        events."tenantId" = $1 AND
+        events."deletedAt" IS NOT NULL AND
+        (
+            sqlc.narg('keys')::text[] IS NULL OR
+            events."key" = ANY(sqlc.narg('keys')::text[])
+            ) AND
+        (
+            sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+            events."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
+        ) AND
+        (
+            (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR
+            (workflow."id" = ANY(sqlc.narg('workflows')::text[]::uuid[]))
+            ) AND
+        (
+            sqlc.narg('search')::text IS NULL OR
+            jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
+        ) AND
+            (
+                sqlc.narg('statuses')::text[] IS NULL OR
+                "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+            )
+    GROUP BY
+        events."id"
+    ORDER BY
+        case when @orderBy = 'createdAt ASC' THEN events."createdAt" END ASC ,
+        case when @orderBy = 'createdAt DESC' then events."createdAt" END DESC
+    LIMIT 10000
+)
 SELECT
-    count(*) OVER() AS total
+    count(events) AS total
 FROM
-    "Event" as events
-LEFT JOIN
-  "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
-LEFT JOIN
-  "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
-LEFT JOIN
-  "WorkflowVersion" as workflowVersion ON workflowVersion."id" = runs."workflowVersionId"
-LEFT JOIN
-  "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
-WHERE
-  events."tenantId" = $1 AND
-  (
-    sqlc.narg('keys')::text[] IS NULL OR
-    events."key" = ANY(sqlc.narg('keys')::text[])
-    ) AND
-  (
-    (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR
-    (workflow."id" = ANY(sqlc.narg('workflows')::text[]::uuid[]))
-    ) AND
-  (
-    sqlc.narg('search')::text IS NULL OR
-    jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
-  ) AND
-    (
-        sqlc.narg('statuses')::text[] IS NULL OR
-        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
-    );
+    events;
 
 -- name: CreateEvent :one
 INSERT INTO "Event" (
@@ -119,6 +137,7 @@ SELECT
 FROM
     "Event"
 WHERE
+    events."deletedAt" IS NOT NULL AND
     "createdAt" >= NOW() - INTERVAL '1 week'
 GROUP BY
     event_hour
@@ -131,5 +150,75 @@ SELECT
 FROM
     "Event" as events
 WHERE
+    events."deletedAt" IS NOT NULL AND
     "tenantId" = @tenantId::uuid AND
     "id" = ANY (sqlc.arg('ids')::uuid[]);
+
+-- name: SoftDeleteExpiredEvents :one
+WITH for_delete AS (
+    SELECT
+        "id"
+    FROM "Event" e
+    WHERE
+        e."tenantId" = @tenantId::uuid AND
+        e."createdAt" < @createdBefore::timestamp AND
+        e."deletedAt" IS NULL
+    ORDER BY e."createdAt" ASC
+    LIMIT sqlc.arg('limit') +1
+    FOR UPDATE SKIP LOCKED
+),expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT sqlc.arg('limit')
+), has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+)
+UPDATE
+    "Event"
+SET
+    "deletedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" IN (SELECT "id" FROM expired_with_limit)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more;
+
+
+-- name: ClearEventPayloadData :one
+WITH for_delete AS (
+    SELECT
+        e1."id" as "id"
+    FROM "Event" e1
+    WHERE
+        e1."tenantId" = @tenantId::uuid AND
+        e1."deletedAt" IS NOT NULL -- TODO change this for all clear queries
+        AND e1."data" IS NOT NULL
+    LIMIT sqlc.arg('limit') + 1
+    FOR UPDATE SKIP LOCKED
+), expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT sqlc.arg('limit')
+),
+has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+)
+UPDATE
+    "Event"
+SET
+    "data" = NULL
+WHERE
+    "id" IN (SELECT "id" FROM expired_with_limit)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more;

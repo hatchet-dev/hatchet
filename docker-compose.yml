@@ -12,6 +12,7 @@ services:
       - "5431:5432"
     volumes:
       - hatchet_postgres_data:/var/lib/postgresql/data
+    shm_size: 4g
   rabbitmq:
     image: "rabbitmq:3-management"
     hostname: "rabbitmq"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -97,6 +98,7 @@ func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEv
 
 	if opts.AdditionalMetadata != nil {
 		queryParams.AdditionalMetadata = opts.AdditionalMetadata
+		countParams.AdditionalMetadata = opts.AdditionalMetadata
 	}
 
 	orderByField := "createdAt"
@@ -111,6 +113,7 @@ func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEv
 	}
 
 	queryParams.Orderby = orderByField + " " + orderByDirection
+	countParams.Orderby = orderByField + " " + orderByDirection
 
 	tx, err := r.pool.Begin(context.Background())
 
@@ -181,8 +184,9 @@ func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
 }
 
 func (r *eventAPIRepository) GetEventById(id string) (*db.EventModel, error) {
-	return r.client.Event.FindUnique(
+	return r.client.Event.FindFirst(
 		db.Event.ID.Equals(id),
+		db.Event.DeletedAt.IsNull(),
 	).Exec(context.Background())
 }
 
@@ -190,6 +194,7 @@ func (r *eventAPIRepository) ListEventsById(tenantId string, ids []string) ([]db
 	return r.client.Event.FindMany(
 		db.Event.ID.In(ids),
 		db.Event.TenantID.Equals(tenantId),
+		db.Event.DeletedAt.IsNull(),
 	).Exec(context.Background())
 }
 
@@ -284,4 +289,39 @@ func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId st
 		Tenantid: pgTenantId,
 		Ids:      pgIds,
 	})
+}
+
+func (r *eventEngineRepository) SoftDeleteExpiredEvents(ctx context.Context, tenantId string, before time.Time) (bool, error) {
+	hasMore, err := r.queries.SoftDeleteExpiredEvents(ctx, r.pool, dbsqlc.SoftDeleteExpiredEventsParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Createdbefore: sqlchelpers.TimestampFromTime(before),
+		Limit:         1000,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return hasMore, nil
+}
+
+func (r *eventEngineRepository) ClearEventPayloadData(ctx context.Context, tenantId string) (bool, error) {
+	hasMore, err := r.queries.ClearEventPayloadData(ctx, r.pool, dbsqlc.ClearEventPayloadDataParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Limit:    1000,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return hasMore, nil
 }

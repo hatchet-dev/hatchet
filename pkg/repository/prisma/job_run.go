@@ -2,7 +2,9 @@ package prisma
 
 import (
 	"context"
+	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -108,4 +110,21 @@ func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *db
 	}
 
 	return tx.Commit(context.Background())
+}
+
+func (r *jobRunEngineRepository) ClearJobRunPayloadData(ctx context.Context, tenantId string) (bool, error) {
+	hasMore, err := r.queries.ClearJobRunLookupData(ctx, r.pool, dbsqlc.ClearJobRunLookupDataParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Limit:    1000,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return hasMore, nil
 }

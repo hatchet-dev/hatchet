@@ -124,8 +124,16 @@ Step:
   $ref: "./workflow.yaml#/Step"
 WorkflowRun:
   $ref: "./workflow_run.yaml#/WorkflowRun"
+ReplayWorkflowRunsRequest:
+  $ref: "./workflow_run.yaml#/ReplayWorkflowRunsRequest"
+ReplayWorkflowRunsResponse:
+  $ref: "./workflow_run.yaml#/ReplayWorkflowRunsResponse"
 WorkflowRunList:
   $ref: "./workflow_run.yaml#/WorkflowRunList"
+WorkflowRunOrderByField:
+  $ref: "./workflow_run.yaml#/WorkflowRunOrderByField"
+WorkflowRunOrderByDirection:
+  $ref: "./workflow_run.yaml#/WorkflowRunOrderByDirection"
 WorkflowRunsMetrics:
   $ref: "./workflow_run.yaml#/WorkflowRunsMetrics"
 WorkflowRunsMetricsCounts:
@@ -134,6 +142,10 @@ WorkflowRunStatus:
   $ref: "./workflow_run.yaml#/WorkflowRunStatus"
 WorkflowRunStatusList:
   $ref: "./workflow_run.yaml#/WorkflowRunStatusList"
+WorkflowKind:
+  $ref: "./workflow_run.yaml#/WorkflowKind"
+WorkflowKindList:
+  $ref: "./workflow_run.yaml#/WorkflowKindList"
 WorkflowRunsCancelRequest:
   $ref: "./workflow_run.yaml#/WorkflowRunsCancelRequest"
 JobRunStatus:
@@ -162,6 +174,8 @@ WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 Worker:
   $ref: "./worker.yaml#/Worker"
+WorkerLabel:
+  $ref: "./worker.yaml#/WorkerLabel"
 UpdateWorkerRequest:
   $ref: "./worker.yaml#/UpdateWorkerRequest"
 APIToken:

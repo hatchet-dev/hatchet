@@ -404,6 +404,12 @@ workflowRuns:
         required: false
         schema:
           $ref: "../../components/schemas/_index.yaml#/WorkflowRunStatusList"
+      - description: A list of workflow kinds to filter by
+        in: query
+        name: kinds
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/WorkflowKindList"
       - description: A list of metadata key value pairs to filter by
         in: query
         name: additionalMetadata
@@ -413,6 +419,18 @@ workflowRuns:
           type: array
           items:
             type: string
+      - description: The order by field
+        in: query
+        name: orderByField
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/WorkflowRunOrderByField"
+      - description: The order by direction
+        in: query
+        name: orderByDirection
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/WorkflowRunOrderByDirection"
     responses:
       "200":
         content:

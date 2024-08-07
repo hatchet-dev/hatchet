@@ -70,7 +70,7 @@ type Worker struct {
 
 	actions map[string]Action
 
-	workflows []string
+	registered_workflows map[string]bool
 
 	l *zerolog.Logger
 
@@ -87,6 +87,10 @@ type Worker struct {
 	maxRuns *int
 
 	initActionNames []string
+
+	labels map[string]interface{}
+
+	id *string
 }
 
 type WorkerOpt func(*WorkerOpts)
@@ -100,8 +104,9 @@ type WorkerOpts struct {
 	alerter      errors.Alerter
 	maxRuns      *int
 
-	actions   []string
-	workflows []string
+	actions []string
+
+	labels map[string]interface{}
 }
 
 func defaultWorkerOpts() *WorkerOpts {
@@ -128,10 +133,9 @@ func WithLogLevel(lvl string) WorkerOpt {
 	}
 }
 
-func WithInternalData(actions []string, workflows []string) WorkerOpt {
+func WithInternalData(actions []string) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.actions = actions
-		opts.workflows = workflows
 	}
 }
 
@@ -165,6 +169,12 @@ func WithMaxRuns(maxRuns int) WorkerOpt {
 	}
 }
 
+func WithLabels(labels map[string]interface{}) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.labels = labels
+	}
+}
+
 // NewWorker creates a new worker instance
 func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 	opts := defaultWorkerOpts()
@@ -175,16 +185,25 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 
 	mws := newMiddlewares()
 
+	if opts.labels != nil {
+		for _, value := range opts.labels {
+			if reflect.TypeOf(value).Kind() != reflect.String && reflect.TypeOf(value).Kind() != reflect.Int {
+				return nil, fmt.Errorf("invalid label value: %v", value)
+			}
+		}
+	}
+
 	w := &Worker{
-		client:          opts.client,
-		name:            opts.name,
-		l:               opts.l,
-		actions:         map[string]Action{},
-		alerter:         opts.alerter,
-		middlewares:     mws,
-		maxRuns:         opts.maxRuns,
-		initActionNames: opts.actions,
-		workflows:       opts.workflows,
+		client:               opts.client,
+		name:                 opts.name,
+		l:                    opts.l,
+		actions:              map[string]Action{},
+		alerter:              opts.alerter,
+		middlewares:          mws,
+		maxRuns:              opts.maxRuns,
+		initActionNames:      opts.actions,
+		labels:               opts.labels,
+		registered_workflows: map[string]bool{},
 	}
 
 	mws.add(w.panicMiddleware)
@@ -234,6 +253,9 @@ func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
 	if ok && wf.On == nil {
 		return fmt.Errorf("workflow must have an trigger defined via the `On` field")
 	}
+
+	w.registered_workflows[wf.Name] = true
+
 	return w.On(workflow.ToWorkflowTrigger(), workflow)
 }
 
@@ -317,11 +339,14 @@ func (w *Worker) Start() (func() error, error) {
 		actionNames = append(actionNames, action.Name())
 	}
 
-	listener, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
+	listener, id, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
 		WorkerName: w.name,
 		Actions:    actionNames,
 		MaxRuns:    w.maxRuns,
+		Labels:     w.labels,
 	})
+
+	w.id = id
 
 	if err != nil {
 		cancel()
@@ -413,7 +438,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 
 	w.cancelMap.Store(assignedAction.StepRunId, cancel)
 
-	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l)
+	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l, w)
 
 	if err != nil {
 		return fmt.Errorf("could not create hatchet context: %w", err)
@@ -511,7 +536,7 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 
 	w.cancelConcurrencyMap.Store(assignedAction.WorkflowRunId, cancel)
 
-	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l)
+	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l, w)
 
 	if err != nil {
 		return fmt.Errorf("could not create hatchet context: %w", err)

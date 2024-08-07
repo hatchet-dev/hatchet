@@ -27,9 +27,10 @@ Listeners are used to subscribe to the event stream for a specific workflow run.
 
 Here's an example of how to create a listener:
 
-<Tabs items={['Python', 'Typescript']}>
+<Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-``` python
+
+```python
 async def listen_for_files():
     workflowRunId = hatchet.admin.run_workflow("ManualTriggerWorkflow", {"test": "test"})
     listener = hatchet.listener.stream(workflowRunId)
@@ -42,20 +43,42 @@ async def listen_for_files():
         })
         print("data: " + data + "\n\n")
 
-````
-  </Tabs.Tab>
-  <Tabs.Tab>
-```typescript copy
-async function listen_for_files() {
-  const workflowRunId = await hatchet.admin.run_workflow('simple-workflow', {});
-  const stream = await hatchet.listener.stream(workflowRunId);
-  for await (const event of stream) {
-    console.log('event received', event);
-  }
-}
-````
+```
 
   </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript copy
+async function listen_for_files() {
+  const workflowRunId = await hatchet.admin.run_workflow("simple-workflow", {});
+  const stream = await hatchet.listener.stream(workflowRunId);
+  for await (const event of stream) {
+    console.log("event received", event);
+  }
+}
+```
+
+  </Tabs.Tab>
+```go copy
+workflowRunId, err := c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{
+  Index: 0,
+})
+
+if err != nil {
+panic(err)
+}
+
+err = c.Subscribe().Stream(interruptCtx, workflowRunId, func(event client.StreamEvent) error {
+fmt.Println(string(event.Message))
+
+return nil
+})
+
+if err != nil {
+panic(err)
+}
+
+````
 </Tabs>
 
 ## Streaming from a Step Context
@@ -64,6 +87,7 @@ You can also stream events from a specific step context, enabling you to stream 
 
 <Tabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
+
 ```python
 @hatchet.step()
 def step1(self, context: Context):
@@ -71,17 +95,20 @@ def step1(self, context: Context):
     context.put_stream('hello from step1')
     # continue with the step run...
     return {"step1": "results"}
-```
+````
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 async function step1(ctx: Context) {
-    // Stream some data from the step context
-    ctx.putStream('step1 stream');
-    // continue with the step run...
-    return { step1: 'step1 results!' };
+  // Stream some data from the step context
+  ctx.putStream("step1 stream");
+  // continue with the step run...
+  return { step1: "step1 results!" };
 }
 ```
+
   </Tabs.Tab>
 </Tabs>
 
@@ -93,6 +120,7 @@ To stream a file from a step context, encode the file data as base64 and stream 
 
 <Tabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
+
 ```python
 @hatchet.step()
 def step1(self, context: Context):
@@ -115,38 +143,44 @@ def step1(self, context: Context):
     # continue with the step run...
     return {"step1": "results"}
 
-````
+```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from "fs";
+import * as path from "path";
 
 async function step1(ctx: Context) {
   // Get the directory of the current script
   const scriptDir = path.dirname(__filename);
 
   // Construct the path to the image file relative to the script's directory
-  const imagePath = path.join(scriptDir, 'image.jpeg');
+  const imagePath = path.join(scriptDir, "image.jpeg");
 
   // Load the image file
   const imageData = await fs.promises.readFile(imagePath);
 
   // Encode the image data as base64
-  const base64Image = Buffer.from(imageData).toString('base64');
+  const base64Image = Buffer.from(imageData).toString("base64");
 
   // Stream the base64-encoded image data
   ctx.putStream(base64Image);
 
   // continue with the step run...
-  return { step1: 'results' };
-}```
+  return { step1: "results" };
+}
+```
+
   </Tabs.Tab>
 </Tabs>
 
 For the listener, decode the base64-encoded payload and write it to a file:
+
 <Tabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
+
 ```python
 async def listen_for_files():
     load_dotenv()
@@ -171,9 +205,11 @@ async def listen_for_files():
 
             with open(payload_path, "wb") as f:
                 f.write(decoded_payload)
-````
+```
 
-</Tabs.Tab><Tabs.Tab>
+  </Tabs.Tab>
+  <Tabs.Tab>
+
 ```typescript
 import * as fs from 'fs';
 import * as path from 'path';
@@ -194,23 +230,126 @@ const outDir = path.join(scriptDir, 'out');
 await fs.promises.mkdir(outDir, { recursive: true });
 
 for await (const event of listener) {
-if (event.type === StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM) {
-// Decode the base64-encoded payload
-const decodedPayload = Buffer.from(event.payload, 'base64');
-
+    if (event.type === StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM) {
+      // Decode the base64-encoded payload
+      const decodedPayload = Buffer.from(event.payload, 'base64');
       // Construct the path to the payload file in the "out" directory
       const payloadPath = path.join(outDir, 'payload.jpg');
 
       // Write the decoded payload to the file
       await fs.promises.writeFile(payloadPath, decodedPayload);
     }
-
+  }
 }
-}
+```
 
-````
 </Tabs.Tab>
 </Tabs>
+
+## Streaming by Additional Metadata
+
+Often it is helpful to stream from multiple workflows (i.e. child workflows spawned from a parent) to achieve this, you can specify an [additional meta](/features/additional-metadata) key-value pair before runing a workflow that can then be used to subscribe to all events from workflows that have the same key-value pair.
+
+Since additinoal metadata is propegated from parent to child workflows, this can be used to track all events from a specific workflow run.
+
+Here's an example of how to create a listener:
+
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+# Generate a random stream key to use to track all
+# stream events for this workflow run.
+streamKey = "streamKey"
+streamVal = f"sk-{random.randint(1, 100)}"
+
+# Specify the stream key as additional metadata
+# when running the workflow.
+
+# This key gets propagated to all child workflows
+# and can have an arbitrary property name.
+
+workflowRun = hatchet.admin.run_workflow(
+    "Parent",
+    {"n": 2},
+    options={"additional_metadata": {streamKey: streamVal}},
+)
+
+# Stream all events for the additional meta key value
+listener = hatchet.listener.stream_by_additional_metadata(streamKey, streamVal)
+
+async for event in listener:
+    print(event.type, event.payload)
+
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript copy
+// Generate a random stream key to use to track all
+// stream events for this workflow run.
+const streamKey = "streamKey";
+const streamVal = `sk-${Math.random().toString(36).substring(7)}`;
+
+// Specify the stream key as additional metadata
+// when running the workflow.
+
+// This key gets propagated to all child workflows
+// and can have an arbitrary property name.
+await hatchet.admin.runWorkflow(
+  "parent-workflow",
+  {},
+  { additionalMetadata: { [streamKey]: streamVal } },
+);
+
+// Stream all events for the additional meta key value
+const stream = await hatchet.listener.streamByAdditionalMeta(
+  streamKey,
+  streamVal,
+);
+
+for await (const event of stream) {
+  console.log("event received", event);
+}
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go copy
+// Generate a random stream key to use to track all
+// stream events for this workflow run.
+streamKey := "streamKey"
+streamValue := fmt.Sprintf("stream-event-%d", rand.Intn(100)+1)
+
+// Specify the stream key as additional metadata
+// when running the workflow.
+
+// This key gets propagated to all child workflows
+// and can have an arbitrary property name.
+\_, err = c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{
+    Index: 0,
+  },
+    client.WithRunMetadata(map[string]interface{}{
+    streamKey: streamValue,
+  }),
+)
+
+if err != nil {
+  panic(err)
+}
+
+// Stream all events for the additional meta key value
+err = c.Subscribe().StreamByAdditionalMetadata(interruptCtx, streamKey, streamValue, func(event client.StreamEvent) error {
+  fmt.Println(string(event.Message))
+  return nil
+})
+```
+
+</Tabs.Tab>
+</Tabs>
+
 ## Consuming Streams on Frontend
 
 To consume a stream from the backend, create a Streaming Response endpoint to "proxy" the stream from the Hatchet workflow run.
@@ -230,7 +369,7 @@ def event_stream_generator(workflowRunId):
                 "messageId": workflowRunId
             })
             yield "data: " + data + "\n\n"
-````
+```
 
 Next, create a streaming `GET` endpoint that the client connects to in order to receive real-time progress updates:
 

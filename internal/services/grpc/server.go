@@ -259,6 +259,12 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	serverOpts = append(serverOpts, grpc.KeepaliveParams(kasp))
 
+	serverOpts = append(serverOpts, grpc.MaxRecvMsgSize(
+		s.config.Runtime.GRPCMaxMsgSize,
+	), grpc.MaxSendMsgSize(
+		s.config.Runtime.GRPCMaxMsgSize,
+	))
+
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	if s.ingestor != nil {

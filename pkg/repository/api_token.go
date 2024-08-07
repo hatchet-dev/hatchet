@@ -20,6 +20,8 @@ type CreateAPITokenOpts struct {
 
 	// (optional) A name for this API token
 	Name *string `validate:"omitempty,max=255"`
+
+	Internal bool
 }
 
 type APITokenRepository interface {

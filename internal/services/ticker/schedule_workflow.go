@@ -2,6 +2,7 @@ package ticker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -135,11 +136,30 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 				childKey = &scheduled.ChildKey.String
 			}
 
+			parent, err := t.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId))
+
+			if err != nil {
+				t.l.Err(err).Msg("could not get parent workflow run")
+				return
+			}
+
+			var parentAdditionalMeta map[string]interface{}
+
+			if parent.WorkflowRun.AdditionalMetadata != nil {
+				err := json.Unmarshal(parent.WorkflowRun.AdditionalMetadata, &parentAdditionalMeta)
+				if err != nil {
+					t.l.Err(err).Msg("could not unmarshal parent additional metadata")
+					return
+				}
+			}
+
 			fs = append(fs, repository.WithParent(
 				sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId),
 				sqlchelpers.UUIDToStr(scheduled.ParentStepRunId),
 				int(scheduled.ChildIndex.Int32),
 				childKey,
+				nil,
+				parentAdditionalMeta,
 			))
 		}
 

@@ -85,10 +85,6 @@ func (t *tickerRepository) Delete(ctx context.Context, tickerId string) error {
 	return err
 }
 
-func (t *tickerRepository) PollStepRuns(ctx context.Context, tickerId string) ([]*dbsqlc.StepRun, error) {
-	return t.queries.PollStepRuns(ctx, t.pool, sqlchelpers.UUIDFromStr(tickerId))
-}
-
 func (t *tickerRepository) PollGetGroupKeyRuns(ctx context.Context, tickerId string) ([]*dbsqlc.GetGroupKeyRun, error) {
 	return t.queries.PollGetGroupKeyRuns(ctx, t.pool, sqlchelpers.UUIDFromStr(tickerId))
 }
@@ -111,4 +107,8 @@ func (t *tickerRepository) PollExpiringTokens(ctx context.Context) ([]*dbsqlc.Po
 
 func (t *tickerRepository) PollTenantResourceLimitAlerts(ctx context.Context) ([]*dbsqlc.TenantResourceLimitAlert, error) {
 	return t.queries.PollTenantResourceLimitAlerts(ctx, t.pool)
+}
+
+func (t *tickerRepository) PollUnresolvedFailedStepRuns(ctx context.Context) ([]*dbsqlc.PollUnresolvedFailedStepRunsRow, error) {
+	return t.queries.PollUnresolvedFailedStepRuns(ctx, t.pool)
 }

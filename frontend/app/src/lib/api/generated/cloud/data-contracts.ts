@@ -15,6 +15,11 @@ export interface APICloudMetadata {
    * @example true
    */
   canBill?: boolean;
+  /**
+   * whether the tenant can link to GitHub
+   * @example true
+   */
+  canLinkGithub?: boolean;
 }
 
 export interface APIErrors {
@@ -123,11 +128,22 @@ export interface ManagedWorker {
   runtimeConfig: ManagedWorkerRuntimeConfig;
 }
 
+export interface ManagedWorkerList {
+  rows?: ManagedWorker[];
+  pagination?: PaginationResponse;
+}
+
 export interface ManagedWorkerBuildConfig {
   metadata: APIResourceMeta;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  githubInstallationId: string;
   githubRepository: GithubRepo;
   githubRepositoryBranch: string;
-  steps: BuildStep[];
+  steps?: BuildStep[];
 }
 
 export interface BuildStep {
@@ -140,6 +156,7 @@ export interface BuildStep {
 
 export interface ManagedWorkerRuntimeConfig {
   metadata: APIResourceMeta;
+  numReplicas: number;
   /** A map of environment variables to set for the worker */
   envVars: Record<string, string>;
   /** The kind of CPU to use for the worker */
@@ -148,6 +165,30 @@ export interface ManagedWorkerRuntimeConfig {
   cpus: number;
   /** The amount of memory in MB to use for the worker */
   memoryMb: number;
+}
+
+export enum ManagedWorkerEventStatus {
+  IN_PROGRESS = "IN_PROGRESS",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+}
+
+export interface ManagedWorkerEvent {
+  id: number;
+  /** @format date-time */
+  timeFirstSeen: string;
+  /** @format date-time */
+  timeLastSeen: string;
+  managedWorkerId: string;
+  status: ManagedWorkerEventStatus;
+  message: string;
+  data: object;
+}
+
+export interface ManagedWorkerEventList {
+  pagination?: PaginationResponse;
+  rows?: ManagedWorkerEvent[];
 }
 
 export interface CreateManagedWorkerRequest {
@@ -178,7 +219,7 @@ export interface CreateBuildStepRequest {
 
 export interface CreateManagedWorkerRuntimeConfigRequest {
   /**
-   * @min 1
+   * @min 0
    * @max 16
    */
   numReplicas: number;
@@ -274,3 +315,121 @@ export enum CouponFrequency {
   Once = "once",
   Recurring = "recurring",
 }
+
+export type VectorPushRequest = EventObject[];
+
+export interface EventObject {
+  event?: {
+    provider?: string;
+  };
+  fly?: {
+    app?: {
+      instance?: string;
+      name?: string;
+    };
+    region?: string;
+  };
+  host?: string;
+  log?: {
+    level?: string;
+  };
+  message?: string;
+  /** @format date-time */
+  timestamp?: string;
+}
+
+export interface LogLine {
+  /** @format date-time */
+  timestamp: string;
+  instance: string;
+  line: string;
+}
+
+export interface LogLineList {
+  rows?: LogLine[];
+  pagination?: PaginationResponse;
+}
+
+export type Matrix = SampleStream[];
+
+export interface SampleStream {
+  metric?: Metric;
+  values?: SamplePair[];
+  histograms?: SampleHistogramPair[];
+}
+
+export type SamplePair = any[];
+
+/** @format float */
+export type SampleValue = number;
+
+export interface SampleHistogramPair {
+  timestamp?: Time;
+  histogram?: SampleHistogram;
+}
+
+export interface SampleHistogram {
+  count?: FloatString;
+  sum?: FloatString;
+  buckets?: HistogramBuckets;
+}
+
+/** @format float */
+export type FloatString = number;
+
+export type HistogramBuckets = HistogramBucket[];
+
+export interface HistogramBucket {
+  /** @format int32 */
+  boundaries?: number;
+  lower?: FloatString;
+  upper?: FloatString;
+  count?: FloatString;
+}
+
+export type Metric = Record<string, LabelValue>;
+
+export type LabelSet = Record<string, LabelValue>;
+
+export type LabelName = string;
+
+export type LabelValue = string;
+
+export type Time = number;
+
+export interface Build {
+  metadata?: APIResourceMeta;
+  status: string;
+  statusDetail?: string;
+  /** @format date-time */
+  createTime: string;
+  /** @format date-time */
+  startTime?: string;
+  /** @format date-time */
+  finishTime?: string;
+  /** @format uuid */
+  buildConfigId: string;
+}
+
+export interface Instance {
+  instanceId: string;
+  name: string;
+  region: string;
+  state: string;
+  cpuKind: string;
+  cpus: number;
+  memoryMb: number;
+  diskGb: number;
+  commitSha: string;
+}
+
+export interface InstanceList {
+  pagination?: PaginationResponse;
+  rows?: Instance[];
+}
+
+/**
+ * a map of feature flags for the tenant
+ * @example {"flag1":"value1","flag2":"value2"}
+ */
+export type FeatureFlags = Record<string, string>;

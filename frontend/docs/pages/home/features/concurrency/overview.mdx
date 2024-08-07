@@ -1,3 +1,5 @@
+import { Tabs } from "nextra/components";
+
 ## Concurrency Control in Hatchet Workflows
 
 Hatchet provides powerful concurrency control features to help you manage the execution of your workflows. This is particularly useful when you have workflows that may be triggered frequently or have long-running steps, and you want to limit the number of concurrent executions to prevent overloading your system, ensure fairness, or avoid race conditions.
@@ -23,42 +25,37 @@ To configure concurrency control for a workflow in Hatchet, you can add a `concu
 - `name` (required): A string identifier for the concurrency limit. This is used to identify the limit in logs and the dashboard.
 - `maxRuns` (optional): The maximum number of concurrent runs allowed for a given concurrency key. If not specified, there is no limit.
 - `limitStrategy` (optional): The strategy to use when the concurrency limit is reached. Can be one of:
-  - `CANCEL_IN_PROGRESS`: Cancel the currently running workflow instances for the same concurrency key to free up slots for the new instance.
-  - `GROUP_ROUND_ROBIN`: Distribute workflow instances across available slots in a round-robin fashion based on the `key` function.
+  - [`CANCEL_IN_PROGRESS`](./cancel-in-progress): Cancel the currently running workflow instances for the same concurrency key to free up slots for the new instance.
+  - [`GROUP_ROUND_ROBIN`](./round-robin): Distribute workflow instances across available slots in a round-robin fashion based on the `key` function.
 - `key` (required): A function that takes the workflow context and returns a string key. This key is used to group runs for the purpose of concurrency limiting. For example, you could use this to limit concurrency on a per-user basis.
-
-Here's an example workflow definition with concurrency control:
-
-```typescript
-export const myWorkflow: Workflow = {
-  id: "my-workflow",
-  description: "My workflow with concurrency control",
-  on: {
-    event: "my.event",
-  },
-  steps: [
-    // ...
-  ],
-  concurrency: {
-    name: "my-workflow-concurrency",
-    maxRuns: 10,
-    limitStrategy: ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    key: (ctx) => ctx.userId,
-  },
-};
-```
-
-In this example, the workflow is limited to a maximum of 10 concurrent runs for each unique `userId` in the workflow context. When the limit is reached for a specific `userId`, new runs with the same `userId` are queued until a slot becomes available. If the limit strategy is set to `CANCEL_IN_PROGRESS`, and an event with a conflicting `userId` is received, the currently running workflow instances for that `userId` are canceled to free up slots for the new instance.
 
 ### Setting concurrency on workers
 
 In addition to setting concurrency limits at the workflow level, you can also control concurrency at the worker level by passing the `maxRuns` option when creating a new `Worker` instance:
 
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+worker = hatchet.worker("my-worker", max_runs=5)
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
 ```typescript
 const worker = hatchet.worker("my-worker", {
   maxRuns: 5,
 });
 ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+w, err := worker.NewWorker(
+    worker.WithClient(c),
+    worker.WithMaxRuns(5),
+    worker.WithName("my-worker")
+)
+```
+  </Tabs.Tab>
+</Tabs>
 
 This limits the worker to a maximum of 5 concurrent step runs across all workflows. Once the limit is reached, the worker will not accept new actions until a running step completes.
 

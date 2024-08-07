@@ -1,0 +1,19 @@
+import { Tabs } from "nextra/components";
+
+# Worker Assignment Overview
+
+By default, Hatchet will attempt to fairly distribute workload prioritizing the least busy worker that is capable of running a specific step. However, there are times when you may want more control over assignment. This can be useful for scenarios where you need to maintain expensive local memory state across multiple steps in a workflow or ensure that certain workflows are processed by the same worker for consistency.
+
+There are two primary ways to control worker assignment in Hatchet:
+
+## Sticky Assignment
+
+Sticky assignment is a workflow property that allows you to specify that all steps of a workflow should be assigned to the same worker for the duration of its execution. This can be useful when you need to maintain expensive local memory state across multiple steps in a workflow or ensure that certain workflows are processed by the same worker for consistency.
+
+[More about Sticky Assignment &rarr;](./sticky-assignment)
+
+## Worker Affinity
+
+Worker affinity allows you to specify that a workflow should be assigned to a specific worker based on worker label state. Labels can be set dynamically on workers to reflect their current state (i.e. a specific model loaded into memory, or specific disk requirements). By using worker affinity, you can ensure that workflows are assigned to workers that meet specific criteria, such as having sufficient resources or being in a specific location.
+
+[More about Worker Affinity &rarr;](./worker-affinity)

@@ -18,7 +18,7 @@ type ConfigFile struct {
 	PostgresDbName   string `mapstructure:"dbName" json:"dbName,omitempty" default:"hatchet"`
 	PostgresSSLMode  string `mapstructure:"sslMode" json:"sslMode,omitempty" default:"disable"`
 
-	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"5"`
+	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"20"`
 
 	Seed SeedConfigFile `mapstructure:"seed" json:"seed,omitempty"`
 
