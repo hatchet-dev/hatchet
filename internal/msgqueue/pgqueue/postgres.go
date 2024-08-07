@@ -226,7 +226,6 @@ func (t *MessageQueueImpl) initQueue(q msgqueue.Queue) (string, error) {
 	// if the queue has a subscriber key, bind it to the fanout exchange
 	if q.FanoutExchangeKey() != "" {
 		t.l.Debug().Msgf("binding queue: %s to exchange: %s", name, q.FanoutExchangeKey())
-		panic("unimplemented")
 	}
 
 	if _, ok := t.channels[name]; !ok {
