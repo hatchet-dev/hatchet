@@ -39,13 +39,14 @@ func init() {
 
 func runSeed(cf *loader.ConfigLoader) error {
 	// load the config
-	dc, err := cf.LoadDatabaseConfig()
+	cleanup, dc, err := cf.LoadDatabaseConfig()
 
 	if err != nil {
 		panic(err)
 	}
 
-	defer dc.Disconnect() // nolint: errcheck
+	//goland:noinspection GoUnhandledErrorResult
+	defer cleanup() // nolint:errcheck
 
 	shouldSeedUser := dc.Seed.AdminEmail != "" && dc.Seed.AdminPassword != ""
 	var userId string

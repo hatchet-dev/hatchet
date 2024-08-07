@@ -84,9 +84,8 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 		return err
 	}
 
+	//goland:noinspection GoUnhandledErrorResult
 	defer cleanup() // nolint:errcheck
-
-	defer serverConf.Disconnect() // nolint:errcheck
 
 	expiresAt := time.Now().UTC().Add(expiresIn)
 
