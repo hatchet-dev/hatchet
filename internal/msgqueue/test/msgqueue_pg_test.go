@@ -42,13 +42,14 @@ func TestPgQueueEnsure(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
-	cleanup, _, err := cf.LoadServerConfig("", func(scf *server.ServerConfigFile) {
+	cleanup, sc, err := cf.LoadServerConfig("", func(scf *server.ServerConfigFile) {
 		assert.Equal(t, "postgres", scf.MessageQueue.Kind)
 		wg.Done()
 	})
 	if err != nil {
 		t.Fatalf("error loading server config: %v", err)
 	}
-	defer cleanup() // nolint:errcheck
+	defer cleanup()       // nolint:errcheck
+	defer sc.Disconnect() // nolint:errcheck
 	wg.Wait()
 }
