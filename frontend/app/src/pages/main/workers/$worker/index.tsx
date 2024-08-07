@@ -210,7 +210,7 @@ export default function ExpandedWorkflowRun() {
             : '100'}{' '}
           Available Run Slots
         </h3>
-        <div className="mb-4 text-sm text-gray-700">
+        <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
           A slot represents one step run on a worker to limit load.{' '}
           <a
             href="https://docs.hatchet.run/sdks/python-sdk/worker"
@@ -264,7 +264,7 @@ export default function ExpandedWorkflowRun() {
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Worker Labels
         </h3>
-        <div className="mb-4 text-sm text-gray-700">
+        <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
           Worker labels are key-value pairs that can be used to prioritize
           assignment of steps to specific workers.{' '}
           <a
