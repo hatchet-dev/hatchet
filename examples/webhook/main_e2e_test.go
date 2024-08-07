@@ -156,7 +156,7 @@ func TestWebhook(t *testing.T) {
 				handler := func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == http.MethodPut {
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte(fmt.Sprintf(`{"actions": ["default:%s"]}`, "webhook-failure-step-one")))
+						_, _ = w.Write([]byte(fmt.Sprintf(`{"actions": ["%s:default:%s"]}`, workflow, "webhook-failure-step-one")))
 						return
 					}
 					w.WriteHeader(http.StatusInternalServerError) // simulate a failure

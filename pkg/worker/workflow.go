@@ -207,7 +207,7 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 
 	if j.Concurrency != nil {
 		w.Concurrency = &types.WorkflowConcurrency{
-			ActionID: "concurrency:" + getFnName(j.Concurrency.fn), // TODO this should also be namespaced
+			ActionID: w.Name + ":concurrency:" + getFnName(j.Concurrency.fn),
 		}
 
 		if j.Concurrency.maxRuns != nil {
@@ -234,7 +234,7 @@ func (j *WorkflowJob) ToWorkflowJob(svcName string, namespace string) (*types.Wo
 
 	for i := range j.Steps {
 
-		newStep, err := j.Steps[i].ToWorkflowStep(svcName, i, namespace)
+		newStep, err := j.Steps[i].ToWorkflowStep(j.Name, svcName, i, namespace)
 
 		if err != nil {
 			return nil, err
@@ -254,13 +254,13 @@ func (j *WorkflowJob) ToActionMap(svcName string) map[string]any {
 	res := map[string]any{}
 
 	for i, step := range j.Steps {
-		actionId := step.GetActionId(svcName, i)
+		actionId := step.GetActionId(j.Name, svcName, i)
 
 		res[actionId] = step.Function
 	}
 
 	if j.Concurrency != nil {
-		res["concurrency:"+getFnName(j.Concurrency.fn)] = j.Concurrency.fn
+		res[j.Name+":concurrency:"+getFnName(j.Concurrency.fn)] = j.Concurrency.fn
 	}
 
 	if j.OnFailure != nil {
@@ -364,7 +364,7 @@ func (w *WorkflowStep) ToActionMap(svcName string) map[string]any {
 	step := *w
 
 	return map[string]any{
-		step.GetActionId(svcName, 0): w.Function,
+		step.GetActionId(w.Name, svcName, 0): w.Function,
 	}
 }
 
@@ -380,7 +380,7 @@ type Step struct {
 	APIStep types.WorkflowStep
 }
 
-func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace string) (*Step, error) {
+func (w *WorkflowStep) ToWorkflowStep(wfName, svcName string, index int, namespace string) (*Step, error) {
 	fnType := reflect.TypeOf(w.Function)
 
 	res := &Step{}
@@ -391,7 +391,7 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 		Name:          res.Id,
 		ID:            w.GetStepId(index),
 		Timeout:       w.Timeout,
-		ActionID:      w.GetActionId(svcName, index),
+		ActionID:      w.GetActionId(wfName, svcName, index),
 		Parents:       []string{},
 		Retries:       w.Retries,
 		DesiredLabels: w.DesiredLabels,
@@ -460,10 +460,12 @@ func (w *WorkflowStep) GetStepId(index int) string {
 	return stepId
 }
 
-func (w *WorkflowStep) GetActionId(svcName string, index int) string {
+func (w *WorkflowStep) GetActionId(wfName, svcName string, index int) string {
 	stepId := w.GetStepId(index)
 
-	return fmt.Sprintf("%s:%s", svcName, stepId)
+	wf := convertWorkflowNameToAction(wfName)
+
+	return fmt.Sprintf("%s:%s:%s", wf, svcName, stepId)
 }
 
 func getFnName(fn any) string {
@@ -481,4 +483,8 @@ func getFnName(fn any) string {
 	}
 
 	return strings.ReplaceAll(fnName, ".", "-")
+}
+
+func convertWorkflowNameToAction(workflowName string) string {
+	return strings.ReplaceAll(strings.ToLower(workflowName), " ", "-")
 }
