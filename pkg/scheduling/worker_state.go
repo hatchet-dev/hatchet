@@ -26,10 +26,18 @@ func (w *WorkerState) AddSlot(slot *dbsqlc.ListSemaphoreSlotsToAssignRow) {
 	}
 }
 
+func (w *WorkerState) CanAssign(qi QueueItemWithOrder) bool {
+	if _, ok := w.actionIds[qi.ActionId.String]; !ok {
+		return false
+	}
+
+	return true
+}
+
 func (w *WorkerState) AssignSlot(qi QueueItemWithOrder) (*dbsqlc.ListSemaphoreSlotsToAssignRow, bool) {
 
 	// if the actionId is not in the worker's actionIds, then we can't assign this slot
-	if _, ok := w.actionIds[qi.ActionId.String]; !ok {
+	if !w.CanAssign(qi) {
 		return nil, false
 	}
 
