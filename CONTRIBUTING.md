@@ -8,6 +8,7 @@
     - [Node.js v18+](https://nodejs.org/en/download) - we recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions.
     - [pnpm](https://pnpm.io/installation) installed globally (`npm i -g pnpm`)
     - [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/)
+    - [Atlas](https://atlasgo.io/getting-started/#installation)
     - [protoc](https://grpc.io/docs/protoc-installation/)
     - [pip](https://pip.pypa.io/en/stable/installation/)
     - [Caddy](https://caddyserver.com/docs/install)
