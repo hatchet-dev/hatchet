@@ -1312,11 +1312,13 @@ model QueueItem {
   scheduleTimeoutAt DateTime?
   stepTimeout       String?
 
+  // ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);
+  priority Int     @default(1) // custom migration to set this between 1 and 4
   isQueued Boolean
   tenantId String  @db.Uuid
   queue    String
 
-  @@index([isQueued, tenantId, queue, id])
+  @@index([isQueued, priority, tenantId, queue, id])
 }
 
 enum StepRunEventReason {

@@ -19,7 +19,7 @@ var (
 
 const listQueueItems = `-- name: ListQueueItems :batchmany
 SELECT
-    id, "stepRunId", "stepId", "actionId", "scheduleTimeoutAt", "stepTimeout", "isQueued", "tenantId", queue
+    id, "stepRunId", "stepId", "actionId", "scheduleTimeoutAt", "stepTimeout", priority, "isQueued", "tenantId", queue
 FROM
     "QueueItem" qi
 WHERE
@@ -30,7 +30,10 @@ WHERE
         $3::bigint IS NULL OR
         qi."id" >= $3::bigint
     )
+    -- TODO: verify that this forces index usage
+    AND qi."priority" >= 1 AND qi."priority" <= 4
 ORDER BY
+    qi."priority" DESC,
     qi."id" ASC
 LIMIT
     100
@@ -88,6 +91,7 @@ func (b *ListQueueItemsBatchResults) Query(f func(int, []*QueueItem, error)) {
 					&i.ActionId,
 					&i.ScheduleTimeoutAt,
 					&i.StepTimeout,
+					&i.Priority,
 					&i.IsQueued,
 					&i.TenantId,
 					&i.Queue,

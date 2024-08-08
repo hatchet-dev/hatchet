@@ -33,6 +33,7 @@ INSERT INTO
         "actionId",
         "scheduleTimeoutAt",
         "stepTimeout",
+        "priority",
         "isQueued",
         "tenantId",
         "queue"
@@ -44,9 +45,10 @@ VALUES
         $3::text,
         $4::timestamp,
         $5::text,
+        COALESCE($6::integer, 1),
         true,
-        $6::uuid,
-        $7
+        $7::uuid,
+        $8
     )
 `
 
@@ -56,6 +58,7 @@ type CreateQueueItemParams struct {
 	ActionId          pgtype.Text      `json:"actionId"`
 	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
 	StepTimeout       pgtype.Text      `json:"stepTimeout"`
+	Priority          pgtype.Int4      `json:"priority"`
 	Tenantid          pgtype.UUID      `json:"tenantid"`
 	Queue             string           `json:"queue"`
 }
@@ -67,6 +70,7 @@ func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueI
 		arg.ActionId,
 		arg.ScheduleTimeoutAt,
 		arg.StepTimeout,
+		arg.Priority,
 		arg.Tenantid,
 		arg.Queue,
 	)

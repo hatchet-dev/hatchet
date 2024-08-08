@@ -862,6 +862,7 @@ type QueueItem struct {
 	ActionId          pgtype.Text      `json:"actionId"`
 	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
 	StepTimeout       pgtype.Text      `json:"stepTimeout"`
+	Priority          int32            `json:"priority"`
 	IsQueued          bool             `json:"isQueued"`
 	TenantId          pgtype.UUID      `json:"tenantId"`
 	Queue             string           `json:"queue"`

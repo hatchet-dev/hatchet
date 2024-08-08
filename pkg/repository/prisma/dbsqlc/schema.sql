@@ -215,6 +215,7 @@ CREATE TABLE "QueueItem" (
     "actionId" TEXT,
     "scheduleTimeoutAt" TIMESTAMP(3),
     "stepTimeout" TEXT,
+    "priority" INTEGER NOT NULL DEFAULT 1,
     "isQueued" BOOLEAN NOT NULL,
     "tenantId" UUID NOT NULL,
     "queue" TEXT NOT NULL,
@@ -933,7 +934,7 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupDat
 CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);
 
 -- CreateIndex
-CREATE INDEX "QueueItem_isQueued_tenantId_queue_id_idx" ON "QueueItem"("isQueued" ASC, "tenantId" ASC, "queue" ASC, "id" ASC);
+CREATE INDEX "QueueItem_isQueued_priority_tenantId_queue_id_idx" ON "QueueItem"("isQueued" ASC, "priority" ASC, "tenantId" ASC, "queue" ASC, "id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RateLimit_tenantId_key_key" ON "RateLimit"("tenantId" ASC, "key" ASC);

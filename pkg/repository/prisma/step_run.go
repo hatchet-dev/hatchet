@@ -1879,6 +1879,13 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 	if updateParams.Status.Valid &&
 		innerStepRun.SRStatus != dbsqlc.StepRunStatusPENDINGASSIGNMENT &&
 		updateParams.Status.StepRunStatus == dbsqlc.StepRunStatusPENDINGASSIGNMENT {
+		priority := 1
+
+		// if the step run is a retry, set the priority to 4
+		if innerStepRun.SRRetryCount > 0 || (updateParams.RetryCount.Valid && updateParams.RetryCount.Int32 > 0) {
+			priority = 4
+		}
+
 		err := s.queries.CreateQueueItem(ctx, tx, dbsqlc.CreateQueueItemParams{
 			StepRunId:         innerStepRun.SRID,
 			StepId:            innerStepRun.StepId,
@@ -1887,6 +1894,10 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 			ScheduleTimeoutAt: updateParams.ScheduleTimeoutAt,
 			Tenantid:          updateParams.Tenantid,
 			Queue:             innerStepRun.SRQueue,
+			Priority: pgtype.Int4{
+				Valid: true,
+				Int32: int32(priority),
+			},
 		})
 
 		if err != nil {

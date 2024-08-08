@@ -27,6 +27,7 @@ INSERT INTO
         "actionId",
         "scheduleTimeoutAt",
         "stepTimeout",
+        "priority",
         "isQueued",
         "tenantId",
         "queue"
@@ -38,6 +39,7 @@ VALUES
         sqlc.narg('actionId')::text,
         sqlc.narg('scheduleTimeoutAt')::timestamp,
         sqlc.narg('stepTimeout')::text,
+        COALESCE(sqlc.narg('priority')::integer, 1),
         true,
         @tenantId::uuid,
         @queue
@@ -56,7 +58,10 @@ WHERE
         sqlc.narg('gtId')::bigint IS NULL OR
         qi."id" >= sqlc.narg('gtId')::bigint
     )
+    -- TODO: verify that this forces index usage
+    AND qi."priority" >= 1 AND qi."priority" <= 4
 ORDER BY
+    qi."priority" DESC,
     qi."id" ASC
 LIMIT
     100

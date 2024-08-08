@@ -733,7 +733,7 @@ func (s *sendTimeFilter) canSend() bool {
 	}
 
 	go func() {
-		time.Sleep(time.Second - 10*time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		s.mu.Unlock()
 	}()
 
