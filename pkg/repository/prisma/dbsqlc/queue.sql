@@ -52,6 +52,10 @@ WHERE
     qi."isQueued" = true
     AND qi."tenantId" = @tenantId::uuid
     AND qi."queue" = @queue::text
+    AND (
+        sqlc.narg('gtId')::bigint IS NULL OR
+        qi."id" > sqlc.narg('gtId')::bigint
+    )
 ORDER BY
     qi."id" ASC
 LIMIT

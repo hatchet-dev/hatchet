@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -198,11 +199,12 @@ func (s *stepRunAPIRepository) ListStepRunArchives(tenantId string, stepRunId st
 }
 
 type stepRunEngineRepository struct {
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	l       *zerolog.Logger
-	queries *dbsqlc.Queries
-	cf      *server.ConfigFileRuntime
+	pool               *pgxpool.Pool
+	v                  validator.Validator
+	l                  *zerolog.Logger
+	queries            *dbsqlc.Queries
+	cf                 *server.ConfigFileRuntime
+	cachedMinQueuedIds sync.Map
 }
 
 func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) repository.StepRunEngineRepository {
@@ -1004,10 +1006,24 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	for _, queue := range queues {
 		name := queue.Name
 
-		query = append(query, dbsqlc.ListQueueItemsParams{
+		q := dbsqlc.ListQueueItemsParams{
 			Tenantid: pgTenantId,
 			Queue:    name,
-		})
+		}
+
+		// lookup to see if we have a min queued id cached
+		minQueuedId, ok := s.cachedMinQueuedIds.Load(getCacheName(tenantId, name))
+
+		if ok {
+			if minQueuedIdInt, ok := minQueuedId.(int64); ok {
+				q.GtId = pgtype.Int8{
+					Int64: minQueuedIdInt,
+					Valid: true,
+				}
+			}
+		}
+
+		query = append(query, q)
 	}
 
 	queueItems := make([]queueItemWithOrder, 0)
@@ -1061,6 +1077,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	queuedItems := make([]int64, 0)
 	queuedStepRuns := make([]repository.QueuedStepRun, 0)
 	timedOutStepRuns := make([]pgtype.UUID, 0)
+	minQueuedIds := make(map[string]int64)
 
 	// get a list of unique actions
 	uniqueActions := make(map[string]bool)
@@ -1127,6 +1144,12 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	}
 
 	for _, qi := range queueItems {
+		if currMinQueued, ok := minQueuedIds[qi.Queue]; !ok {
+			minQueuedIds[qi.Queue] = qi.ID
+		} else if qi.ID < currMinQueued {
+			minQueuedIds[qi.Queue] = qi.ID
+		}
+
 		if len(actionsToSlots[qi.ActionId.String]) == 0 {
 			allStepRunsWithActionAssigned[qi.ActionId.String] = false
 			unassignedStepRunIds = append(unassignedStepRunIds, qi.StepRunId)
@@ -1234,6 +1257,11 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 
 		s.l.Warn().Msg(string(debugInfoBytes))
 	}()
+
+	// update the cache with the min queued id
+	for name, qiId := range minQueuedIds {
+		s.cachedMinQueuedIds.Store(getCacheName(tenantId, name), qiId)
+	}
 
 	shouldContinue := false
 
@@ -2249,4 +2277,8 @@ func (s *stepRunEngineRepository) ClearStepRunPayloadData(ctx context.Context, t
 	}
 
 	return hasMore, nil
+}
+
+func getCacheName(tenantId, queue string) string {
+	return fmt.Sprintf("%s:%s", tenantId, queue)
 }

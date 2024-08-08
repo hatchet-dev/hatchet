@@ -1316,7 +1316,7 @@ model QueueItem {
   tenantId String  @db.Uuid
   queue    String
 
-  @@index([isQueued, queue, id])
+  @@index([isQueued, tenantId, queue, id])
 }
 
 enum StepRunEventReason {

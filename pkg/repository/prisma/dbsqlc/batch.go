@@ -26,6 +26,10 @@ WHERE
     qi."isQueued" = true
     AND qi."tenantId" = $1::uuid
     AND qi."queue" = $2::text
+    AND (
+        $3::bigint IS NULL OR
+        qi."id" > $3::bigint
+    )
 ORDER BY
     qi."id" ASC
 LIMIT
@@ -42,6 +46,7 @@ type ListQueueItemsBatchResults struct {
 type ListQueueItemsParams struct {
 	Tenantid pgtype.UUID `json:"tenantid"`
 	Queue    string      `json:"queue"`
+	GtId     pgtype.Int8 `json:"gtId"`
 }
 
 func (q *Queries) ListQueueItems(ctx context.Context, db DBTX, arg []ListQueueItemsParams) *ListQueueItemsBatchResults {
@@ -50,6 +55,7 @@ func (q *Queries) ListQueueItems(ctx context.Context, db DBTX, arg []ListQueueIt
 		vals := []interface{}{
 			a.Tenantid,
 			a.Queue,
+			a.GtId,
 		}
 		batch.Queue(listQueueItems, vals...)
 	}
