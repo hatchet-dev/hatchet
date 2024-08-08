@@ -22,6 +22,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -953,12 +954,6 @@ type debugInfo struct {
 	DurationsOfQueueListResults  []string       `json:"durations_of_queue_list_results"`
 }
 
-type queueItemWithOrder struct {
-	*dbsqlc.QueueItem
-
-	order int
-}
-
 func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId string) (repository.QueueStepRunsResult, error) {
 	startedAt := time.Now().UTC()
 
@@ -980,8 +975,6 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		return emptyRes, err
 	}
 
-	timeToStartDuration := time.Since(startedAt)
-
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
 	// list queues
@@ -994,8 +987,6 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	if len(queues) == 0 {
 		return emptyRes, nil
 	}
-
-	timeToListQueues := time.Since(startedAt)
 
 	// construct params for list queue items
 	query := []dbsqlc.ListQueueItemsParams{}
@@ -1026,12 +1017,12 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		query = append(query, q)
 	}
 
-	queueItems := make([]queueItemWithOrder, 0)
-
 	results := s.queries.ListQueueItems(ctx, tx, query)
 	defer results.Close()
 
 	durationsOfQueueListResults := make([]string, 0)
+
+	queueItems := make([]scheduling.QueueItemWithOrder, 0)
 
 	// TODO: verify whether this is multithreaded and if it is, whether thread safe
 	results.Query(func(i int, qi []*dbsqlc.QueueItem, err error) {
@@ -1042,9 +1033,9 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		queueName := ""
 
 		for i := range qi {
-			queueItems = append(queueItems, queueItemWithOrder{
+			queueItems = append(queueItems, scheduling.QueueItemWithOrder{
 				QueueItem: qi[i],
-				order:     i,
+				Order:     i,
 			})
 
 			queueName = qi[i].Queue
@@ -1063,21 +1054,14 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		return emptyRes, nil
 	}
 
-	timeToListQueueItemsDuration := time.Since(startedAt)
-
-	// sort the queue items by order from least to greatest, then by queue id
+	// sort the queue items by Order from least to greatest, then by queue id
 	sort.Slice(queueItems, func(i, j int) bool {
-		if queueItems[i].order == queueItems[j].order {
+		if queueItems[i].Order == queueItems[j].Order {
 			return queueItems[i].QueueItem.ID < queueItems[j].QueueItem.ID
 		}
 
-		return queueItems[i].order < queueItems[j].order
+		return queueItems[i].Order < queueItems[j].Order
 	})
-
-	queuedItems := make([]int64, 0)
-	queuedStepRuns := make([]repository.QueuedStepRun, 0)
-	timedOutStepRuns := make([]pgtype.UUID, 0)
-	minQueuedIds := make(map[string]int64)
 
 	// get a list of unique actions
 	uniqueActions := make(map[string]bool)
@@ -1101,116 +1085,36 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		return emptyRes, fmt.Errorf("could not list semaphore slots to assign: %w", err)
 	}
 
-	// NOTE(abelanger5): this is a version of the assignment problem. There is a more optimal solution i.e. optimal
-	// matching which can run in polynomial time. This is a naive approach which assigns the first steps which were
-	// queued to the first slots which are seen.
-	actionsToSlots := make(map[string]map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow)
-	slotsToActions := make(map[string][]string)
+	plan, err := scheduling.GeneratePlan(
+		slots,
+		uniqueActionsArr,
+		queueItems,
+	)
 
-	for _, slot := range slots {
-		slotId := sqlchelpers.UUIDToStr(slot.ID)
-
-		if _, ok := actionsToSlots[slot.ActionId]; !ok {
-			actionsToSlots[slot.ActionId] = make(map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow)
-		}
-
-		actionsToSlots[slot.ActionId][slotId] = slot
-
-		if _, ok := slotsToActions[slotId]; !ok {
-			slotsToActions[slotId] = make([]string, 0)
-		}
-
-		slotsToActions[slotId] = append(slotsToActions[slotId], slot.ActionId)
-	}
-
-	// assemble debug information
-	startingSlotsPerAction := make(map[string]int)
-
-	for action, slots := range actionsToSlots {
-		startingSlotsPerAction[action] = len(slots)
-	}
-
-	// match slots to step runs in the order the step runs were returned
-	stepRunIds := make([]pgtype.UUID, 0)
-	slotIds := make([]pgtype.UUID, 0)
-	workerIds := make([]pgtype.UUID, 0)
-	stepRunTimeouts := make([]string, 0)
-	unassignedStepRunIds := make([]pgtype.UUID, 0)
-
-	allStepRunsWithActionAssigned := make(map[string]bool)
-
-	for _, uniqueAction := range uniqueActionsArr {
-		allStepRunsWithActionAssigned[uniqueAction] = true
-	}
-
-	for _, qi := range queueItems {
-		if currMinQueued, ok := minQueuedIds[qi.Queue]; !ok {
-			minQueuedIds[qi.Queue] = qi.ID
-		} else if qi.ID < currMinQueued {
-			minQueuedIds[qi.Queue] = qi.ID
-		}
-
-		if len(actionsToSlots[qi.ActionId.String]) == 0 {
-			allStepRunsWithActionAssigned[qi.ActionId.String] = false
-			unassignedStepRunIds = append(unassignedStepRunIds, qi.StepRunId)
-			continue
-		}
-
-		// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-		now := time.Now().UTC().UTC()
-		scheduleTimeoutAt := qi.ScheduleTimeoutAt.Time
-
-		// timed out if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
-		isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
-
-		if isTimedOut {
-			timedOutStepRuns = append(timedOutStepRuns, qi.StepRunId)
-			// mark as queued so that we don't requeue
-			queuedItems = append(queuedItems, qi.ID)
-			continue
-		}
-
-		slot := popRandMapValue(actionsToSlots[qi.ActionId.String])
-
-		// delete from all other actions
-		for _, action := range slotsToActions[sqlchelpers.UUIDToStr(slot.ID)] {
-			delete(actionsToSlots[action], sqlchelpers.UUIDToStr(slot.ID))
-		}
-
-		stepRunIds = append(stepRunIds, qi.StepRunId)
-		stepRunTimeouts = append(stepRunTimeouts, qi.StepTimeout.String)
-		slotIds = append(slotIds, slot.ID)
-		workerIds = append(workerIds, slot.WorkerId)
-
-		queuedStepRuns = append(queuedStepRuns, repository.QueuedStepRun{
-			StepRunId:    sqlchelpers.UUIDToStr(qi.StepRunId),
-			WorkerId:     sqlchelpers.UUIDToStr(slot.WorkerId),
-			DispatcherId: sqlchelpers.UUIDToStr(slot.DispatcherId),
-		})
-
-		queuedItems = append(queuedItems, qi.ID)
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not generate scheduling: %w", err)
 	}
 
 	_, err = s.queries.BulkAssignStepRunsToWorkers(ctx, tx, dbsqlc.BulkAssignStepRunsToWorkersParams{
-		Steprunids:      stepRunIds,
-		Stepruntimeouts: stepRunTimeouts,
-		Slotids:         slotIds,
-		Workerids:       workerIds,
+		Steprunids:      plan.StepRunIds,
+		Stepruntimeouts: plan.StepRunTimeouts,
+		Slotids:         plan.SlotIds,
+		Workerids:       plan.WorkerIds,
 	})
 
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not bulk assign step runs to workers: %w", err)
 	}
 
-	err = s.queries.BulkQueueItems(ctx, tx, queuedItems)
+	err = s.queries.BulkQueueItems(ctx, tx, plan.QueuedItems)
 
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not bulk queue items: %w", err)
 	}
 
 	// if there are step runs to place in a cancelling state, do so
-	if len(timedOutStepRuns) > 0 {
-		_, err = s.queries.BulkMarkStepRunsAsCancelling(ctx, tx, timedOutStepRuns)
+	if len(plan.TimedOutStepRuns) > 0 {
+		_, err = s.queries.BulkMarkStepRunsAsCancelling(ctx, tx, plan.TimedOutStepRuns)
 
 		if err != nil {
 			return emptyRes, fmt.Errorf("could not bulk mark step runs as cancelling: %w", err)
@@ -1219,83 +1123,56 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 
 	err = tx.Commit(ctx)
 
-	defer s.bulkStepRunsAssigned(stepRunIds, workerIds)
-	defer s.bulkStepRunsUnassigned(unassignedStepRunIds)
+	defer s.bulkStepRunsAssigned(plan.StepRunIds, plan.WorkerIds)
+	defer s.bulkStepRunsUnassigned(plan.UnassignedStepRunIds)
 
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
-	// print debug information
-	endingSlotsPerAction := make(map[string]int)
-	for action, slots := range actionsToSlots {
-		endingSlotsPerAction[action] = len(slots)
-	}
+	// // print debug information
+	// endingSlotsPerAction := make(map[string]int)
+	// for action, slots := range actionsToSlots {
+	// 	endingSlotsPerAction[action] = len(slots)
+	// }
 
-	defer func() {
-		// pretty-print json with 2 spaces
-		debugInfo := debugInfo{
-			UniqueActions:                uniqueActionsArr,
-			TotalStepRuns:                len(queueItems),
-			TotalStepRunsAssigned:        len(stepRunIds),
-			TotalSlots:                   len(slots),
-			StartingSlotsPerAction:       startingSlotsPerAction,
-			EndingSlotsPerAction:         endingSlotsPerAction,
-			Duration:                     time.Since(startedAt).String(),
-			TimeToStartDuration:          timeToStartDuration.String(),
-			TimeToListQueuesDuration:     timeToListQueues.String(),
-			TimeToListQueueItemsDuration: timeToListQueueItemsDuration.String(),
-			DurationsOfQueueListResults:  durationsOfQueueListResults,
-		}
+	// defer func() {
+	// 	// pretty-print json with 2 spaces
+	// 	debugInfo := debugInfo{
+	// 		UniqueActions:          uniqueActionsArr,
+	// 		TotalStepRuns:          len(queueItems),
+	// 		TotalStepRunsAssigned:  len(stepRunIds),
+	// 		TotalSlots:             len(slots),
+	// 		StartingSlotsPerAction: startingSlotsPerAction,
+	// 		EndingSlotsPerAction:   endingSlotsPerAction,
+	// 	}
 
-		debugInfoBytes, err := json.MarshalIndent(debugInfo, "", "  ")
+	// 	debugInfoBytes, err := json.MarshalIndent(debugInfo, "", "  ")
 
-		if err != nil {
-			s.l.Warn().Err(err).Msg("could not marshal debug info")
-			return
-		}
+	// 	if err != nil {
+	// 		s.l.Warn().Err(err).Msg("could not marshal debug info")
+	// 		return
+	// 	}
 
-		s.l.Warn().Msg(string(debugInfoBytes))
-	}()
+	// 	s.l.Warn().Msg(string(debugInfoBytes))
+	// }()
 
 	// update the cache with the min queued id
-	for name, qiId := range minQueuedIds {
+	for name, qiId := range plan.MinQueuedIds {
 		s.cachedMinQueuedIds.Store(getCacheName(tenantId, name), qiId)
 	}
 
-	shouldContinue := false
+	timedOutStepRunsStr := make([]string, len(plan.TimedOutStepRuns))
 
-	// if at least one of the actions got all step runs assigned, and there are slots remaining, return true
-	for action := range uniqueActions {
-		if _, ok := allStepRunsWithActionAssigned[action]; ok {
-			// check if there are slots remaining
-			if len(actionsToSlots[action]) > 0 {
-				shouldContinue = true
-				break
-			}
-		}
-	}
-
-	timedOutStepRunsStr := make([]string, len(timedOutStepRuns))
-
-	for i, id := range timedOutStepRuns {
+	for i, id := range plan.TimedOutStepRuns {
 		timedOutStepRunsStr[i] = sqlchelpers.UUIDToStr(id)
 	}
 
 	return repository.QueueStepRunsResult{
-		Queued:             queuedStepRuns,
+		Queued:             plan.QueuedStepRuns,
 		SchedulingTimedOut: timedOutStepRunsStr,
-		Continue:           shouldContinue,
+		Continue:           plan.ShouldContinue,
 	}, nil
-}
-
-func popRandMapValue(m map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow) *dbsqlc.ListSemaphoreSlotsToAssignRow {
-	for k, v := range m {
-		delete(m, k)
-		return v
-	}
-
-	return nil
 }
 
 func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (string, string, error) {
