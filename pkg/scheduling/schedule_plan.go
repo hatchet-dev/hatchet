@@ -22,10 +22,12 @@ type SchedulePlan struct {
 }
 
 func (sp *SchedulePlan) UpdateMinQueuedIds(qi QueueItemWithOrder) []repository.QueuedStepRun {
-	if currMinQueued, ok := sp.MinQueuedIds[qi.Queue]; !ok {
-		sp.MinQueuedIds[qi.Queue] = qi.ID
-	} else if qi.ID < currMinQueued {
-		sp.MinQueuedIds[qi.Queue] = qi.ID
+	if qi.Priority == 1 {
+		if currMinQueued, ok := sp.MinQueuedIds[qi.Queue]; !ok {
+			sp.MinQueuedIds[qi.Queue] = qi.ID
+		} else if qi.ID < currMinQueued {
+			sp.MinQueuedIds[qi.Queue] = qi.ID
+		}
 	}
 
 	return sp.QueuedStepRuns
