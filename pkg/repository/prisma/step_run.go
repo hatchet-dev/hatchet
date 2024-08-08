@@ -206,17 +206,19 @@ type stepRunEngineRepository struct {
 	queries            *dbsqlc.Queries
 	cf                 *server.ConfigFileRuntime
 	cachedMinQueuedIds sync.Map
+	exhaustedRLCache   *scheduling.ExhaustedRateLimitCache
 }
 
 func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) repository.StepRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &stepRunEngineRepository{
-		pool:    pool,
-		v:       v,
-		l:       l,
-		queries: queries,
-		cf:      cf,
+		pool:             pool,
+		v:                v,
+		l:                l,
+		queries:          queries,
+		cf:               cf,
+		exhaustedRLCache: scheduling.NewExhaustedRateLimitCache(time.Minute),
 	}
 }
 
@@ -846,6 +848,38 @@ func (s *stepRunEngineRepository) bulkStepRunsUnassigned(
 	)
 }
 
+func (s *stepRunEngineRepository) bulkStepRunsRateLimited(
+	stepRunIds []pgtype.UUID,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	messages := make([]string, len(stepRunIds))
+	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
+	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
+	data := make([]map[string]interface{}, len(stepRunIds))
+
+	for i := range stepRunIds {
+		messages[i] = "Rate limit exceeded"
+		reasons[i] = dbsqlc.StepRunEventReasonREQUEUEDRATELIMIT
+		severities[i] = dbsqlc.StepRunEventSeverityWARNING
+		// TODO: semaphore extra data
+		data[i] = map[string]interface{}{}
+	}
+
+	deferredBulkStepRunEvents(
+		ctx,
+		s.l,
+		s.pool,
+		s.queries,
+		stepRunIds,
+		reasons,
+		severities,
+		messages,
+		data,
+	)
+}
+
 func deferredBulkStepRunEvents(
 	ctx context.Context,
 	l *zerolog.Logger,
@@ -995,6 +1029,11 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	rand.New(rand.NewSource(time.Now().UnixNano())).Shuffle(len(queues), func(i, j int) { queues[i], queues[j] = queues[j], queues[i] }) // nolint:gosec
 
 	for _, queue := range queues {
+		// check whether we have exhausted rate limits for this queue
+		if s.exhaustedRLCache.IsExhausted(tenantId, queue.Name) {
+			continue
+		}
+
 		name := queue.Name
 
 		q := dbsqlc.ListQueueItemsParams{
@@ -1076,6 +1115,56 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		uniqueActionsArr = append(uniqueActionsArr, action)
 	}
 
+	// list rate limits for the tenant
+	rateLimits, err := s.queries.ListRateLimitsForTenant(ctx, tx, pgTenantId)
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return emptyRes, fmt.Errorf("could not list rate limits for tenant: %w", err)
+	}
+
+	currRateLimitValues := make(map[string]*dbsqlc.ListRateLimitsForTenantRow)
+	stepRateUnits := make(map[string]map[string]int32)
+
+	if len(rateLimits) > 0 {
+		for i := range rateLimits {
+			key := rateLimits[i].Key
+			currRateLimitValues[key] = rateLimits[i]
+		}
+
+		// get a list of unique step ids
+		uniqueStepIds := make(map[string]bool)
+
+		for _, row := range queueItems {
+			uniqueStepIds[sqlchelpers.UUIDToStr(row.StepId)] = true
+		}
+
+		uniqueStepIdsArr := make([]pgtype.UUID, 0, len(uniqueStepIds))
+
+		for step := range uniqueStepIds {
+			uniqueStepIdsArr = append(uniqueStepIdsArr, sqlchelpers.UUIDFromStr(step))
+		}
+
+		// get the rate limits for the steps
+		stepRateLimits, err := s.queries.ListRateLimitsForSteps(ctx, tx, dbsqlc.ListRateLimitsForStepsParams{
+			Tenantid: pgTenantId,
+			Stepids:  uniqueStepIdsArr,
+		})
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return emptyRes, fmt.Errorf("could not list rate limits for steps: %w", err)
+		}
+
+		for _, row := range stepRateLimits {
+			stepId := sqlchelpers.UUIDToStr(row.StepId)
+
+			if _, ok := stepRateUnits[stepId]; !ok {
+				stepRateUnits[stepId] = make(map[string]int32)
+			}
+
+			stepRateUnits[stepId][row.RateLimitKey] = row.Units
+		}
+	}
+
 	slots, err := s.queries.ListSemaphoreSlotsToAssign(ctx, tx, dbsqlc.ListSemaphoreSlotsToAssignParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Actionids: uniqueActionsArr,
@@ -1089,11 +1178,64 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		slots,
 		uniqueActionsArr,
 		queueItems,
+		stepRateUnits,
+		currRateLimitValues,
 	)
 
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not generate scheduling: %w", err)
 	}
+
+	// save rate limits as a subtransaction, but don't throw an error if it fails
+	func() {
+		subtx, err := tx.Begin(ctx)
+
+		if err != nil {
+			s.l.Err(err).Msg("could not start subtransaction")
+			return
+		}
+
+		defer deferRollback(ctx, s.l, subtx.Rollback)
+
+		updateKeys := []string{}
+		updateUnits := []int32{}
+
+		for key, value := range plan.RateLimitUnitsConsumed {
+			if value == 0 {
+				continue
+			}
+
+			updateKeys = append(updateKeys, key)
+			updateUnits = append(updateUnits, value)
+		}
+
+		params := dbsqlc.BulkUpdateRateLimitsParams{
+			Tenantid: pgTenantId,
+			Keys:     updateKeys,
+			Units:    updateUnits,
+		}
+
+		_, err = s.queries.BulkUpdateRateLimits(ctx, subtx, params)
+
+		if err != nil {
+			s.l.Err(err).Msg("could not bulk update rate limits")
+			return
+		}
+
+		// throw a warning if any rate limits are below 0
+		for key, value := range plan.RateLimitUnitsConsumed {
+			if value < 0 {
+				s.l.Warn().Msgf("rate limit %s is below 0: %d", key, value)
+			}
+		}
+
+		err = subtx.Commit(ctx)
+
+		if err != nil {
+			s.l.Err(err).Msg("could not commit subtransaction")
+			return
+		}
+	}()
 
 	_, err = s.queries.BulkAssignStepRunsToWorkers(ctx, tx, dbsqlc.BulkAssignStepRunsToWorkersParams{
 		Steprunids:      plan.StepRunIds,
@@ -1125,6 +1267,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 
 	defer s.bulkStepRunsAssigned(plan.StepRunIds, plan.WorkerIds)
 	defer s.bulkStepRunsUnassigned(plan.UnassignedStepRunIds)
+	defer s.bulkStepRunsRateLimited(plan.RateLimitedStepRuns)
 
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not commit transaction: %w", err)
@@ -1160,6 +1303,11 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	// update the cache with the min queued id
 	for name, qiId := range plan.MinQueuedIds {
 		s.cachedMinQueuedIds.Store(getCacheName(tenantId, name), qiId)
+	}
+
+	// update the rate limit cache
+	for queue, times := range plan.RateLimitedQueues {
+		s.exhaustedRLCache.Set(tenantId, queue, times)
 	}
 
 	timedOutStepRunsStr := make([]string, len(plan.TimedOutStepRuns))

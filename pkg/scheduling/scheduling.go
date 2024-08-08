@@ -1,6 +1,8 @@
 package scheduling
 
 import (
+	"time"
+
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -19,19 +21,24 @@ func GeneratePlan(
 	slots []*dbsqlc.ListSemaphoreSlotsToAssignRow,
 	uniqueActionsArr []string,
 	queueItems []QueueItemWithOrder,
+	stepRateUnits map[string]map[string]int32,
+	currRateLimits map[string]*dbsqlc.ListRateLimitsForTenantRow,
 ) (SchedulePlan, error) {
 
 	plan := SchedulePlan{
-		StepRunIds:           make([]pgtype.UUID, 0),
-		StepRunTimeouts:      make([]string, 0),
-		SlotIds:              make([]pgtype.UUID, 0),
-		WorkerIds:            make([]pgtype.UUID, 0),
-		UnassignedStepRunIds: make([]pgtype.UUID, 0),
-		QueuedStepRuns:       make([]repository.QueuedStepRun, 0),
-		TimedOutStepRuns:     make([]pgtype.UUID, 0),
-		QueuedItems:          make([]int64, 0),
-		MinQueuedIds:         make(map[string]int64),
-		ShouldContinue:       false,
+		StepRunIds:             make([]pgtype.UUID, 0),
+		StepRunTimeouts:        make([]string, 0),
+		SlotIds:                make([]pgtype.UUID, 0),
+		WorkerIds:              make([]pgtype.UUID, 0),
+		UnassignedStepRunIds:   make([]pgtype.UUID, 0),
+		RateLimitedStepRuns:    make([]pgtype.UUID, 0),
+		QueuedStepRuns:         make([]repository.QueuedStepRun, 0),
+		TimedOutStepRuns:       make([]pgtype.UUID, 0),
+		QueuedItems:            make([]int64, 0),
+		MinQueuedIds:           make(map[string]int64),
+		ShouldContinue:         false,
+		RateLimitUnitsConsumed: make(map[string]int32),
+		RateLimitedQueues:      make(map[string][]time.Time),
 	}
 
 	workers := make(map[string]*WorkerState)
@@ -46,10 +53,15 @@ func GeneratePlan(
 		workers[sqlchelpers.UUIDToStr(slot.WorkerId)].AddSlot(slot)
 	}
 
+	rateLimits := make(map[string]*RateLimit)
+
+	for key, rl := range currRateLimits {
+		rateLimits[key] = NewRateLimit(key, rl)
+	}
+
 	// NOTE(abelanger5): this is a version of the assignment problem. There is a more optimal solution i.e. optimal
 	// matching which can run in polynomial time. This is a naive approach which assigns the first steps which were
 	// queued to the first slots which are seen.
-
 	for _, qi := range queueItems {
 
 		plan.UpdateMinQueuedIds(qi)
@@ -66,34 +78,80 @@ func GeneratePlan(
 			continue
 		}
 
+		stepRunId := sqlchelpers.UUIDToStr(qi.StepRunId)
+		stepId := sqlchelpers.UUIDToStr(qi.StepId)
+		isRateLimited := false
+
+		// check if we're rate limited
+		if srRateLimitUnits, ok := stepRateUnits[stepId]; ok {
+			for key, units := range srRateLimitUnits {
+				if rateLimit, ok := rateLimits[key]; ok {
+					// add the step run id to the rate limit. if this returns false, then we're rate limited
+					if !rateLimit.AddStepRunId(stepRunId, units) {
+						isRateLimited = true
+
+						if _, ok := plan.RateLimitedQueues[key]; !ok {
+							plan.RateLimitedQueues[key] = make([]time.Time, 0)
+						}
+
+						plan.RateLimitedQueues[qi.Queue] = append(plan.RateLimitedQueues[qi.Queue], rateLimit.NextRefill())
+					}
+				}
+			}
+		}
+
 		// pick a worker to assign the slot to
 		assigned := false
-		for _, worker := range workers {
-			slot, isEmpty := worker.AssignSlot(qi)
 
-			if slot == nil {
-				// if we can't assign the slot to the worker then continue
-				continue
+		if !isRateLimited {
+			for _, worker := range workers {
+				slot, isEmpty := worker.AssignSlot(qi)
+
+				if slot == nil {
+					// if we can't assign the slot to the worker then continue
+					continue
+				}
+
+				// add the slot to the plan
+				plan.AssignQiToSlot(qi, slot)
+
+				// cleanup the worker if it's empty
+				if isEmpty {
+					delete(workers, worker.workerId)
+				}
+
+				assigned = true
+
+				// break out of the loop
+				break
 			}
-
-			// add the slot to the plan
-			plan.AssignQiToSlot(qi, slot)
-
-			// cleanup the worker if it's empty
-			if isEmpty {
-				delete(workers, worker.workerId)
-			}
-
-			assigned = true
-
-			// break out of the loop
-			break
 		}
 
-		// if we couldn't assign the slot to any worker then mark as unassigned
-		if !assigned {
+		// if we couldn't assign the slot to any worker then mark as rate limited
+		if isRateLimited {
+			plan.HandleRateLimited(qi)
+
+			// if we're rate limited then call rollback on the rate limits (this can happen if we've succeeded on one rate limit
+			// but failed on another)
+			for key := range stepRateUnits[stepId] {
+				if rateLimit, ok := rateLimits[key]; ok {
+					rateLimit.Rollback(stepRunId)
+				}
+			}
+		} else if !assigned {
 			plan.HandleUnassigned(qi)
+
+			// if we can't assign the slot to any worker then we rollback the rate limit
+			for key := range stepRateUnits[stepId] {
+				if rateLimit, ok := rateLimits[key]; ok {
+					rateLimit.Rollback(stepRunId)
+				}
+			}
 		}
+	}
+
+	for key, rateLimit := range rateLimits {
+		plan.RateLimitUnitsConsumed[key] = rateLimit.UnitsConsumed()
 	}
 
 	// if we have any worker slots left and we have unassigned steps then we should continue

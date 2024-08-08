@@ -173,7 +173,7 @@ func TestGeneratePlan(t *testing.T) {
 				t.Fatalf("Failed to load fixture: %v", err)
 			}
 
-			got, err := GeneratePlan(fixtureData.Slots, fixtureData.UniqueActionsArr, fixtureData.QueueItems)
+			got, err := GeneratePlan(fixtureData.Slots, fixtureData.UniqueActionsArr, fixtureData.QueueItems, nil, nil)
 
 			if !tt.wantErr(t, err, "GeneratePlan_Simple") {
 				return

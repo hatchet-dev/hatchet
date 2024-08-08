@@ -1,6 +1,8 @@
 package scheduling
 
 import (
+	"time"
+
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -9,16 +11,19 @@ import (
 )
 
 type SchedulePlan struct {
-	StepRunIds           []pgtype.UUID
-	StepRunTimeouts      []string
-	SlotIds              []pgtype.UUID
-	WorkerIds            []pgtype.UUID
-	UnassignedStepRunIds []pgtype.UUID
-	QueuedStepRuns       []repository.QueuedStepRun
-	TimedOutStepRuns     []pgtype.UUID
-	QueuedItems          []int64
-	ShouldContinue       bool
-	MinQueuedIds         map[string]int64
+	StepRunIds             []pgtype.UUID
+	StepRunTimeouts        []string
+	SlotIds                []pgtype.UUID
+	WorkerIds              []pgtype.UUID
+	UnassignedStepRunIds   []pgtype.UUID
+	QueuedStepRuns         []repository.QueuedStepRun
+	TimedOutStepRuns       []pgtype.UUID
+	RateLimitedStepRuns    []pgtype.UUID
+	RateLimitedQueues      map[string][]time.Time
+	QueuedItems            []int64
+	ShouldContinue         bool
+	MinQueuedIds           map[string]int64
+	RateLimitUnitsConsumed map[string]int32
 }
 
 func (sp *SchedulePlan) UpdateMinQueuedIds(qi QueueItemWithOrder) []repository.QueuedStepRun {
@@ -45,6 +50,10 @@ func (plan *SchedulePlan) HandleNoSlots(qi QueueItemWithOrder) {
 
 func (plan *SchedulePlan) HandleUnassigned(qi QueueItemWithOrder) {
 	plan.UnassignedStepRunIds = append(plan.UnassignedStepRunIds, qi.StepRunId)
+}
+
+func (plan *SchedulePlan) HandleRateLimited(qi QueueItemWithOrder) {
+	plan.RateLimitedStepRuns = append(plan.RateLimitedStepRuns, qi.StepRunId)
 }
 
 func (plan *SchedulePlan) AssignQiToSlot(qi QueueItemWithOrder, slot *dbsqlc.ListSemaphoreSlotsToAssignRow) {
