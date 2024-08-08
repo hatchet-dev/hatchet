@@ -21,7 +21,7 @@ require (
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/posthog/posthog-go v0.0.0-20240327112532-87b23fe11103
+	github.com/posthog/posthog-go v1.2.1
 	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
