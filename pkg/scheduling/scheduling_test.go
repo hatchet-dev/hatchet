@@ -133,7 +133,7 @@ func TestGeneratePlan(t *testing.T) {
 				noTimeout:     true,
 			},
 			want: func(s SchedulePlan, fixtureResult string) bool {
-				// DumpResults(s, "./fixtures/simple_plan_output.json")
+				// DumpResults(s, "./simple_plan_output.json")
 
 				assert, err := assertResult(s, fixtureResult)
 				if err != nil {
@@ -152,7 +152,7 @@ func TestGeneratePlan(t *testing.T) {
 				noTimeout:     false,
 			},
 			want: func(s SchedulePlan, fixtureResult string) bool {
-				// DumpResults(s, "./fixtures/simple_plan_timeout_output.json")
+				// DumpResults(s, "./simple_plan_timeout_output.json")
 
 				assert, err := assertResult(s, fixtureResult)
 				if err != nil {

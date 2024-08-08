@@ -1,8 +1,6 @@
 package scheduling
 
 import (
-	"time"
-
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -14,19 +12,6 @@ type QueueItemWithOrder struct {
 	*dbsqlc.QueueItem
 
 	Order int
-}
-
-type SchedulePlan struct {
-	StepRunIds           []pgtype.UUID
-	StepRunTimeouts      []string
-	SlotIds              []pgtype.UUID
-	WorkerIds            []pgtype.UUID
-	UnassignedStepRunIds []pgtype.UUID
-	QueuedStepRuns       []repository.QueuedStepRun
-	TimedOutStepRuns     []pgtype.UUID
-	QueuedItems          []int64
-	ShouldContinue       bool
-	MinQueuedIds         map[string]int64
 }
 
 func popRandMapValue(m map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow) *dbsqlc.ListSemaphoreSlotsToAssignRow {
@@ -44,6 +29,7 @@ func GeneratePlan(
 	uniqueActionsArr []string,
 	queueItems []QueueItemWithOrder,
 ) (SchedulePlan, error) {
+
 	plan := SchedulePlan{
 		StepRunIds:           make([]pgtype.UUID, 0),
 		StepRunTimeouts:      make([]string, 0),
@@ -57,100 +43,73 @@ func GeneratePlan(
 		ShouldContinue:       false,
 	}
 
+	workers := make(map[string]*WorkerState)
+
+	// initialize worker states
+	for _, slot := range slots {
+		if _, ok := workers[sqlchelpers.UUIDToStr(slot.WorkerId)]; !ok {
+			workers[sqlchelpers.UUIDToStr(slot.WorkerId)] = NewWorkerState(
+				sqlchelpers.UUIDToStr(slot.WorkerId),
+			)
+		}
+		workers[sqlchelpers.UUIDToStr(slot.WorkerId)].AddSlot(slot)
+	}
+
 	// NOTE(abelanger5): this is a version of the assignment problem. There is a more optimal solution i.e. optimal
 	// matching which can run in polynomial time. This is a naive approach which assigns the first steps which were
 	// queued to the first slots which are seen.
-	actionsToSlots := make(map[string]map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow)
-	slotsToActions := make(map[string][]string)
-
-	for _, slot := range slots {
-		slotId := sqlchelpers.UUIDToStr(slot.ID)
-
-		if _, ok := actionsToSlots[slot.ActionId]; !ok {
-			actionsToSlots[slot.ActionId] = make(map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow)
-		}
-
-		actionsToSlots[slot.ActionId][slotId] = slot
-
-		if _, ok := slotsToActions[slotId]; !ok {
-			slotsToActions[slotId] = make([]string, 0)
-		}
-
-		slotsToActions[slotId] = append(slotsToActions[slotId], slot.ActionId)
-	}
-
-	// assemble debug information
-	startingSlotsPerAction := make(map[string]int)
-
-	for action, slots := range actionsToSlots {
-		startingSlotsPerAction[action] = len(slots)
-	}
-
-	allStepRunsWithActionAssigned := make(map[string]bool)
-
-	for _, uniqueAction := range uniqueActionsArr {
-		allStepRunsWithActionAssigned[uniqueAction] = true
-	}
 
 	for _, qi := range queueItems {
-		if currMinQueued, ok := plan.MinQueuedIds[qi.Queue]; !ok {
-			plan.MinQueuedIds[qi.Queue] = qi.ID
-		} else if qi.ID < currMinQueued {
-			plan.MinQueuedIds[qi.Queue] = qi.ID
-		}
 
-		if len(actionsToSlots[qi.ActionId.String]) == 0 {
-			allStepRunsWithActionAssigned[qi.ActionId.String] = false
-			plan.UnassignedStepRunIds = append(plan.UnassignedStepRunIds, qi.StepRunId)
+		plan.UpdateMinQueuedIds(qi)
+
+		// if we're timed out then mark as timed out
+		if IsTimedout(qi) {
+			plan.HandleTimedOut(qi)
 			continue
 		}
 
-		// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-		now := time.Now().UTC().UTC()
-		scheduleTimeoutAt := qi.ScheduleTimeoutAt.Time
-
-		// timed out if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
-		isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
-
-		if isTimedOut {
-			plan.TimedOutStepRuns = append(plan.TimedOutStepRuns, qi.StepRunId)
-			// mark as queued so that we don't requeue
-			plan.QueuedItems = append(plan.QueuedItems, qi.ID)
+		// if we're out of slots then mark as unassigned
+		if len(workers) == 0 {
+			plan.HandleNoSlots(qi)
 			continue
 		}
 
-		slot := popRandMapValue(actionsToSlots[qi.ActionId.String])
+		// pick a worker to assign the slot to
+		assigned := false
+		for _, worker := range workers {
+			slot, isEmpty := worker.AssignSlot(qi)
 
-		// delete from all other actions
-		for _, action := range slotsToActions[sqlchelpers.UUIDToStr(slot.ID)] {
-			delete(actionsToSlots[action], sqlchelpers.UUIDToStr(slot.ID))
-		}
-
-		plan.StepRunIds = append(plan.StepRunIds, qi.StepRunId)
-		plan.StepRunTimeouts = append(plan.StepRunTimeouts, qi.StepTimeout.String)
-		plan.SlotIds = append(plan.SlotIds, slot.ID)
-		plan.WorkerIds = append(plan.WorkerIds, slot.WorkerId)
-
-		plan.QueuedStepRuns = append(plan.QueuedStepRuns, repository.QueuedStepRun{
-			StepRunId:    sqlchelpers.UUIDToStr(qi.StepRunId),
-			WorkerId:     sqlchelpers.UUIDToStr(slot.WorkerId),
-			DispatcherId: sqlchelpers.UUIDToStr(slot.DispatcherId),
-		})
-
-		plan.QueuedItems = append(plan.QueuedItems, qi.ID)
-	}
-
-	// if at least one of the actions got all step runs assigned, and there are slots remaining, return true
-	for _, action := range uniqueActionsArr {
-		if _, ok := allStepRunsWithActionAssigned[action]; ok {
-			// check if there are slots remaining
-			if len(actionsToSlots[action]) > 0 {
-				plan.ShouldContinue = true
-				break
+			if slot == nil {
+				// if we can't assign the slot to the worker then continue
+				continue
 			}
+
+			// add the slot to the plan
+			plan.AssignQiToSlot(qi, slot)
+
+			// cleanup the worker if it's empty
+			if isEmpty {
+				delete(workers, worker.workerId)
+			}
+
+			assigned = true
+
+			// break out of the loop
+			break
+		}
+
+		// if we couldn't assign the slot to any worker then mark as unassigned
+		if !assigned {
+			plan.HandleUnassigned(qi)
 		}
 	}
 
-	// TODO
+	// if we have any worker slots left and we have unassigned steps then we should continue
+	// TODO we want to make sure that the unassigned can assign to a slot
+	if len(workers) > 0 && len(plan.UnassignedStepRunIds) > 0 {
+		plan.ShouldContinue = true
+	}
+
 	return plan, nil
 }
