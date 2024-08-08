@@ -14,9 +14,11 @@ import (
 )
 
 type args struct {
-	Slots            []*dbsqlc.ListSemaphoreSlotsToAssignRow
-	UniqueActionsArr []string
-	QueueItems       []QueueItemWithOrder
+	Slots             []*dbsqlc.ListSemaphoreSlotsToAssignRow
+	UniqueActionsArr  []string
+	QueueItems        []*QueueItemWithOrder
+	WorkerLabels      map[string][]*dbsqlc.GetWorkerLabelsRow
+	StepDesiredLabels map[string][]*dbsqlc.GetDesiredLabelsRow
 }
 
 func loadFixture(filename string, noTimeout bool) (*args, error) {
@@ -45,7 +47,7 @@ func loadFixture(filename string, noTimeout bool) (*args, error) {
 	return args, nil
 }
 
-func assertResult(res SchedulePlan, filename string) (bool, error) {
+func assertResult(actual SchedulePlan, filename string) (bool, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return false, err
@@ -58,39 +60,45 @@ func assertResult(res SchedulePlan, filename string) (bool, error) {
 	}
 
 	// Compare the results
-	if res.ShouldContinue != expected.ShouldContinue {
+	if actual.ShouldContinue != expected.ShouldContinue {
 		return false, fmt.Errorf("ShouldContinue does not match")
 	}
 
-	if len(res.StepRunIds) != len(expected.StepRunIds) {
+	if len(actual.StepRunIds) != len(expected.StepRunIds) {
 		return false, fmt.Errorf("StepRunIds length does not match")
 	}
 
-	if len(res.StepRunTimeouts) != len(expected.StepRunTimeouts) {
+	if len(actual.StepRunTimeouts) != len(expected.StepRunTimeouts) {
 		return false, fmt.Errorf("StepRunTimeouts length does not match")
 	}
 
-	if len(res.SlotIds) != len(expected.SlotIds) {
+	if len(actual.SlotIds) != len(expected.SlotIds) {
 		return false, fmt.Errorf("SlotIds length does not match")
 	}
 
-	if len(res.WorkerIds) != len(expected.WorkerIds) {
+	for i := range actual.QueuedStepRuns {
+		if actual.QueuedStepRuns[i].WorkerId != expected.QueuedStepRuns[i].WorkerId {
+			return false, fmt.Errorf("Expected worker mismatch")
+		}
+	}
+
+	if len(actual.WorkerIds) != len(expected.WorkerIds) {
 		return false, fmt.Errorf("WorkerIds length does not match")
 	}
 
-	if len(res.UnassignedStepRunIds) != len(expected.UnassignedStepRunIds) {
+	if len(actual.UnassignedStepRunIds) != len(expected.UnassignedStepRunIds) {
 		return false, fmt.Errorf("UnassignedStepRunIds length does not match")
 	}
 
-	if len(res.QueuedStepRuns) != len(expected.QueuedStepRuns) {
+	if len(actual.QueuedStepRuns) != len(expected.QueuedStepRuns) {
 		return false, fmt.Errorf("QueuedStepRuns length does not match")
 	}
 
-	if len(res.TimedOutStepRuns) != len(expected.TimedOutStepRuns) {
+	if len(actual.TimedOutStepRuns) != len(expected.TimedOutStepRuns) {
 		return false, fmt.Errorf("TimedOutStepRuns length does not match")
 	}
 
-	if len(res.QueuedItems) != len(expected.QueuedItems) {
+	if len(actual.QueuedItems) != len(expected.QueuedItems) {
 		return false, fmt.Errorf("QueuedItems length does not match")
 	}
 
@@ -145,6 +153,25 @@ func TestGeneratePlan(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
+			name: "GeneratePlan_Affinity",
+			args: args{
+				fixtureArgs:   "./fixtures/affinity.json",
+				fixtureResult: "./fixtures/affinity_output.json",
+				noTimeout:     true,
+			},
+			want: func(s SchedulePlan, fixtureResult string) bool {
+				// DumpResults(s, "affinity_output.json")
+
+				assert, err := assertResult(s, fixtureResult)
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				return assert
+			},
+			wantErr: assert.NoError,
+		},
+		{
 			name: "GeneratePlan_TimedOut",
 			args: args{
 				fixtureArgs:   "./fixtures/simple_plan.json",
@@ -173,7 +200,13 @@ func TestGeneratePlan(t *testing.T) {
 				t.Fatalf("Failed to load fixture: %v", err)
 			}
 
-			got, err := GeneratePlan(fixtureData.Slots, fixtureData.UniqueActionsArr, fixtureData.QueueItems)
+			got, err := GeneratePlan(
+				fixtureData.Slots,
+				fixtureData.UniqueActionsArr,
+				fixtureData.QueueItems,
+				fixtureData.WorkerLabels,
+				fixtureData.StepDesiredLabels,
+			)
 
 			if !tt.wantErr(t, err, "GeneratePlan_Simple") {
 				return

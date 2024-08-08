@@ -21,7 +21,7 @@ type SchedulePlan struct {
 	MinQueuedIds         map[string]int64
 }
 
-func (sp *SchedulePlan) UpdateMinQueuedIds(qi QueueItemWithOrder) []repository.QueuedStepRun {
+func (sp *SchedulePlan) UpdateMinQueuedIds(qi *QueueItemWithOrder) []repository.QueuedStepRun {
 	if qi.Priority == 1 {
 		if currMinQueued, ok := sp.MinQueuedIds[qi.Queue]; !ok {
 			sp.MinQueuedIds[qi.Queue] = qi.ID
@@ -33,21 +33,21 @@ func (sp *SchedulePlan) UpdateMinQueuedIds(qi QueueItemWithOrder) []repository.Q
 	return sp.QueuedStepRuns
 }
 
-func (plan *SchedulePlan) HandleTimedOut(qi QueueItemWithOrder) {
+func (plan *SchedulePlan) HandleTimedOut(qi *QueueItemWithOrder) {
 	plan.TimedOutStepRuns = append(plan.TimedOutStepRuns, qi.StepRunId)
 	// mark as queued so that we don't requeue
 	plan.QueuedItems = append(plan.QueuedItems, qi.ID)
 }
 
-func (plan *SchedulePlan) HandleNoSlots(qi QueueItemWithOrder) {
+func (plan *SchedulePlan) HandleNoSlots(qi *QueueItemWithOrder) {
 	plan.UnassignedStepRunIds = append(plan.UnassignedStepRunIds, qi.StepRunId)
 }
 
-func (plan *SchedulePlan) HandleUnassigned(qi QueueItemWithOrder) {
+func (plan *SchedulePlan) HandleUnassigned(qi *QueueItemWithOrder) {
 	plan.UnassignedStepRunIds = append(plan.UnassignedStepRunIds, qi.StepRunId)
 }
 
-func (plan *SchedulePlan) AssignQiToSlot(qi QueueItemWithOrder, slot *dbsqlc.ListSemaphoreSlotsToAssignRow) {
+func (plan *SchedulePlan) AssignQiToSlot(qi *QueueItemWithOrder, slot *dbsqlc.ListSemaphoreSlotsToAssignRow) {
 	plan.StepRunIds = append(plan.StepRunIds, qi.StepRunId)
 	plan.StepRunTimeouts = append(plan.StepRunTimeouts, qi.StepTimeout.String)
 	plan.SlotIds = append(plan.SlotIds, slot.ID)

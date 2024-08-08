@@ -14,11 +14,12 @@ type QueueItemWithOrder struct {
 	Order int
 }
 
-// Generate generates a random string of n bytes.
 func GeneratePlan(
 	slots []*dbsqlc.ListSemaphoreSlotsToAssignRow,
 	uniqueActionsArr []string,
-	queueItems []QueueItemWithOrder,
+	queueItems []*QueueItemWithOrder,
+	workerLabels map[string][]*dbsqlc.GetWorkerLabelsRow,
+	stepDesiredLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
 ) (SchedulePlan, error) {
 
 	plan := SchedulePlan{
@@ -38,9 +39,12 @@ func GeneratePlan(
 
 	// initialize worker states
 	for _, slot := range slots {
-		if _, ok := workers[sqlchelpers.UUIDToStr(slot.WorkerId)]; !ok {
-			workers[sqlchelpers.UUIDToStr(slot.WorkerId)] = NewWorkerState(
-				sqlchelpers.UUIDToStr(slot.WorkerId),
+		workerId := sqlchelpers.UUIDToStr(slot.WorkerId)
+
+		if _, ok := workers[workerId]; !ok {
+			workers[workerId] = NewWorkerState(
+				workerId,
+				workerLabels[workerId],
 			)
 		}
 		workers[sqlchelpers.UUIDToStr(slot.WorkerId)].AddSlot(slot)
@@ -69,7 +73,7 @@ func GeneratePlan(
 		// pick a worker to assign the slot to
 		assigned := false
 		for _, worker := range workers {
-			slot, isEmpty := worker.AssignSlot(qi)
+			slot, isEmpty := worker.AssignSlot(qi, stepDesiredLabels[sqlchelpers.UUIDToStr(qi.StepId)])
 
 			if slot == nil {
 				// if we can't assign the slot to the worker then continue
@@ -101,7 +105,7 @@ func GeneratePlan(
 	if len(workers) > 0 && len(plan.UnassignedStepRunIds) > 0 {
 		for _, qi := range queueItems {
 			for _, worker := range workers {
-				if worker.CanAssign(qi) {
+				if worker.CanAssign(qi, stepDesiredLabels[sqlchelpers.UUIDToStr(qi.StepId)]) {
 					plan.ShouldContinue = true
 					break
 				}

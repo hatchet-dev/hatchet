@@ -763,6 +763,56 @@ func (q *Queries) CreateStepRunEvent(ctx context.Context, db DBTX, arg CreateSte
 	return err
 }
 
+const getDesiredLabels = `-- name: GetDesiredLabels :many
+SELECT
+    "key",
+    "strValue",
+    "intValue",
+    "required",
+    "weight",
+    "comparator"
+FROM
+    "StepDesiredWorkerLabel"
+WHERE
+    "stepId" = $1::uuid
+`
+
+type GetDesiredLabelsRow struct {
+	Key        string                `json:"key"`
+	StrValue   pgtype.Text           `json:"strValue"`
+	IntValue   pgtype.Int4           `json:"intValue"`
+	Required   bool                  `json:"required"`
+	Weight     int32                 `json:"weight"`
+	Comparator WorkerLabelComparator `json:"comparator"`
+}
+
+func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepid pgtype.UUID) ([]*GetDesiredLabelsRow, error) {
+	rows, err := db.Query(ctx, getDesiredLabels, stepid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetDesiredLabelsRow
+	for rows.Next() {
+		var i GetDesiredLabelsRow
+		if err := rows.Scan(
+			&i.Key,
+			&i.StrValue,
+			&i.IntValue,
+			&i.Required,
+			&i.Weight,
+			&i.Comparator,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLaterStepRunsForReplay = `-- name: GetLaterStepRunsForReplay :many
 WITH RECURSIVE currStepRun AS (
     SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, "queueOrder"
@@ -1248,6 +1298,43 @@ func (q *Queries) GetStepRunQueueOrder(ctx context.Context, db DBTX, arg GetStep
 	var queueOrder int32
 	err := row.Scan(&queueOrder)
 	return queueOrder, err
+}
+
+const getWorkerLabels = `-- name: GetWorkerLabels :many
+SELECT
+    "key",
+    "strValue",
+    "intValue"
+FROM
+    "WorkerLabel"
+WHERE
+    "workerId" = $1::uuid
+`
+
+type GetWorkerLabelsRow struct {
+	Key      string      `json:"key"`
+	StrValue pgtype.Text `json:"strValue"`
+	IntValue pgtype.Int4 `json:"intValue"`
+}
+
+func (q *Queries) GetWorkerLabels(ctx context.Context, db DBTX, workerid pgtype.UUID) ([]*GetWorkerLabelsRow, error) {
+	rows, err := db.Query(ctx, getWorkerLabels, workerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetWorkerLabelsRow
+	for rows.Next() {
+		var i GetWorkerLabelsRow
+		if err := rows.Scan(&i.Key, &i.StrValue, &i.IntValue); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listNonFinalChildStepRuns = `-- name: ListNonFinalChildStepRuns :many

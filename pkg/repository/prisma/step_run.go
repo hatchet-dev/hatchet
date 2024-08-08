@@ -940,6 +940,17 @@ func (s *stepRunEngineRepository) UnassignStepRunFromWorker(ctx context.Context,
 	})
 }
 
+func UniqueSet[T any](i []T, keyFunc func(T) string) map[string]struct{} {
+	set := make(map[string]struct{})
+
+	for _, item := range i {
+		key := keyFunc(item)
+		set[key] = struct{}{}
+	}
+
+	return set
+}
+
 type debugInfo struct {
 	UniqueActions                []string       `json:"unique_actions"`
 	TotalStepRuns                int            `json:"total_step_runs"`
@@ -1022,7 +1033,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 
 	durationsOfQueueListResults := make([]string, 0)
 
-	queueItems := make([]scheduling.QueueItemWithOrder, 0)
+	queueItems := make([]*scheduling.QueueItemWithOrder, 0)
 
 	// TODO: verify whether this is multithreaded and if it is, whether thread safe
 	results.Query(func(i int, qi []*dbsqlc.QueueItem, err error) {
@@ -1033,7 +1044,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		queueName := ""
 
 		for i := range qi {
-			queueItems = append(queueItems, scheduling.QueueItemWithOrder{
+			queueItems = append(queueItems, &scheduling.QueueItemWithOrder{
 				QueueItem: qi[i],
 				Order:     i,
 			})
@@ -1085,10 +1096,48 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		return emptyRes, fmt.Errorf("could not list semaphore slots to assign: %w", err)
 	}
 
+	// GET UNIQUE STEP IDS
+	stepIdSet := UniqueSet(queueItems, func(x *scheduling.QueueItemWithOrder) string {
+		return sqlchelpers.UUIDToStr(x.StepId)
+	})
+
+	desiredLabels := make(map[string][]*dbsqlc.GetDesiredLabelsRow)
+	hasDesired := false
+
+	// GET DESIRED LABELS
+	// OPTIMIZATION: CACHEABLE
+	for stepId := range stepIdSet {
+		labels, err := s.queries.GetDesiredLabels(ctx, tx, sqlchelpers.UUIDFromStr(stepId))
+		if err != nil {
+			return emptyRes, fmt.Errorf("could not get desired labels: %w", err)
+		}
+		desiredLabels[stepId] = labels
+		hasDesired = true
+	}
+
+	var workerLabels = make(map[string][]*dbsqlc.GetWorkerLabelsRow)
+
+	if hasDesired {
+		// GET UNIQUE WORKER LABELS
+		workerIdSet := UniqueSet(slots, func(x *dbsqlc.ListSemaphoreSlotsToAssignRow) string {
+			return sqlchelpers.UUIDToStr(x.WorkerId)
+		})
+
+		for workerId := range workerIdSet {
+			labels, err := s.queries.GetWorkerLabels(ctx, tx, sqlchelpers.UUIDFromStr(workerId))
+			if err != nil {
+				return emptyRes, fmt.Errorf("could not get worker labels: %w", err)
+			}
+			workerLabels[workerId] = labels
+		}
+	}
+
 	plan, err := scheduling.GeneratePlan(
 		slots,
 		uniqueActionsArr,
 		queueItems,
+		workerLabels,
+		desiredLabels,
 	)
 
 	if err != nil {
