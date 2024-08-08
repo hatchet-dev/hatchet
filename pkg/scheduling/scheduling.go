@@ -14,15 +14,6 @@ type QueueItemWithOrder struct {
 	Order int
 }
 
-func popRandMapValue(m map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow) *dbsqlc.ListSemaphoreSlotsToAssignRow {
-	for k, v := range m {
-		delete(m, k)
-		return v
-	}
-
-	return nil
-}
-
 // Generate generates a random string of n bytes.
 func GeneratePlan(
 	slots []*dbsqlc.ListSemaphoreSlotsToAssignRow,
