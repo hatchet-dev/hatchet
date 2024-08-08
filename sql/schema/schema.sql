@@ -109,6 +109,20 @@ CREATE TABLE "Event" (
 );
 
 -- CreateTable
+CREATE TABLE "File" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    "tenantId" UUID NOT NULL,
+    "additionalMetadata" JSONB,
+    "fileName" TEXT NOT NULL,
+    "filePath" TEXT NOT NULL,
+
+    CONSTRAINT "File_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "GetGroupKeyRun" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -853,6 +867,18 @@ CREATE INDEX "Event_tenantId_createdAt_idx" ON "Event"("tenantId" ASC, "createdA
 CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
 
 -- CreateIndex
+CREATE INDEX "File_createdAt_idx" ON "File"("createdAt" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "File_id_key" ON "File"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "File_tenantId_createdAt_idx" ON "File"("tenantId" ASC, "createdAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "File_tenantId_idx" ON "File"("tenantId" ASC);
+
+-- CreateIndex
 CREATE INDEX "GetGroupKeyRun_deletedAt_idx" ON "GetGroupKeyRun"("deletedAt" ASC);
 
 -- CreateIndex
@@ -1217,6 +1243,9 @@ ALTER TABLE "Event" ADD CONSTRAINT "Event_replayedFromId_fkey" FOREIGN KEY ("rep
 
 -- AddForeignKey
 ALTER TABLE "Event" ADD CONSTRAINT "Event_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "File" ADD CONSTRAINT "File_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;

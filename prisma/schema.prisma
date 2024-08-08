@@ -175,6 +175,7 @@ model Tenant {
   dataRetentionPeriod String @default("720h")
 
   events              Event[]
+  files               File[]
   workflows           Workflow[]
   jobs                Job[]
   steps               Step[]
@@ -1648,4 +1649,30 @@ model SNSIntegration {
 
 model SecurityCheckIdent {
   id String @id @unique @default(uuid()) @db.Uuid
+}
+
+// File represents a proxied file in the database.
+model File {
+  // base fields
+  id        String    @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  // the name of the file
+  fileName String
+
+  // the relative path or URL pointing to the file
+  filePath String
+
+  // the parent tenant
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId String @db.Uuid
+
+  // metadata stored in the file
+  additionalMetadata Json?
+
+  @@index([tenantId])
+  @@index([createdAt])
+  @@index([tenantId, createdAt])
 }

@@ -6,6 +6,7 @@ type APIRepository interface {
 	Health() HealthRepository
 	APIToken() APITokenRepository
 	Event() EventAPIRepository
+	File() FileAPIRepository
 	Log() LogsAPIRepository
 	Tenant() TenantAPIRepository
 	TenantAlertingSettings() TenantAlertingAPIRepository

@@ -1,0 +1,82 @@
+withTenant:
+  post:
+    x-resources: ["tenant"]
+    description: Creates a new file
+    operationId: file:create
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/CreateFileRequest"
+      description: The file to create
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/File"
+        description: Successfully created the file
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Create file
+    tags:
+      - File
+
+fileData:
+  get:
+    x-resources: ["tenant", "file"]
+    description: Get the data for a file.
+    operationId: file-data:get
+    parameters:
+      - description: The file id
+        in: path
+        name: file
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/FileData"
+        description: Successfully retrieved the file data
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get file data
+    tags:
+      - File

@@ -772,6 +772,17 @@ type Event struct {
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
 }
 
+type File struct {
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
+	TenantId           pgtype.UUID      `json:"tenantId"`
+	AdditionalMetadata []byte           `json:"additionalMetadata"`
+	FileName           string           `json:"fileName"`
+	FilePath           string           `json:"filePath"`
+}
+
 type GetGroupKeyRun struct {
 	ID                pgtype.UUID      `json:"id"`
 	CreatedAt         pgtype.Timestamp `json:"createdAt"`
