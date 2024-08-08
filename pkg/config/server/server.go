@@ -263,14 +263,20 @@ type ConfigFileAuthCookie struct {
 type MessageQueueConfigFile struct {
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
 
-	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required"`
+	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required" default:"rabbitmq"`
 
 	RabbitMQ RabbitMQConfigFile `mapstructure:"rabbitmq" json:"rabbitmq,omitempty" validate:"required"`
+
+	Postgres PostgresConfigFile `mapstructure:"postgres" json:"postgres,omitempty" validate:"required"`
 }
 
 type RabbitMQConfigFile struct {
 	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
 	Qos int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
+}
+
+type PostgresConfigFile struct {
+	ConnectionString string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"user=hatchet password=hatchet dbname=hatchet sslmode=disable host=localhost port=5431"`
 }
 
 type ConfigFileEmail struct {
@@ -446,12 +452,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.github.scopes", "SERVER_AUTH_GITHUB_SCOPES")
 
 	// task queue options
-	// legacy options
 	_ = v.BindEnv("msgQueue.kind", "SERVER_TASKQUEUE_KIND")
 	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_TASKQUEUE_RABBITMQ_URL")
-
-	_ = v.BindEnv("msgQueue.kind", "SERVER_MSGQUEUE_KIND")
-	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_MSGQUEUE_RABBITMQ_URL")
+	_ = v.BindEnv("msgQueue.postgres.url", "SERVER_TASKQUEUE_POSTGRES_URL")
 
 	// throughput options
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")

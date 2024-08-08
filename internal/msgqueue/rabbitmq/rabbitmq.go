@@ -207,7 +207,7 @@ func (t *MessageQueueImpl) Subscribe(
 ) (func() error, error) {
 	t.l.Debug().Msgf("subscribing to queue: %s", q.Name())
 
-	cleanup := t.subscribe(t.identity, q, t.sessions, preAck, postAck)
+	cleanup := t.subscribe(q, preAck, postAck)
 	return cleanup, nil
 }
 
@@ -385,9 +385,7 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 }
 
 func (t *MessageQueueImpl) subscribe(
-	subId string,
 	q msgqueue.Queue,
-	sessions chan chan session,
 	preAck msgqueue.AckHook,
 	postAck msgqueue.AckHook,
 ) func() error {
@@ -398,7 +396,7 @@ func (t *MessageQueueImpl) subscribe(
 	wg := sync.WaitGroup{}
 
 	go func() {
-		for session := range sessions {
+		for session := range t.sessions {
 			sessionCount++
 			sub := <-session
 
@@ -406,7 +404,7 @@ func (t *MessageQueueImpl) subscribe(
 
 			conn := sub.Connection
 
-			t.l.Debug().Msgf("starting subscriber %s on: %s", subId, conn.LocalAddr().String())
+			t.l.Debug().Msgf("starting subscriber %s on: %s", t.identity, conn.LocalAddr().String())
 
 			// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
 			// if the exclusive queue will be available to the next session.
@@ -424,7 +422,7 @@ func (t *MessageQueueImpl) subscribe(
 				return
 			}
 
-			deliveries, err := sub.Consume(queueName, subId, false, q.Exclusive(), false, false, nil)
+			deliveries, err := sub.Consume(queueName, t.identity, false, q.Exclusive(), false, false, nil)
 
 			if err != nil {
 				t.l.Error().Msgf("cannot consume from: %s, %v", queueName, err)
@@ -540,9 +538,9 @@ func (t *MessageQueueImpl) subscribe(
 	cleanup := func() error {
 		cancel()
 
-		t.l.Debug().Msgf("shutting down subscriber: %s", subId)
+		t.l.Debug().Msgf("shutting down subscriber: %s", t.identity)
 		wg.Wait()
-		t.l.Debug().Msgf("successfully shut down subscriber: %s", subId)
+		t.l.Debug().Msgf("successfully shut down subscriber: %s", t.identity)
 		return nil
 	}
 
