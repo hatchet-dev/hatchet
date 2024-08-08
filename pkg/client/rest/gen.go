@@ -278,6 +278,18 @@ type CreateEventRequest struct {
 	Key string `json:"key"`
 }
 
+// CreateFileRequest defines model for CreateFileRequest.
+type CreateFileRequest struct {
+	// AdditionalMetadata Additional metadata for the file.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// Data The data for the file (bytestring).
+	Data string `json:"data"`
+
+	// Filename The filename of the file.
+	Filename *string `json:"filename,omitempty"`
+}
+
 // CreateSNSIntegrationRequest defines model for CreateSNSIntegrationRequest.
 type CreateSNSIntegrationRequest struct {
 	// TopicArn The Amazon Resource Name (ARN) of the SNS topic.
@@ -367,6 +379,38 @@ type EventWorkflowRunSummary struct {
 
 	// Succeeded The number of succeeded runs.
 	Succeeded *int64 `json:"succeeded,omitempty"`
+}
+
+// File defines model for File.
+type File struct {
+	// AdditionalMetadata Additional metadata for the file.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// FileName The filename of the file.
+	FileName string `json:"fileName"`
+
+	// FilePath The path of the file.
+	FilePath string          `json:"filePath"`
+	Metadata APIResourceMeta `json:"metadata"`
+	Tenant   *Tenant         `json:"tenant,omitempty"`
+
+	// TenantId The ID of the tenant associated with this file.
+	TenantId string `json:"tenantId"`
+}
+
+// FileData defines model for FileData.
+type FileData struct {
+	// AdditionalMetadata Additional metadata for the file.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// Data The data for the file (bytestring).
+	Data string `json:"data"`
+
+	// FileName The filename of the file.
+	FileName string `json:"fileName"`
+
+	// FilePath The path of the file.
+	FilePath string `json:"filePath"`
 }
 
 // Job defines model for Job.
@@ -1341,6 +1385,9 @@ type EventCreateJSONRequestBody = CreateEventRequest
 // EventUpdateReplayJSONRequestBody defines body for EventUpdateReplay for application/json ContentType.
 type EventUpdateReplayJSONRequestBody = ReplayEventRequest
 
+// FileCreateJSONRequestBody defines body for FileCreate for application/json ContentType.
+type FileCreateJSONRequestBody = CreateFileRequest
+
 // TenantInviteCreateJSONRequestBody defines body for TenantInviteCreate for application/json ContentType.
 type TenantInviteCreateJSONRequestBody = CreateTenantInviteRequest
 
@@ -1479,6 +1526,9 @@ type ClientInterface interface {
 	// EventDataGet request
 	EventDataGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// FileDataGet request
+	FileDataGet(ctx context.Context, file openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// MetadataGet request
 	MetadataGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1547,6 +1597,11 @@ type ClientInterface interface {
 	EventUpdateReplayWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	EventUpdateReplay(ctx context.Context, tenant openapi_types.UUID, body EventUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// FileCreateWithBody request with any body
+	FileCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	FileCreate(ctx context.Context, tenant openapi_types.UUID, body FileCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantInviteList request
 	TenantInviteList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1810,6 +1865,18 @@ func (c *Client) CloudMetadataGet(ctx context.Context, reqEditors ...RequestEdit
 
 func (c *Client) EventDataGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEventDataGetRequest(c.Server, event)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) FileDataGet(ctx context.Context, file openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFileDataGetRequest(c.Server, file)
 	if err != nil {
 		return nil, err
 	}
@@ -2110,6 +2177,30 @@ func (c *Client) EventUpdateReplayWithBody(ctx context.Context, tenant openapi_t
 
 func (c *Client) EventUpdateReplay(ctx context.Context, tenant openapi_types.UUID, body EventUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEventUpdateReplayRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) FileCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFileCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) FileCreate(ctx context.Context, tenant openapi_types.UUID, body FileCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFileCreateRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3089,6 +3180,40 @@ func NewEventDataGetRequest(server string, event openapi_types.UUID) (*http.Requ
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/events/%s/data", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewFileDataGetRequest generates requests for FileDataGet
+func NewFileDataGetRequest(server string, file openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "file", runtime.ParamLocationPath, file)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/files/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4125,6 +4250,53 @@ func NewEventUpdateReplayRequestWithBody(server string, tenant openapi_types.UUI
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/tenants/%s/events/replay", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewFileCreateRequest calls the generic FileCreate builder with application/json body
+func NewFileCreateRequest(server string, tenant openapi_types.UUID, body FileCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewFileCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewFileCreateRequestWithBody generates requests for FileCreate with any type of body
+func NewFileCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/files", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6426,6 +6598,9 @@ type ClientWithResponsesInterface interface {
 	// EventDataGetWithResponse request
 	EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error)
 
+	// FileDataGetWithResponse request
+	FileDataGetWithResponse(ctx context.Context, file openapi_types.UUID, reqEditors ...RequestEditorFn) (*FileDataGetResponse, error)
+
 	// MetadataGetWithResponse request
 	MetadataGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetadataGetResponse, error)
 
@@ -6494,6 +6669,11 @@ type ClientWithResponsesInterface interface {
 	EventUpdateReplayWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventUpdateReplayResponse, error)
 
 	EventUpdateReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventUpdateReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*EventUpdateReplayResponse, error)
+
+	// FileCreateWithBodyWithResponse request with any body
+	FileCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FileCreateResponse, error)
+
+	FileCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body FileCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*FileCreateResponse, error)
 
 	// TenantInviteListWithResponse request
 	TenantInviteListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantInviteListResponse, error)
@@ -6824,6 +7004,30 @@ func (r EventDataGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r EventDataGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type FileDataGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FileData
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r FileDataGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r FileDataGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -7282,6 +7486,30 @@ func (r EventUpdateReplayResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r EventUpdateReplayResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type FileCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *File
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r FileCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r FileCreateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8536,6 +8764,15 @@ func (c *ClientWithResponses) EventDataGetWithResponse(ctx context.Context, even
 	return ParseEventDataGetResponse(rsp)
 }
 
+// FileDataGetWithResponse request returning *FileDataGetResponse
+func (c *ClientWithResponses) FileDataGetWithResponse(ctx context.Context, file openapi_types.UUID, reqEditors ...RequestEditorFn) (*FileDataGetResponse, error) {
+	rsp, err := c.FileDataGet(ctx, file, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFileDataGetResponse(rsp)
+}
+
 // MetadataGetWithResponse request returning *MetadataGetResponse
 func (c *ClientWithResponses) MetadataGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetadataGetResponse, error) {
 	rsp, err := c.MetadataGet(ctx, reqEditors...)
@@ -8753,6 +8990,23 @@ func (c *ClientWithResponses) EventUpdateReplayWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseEventUpdateReplayResponse(rsp)
+}
+
+// FileCreateWithBodyWithResponse request with arbitrary body returning *FileCreateResponse
+func (c *ClientWithResponses) FileCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FileCreateResponse, error) {
+	rsp, err := c.FileCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFileCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) FileCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body FileCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*FileCreateResponse, error) {
+	rsp, err := c.FileCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFileCreateResponse(rsp)
 }
 
 // TenantInviteListWithResponse request returning *TenantInviteListResponse
@@ -9495,6 +9749,46 @@ func ParseEventDataGetResponse(rsp *http.Response) (*EventDataGetResponse, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest EventData
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseFileDataGetResponse parses an HTTP response from a FileDataGetWithResponse call
+func ParseFileDataGetResponse(rsp *http.Response) (*FileDataGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FileDataGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FileData
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -10287,6 +10581,46 @@ func ParseEventUpdateReplayResponse(rsp *http.Response) (*EventUpdateReplayRespo
 			return nil, err
 		}
 		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseFileCreateResponse parses an HTTP response from a FileCreateWithResponse call
+func ParseFileCreateResponse(rsp *http.Response) (*FileCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FileCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest File
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

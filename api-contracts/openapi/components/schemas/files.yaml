@@ -1,0 +1,58 @@
+File:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenant:
+      $ref: "./_index.yaml#/Tenant"
+      description: The tenant associated with this file.
+    tenantId:
+      type: string
+      description: The ID of the tenant associated with this file.
+    fileName:
+      type: string
+      description: The filename of the file.
+    filePath:
+      type: string
+      description: The path of the file.
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the file.
+  required:
+    - metadata
+    - fileName
+    - filePath
+    - tenantId
+
+FileData:
+  properties:
+    data:
+      type: string
+      description: The data for the file (bytestring).
+    fileName:
+      type: string
+      description: The filename of the file.
+    filePath:
+      type: string
+      description: The path of the file.
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the file.
+  required:
+    - data
+    - fileName
+    - filePath
+
+CreateFileRequest:
+  properties:
+    data:
+      type: string
+      description: The data for the file (bytestring).
+    filename:
+      type: string
+      description: The filename of the file.
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the file.
+  required:
+    - key
+    - data

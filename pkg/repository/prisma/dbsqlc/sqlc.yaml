@@ -22,6 +22,7 @@ sql:
       - tenant_limits.sql
       - security_check.sql
       - webhook_workers.sql
+      - files.sql
     schema:
       - schema.sql
     strict_order_by: false

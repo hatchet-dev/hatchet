@@ -1114,3 +1114,37 @@ export interface WebhookWorkerListResponse {
   pagination?: PaginationResponse;
   rows?: WebhookWorker[];
 }
+
+export interface File {
+  metadata: APIResourceMeta;
+  /** The tenant associated with this file. */
+  tenant?: Tenant;
+  /** The ID of the tenant associated with this file. */
+  tenantId: string;
+  /** The filename of the file. */
+  fileName: string;
+  /** The path of the file. */
+  filePath: string;
+  /** Additional metadata for the file. */
+  additionalMetadata?: object;
+}
+
+export interface FileData {
+  /** The data for the file (bytestring). */
+  data: string;
+  /** The filename of the file. */
+  fileName: string;
+  /** The path of the file. */
+  filePath: string;
+  /** Additional metadata for the file. */
+  additionalMetadata?: object;
+}
+
+export interface CreateFileRequest {
+  /** The data for the file (bytestring). */
+  data: string;
+  /** The filename of the file. */
+  filename?: string;
+  /** Additional metadata for the file. */
+  additionalMetadata?: object;
+}
