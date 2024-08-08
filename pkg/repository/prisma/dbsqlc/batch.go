@@ -28,7 +28,7 @@ WHERE
     AND qi."queue" = $2::text
     AND (
         $3::bigint IS NULL OR
-        qi."id" > $3::bigint
+        qi."id" >= $3::bigint
     )
 ORDER BY
     qi."id" ASC
