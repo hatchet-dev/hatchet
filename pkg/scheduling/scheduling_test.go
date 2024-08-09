@@ -274,3 +274,23 @@ func TestGeneratePlan(t *testing.T) {
 		})
 	}
 }
+
+// Benchmark simple plan
+func BenchmarkGeneratePlan(b *testing.B) {
+	fixtureData, err := loadFixture("./fixtures/simple_plan.json", true)
+	if err != nil {
+		b.Fatalf("Failed to load fixture: %v", err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		_, _ = GeneratePlan(
+			fixtureData.Slots,
+			fixtureData.UniqueActionsArr,
+			fixtureData.QueueItems,
+			nil,
+			nil,
+			fixtureData.WorkerLabels,
+			fixtureData.StepDesiredLabels,
+		)
+	}
+}
