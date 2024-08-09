@@ -16,7 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
-func (t *FileService) EventDataGet(ctx echo.Context, request gen.FileDataGetRequestObject) (gen.FileDataGetResponseObject, error) {
+func (t *FileService) FileDataGet(ctx echo.Context, request gen.FileDataGetRequestObject) (gen.FileDataGetResponseObject, error) {
 	file := ctx.Get("file").(*dbsqlc.File)
 
 	var bucketName = "testing-bucket"
