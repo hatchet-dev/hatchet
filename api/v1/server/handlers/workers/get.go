@@ -11,13 +11,13 @@ import (
 func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
 	worker := ctx.Get("worker").(*db.WorkerModel)
 
-	filter := false
+	recentFailFilter := false
 
 	if request.Params.RecentFailed != nil {
-		filter = *request.Params.RecentFailed
+		recentFailFilter = *request.Params.RecentFailed
 	}
 
-	slotState, recent, err := t.config.APIRepository.Worker().ListWorkerState(worker.TenantID, worker.ID, filter)
+	slotState, recent, err := t.config.APIRepository.Worker().ListWorkerState(worker.TenantID, worker.ID, recentFailFilter)
 
 	if err != nil {
 		return nil, err
