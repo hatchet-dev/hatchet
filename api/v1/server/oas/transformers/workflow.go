@@ -329,10 +329,6 @@ func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
 		Description: &row.Description.String,
 	}
 
-	// if lastRunAt != nil && !lastRunAt.IsZero() {
-	// 	res.LastRunAt = lastRunAt
-	// }
-
 	return res
 }
 
