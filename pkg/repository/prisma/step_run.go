@@ -1005,11 +1005,16 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 
 	// sort the queue items by Order from least to greatest, then by queue id
 	sort.Slice(queueItems, func(i, j int) bool {
-		if queueItems[i].Order == queueItems[j].Order {
-			return queueItems[i].QueueItem.ID < queueItems[j].QueueItem.ID
+		// sort by priority, then by order, then by id
+		if queueItems[i].Priority == queueItems[j].Priority {
+			if queueItems[i].Order == queueItems[j].Order {
+				return queueItems[i].QueueItem.ID < queueItems[j].QueueItem.ID
+			}
+
+			return queueItems[i].Order < queueItems[j].Order
 		}
 
-		return queueItems[i].Order < queueItems[j].Order
+		return queueItems[i].Priority > queueItems[j].Priority
 	})
 
 	// get a list of unique actions

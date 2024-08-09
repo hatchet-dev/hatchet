@@ -415,22 +415,54 @@ update_semaphore_steps AS (
     SET "stepRunId" = NULL
     FROM step_runs_to_reassign
     WHERE wss."stepRunId" = step_runs_to_reassign."stepRunId"
+),
+step_runs_with_data AS (
+    SELECT
+        sr."id",
+        sr."tenantId",
+        sr."scheduleTimeoutAt",
+        s."actionId",
+        s."id" AS "stepId",
+        s."timeout" AS "stepTimeout"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    WHERE
+        sr."id" = ANY(SELECT "stepRunId" FROM step_runs_to_reassign)
+),
+inserted_queue_items AS (
+    INSERT INTO "QueueItem" (
+        "stepRunId",
+        "stepId",
+        "actionId",
+        "scheduleTimeoutAt",
+        "stepTimeout",
+        "priority",
+        "isQueued",
+        "tenantId",
+        "queue"
+    )
+    SELECT
+        srs."id",
+        srs."stepId",
+        srs."actionId",
+        -- FIXME: this should be configurable. It doesn't make sense to use the existing scheduleTimeoutAt
+        -- as we might be well past that time.
+        NOW() + INTERVAL '5 minutes',
+        srs."stepTimeout",
+        -- Queue with priority 4 so that reassignment gets highest priority
+        4,
+        true,
+        srs."tenantId",
+        srs."actionId"
+    FROM
+        step_runs_with_data srs
 )
-UPDATE
-    "StepRun"
-SET
-    "status" = 'PENDING_ASSIGNMENT',
-    -- place directly in the queue
-    "requeueAfter" = CURRENT_TIMESTAMP,
-    "updatedAt" = CURRENT_TIMESTAMP,
-    -- unset the schedule timeout
-    "scheduleTimeoutAt" = NULL
+SELECT
+    srs."id"
 FROM
-    step_runs_to_reassign
-WHERE
-    "StepRun"."id" = step_runs_to_reassign."stepRunId"
-    AND "StepRun"."deletedAt" IS NULL
-RETURNING "StepRun"."id";
+    step_runs_with_data srs;
 
 -- name: ListStepRunsToTimeout :many
 SELECT "id"
