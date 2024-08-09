@@ -153,9 +153,28 @@ func TestGeneratePlan(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
-			name: "GeneratePlan_Affinity",
+			name: "GeneratePlan_Affinity_Soft",
 			args: args{
-				fixtureArgs:   "./fixtures/affinity.json",
+				fixtureArgs:   "./fixtures/affinity_soft.json",
+				fixtureResult: "./fixtures/affinity_output.json",
+				noTimeout:     true,
+			},
+			want: func(s SchedulePlan, fixtureResult string) bool {
+				// DumpResults(s, "affinity_output.json")
+
+				assert, err := assertResult(s, fixtureResult)
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				return assert
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "GeneratePlan_Affinity_Hard",
+			args: args{
+				fixtureArgs:   "./fixtures/affinity_hard.json",
 				fixtureResult: "./fixtures/affinity_output.json",
 				noTimeout:     true,
 			},

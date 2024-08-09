@@ -1,13 +1,35 @@
 package scheduling
 
-import "github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+import (
+	"fmt"
+	"sort"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+)
+
+// WorkerWithWeight represents a worker with an associated weight
+type WorkerWithWeight struct {
+	WorkerId string
+	Weight   int
+}
+
+// SortWorkerWeights sorts a slice of WorkerWithWeight in descending order of Weight
+func SortWorkerWeights(weights []WorkerWithWeight) {
+	sort.SliceStable(weights, func(i, j int) bool {
+		// Sort by weight in descending order
+		return weights[i].Weight > weights[j].Weight
+	})
+}
 
 func ComputeWeight(s []*dbsqlc.GetDesiredLabelsRow, l []*dbsqlc.GetWorkerLabelsRow) int {
 	totalWeight := 0
 
 	for _, desiredLabel := range s {
+
 		labelFound := false
 		for _, workerLabel := range l {
+			fmt.Println(desiredLabel)
+			fmt.Println(workerLabel)
 			if desiredLabel.Key == workerLabel.Key {
 				labelFound = true
 				conditionMet := false

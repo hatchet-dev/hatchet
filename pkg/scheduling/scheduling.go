@@ -43,6 +43,7 @@ func GeneratePlan(
 	}
 
 	workers := make(map[string]*WorkerState)
+	workerStepWeights := make(map[string][]WorkerWithWeight, 0)
 
 	// initialize worker states
 	for _, slot := range slots {
@@ -55,6 +56,28 @@ func GeneratePlan(
 			)
 		}
 		workers[sqlchelpers.UUIDToStr(slot.WorkerId)].AddSlot(slot)
+	}
+
+	// compute affinity weights
+	for stepId, desired := range stepDesiredLabels {
+		for workerId, worker := range workers {
+			weight := ComputeWeight(desired, worker.labels)
+
+			// skip workers that are not a match (i.e. required)
+			if weight < 0 {
+				continue
+			}
+
+			workerStepWeights[stepId] = append(workerStepWeights[stepId], WorkerWithWeight{
+				WorkerId: workerId,
+				Weight:   weight,
+			})
+		}
+	}
+
+	// sort the weights
+	for _, weights := range workerStepWeights {
+		SortWorkerWeights(weights)
 	}
 
 	rateLimits := make(map[string]*RateLimit)
@@ -76,14 +99,27 @@ func GeneratePlan(
 			continue
 		}
 
+		stepId := sqlchelpers.UUIDToStr(qi.StepId)
+
 		// if we're out of slots then mark as unassigned
 		if len(workers) == 0 {
 			plan.HandleNoSlots(qi)
 			continue
 		}
 
+		var labeledWorkers []WorkerWithWeight
+
+		// desired labels
+		if weightedWorkers, ok := workerStepWeights[stepId]; ok {
+			labeledWorkers = weightedWorkers
+
+			if len(labeledWorkers) == 0 {
+				plan.HandleNoSlots(qi)
+				continue
+			}
+		}
+
 		stepRunId := sqlchelpers.UUIDToStr(qi.StepRunId)
-		stepId := sqlchelpers.UUIDToStr(qi.StepId)
 		isRateLimited := false
 
 		// check if we're rate limited
@@ -108,7 +144,25 @@ func GeneratePlan(
 		assigned := false
 
 		if !isRateLimited {
-			for _, worker := range workers {
+
+			// TODO hack
+			workerPool := make([]*WorkerState, 0, len(workers))
+
+			// desired label workers
+			if labeledWorkers != nil {
+				// TODO hack
+				for _, worker := range labeledWorkers {
+					if _, ok := workers[worker.WorkerId]; ok {
+						workerPool = append(workerPool, workers[worker.WorkerId])
+					}
+				}
+			} else {
+				for _, worker := range workers {
+					workerPool = append(workerPool, worker)
+				}
+			}
+
+			for _, worker := range workerPool {
 				slot, isEmpty := worker.AssignSlot(qi, stepDesiredLabels[sqlchelpers.UUIDToStr(qi.StepId)])
 
 				if slot == nil {
@@ -122,6 +176,7 @@ func GeneratePlan(
 				// cleanup the worker if it's empty
 				if isEmpty {
 					delete(workers, worker.workerId)
+					// TODO
 				}
 
 				assigned = true

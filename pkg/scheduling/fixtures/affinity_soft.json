@@ -58,13 +58,13 @@
     "aaaaaaaa-43db-4b5f-876a-c6c71f4d52aa": [
       {
         "Key": "MODEL",
-        "StrVal": "A"
+        "StrValue": "A"
       }
     ],
     "bbbbbbbb-43db-4b5f-876a-c6c71f4d52aa": [
       {
         "Key": "MODEL",
-        "StrVal": "B"
+        "StrValue": "B"
       }
     ]
   },
@@ -72,16 +72,18 @@
       "29fae13a-6672-48cb-9aed-3b0bf481f570": [
           {
             "Key": "MODEL",
+            "Comparator": "EQUAL",
             "StrValue": "A",
-            "Required": true,
+            "Required": false,
             "Weight": 1
           }
         ],
       "e2c744b8-bebb-4b05-8292-d2ce36f27928": [
           {
             "Key": "MODEL",
+            "Comparator": "EQUAL",
             "StrValue": "B",
-            "Required": true,
+            "Required": false,
             "Weight": 1
           }
         ]
