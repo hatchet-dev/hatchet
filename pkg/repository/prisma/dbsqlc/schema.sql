@@ -352,7 +352,6 @@ CREATE TABLE "StepRun" (
     "retryCount" INTEGER NOT NULL DEFAULT 0,
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
     "queue" TEXT NOT NULL DEFAULT 'default',
-    "queueOrder" BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );
@@ -368,24 +367,6 @@ CREATE TABLE "StepRunEvent" (
     "message" TEXT NOT NULL,
     "count" INTEGER NOT NULL,
     "data" JSONB
-);
-
--- CreateTable
-CREATE TABLE "StepRunPtr" (
-    "maxAssignedBlockAddr" BIGINT NOT NULL DEFAULT 0,
-    "tenantId" UUID NOT NULL,
-
-    CONSTRAINT "StepRunPtr_pkey" PRIMARY KEY ("tenantId")
-);
-
--- CreateTable
-CREATE TABLE "StepRunQueue" (
-    "id" BIGSERIAL NOT NULL,
-    "queue" TEXT NOT NULL,
-    "blockAddr" BIGINT NOT NULL,
-    "tenantId" UUID NOT NULL,
-
-    CONSTRAINT "StepRunQueue_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -997,9 +978,6 @@ CREATE INDEX "StepRun_jobRunId_status_tenantId_idx" ON "StepRun"("jobRunId" ASC,
 CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, "tenantId" ASC, "order" ASC);
 
 -- CreateIndex
-CREATE INDEX "StepRun_status_tenantId_deletedAt_queueOrder_idx" ON "StepRun"("status" ASC, "tenantId" ASC, "deletedAt" ASC, "queueOrder" ASC);
-
--- CreateIndex
 CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 
 -- CreateIndex
@@ -1016,12 +994,6 @@ CREATE UNIQUE INDEX "StepRunEvent_id_key" ON "StepRunEvent"("id" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRunEvent_stepRunId_idx" ON "StepRunEvent"("stepRunId" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "StepRunPtr_tenantId_key" ON "StepRunPtr"("tenantId" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "StepRunQueue_tenantId_queue_key" ON "StepRunQueue"("tenantId" ASC, "queue" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRunResultArchive_id_key" ON "StepRunResultArchive"("id" ASC);

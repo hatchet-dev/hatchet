@@ -1158,20 +1158,6 @@ enum StepRunStatus {
   CANCELLED
 }
 
-model StepRunQueue {
-  id        BigInt @id @default(autoincrement()) @db.BigInt
-  queue     String
-  blockAddr BigInt
-  tenantId  String @db.Uuid
-
-  @@unique([tenantId, queue])
-}
-
-model StepRunPtr {
-  maxAssignedBlockAddr BigInt @default(0) @db.BigInt
-  tenantId             String @id @unique @db.Uuid
-}
-
 model StepRun {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -1199,8 +1185,7 @@ model StepRun {
 
   order BigInt @default(autoincrement()) @db.BigInt
 
-  queue      String @default("default")
-  queueOrder BigInt @default(0) @db.BigInt
+  queue String @default("default")
 
   // the worker assigned to this job
   worker   Worker? @relation(fields: [workerId], references: [id])
@@ -1289,8 +1274,6 @@ model StepRun {
   // index for PollStepRuns
   @@index([tenantId, status, timeoutAt])
   @@index([deletedAt])
-  // index for ListStepRunsToAssign
-  @@index([status, tenantId, deletedAt, queueOrder])
 }
 
 model Queue {
