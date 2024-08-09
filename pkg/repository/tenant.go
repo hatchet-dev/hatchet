@@ -67,6 +67,8 @@ type TenantAPIRepository interface {
 	// CreateTenant creates a new tenant.
 	CreateTenant(opts *CreateTenantOpts) (*dbsqlc.Tenant, error)
 
+	RegisterCreateCallback(callback Callback[*dbsqlc.Tenant])
+
 	// CreateTenant creates a new tenant.
 	UpdateTenant(tenantId string, opts *UpdateTenantOpts) (*db.TenantModel, error)
 

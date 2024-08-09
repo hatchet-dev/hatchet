@@ -25,9 +25,11 @@ type tenantAPIRepository struct {
 	v       validator.Validator
 	l       *zerolog.Logger
 	queries *dbsqlc.Queries
+
+	callbacks []repository.Callback[*dbsqlc.Tenant]
 }
 
-func NewTenantAPIRepository(pool *pgxpool.Pool, client *db.PrismaClient, v validator.Validator, l *zerolog.Logger, cache cache.Cacheable) repository.TenantAPIRepository {
+func NewTenantAPIRepository(pool *pgxpool.Pool, client *db.PrismaClient, v validator.Validator, l *zerolog.Logger, cache cache.Cacheable, cbs ...repository.Callback[*dbsqlc.Tenant]) repository.TenantAPIRepository {
 	queries := dbsqlc.New()
 
 	return &tenantAPIRepository{
@@ -38,6 +40,14 @@ func NewTenantAPIRepository(pool *pgxpool.Pool, client *db.PrismaClient, v valid
 		l:       l,
 		queries: queries,
 	}
+}
+
+func (w *tenantAPIRepository) RegisterCreateCallback(callback repository.Callback[(*dbsqlc.Tenant)]) {
+	if w.callbacks == nil {
+		w.callbacks = make([]repository.Callback[*dbsqlc.Tenant], 0)
+	}
+
+	w.callbacks = append(w.callbacks, callback)
 }
 
 func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*dbsqlc.Tenant, error) {
@@ -84,6 +94,10 @@ func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*
 
 	if err := tx.Commit(context.Background()); err != nil {
 		return nil, err
+	}
+
+	for _, cb := range r.callbacks {
+		cb.Do(createTenant) // nolint: errcheck
 	}
 
 	return createTenant, nil
