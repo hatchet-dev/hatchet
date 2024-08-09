@@ -143,20 +143,6 @@ export default function ExpandedWorkflowRun() {
           </div>
           <div className="flex flex-row gap-2">
             <WorkerStatus status={worker.status} health={healthy} />
-            <Button
-              size="icon"
-              aria-label="Refresh"
-              variant="outline"
-              disabled={workerQuery.isFetching}
-              onClick={() => {
-                workerQuery.refetch();
-                setRotate(!rotate);
-              }}
-            >
-              <ArrowPathIcon
-                className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-              />
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger>
                 <Button
@@ -204,12 +190,29 @@ export default function ExpandedWorkflowRun() {
         </p>
         <Separator className="my-4" />
 
-        <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-          {(worker.maxRuns ?? 0) > 0
-            ? `${worker.availableRuns} / ${worker.maxRuns ?? 0}`
-            : '100'}{' '}
-          Available Run Slots
-        </h3>
+        <div className="flex flex-row justify-between items-center mb-4">
+          <h3 className="text-xl font-bold leading-tight text-foreground">
+            {(worker.maxRuns ?? 0) > 0
+              ? `${worker.availableRuns} / ${worker.maxRuns ?? 0}`
+              : '100'}{' '}
+            Available Run Slots
+          </h3>
+
+          <Button
+            size="icon"
+            aria-label="Refresh"
+            variant="outline"
+            disabled={workerQuery.isFetching}
+            onClick={() => {
+              workerQuery.refetch();
+              setRotate(!rotate);
+            }}
+          >
+            <ArrowPathIcon
+              className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+            />
+          </Button>
+        </div>
         <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
           A slot represents one step run on a worker to limit load.{' '}
           <a
@@ -223,8 +226,8 @@ export default function ExpandedWorkflowRun() {
         <WorkerSlotGrid slots={worker.slots} />
 
         <Separator className="my-4" />
-        <div className="flex flex-row justify-between">
-          <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+        <div className="flex flex-row justify-between items-center mb-4">
+          <h3 className="text-xl font-bold leading-tight text-foreground">
             Recent Step Runs
           </h3>
 
