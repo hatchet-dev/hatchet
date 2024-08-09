@@ -2,11 +2,12 @@ package scheduling
 
 import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 type WorkerState struct {
 	workerId  string
-	slots     []*dbsqlc.ListSemaphoreSlotsToAssignRow
+	slots     map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow
 	actionIds map[string]struct{}
 	labels    []*dbsqlc.GetWorkerLabelsRow
 }
@@ -14,14 +15,14 @@ type WorkerState struct {
 func NewWorkerState(workerId string, labels []*dbsqlc.GetWorkerLabelsRow) *WorkerState {
 	return &WorkerState{
 		workerId:  workerId,
-		slots:     make([]*dbsqlc.ListSemaphoreSlotsToAssignRow, 0),
+		slots:     make(map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow, 0),
 		actionIds: make(map[string]struct{}),
 		labels:    labels,
 	}
 }
 
 func (w *WorkerState) AddSlot(slot *dbsqlc.ListSemaphoreSlotsToAssignRow) {
-	w.slots = append(w.slots, slot)
+	w.slots[sqlchelpers.UUIDToStr(slot.ID)] = slot
 
 	if _, ok := w.actionIds[slot.ActionId]; !ok {
 		w.actionIds[slot.ActionId] = struct{}{}
@@ -52,10 +53,17 @@ func (w *WorkerState) AssignSlot(qi *QueueItemWithOrder, desiredLabels []*dbsqlc
 	}
 
 	// pop the first slot
-	slot := w.slots[0]
-	w.slots = w.slots[1:]
-
+	slot := w.popRandomSlot(w.slots)
 	isEmpty := len(w.slots) == 0
 
 	return slot, isEmpty
+}
+
+func (w *WorkerState) popRandomSlot(slots map[string]*dbsqlc.ListSemaphoreSlotsToAssignRow) *dbsqlc.ListSemaphoreSlotsToAssignRow {
+	for id, slot := range slots {
+		delete(slots, id)
+		return slot
+	}
+
+	return nil
 }
