@@ -1,8 +1,6 @@
 package scheduling
 
 import (
-	"fmt"
-
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
@@ -40,7 +38,6 @@ func (w *WorkerState) CanAssign(qi *QueueItemWithOrder, desiredLabels []*dbsqlc.
 		// TODO cache
 		weight := ComputeWeight(desiredLabels, w.labels)
 
-		fmt.Println(weight)
 		return weight >= 0
 	}
 

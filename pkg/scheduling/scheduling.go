@@ -151,7 +151,9 @@ func GeneratePlan(
 			if qi.Sticky.Valid {
 				if worker, ok := workers[sqlchelpers.UUIDToStr(qi.DesiredWorkerId)]; ok {
 					workerPool = append(workerPool, worker)
-				} else if qi.Sticky.StickyStrategy == dbsqlc.StickyStrategyHARD {
+				}
+
+				if qi.Sticky.StickyStrategy == dbsqlc.StickyStrategyHARD && len(workerPool) == 0 {
 					plan.HandleNoSlots(qi)
 					continue
 				}

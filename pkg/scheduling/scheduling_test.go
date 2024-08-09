@@ -191,6 +191,44 @@ func TestGeneratePlan(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
+			name: "GeneratePlan_Sticky_Soft",
+			args: args{
+				fixtureArgs:   "./fixtures/sticky_soft.json",
+				fixtureResult: "./fixtures/sticky_soft_output.json",
+				noTimeout:     true,
+			},
+			want: func(s SchedulePlan, fixtureResult string) bool {
+				// DumpResults(s, "sticky_soft_output.json")
+
+				assert, err := assertResult(s, fixtureResult)
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				return assert
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "GeneratePlan_Sticky_Hard",
+			args: args{
+				fixtureArgs:   "./fixtures/sticky_hard.json",
+				fixtureResult: "./fixtures/sticky_hard_output.json",
+				noTimeout:     true,
+			},
+			want: func(s SchedulePlan, fixtureResult string) bool {
+				// DumpResults(s, "sticky_hard_output.json")
+
+				assert, err := assertResult(s, fixtureResult)
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				return assert
+			},
+			wantErr: assert.NoError,
+		},
+		{
 			name: "GeneratePlan_TimedOut",
 			args: args{
 				fixtureArgs:   "./fixtures/simple_plan.json",
