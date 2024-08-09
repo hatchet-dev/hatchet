@@ -40,6 +40,7 @@ func GeneratePlan(
 		ShouldContinue:         false,
 		RateLimitUnitsConsumed: make(map[string]int32),
 		RateLimitedQueues:      make(map[string][]time.Time),
+		unassignedActions:      make(map[string]struct{}),
 	}
 
 	// initialize worker states
@@ -136,11 +137,10 @@ func GeneratePlan(
 	}
 
 	// if we have any worker slots left and we have unassigned steps then we should continue
-	// TODO revise this with a more optimal solution using maps
 	if len(workers) > 0 && len(plan.UnassignedStepRunIds) > 0 {
-		for _, qi := range queueItems {
+		for actionId := range plan.unassignedActions {
 			for _, worker := range workers {
-				if worker.CanAssign(qi) {
+				if worker.CanAssign(actionId, nil) {
 					plan.ShouldContinue = true
 					break
 				}

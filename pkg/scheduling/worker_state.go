@@ -32,12 +32,16 @@ func (w *WorkerState) AddSlot(slot *dbsqlc.ListSemaphoreSlotsToAssignRow) {
 	w.actionIds[slot.ActionId] = struct{}{}
 }
 
-func (w *WorkerState) CanAssign(qi *QueueItemWithOrder) bool {
-	if _, ok := w.actionIds[qi.ActionId.String]; !ok {
+func (w *WorkerState) CanAssign(action string, stepId *string) bool {
+	if _, ok := w.actionIds[action]; !ok {
 		return false
 	}
 
-	if weight, ok := w.stepWeights[sqlchelpers.UUIDToStr(qi.StepId)]; ok {
+	if stepId == nil {
+		return true
+	}
+
+	if weight, ok := w.stepWeights[*stepId]; ok {
 		return weight >= 0
 	}
 
@@ -47,7 +51,8 @@ func (w *WorkerState) CanAssign(qi *QueueItemWithOrder) bool {
 func (w *WorkerState) AssignSlot(qi *QueueItemWithOrder) (*dbsqlc.ListSemaphoreSlotsToAssignRow, bool) {
 
 	// if the actionId is not in the worker's actionIds, then we can't assign this slot
-	if !w.CanAssign(qi) {
+	stepId := sqlchelpers.UUIDToStr(qi.StepId)
+	if !w.CanAssign(qi.ActionId.String, &stepId) {
 		return nil, false
 	}
 

@@ -24,6 +24,7 @@ type SchedulePlan struct {
 	ShouldContinue         bool
 	MinQueuedIds           map[string]int64
 	RateLimitUnitsConsumed map[string]int32
+	unassignedActions      map[string]struct{}
 }
 
 func (sp *SchedulePlan) UpdateMinQueuedIds(qi *QueueItemWithOrder) []repository.QueuedStepRun {
@@ -46,10 +47,14 @@ func (plan *SchedulePlan) HandleTimedOut(qi *QueueItemWithOrder) {
 
 func (plan *SchedulePlan) HandleNoSlots(qi *QueueItemWithOrder) {
 	plan.UnassignedStepRunIds = append(plan.UnassignedStepRunIds, qi.StepRunId)
+
+	plan.unassignedActions[qi.ActionId.String] = struct{}{}
 }
 
 func (plan *SchedulePlan) HandleUnassigned(qi *QueueItemWithOrder) {
 	plan.UnassignedStepRunIds = append(plan.UnassignedStepRunIds, qi.StepRunId)
+
+	plan.unassignedActions[qi.ActionId.String] = struct{}{}
 }
 
 func (plan *SchedulePlan) HandleRateLimited(qi *QueueItemWithOrder) {
