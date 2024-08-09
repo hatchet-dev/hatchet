@@ -1,4 +1,4 @@
-package events
+package files
 
 import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"

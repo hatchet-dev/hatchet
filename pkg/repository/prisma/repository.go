@@ -34,6 +34,7 @@ type apiRepository struct {
 	health         repository.HealthRepository
 	securityCheck  repository.SecurityCheckRepository
 	webhookWorker  repository.WebhookWorkerRepository
+	file           repository.FileAPIRepository
 }
 
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
@@ -109,6 +110,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		health:         NewHealthAPIRepository(client, pool),
 		securityCheck:  NewSecurityCheckRepository(client, pool),
 		webhookWorker:  NewWebhookWorkerRepository(client, opts.v),
+		file:           NewFileAPIRepository(client, pool, opts.v, opts.l),
 	}
 }
 
@@ -186,6 +188,9 @@ func (r *apiRepository) SecurityCheck() repository.SecurityCheckRepository {
 
 func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {
 	return r.webhookWorker
+}
+func (r *apiRepository) File() repository.FileAPIRepository {
+	return r.file
 }
 
 type engineRepository struct {

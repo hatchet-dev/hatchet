@@ -10,9 +10,6 @@ type CreateFileOpts struct {
 	// (required) the tenant id
 	TenantId string `validate:"required,uuid"`
 
-	// (required) the event key
-	Key string `validate:"required"`
-
 	// (required) the file name
 	FileName string `validate:"required"`
 
@@ -23,24 +20,13 @@ type CreateFileOpts struct {
 	AdditionalMetadata []byte
 }
 
-type ListFileOpts struct {
-	// (optional) number of files to skip
-	Offset *int
-
-	// (optional) number of files to return
-	Limit *int
-
-	// (optional) the order by field
-	OrderBy *string `validate:"omitempty,oneof=createdAt"`
-
-	// (optional) the order direction
-	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
-}
-
 type FileAPIRepository interface {
 	// CreateFile creates a new file for a given tenant.
 	CreateFile(ctx context.Context, opts *CreateFileOpts) (*dbsqlc.File, error)
 
+	// GetFileByID returns an file by id.
+	GetFileByID(id string) (*dbsqlc.File, error)
+
 	// ListFiles returns all files for a given tenant.
-	ListFiles(tenantId string, opts *ListFileOpts) ([]*dbsqlc.File, error)
+	ListFiles(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.File, error)
 }

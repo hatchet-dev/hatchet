@@ -2,13 +2,18 @@ package prisma
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -33,61 +38,51 @@ func NewFileAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validat
 }
 
 func (r *fileAPIRepository) CreateFile(ctx context.Context, opts *repository.CreateFileOpts) (*dbsqlc.File, error) {
-	// todo
-	// ctx, span := telemetry.NewSpan(ctx, "db-create-event")
-	// defer span.End()
+	ctx, span := telemetry.NewSpan(ctx, "db-create-file")
+	defer span.End()
 
-	// if err := r.v.Validate(opts); err != nil {
-	// 	return nil, nil, err
-	// }
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
 
-	// createParams := dbsqlc.CreateEventParams{
-	// 	ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
-	// 	Key:                opts.Key,
-	// 	Tenantid:           sqlchelpers.UUIDFromStr(opts.TenantId),
-	// 	Data:               opts.Data,
-	// 	Additionalmetadata: opts.AdditionalMetadata,
-	// }
+	createParams := dbsqlc.CreateFileParams{
+		ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
+		Filename:           opts.FileName,
+		Filepath:           opts.FilePath,
+		Tenantid:           sqlchelpers.UUIDFromStr(opts.TenantId),
+		Additionalmetadata: opts.AdditionalMetadata,
+	}
 
-	// if opts.ReplayedEvent != nil {
-	// 	createParams.ReplayedFromId = sqlchelpers.UUIDFromStr(*opts.ReplayedEvent)
-	// }
+	e, err := r.queries.CreateFile(
+		ctx,
+		r.pool,
+		createParams,
+	)
 
-	// e, err := r.queries.CreateEvent(
-	// 	ctx,
-	// 	r.pool,
-	// 	createParams,
-	// )
+	if err != nil {
+		return nil, fmt.Errorf("could not create event: %w", err)
+	}
 
-	// if err != nil {
-	// 	return nil, nil, fmt.Errorf("could not create event: %w", err)
-	// }
-
-	// for _, cb := range r.callbacks {
-	// 	cb.Do(e) // nolint: errcheck
-	// }
-
-	// id := sqlchelpers.UUIDToStr(e.ID)
-
-	// return &id, e, nil
-	return nil, nil
+	return e, nil
 }
 
-func (r *fileAPIRepository) ListFiles(string, *repository.ListFileOpts) ([]*dbsqlc.File, error) {
-	// todo
-	// pgIds := make([]pgtype.UUID, len(ids))
+func (r *fileAPIRepository) ListFiles(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.File, error) {
+	pgIds := make([]pgtype.UUID, len(ids))
 
-	// for i, id := range ids {
-	// 	if err := pgIds[i].Scan(id); err != nil {
-	// 		return nil, err
-	// 	}
-	// }
+	for i, id := range ids {
+		if err := pgIds[i].Scan(id); err != nil {
+			return nil, err
+		}
+	}
 
-	// pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	// return r.queries.ListFilesByIDs(ctx, r.pool, dbsqlc.ListFilesByIDsParams{
-	// 	Tenantid: pgTenantId,
-	// 	Ids:      pgIds,
-	// })
-	return nil, nil
+	return r.queries.ListFilesByIDs(ctx, r.pool, dbsqlc.ListFilesByIDsParams{
+		Tenantid: pgTenantId,
+		Ids:      pgIds,
+	})
+}
+
+func (r *fileAPIRepository) GetFileByID(id string) (*dbsqlc.File, error) {
+	return r.queries.GetFileByID(context.Background(), r.pool, sqlchelpers.UUIDFromStr(id))
 }

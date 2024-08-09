@@ -1,3 +1,12 @@
+-- name: GetFileByID :one
+SELECT
+    *
+FROM
+    "File"
+WHERE
+    "deletedAt" IS NOT NULL AND
+    "id" = @id::uuid;
+
 -- name: CreateFile :one
 INSERT INTO "File" (
     "id",

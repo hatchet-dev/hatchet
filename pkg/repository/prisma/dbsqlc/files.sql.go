@@ -69,6 +69,32 @@ func (q *Queries) CreateFile(ctx context.Context, db DBTX, arg CreateFileParams)
 	return &i, err
 }
 
+const getFileByID = `-- name: GetFileByID :one
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", "additionalMetadata", "fileName", "filePath"
+FROM
+    "File"
+WHERE
+    "deletedAt" IS NOT NULL AND
+    "id" = $1::uuid
+`
+
+func (q *Queries) GetFileByID(ctx context.Context, db DBTX, id pgtype.UUID) (*File, error) {
+	row := db.QueryRow(ctx, getFileByID, id)
+	var i File
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.AdditionalMetadata,
+		&i.FileName,
+		&i.FilePath,
+	)
+	return &i, err
+}
+
 const listFilesByIDs = `-- name: ListFilesByIDs :many
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", "tenantId", "additionalMetadata", "fileName", "filePath"

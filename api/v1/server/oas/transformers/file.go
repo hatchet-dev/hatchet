@@ -7,14 +7,14 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
-func ToFileFromSQLC(event *dbsqlc.File) (*gen.File, error) {
+func ToFileFromSQLC(event *dbsqlc.File) *gen.File {
 
 	var metadata map[string]interface{}
 
 	if event.AdditionalMetadata != nil {
 		err := json.Unmarshal(event.AdditionalMetadata, &metadata)
 		if err != nil {
-			return nil, err
+			return nil
 		}
 	}
 
@@ -26,5 +26,5 @@ func ToFileFromSQLC(event *dbsqlc.File) (*gen.File, error) {
 		AdditionalMetadata: &metadata,
 	}
 
-	return res, nil
+	return res
 }
