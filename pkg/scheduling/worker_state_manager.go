@@ -9,7 +9,6 @@ import (
 
 type WorkerStateManager struct {
 	workers           map[string]*WorkerState
-	defaultOrder      []WorkerWithWeight
 	workerStepWeights map[string][]WorkerWithWeight
 	stepDesiredLabels map[string][]*dbsqlc.GetDesiredLabelsRow
 }
@@ -61,18 +60,8 @@ func NewWorkerStateManager(
 		SortWorkerWeights(weights)
 	}
 
-	// set default order
-	defaultOrder := make([]WorkerWithWeight, 0)
-	for workerId := range workers {
-		defaultOrder = append(defaultOrder, WorkerWithWeight{
-			WorkerId: workerId,
-			Weight:   0,
-		})
-	}
-
 	return &WorkerStateManager{
 		workers:           workers,
-		defaultOrder:      defaultOrder,
 		workerStepWeights: workerStepWeights,
 		stepDesiredLabels: stepDesiredLabels,
 	}
