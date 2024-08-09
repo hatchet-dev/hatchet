@@ -11,7 +11,7 @@ import (
 func (t *WorkflowService) WorkflowGet(ctx echo.Context, request gen.WorkflowGetRequestObject) (gen.WorkflowGetResponseObject, error) {
 	workflow := ctx.Get("workflow").(*db.WorkflowModel)
 
-	resp, err := transformers.ToWorkflow(workflow, nil)
+	resp, err := transformers.ToWorkflow(workflow)
 
 	if err != nil {
 		return nil, err

@@ -69,7 +69,7 @@ type WorkerAPIRepository interface {
 	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error)
 
 	// ListRecentWorkerStepRuns lists recent step runs for a given worker
-	ListRecentWorkerStepRuns(tenantId, workerId string) ([]db.StepRunModel, error)
+	ListWorkerState(tenantId, workerId string, failed bool) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error)
 
 	// GetWorkerById returns a worker by its id.
 	GetWorkerById(workerId string) (*db.WorkerModel, error)
@@ -87,6 +87,10 @@ type WorkerEngineRepository interface {
 
 	// UpdateWorker updates a worker for a given tenant.
 	UpdateWorker(ctx context.Context, tenantId, workerId string, opts *UpdateWorkerOpts) (*dbsqlc.Worker, error)
+
+	// UpdateWorker updates a worker in the repository.
+	// It will only update the worker if there is no lock on the worker, else it will skip.
+	UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeatAt time.Time) error
 
 	// DeleteWorker removes the worker from the database
 	DeleteWorker(ctx context.Context, tenantId, workerId string) error

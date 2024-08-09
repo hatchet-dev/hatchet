@@ -26,6 +26,9 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	isParentTriggered := req.ParentId != nil
 
 	// if there's a parent id passed in, we query for an existing workflow run which matches these params
@@ -45,7 +48,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		}
 
 		workflowRun, err := a.repo.WorkflowRun().GetChildWorkflowRun(
-			ctx,
+			createContext,
 			*req.ParentId,
 			*req.ParentStepRunId,
 			int(*req.ChildIndex),
@@ -66,7 +69,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	workflow, err := a.repo.Workflow().GetWorkflowByName(
-		ctx,
+		createContext,
 		tenantId,
 		req.Name,
 	)
@@ -90,7 +93,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	workflowVersion, err := a.repo.Workflow().GetLatestWorkflowVersion(
-		ctx,
+		createContext,
 		tenantId,
 		sqlchelpers.UUIDToStr(workflow.ID),
 	)
@@ -111,7 +114,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	if isParentTriggered {
-		parent, err := a.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId)))
+		parent, err := a.repo.WorkflowRun().GetWorkflowRunById(createContext, tenantId, sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId)))
 
 		if err != nil {
 			return nil, fmt.Errorf("could not get parent workflow run: %w", err)
@@ -157,7 +160,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		createOpts.DesiredWorkerId = req.DesiredWorkerId
 	}
 
-	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
+	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(createContext, tenantId, createOpts)
 
 	dedupeTarget := repository.ErrDedupeValueExists{}
 

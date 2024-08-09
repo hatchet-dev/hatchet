@@ -40,7 +40,7 @@ export function WorkersTable() {
 
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenant.metadata.id),
-    refetchInterval: 5000,
+    refetchInterval: 3000,
   });
 
   const data = useMemo(() => {

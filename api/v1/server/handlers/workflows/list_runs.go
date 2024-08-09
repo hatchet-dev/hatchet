@@ -1,9 +1,11 @@
 package workflows
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 
@@ -96,7 +98,10 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 		listOpts.AdditionalMetadata = additionalMetadata
 	}
 
-	workflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(tenant.ID, listOpts)
+	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
+	defer cancel()
+
+	workflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(dbCtx, tenant.ID, listOpts)
 
 	if err != nil {
 		return nil, err

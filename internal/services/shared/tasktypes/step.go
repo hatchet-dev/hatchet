@@ -56,15 +56,14 @@ type StepRunRequeueTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
-type StepRunNotifyCancelTaskPayload struct {
-	WorkflowRunId   string `json:"workflow_run_id" validate:"required,uuid"`
+type StepRunCancelTaskPayload struct {
 	StepRunId       string `json:"step_run_id" validate:"required,uuid"`
 	CancelledReason string `json:"cancelled_reason" validate:"required"`
 	StepRetries     *int32 `json:"step_retries,omitempty"`
 	RetryCount      *int32 `json:"retry_count,omitempty"`
 }
 
-type StepRunNotifyCancelTaskMetadata struct {
+type StepRunCancelTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
@@ -220,20 +219,19 @@ func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string) 
 	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
 	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 
-	payload, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskPayload{
-		WorkflowRunId:   sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
+	payload, _ := datautils.ToJSONMap(StepRunCancelTaskPayload{
 		StepRunId:       stepRunId,
 		CancelledReason: reason,
 		StepRetries:     &stepRun.StepRetries,
 		RetryCount:      &stepRun.SRRetryCount,
 	})
 
-	metadata, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskMetadata{
+	metadata, _ := datautils.ToJSONMap(StepRunCancelTaskMetadata{
 		TenantId: tenantId,
 	})
 
 	return &msgqueue.Message{
-		ID:       "step-run-cancelled",
+		ID:       "step-run-cancel",
 		Payload:  payload,
 		Metadata: metadata,
 		Retries:  3,

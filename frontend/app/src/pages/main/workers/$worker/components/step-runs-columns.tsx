@@ -1,37 +1,22 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
-import { StepRun } from '@/lib/api';
+import { RecentStepRuns } from '@/lib/api';
 import { relativeDate } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { RunStatus } from '@/pages/main/workflow-runs/components/run-statuses';
 import RelativeDate from '@/components/molecules/relative-date';
 
-export const columns: ColumnDef<StepRun>[] = [
+export const columns: ColumnDef<RecentStepRuns>[] = [
   {
-    accessorKey: 'action',
+    accessorKey: 'id',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Action" />
     ),
     cell: ({ row }) => {
       return (
-        <div className="pl-0 min-w-fit whitespace-nowrap">
-          {row.original.step?.action}
-        </div>
-      );
-    },
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'id',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Step Id" />
-    ),
-    cell: ({ row }) => {
-      return (
-        <Link to={'/workflow-runs/' + row.original.jobRun?.workflowRunId}>
+        <Link to={'/workflow-runs/' + row.original.workflowRunId}>
           <div className="pl-0 cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            {row.original.step?.readableId}
+            {row.original.actionId}
           </div>
         </Link>
       );

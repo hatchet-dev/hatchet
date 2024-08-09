@@ -57,15 +57,15 @@ func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.Ca
 	w.callbacks = append(w.callbacks, callback)
 }
 
-func (w *workflowRunAPIRepository) ListWorkflowRuns(tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
+func (w *workflowRunAPIRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return listWorkflowRuns(context.Background(), w.pool, w.queries, w.l, tenantId, opts)
+	return listWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, opts)
 }
 
-func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(tenantId string, opts *repository.WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error) {
+func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(ctx context.Context, tenantId string, opts *repository.WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -871,17 +871,45 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 				return nil, err
 			}
 
-			err = queries.CreateStepRuns(
+			// list steps for the job
+			steps, err := queries.ListStepsForJob(
 				tx1Ctx,
 				tx,
-				dbsqlc.CreateStepRunsParams{
-					Jobrunid: jobRunId,
-					Tenantid: pgTenantId,
-				},
+				jobRunId,
 			)
 
 			if err != nil {
 				return nil, err
+			}
+
+			for _, step := range steps {
+				err = queries.UpsertQueue(
+					tx1Ctx,
+					tx,
+					dbsqlc.UpsertQueueParams{
+						Tenantid: pgTenantId,
+						Name:     step.ActionId,
+					},
+				)
+
+				if err != nil {
+					return nil, err
+				}
+
+				err = queries.CreateStepRun(
+					tx1Ctx,
+					tx,
+					dbsqlc.CreateStepRunParams{
+						Tenantid: createParams.Tenantid,
+						Jobrunid: jobRunId,
+						Stepid:   step.ID,
+						Queue:    sqlchelpers.TextFromStr(step.ActionId),
+					},
+				)
+
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			// link all step runs with correct parents/children

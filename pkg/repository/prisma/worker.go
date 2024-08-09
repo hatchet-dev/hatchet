@@ -51,25 +51,33 @@ func (w *workerAPIRepository) GetWorkerById(workerId string) (*db.WorkerModel, e
 	).Exec(context.Background())
 }
 
-func (w *workerAPIRepository) ListRecentWorkerStepRuns(tenantId, workerId string) ([]db.StepRunModel, error) {
-	return w.client.StepRun.FindMany(
-		db.StepRun.WorkerID.Equals(workerId),
-		db.StepRun.TenantID.Equals(tenantId),
-	).Take(10).OrderBy(
-		db.StepRun.CreatedAt.Order(db.SortOrderDesc),
-	).With(
-		db.StepRun.Children.Fetch(),
-		db.StepRun.Parents.Fetch(),
-		db.StepRun.JobRun.Fetch().With(
-			db.JobRun.WorkflowRun.Fetch(),
-		),
-		db.StepRun.Step.Fetch().With(
-			db.Step.Job.Fetch().With(
-				db.Job.Workflow.Fetch(),
-			),
-			db.Step.Action.Fetch(),
-		),
-	).Exec(context.Background())
+func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, failed bool) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error) {
+	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, dbsqlc.ListSemaphoreSlotsWithStateForWorkerParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not list worker slot state: %w", err)
+	}
+
+	var statuses = []string{"SUCCEEDED", "FAILED", "CANCELLED"}
+
+	if failed {
+		statuses = []string{"FAILED", "CANCELLED"}
+	}
+
+	recent, err := w.queries.ListRecentStepRunsForWorker(context.Background(), w.pool, dbsqlc.ListRecentStepRunsForWorkerParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Statuses: statuses,
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not list worker recent step runs: %w", err)
+	}
+
+	return slots, recent, nil
 }
 
 func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error) {
@@ -293,6 +301,8 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 	})
 }
 
+// UpdateWorker updates a worker in the repository.
+// It will only update the worker if there is no lock on the worker, else it will skip.
 func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, workerId string, opts *repository.UpdateWorkerOpts) (*dbsqlc.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
@@ -366,6 +376,20 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 	}
 
 	return worker, nil
+}
+
+func (w *workerEngineRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeat time.Time) error {
+
+	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, dbsqlc.UpdateWorkerHeartbeatParams{
+		ID:              sqlchelpers.UUIDFromStr(workerId),
+		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
+	})
+
+	if err != nil && err != pgx.ErrNoRows {
+		return fmt.Errorf("could not update worker heartbeat: %w", err)
+	}
+
+	return nil
 }
 
 func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, workerId string) error {

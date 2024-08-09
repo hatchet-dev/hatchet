@@ -18,7 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlctoprisma"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -59,24 +58,8 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 		TenantId: *pgTenantId,
 	}
 
-	latestRunParams := dbsqlc.ListWorkflowsLatestRunsParams{
-		TenantId: *pgTenantId,
-	}
-
 	countParams := dbsqlc.CountWorkflowsParams{
 		TenantId: *pgTenantId,
-	}
-
-	if opts.EventKey != nil {
-		pgEventKey := &pgtype.Text{}
-
-		if err := pgEventKey.Scan(*opts.EventKey); err != nil {
-			return nil, err
-		}
-
-		queryParams.EventKey = *pgEventKey
-		countParams.EventKey = *pgEventKey
-		latestRunParams.EventKey = *pgEventKey
 	}
 
 	if opts.Offset != nil {
@@ -106,19 +89,6 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 		return nil, fmt.Errorf("failed to fetch workflows: %w", err)
 	}
 
-	latestRuns, err := r.queries.ListWorkflowsLatestRuns(context.Background(), tx, latestRunParams)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch latest runs: %w", err)
-	}
-
-	latestRunsMap := map[string]*dbsqlc.WorkflowRun{}
-
-	for i := range latestRuns {
-		uuid := sqlchelpers.UUIDToStr(latestRuns[i].WorkflowId)
-		latestRunsMap[uuid] = &latestRuns[i].WorkflowRun
-	}
-
 	count, err := r.queries.CountWorkflows(context.Background(), tx, countParams)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -139,25 +109,7 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 		sqlcWorkflows[i] = &workflows[i].Workflow
 	}
 
-	prismaWorkflows := sqlctoprisma.NewConverter[dbsqlc.Workflow, db.WorkflowModel]().ToPrismaList(sqlcWorkflows)
-
-	rows := make([]*repository.ListWorkflowsRow, 0)
-
-	for i, workflow := range prismaWorkflows {
-
-		var prismaRun *db.WorkflowRunModel
-
-		if latestRun, exists := latestRunsMap[workflow.ID]; exists {
-			prismaRun = sqlctoprisma.NewConverter[dbsqlc.WorkflowRun, db.WorkflowRunModel]().ToPrisma(latestRun)
-		}
-
-		rows = append(rows, &repository.ListWorkflowsRow{
-			WorkflowModel: prismaWorkflows[i],
-			LatestRun:     prismaRun,
-		})
-	}
-
-	res.Rows = rows
+	res.Rows = sqlcWorkflows
 
 	return res, nil
 }

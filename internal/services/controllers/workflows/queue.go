@@ -653,7 +653,7 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRun(ctx context.Context, tenant
 			return wc.mq.AddMessage(
 				context.Background(),
 				msgqueue.JOB_PROCESSING_QUEUE,
-				getStepRunNotifyCancelTask(tenantId, stepRunId, "CANCELLED_BY_CONCURRENCY_LIMIT"),
+				getStepRunCancelTask(tenantId, stepRunId, "CANCELLED_BY_CONCURRENCY_LIMIT"),
 			)
 		})
 	}
@@ -680,18 +680,18 @@ func getGroupActionTask(tenantId, workflowRunId, workerId, dispatcherId string) 
 	}
 }
 
-func getStepRunNotifyCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
-	payload, _ := datautils.ToJSONMap(tasktypes.StepRunNotifyCancelTaskPayload{
+func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
+	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskPayload{
 		StepRunId:       stepRunId,
 		CancelledReason: reason,
 	})
 
-	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunNotifyCancelTaskMetadata{
+	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskMetadata{
 		TenantId: tenantId,
 	})
 
 	return &msgqueue.Message{
-		ID:       "step-run-cancelled",
+		ID:       "step-run-cancel",
 		Payload:  payload,
 		Metadata: metadata,
 		Retries:  3,

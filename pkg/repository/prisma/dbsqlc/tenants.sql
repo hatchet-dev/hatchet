@@ -36,15 +36,16 @@ SELECT
 FROM
     "Tenant" as tenants;
 
+-- name: ControllerPartitionHeartbeat :one
+UPDATE
+    "ControllerPartition" p
+SET
+    "lastHeartbeat" = NOW()
+WHERE
+    p."id" = sqlc.arg('controllerPartitionId')::text
+RETURNING *;
+
 -- name: ListTenantsByControllerPartitionId :many
-WITH update_partition AS (
-    UPDATE
-        "ControllerPartition"
-    SET
-        "lastHeartbeat" = NOW()
-    WHERE
-        "id" = sqlc.arg('controllerPartitionId')::text
-)
 SELECT
     *
 FROM

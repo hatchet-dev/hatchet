@@ -1,6 +1,9 @@
 package workflowruns
 
 import (
+	"context"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/labstack/echo/v4"
 
@@ -53,7 +56,10 @@ func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request 
 		return nil, allErrs
 	}
 
-	newWorkflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(tenant.ID, &repository.ListWorkflowRunsOpts{
+	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 60*time.Second)
+	defer cancel()
+
+	newWorkflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(dbCtx, tenant.ID, &repository.ListWorkflowRunsOpts{
 		Ids:   workflowRunIds,
 		Limit: &limit,
 	})

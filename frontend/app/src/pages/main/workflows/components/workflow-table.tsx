@@ -90,13 +90,9 @@ export function WorkflowTable() {
           <Link to={`/workflows/${data.metadata?.id}`}>{data.name}</Link>
         </h3>
         <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
-          Last run{' '}
-          {data.lastRun?.metadata?.createdAt ? (
-            <RelativeDate date={data.lastRun?.metadata?.createdAt} />
-          ) : (
-            'never'
-          )}
-          <br />
+          {/* Last run{' '}
+          {data.lastRunAt ? <RelativeDate date={data.lastRunAt} /> : 'never'}
+          <br /> */}
           Created at <RelativeDate date={data.metadata?.createdAt} />
         </p>
       </div>

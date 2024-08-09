@@ -31,11 +31,7 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 	rows := make([]gen.Workflow, len(listResp.Rows))
 
 	for i := range listResp.Rows {
-		workflow, err := transformers.ToWorkflow(listResp.Rows[i].WorkflowModel, listResp.Rows[i].LatestRun)
-
-		if err != nil {
-			return nil, err
-		}
+		workflow := transformers.ToWorkflowFromSQLC(listResp.Rows[i])
 
 		rows[i] = *workflow
 	}

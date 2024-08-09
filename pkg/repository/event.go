@@ -64,7 +64,7 @@ type ListEventResult struct {
 
 type EventAPIRepository interface {
 	// ListEvents returns all events for a given tenant.
-	ListEvents(tenantId string, opts *ListEventOpts) (*ListEventResult, error)
+	ListEvents(ctx context.Context, tenantId string, opts *ListEventOpts) (*ListEventResult, error)
 
 	// ListEventKeys returns all unique event keys for a given tenant.
 	ListEventKeys(tenantId string) ([]string, error)

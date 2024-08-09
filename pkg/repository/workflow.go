@@ -168,19 +168,10 @@ type ListWorkflowsOpts struct {
 
 	// (optional) number of workflows to return
 	Limit *int
-
-	// (optional) the event key to filter by
-	EventKey *string
-}
-
-type ListWorkflowsRow struct {
-	*db.WorkflowModel
-
-	LatestRun *db.WorkflowRunModel
 }
 
 type ListWorkflowsResult struct {
-	Rows  []*ListWorkflowsRow
+	Rows  []*dbsqlc.Workflow
 	Count int
 }
 

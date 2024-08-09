@@ -75,8 +75,8 @@ func (t *tickerRepository) ListTickers(ctx context.Context, opts *repository.Lis
 	)
 }
 
-func (t *tickerRepository) Delete(ctx context.Context, tickerId string) error {
-	_, err := t.queries.DeleteTicker(
+func (t *tickerRepository) DeactivateTicker(ctx context.Context, tickerId string) error {
+	_, err := t.queries.DeactivateTicker(
 		ctx,
 		t.pool,
 		sqlchelpers.UUIDFromStr(tickerId),

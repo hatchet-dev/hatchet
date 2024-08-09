@@ -291,6 +291,7 @@ const (
 	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
 	StepRunEventReasonTIMEOUTREFRESHED   StepRunEventReason = "TIMEOUT_REFRESHED"
 	StepRunEventReasonRETRIEDBYUSER      StepRunEventReason = "RETRIED_BY_USER"
+	StepRunEventReasonSENTTOWORKER       StepRunEventReason = "SENT_TO_WORKER"
 )
 
 func (e *StepRunEventReason) Scan(src interface{}) error {
@@ -381,6 +382,7 @@ const (
 	StepRunStatusSUCCEEDED         StepRunStatus = "SUCCEEDED"
 	StepRunStatusFAILED            StepRunStatus = "FAILED"
 	StepRunStatusCANCELLED         StepRunStatus = "CANCELLED"
+	StepRunStatusCANCELLING        StepRunStatus = "CANCELLING"
 )
 
 func (e *StepRunStatus) Scan(src interface{}) error {
@@ -847,6 +849,27 @@ type LogLine struct {
 	Metadata  []byte           `json:"metadata"`
 }
 
+type Queue struct {
+	ID       int64       `json:"id"`
+	TenantId pgtype.UUID `json:"tenantId"`
+	Name     string      `json:"name"`
+}
+
+type QueueItem struct {
+	ID                int64              `json:"id"`
+	StepRunId         pgtype.UUID        `json:"stepRunId"`
+	StepId            pgtype.UUID        `json:"stepId"`
+	ActionId          pgtype.Text        `json:"actionId"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
+	StepTimeout       pgtype.Text        `json:"stepTimeout"`
+	Priority          int32              `json:"priority"`
+	IsQueued          bool               `json:"isQueued"`
+	TenantId          pgtype.UUID        `json:"tenantId"`
+	Queue             string             `json:"queue"`
+	Sticky            NullStickyStrategy `json:"sticky"`
+	DesiredWorkerId   pgtype.UUID        `json:"desiredWorkerId"`
+}
+
 type RateLimit struct {
 	TenantId   pgtype.UUID      `json:"tenantId"`
 	Key        string           `json:"key"`
@@ -964,6 +987,7 @@ type StepRun struct {
 	GitRepoBranch     pgtype.Text      `json:"gitRepoBranch"`
 	RetryCount        int32            `json:"retryCount"`
 	SemaphoreReleased bool             `json:"semaphoreReleased"`
+	Queue             string           `json:"queue"`
 }
 
 type StepRunEvent struct {

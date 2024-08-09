@@ -40,6 +40,11 @@ func (a *healthAPIRepository) IsHealthy() bool {
 	return true
 }
 
+func (a *healthAPIRepository) PgStat() *pgxpool.Stat {
+	stat := a.pool.Stat()
+	return stat
+}
+
 type healthEngineRepository struct {
 	queries *dbsqlc.Queries
 	pool    *pgxpool.Pool
@@ -62,4 +67,9 @@ func (a *healthEngineRepository) IsHealthy() bool {
 	}
 
 	return true
+}
+
+func (a *healthEngineRepository) PgStat() *pgxpool.Stat {
+	stat := a.pool.Stat()
+	return stat
 }

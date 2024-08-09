@@ -172,6 +172,10 @@ StepRunArchiveList:
   $ref: "./workflow_run.yaml#/StepRunArchiveList"
 WorkerList:
   $ref: "./worker.yaml#/WorkerList"
+SemaphoreSlots:
+  $ref: "./worker.yaml#/SemaphoreSlots"
+RecentStepRuns:
+  $ref: "./worker.yaml#/RecentStepRuns"
 Worker:
   $ref: "./worker.yaml#/Worker"
 WorkerLabel:

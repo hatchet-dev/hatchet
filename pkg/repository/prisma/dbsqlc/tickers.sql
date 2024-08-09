@@ -51,9 +51,11 @@ WHERE
         tickers."lastHeartbeatAt" > sqlc.narg('lastHeartbeatAfter')::timestamp
     );
 
--- name: DeleteTicker :one
-DELETE FROM
-    "Ticker" as tickers
+-- name: DeactivateTicker :one
+UPDATE
+    "Ticker" t
+SET
+    "isActive" = false
 WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;

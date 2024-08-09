@@ -1,8 +1,10 @@
 package workflows
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 
@@ -54,7 +56,10 @@ func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.Wo
 		listOpts.AdditionalMetadata = additionalMetadata
 	}
 
-	workflowRunsMetricsCount, err := t.config.APIRepository.WorkflowRun().WorkflowRunMetricsCount(tenant.ID, listOpts)
+	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
+	defer cancel()
+
+	workflowRunsMetricsCount, err := t.config.APIRepository.WorkflowRun().WorkflowRunMetricsCount(dbCtx, tenant.ID, listOpts)
 
 	if err != nil {
 		return nil, err
