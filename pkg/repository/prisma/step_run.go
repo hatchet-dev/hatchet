@@ -2095,6 +2095,8 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 				Valid: true,
 				Int32: int32(priority),
 			},
+			Sticky:          innerStepRun.StickyStrategy,
+			DesiredWorkerId: innerStepRun.DesiredWorkerId,
 		})
 
 		if err != nil {

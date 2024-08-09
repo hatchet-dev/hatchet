@@ -1113,7 +1113,8 @@ SELECT
     jr."status" AS "jobRunStatus",
     jr."workflowRunId" AS "workflowRunId",
     a."actionId" AS "actionId",
-    sticky."strategy" AS "stickyStrategy"
+    sticky."strategy" AS "stickyStrategy",
+    sticky."desiredWorkerId" AS "desiredWorkerId"
 FROM
     "StepRun" sr
 JOIN
@@ -1179,6 +1180,7 @@ type GetStepRunForEngineRow struct {
 	WorkflowRunId       pgtype.UUID        `json:"workflowRunId"`
 	ActionId            string             `json:"actionId"`
 	StickyStrategy      NullStickyStrategy `json:"stickyStrategy"`
+	DesiredWorkerId     pgtype.UUID        `json:"desiredWorkerId"`
 }
 
 func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepRunForEngineParams) ([]*GetStepRunForEngineRow, error) {
@@ -1228,6 +1230,7 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.WorkflowRunId,
 			&i.ActionId,
 			&i.StickyStrategy,
+			&i.DesiredWorkerId,
 		); err != nil {
 			return nil, err
 		}

@@ -82,7 +82,8 @@ SELECT
     jr."status" AS "jobRunStatus",
     jr."workflowRunId" AS "workflowRunId",
     a."actionId" AS "actionId",
-    sticky."strategy" AS "stickyStrategy"
+    sticky."strategy" AS "stickyStrategy",
+    sticky."desiredWorkerId" AS "desiredWorkerId"
 FROM
     "StepRun" sr
 JOIN

@@ -30,7 +30,9 @@ INSERT INTO
         "priority",
         "isQueued",
         "tenantId",
-        "queue"
+        "queue",
+        "sticky",
+        "desiredWorkerId"
     )
 VALUES
     (
@@ -42,7 +44,9 @@ VALUES
         COALESCE(sqlc.narg('priority')::integer, 1),
         true,
         @tenantId::uuid,
-        @queue
+        @queue,
+        sqlc.narg('sticky')::"StickyStrategy",
+        sqlc.narg('desiredWorkerId')::uuid
     );
 
 -- name: ListQueueItems :batchmany
