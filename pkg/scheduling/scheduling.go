@@ -148,17 +148,29 @@ func GeneratePlan(
 			// TODO hack
 			workerPool := make([]*WorkerState, 0, len(workers))
 
-			// desired label workers
-			if labeledWorkers != nil {
-				// TODO hack
-				for _, worker := range labeledWorkers {
-					if _, ok := workers[worker.WorkerId]; ok {
-						workerPool = append(workerPool, workers[worker.WorkerId])
-					}
-				}
-			} else {
-				for _, worker := range workers {
+			if qi.Sticky.Valid {
+				if worker, ok := workers[sqlchelpers.UUIDToStr(qi.DesiredWorkerId)]; ok {
 					workerPool = append(workerPool, worker)
+				} else if qi.Sticky.StickyStrategy == dbsqlc.StickyStrategyHARD {
+					plan.HandleNoSlots(qi)
+					continue
+				}
+			}
+
+			// skip finding alternative workers if we have a HARD sticky worker
+			if qi.Sticky.StickyStrategy != dbsqlc.StickyStrategyHARD {
+				// desired label workers
+				if labeledWorkers != nil {
+					// TODO hack
+					for _, worker := range labeledWorkers {
+						if _, ok := workers[worker.WorkerId]; ok {
+							workerPool = append(workerPool, workers[worker.WorkerId])
+						}
+					}
+				} else {
+					for _, worker := range workers {
+						workerPool = append(workerPool, worker)
+					}
 				}
 			}
 

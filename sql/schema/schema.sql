@@ -219,6 +219,8 @@ CREATE TABLE "QueueItem" (
     "isQueued" BOOLEAN NOT NULL,
     "tenantId" UUID NOT NULL,
     "queue" TEXT NOT NULL,
+    "sticky" "StickyStrategy",
+    "desiredWorkerId" UUID,
 
     CONSTRAINT "QueueItem_pkey" PRIMARY KEY ("id")
 );

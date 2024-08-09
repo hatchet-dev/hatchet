@@ -36,7 +36,9 @@ INSERT INTO
         "priority",
         "isQueued",
         "tenantId",
-        "queue"
+        "queue",
+        "sticky",
+        "desiredWorkerId"
     )
 VALUES
     (
@@ -48,19 +50,23 @@ VALUES
         COALESCE($6::integer, 1),
         true,
         $7::uuid,
-        $8
+        $8,
+        $9::"StickyStrategy",
+        $10::uuid
     )
 `
 
 type CreateQueueItemParams struct {
-	StepRunId         pgtype.UUID      `json:"stepRunId"`
-	StepId            pgtype.UUID      `json:"stepId"`
-	ActionId          pgtype.Text      `json:"actionId"`
-	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
-	StepTimeout       pgtype.Text      `json:"stepTimeout"`
-	Priority          pgtype.Int4      `json:"priority"`
-	Tenantid          pgtype.UUID      `json:"tenantid"`
-	Queue             string           `json:"queue"`
+	StepRunId         pgtype.UUID        `json:"stepRunId"`
+	StepId            pgtype.UUID        `json:"stepId"`
+	ActionId          pgtype.Text        `json:"actionId"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
+	StepTimeout       pgtype.Text        `json:"stepTimeout"`
+	Priority          pgtype.Int4        `json:"priority"`
+	Tenantid          pgtype.UUID        `json:"tenantid"`
+	Queue             string             `json:"queue"`
+	Sticky            NullStickyStrategy `json:"sticky"`
+	DesiredWorkerId   pgtype.UUID        `json:"desiredWorkerId"`
 }
 
 func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueItemParams) error {
@@ -73,6 +79,8 @@ func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueI
 		arg.Priority,
 		arg.Tenantid,
 		arg.Queue,
+		arg.Sticky,
+		arg.DesiredWorkerId,
 	)
 	return err
 }

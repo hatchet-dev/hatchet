@@ -9,7 +9,7 @@ CREATE TABLE "Queue" ("id" bigserial NOT NULL, "tenantId" uuid NOT NULL, "name" 
 -- Create index "Queue_tenantId_name_key" to table: "Queue"
 CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue" ("tenantId", "name");
 -- Create "QueueItem" table
-CREATE TABLE "QueueItem" ("id" bigserial NOT NULL, "stepRunId" uuid NULL, "stepId" uuid NULL, "actionId" text NULL, "scheduleTimeoutAt" timestamp(3) NULL, "stepTimeout" text NULL, "priority" integer NOT NULL DEFAULT 1, "isQueued" boolean NOT NULL, "tenantId" uuid NOT NULL, "queue" text NOT NULL, PRIMARY KEY ("id"));
+CREATE TABLE "QueueItem" ("id" bigserial NOT NULL, "stepRunId" uuid NULL, "stepId" uuid NULL, "actionId" text NULL, "scheduleTimeoutAt" timestamp(3) NULL, "stepTimeout" text NULL, "priority" integer NOT NULL DEFAULT 1, "isQueued" boolean NOT NULL, "tenantId" uuid NOT NULL, "queue" text NOT NULL, "sticky" "StickyStrategy" NULL, "desiredWorkerId" uuid NULL, PRIMARY KEY ("id"));
 -- Create index "QueueItem_isQueued_priority_tenantId_queue_id_idx" to table: "QueueItem"
 CREATE INDEX "QueueItem_isQueued_priority_tenantId_queue_id_idx" ON "QueueItem" ("isQueued", "priority", "tenantId", "queue", "id");
 

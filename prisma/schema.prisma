@@ -1301,6 +1301,10 @@ model QueueItem {
   tenantId String  @db.Uuid
   queue    String
 
+  // sticky strategy for the queue item to assign steps to the same worker
+  sticky          StickyStrategy?
+  desiredWorkerId String?         @db.Uuid
+
   @@index([isQueued, priority, tenantId, queue, id])
 }
 
