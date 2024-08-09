@@ -1,7 +1,6 @@
 package scheduling
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -28,8 +27,6 @@ func ComputeWeight(s []*dbsqlc.GetDesiredLabelsRow, l []*dbsqlc.GetWorkerLabelsR
 
 		labelFound := false
 		for _, workerLabel := range l {
-			fmt.Println(desiredLabel)
-			fmt.Println(workerLabel)
 			if desiredLabel.Key == workerLabel.Key {
 				labelFound = true
 				conditionMet := false
