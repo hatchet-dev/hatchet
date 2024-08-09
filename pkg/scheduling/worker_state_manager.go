@@ -1,8 +1,6 @@
 package scheduling
 
 import (
-	"fmt"
-
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -81,9 +79,6 @@ func (wm *WorkerStateManager) AttemptAssignSlot(qi *QueueItemWithOrder) *dbsqlc.
 	// STICKY WORKERS
 	if qi.Sticky.Valid {
 		if worker, ok := wm.workers[sqlchelpers.UUIDToStr(qi.DesiredWorkerId)]; ok {
-			fmt.Println("Found sticky worker")
-			fmt.Println(worker)
-			fmt.Println(qi)
 			slot := wm.attemptAssignToWorker(worker, qi)
 
 			if slot != nil {
