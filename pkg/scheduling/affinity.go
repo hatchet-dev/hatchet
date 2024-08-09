@@ -10,33 +10,44 @@ func ComputeWeight(s []*dbsqlc.GetDesiredLabelsRow, l []*dbsqlc.GetWorkerLabelsR
 		for _, workerLabel := range l {
 			if desiredLabel.Key == workerLabel.Key {
 				labelFound = true
+				conditionMet := false
 				switch desiredLabel.Comparator {
 				case dbsqlc.WorkerLabelComparatorEQUAL:
 					if (desiredLabel.StrValue.Valid && workerLabel.StrValue.Valid && desiredLabel.StrValue.String == workerLabel.StrValue.String) ||
 						(desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && desiredLabel.IntValue.Int32 == workerLabel.IntValue.Int32) {
 						totalWeight += int(desiredLabel.Weight)
+						conditionMet = true
 					}
 				case dbsqlc.WorkerLabelComparatorNOTEQUAL:
 					if (desiredLabel.StrValue.Valid && workerLabel.StrValue.Valid && desiredLabel.StrValue.String != workerLabel.StrValue.String) ||
 						(desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && desiredLabel.IntValue.Int32 != workerLabel.IntValue.Int32) {
 						totalWeight += int(desiredLabel.Weight)
+						conditionMet = true
 					}
 				case dbsqlc.WorkerLabelComparatorGREATERTHAN:
 					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 > desiredLabel.IntValue.Int32 {
 						totalWeight += int(desiredLabel.Weight)
+						conditionMet = true
 					}
 				case dbsqlc.WorkerLabelComparatorLESSTHAN:
 					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 < desiredLabel.IntValue.Int32 {
 						totalWeight += int(desiredLabel.Weight)
+						conditionMet = true
 					}
 				case dbsqlc.WorkerLabelComparatorGREATERTHANOREQUAL:
 					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 >= desiredLabel.IntValue.Int32 {
 						totalWeight += int(desiredLabel.Weight)
+						conditionMet = true
 					}
 				case dbsqlc.WorkerLabelComparatorLESSTHANOREQUAL:
 					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 <= desiredLabel.IntValue.Int32 {
 						totalWeight += int(desiredLabel.Weight)
+						conditionMet = true
 					}
+				}
+
+				if !conditionMet && desiredLabel.Required {
+					return -1
 				}
 				break // Move to the next desired label
 			}
