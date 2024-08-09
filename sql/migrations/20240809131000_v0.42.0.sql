@@ -45,6 +45,29 @@ FROM
     unique_actions ua
 ON CONFLICT ("tenantId", "name") DO NOTHING;
 
+-- Set all existing step runs in a pending assignment state the the default queue named after their actionId
+-- This query is idempotent and can run multiple times.
+WITH step_runs AS (
+    SELECT
+        sr."id",
+        s."actionId"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    WHERE
+        sr."status" = 'PENDING_ASSIGNMENT'
+        AND sr."queue" = 'default'
+)
+UPDATE
+    "StepRun" sr
+SET
+    "queue" = sr2."actionId"
+FROM
+    step_runs sr2
+WHERE
+    sr."id" = sr2."id";
+
 -- For all step runs in a pending assignment state, insert them into the queue based on their created at time. 
 -- This query is idempotent and can run multiple times.
 WITH pending_assignments AS (
