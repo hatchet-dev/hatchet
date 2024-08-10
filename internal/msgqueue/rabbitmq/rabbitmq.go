@@ -476,7 +476,7 @@ func (t *MessageQueueImpl) subscribe(
 						}
 
 						if err := json.Unmarshal(rabbitMsg.Body, msg); err != nil {
-							t.l.Error().Msgf("error unmarshaling message: %v", err)
+							t.l.Error().Msgf("error unmarshalling message: %v", err)
 
 							// reject this message
 							if err := rabbitMsg.Reject(false); err != nil {
