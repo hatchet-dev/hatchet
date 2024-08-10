@@ -1,7 +1,7 @@
 name: spelling
 on: pull_request
 jobs:
-  lint:
+  spelling:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
