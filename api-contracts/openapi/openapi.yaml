@@ -150,3 +150,7 @@ paths:
     $ref: "./paths/webhook-worker/webhook-worker.yaml#/webhookworker"
   /api/v1/workflow-runs/{workflow-run}/input:
     $ref: "./paths/workflow-run/workflow-run.yaml#/getWorkflowRunInput"
+  /api/v1/tenants/{tenant}/files:
+    $ref: "./paths/files/files.yaml#/withTenant"
+  /api/v1/files/{file}:
+    $ref: "./paths/files/files.yaml#/fileData"

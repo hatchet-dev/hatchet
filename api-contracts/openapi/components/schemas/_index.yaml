@@ -238,3 +238,10 @@ WebhookWorkerCreateResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerCreateResponse"
 WebhookWorkerListResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerListResponse"
+
+File:
+  $ref: "./files.yaml#/File"
+FileData:
+  $ref: "./files.yaml#/FileData"
+CreateFileRequest:
+  $ref: "./files.yaml#/CreateFileRequest"

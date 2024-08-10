@@ -17,6 +17,7 @@ import {
   CreateAPITokenRequest,
   CreateAPITokenResponse,
   CreateEventRequest,
+  CreateFileRequest,
   CreateSNSIntegrationRequest,
   CreateTenantAlertEmailGroupRequest,
   CreateTenantInviteRequest,
@@ -29,6 +30,8 @@ import {
   EventOrderByDirection,
   EventOrderByField,
   EventSearch,
+  File,
+  FileData,
   ListAPIMetaIntegration,
   ListAPITokensResponse,
   ListSlackWebhooks,
@@ -1621,6 +1624,42 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   workflowRunGetInput = (workflowRun: string, params: RequestParams = {}) =>
     this.request<Record<string, any>, APIErrors>({
       path: `/api/v1/workflow-runs/${workflowRun}/input`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Creates a new file
+   *
+   * @tags File
+   * @name FileCreate
+   * @summary Create file
+   * @request POST:/api/v1/tenants/{tenant}/files
+   * @secure
+   */
+  fileCreate = (tenant: string, data: CreateFileRequest, params: RequestParams = {}) =>
+    this.request<File, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/files`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get the data for a file.
+   *
+   * @tags File
+   * @name FileDataGet
+   * @summary Get file data
+   * @request GET:/api/v1/files/{file}
+   * @secure
+   */
+  fileDataGet = (file: string, params: RequestParams = {}) =>
+    this.request<FileData, APIErrors>({
+      path: `/api/v1/files/${file}`,
       method: 'GET',
       secure: true,
       format: 'json',

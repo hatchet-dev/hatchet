@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	apitokens "github.com/hatchet-dev/hatchet/api/v1/server/handlers/api-tokens"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/files"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
@@ -30,6 +31,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 type apiService struct {
@@ -46,6 +48,7 @@ type apiService struct {
 	*slackapp.SlackAppService
 	*webhookworker.WebhookWorkersService
 	*workflowruns.WorkflowRunsService
+	*files.FileService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -63,6 +66,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		IngestorsService:      ingestors.NewIngestorsService(config),
 		SlackAppService:       slackapp.NewSlackAppService(config),
 		WebhookWorkersService: webhookworker.NewWebhookWorkersService(config),
+		FileService:           files.NewFileService(config),
 	}
 }
 
@@ -285,6 +289,15 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		return webhookWorker, webhookWorker.TenantID, nil
+	})
+
+	populatorMW.RegisterGetter("file", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		file, err := config.APIRepository.File().GetFileByID(id)
+		if err != nil {
+			return nil, "", err
+		}
+
+		return file, sqlchelpers.UUIDToStr(file.TenantId), nil
 	})
 
 	authnMW := authn.NewAuthN(t.config)
