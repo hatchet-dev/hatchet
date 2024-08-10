@@ -88,7 +88,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 
 		var action ActionPayload
 		if err := json.Unmarshal(data, &action); err != nil {
-			w.l.Error().Err(err).Msg("error unmarshaling action")
+			w.l.Error().Err(err).Msg("error unmarshalling action")
 			writer.WriteHeader(http.StatusInternalServerError)
 			_, _ = writer.Write([]byte(err.Error()))
 			return
