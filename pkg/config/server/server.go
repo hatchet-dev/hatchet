@@ -9,6 +9,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
+	"github.com/hatchet-dev/hatchet/internal/integrations/blob_storage"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
@@ -50,6 +51,8 @@ type ServerConfigFile struct {
 	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
 
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
+
+	BlobStorage ConfigFileBlobStorage `mapstructure:"blobStorage" json:"blobStorage,omitempty"`
 }
 
 // General server runtime options
@@ -286,6 +289,19 @@ type PostmarkConfigFile struct {
 	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
 }
 
+type ConfigFileBlobStorage struct {
+	S3 S3ConfigFile `mapstructure:"s3" json:"s3,omitempty"`
+}
+
+type S3ConfigFile struct {
+	Enabled         bool    `mapstructure:"enabled" json:"enabled,omitempty"`
+	BucketName      string  `mapstructure:"bucketName" json:"bucketName,omitempty"`
+	Region          string  `mapstructure:"region" json:"region,omitempty"`
+	AccessKeyId     string  `mapstructure:"accessKey" json:"accessKey,omitempty"`
+	AccessKeySecret string  `mapstructure:"secret" json:"secret,omitempty"`
+	BaseEndpoint    *string `mapstructure:"baseEndpoint" json:"baseEndpoint,omitempty"`
+}
+
 type AuthConfig struct {
 	ConfigFile ConfigFileAuth
 
@@ -343,6 +359,8 @@ type ServerConfig struct {
 	OpenTelemetry shared.OpenTelemetryConfigFile
 
 	Email email.EmailService
+
+	BlobStorage blob_storage.BlobStorageService
 
 	TenantAlerter *alerting.TenantAlertManager
 
@@ -488,4 +506,12 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("email.postmark.fromEmail", "SERVER_EMAIL_POSTMARK_FROM_EMAIL")
 	_ = v.BindEnv("email.postmark.fromName", "SERVER_EMAIL_POSTMARK_FROM_NAME")
 	_ = v.BindEnv("email.postmark.supportEmail", "SERVER_EMAIL_POSTMARK_SUPPORT_EMAIL")
+
+	// blob storage options
+	_ = v.BindEnv("blobStorage.s3.enabled", "SERVER_BLOB_STORAGE_S3_ENABLED")
+	_ = v.BindEnv("blobStorage.s3.bucketName", "SERVER_BLOB_STORAGE_S3_BUCKET_NAME")
+	_ = v.BindEnv("blobStorage.s3.region", "SERVER_BLOB_STORAGE_S3_REGION")
+	_ = v.BindEnv("blobStorage.s3.accessKey", "SERVER_BLOB_STORAGE_S3_ACCESS_KEY")
+	_ = v.BindEnv("blobStorage.s3.secret", "SERVER_BLOB_STORAGE_S3_SECRET")
+	_ = v.BindEnv("blobStorage.s3.baseEndpoint", "SERVER_BLOB_STORAGE_S3_BASE_ENDPOINT")
 }

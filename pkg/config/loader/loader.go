@@ -17,6 +17,8 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
+	"github.com/hatchet-dev/hatchet/internal/integrations/blob_storage"
+	blob_storage_s3 "github.com/hatchet-dev/hatchet/internal/integrations/blob_storage/s3"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -366,6 +368,16 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		)
 	}
 
+	var blobSvc blob_storage.BlobStorageService = &blob_storage.NoOpService{}
+
+	if cf.BlobStorage.S3.Enabled {
+		blobSvc, err = blob_storage_s3.NewS3Client(cf.BlobStorage.S3)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create S3 client: %w", err)
+		}
+	}
+
 	additionalOAuthConfigs := make(map[string]*oauth2.Config)
 
 	if cf.TenantAlerting.Slack.Enabled {
@@ -403,6 +415,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
 		Email:                  emailSvc,
+		BlobStorage:            blobSvc,
 		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
 	}, nil
