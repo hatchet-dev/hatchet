@@ -54,6 +54,20 @@ func GeneratePlan(
 		rateLimits[key] = NewRateLimit(key, rl)
 	}
 
+	// collect the queue counts
+	queueCounts := make(map[string]int64)
+
+	for _, qi := range queueItems {
+
+		if _, ok := plan.MinQueuedIds[qi.Queue]; !ok {
+			plan.MinQueuedIds[qi.Queue] = 0
+		}
+
+		queueCounts[qi.Queue]++
+	}
+
+	drainedQueues := make(map[string]struct{})
+
 	// NOTE(abelanger5): this is a version of the assignment problem. There is a more optimal solution i.e. optimal
 	// matching which can run in polynomial time. This is a naive approach which assigns the first steps which were
 	// queued to the first slots which are seen.
@@ -101,10 +115,18 @@ func GeneratePlan(
 
 		if !isRateLimited {
 			slot := workerManager.AttemptAssignSlot(qi)
+
 			// we assign the slot to the plan
 			if slot != nil {
 				// add the slot to the plan
 				plan.AssignQiToSlot(qi, slot)
+
+				queueCounts[qi.Queue]--
+
+				if _, ok := drainedQueues[qi.Queue]; !ok && queueCounts[qi.Queue] == 0 {
+					drainedQueues[qi.Queue] = struct{}{}
+				}
+
 				assigned = true
 			}
 		}
@@ -136,8 +158,8 @@ func GeneratePlan(
 		plan.RateLimitUnitsConsumed[key] = rateLimit.UnitsConsumed()
 	}
 
-	// if we have any worker slots left and we have unassigned steps then we should continue
-	if len(workers) > 0 && len(plan.UnassignedStepRunIds) > 0 {
+	// we're looking to see if there's a single queue where all items have been properly scheduled
+	if len(drainedQueues) > 0 {
 		for actionId := range plan.unassignedActions {
 			for _, worker := range workers {
 				if worker.CanAssign(actionId, nil) {
