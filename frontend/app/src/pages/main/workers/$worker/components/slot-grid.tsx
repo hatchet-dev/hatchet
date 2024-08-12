@@ -50,15 +50,17 @@ const WorkerSlotGrid: React.FC<WorkerSlotGridProps> = ({ slots = [] }) => {
                       </div>
                     </Link>
                   </div>
-                  <div>
-                    <strong>Status</strong> {slot.status || 'UNDEFINED'}
-                  </div>
-                  <div>
-                    Started <RelativeDate date={slot.startedAt} />
-                  </div>
-                  <div>
-                    Timeout <RelativeDate date={slot.timeoutAt} />
-                  </div>
+                  <div>Status {slot.status || 'UNDEFINED'}</div>
+                  {slot.startedAt && (
+                    <div>
+                      Started <RelativeDate date={slot.startedAt} />
+                    </div>
+                  )}
+                  {slot.timeoutAt && (
+                    <div>
+                      Timeout <RelativeDate date={slot.timeoutAt} />
+                    </div>
+                  )}
                 </>
               ) : (
                 <>Waiting for run</>

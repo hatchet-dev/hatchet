@@ -33,7 +33,7 @@
     137295,
     152259
   ],
-  "ShouldContinue": false,
+  "ShouldContinue": true,
   "MinQueuedIds": {
     "child:process2": 137295
   }
