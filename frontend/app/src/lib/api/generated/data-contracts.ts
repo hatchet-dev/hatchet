@@ -714,6 +714,7 @@ export enum StepRunStatus {
   SUCCEEDED = 'SUCCEEDED',
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
+  CANCELLING = 'CANCELLING',
 }
 
 export interface JobRun {
