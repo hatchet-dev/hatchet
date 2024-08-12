@@ -332,7 +332,6 @@ INSERT INTO "StepRun" (
     "stepId",
     "status",
     "requeueAfter",
-    "callerFiles",
     "queue"
 )
 SELECT
@@ -344,7 +343,6 @@ SELECT
     $3::uuid,
     'PENDING', -- default status
     CURRENT_TIMESTAMP + INTERVAL '5 seconds',
-    '{}',
     $4::text
 `
 
@@ -362,49 +360,6 @@ func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunP
 		arg.Stepid,
 		arg.Queue,
 	)
-	return err
-}
-
-const createStepRuns = `-- name: CreateStepRuns :exec
-WITH job_id AS (
-    SELECT "jobId"
-    FROM "JobRun"
-    WHERE "id" = $2::uuid
-)
-INSERT INTO "StepRun" (
-    "id",
-    "createdAt",
-    "updatedAt",
-    "tenantId",
-    "jobRunId",
-    "stepId",
-    "status",
-    "requeueAfter",
-    "callerFiles"
-)
-SELECT
-    gen_random_uuid(),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    $1::uuid,
-    $2::uuid,
-    "id",
-    'PENDING', -- default status
-    CURRENT_TIMESTAMP + INTERVAL '5 seconds',
-    '{}'
-FROM
-    "Step", job_id
-WHERE
-    "Step"."jobId" = job_id."jobId"
-`
-
-type CreateStepRunsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Jobrunid pgtype.UUID `json:"jobrunid"`
-}
-
-func (q *Queries) CreateStepRuns(ctx context.Context, db DBTX, arg CreateStepRunsParams) error {
-	_, err := db.Exec(ctx, createStepRuns, arg.Tenantid, arg.Jobrunid)
 	return err
 }
 

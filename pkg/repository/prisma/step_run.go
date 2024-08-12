@@ -323,56 +323,6 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 	return res, err
 }
 
-func (s *stepRunEngineRepository) ListStepRunsToRequeue(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
-	tx, err := s.pool.Begin(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer deferRollback(ctx, s.l, tx.Rollback)
-
-	// get the limits for the step runs
-	limit, err := s.queries.GetMaxRunsLimit(ctx, tx, pgTenantId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if limit > int32(s.cf.RequeueLimit) {
-		limit = int32(s.cf.RequeueLimit)
-	}
-
-	// get the step run and make sure it's still in pending
-	stepRunIds, err := s.queries.ListStepRunsToRequeue(ctx, tx, dbsqlc.ListStepRunsToRequeueParams{
-		Tenantid: pgTenantId,
-		Limit:    limit,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	stepRuns, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
-		Ids:      stepRunIds,
-		TenantId: pgTenantId,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = tx.Commit(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return stepRuns, nil
-}
-
 func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
@@ -913,6 +863,17 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
+	limit := 100
+
+	if limit > s.cf.SingleQueueLimit {
+		limit = s.cf.SingleQueueLimit
+	}
+
+	pgLimit := pgtype.Int4{
+		Int32: int32(limit),
+		Valid: true,
+	}
+
 	tx, err := s.pool.Begin(ctx)
 
 	if err != nil {
@@ -949,6 +910,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		q := dbsqlc.ListQueueItemsParams{
 			Tenantid: pgTenantId,
 			Queue:    name,
+			Limit:    pgLimit,
 		}
 
 		// lookup to see if we have a min queued id cached

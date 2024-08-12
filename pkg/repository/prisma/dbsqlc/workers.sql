@@ -45,7 +45,7 @@ SELECT
     s."actionId",
     sr."timeoutAt" AS "timeoutAt",
     sr."startedAt" AS "startedAt",
-	jr."workflowRunId" AS "workflowRunId"
+    jr."workflowRunId" AS "workflowRunId"
 FROM
     "WorkerSemaphoreSlot" wss
 JOIN
@@ -73,7 +73,7 @@ SELECT
     sr."cancelledAt" AS "cancelledAt",
     sr."timeoutAt" AS "timeoutAt",
     sr."startedAt" AS "startedAt",
-	jr."workflowRunId" AS "workflowRunId"
+    jr."workflowRunId" AS "workflowRunId"
 FROM
     "StepRun" sr
 JOIN

@@ -62,13 +62,13 @@ WHERE
         sqlc.narg('gtId')::bigint IS NULL OR
         qi."id" >= sqlc.narg('gtId')::bigint
     )
-    -- TODO: verify that this forces index usage
+    -- Added to ensure that the index is used
     AND qi."priority" >= 1 AND qi."priority" <= 4
 ORDER BY
     qi."priority" DESC,
     qi."id" ASC
 LIMIT
-    100
+    COALESCE(sqlc.narg('limit')::integer, 100)
 FOR UPDATE SKIP LOCKED;
 
 -- name: BulkQueueItems :exec

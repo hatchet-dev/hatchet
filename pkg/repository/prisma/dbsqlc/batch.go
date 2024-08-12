@@ -30,13 +30,13 @@ WHERE
         $3::bigint IS NULL OR
         qi."id" >= $3::bigint
     )
-    -- TODO: verify that this forces index usage
+    -- Added to ensure that the index is used
     AND qi."priority" >= 1 AND qi."priority" <= 4
 ORDER BY
     qi."priority" DESC,
     qi."id" ASC
 LIMIT
-    100
+    COALESCE($4::integer, 100)
 FOR UPDATE SKIP LOCKED
 `
 
@@ -50,6 +50,7 @@ type ListQueueItemsParams struct {
 	Tenantid pgtype.UUID `json:"tenantid"`
 	Queue    string      `json:"queue"`
 	GtId     pgtype.Int8 `json:"gtId"`
+	Limit    pgtype.Int4 `json:"limit"`
 }
 
 func (q *Queries) ListQueueItems(ctx context.Context, db DBTX, arg []ListQueueItemsParams) *ListQueueItemsBatchResults {
@@ -59,6 +60,7 @@ func (q *Queries) ListQueueItems(ctx context.Context, db DBTX, arg []ListQueueIt
 			a.Tenantid,
 			a.Queue,
 			a.GtId,
+			a.Limit,
 		}
 		batch.Queue(listQueueItems, vals...)
 	}

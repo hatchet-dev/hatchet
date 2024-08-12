@@ -164,9 +164,6 @@ type StepRunEngineRepository interface {
 	// ListStepRunsForWorkflowRun returns a list of step runs for a workflow run.
 	ListStepRuns(ctx context.Context, tenantId string, opts *ListStepRunsOpts) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
-	// ListStepRunsToRequeue returns a list of step runs which are in a requeueable state.
-	ListStepRunsToRequeue(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
-
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
 	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 

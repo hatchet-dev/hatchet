@@ -473,46 +473,6 @@ WHERE
     AND "tenantId" = @tenantId::uuid
 LIMIT 100;
 
--- name: ListStepRunsToRequeue :many
-WITH step_runs AS (
-    SELECT
-        sr."id", sr."status", sr."workerId"
-    FROM
-        "StepRun" sr
-    JOIN
-        "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
-    WHERE
-        sr."tenantId" = @tenantId::uuid
-        AND sr."deletedAt" IS NULL
-        AND jr."deletedAt" IS NULL
-        AND sr."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT']::"StepRunStatus"[])
-        AND sr."requeueAfter" < NOW()
-        AND sr."input" IS NOT NULL
-        AND NOT EXISTS (
-            SELECT 1
-            FROM "_StepRunOrder" AS order_table
-            JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-            WHERE
-                order_table."B" = sr."id"
-                AND prev_sr."status" != 'SUCCEEDED'
-        )
-    FOR UPDATE SKIP LOCKED
-    LIMIT
-        sqlc.arg('limit')::int
-)
-UPDATE
-    "StepRun"
-SET
-    "status" = 'PENDING_ASSIGNMENT',
-    -- requeue after now plus 4 seconds
-    "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
-    "updatedAt" = CURRENT_TIMESTAMP
-FROM
-    step_runs
-WHERE
-    "StepRun"."id" = step_runs."id"
-RETURNING "StepRun"."id";
-
 -- name: RefreshTimeoutBy :one
 UPDATE
     "StepRun" sr

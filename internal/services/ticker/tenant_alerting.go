@@ -43,7 +43,7 @@ func (t *TickerImpl) runPollTenantAlerts(ctx context.Context) func() {
 
 func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 300*time.Second) // only runs once per day, so long context timeout
 		defer cancel()
 
 		t.l.Debug().Msg("ticker: polling expiring tokens")

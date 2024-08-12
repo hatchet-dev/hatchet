@@ -3,9 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"log"
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"time"
 
@@ -35,11 +32,6 @@ type Teardown struct {
 }
 
 func init() {
-
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-
 	svcName := os.Getenv("SERVER_OTEL_SERVICE_NAME")
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
 	traceIdRatio := os.Getenv("SERVER_OTEL_TRACE_ID_RATIO")
