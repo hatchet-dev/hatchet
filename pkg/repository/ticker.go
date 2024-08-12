@@ -32,8 +32,8 @@ type TickerEngineRepository interface {
 	// ListTickers lists tickers.
 	ListTickers(ctx context.Context, opts *ListTickerOpts) ([]*dbsqlc.Ticker, error)
 
-	// Delete deletes a ticker.
-	Delete(ctx context.Context, tickerId string) error
+	// DeactivateTicker deletes a ticker.
+	DeactivateTicker(ctx context.Context, tickerId string) error
 
 	// PollJobRuns looks for get group key runs who are close to past their timeoutAt value and are in a running state
 	PollGetGroupKeyRuns(ctx context.Context, tickerId string) ([]*dbsqlc.GetGroupKeyRun, error)

@@ -4,13 +4,13 @@ SELECT
 FROM
     "Event"
 WHERE
-    "deletedAt" IS NOT NULL AND
+    "deletedAt" IS NULL AND
     "id" = @id::uuid;
 
 -- name: CountEvents :one
 WITH events AS (
     SELECT
-        events."id", events."createdAt"
+        events."id"
     FROM
         "Event" as events
     LEFT JOIN
@@ -23,11 +23,11 @@ WITH events AS (
         "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
     WHERE
         events."tenantId" = $1 AND
-        events."deletedAt" IS NOT NULL AND
+        events."deletedAt" IS NULL AND
         (
             sqlc.narg('keys')::text[] IS NULL OR
             events."key" = ANY(sqlc.narg('keys')::text[])
-            ) AND
+        ) AND
         (
             sqlc.narg('additionalMetadata')::jsonb IS NULL OR
             events."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
@@ -35,17 +35,16 @@ WITH events AS (
         (
             (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR
             (workflow."id" = ANY(sqlc.narg('workflows')::text[]::uuid[]))
-            ) AND
+        ) AND
         (
             sqlc.narg('search')::text IS NULL OR
+            workflow.name like concat('%', sqlc.narg('search')::text, '%') OR
             jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
         ) AND
-            (
-                sqlc.narg('statuses')::text[] IS NULL OR
-                "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
-            )
-    GROUP BY
-        events."id"
+        (
+            sqlc.narg('statuses')::text[] IS NULL OR
+            "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+        )
     ORDER BY
         case when @orderBy = 'createdAt ASC' THEN events."createdAt" END ASC ,
         case when @orderBy = 'createdAt DESC' then events."createdAt" END DESC
@@ -80,6 +79,51 @@ INSERT INTO "Event" (
 ) RETURNING *;
 
 -- name: ListEvents :many
+WITH filtered_events AS (
+    SELECT
+        events."id"
+    FROM
+        "Event" as events
+    LEFT JOIN
+        "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
+    LEFT JOIN
+        "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
+    LEFT JOIN
+        "WorkflowVersion" as workflowVersion ON workflowVersion."id" = runs."workflowVersionId"
+    LEFT JOIN
+        "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+    WHERE
+        events."tenantId" = $1 AND
+        events."deletedAt" IS NULL AND
+        (
+            sqlc.narg('keys')::text[] IS NULL OR
+            events."key" = ANY(sqlc.narg('keys')::text[])
+        ) AND
+            (
+            sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+            events."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
+        ) AND
+        (
+            (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR
+            (workflow."id" = ANY(sqlc.narg('workflows')::text[]::uuid[]))
+        ) AND
+        (
+            sqlc.narg('search')::text IS NULL OR
+            workflow.name like concat('%', sqlc.narg('search')::text, '%') OR
+            jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
+        ) AND
+        (
+            sqlc.narg('statuses')::text[] IS NULL OR
+            "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+        )
+    ORDER BY
+        case when @orderBy = 'createdAt ASC' THEN events."createdAt" END ASC ,
+        case when @orderBy = 'createdAt DESC' then events."createdAt" END DESC
+    OFFSET
+        COALESCE(sqlc.narg('offset'), 0)
+    LIMIT
+        COALESCE(sqlc.narg('limit'), 50)
+)
 SELECT
     sqlc.embed(events),
     sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
@@ -88,47 +132,15 @@ SELECT
     sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
     sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns
 FROM
-    "Event" as events
+    filtered_events
+JOIN
+    "Event" as events ON events."id" = filtered_events."id"
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
 LEFT JOIN
     "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
-LEFT JOIN
-    "WorkflowVersion" as workflowVersion ON workflowVersion."id" = runs."workflowVersionId"
-LEFT JOIN
-    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
-WHERE
-    events."tenantId" = $1 AND
-    (
-        sqlc.narg('keys')::text[] IS NULL OR
-        events."key" = ANY(sqlc.narg('keys')::text[])
-    ) AND
-        (
-        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
-        events."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
-    ) AND
-    (
-        (sqlc.narg('workflows')::text[])::uuid[] IS NULL OR
-        (workflow."id" = ANY(sqlc.narg('workflows')::text[]::uuid[]))
-    ) AND
-    (
-        sqlc.narg('search')::text IS NULL OR
-        workflow.name like concat('%', sqlc.narg('search')::text, '%') OR
-        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', sqlc.narg('search')::text, '")') as jsonpath))
-    ) AND
-    (
-        sqlc.narg('statuses')::text[] IS NULL OR
-        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
-    )
 GROUP BY
-    events."id"
-ORDER BY
-    case when @orderBy = 'createdAt ASC' THEN events."createdAt" END ASC ,
-    case when @orderBy = 'createdAt DESC' then events."createdAt" END DESC
-OFFSET
-    COALESCE(sqlc.narg('offset'), 0)
-LIMIT
-    COALESCE(sqlc.narg('limit'), 50);
+    events."id", events."createdAt";
 
 -- name: GetEventsForRange :many
 SELECT
@@ -150,7 +162,7 @@ SELECT
 FROM
     "Event" as events
 WHERE
-    events."deletedAt" IS NOT NULL AND
+    events."deletedAt" IS NULL AND
     "tenantId" = @tenantId::uuid AND
     "id" = ANY (sqlc.arg('ids')::uuid[]);
 

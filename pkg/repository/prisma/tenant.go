@@ -300,6 +300,11 @@ func (r *tenantEngineRepository) GetTenantByID(ctx context.Context, tenantId str
 	})
 }
 
+func (r *tenantEngineRepository) UpdatePartitionHeartbeat(ctx context.Context, partitionId string) error {
+	_, err := r.queries.ControllerPartitionHeartbeat(ctx, r.pool, partitionId)
+	return err
+}
+
 func (r *tenantEngineRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error) {
 	if controllerPartitionId == "" {
 		return nil, fmt.Errorf("partitionId is required")

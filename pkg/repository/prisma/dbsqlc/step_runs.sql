@@ -50,6 +50,7 @@ SELECT
     sr."updatedAt" AS "SR_updatedAt",
     sr."deletedAt" AS "SR_deletedAt",
     sr."tenantId" AS "SR_tenantId",
+    sr."queue" AS "SR_queue",
     sr."order" AS "SR_order",
     sr."workerId" AS "SR_workerId",
     sr."tickerId" AS "SR_tickerId",
@@ -78,9 +79,11 @@ SELECT
     j."id" AS "jobId",
     j."kind" AS "jobKind",
     j."workflowVersionId" AS "workflowVersionId",
+    jr."status" AS "jobRunStatus",
     jr."workflowRunId" AS "workflowRunId",
     a."actionId" AS "actionId",
-    sticky."strategy" AS "stickyStrategy"
+    sticky."strategy" AS "stickyStrategy",
+    sticky."desiredWorkerId" AS "desiredWorkerId"
 FROM
     "StepRun" sr
 JOIN
@@ -412,22 +415,54 @@ update_semaphore_steps AS (
     SET "stepRunId" = NULL
     FROM step_runs_to_reassign
     WHERE wss."stepRunId" = step_runs_to_reassign."stepRunId"
+),
+step_runs_with_data AS (
+    SELECT
+        sr."id",
+        sr."tenantId",
+        sr."scheduleTimeoutAt",
+        s."actionId",
+        s."id" AS "stepId",
+        s."timeout" AS "stepTimeout"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    WHERE
+        sr."id" = ANY(SELECT "stepRunId" FROM step_runs_to_reassign)
+),
+inserted_queue_items AS (
+    INSERT INTO "QueueItem" (
+        "stepRunId",
+        "stepId",
+        "actionId",
+        "scheduleTimeoutAt",
+        "stepTimeout",
+        "priority",
+        "isQueued",
+        "tenantId",
+        "queue"
+    )
+    SELECT
+        srs."id",
+        srs."stepId",
+        srs."actionId",
+        -- FIXME: this should be configurable. It doesn't make sense to use the existing scheduleTimeoutAt
+        -- as we might be well past that time.
+        NOW() + INTERVAL '5 minutes',
+        srs."stepTimeout",
+        -- Queue with priority 4 so that reassignment gets highest priority
+        4,
+        true,
+        srs."tenantId",
+        srs."actionId"
+    FROM
+        step_runs_with_data srs
 )
-UPDATE
-    "StepRun"
-SET
-    "status" = 'PENDING_ASSIGNMENT',
-    -- place directly in the queue
-    "requeueAfter" = CURRENT_TIMESTAMP,
-    "updatedAt" = CURRENT_TIMESTAMP,
-    -- unset the schedule timeout
-    "scheduleTimeoutAt" = NULL
+SELECT
+    srs."id"
 FROM
-    step_runs_to_reassign
-WHERE
-    "StepRun"."id" = step_runs_to_reassign."stepRunId"
-    AND "StepRun"."deletedAt" IS NULL
-RETURNING "StepRun"."id";
+    step_runs_with_data srs;
 
 -- name: ListStepRunsToTimeout :many
 SELECT "id"
@@ -437,46 +472,6 @@ WHERE
     AND "timeoutAt" < NOW()
     AND "tenantId" = @tenantId::uuid
 LIMIT 100;
-
--- name: ListStepRunsToRequeue :many
-WITH step_runs AS (
-    SELECT
-        sr."id", sr."status", sr."workerId"
-    FROM
-        "StepRun" sr
-    JOIN
-        "JobRun" jr ON sr."jobRunId" = jr."id" AND jr."status" = 'RUNNING'
-    WHERE
-        sr."tenantId" = @tenantId::uuid
-        AND sr."deletedAt" IS NULL
-        AND jr."deletedAt" IS NULL
-        AND sr."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT']::"StepRunStatus"[])
-        AND sr."requeueAfter" < NOW()
-        AND sr."input" IS NOT NULL
-        AND NOT EXISTS (
-            SELECT 1
-            FROM "_StepRunOrder" AS order_table
-            JOIN "StepRun" AS prev_sr ON order_table."A" = prev_sr."id"
-            WHERE
-                order_table."B" = sr."id"
-                AND prev_sr."status" != 'SUCCEEDED'
-        )
-    FOR UPDATE SKIP LOCKED
-    LIMIT
-        sqlc.arg('limit')::int
-)
-UPDATE
-    "StepRun"
-SET
-    "status" = 'PENDING_ASSIGNMENT',
-    -- requeue after now plus 4 seconds
-    "requeueAfter" = CURRENT_TIMESTAMP + INTERVAL '4 seconds',
-    "updatedAt" = CURRENT_TIMESTAMP
-FROM
-    step_runs
-WHERE
-    "StepRun"."id" = step_runs."id"
-RETURNING "StepRun"."id";
 
 -- name: RefreshTimeoutBy :one
 UPDATE
@@ -519,251 +514,115 @@ WHERE
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "id" = @workerId::uuid;
 
--- name: AcquireWorkerSemaphoreSlotAndAssign :one
-WITH valid_workers AS (
+-- name: ListSemaphoreSlotsToAssign :many
+WITH actions AS (
     SELECT
-        w."id"
+        "id",
+        "actionId"
+    FROM
+        "Action"
+    WHERE
+        "tenantId" = @tenantId::uuid AND
+        "actionId" = ANY(@actionIds::text[])
+), valid_workers AS (
+    SELECT
+        w."id",
+        a."actionId",
+        w."dispatcherId"
     FROM
         "Worker" w
+    JOIN
+        "_ActionToWorker" atw ON w."id" = atw."B"
+    JOIN
+        actions a ON atw."A" = a."id"
     WHERE
         w."tenantId" = @tenantId::uuid
         AND w."dispatcherId" IS NOT NULL
         AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
         AND w."isActive" = true
         AND w."isPaused" = false
-        AND (
-            -- sticky worker selection
-            sqlc.narg('workerId')::uuid IS NULL
-            OR w."id" = sqlc.narg('workerId')::uuid
-        )
-        AND w."id" IN (
-            SELECT "_ActionToWorker"."B"
-            FROM "_ActionToWorker"
-            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
-            WHERE "Action"."tenantId" = @tenantId AND "Action"."actionId" = @actionId::text
-        )
-
-    GROUP BY w."id"
-),
-locked_step_runs AS (
-    SELECT
-        sr."id", sr."status", sr."workerId", sr."stepId"
-    FROM
-        "StepRun" sr
-    WHERE
-        sr."id" = @stepRunId::uuid AND
-        sr."deletedAt" IS NULL
-    FOR UPDATE SKIP LOCKED
-),
-desired_workflow_labels AS (
-    SELECT
-        "key",
-        "strValue",
-        "intValue",
-        "required",
-        "weight",
-        "comparator"
-    FROM
-        "StepDesiredWorkerLabel"
-    WHERE
-        "stepId" = (SELECT "stepId" FROM locked_step_runs)
-),
-evaluated_affinities AS (
-    SELECT DISTINCT
-        wa."key" AS worker_key,
-        dwl."key" AS desired_key,
-        dwl."weight",
-        vw."id" as "workerId",
-        dwl."required",
-        COALESCE(dwl."intValue"::text, dwl."strValue") AS input_value,
-        CASE
-            WHEN wa."intValue" IS NOT NULL THEN wa."intValue"::text
-            WHEN wa."strValue" IS NOT NULL THEN wa."strValue"
-        END AS value,
-        dwl."comparator",
-        CASE
-            WHEN dwl.comparator = 'EQUAL' AND
-                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" = wa."intValue") THEN 1
-            WHEN dwl.comparator = 'EQUAL' AND
-                 (wa."strValue" IS NOT NULL AND dwl."strValue" = wa."strValue") THEN 1
-            WHEN dwl.comparator = 'NOT_EQUAL' AND
-                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" <> wa."intValue") THEN 1
-            WHEN dwl.comparator = 'NOT_EQUAL' AND
-                 (wa."strValue" IS NOT NULL AND dwl."strValue" <> wa."strValue") THEN 1
-            WHEN dwl.comparator = 'GREATER_THAN' AND
-                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" > wa."intValue") THEN 1
-            WHEN dwl.comparator = 'LESS_THAN' AND
-                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" < wa."intValue") THEN 1
-            WHEN dwl.comparator = 'GREATER_THAN_OR_EQUAL' AND
-                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" >= wa."intValue") THEN 1
-            WHEN dwl.comparator = 'LESS_THAN_OR_EQUAL' AND
-                 (wa."intValue" IS NOT NULL AND dwl."intValue" IS NOT NULL AND dwl."intValue" <= wa."intValue") THEN 1
-            ELSE 0
-        END AS is_true
-    FROM
-        valid_workers vw
-    LEFT JOIN "WorkerLabel" wa ON wa."workerId" = vw."id"
-    LEFT JOIN desired_workflow_labels dwl ON wa."key" = dwl."key"
-),
-weighted_workers AS (
-    SELECT
-        ea."workerId",
-        CASE
-            WHEN COUNT(*) FILTER (WHERE ea."required" = TRUE AND (ea."desired_key" IS NULL OR ea."is_true" = 0)) > 0 THEN -99999
-            ELSE COALESCE(SUM(CASE WHEN is_true = 1 THEN ea."weight" ELSE 0 END), 0)
-        END AS total_weight,
-        COUNT(wss."id") AS available_slots
-    FROM
-        evaluated_affinities ea
-    LEFT JOIN "WorkerSemaphoreSlot" wss ON ea."workerId" = wss."workerId" AND wss."stepRunId" IS NULL
-    GROUP BY
-        ea."workerId"
-),
-selected_worker AS (
-    SELECT
-        vw."id",
-        COALESCE(ww.total_weight, 0) AS total_weight
-    FROM
-        valid_workers vw
-    LEFT JOIN weighted_workers ww ON vw."id" = ww."workerId"
-    WHERE
-        COALESCE(ww.total_weight, 0) >= 0
-    ORDER BY
-        COALESCE(ww.total_weight, 0) DESC,
-        COALESCE(ww.available_slots, 0) DESC,
-        RANDOM()
-    LIMIT 1
-),
-selected_slot AS (
-    SELECT
-        wss."id" AS "slotId",
-        wss."workerId" AS "workerId"
-    FROM
-        "WorkerSemaphoreSlot" wss
-    JOIN
-        selected_worker sw ON wss."workerId" = sw."id"
-    WHERE
-        wss."stepRunId" IS NULL
-    FOR UPDATE SKIP LOCKED
-    LIMIT 1
-),
-updated_slot AS (
-    UPDATE "WorkerSemaphoreSlot"
-    SET "stepRunId" = @stepRunId::uuid
-    WHERE "id" = (SELECT "slotId" FROM selected_slot)
-    AND "stepRunId" IS NULL
-    RETURNING *
-),
-assign_step_run_to_worker AS (
-	UPDATE
-	    "StepRun"
-	SET
-	    "status" = 'ASSIGNED',
-	    "workerId" = (SELECT "workerId" FROM updated_slot),
-	    "tickerId" = NULL,
-	    "updatedAt" = CURRENT_TIMESTAMP,
-	    "timeoutAt" = CASE
-	        WHEN sqlc.narg('stepTimeout')::text IS NOT NULL THEN
-	            CURRENT_TIMESTAMP + convert_duration_to_interval(sqlc.narg('stepTimeout')::text)
-	        ELSE CURRENT_TIMESTAMP + INTERVAL '5 minutes'
-	    END
-	WHERE
-	    "id" = (SELECT "stepRunId" FROM updated_slot) AND
-	    "status" = 'PENDING_ASSIGNMENT'
-	RETURNING
-	    "StepRun"."id", "StepRun"."workerId"
-),
-selected_dispatcher AS (
-    SELECT "dispatcherId" FROM "Worker"
-    WHERE "id" = (SELECT "workerId" FROM updated_slot)
-),
-step_rate_limits AS (
-    SELECT
-        rl."units" AS "units",
-        rl."rateLimitKey" AS "rateLimitKey"
-    FROM
-        "StepRateLimit" rl
-    JOIN locked_step_runs lsr ON rl."stepId" = lsr."stepId" -- only increment if we have a lsr
-    JOIN updated_slot us ON us."stepRunId" = lsr."id" -- only increment if we have a slot
-    WHERE
-        rl."tenantId" = @tenantId::uuid
-),
-locked_rate_limits AS (
-    SELECT
-        srl.*,
-        step_rate_limits."units"
-    FROM
-        step_rate_limits
-    JOIN
-        "RateLimit" srl ON srl."key" = step_rate_limits."rateLimitKey" AND srl."tenantId" = @tenantId::uuid
-    FOR UPDATE
-),
-update_rate_limits AS (
-    UPDATE
-        "RateLimit" srl
-    SET
-        "value" = get_refill_value(srl) - lrl."units",
-        "lastRefill" = CASE
-            WHEN NOW() - srl."lastRefill" >= srl."window"::INTERVAL THEN
-                CURRENT_TIMESTAMP
-            ELSE
-                srl."lastRefill"
-        END
-    FROM
-        locked_rate_limits lrl
-    WHERE
-        srl."tenantId" = lrl."tenantId" AND
-        srl."key" = lrl."key"
-    RETURNING srl.*
-),
-exhausted_rate_limits AS (
-    SELECT
-        srl."key"
-    FROM
-        update_rate_limits srl
-    WHERE
-        srl."value" < 0
 )
 SELECT
-    updated_slot."workerId" as "workerId",
-    updated_slot."stepRunId" as "stepRunId",
-    selected_dispatcher."dispatcherId" as "dispatcherId",
-    jsonb_agg(
-        jsonb_build_object(
-            'key', dwl."key",
-            'strValue', dwl."strValue",
-            'intValue', dwl."intValue",
-            'required', dwl."required",
-            'weight', dwl."weight",
-            'comparator', dwl."comparator",
-            'is_true', ea."is_true"
-        )
-    ) AS desired_labels,
-    jsonb_agg(
-        jsonb_build_object(
-            'key', wa."key",
-            'strValue', wa."strValue",
-            'intValue', wa."intValue"
-        )
-    ) AS worker_labels,
-    COALESCE(COUNT(exhausted_rate_limits."key"), 0)::int as "exhaustedRateLimitCount",
-    COALESCE(SUM(weighted_workers."available_slots"),0)::int as "remainingSlots"
+    wss."id",
+    vw."id" AS "workerId",
+    vw."dispatcherId",
+    vw."actionId"
 FROM
-    (SELECT 1 as filler) as filler_row_subquery -- always return a row
-    LEFT JOIN updated_slot ON true
-    LEFT JOIN selected_dispatcher ON true
-    LEFT JOIN exhausted_rate_limits ON true
-    LEFT JOIN weighted_workers ON total_weight >= 0
-    LEFT JOIN
-        evaluated_affinities ea ON updated_slot."workerId" = ea."workerId"
-    LEFT JOIN
-        desired_workflow_labels dwl ON ea."desired_key" = dwl."key"
-    LEFT JOIN
-        "WorkerLabel" wa ON ea."workerId" = wa."workerId" AND ea."worker_key" = wa."key"
-GROUP BY
-    updated_slot."workerId",
-    updated_slot."stepRunId",
-    selected_dispatcher."dispatcherId";
+    "WorkerSemaphoreSlot" wss
+JOIN
+    valid_workers vw ON wss."workerId" = vw."id"
+WHERE
+    wss."stepRunId" IS NULL
+FOR UPDATE SKIP LOCKED;
+
+-- name: BulkAssignStepRunsToWorkers :many
+WITH updated_step_runs AS (
+    UPDATE
+        "StepRun" sr
+    SET
+        "status" = 'ASSIGNED',
+        "workerId" = input."workerId",
+        "tickerId" = NULL,
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "timeoutAt" = CURRENT_TIMESTAMP + convert_duration_to_interval(input."stepTimeout")
+    FROM (
+        SELECT
+            unnest(@stepRunIds::uuid[]) AS "id",
+            unnest(@stepRunTimeouts::text[]) AS "stepTimeout",
+            unnest(@workerIds::uuid[]) AS "workerId"
+    ) AS input
+    WHERE
+        sr."id" = input."id"
+)
+UPDATE
+    "WorkerSemaphoreSlot" wss
+SET
+    "stepRunId" = input."stepRunId"
+FROM (
+    SELECT
+        unnest(@slotIds::uuid[]) AS "id",
+        unnest(@stepRunIds::uuid[]) AS "stepRunId"
+) AS input
+WHERE
+    wss."id" = input."id"
+RETURNING wss."id";
+
+-- name: BulkMarkStepRunsAsCancelling :many
+UPDATE
+    "StepRun" sr
+SET
+    "status" = 'CANCELLING',
+    "updatedAt" = CURRENT_TIMESTAMP
+FROM (
+    SELECT
+        unnest(@stepRunIds::uuid[]) AS "id"
+    ) AS input
+WHERE
+    sr."id" = input."id"
+RETURNING sr."id";
+
+-- name: GetDesiredLabels :many
+SELECT
+    "key",
+    "strValue",
+    "intValue",
+    "required",
+    "weight",
+    "comparator"
+FROM
+    "StepDesiredWorkerLabel"
+WHERE
+    "stepId" = @stepId::uuid;
+
+-- name: GetWorkerLabels :many
+SELECT
+    "key",
+    "strValue",
+    "intValue"
+FROM
+    "WorkerLabel"
+WHERE
+    "workerId" = @workerId::uuid;
 
 -- name: UpsertDesiredWorkerLabel :one
 INSERT INTO "StepDesiredWorkerLabel" (
@@ -825,6 +684,63 @@ WITH input_values AS (
         @message::text AS "message",
         1 AS "count",
         sqlc.narg('data')::jsonb AS "data"
+),
+updated AS (
+    UPDATE "StepRunEvent"
+    SET
+        "timeLastSeen" = CURRENT_TIMESTAMP,
+        "message" = input_values."message",
+        "count" = "StepRunEvent"."count" + 1,
+        "data" = input_values."data"
+    FROM input_values
+    WHERE
+        "StepRunEvent"."stepRunId" = input_values."stepRunId"
+        AND "StepRunEvent"."reason" = input_values."reason"
+        AND "StepRunEvent"."severity" = input_values."severity"
+        AND "StepRunEvent"."id" = (
+            SELECT "id"
+            FROM "StepRunEvent"
+            WHERE "stepRunId" = input_values."stepRunId"
+            ORDER BY "id" DESC
+            LIMIT 1
+        )
+    RETURNING "StepRunEvent".*
+)
+INSERT INTO "StepRunEvent" (
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+)
+SELECT
+    "timeFirstSeen",
+    "timeLastSeen",
+    "stepRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+FROM input_values
+WHERE NOT EXISTS (
+    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId"
+);
+
+-- name: BulkCreateStepRunEvent :exec
+WITH input_values AS (
+    SELECT
+        CURRENT_TIMESTAMP AS "timeFirstSeen",
+        CURRENT_TIMESTAMP AS "timeLastSeen",
+        unnest(@stepRunIds::uuid[]) AS "stepRunId",
+        unnest(cast(@reasons::text[] as"StepRunEventReason"[])) AS "reason",
+        unnest(cast(@severities::text[] as "StepRunEventSeverity"[])) AS "severity",
+        unnest(@messages::text[]) AS "message",
+        1 AS "count",
+        unnest(@data::jsonb[]) AS "data"
 ),
 updated AS (
     UPDATE "StepRunEvent"

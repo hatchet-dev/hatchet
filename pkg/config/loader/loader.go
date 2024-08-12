@@ -160,8 +160,13 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	config.ConnConfig.Tracer = otelpgx.NewTracer()
 
-	config.MaxConns = int32(cf.MaxConns)
-	config.MinConns = int32(cf.MaxConns)
+	if cf.MaxConns != 0 {
+		config.MaxConns = int32(cf.MaxConns)
+	}
+
+	if cf.MinConns != 0 {
+		config.MinConns = int32(cf.MinConns)
+	}
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {

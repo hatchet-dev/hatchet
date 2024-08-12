@@ -13,6 +13,64 @@ WorkerLabel:
     - key
   type: object
 
+SemaphoreSlots:
+  properties:
+    slot:
+      type: string
+      description: The slot name.
+      format: uuid
+    stepRunId:
+      type: string
+      description: The step run id.
+      format: uuid
+    actionId:
+      type: string
+      description: The action id.
+    startedAt:
+      type: string
+      description: The time this slot was started.
+      format: date-time
+    timeoutAt:
+      type: string
+      description: The time this slot will timeout.
+      format: date-time
+    workflowRunId:
+      type: string
+      description: The workflow run id.
+      format: uuid
+    status:
+      $ref: "./_index.yaml#/StepRunStatus"
+  required:
+    - slot
+
+RecentStepRuns:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    actionId:
+      type: string
+      description: The action id.
+    status:
+      $ref: "./_index.yaml#/StepRunStatus"
+    startedAt:
+      type: string
+      format: date-time
+    finishedAt:
+      type: string
+      format: date-time
+    cancelledAt:
+      type: string
+      format: date-time
+    workflowRunId:
+      type: string
+      format: uuid
+  required:
+    - actionId
+    - metadata
+    - status
+    - workflowRunId
+  type: object
+
 Worker:
   properties:
     metadata:
@@ -35,11 +93,16 @@ Worker:
       description: The actions this worker can perform.
       items:
         type: string
+    slots:
+      type: array
+      description: The semaphore slot state for the worker.
+      items:
+        $ref: "./_index.yaml#/SemaphoreSlots"
     recentStepRuns:
       type: array
-      description: The recent step runs for this worker.
+      description: The recent step runs for the worker.
       items:
-        $ref: "./_index.yaml#/StepRun"
+        $ref: "./_index.yaml#/RecentStepRuns"
     status:
       type: string
       description: The status of the worker.

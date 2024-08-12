@@ -37,10 +37,10 @@ func (p *partitioner) withControllers(ctx context.Context) (*Teardown, string, e
 		return nil, "", fmt.Errorf("could not create engine partition: %w", err)
 	}
 
-	// rebalance partitions 30 seconds after startup
+	// rebalance partitions 10 seconds after startup
 	_, err = p.s.NewJob(
 		gocron.OneTimeJob(
-			gocron.OneTimeJobStartDateTime(time.Now().Add(time.Second*30)),
+			gocron.OneTimeJobStartDateTime(time.Now().Add(time.Second*10)),
 		),
 		gocron.NewTask(
 			func() {

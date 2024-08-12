@@ -32,16 +32,18 @@ func (q *Queries) CreateTicker(ctx context.Context, db DBTX, id pgtype.UUID) (*T
 	return &i, err
 }
 
-const deleteTicker = `-- name: DeleteTicker :one
-DELETE FROM
-    "Ticker" as tickers
+const deactivateTicker = `-- name: DeactivateTicker :one
+UPDATE
+    "Ticker" t
+SET
+    "isActive" = false
 WHERE
     "id" = $1::uuid
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeatAt", "isActive"
 `
 
-func (q *Queries) DeleteTicker(ctx context.Context, db DBTX, id pgtype.UUID) (*Ticker, error) {
-	row := db.QueryRow(ctx, deleteTicker, id)
+func (q *Queries) DeactivateTicker(ctx context.Context, db DBTX, id pgtype.UUID) (*Ticker, error) {
+	row := db.QueryRow(ctx, deactivateTicker, id)
 	var i Ticker
 	err := row.Scan(
 		&i.ID,

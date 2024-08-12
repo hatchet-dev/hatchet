@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -20,6 +22,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -197,22 +200,25 @@ func (s *stepRunAPIRepository) ListStepRunArchives(tenantId string, stepRunId st
 }
 
 type stepRunEngineRepository struct {
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	l       *zerolog.Logger
-	queries *dbsqlc.Queries
-	cf      *server.ConfigFileRuntime
+	pool               *pgxpool.Pool
+	v                  validator.Validator
+	l                  *zerolog.Logger
+	queries            *dbsqlc.Queries
+	cf                 *server.ConfigFileRuntime
+	cachedMinQueuedIds sync.Map
+	exhaustedRLCache   *scheduling.ExhaustedRateLimitCache
 }
 
 func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) repository.StepRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &stepRunEngineRepository{
-		pool:    pool,
-		v:       v,
-		l:       l,
-		queries: queries,
-		cf:      cf,
+		pool:             pool,
+		v:                v,
+		l:                l,
+		queries:          queries,
+		cf:               cf,
+		exhaustedRLCache: scheduling.NewExhaustedRateLimitCache(time.Minute),
 	}
 }
 
@@ -315,56 +321,6 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 	err = tx.Commit(ctx)
 
 	return res, err
-}
-
-func (s *stepRunEngineRepository) ListStepRunsToRequeue(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
-	tx, err := s.pool.Begin(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer deferRollback(ctx, s.l, tx.Rollback)
-
-	// get the limits for the step runs
-	limit, err := s.queries.GetMaxRunsLimit(ctx, tx, pgTenantId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if limit > int32(s.cf.RequeueLimit) {
-		limit = int32(s.cf.RequeueLimit)
-	}
-
-	// get the step run and make sure it's still in pending
-	stepRunIds, err := s.queries.ListStepRunsToRequeue(ctx, tx, dbsqlc.ListStepRunsToRequeueParams{
-		Tenantid: pgTenantId,
-		Limit:    limit,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	stepRuns, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
-		Ids:      stepRunIds,
-		TenantId: pgTenantId,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = tx.Commit(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return stepRuns, nil
 }
 
 func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
@@ -622,107 +578,6 @@ func (e *errNoWorkerWithSlots) Error() string {
 	return fmt.Sprintf("no worker available, slots left: %d", e.totalSlots)
 }
 
-func (s *stepRunEngineRepository) assignStepRunToWorkerAttempt(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (*dbsqlc.AcquireWorkerSemaphoreSlotAndAssignRow, error) {
-	tx, err := s.pool.Begin(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer deferRollback(ctx, s.l, tx.Rollback)
-
-	// if stepRun.WorkflowRunStickyState {
-	// 	fmt
-	// }
-
-	var DesiredWorkerId pgtype.UUID
-
-	if stepRun.StickyStrategy.Valid {
-		lockedStickyState, err := s.queries.GetWorkflowRunStickyStateForUpdate(ctx, tx, dbsqlc.GetWorkflowRunStickyStateForUpdateParams{
-			Workflowrunid: stepRun.WorkflowRunId,
-			Tenantid:      stepRun.SRTenantId,
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("could not get workflow run sticky state: %w", err)
-		}
-
-		// confirm the worker is still available
-		if lockedStickyState.DesiredWorkerId.Valid {
-
-			checkedWorker, err := s.queries.CheckWorker(ctx, tx, dbsqlc.CheckWorkerParams{
-				Workerid: lockedStickyState.DesiredWorkerId,
-				Tenantid: stepRun.SRTenantId,
-			})
-
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				return nil, fmt.Errorf("could not check worker: %w", err)
-			}
-
-			// if the worker is no longer available, desired worker will be nil and we'll reassign
-			// for soft strategy
-			DesiredWorkerId = lockedStickyState.DesiredWorkerId
-
-			// if the strategy is hard, but the worker is not available, we can break early
-			if stepRun.StickyStrategy.StickyStrategy == dbsqlc.StickyStrategyHARD && !checkedWorker.Valid {
-				return nil, repository.ErrNoWorkerAvailable
-			}
-		}
-	}
-
-	// acquire a semaphore slot
-	assigned, err := s.queries.AcquireWorkerSemaphoreSlotAndAssign(ctx, tx, dbsqlc.AcquireWorkerSemaphoreSlotAndAssignParams{
-		Steprunid:   stepRun.SRID,
-		Actionid:    stepRun.ActionId,
-		StepTimeout: stepRun.StepTimeout,
-		Tenantid:    stepRun.SRTenantId,
-		WorkerId:    DesiredWorkerId,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("could not acquire worker semaphore slot: %w", err)
-	}
-
-	if assigned.RemainingSlots == 0 {
-		return nil, &errNoWorkerWithSlots{totalSlots: int(0)}
-	}
-
-	if assigned.ExhaustedRateLimitCount > 0 {
-		return nil, repository.ErrRateLimitExceeded
-	}
-
-	if !assigned.WorkerId.Valid || !assigned.DispatcherId.Valid {
-		// this likely means that the step run was skip locked by another assign attempt
-		return nil, repository.ErrStepRunIsNotAssigned
-	}
-
-	if stepRun.StickyStrategy.Valid {
-		// check if the worker is the same as the previous worker
-		workerId := sqlchelpers.UUIDToStr(assigned.WorkerId)
-		previousWorkerId := sqlchelpers.UUIDToStr(DesiredWorkerId)
-
-		if workerId != previousWorkerId {
-			err = s.queries.UpdateWorkflowRunStickyState(ctx, tx, dbsqlc.UpdateWorkflowRunStickyStateParams{
-				Workflowrunid:   stepRun.WorkflowRunId,
-				DesiredWorkerId: assigned.WorkerId,
-				Tenantid:        stepRun.SRTenantId,
-			})
-
-			if err != nil {
-				return nil, fmt.Errorf("could not update sticky state: %w", err)
-			}
-		}
-	}
-
-	err = tx.Commit(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return assigned, nil
-}
-
 func (s *stepRunEngineRepository) DeferredStepRunEvent(
 	stepRunId pgtype.UUID,
 	reason dbsqlc.StepRunEventReason,
@@ -777,6 +632,150 @@ func deferredStepRunEvent(
 	}
 }
 
+func (s *stepRunEngineRepository) bulkStepRunsAssigned(
+	stepRunIds []pgtype.UUID,
+	workerIds []pgtype.UUID,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	messages := make([]string, len(stepRunIds))
+	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
+	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
+	data := make([]map[string]interface{}, len(stepRunIds))
+
+	for i := range stepRunIds {
+		workerId := sqlchelpers.UUIDToStr(workerIds[i])
+		messages[i] = fmt.Sprintf("Assigned to worker %s", workerId)
+		reasons[i] = dbsqlc.StepRunEventReasonASSIGNED
+		severities[i] = dbsqlc.StepRunEventSeverityINFO
+		data[i] = map[string]interface{}{"worker_id": workerId}
+	}
+
+	deferredBulkStepRunEvents(
+		ctx,
+		s.l,
+		s.pool,
+		s.queries,
+		stepRunIds,
+		reasons,
+		severities,
+		messages,
+		data,
+	)
+}
+
+func (s *stepRunEngineRepository) bulkStepRunsUnassigned(
+	stepRunIds []pgtype.UUID,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	messages := make([]string, len(stepRunIds))
+	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
+	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
+	data := make([]map[string]interface{}, len(stepRunIds))
+
+	for i := range stepRunIds {
+		messages[i] = "No worker available"
+		reasons[i] = dbsqlc.StepRunEventReasonREQUEUEDNOWORKER
+		severities[i] = dbsqlc.StepRunEventSeverityWARNING
+		// TODO: semaphore extra data
+		data[i] = map[string]interface{}{}
+	}
+
+	deferredBulkStepRunEvents(
+		ctx,
+		s.l,
+		s.pool,
+		s.queries,
+		stepRunIds,
+		reasons,
+		severities,
+		messages,
+		data,
+	)
+}
+
+func (s *stepRunEngineRepository) bulkStepRunsRateLimited(
+	stepRunIds []pgtype.UUID,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	messages := make([]string, len(stepRunIds))
+	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
+	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
+	data := make([]map[string]interface{}, len(stepRunIds))
+
+	for i := range stepRunIds {
+		messages[i] = "Rate limit exceeded"
+		reasons[i] = dbsqlc.StepRunEventReasonREQUEUEDRATELIMIT
+		severities[i] = dbsqlc.StepRunEventSeverityWARNING
+		// TODO: semaphore extra data
+		data[i] = map[string]interface{}{}
+	}
+
+	deferredBulkStepRunEvents(
+		ctx,
+		s.l,
+		s.pool,
+		s.queries,
+		stepRunIds,
+		reasons,
+		severities,
+		messages,
+		data,
+	)
+}
+
+func deferredBulkStepRunEvents(
+	ctx context.Context,
+	l *zerolog.Logger,
+	dbtx dbsqlc.DBTX,
+	queries *dbsqlc.Queries,
+	stepRunIds []pgtype.UUID,
+	reasons []dbsqlc.StepRunEventReason,
+	severities []dbsqlc.StepRunEventSeverity,
+	messages []string,
+	data []map[string]interface{},
+) {
+	inputData := [][]byte{}
+	inputReasons := []string{}
+	inputSeverities := []string{}
+
+	for _, d := range data {
+		dataBytes, err := json.Marshal(d)
+
+		if err != nil {
+			l.Err(err).Msg("could not marshal deferred step run event data")
+			return
+		}
+
+		inputData = append(inputData, dataBytes)
+	}
+
+	for _, r := range reasons {
+		inputReasons = append(inputReasons, string(r))
+	}
+
+	for _, s := range severities {
+		inputSeverities = append(inputSeverities, string(s))
+	}
+
+	err := queries.BulkCreateStepRunEvent(ctx, dbtx, dbsqlc.BulkCreateStepRunEventParams{
+		Steprunids: stepRunIds,
+		Reasons:    inputReasons,
+		Severities: inputSeverities,
+		Messages:   messages,
+		Data:       inputData,
+	})
+
+	if err != nil {
+		l.Err(err).Msg("could not create deferred step run event")
+	}
+}
+
 func (s *stepRunEngineRepository) UnassignStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error {
 	return deadlockRetry(s.l, func() error {
 		tx, err := s.pool.Begin(ctx)
@@ -824,147 +823,419 @@ func (s *stepRunEngineRepository) UnassignStepRunFromWorker(ctx context.Context,
 	})
 }
 
-func (s *stepRunEngineRepository) AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (string, string, error) {
-	err := s.releaseWorkerSemaphore(ctx, stepRun)
+func UniqueSet[T any](i []T, keyFunc func(T) string) map[string]struct{} {
+	set := make(map[string]struct{})
 
-	if err != nil {
-		return "", "", err
+	for _, item := range i {
+		key := keyFunc(item)
+		set[key] = struct{}{}
 	}
 
-	var assigned *dbsqlc.AcquireWorkerSemaphoreSlotAndAssignRow
+	return set
+}
 
-	err = unassignedRetry(s.l, func() (err error) {
-		assigned, err = s.assignStepRunToWorkerAttempt(ctx, stepRun)
+type debugInfo struct {
+	UniqueActions                []string       `json:"unique_actions"`
+	TotalStepRuns                int            `json:"total_step_runs"`
+	TotalStepRunsAssigned        int            `json:"total_step_runs_assigned"`
+	TotalSlots                   int            `json:"total_slots"`
+	StartingSlotsPerAction       map[string]int `json:"starting_slots"`
+	EndingSlotsPerAction         map[string]int `json:"ending_slots"`
+	Duration                     string         `json:"duration"`
+	TimeToStartDuration          string         `json:"time_to_start_duration"`
+	TimeToListQueuesDuration     string         `json:"time_to_list_queues_duration"`
+	TimeToListQueueItemsDuration string         `json:"time_to_list_queue_items_duration"`
+	DurationsOfQueueListResults  []string       `json:"durations_of_queue_list_results"`
+}
 
-		if err != nil {
-			var target *errNoWorkerWithSlots
+func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId string) (repository.QueueStepRunsResult, error) {
+	startedAt := time.Now().UTC()
 
-			if errors.As(err, &target) {
-				return err
-			}
+	emptyRes := repository.QueueStepRunsResult{
+		Queued:             []repository.QueuedStepRun{},
+		SchedulingTimedOut: []string{},
+		Continue:           false,
+	}
 
-			if errors.Is(err, repository.ErrNoWorkerAvailable) {
-				return err
-			}
+	if ctx.Err() != nil {
+		return emptyRes, ctx.Err()
+	}
 
-			return fmt.Errorf("could not assign worker for step run %s (step %s): %w", sqlchelpers.UUIDToStr(stepRun.SRID), stepRun.StepReadableId.String, err)
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	limit := 100
+
+	if limit > s.cf.SingleQueueLimit {
+		limit = s.cf.SingleQueueLimit
+	}
+
+	pgLimit := pgtype.Int4{
+		Int32: int32(limit),
+		Valid: true,
+	}
+
+	tx, err := s.pool.Begin(ctx)
+
+	if err != nil {
+		return emptyRes, err
+	}
+
+	defer deferRollback(ctx, s.l, tx.Rollback)
+
+	// list queues
+	queues, err := s.queries.ListQueues(ctx, tx, pgTenantId)
+
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not list queues: %w", err)
+	}
+
+	if len(queues) == 0 {
+		return emptyRes, nil
+	}
+
+	// construct params for list queue items
+	query := []dbsqlc.ListQueueItemsParams{}
+
+	// randomly order queues
+	rand.New(rand.NewSource(time.Now().UnixNano())).Shuffle(len(queues), func(i, j int) { queues[i], queues[j] = queues[j], queues[i] }) // nolint:gosec
+
+	for _, queue := range queues {
+		// check whether we have exhausted rate limits for this queue
+		if s.exhaustedRLCache.IsExhausted(tenantId, queue.Name) {
+			continue
 		}
 
-		return nil
+		name := queue.Name
+
+		q := dbsqlc.ListQueueItemsParams{
+			Tenantid: pgTenantId,
+			Queue:    name,
+			Limit:    pgLimit,
+		}
+
+		// lookup to see if we have a min queued id cached
+		minQueuedId, ok := s.cachedMinQueuedIds.Load(getCacheName(tenantId, name))
+
+		if ok {
+			if minQueuedIdInt, ok := minQueuedId.(int64); ok {
+				q.GtId = pgtype.Int8{
+					Int64: minQueuedIdInt,
+					Valid: true,
+				}
+			}
+		}
+
+		query = append(query, q)
+	}
+
+	results := s.queries.ListQueueItems(ctx, tx, query)
+	defer results.Close()
+
+	durationsOfQueueListResults := make([]string, 0)
+
+	queueItems := make([]*scheduling.QueueItemWithOrder, 0)
+
+	// TODO: verify whether this is multithreaded and if it is, whether thread safe
+	results.Query(func(i int, qi []*dbsqlc.QueueItem, err error) {
+		if err != nil {
+			return
+		}
+
+		queueName := ""
+
+		for i := range qi {
+			queueItems = append(queueItems, &scheduling.QueueItemWithOrder{
+				QueueItem: qi[i],
+				Order:     i,
+			})
+
+			queueName = qi[i].Queue
+		}
+
+		durationsOfQueueListResults = append(durationsOfQueueListResults, fmt.Sprintf("%s:%s:%s", queues[i].Name, queueName, time.Since(startedAt).String()))
+	})
+
+	err = results.Close()
+
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not close queue items result: %w", err)
+	}
+
+	if len(queueItems) == 0 {
+		return emptyRes, nil
+	}
+
+	// sort the queue items by Order from least to greatest, then by queue id
+	sort.Slice(queueItems, func(i, j int) bool {
+		// sort by priority, then by order, then by id
+		if queueItems[i].Priority == queueItems[j].Priority {
+			if queueItems[i].Order == queueItems[j].Order {
+				return queueItems[i].QueueItem.ID < queueItems[j].QueueItem.ID
+			}
+
+			return queueItems[i].Order < queueItems[j].Order
+		}
+
+		return queueItems[i].Priority > queueItems[j].Priority
+	})
+
+	// get a list of unique actions
+	uniqueActions := make(map[string]bool)
+
+	for _, row := range queueItems {
+		uniqueActions[row.ActionId.String] = true
+	}
+
+	uniqueActionsArr := make([]string, 0, len(uniqueActions))
+
+	for action := range uniqueActions {
+		uniqueActionsArr = append(uniqueActionsArr, action)
+	}
+
+	// list rate limits for the tenant
+	rateLimits, err := s.queries.ListRateLimitsForTenant(ctx, tx, pgTenantId)
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return emptyRes, fmt.Errorf("could not list rate limits for tenant: %w", err)
+	}
+
+	currRateLimitValues := make(map[string]*dbsqlc.ListRateLimitsForTenantRow)
+	stepRateUnits := make(map[string]map[string]int32)
+
+	if len(rateLimits) > 0 {
+		for i := range rateLimits {
+			key := rateLimits[i].Key
+			currRateLimitValues[key] = rateLimits[i]
+		}
+
+		// get a list of unique step ids
+		uniqueStepIds := make(map[string]bool)
+
+		for _, row := range queueItems {
+			uniqueStepIds[sqlchelpers.UUIDToStr(row.StepId)] = true
+		}
+
+		uniqueStepIdsArr := make([]pgtype.UUID, 0, len(uniqueStepIds))
+
+		for step := range uniqueStepIds {
+			uniqueStepIdsArr = append(uniqueStepIdsArr, sqlchelpers.UUIDFromStr(step))
+		}
+
+		// get the rate limits for the steps
+		stepRateLimits, err := s.queries.ListRateLimitsForSteps(ctx, tx, dbsqlc.ListRateLimitsForStepsParams{
+			Tenantid: pgTenantId,
+			Stepids:  uniqueStepIdsArr,
+		})
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return emptyRes, fmt.Errorf("could not list rate limits for steps: %w", err)
+		}
+
+		for _, row := range stepRateLimits {
+			stepId := sqlchelpers.UUIDToStr(row.StepId)
+
+			if _, ok := stepRateUnits[stepId]; !ok {
+				stepRateUnits[stepId] = make(map[string]int32)
+			}
+
+			stepRateUnits[stepId][row.RateLimitKey] = row.Units
+		}
+	}
+
+	slots, err := s.queries.ListSemaphoreSlotsToAssign(ctx, tx, dbsqlc.ListSemaphoreSlotsToAssignParams{
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Actionids: uniqueActionsArr,
 	})
 
 	if err != nil {
-		var target *errNoWorkerWithSlots
-
-		labels, labelErr := s.queries.GetStepDesiredWorkerLabels(ctx, s.pool, stepRun.StepId)
-
-		if labelErr != nil {
-			return "", "", fmt.Errorf("could not get step desired worker labels: %w", err)
-		}
-
-		semaphoreExtra := s.unmarshalSemaphoreExtraData(nil, &labels)
-
-		if errors.As(err, &target) {
-			defer s.DeferredStepRunEvent(
-				stepRun.SRID,
-				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
-				dbsqlc.StepRunEventSeverityWARNING,
-				"No worker available",
-				map[string]interface{}{
-					"worker_id": nil,
-					"semaphore": semaphoreExtra,
-				},
-			)
-
-			return "", "", repository.ErrNoWorkerAvailable
-		}
-
-		if errors.Is(err, repository.ErrNoWorkerAvailable) {
-			defer s.DeferredStepRunEvent(
-				stepRun.SRID,
-				dbsqlc.StepRunEventReasonREQUEUEDNOWORKER,
-				dbsqlc.StepRunEventSeverityWARNING,
-				"No worker available",
-				map[string]interface{}{
-					"worker_id": nil,
-					"semaphore": semaphoreExtra,
-				},
-			)
-		}
-
-		if errors.Is(err, repository.ErrRateLimitExceeded) {
-			defer s.DeferredStepRunEvent(
-				stepRun.SRID,
-				dbsqlc.StepRunEventReasonREQUEUEDRATELIMIT,
-				dbsqlc.StepRunEventSeverityWARNING,
-				"Rate limit exceeded",
-				nil, // TODO add label data
-			)
-		}
-
-		return "", "", err
+		return emptyRes, fmt.Errorf("could not list semaphore slots to assign: %w", err)
 	}
 
-	semaphoreExtra := s.unmarshalSemaphoreExtraData(assigned, nil)
+	// GET UNIQUE STEP IDS
+	stepIdSet := UniqueSet(queueItems, func(x *scheduling.QueueItemWithOrder) string {
+		return sqlchelpers.UUIDToStr(x.StepId)
+	})
 
-	defer s.DeferredStepRunEvent(
-		stepRun.SRID,
-		dbsqlc.StepRunEventReasonASSIGNED,
-		dbsqlc.StepRunEventSeverityINFO,
-		fmt.Sprintf("Assigned to worker %s", sqlchelpers.UUIDToStr(assigned.WorkerId)),
-		map[string]interface{}{
-			"worker_id": sqlchelpers.UUIDToStr(assigned.WorkerId),
-			"semaphore": semaphoreExtra,
-		},
+	desiredLabels := make(map[string][]*dbsqlc.GetDesiredLabelsRow)
+	hasDesired := false
+
+	// GET DESIRED LABELS
+	// OPTIMIZATION: CACHEABLE
+	for stepId := range stepIdSet {
+		labels, err := s.queries.GetDesiredLabels(ctx, tx, sqlchelpers.UUIDFromStr(stepId))
+		if err != nil {
+			return emptyRes, fmt.Errorf("could not get desired labels: %w", err)
+		}
+		desiredLabels[stepId] = labels
+		hasDesired = true
+	}
+
+	var workerLabels = make(map[string][]*dbsqlc.GetWorkerLabelsRow)
+
+	if hasDesired {
+		// GET UNIQUE WORKER LABELS
+		workerIdSet := UniqueSet(slots, func(x *dbsqlc.ListSemaphoreSlotsToAssignRow) string {
+			return sqlchelpers.UUIDToStr(x.WorkerId)
+		})
+
+		for workerId := range workerIdSet {
+			labels, err := s.queries.GetWorkerLabels(ctx, tx, sqlchelpers.UUIDFromStr(workerId))
+			if err != nil {
+				return emptyRes, fmt.Errorf("could not get worker labels: %w", err)
+			}
+			workerLabels[workerId] = labels
+		}
+	}
+
+	plan, err := scheduling.GeneratePlan(
+		slots,
+		uniqueActionsArr,
+		queueItems,
+		stepRateUnits,
+		currRateLimitValues,
+		workerLabels,
+		desiredLabels,
 	)
 
-	return sqlchelpers.UUIDToStr(assigned.WorkerId), sqlchelpers.UUIDToStr(assigned.DispatcherId), nil
-}
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not generate scheduling: %w", err)
+	}
 
-func (s *stepRunEngineRepository) unmarshalSemaphoreExtraData(semaphore *dbsqlc.AcquireWorkerSemaphoreSlotAndAssignRow, desiredLabelBytes *[]byte) map[string]interface{} {
-	// Initialize the result maps
-	var desiredLabels []map[string]interface{}
-	var workerLabels []map[string]interface{}
+	// save rate limits as a subtransaction, but don't throw an error if it fails
+	func() {
+		subtx, err := tx.Begin(ctx)
 
-	// Check if desiredLabelBytes is not nil and unmarshal it
-	switch {
-	case desiredLabelBytes != nil:
-		err := json.Unmarshal(*desiredLabelBytes, &desiredLabels)
-		if err != nil && err.Error() != "unexpected end of JSON input" {
-			s.l.Warn().Err(err).Msg("failed to unmarshal desiredLabelBytes")
-		}
-	case semaphore != nil:
-		// If desiredLabelBytes is nil, use semaphore.DesiredLabels
-		err := json.Unmarshal(semaphore.DesiredLabels, &desiredLabels)
 		if err != nil {
-			s.l.Warn().Err(err).Msg("failed to unmarshal semaphore.DesiredLabels")
+			s.l.Err(err).Msg("could not start subtransaction")
+			return
 		}
 
-	default:
-		s.l.Warn().Msg("semaphore is nil, cannot unmarshal DesiredLabels")
-	}
+		defer deferRollback(ctx, s.l, subtx.Rollback)
 
-	// Unmarshal WorkerLabels from semaphore if it's not nil
-	if semaphore != nil && semaphore.WorkerLabels != nil {
-		err := json.Unmarshal(semaphore.WorkerLabels, &workerLabels)
+		updateKeys := []string{}
+		updateUnits := []int32{}
+
+		for key, value := range plan.RateLimitUnitsConsumed {
+			if value == 0 {
+				continue
+			}
+
+			updateKeys = append(updateKeys, key)
+			updateUnits = append(updateUnits, value)
+		}
+
+		params := dbsqlc.BulkUpdateRateLimitsParams{
+			Tenantid: pgTenantId,
+			Keys:     updateKeys,
+			Units:    updateUnits,
+		}
+
+		_, err = s.queries.BulkUpdateRateLimits(ctx, subtx, params)
+
 		if err != nil {
-			s.l.Warn().Err(err).Msg("failed to unmarshal semaphore.WorkerLabels")
+			s.l.Err(err).Msg("could not bulk update rate limits")
+			return
+		}
+
+		// throw a warning if any rate limits are below 0
+		for key, value := range plan.RateLimitUnitsConsumed {
+			if value < 0 {
+				s.l.Warn().Msgf("rate limit %s is below 0: %d", key, value)
+			}
+		}
+
+		err = subtx.Commit(ctx)
+
+		if err != nil {
+			s.l.Err(err).Msg("could not commit subtransaction")
+			return
+		}
+	}()
+
+	_, err = s.queries.BulkAssignStepRunsToWorkers(ctx, tx, dbsqlc.BulkAssignStepRunsToWorkersParams{
+		Steprunids:      plan.StepRunIds,
+		Stepruntimeouts: plan.StepRunTimeouts,
+		Slotids:         plan.SlotIds,
+		Workerids:       plan.WorkerIds,
+	})
+
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not bulk assign step runs to workers: %w", err)
+	}
+
+	err = s.queries.BulkQueueItems(ctx, tx, plan.QueuedItems)
+
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not bulk queue items: %w", err)
+	}
+
+	// if there are step runs to place in a cancelling state, do so
+	if len(plan.TimedOutStepRuns) > 0 {
+		_, err = s.queries.BulkMarkStepRunsAsCancelling(ctx, tx, plan.TimedOutStepRuns)
+
+		if err != nil {
+			return emptyRes, fmt.Errorf("could not bulk mark step runs as cancelling: %w", err)
 		}
 	}
 
-	// Filter values of desiredLabels where desiredLabels.key is empty
-	// HACK this is a workaround for the fact that the sqlc query sometimes returns null rows
-	filteredDesiredLabels := make([]map[string]interface{}, 0)
-	for _, label := range desiredLabels {
-		if label["key"] != "" && label["key"] != nil {
-			filteredDesiredLabels = append(filteredDesiredLabels, label)
-		}
+	err = tx.Commit(ctx)
+
+	defer s.bulkStepRunsAssigned(plan.StepRunIds, plan.WorkerIds)
+	defer s.bulkStepRunsUnassigned(plan.UnassignedStepRunIds)
+	defer s.bulkStepRunsRateLimited(plan.RateLimitedStepRuns)
+
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
-	return map[string]interface{}{
-		"desired_worker_labels": filteredDesiredLabels,
-		"actual_worker_labels":  workerLabels,
+	// // print debug information
+	// endingSlotsPerAction := make(map[string]int)
+	// for action, slots := range actionsToSlots {
+	// 	endingSlotsPerAction[action] = len(slots)
+	// }
+
+	// defer func() {
+	// 	// pretty-print json with 2 spaces
+	// 	debugInfo := debugInfo{
+	// 		UniqueActions:          uniqueActionsArr,
+	// 		TotalStepRuns:          len(queueItems),
+	// 		TotalStepRunsAssigned:  len(stepRunIds),
+	// 		TotalSlots:             len(slots),
+	// 		StartingSlotsPerAction: startingSlotsPerAction,
+	// 		EndingSlotsPerAction:   endingSlotsPerAction,
+	// 	}
+
+	// 	debugInfoBytes, err := json.MarshalIndent(debugInfo, "", "  ")
+
+	// 	if err != nil {
+	// 		s.l.Warn().Err(err).Msg("could not marshal debug info")
+	// 		return
+	// 	}
+
+	// 	s.l.Warn().Msg(string(debugInfoBytes))
+	// }()
+
+	// update the cache with the min queued id
+	for name, qiId := range plan.MinQueuedIds {
+		s.cachedMinQueuedIds.Store(getCacheName(tenantId, name), qiId)
 	}
+
+	// update the rate limit cache
+	for queue, times := range plan.RateLimitedQueues {
+		s.exhaustedRLCache.Set(tenantId, queue, times)
+	}
+
+	timedOutStepRunsStr := make([]string, len(plan.TimedOutStepRuns))
+
+	for i, id := range plan.TimedOutStepRuns {
+		timedOutStepRunsStr[i] = sqlchelpers.UUIDToStr(id)
+	}
+
+	return repository.QueueStepRunsResult{
+		Queued:             plan.QueuedStepRuns,
+		SchedulingTimedOut: timedOutStepRunsStr,
+		Continue:           plan.ShouldContinue,
+	}, nil
 }
 
 func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *repository.StepRunUpdateInfo, error) {
@@ -994,10 +1265,7 @@ func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, s
 
 		defer deferRollback(ctx, s.l, tx.Rollback)
 
-		innerStepRun, err := s.queries.GetStepRun(ctx, tx, dbsqlc.GetStepRunParams{
-			ID:       sqlchelpers.UUIDFromStr(stepRunId),
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		})
+		innerStepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
 
 		if err != nil {
 			return err
@@ -1055,10 +1323,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 
 		defer deferRollback(ctx, s.l, tx.Rollback)
 
-		innerStepRun, err := s.queries.GetStepRun(ctx, tx, dbsqlc.GetStepRunParams{
-			ID:       sqlchelpers.UUIDFromStr(stepRunId),
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		})
+		innerStepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
 
 		if err != nil {
 			return err
@@ -1309,17 +1574,14 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		defer deferRollback(ctx, s.l, tx.Rollback)
 
 		// get the step run and make sure it's still in pending
-		innerStepRun, err := s.queries.GetStepRun(ctx, tx, dbsqlc.GetStepRunParams{
-			ID:       sqlchelpers.UUIDFromStr(stepRunId),
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		})
+		innerStepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
 
 		if err != nil {
 			return err
 		}
 
 		// if the step run is not pending, we can't queue it, but we still want to update other input params
-		if innerStepRun.Status != dbsqlc.StepRunStatusPENDING {
+		if innerStepRun.SRStatus != dbsqlc.StepRunStatusPENDING {
 			updateParams.Status = dbsqlc.NullStepRunStatus{}
 
 			isNotPending = true
@@ -1523,10 +1785,42 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 	updateParams dbsqlc.UpdateStepRunParams,
 	createEventParams *dbsqlc.CreateStepRunEventParams,
 	updateJobRunLookupDataParams *dbsqlc.UpdateJobRunLookupDataWithStepRunParams,
-	innerStepRun *dbsqlc.StepRun,
+	innerStepRun *dbsqlc.GetStepRunForEngineRow,
 ) (*dbsqlc.GetStepRunForEngineRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "update-step-run-core") // nolint:ineffassign
 	defer span.End()
+
+	// if the status is set to pending assignment (and was not previously), insert into queue items
+	if updateParams.Status.Valid &&
+		innerStepRun.SRStatus != dbsqlc.StepRunStatusPENDINGASSIGNMENT &&
+		updateParams.Status.StepRunStatus == dbsqlc.StepRunStatusPENDINGASSIGNMENT {
+		priority := 1
+
+		// if the step run is a retry, set the priority to 4
+		if innerStepRun.SRRetryCount > 0 || (updateParams.RetryCount.Valid && updateParams.RetryCount.Int32 > 0) {
+			priority = 4
+		}
+
+		err := s.queries.CreateQueueItem(ctx, tx, dbsqlc.CreateQueueItemParams{
+			StepRunId:         innerStepRun.SRID,
+			StepId:            innerStepRun.StepId,
+			ActionId:          sqlchelpers.TextFromStr(innerStepRun.ActionId),
+			StepTimeout:       innerStepRun.StepTimeout,
+			ScheduleTimeoutAt: updateParams.ScheduleTimeoutAt,
+			Tenantid:          updateParams.Tenantid,
+			Queue:             innerStepRun.SRQueue,
+			Priority: pgtype.Int4{
+				Valid: true,
+				Int32: int32(priority),
+			},
+			Sticky:          innerStepRun.StickyStrategy,
+			DesiredWorkerId: innerStepRun.DesiredWorkerId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create queue item: %w", err)
+		}
+	}
 
 	updateStepRun, err := s.queries.UpdateStepRun(ctx, tx, updateParams)
 
@@ -1561,12 +1855,14 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 		}
 	}
 
+	// if we're updating the status, and the status update is not updated to RUNNING,
+	// release the semaphore slot (all other state transitions should release the semaphore slot)
 	if updateParams.Status.Valid &&
-		repository.IsFinalStepRunStatus(updateParams.Status.StepRunStatus) &&
 		// the semaphore has not already been released manually
 		!updateStepRun.SemaphoreReleased &&
+		updateStepRun.Status != dbsqlc.StepRunStatusRUNNING &&
 		// we must have actually updated the status to a different state
-		string(innerStepRun.Status) != string(updateStepRun.Status) {
+		string(innerStepRun.SRStatus) != string(updateStepRun.Status) {
 
 		_, err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
 			Steprunid: updateStepRun.ID,
@@ -1786,4 +2082,8 @@ func (s *stepRunEngineRepository) ClearStepRunPayloadData(ctx context.Context, t
 	}
 
 	return hasMore, nil
+}
+
+func getCacheName(tenantId, queue string) string {
+	return fmt.Sprintf("%s:%s", tenantId, queue)
 }

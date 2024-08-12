@@ -178,6 +178,152 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 	return err
 }
 
+const listRecentStepRunsForWorker = `-- name: ListRecentStepRunsForWorker :many
+SELECT
+    sr."id" AS "id",
+	s."actionId",
+    sr."status" AS "status",
+    sr."createdAt" AS "createdAt",
+    sr."updatedAt" AS "updatedAt",
+    sr."finishedAt" AS "finishedAt",
+    sr."cancelledAt" AS "cancelledAt",
+    sr."timeoutAt" AS "timeoutAt",
+    sr."startedAt" AS "startedAt",
+    jr."workflowRunId" AS "workflowRunId"
+FROM
+    "StepRun" sr
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+	"Step" s ON sr."stepId" = s."id"
+WHERE
+    sr."workerId" = $1::uuid
+    and sr."status" = ANY(cast($2::text[] as "StepRunStatus"[]))
+    AND sr."tenantId" = $3::uuid
+ORDER BY
+    sr."startedAt" DESC
+LIMIT 15
+`
+
+type ListRecentStepRunsForWorkerParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	Statuses []string    `json:"statuses"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+type ListRecentStepRunsForWorkerRow struct {
+	ID            pgtype.UUID      `json:"id"`
+	ActionId      string           `json:"actionId"`
+	Status        StepRunStatus    `json:"status"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	FinishedAt    pgtype.Timestamp `json:"finishedAt"`
+	CancelledAt   pgtype.Timestamp `json:"cancelledAt"`
+	TimeoutAt     pgtype.Timestamp `json:"timeoutAt"`
+	StartedAt     pgtype.Timestamp `json:"startedAt"`
+	WorkflowRunId pgtype.UUID      `json:"workflowRunId"`
+}
+
+func (q *Queries) ListRecentStepRunsForWorker(ctx context.Context, db DBTX, arg ListRecentStepRunsForWorkerParams) ([]*ListRecentStepRunsForWorkerRow, error) {
+	rows, err := db.Query(ctx, listRecentStepRunsForWorker, arg.Workerid, arg.Statuses, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListRecentStepRunsForWorkerRow
+	for rows.Next() {
+		var i ListRecentStepRunsForWorkerRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ActionId,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.FinishedAt,
+			&i.CancelledAt,
+			&i.TimeoutAt,
+			&i.StartedAt,
+			&i.WorkflowRunId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
+SELECT
+    wss."id" as "slot",
+    sr."id" AS "stepRunId",
+    sr."status" AS "status",
+    s."actionId",
+    sr."timeoutAt" AS "timeoutAt",
+    sr."startedAt" AS "startedAt",
+    jr."workflowRunId" AS "workflowRunId"
+FROM
+    "WorkerSemaphoreSlot" wss
+JOIN
+    "Worker" w ON wss."workerId" = w."id"
+LEFT JOIN
+    "StepRun" sr ON wss."stepRunId" = sr."id"
+LEFT JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+LEFT JOIN
+	"Step" s ON sr."stepId" = s."id"
+WHERE
+    wss."workerId" = $1::uuid AND
+    w."tenantId" = $2::uuid
+ORDER BY
+    wss."id" ASC
+`
+
+type ListSemaphoreSlotsWithStateForWorkerParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+type ListSemaphoreSlotsWithStateForWorkerRow struct {
+	Slot          pgtype.UUID       `json:"slot"`
+	StepRunId     pgtype.UUID       `json:"stepRunId"`
+	Status        NullStepRunStatus `json:"status"`
+	ActionId      pgtype.Text       `json:"actionId"`
+	TimeoutAt     pgtype.Timestamp  `json:"timeoutAt"`
+	StartedAt     pgtype.Timestamp  `json:"startedAt"`
+	WorkflowRunId pgtype.UUID       `json:"workflowRunId"`
+}
+
+func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {
+	rows, err := db.Query(ctx, listSemaphoreSlotsWithStateForWorker, arg.Workerid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListSemaphoreSlotsWithStateForWorkerRow
+	for rows.Next() {
+		var i ListSemaphoreSlotsWithStateForWorkerRow
+		if err := rows.Scan(
+			&i.Slot,
+			&i.StepRunId,
+			&i.Status,
+			&i.ActionId,
+			&i.TimeoutAt,
+			&i.StartedAt,
+			&i.WorkflowRunId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkerLabels = `-- name: ListWorkerLabels :many
 SELECT
     "id",
@@ -313,17 +459,23 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 
 const resolveWorkerSemaphoreSlots = `-- name: ResolveWorkerSemaphoreSlots :one
 WITH to_count AS (
-    SELECT wss."id"
-    FROM "WorkerSemaphoreSlot" wss
-    JOIN "StepRun" sr ON wss."stepRunId" = sr."id"
-        AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
-        AND sr."tenantId" = $1::uuid
-    ORDER BY RANDOM()
-    LIMIT 11
-    FOR UPDATE SKIP LOCKED
+    SELECT
+        wss."id"
+    FROM
+        "Worker" w
+    LEFT JOIN
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NOT NULL
+    JOIN "StepRun" sr ON wss."stepRunId" = sr."id" AND sr."status" NOT IN ('RUNNING', 'ASSIGNED') AND sr."tenantId" = $1::uuid
+    WHERE
+        w."tenantId" = $1::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        -- necessary because isActive is set to false immediately when the stream closes
+        AND w."isActive" = true
+        AND w."isPaused" = false
+    LIMIT 21
 ),
 to_resolve AS (
-    SELECT id FROM to_count LIMIT 10
+    SELECT id FROM to_count LIMIT 20
 ),
 update_result AS (
     UPDATE "WorkerSemaphoreSlot" wss
@@ -444,6 +596,42 @@ type UpdateWorkerActiveStatusParams struct {
 
 func (q *Queries) UpdateWorkerActiveStatus(ctx context.Context, db DBTX, arg UpdateWorkerActiveStatusParams) (*Worker, error) {
 	row := db.QueryRow(ctx, updateWorkerActiveStatus, arg.Isactive, arg.LastListenerEstablished, arg.ID)
+	var i Worker
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.LastHeartbeatAt,
+		&i.Name,
+		&i.DispatcherId,
+		&i.MaxRuns,
+		&i.IsActive,
+		&i.LastListenerEstablished,
+		&i.IsPaused,
+	)
+	return &i, err
+}
+
+const updateWorkerHeartbeat = `-- name: UpdateWorkerHeartbeat :one
+UPDATE
+    "Worker"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "lastHeartbeatAt" = $1::timestamp
+WHERE
+    "id" = $2::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused"
+`
+
+type UpdateWorkerHeartbeatParams struct {
+	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
+	ID              pgtype.UUID      `json:"id"`
+}
+
+func (q *Queries) UpdateWorkerHeartbeat(ctx context.Context, db DBTX, arg UpdateWorkerHeartbeatParams) (*Worker, error) {
+	row := db.QueryRow(ctx, updateWorkerHeartbeat, arg.LastHeartbeatAt, arg.ID)
 	var i Worker
 	err := row.Scan(
 		&i.ID,

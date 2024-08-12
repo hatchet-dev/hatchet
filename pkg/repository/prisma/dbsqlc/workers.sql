@@ -36,6 +36,58 @@ INSERT INTO "WorkerSemaphoreSlot" ("id", "workerId")
 SELECT gen_random_uuid(), @workerId::uuid
 FROM generate_series(1, sqlc.narg('maxRuns')::int);
 
+
+-- name: ListSemaphoreSlotsWithStateForWorker :many
+SELECT
+    wss."id" as "slot",
+    sr."id" AS "stepRunId",
+    sr."status" AS "status",
+    s."actionId",
+    sr."timeoutAt" AS "timeoutAt",
+    sr."startedAt" AS "startedAt",
+    jr."workflowRunId" AS "workflowRunId"
+FROM
+    "WorkerSemaphoreSlot" wss
+JOIN
+    "Worker" w ON wss."workerId" = w."id"
+LEFT JOIN
+    "StepRun" sr ON wss."stepRunId" = sr."id"
+LEFT JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+LEFT JOIN
+	"Step" s ON sr."stepId" = s."id"
+WHERE
+    wss."workerId" = @workerId::uuid AND
+    w."tenantId" = @tenantId::uuid
+ORDER BY
+    wss."id" ASC;
+
+-- name: ListRecentStepRunsForWorker :many
+SELECT
+    sr."id" AS "id",
+	s."actionId",
+    sr."status" AS "status",
+    sr."createdAt" AS "createdAt",
+    sr."updatedAt" AS "updatedAt",
+    sr."finishedAt" AS "finishedAt",
+    sr."cancelledAt" AS "cancelledAt",
+    sr."timeoutAt" AS "timeoutAt",
+    sr."startedAt" AS "startedAt",
+    jr."workflowRunId" AS "workflowRunId"
+FROM
+    "StepRun" sr
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+	"Step" s ON sr."stepId" = s."id"
+WHERE
+    sr."workerId" = @workerId::uuid
+    and sr."status" = ANY(cast(sqlc.narg('statuses')::text[] as "StepRunStatus"[]))
+    AND sr."tenantId" = @tenantId::uuid
+ORDER BY
+    sr."startedAt" DESC
+LIMIT 15;
+
 -- name: GetWorkerForEngine :one
 SELECT
     w."id" AS "id",
@@ -71,6 +123,16 @@ INSERT INTO "Worker" (
     sqlc.narg('maxRuns')::int
 ) RETURNING *;
 
+-- name: UpdateWorkerHeartbeat :one
+UPDATE
+    "Worker"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "lastHeartbeatAt" = sqlc.narg('lastHeartbeatAt')::timestamp
+WHERE
+    "id" = @id::uuid
+RETURNING *;
+
 -- name: UpdateWorker :one
 UPDATE
     "Worker"
@@ -87,17 +149,23 @@ RETURNING *;
 
 -- name: ResolveWorkerSemaphoreSlots :one
 WITH to_count AS (
-    SELECT wss."id"
-    FROM "WorkerSemaphoreSlot" wss
-    JOIN "StepRun" sr ON wss."stepRunId" = sr."id"
-        AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
-        AND sr."tenantId" = @tenantId::uuid
-    ORDER BY RANDOM()
-    LIMIT 11
-    FOR UPDATE SKIP LOCKED
+    SELECT
+        wss."id"
+    FROM
+        "Worker" w
+    LEFT JOIN
+        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NOT NULL
+    JOIN "StepRun" sr ON wss."stepRunId" = sr."id" AND sr."status" NOT IN ('RUNNING', 'ASSIGNED') AND sr."tenantId" = @tenantId::uuid
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        -- necessary because isActive is set to false immediately when the stream closes
+        AND w."isActive" = true
+        AND w."isPaused" = false
+    LIMIT 21
 ),
 to_resolve AS (
-    SELECT * FROM to_count LIMIT 10
+    SELECT * FROM to_count LIMIT 20
 ),
 update_result AS (
     UPDATE "WorkerSemaphoreSlot" wss
