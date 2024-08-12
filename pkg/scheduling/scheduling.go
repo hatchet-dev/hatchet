@@ -159,17 +159,19 @@ func GeneratePlan(
 	}
 
 	// we're looking to see if there's a single queue where all items have been properly scheduled
-	if len(drainedQueues) > 0 {
-		for actionId := range plan.unassignedActions {
-			for _, worker := range workers {
-				if worker.CanAssign(actionId, nil) {
-					plan.ShouldContinue = true
-					break
+	if len(drainedQueues) > 0 && len(workers) > 0 {
+		for _, qi := range queueItems {
+			if _, ok := drainedQueues[qi.Queue]; ok {
+				// if the queue is drained then we check if we can assign the action to any worker
+				for _, workers := range workers {
+					// if we can assign the action to any worker then we should continue and return early
+					if workers.CanAssign(qi.ActionId.String, nil) {
+						plan.ShouldContinue = true
+						return plan, nil
+					}
 				}
 			}
-			if plan.ShouldContinue {
-				break
-			}
+
 		}
 	}
 
