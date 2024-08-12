@@ -240,7 +240,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
-	if sc.HasService("retention") {
+	if sc.HasService("retention") && sc.EnableDataRetention {
 		rc, err := retention.New(
 			retention.WithAlerter(sc.Alerter),
 			retention.WithRepository(sc.EngineRepository),
