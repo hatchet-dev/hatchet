@@ -12,6 +12,10 @@ import (
 func (t *FileService) FileDataGet(ctx echo.Context, request gen.FileDataGetRequestObject) (gen.FileDataGetResponseObject, error) {
 	file := ctx.Get("file").(*dbsqlc.File)
 
+	if !t.config.BlobStorage.Enabled() {
+		return nil, fmt.Errorf("blob storage is not enabled")
+	}
+
 	fileContent, err := t.blob_storage.GetObject(ctx.Request().Context(), file.FileName)
 
 	if err != nil {
