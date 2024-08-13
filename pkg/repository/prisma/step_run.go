@@ -2110,7 +2110,6 @@ func removeDuplicates(qis []*scheduling.QueueItemWithOrder) ([]*scheduling.Queue
 
 	for _, v := range qis {
 		stepRunId := sqlchelpers.UUIDToStr(v.StepRunId)
-		fmt.Println(time.Now().Format(time.RFC3339Nano), "CHECKING", stepRunId)
 		if encountered[stepRunId] {
 			duplicates = append(duplicates, v)
 			continue
