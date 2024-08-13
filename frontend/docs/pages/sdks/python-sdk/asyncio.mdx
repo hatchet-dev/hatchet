@@ -2,15 +2,19 @@
 
 Hatchet's Python SDK makes heavy use of AsyncIO under the hood to manage persistent connections,
 listeners, the runners for each workflow, and many other things! AsyncIO is a form of concurrency
-that makes use of cooperative coprocessing. This means that when blocking non-async-safe functions
-are added to the mix, it can cause issues and degrade the performance of the SDK.
+that makes use of [cooperative multitasking](https://en.wikipedia.org/wiki/Cooperative_multitasking).
+This means that when blocking non-async-safe functions are added to the mix, it can cause issues and
+degrade the performance of the SDK. While using async methods is optional with Hatchet, using async
+methods incorrectly can cause issues and degrade the performance of the SDK.
 
 ### Using the `sync_to_async` Decorator
 
 To help out with mitigating any issues with blocking that may cause slow downs, you can make use of
 the `sync_to_async` decorator available through the Hatchet SDK.
 
-- Can be used as a decorator or an inline wrapper
+- Can be utilized in two ways:
+  - as a decorator to wrap simple or complex functions you've written
+  - as an inline wrapper to wrap external library calls that you're unsure about
 - Accepts both synchronous and asynchronous functions
 - Accepts a `loop` and an `executor` keyword argument that lets you specify your own loop or executor
 
