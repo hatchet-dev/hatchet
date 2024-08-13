@@ -99,7 +99,30 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 }
 
 const bulkAssignStepRunsToWorkers = `-- name: BulkAssignStepRunsToWorkers :many
-WITH updated_step_runs AS (
+WITH already_assigned_step_runs AS (
+    SELECT
+        input."id",
+        wss."id" AS "slotId"
+    FROM
+        (
+            SELECT
+                unnest($1::uuid[]) AS "id"
+        ) AS input
+    JOIN
+        "WorkerSemaphoreSlot" wss ON input."id" = wss."stepRunId"
+), already_assigned_slots AS (
+    SELECT
+        wss."id"
+    FROM
+        (
+            SELECT
+                unnest($2::uuid[]) AS "id"
+        ) AS input
+    JOIN
+        "WorkerSemaphoreSlot" wss ON input."id" = wss."id"
+    WHERE
+        wss."stepRunId" IS NOT NULL
+), updated_step_runs AS (
     UPDATE
         "StepRun" sr
     SET
@@ -110,38 +133,47 @@ WITH updated_step_runs AS (
         "timeoutAt" = CURRENT_TIMESTAMP + convert_duration_to_interval(input."stepTimeout")
     FROM (
         SELECT
-            unnest($2::uuid[]) AS "id",
-            unnest($3::text[]) AS "stepTimeout",
-            unnest($4::uuid[]) AS "workerId"
+            "id",
+            "stepTimeout",
+            "workerId",
+            "slotId"
+        FROM
+            (
+                SELECT
+                    unnest($1::uuid[]) AS "id",
+                    unnest($3::text[]) AS "stepTimeout",
+                    unnest($4::uuid[]) AS "workerId",
+                    unnest($2::uuid[]) AS "slotId"
+            ) AS subquery
+        WHERE
+            "id" NOT IN (SELECT "id" FROM already_assigned_step_runs)
+            AND "slotId" NOT IN (SELECT "id" FROM already_assigned_slots)
     ) AS input
     WHERE
         sr."id" = input."id"
+    RETURNING input."id", input."slotId"
 )
 UPDATE
     "WorkerSemaphoreSlot" wss
 SET
-    "stepRunId" = input."stepRunId"
-FROM (
-    SELECT
-        unnest($1::uuid[]) AS "id",
-        unnest($2::uuid[]) AS "stepRunId"
-) AS input
+    "stepRunId" = updated_step_runs."id"
+FROM updated_step_runs
 WHERE
-    wss."id" = input."id"
+    wss."id" = updated_step_runs."slotId"
 RETURNING wss."id"
 `
 
 type BulkAssignStepRunsToWorkersParams struct {
-	Slotids         []pgtype.UUID `json:"slotids"`
 	Steprunids      []pgtype.UUID `json:"steprunids"`
+	Slotids         []pgtype.UUID `json:"slotids"`
 	Stepruntimeouts []string      `json:"stepruntimeouts"`
 	Workerids       []pgtype.UUID `json:"workerids"`
 }
 
 func (q *Queries) BulkAssignStepRunsToWorkers(ctx context.Context, db DBTX, arg BulkAssignStepRunsToWorkersParams) ([]pgtype.UUID, error) {
 	rows, err := db.Query(ctx, bulkAssignStepRunsToWorkers,
-		arg.Slotids,
 		arg.Steprunids,
+		arg.Slotids,
 		arg.Stepruntimeouts,
 		arg.Workerids,
 	)

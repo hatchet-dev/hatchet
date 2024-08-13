@@ -965,6 +965,10 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		return emptyRes, nil
 	}
 
+	var duplicates []*scheduling.QueueItemWithOrder
+
+	queueItems, duplicates = removeDuplicates(queueItems)
+
 	// sort the queue items by Order from least to greatest, then by queue id
 	sort.Slice(queueItems, func(i, j int) bool {
 		// sort by priority, then by order, then by id
@@ -1163,7 +1167,17 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		return emptyRes, fmt.Errorf("could not bulk assign step runs to workers: %w", err)
 	}
 
-	err = s.queries.BulkQueueItems(ctx, tx, plan.QueuedItems)
+	popItems := plan.QueuedItems
+
+	// we'd like to remove duplicates from the queue items as well
+	for _, item := range duplicates {
+		// print a warning for duplicates
+		s.l.Warn().Msgf("duplicate queue item: %d for step run %s", item.QueueItem.ID, sqlchelpers.UUIDToStr(item.QueueItem.StepRunId))
+
+		popItems = append(popItems, item.QueueItem.ID)
+	}
+
+	err = s.queries.BulkQueueItems(ctx, tx, popItems)
 
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not bulk queue items: %w", err)
@@ -2086,4 +2100,24 @@ func (s *stepRunEngineRepository) ClearStepRunPayloadData(ctx context.Context, t
 
 func getCacheName(tenantId, queue string) string {
 	return fmt.Sprintf("%s:%s", tenantId, queue)
+}
+
+// removes duplicates from a slice of queue items by step run id
+func removeDuplicates(qis []*scheduling.QueueItemWithOrder) ([]*scheduling.QueueItemWithOrder, []*scheduling.QueueItemWithOrder) {
+	encountered := map[string]bool{}
+	result := []*scheduling.QueueItemWithOrder{}
+	duplicates := []*scheduling.QueueItemWithOrder{}
+
+	for _, v := range qis {
+		stepRunId := sqlchelpers.UUIDToStr(v.StepRunId)
+		if encountered[stepRunId] {
+			duplicates = append(duplicates, v)
+			continue
+		}
+
+		encountered[stepRunId] = true
+		result = append(result, v)
+	}
+
+	return result, duplicates
 }

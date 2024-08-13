@@ -91,6 +91,7 @@ const (
 const (
 	StepRunStatusASSIGNED          StepRunStatus = "ASSIGNED"
 	StepRunStatusCANCELLED         StepRunStatus = "CANCELLED"
+	StepRunStatusCANCELLING        StepRunStatus = "CANCELLING"
 	StepRunStatusFAILED            StepRunStatus = "FAILED"
 	StepRunStatusPENDING           StepRunStatus = "PENDING"
 	StepRunStatusPENDINGASSIGNMENT StepRunStatus = "PENDING_ASSIGNMENT"
