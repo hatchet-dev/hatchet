@@ -17,13 +17,13 @@ CREATE TYPE "LimitResource" AS ENUM ('WORKFLOW_RUN', 'EVENT', 'WORKER', 'CRON', 
 CREATE TYPE "LogLineLevel" AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
 
 -- CreateEnum
-CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER');
+CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER', 'SENT_TO_WORKER');
 
 -- CreateEnum
 CREATE TYPE "StepRunEventSeverity" AS ENUM ('INFO', 'WARNING', 'CRITICAL');
 
 -- CreateEnum
-CREATE TYPE "StepRunStatus" AS ENUM ('PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
+CREATE TYPE "StepRunStatus" AS ENUM ('PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING');
 
 -- CreateEnum
 CREATE TYPE "StickyStrategy" AS ENUM ('SOFT', 'HARD');
@@ -199,6 +199,33 @@ CREATE TABLE "LogLine" (
 );
 
 -- CreateTable
+CREATE TABLE "Queue" (
+    "id" BIGSERIAL NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+
+    CONSTRAINT "Queue_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "QueueItem" (
+    "id" BIGSERIAL NOT NULL,
+    "stepRunId" UUID,
+    "stepId" UUID,
+    "actionId" TEXT,
+    "scheduleTimeoutAt" TIMESTAMP(3),
+    "stepTimeout" TEXT,
+    "priority" INTEGER NOT NULL DEFAULT 1,
+    "isQueued" BOOLEAN NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "queue" TEXT NOT NULL,
+    "sticky" "StickyStrategy",
+    "desiredWorkerId" UUID,
+
+    CONSTRAINT "QueueItem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "RateLimit" (
     "tenantId" UUID NOT NULL,
     "key" TEXT NOT NULL,
@@ -326,6 +353,7 @@ CREATE TABLE "StepRun" (
     "gitRepoBranch" TEXT,
     "retryCount" INTEGER NOT NULL DEFAULT 0,
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
+    "queue" TEXT NOT NULL DEFAULT 'default',
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );
@@ -884,6 +912,12 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_key" ON "JobRunLookupData"("jobRu
 
 -- CreateIndex
 CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupData"("jobRunId" ASC, "tenantId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);
+
+-- CreateIndex
+CREATE INDEX "QueueItem_isQueued_priority_tenantId_queue_id_idx" ON "QueueItem"("isQueued" ASC, "priority" ASC, "tenantId" ASC, "queue" ASC, "id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RateLimit_tenantId_key_key" ON "RateLimit"("tenantId" ASC, "key" ASC);

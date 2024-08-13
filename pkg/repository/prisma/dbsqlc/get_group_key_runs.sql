@@ -239,6 +239,7 @@ WITH selected_ticker AS (
         "Ticker" t
     WHERE
         t."lastHeartbeatAt" > NOW() - INTERVAL '6 seconds'
+        AND t."isActive" = true
     ORDER BY random()
     LIMIT 1
 )

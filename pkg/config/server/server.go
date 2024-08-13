@@ -39,6 +39,8 @@ type ServerConfigFile struct {
 
 	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"health\", \"ticker\", \"grpc\", \"eventscontroller\", \"queue\", \"webhookscontroller\", \"heartbeater\", \"retention\"]"`
 
+	EnableDataRetention bool `mapstructure:"enableDataRetention" json:"enableDataRetention,omitempty" default:"true"`
+
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
@@ -86,6 +88,9 @@ type ConfigFileRuntime struct {
 
 	// RequeueLimit is the number of times a message will be requeued in each attempt
 	RequeueLimit int `mapstructure:"requeueLimit" json:"requeueLimit,omitempty" default:"100"`
+
+	// QueueLimit is the limit of items to return from a single queue at a time
+	SingleQueueLimit int `mapstructure:"singleQueueLimit" json:"singleQueueLimit,omitempty" default:"100"`
 
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
@@ -326,6 +331,8 @@ type ServerConfig struct {
 
 	Services []string
 
+	EnableDataRetention bool
+
 	Namespaces []string
 
 	MessageQueue msgqueue.MessageQueue
@@ -370,6 +377,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
+	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
 	_ = v.BindEnv("runtime.allowSignup", "SERVER_ALLOW_SIGNUP")
 	_ = v.BindEnv("runtime.allowInvites", "SERVER_ALLOW_INVITES")
@@ -456,6 +464,7 @@ func BindAllEnv(v *viper.Viper) {
 	// throughput options
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
 	_ = v.BindEnv("runtime.requeueLimit", "SERVER_REQUEUE_LIMIT")
+	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 
 	// tls options
 	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")

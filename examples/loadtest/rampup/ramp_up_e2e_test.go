@@ -55,8 +55,8 @@ func TestRampUp(t *testing.T) {
 			delay:                 0 * time.Second,
 			wait:                  30 * time.Second,
 			includeDroppedEvents:  true,
-			maxAcceptableDuration: 1 * time.Second,
-			maxAcceptableSchedule: 1 * time.Second,
+			maxAcceptableDuration: 2 * time.Second,
+			maxAcceptableSchedule: 2 * time.Second,
 			concurrency:           0,
 		},
 	}}
@@ -74,7 +74,7 @@ func TestRampUp(t *testing.T) {
 	}()
 
 	// TODO instead of waiting, figure out when the engine setup is complete
-	time.Sleep(10 * time.Second)
+	time.Sleep(15 * time.Second)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

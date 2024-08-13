@@ -160,7 +160,7 @@ model Tenant {
   name String
   slug String @unique
 
-  // wheather the user has opted out of analytics
+  // whether the user has opted out of analytics
   analyticsOptOut Boolean @default(false)
 
   // the parent controller partition, if exists
@@ -925,7 +925,7 @@ model WorkflowRun {
   // a user-defined key for this workflow run
   childKey String?
 
-  // (optional) additonal metadata for the workflow run
+  // (optional) additional metadata for the workflow run
   additionalMetadata Json?
 
   @@unique([parentId, parentStepRunId, childKey])
@@ -1150,6 +1150,7 @@ enum StepRunStatus {
 
   // running states
   RUNNING
+  CANCELLING
 
   // final states
   SUCCEEDED
@@ -1183,6 +1184,8 @@ model StepRun {
   parents StepRun[] @relation("StepRunOrder")
 
   order BigInt @default(autoincrement()) @db.BigInt
+
+  queue String @default("default")
 
   // the worker assigned to this job
   worker   Worker? @relation(fields: [workerId], references: [id])
@@ -1266,11 +1269,43 @@ model StepRun {
   @@index([id, tenantId])
   // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
   @@index([jobRunId, tenantId, order])
-  // index for ListStepRunsToRequeue, ListStepRunsToReassign
+  // index for ListStepRunsToReassign
   @@index([jobRunId, status, tenantId])
   // index for PollStepRuns
   @@index([tenantId, status, timeoutAt])
   @@index([deletedAt])
+}
+
+model Queue {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  tenantId String @db.Uuid
+  name     String
+
+  @@unique([tenantId, name])
+}
+
+model QueueItem {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  // optional params which are specific to step runs
+  stepRunId         String?   @db.Uuid
+  stepId            String?   @db.Uuid
+  actionId          String?
+  scheduleTimeoutAt DateTime?
+  stepTimeout       String?
+
+  // ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);
+  priority Int     @default(1) // custom migration to set this between 1 and 4
+  isQueued Boolean
+  tenantId String  @db.Uuid
+  queue    String
+
+  // sticky strategy for the queue item to assign steps to the same worker
+  sticky          StickyStrategy?
+  desiredWorkerId String?         @db.Uuid
+
+  @@index([isQueued, priority, tenantId, queue, id])
 }
 
 enum StepRunEventReason {
@@ -1281,6 +1316,7 @@ enum StepRunEventReason {
   REASSIGNED
 
   ASSIGNED
+  SENT_TO_WORKER
   STARTED
   FINISHED
   FAILED

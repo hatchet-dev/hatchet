@@ -166,12 +166,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		return nil, nil
 	}
 
-	if _, err := t.initQueue(sub, msgqueue.SCHEDULING_QUEUE); err != nil {
-		t.l.Debug().Msgf("error initializing queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
 	// create publisher go func
 	cleanup1 := t.startPublishing()
 
@@ -316,7 +310,7 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 				select {
 				case <-ctx.Done():
-					break
+					return
 				case msg := <-t.msgs:
 					go func(msg *msgWithQueue) {
 						body, err := json.Marshal(msg)
@@ -476,7 +470,7 @@ func (t *MessageQueueImpl) subscribe(
 						}
 
 						if err := json.Unmarshal(rabbitMsg.Body, msg); err != nil {
-							t.l.Error().Msgf("error unmarshaling message: %v", err)
+							t.l.Error().Msgf("error unmarshalling message: %v", err)
 
 							// reject this message
 							if err := rabbitMsg.Reject(false); err != nil {

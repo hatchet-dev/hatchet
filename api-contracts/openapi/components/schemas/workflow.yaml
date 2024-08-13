@@ -17,8 +17,6 @@ Workflow:
       items:
         $ref: "#/WorkflowTag"
       description: The tags of the workflow.
-    lastRun:
-      $ref: "./_index.yaml#/WorkflowRun"
     jobs:
       type: array
       items:
