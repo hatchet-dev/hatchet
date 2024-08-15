@@ -76,7 +76,7 @@ WITH getGroupKeyRunsToTimeout AS (
     FROM
         "GetGroupKeyRun" as getGroupKeyRun
     WHERE
-        ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
+        "status" = ANY(ARRAY['RUNNING', 'ASSIGNED']::"StepRunStatus"[])
         AND "timeoutAt" < NOW()
         AND "deletedAt" IS NULL
         AND (
