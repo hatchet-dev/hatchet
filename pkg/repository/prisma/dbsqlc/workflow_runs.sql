@@ -2,68 +2,71 @@
 WITH runs AS (
     SELECT runs."id", runs."createdAt"
     FROM
-    "WorkflowRun" as runs
-LEFT JOIN
-    "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
-LEFT JOIN
-    "Event" as events ON runTriggers."eventId" = events."id"
-LEFT JOIN
-    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
-LEFT JOIN
-    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
-WHERE
-    runs."tenantId" = $1 AND
-    runs."deletedAt" IS NULL AND
-    workflowVersion."deletedAt" IS NULL AND
-    workflow."deletedAt" IS NULL AND
-    (
-        sqlc.narg('workflowVersionId')::uuid IS NULL OR
-        workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
-    ) AND
-    (
-        sqlc.narg('workflowId')::uuid IS NULL OR
-        workflow."id" = sqlc.narg('workflowId')::uuid
-    ) AND
-    (
-        sqlc.narg('ids')::uuid[] IS NULL OR
-        runs."id" = ANY(sqlc.narg('ids')::uuid[])
-    ) AND
-    (
-        sqlc.narg('parentId')::uuid IS NULL OR
-        runs."parentId" = sqlc.narg('parentId')::uuid
-    ) AND
-    (
-        sqlc.narg('parentStepRunId')::uuid IS NULL OR
-        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
-    ) AND
-    (
-        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
-        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
-    ) AND
-    (
-        sqlc.narg('eventId')::uuid IS NULL OR
-        events."id" = sqlc.narg('eventId')::uuid
-    ) AND
-    (
-        sqlc.narg('groupKey')::text IS NULL OR
-        runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
-    ) AND
-    (
-        sqlc.narg('statuses')::text[] IS NULL OR
-        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
-    ) AND
-    (
-        sqlc.narg('kinds')::text[] IS NULL OR
-        workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
-    ) AND
-    (
-        sqlc.narg('createdAfter')::timestamp IS NULL OR
-        runs."createdAt" > sqlc.narg('createdAfter')::timestamp
-    ) AND
-    (
-        sqlc.narg('finishedAfter')::timestamp IS NULL OR
-        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
-    )
+        "WorkflowRun" as runs
+    LEFT JOIN
+        "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
+    LEFT JOIN
+        "Event" as events ON
+            runTriggers."eventId" = events."id"
+            AND (
+                sqlc.narg('eventId')::uuid IS NULL OR
+                events."id" = sqlc.narg('eventId')::uuid
+            )
+    LEFT JOIN
+        "WorkflowVersion" as workflowVersion ON
+            runs."workflowVersionId" = workflowVersion."id"
+            AND (
+                sqlc.narg('workflowVersionId')::uuid IS NULL OR
+                workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
+            )
+            AND (
+                sqlc.narg('kinds')::text[] IS NULL OR
+                workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
+            )
+    LEFT JOIN
+        "Workflow" as workflow ON
+            workflowVersion."workflowId" = workflow."id"
+            AND (
+                sqlc.narg('workflowId')::uuid IS NULL OR
+                workflow."id" = sqlc.narg('workflowId')::uuid
+            )
+    WHERE
+        runs."tenantId" = $1 AND
+        runs."deletedAt" IS NULL AND
+        workflowVersion."deletedAt" IS NULL AND
+        workflow."deletedAt" IS NULL AND
+        (
+            sqlc.narg('ids')::uuid[] IS NULL OR
+            runs."id" = ANY(sqlc.narg('ids')::uuid[])
+        ) AND
+        (
+            sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+            runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
+        ) AND
+        (
+            sqlc.narg('parentId')::uuid IS NULL OR
+            runs."parentId" = sqlc.narg('parentId')::uuid
+        ) AND
+        (
+            sqlc.narg('parentStepRunId')::uuid IS NULL OR
+            runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+        ) AND
+        (
+            sqlc.narg('groupKey')::text IS NULL OR
+            runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
+        ) AND
+        (
+            sqlc.narg('statuses')::text[] IS NULL OR
+            "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+        ) AND
+        (
+            sqlc.narg('createdAfter')::timestamp IS NULL OR
+            runs."createdAt" > sqlc.narg('createdAfter')::timestamp
+        ) AND
+        (
+            sqlc.narg('finishedAfter')::timestamp IS NULL OR
+            runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
+        )
     ORDER BY
         case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
         case when @orderBy = 'createdAt DESC' then runs."createdAt" END DESC,
@@ -132,24 +135,35 @@ FROM
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
 LEFT JOIN
-    "Event" as events ON runTriggers."eventId" = events."id"
-LEFT JOIN
-    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
-LEFT JOIN
-    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+    "Event" as events ON
+        runTriggers."eventId" = events."id"
+        AND (
+            sqlc.narg('eventId')::uuid IS NULL OR
+            events."id" = sqlc.narg('eventId')::uuid
+        )
+JOIN
+    "WorkflowVersion" as workflowVersion ON
+        runs."workflowVersionId" = workflowVersion."id"
+        AND (
+            sqlc.narg('workflowVersionId')::uuid IS NULL OR
+            workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
+        )
+        AND (
+            sqlc.narg('kinds')::text[] IS NULL OR
+            workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
+        )
+JOIN
+    "Workflow" as workflow ON
+        workflowVersion."workflowId" = workflow."id"
+        AND (
+            sqlc.narg('workflowId')::uuid IS NULL OR
+            workflow."id" = sqlc.narg('workflowId')::uuid
+        )
 WHERE
     runs."tenantId" = $1 AND
     runs."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
-    (
-        sqlc.narg('workflowVersionId')::uuid IS NULL OR
-        workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
-    ) AND
-    (
-        sqlc.narg('workflowId')::uuid IS NULL OR
-        workflow."id" = sqlc.narg('workflowId')::uuid
-    ) AND
     (
         sqlc.narg('ids')::uuid[] IS NULL OR
         runs."id" = ANY(sqlc.narg('ids')::uuid[])
@@ -167,20 +181,12 @@ WHERE
         runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
     ) AND
     (
-        sqlc.narg('eventId')::uuid IS NULL OR
-        events."id" = sqlc.narg('eventId')::uuid
-    ) AND
-    (
         sqlc.narg('groupKey')::text IS NULL OR
         runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
     ) AND
     (
         sqlc.narg('statuses')::text[] IS NULL OR
         "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
-    ) AND
-    (
-        sqlc.narg('kinds')::text[] IS NULL OR
-        workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
     ) AND
     (
         sqlc.narg('createdAfter')::timestamp IS NULL OR

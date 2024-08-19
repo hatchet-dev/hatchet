@@ -15,68 +15,71 @@ const countWorkflowRuns = `-- name: CountWorkflowRuns :one
 WITH runs AS (
     SELECT runs."id", runs."createdAt"
     FROM
-    "WorkflowRun" as runs
-LEFT JOIN
-    "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
-LEFT JOIN
-    "Event" as events ON runTriggers."eventId" = events."id"
-LEFT JOIN
-    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
-LEFT JOIN
-    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
-WHERE
-    runs."tenantId" = $1 AND
-    runs."deletedAt" IS NULL AND
-    workflowVersion."deletedAt" IS NULL AND
-    workflow."deletedAt" IS NULL AND
-    (
-        $2::uuid IS NULL OR
-        workflowVersion."id" = $2::uuid
-    ) AND
-    (
-        $3::uuid IS NULL OR
-        workflow."id" = $3::uuid
-    ) AND
-    (
-        $4::uuid[] IS NULL OR
-        runs."id" = ANY($4::uuid[])
-    ) AND
-    (
-        $5::uuid IS NULL OR
-        runs."parentId" = $5::uuid
-    ) AND
-    (
-        $6::uuid IS NULL OR
-        runs."parentStepRunId" = $6::uuid
-    ) AND
-    (
-        $7::jsonb IS NULL OR
-        runs."additionalMetadata" @> $7::jsonb
-    ) AND
-    (
-        $8::uuid IS NULL OR
-        events."id" = $8::uuid
-    ) AND
-    (
-        $9::text IS NULL OR
-        runs."concurrencyGroupId" = $9::text
-    ) AND
-    (
-        $10::text[] IS NULL OR
-        "status" = ANY(cast($10::text[] as "WorkflowRunStatus"[]))
-    ) AND
-    (
-        $11::text[] IS NULL OR
-        workflowVersion."kind" = ANY(cast($11::text[] as "WorkflowKind"[]))
-    ) AND
-    (
-        $12::timestamp IS NULL OR
-        runs."createdAt" > $12::timestamp
-    ) AND
-    (
-        $13::timestamp IS NULL OR
-        runs."finishedAt" > $13::timestamp
-    )
+        "WorkflowRun" as runs
+    LEFT JOIN
+        "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
+    LEFT JOIN
+        "Event" as events ON
+            runTriggers."eventId" = events."id"
+            AND (
+                $2::uuid IS NULL OR
+                events."id" = $2::uuid
+            )
+    LEFT JOIN
+        "WorkflowVersion" as workflowVersion ON
+            runs."workflowVersionId" = workflowVersion."id"
+            AND (
+                $3::uuid IS NULL OR
+                workflowVersion."id" = $3::uuid
+            )
+            AND (
+                $4::text[] IS NULL OR
+                workflowVersion."kind" = ANY(cast($4::text[] as "WorkflowKind"[]))
+            )
+    LEFT JOIN
+        "Workflow" as workflow ON
+            workflowVersion."workflowId" = workflow."id"
+            AND (
+                $5::uuid IS NULL OR
+                workflow."id" = $5::uuid
+            )
+    WHERE
+        runs."tenantId" = $1 AND
+        runs."deletedAt" IS NULL AND
+        workflowVersion."deletedAt" IS NULL AND
+        workflow."deletedAt" IS NULL AND
+        (
+            $6::uuid[] IS NULL OR
+            runs."id" = ANY($6::uuid[])
+        ) AND
+        (
+            $7::jsonb IS NULL OR
+            runs."additionalMetadata" @> $7::jsonb
+        ) AND
+        (
+            $8::uuid IS NULL OR
+            runs."parentId" = $8::uuid
+        ) AND
+        (
+            $9::uuid IS NULL OR
+            runs."parentStepRunId" = $9::uuid
+        ) AND
+        (
+            $10::text IS NULL OR
+            runs."concurrencyGroupId" = $10::text
+        ) AND
+        (
+            $11::text[] IS NULL OR
+            "status" = ANY(cast($11::text[] as "WorkflowRunStatus"[]))
+        ) AND
+        (
+            $12::timestamp IS NULL OR
+            runs."createdAt" > $12::timestamp
+        ) AND
+        (
+            $13::timestamp IS NULL OR
+            runs."finishedAt" > $13::timestamp
+        )
     ORDER BY
         case when $14 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
         case when $14 = 'createdAt DESC' then runs."createdAt" END DESC,
@@ -91,16 +94,16 @@ FROM
 
 type CountWorkflowRunsParams struct {
 	TenantId           pgtype.UUID      `json:"tenantId"`
+	EventId            pgtype.UUID      `json:"eventId"`
 	WorkflowVersionId  pgtype.UUID      `json:"workflowVersionId"`
+	Kinds              []string         `json:"kinds"`
 	WorkflowId         pgtype.UUID      `json:"workflowId"`
 	Ids                []pgtype.UUID    `json:"ids"`
+	AdditionalMetadata []byte           `json:"additionalMetadata"`
 	ParentId           pgtype.UUID      `json:"parentId"`
 	ParentStepRunId    pgtype.UUID      `json:"parentStepRunId"`
-	AdditionalMetadata []byte           `json:"additionalMetadata"`
-	EventId            pgtype.UUID      `json:"eventId"`
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
-	Kinds              []string         `json:"kinds"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
 	Orderby            interface{}      `json:"orderby"`
@@ -109,16 +112,16 @@ type CountWorkflowRunsParams struct {
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
 	row := db.QueryRow(ctx, countWorkflowRuns,
 		arg.TenantId,
+		arg.EventId,
 		arg.WorkflowVersionId,
+		arg.Kinds,
 		arg.WorkflowId,
 		arg.Ids,
+		arg.AdditionalMetadata,
 		arg.ParentId,
 		arg.ParentStepRunId,
-		arg.AdditionalMetadata,
-		arg.EventId,
 		arg.GroupKey,
 		arg.Statuses,
-		arg.Kinds,
 		arg.CreatedAfter,
 		arg.FinishedAfter,
 		arg.Orderby,
@@ -1026,55 +1029,58 @@ FROM
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
 LEFT JOIN
-    "Event" as events ON runTriggers."eventId" = events."id"
-LEFT JOIN
-    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
-LEFT JOIN
-    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+    "Event" as events ON
+        runTriggers."eventId" = events."id"
+        AND (
+            $2::uuid IS NULL OR
+            events."id" = $2::uuid
+        )
+JOIN
+    "WorkflowVersion" as workflowVersion ON
+        runs."workflowVersionId" = workflowVersion."id"
+        AND (
+            $3::uuid IS NULL OR
+            workflowVersion."id" = $3::uuid
+        )
+        AND (
+            $4::text[] IS NULL OR
+            workflowVersion."kind" = ANY(cast($4::text[] as "WorkflowKind"[]))
+        )
+JOIN
+    "Workflow" as workflow ON
+        workflowVersion."workflowId" = workflow."id"
+        AND (
+            $5::uuid IS NULL OR
+            workflow."id" = $5::uuid
+        )
 WHERE
     runs."tenantId" = $1 AND
     runs."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
     (
-        $2::uuid IS NULL OR
-        workflowVersion."id" = $2::uuid
+        $6::uuid[] IS NULL OR
+        runs."id" = ANY($6::uuid[])
     ) AND
     (
-        $3::uuid IS NULL OR
-        workflow."id" = $3::uuid
-    ) AND
-    (
-        $4::uuid[] IS NULL OR
-        runs."id" = ANY($4::uuid[])
-    ) AND
-    (
-        $5::jsonb IS NULL OR
-        runs."additionalMetadata" @> $5::jsonb
-    ) AND
-    (
-        $6::uuid IS NULL OR
-        runs."parentId" = $6::uuid
-    ) AND
-    (
-        $7::uuid IS NULL OR
-        runs."parentStepRunId" = $7::uuid
+        $7::jsonb IS NULL OR
+        runs."additionalMetadata" @> $7::jsonb
     ) AND
     (
         $8::uuid IS NULL OR
-        events."id" = $8::uuid
+        runs."parentId" = $8::uuid
     ) AND
     (
-        $9::text IS NULL OR
-        runs."concurrencyGroupId" = $9::text
+        $9::uuid IS NULL OR
+        runs."parentStepRunId" = $9::uuid
     ) AND
     (
-        $10::text[] IS NULL OR
-        "status" = ANY(cast($10::text[] as "WorkflowRunStatus"[]))
+        $10::text IS NULL OR
+        runs."concurrencyGroupId" = $10::text
     ) AND
     (
         $11::text[] IS NULL OR
-        workflowVersion."kind" = ANY(cast($11::text[] as "WorkflowKind"[]))
+        "status" = ANY(cast($11::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
         $12::timestamp IS NULL OR
@@ -1102,16 +1108,16 @@ LIMIT
 
 type ListWorkflowRunsParams struct {
 	TenantId           pgtype.UUID      `json:"tenantId"`
+	EventId            pgtype.UUID      `json:"eventId"`
 	WorkflowVersionId  pgtype.UUID      `json:"workflowVersionId"`
+	Kinds              []string         `json:"kinds"`
 	WorkflowId         pgtype.UUID      `json:"workflowId"`
 	Ids                []pgtype.UUID    `json:"ids"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
 	ParentId           pgtype.UUID      `json:"parentId"`
 	ParentStepRunId    pgtype.UUID      `json:"parentStepRunId"`
-	EventId            pgtype.UUID      `json:"eventId"`
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
-	Kinds              []string         `json:"kinds"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
 	Orderby            interface{}      `json:"orderby"`
@@ -1133,16 +1139,16 @@ type ListWorkflowRunsRow struct {
 func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflowRunsParams) ([]*ListWorkflowRunsRow, error) {
 	rows, err := db.Query(ctx, listWorkflowRuns,
 		arg.TenantId,
+		arg.EventId,
 		arg.WorkflowVersionId,
+		arg.Kinds,
 		arg.WorkflowId,
 		arg.Ids,
 		arg.AdditionalMetadata,
 		arg.ParentId,
 		arg.ParentStepRunId,
-		arg.EventId,
 		arg.GroupKey,
 		arg.Statuses,
-		arg.Kinds,
 		arg.CreatedAfter,
 		arg.FinishedAfter,
 		arg.Orderby,
