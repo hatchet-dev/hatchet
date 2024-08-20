@@ -47,8 +47,9 @@ func (w *Worker) RegisterWebhook(ww RegisterWebhookWorkerOpts) error {
 }
 
 type WebhookWorkerOpts struct {
-	URL    string
-	Secret string
+	URL       string
+	Secret    string
+	WebhookId string
 }
 
 // TODO do not expose this to the end-user client somehow
@@ -58,6 +59,7 @@ func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 		WorkerName: w.name,
 		Actions:    w.initActionNames,
 		MaxRuns:    w.maxRuns,
+		WebhookId:  &ww.WebhookId,
 	})
 
 	if err != nil {

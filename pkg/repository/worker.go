@@ -25,6 +25,9 @@ type CreateWorkerOpts struct {
 
 	// A list of actions this worker can run
 	Actions []string `validate:"dive,actionId"`
+
+	// (optional) Webhook Id associated with the worker (if any)
+	WebhookId *string `validate:"omitempty,uuid"`
 }
 
 type UpdateWorkerOpts struct {

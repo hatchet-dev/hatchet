@@ -19,7 +19,9 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "maxRuns"
+    "maxRuns",
+    "webhookId",
+    "type"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -27,15 +29,19 @@ INSERT INTO "Worker" (
     $1::uuid,
     $2::text,
     $3::uuid,
-    $4::int
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused"
+    $4::int,
+    $5::uuid,
+    $6::"WorkerType"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
 `
 
 type CreateWorkerParams struct {
-	Tenantid     pgtype.UUID `json:"tenantid"`
-	Name         string      `json:"name"`
-	Dispatcherid pgtype.UUID `json:"dispatcherid"`
-	MaxRuns      pgtype.Int4 `json:"maxRuns"`
+	Tenantid     pgtype.UUID    `json:"tenantid"`
+	Name         string         `json:"name"`
+	Dispatcherid pgtype.UUID    `json:"dispatcherid"`
+	MaxRuns      pgtype.Int4    `json:"maxRuns"`
+	WebhookId    pgtype.UUID    `json:"webhookId"`
+	Type         NullWorkerType `json:"type"`
 }
 
 func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerParams) (*Worker, error) {
@@ -44,6 +50,8 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		arg.Name,
 		arg.Dispatcherid,
 		arg.MaxRuns,
+		arg.WebhookId,
+		arg.Type,
 	)
 	var i Worker
 	err := row.Scan(
@@ -59,6 +67,8 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		&i.IsActive,
 		&i.LastListenerEstablished,
 		&i.IsPaused,
+		&i.Type,
+		&i.WebhookId,
 	)
 	return &i, err
 }
@@ -68,7 +78,7 @@ DELETE FROM
   "Worker"
 WHERE
   "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
 `
 
 func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*Worker, error) {
@@ -87,6 +97,8 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*W
 		&i.IsActive,
 		&i.LastListenerEstablished,
 		&i.IsPaused,
+		&i.Type,
+		&i.WebhookId,
 	)
 	return &i, err
 }
@@ -374,7 +386,7 @@ func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid pgtype
 
 const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
-    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused",
+    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId",
     (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
 FROM
     "Worker" workers
@@ -445,6 +457,8 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 			&i.Worker.IsActive,
 			&i.Worker.LastListenerEstablished,
 			&i.Worker.IsPaused,
+			&i.Worker.Type,
+			&i.Worker.WebhookId,
 			&i.Slots,
 		); err != nil {
 			return nil, err
@@ -535,7 +549,7 @@ SET
     "isPaused" = coalesce($5::boolean, "isPaused")
 WHERE
     "id" = $6::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
 `
 
 type UpdateWorkerParams struct {
@@ -570,6 +584,8 @@ func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerPar
 		&i.IsActive,
 		&i.LastListenerEstablished,
 		&i.IsPaused,
+		&i.Type,
+		&i.WebhookId,
 	)
 	return &i, err
 }
@@ -585,7 +601,7 @@ WHERE
         "lastListenerEstablished" IS NULL
         OR "lastListenerEstablished" <= $2::timestamp
         )
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
 `
 
 type UpdateWorkerActiveStatusParams struct {
@@ -610,6 +626,8 @@ func (q *Queries) UpdateWorkerActiveStatus(ctx context.Context, db DBTX, arg Upd
 		&i.IsActive,
 		&i.LastListenerEstablished,
 		&i.IsPaused,
+		&i.Type,
+		&i.WebhookId,
 	)
 	return &i, err
 }
@@ -622,7 +640,7 @@ SET
     "lastHeartbeatAt" = $1::timestamp
 WHERE
     "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
 `
 
 type UpdateWorkerHeartbeatParams struct {
@@ -646,6 +664,8 @@ func (q *Queries) UpdateWorkerHeartbeat(ctx context.Context, db DBTX, arg Update
 		&i.IsActive,
 		&i.LastListenerEstablished,
 		&i.IsPaused,
+		&i.Type,
+		&i.WebhookId,
 	)
 	return &i, err
 }
@@ -656,7 +676,7 @@ SET "isActive" = $1::boolean
 WHERE
   "tenantId" = $2::uuid AND
   "name" = $3::text
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
 `
 
 type UpdateWorkersByNameParams struct {
@@ -687,6 +707,8 @@ func (q *Queries) UpdateWorkersByName(ctx context.Context, db DBTX, arg UpdateWo
 			&i.IsActive,
 			&i.LastListenerEstablished,
 			&i.IsPaused,
+			&i.Type,
+			&i.WebhookId,
 		); err != nil {
 			return nil, err
 		}

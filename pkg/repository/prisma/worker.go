@@ -211,6 +211,20 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			Name:         opts.Name,
 		}
 
+		// Default to self hosted
+		createParams.Type = dbsqlc.NullWorkerType{
+			WorkerType: dbsqlc.WorkerTypeSELFHOSTED,
+			Valid:      true,
+		}
+
+		if opts.WebhookId != nil {
+			createParams.WebhookId = sqlchelpers.UUIDFromStr(*opts.WebhookId)
+			createParams.Type = dbsqlc.NullWorkerType{
+				WorkerType: dbsqlc.WorkerTypeWEBHOOK,
+				Valid:      true,
+			}
+		}
+
 		if opts.MaxRuns != nil {
 			createParams.MaxRuns = pgtype.Int4{
 				Int32: int32(*opts.MaxRuns),

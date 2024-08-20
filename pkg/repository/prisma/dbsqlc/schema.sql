@@ -41,6 +41,9 @@ CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
 CREATE TYPE "WorkerLabelComparator" AS ENUM ('EQUAL', 'NOT_EQUAL', 'GREATER_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN', 'LESS_THAN_OR_EQUAL');
 
 -- CreateEnum
+CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
+
+-- CreateEnum
 CREATE TYPE "WorkflowKind" AS ENUM ('FUNCTION', 'DURABLE', 'DAG');
 
 -- CreateEnum
@@ -628,6 +631,8 @@ CREATE TABLE "Worker" (
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
     "isPaused" BOOLEAN NOT NULL DEFAULT false,
+    "type" "WorkerType" NOT NULL DEFAULT 'SELFHOSTED',
+    "webhookId" UUID,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
@@ -855,6 +860,9 @@ CREATE TABLE "_WorkflowToWorkflowTag" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "APIToken_id_key" ON "APIToken"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Action_actionId_tenantId_key" ON "Action"("actionId" ASC, "tenantId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Action_id_key" ON "Action"("id" ASC);
@@ -1086,6 +1094,9 @@ CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_workflowId_key" ON "W
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker"("webhookId" ASC);
 
 -- CreateIndex
 CREATE INDEX "WorkerLabel_workerId_idx" ON "WorkerLabel"("workerId" ASC);
@@ -1416,6 +1427,9 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dis
 
 -- AddForeignKey
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Worker" ADD CONSTRAINT "Worker_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "WebhookWorker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerLabel" ADD CONSTRAINT "WorkerLabel_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;

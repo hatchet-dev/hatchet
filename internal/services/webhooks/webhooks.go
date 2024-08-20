@@ -137,8 +137,6 @@ func (c *WebhooksController) processWebhookWorker(ww *dbsqlc.WebhookWorker) {
 	}
 }
 
-// ... [rest of the code remains the same] ...
-
 func (c *WebhooksController) cleanupDeletedWorker(id, tenantId string) {
 	c.mu.Lock()
 	cleanup, ok := c.cleanups[id]
@@ -246,13 +244,14 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 	}
 
 	ww, err := webhook.New(webhook.WorkerOpts{
-		Token:    token,
-		ID:       id,
-		Secret:   secret,
-		URL:      webhookWorker.Url,
-		Name:     webhookWorker.Name,
-		TenantID: tenantId,
-		Actions:  h.Actions,
+		Token:     token,
+		ID:        id,
+		Secret:    secret,
+		URL:       webhookWorker.Url,
+		Name:      webhookWorker.Name,
+		TenantID:  tenantId,
+		Actions:   h.Actions,
+		WebhookId: sqlchelpers.UUIDToStr(webhookWorker.ID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create webhook worker: %w", err)

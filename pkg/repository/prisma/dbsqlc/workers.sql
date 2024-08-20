@@ -112,7 +112,9 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "maxRuns"
+    "maxRuns",
+    "webhookId",
+    "type"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -120,7 +122,9 @@ INSERT INTO "Worker" (
     @tenantId::uuid,
     @name::text,
     @dispatcherId::uuid,
-    sqlc.narg('maxRuns')::int
+    sqlc.narg('maxRuns')::int,
+    sqlc.narg('webhookId')::uuid,
+    sqlc.narg('type')::"WorkerType"
 ) RETURNING *;
 
 -- name: UpdateWorkerHeartbeat :one

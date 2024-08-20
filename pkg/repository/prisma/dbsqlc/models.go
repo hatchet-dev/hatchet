@@ -634,6 +634,49 @@ func (ns NullWorkerLabelComparator) Value() (driver.Value, error) {
 	return string(ns.WorkerLabelComparator), nil
 }
 
+type WorkerType string
+
+const (
+	WorkerTypeWEBHOOK    WorkerType = "WEBHOOK"
+	WorkerTypeMANAGED    WorkerType = "MANAGED"
+	WorkerTypeSELFHOSTED WorkerType = "SELFHOSTED"
+)
+
+func (e *WorkerType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkerType(s)
+	case string:
+		*e = WorkerType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkerType: %T", src)
+	}
+	return nil
+}
+
+type NullWorkerType struct {
+	WorkerType WorkerType `json:"WorkerType"`
+	Valid      bool       `json:"valid"` // Valid is true if WorkerType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkerType) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkerType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkerType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkerType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkerType), nil
+}
+
 type WorkflowKind string
 
 const (
@@ -1211,6 +1254,8 @@ type Worker struct {
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 	IsPaused                bool             `json:"isPaused"`
+	Type                    WorkerType       `json:"type"`
+	WebhookId               pgtype.UUID      `json:"webhookId"`
 }
 
 type WorkerLabel struct {
