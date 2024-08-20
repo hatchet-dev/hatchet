@@ -8,7 +8,7 @@ Hatchet provides a powerful event-driven architecture that allows you to trigger
 
 To trigger a workflow based on an event, you need to configure the `on event` property in the workflow definition. Here's an example of how to define an event trigger:
 
-<Tabs items={['Python', 'Typescript', 'Golang']}>
+<Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 @hatchet.workflow(on_events=["user:created"])
@@ -62,7 +62,7 @@ When an event triggers a workflow, Hatchet passes the event payload to the workf
 
 For example, if the event is `user:created`, the event payload might include details about the newly created user, such as their ID, email, or any other relevant attributes. You can access this event payload within your workflow steps using the `context.workflowInput()` method.
 
-<Tabs items={['Python', 'Typescript', 'Golang']}>
+<Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 @hatchet.workflow(on_events=["user:created"])
