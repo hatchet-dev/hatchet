@@ -161,6 +161,16 @@ const routes: RouteObject[] = [
                   }),
               },
               {
+                path: '/workers',
+                lazy: async () => {
+                  return {
+                    loader: function () {
+                      return redirect('/workers/all');
+                    },
+                  };
+                },
+              },
+              {
                 path: '/workers/all',
                 lazy: async () =>
                   import('./pages/main/workers').then((res) => {
