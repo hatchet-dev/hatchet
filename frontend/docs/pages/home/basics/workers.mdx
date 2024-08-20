@@ -1,4 +1,5 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs"
 
 # Workers in Hatchet
 
@@ -20,7 +21,7 @@ Here are the key characteristics of workers in Hatchet:
 
 To utilize workers effectively, you need to register your workflows with the worker and start the worker process. Here's how you can do it in different programming languages:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 workflow = MyWorkflow()
@@ -72,7 +73,7 @@ go worker.Start()
 ````
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In the above examples:
 
