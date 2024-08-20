@@ -127,6 +127,15 @@ INSERT INTO "Worker" (
     sqlc.narg('type')::"WorkerType"
 ) RETURNING *;
 
+-- name: GetWorkerByWebhookId :one
+SELECT
+    *
+FROM
+    "Worker"
+WHERE
+    "webhookId" = @webhookId::uuid
+    AND "tenantId" = @tenantId::uuid;
+
 -- name: UpdateWorkerHeartbeat :one
 UPDATE
     "Worker"

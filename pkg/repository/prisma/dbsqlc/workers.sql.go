@@ -103,6 +103,43 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*W
 	return &i, err
 }
 
+const getWorkerByWebhookId = `-- name: GetWorkerByWebhookId :one
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
+FROM
+    "Worker"
+WHERE
+    "webhookId" = $1::uuid
+    AND "tenantId" = $2::uuid
+`
+
+type GetWorkerByWebhookIdParams struct {
+	Webhookid pgtype.UUID `json:"webhookid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) GetWorkerByWebhookId(ctx context.Context, db DBTX, arg GetWorkerByWebhookIdParams) (*Worker, error) {
+	row := db.QueryRow(ctx, getWorkerByWebhookId, arg.Webhookid, arg.Tenantid)
+	var i Worker
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.LastHeartbeatAt,
+		&i.Name,
+		&i.DispatcherId,
+		&i.MaxRuns,
+		&i.IsActive,
+		&i.LastListenerEstablished,
+		&i.IsPaused,
+		&i.Type,
+		&i.WebhookId,
+	)
+	return &i, err
+}
+
 const getWorkerForEngine = `-- name: GetWorkerForEngine :one
 SELECT
     w."id" AS "id",

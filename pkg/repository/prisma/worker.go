@@ -237,7 +237,23 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			}
 		}
 
-		worker, err := w.queries.CreateWorker(ctx, tx, createParams)
+		var worker *dbsqlc.Worker
+
+		// HACK upsert webhook worker
+		if opts.WebhookId != nil {
+			worker, err = w.queries.GetWorkerByWebhookId(ctx, tx, dbsqlc.GetWorkerByWebhookIdParams{
+				Webhookid: createParams.WebhookId,
+				Tenantid:  pgTenantId,
+			})
+
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, nil, fmt.Errorf("could not get worker: %w", err)
+			}
+		}
+
+		if worker == nil {
+			worker, err = w.queries.CreateWorker(ctx, tx, createParams)
+		}
 
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not create worker: %w", err)
