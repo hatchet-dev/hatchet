@@ -148,10 +148,10 @@ func (c *WebhooksController) cleanupDeletedWorker(id, tenantId string) {
 		}
 	}
 	c.sc.Logger.Debug().Msgf("webhook worker %s of tenant %s has been deleted", id, tenantId)
-	err := c.sc.EngineRepository.Worker().UpdateWorkersByName(context.Background(), dbsqlc.UpdateWorkersByNameParams{
-		Isactive: false,
-		Name:     "Webhook_" + id,
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	err := c.sc.EngineRepository.Worker().UpdateWorkersByWebhookId(context.Background(), dbsqlc.UpdateWorkersByWebhookIdParams{
+		Isactive:  false,
+		Webhookid: sqlchelpers.UUIDFromStr(id),
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 	})
 	if err != nil {
 		c.sc.Logger.Err(err).Msgf("could not delete webhook worker")
@@ -286,10 +286,10 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 					if healthCheckErrors > 3 {
 						c.sc.Logger.Warn().Msgf("webhook worker %s of tenant %s failed %d health checks, marking as inactive", id, tenantId, healthCheckErrors)
 
-						err := c.sc.EngineRepository.Worker().UpdateWorkersByName(context.Background(), dbsqlc.UpdateWorkersByNameParams{
-							Isactive: false,
-							Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-							Name:     "Webhook_" + id,
+						err := c.sc.EngineRepository.Worker().UpdateWorkersByWebhookId(context.Background(), dbsqlc.UpdateWorkersByWebhookIdParams{
+							Isactive:  false,
+							Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+							Webhookid: webhookWorker.ID,
 						})
 						if err != nil {
 							c.sc.Logger.Err(err).Msgf("could not update worker")
@@ -333,10 +333,10 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 					c.sc.Logger.Printf("webhook worker %s is healthy again", id)
 				}
 
-				err = c.sc.EngineRepository.Worker().UpdateWorkersByName(context.Background(), dbsqlc.UpdateWorkersByNameParams{
-					Isactive: true,
-					Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-					Name:     "Webhook_" + id,
+				err = c.sc.EngineRepository.Worker().UpdateWorkersByWebhookId(context.Background(), dbsqlc.UpdateWorkersByWebhookIdParams{
+					Isactive:  true,
+					Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+					Webhookid: webhookWorker.ID,
 				})
 				if err != nil {
 					c.sc.Logger.Err(err).Msgf("could not update worker")

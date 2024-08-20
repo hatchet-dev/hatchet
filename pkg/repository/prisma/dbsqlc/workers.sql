@@ -246,12 +246,12 @@ WHERE
   "id" = @id::uuid
 RETURNING *;
 
--- name: UpdateWorkersByName :many
+-- name: UpdateWorkersByWebhookId :many
 UPDATE "Worker"
 SET "isActive" = @isActive::boolean
 WHERE
   "tenantId" = @tenantId::uuid AND
-  "name" = @name::text
+  "webhookId" = @webhookId::uuid
 RETURNING *;
 
 -- name: UpdateWorkerActiveStatus :one

@@ -707,23 +707,23 @@ func (q *Queries) UpdateWorkerHeartbeat(ctx context.Context, db DBTX, arg Update
 	return &i, err
 }
 
-const updateWorkersByName = `-- name: UpdateWorkersByName :many
+const updateWorkersByWebhookId = `-- name: UpdateWorkersByWebhookId :many
 UPDATE "Worker"
 SET "isActive" = $1::boolean
 WHERE
   "tenantId" = $2::uuid AND
-  "name" = $3::text
+  "webhookId" = $3::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
 `
 
-type UpdateWorkersByNameParams struct {
-	Isactive bool        `json:"isactive"`
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Name     string      `json:"name"`
+type UpdateWorkersByWebhookIdParams struct {
+	Isactive  bool        `json:"isactive"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+	Webhookid pgtype.UUID `json:"webhookid"`
 }
 
-func (q *Queries) UpdateWorkersByName(ctx context.Context, db DBTX, arg UpdateWorkersByNameParams) ([]*Worker, error) {
-	rows, err := db.Query(ctx, updateWorkersByName, arg.Isactive, arg.Tenantid, arg.Name)
+func (q *Queries) UpdateWorkersByWebhookId(ctx context.Context, db DBTX, arg UpdateWorkersByWebhookIdParams) ([]*Worker, error) {
+	rows, err := db.Query(ctx, updateWorkersByWebhookId, arg.Isactive, arg.Tenantid, arg.Webhookid)
 	if err != nil {
 		return nil, err
 	}

@@ -428,8 +428,8 @@ func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, wor
 	return err
 }
 
-func (w *workerEngineRepository) UpdateWorkersByName(ctx context.Context, params dbsqlc.UpdateWorkersByNameParams) error {
-	_, err := w.queries.UpdateWorkersByName(ctx, w.pool, params)
+func (w *workerEngineRepository) UpdateWorkersByWebhookId(ctx context.Context, params dbsqlc.UpdateWorkersByWebhookIdParams) error {
+	_, err := w.queries.UpdateWorkersByWebhookId(ctx, w.pool, params)
 	return err
 }
 
