@@ -1024,6 +1024,13 @@ model GetGroupKeyRun {
   cancelledError String?
 
   @@index([deletedAt])
+  @@index([tenantId])
+  @@index([workerId])
+  @@index([createdAt])
+  // index for ListStepRunsToReassign, ListStepRunsToRequeue
+  @@index([tenantId, deletedAt, status])
+  // index for PollGetGroupKeyRuns
+  @@index([status, deletedAt, timeoutAt])
 }
 
 model WorkflowRunTriggeredBy {
@@ -1517,8 +1524,8 @@ model Worker {
 
   slots WorkerSemaphoreSlot[]
 
-  webhook WebhookWorker? @relation(fields: [webhookId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  webhookId String? @db.Uuid @unique
+  webhook   WebhookWorker? @relation(fields: [webhookId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  webhookId String?        @unique @db.Uuid
 
   // DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
   semaphore WorkerSemaphore? // FIXME remove this in a few releases from v_0_30_1

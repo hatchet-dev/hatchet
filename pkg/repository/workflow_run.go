@@ -291,6 +291,9 @@ type ListWorkflowRunsOpts struct {
 	// (optional) a time after which the run was created
 	CreatedAfter *time.Time
 
+	// (optional) a time before which the run was created
+	CreatedBefore *time.Time
+
 	// (optional) a time before which the run was finished
 	FinishedAfter *time.Time
 
@@ -316,6 +319,12 @@ type WorkflowRunsMetricsOpts struct {
 
 	// (optional) exact metadata to filter by
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+
+	// (optional) the time the workflow run was created before
+	CreatedBefore *time.Time `validate:"omitempty"`
+
+	// (optional) the time the workflow run was created after
+	CreatedAfter *time.Time `validate:"omitempty"`
 }
 
 type ListWorkflowRunsResult struct {

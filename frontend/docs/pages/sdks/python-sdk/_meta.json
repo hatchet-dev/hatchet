@@ -36,5 +36,6 @@
   },
   "fairness": "Concurrency and Fairness",
   "logging": "Logging",
-  "api": "REST API"
+  "api": "REST API",
+  "asyncio": "Working with AsyncIO"
 }

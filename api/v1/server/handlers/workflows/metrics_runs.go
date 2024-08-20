@@ -24,6 +24,14 @@ func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.Wo
 		listOpts.WorkflowId = &workflowIdStr
 	}
 
+	if request.Params.CreatedAfter != nil {
+		listOpts.CreatedAfter = request.Params.CreatedAfter
+	}
+
+	if request.Params.CreatedBefore != nil {
+		listOpts.CreatedBefore = request.Params.CreatedBefore
+	}
+
 	if request.Params.EventId != nil {
 		eventIdStr := request.Params.EventId.String()
 		listOpts.EventId = &eventIdStr

@@ -536,6 +536,11 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		queryParams.CreatedAfter = sqlchelpers.TimestampFromTime(*opts.CreatedAfter)
 	}
 
+	if opts.CreatedBefore != nil {
+		countParams.CreatedBefore = sqlchelpers.TimestampFromTime(*opts.CreatedBefore)
+		queryParams.CreatedBefore = sqlchelpers.TimestampFromTime(*opts.CreatedBefore)
+	}
+
 	if opts.FinishedAfter != nil {
 		countParams.FinishedAfter = sqlchelpers.TimestampFromTime(*opts.FinishedAfter)
 		queryParams.FinishedAfter = sqlchelpers.TimestampFromTime(*opts.FinishedAfter)
@@ -622,6 +627,14 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 		pgEventId := sqlchelpers.UUIDFromStr(*opts.EventId)
 
 		queryParams.EventId = pgEventId
+	}
+
+	if opts.CreatedAfter != nil {
+		queryParams.CreatedAfter = sqlchelpers.TimestampFromTime(*opts.CreatedAfter)
+	}
+
+	if opts.CreatedBefore != nil {
+		queryParams.CreatedBefore = sqlchelpers.TimestampFromTime(*opts.CreatedBefore)
 	}
 
 	if opts.AdditionalMetadata != nil {

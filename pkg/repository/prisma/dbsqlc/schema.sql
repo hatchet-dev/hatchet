@@ -889,10 +889,25 @@ CREATE INDEX "Event_tenantId_createdAt_idx" ON "Event"("tenantId" ASC, "createdA
 CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
 
 -- CreateIndex
+CREATE INDEX "GetGroupKeyRun_createdAt_idx" ON "GetGroupKeyRun"("createdAt" ASC);
+
+-- CreateIndex
 CREATE INDEX "GetGroupKeyRun_deletedAt_idx" ON "GetGroupKeyRun"("deletedAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GetGroupKeyRun_id_key" ON "GetGroupKeyRun"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "GetGroupKeyRun_status_deletedAt_timeoutAt_idx" ON "GetGroupKeyRun"("status" ASC, "deletedAt" ASC, "timeoutAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "GetGroupKeyRun_tenantId_deletedAt_status_idx" ON "GetGroupKeyRun"("tenantId" ASC, "deletedAt" ASC, "status" ASC);
+
+-- CreateIndex
+CREATE INDEX "GetGroupKeyRun_tenantId_idx" ON "GetGroupKeyRun"("tenantId" ASC);
+
+-- CreateIndex
+CREATE INDEX "GetGroupKeyRun_workerId_idx" ON "GetGroupKeyRun"("workerId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GetGroupKeyRun_workflowRunId_key" ON "GetGroupKeyRun"("workflowRunId" ASC);

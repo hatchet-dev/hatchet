@@ -84,13 +84,8 @@ group_key_runs AS (
     WHERE
         ggr."tenantId" = @tenantId::uuid
         AND ggr."deletedAt" IS NULL
-        AND ((
-            ggr."status" = 'RUNNING'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-        ) OR (
-            ggr."status" = 'ASSIGNED'
-            AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-        ))
+        AND ggr."status" = ANY(ARRAY['RUNNING', 'ASSIGNED']::"StepRunStatus"[])
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
     ORDER BY
         ggr."createdAt" ASC
     LIMIT
@@ -147,7 +142,7 @@ group_key_runs AS (
         ggr."tenantId" = @tenantId::uuid
         AND ggr."deletedAt" IS NULL
         AND ggr."requeueAfter" < NOW()
-        AND (ggr."status" = 'PENDING' OR ggr."status" = 'PENDING_ASSIGNMENT')
+        AND ggr."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT']::"StepRunStatus"[])
     ORDER BY
         ggr."createdAt" ASC
     LIMIT

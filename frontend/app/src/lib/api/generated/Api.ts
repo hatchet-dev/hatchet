@@ -1330,6 +1330,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @example ["key1:value1","key2:value2"]
        */
       additionalMetadata?: string[];
+      /**
+       * The time after the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdAfter?: string;
+      /**
+       * The time before the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdBefore?: string;
       /** The order by field */
       orderByField?: WorkflowRunOrderByField;
       /** The order by direction */
@@ -1409,6 +1421,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @example ["key1:value1","key2:value2"]
        */
       additionalMetadata?: string[];
+      /**
+       * The time after the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdAfter?: string;
+      /**
+       * The time before the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdBefore?: string;
     },
     params: RequestParams = {},
   ) =>
