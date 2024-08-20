@@ -1,4 +1,5 @@
 import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../../components/UniversalTabs"
 
 ## Concurrency Control in Hatchet Workflows
 
@@ -33,7 +34,7 @@ To configure concurrency control for a workflow in Hatchet, you can add a `concu
 
 In addition to setting concurrency limits at the workflow level, you can also control concurrency at the worker level by passing the `maxRuns` option when creating a new `Worker` instance:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 worker = hatchet.worker("my-worker", max_runs=5)
@@ -55,7 +56,7 @@ w, err := worker.NewWorker(
 )
 ```
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 This limits the worker to a maximum of 5 concurrent step runs across all workflows. Once the limit is reached, the worker will not accept new actions until a running step completes.
 

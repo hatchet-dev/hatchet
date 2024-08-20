@@ -1,4 +1,5 @@
 import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../../components/UniversalTabs"
 
 # The GROUP_ROUND_ROBIN Concurrency Limit Strategy in Hatchet
 
@@ -30,7 +31,7 @@ Keep in mind that the `GROUP_ROUND_ROBIN` strategy may not be suitable for all u
 
 To use the `GROUP_ROUND_ROBIN` concurrency limit strategy, define a `concurrency` configuration in your workflow definition:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -109,7 +110,7 @@ err = w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In this example:
 

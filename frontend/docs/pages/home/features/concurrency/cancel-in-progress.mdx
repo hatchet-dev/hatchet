@@ -1,4 +1,5 @@
 import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../../components/UniversalTabs"
 
 # The CANCEL_IN_PROGRESS Concurrency Limit Strategy in Hatchet
 
@@ -30,7 +31,7 @@ However, it's important to note that canceling a workflow instance may leave you
 
 To use the `CANCEL_IN_PROGRESS` concurrency limit strategy, define a `concurrency` configuration in your workflow definition:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -111,7 +112,7 @@ err = w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In this example:
 
