@@ -909,6 +909,7 @@ export interface Worker {
   metadata: APIResourceMeta;
   /** The name of the worker. */
   name: string;
+  type: 'SELFHOSTED' | 'MANAGED' | 'WEBHOOK';
   /**
    * The time this worker last sent a heartbeat.
    * @format date-time
@@ -943,6 +944,8 @@ export interface Worker {
   dispatcherId?: string;
   /** The current label state of the worker. */
   labels?: WorkerLabel[];
+  /** The webhook URL for the worker. */
+  webhookUrl?: string;
 }
 
 export interface WorkerLabel {

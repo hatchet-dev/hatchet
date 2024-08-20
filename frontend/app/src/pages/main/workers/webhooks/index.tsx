@@ -37,7 +37,7 @@ export default function Webhooks() {
       <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <h2 className="text-2xl font-semibold leading-tight text-foreground">
-            Webhooks
+            Webhook Workers (BETA)
           </h2>
 
           <Button

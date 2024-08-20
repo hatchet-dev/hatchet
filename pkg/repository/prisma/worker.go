@@ -41,14 +41,8 @@ func NewWorkerAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v valid
 	}
 }
 
-func (w *workerAPIRepository) GetWorkerById(workerId string) (*db.WorkerModel, error) {
-	return w.client.Worker.FindUnique(
-		db.Worker.ID.Equals(workerId),
-	).With(
-		db.Worker.Dispatcher.Fetch(),
-		db.Worker.Actions.Fetch(),
-		db.Worker.Slots.Fetch(),
-	).Exec(context.Background())
+func (w *workerAPIRepository) GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error) {
+	return w.queries.GetWorkerById(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
 }
 
 func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, failed bool) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error) {

@@ -71,6 +71,13 @@ RecentStepRuns:
     - workflowRunId
   type: object
 
+WorkerType:
+  type: string
+  enum:
+    - SELFHOSTED
+    - MANAGED
+    - WEBHOOK
+
 Worker:
   properties:
     metadata:
@@ -78,6 +85,8 @@ Worker:
     name:
       type: string
       description: The name of the worker.
+    type:
+      $ref: "#/WorkerType"
     lastHeartbeatAt:
       type: string
       description: The time this worker last sent a heartbeat.
@@ -128,9 +137,13 @@ Worker:
       description: The current label state of the worker.
       items:
         $ref: "./_index.yaml#/WorkerLabel"
+    webhookUrl:
+      type: string
+      description: The webhook URL for the worker.
   required:
     - metadata
     - name
+    - type
   type: object
 
 UpdateWorkerRequest:

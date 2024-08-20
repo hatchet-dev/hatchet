@@ -122,6 +122,13 @@ const (
 	PAUSED   WorkerStatus = "PAUSED"
 )
 
+// Defines values for WorkerType.
+const (
+	MANAGED    WorkerType = "MANAGED"
+	SELFHOSTED WorkerType = "SELFHOSTED"
+	WEBHOOK    WorkerType = "WEBHOOK"
+)
+
 // Defines values for WorkflowConcurrencyLimitStrategy.
 const (
 	CANCELINPROGRESS WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
@@ -991,10 +998,17 @@ type Worker struct {
 
 	// Status The status of the worker.
 	Status *WorkerStatus `json:"status,omitempty"`
+	Type   WorkerType    `json:"type"`
+
+	// WebhookUrl The webhook URL for the worker.
+	WebhookUrl *string `json:"webhookUrl,omitempty"`
 }
 
 // WorkerStatus The status of the worker.
 type WorkerStatus string
+
+// WorkerType defines model for Worker.Type.
+type WorkerType string
 
 // WorkerLabel defines model for WorkerLabel.
 type WorkerLabel struct {

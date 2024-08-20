@@ -103,6 +103,46 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*W
 	return &i, err
 }
 
+const getWorkerById = `-- name: GetWorkerById :one
+SELECT
+    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId",
+    ww."url" AS "webhookUrl"
+FROM
+    "Worker" workers
+LEFT JOIN
+    "WebhookWorker" ww ON workers."webhookId" = ww."id"
+WHERE
+    workers."id" = $1::uuid
+`
+
+type GetWorkerByIdRow struct {
+	Worker     Worker      `json:"worker"`
+	WebhookUrl pgtype.Text `json:"webhookUrl"`
+}
+
+func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*GetWorkerByIdRow, error) {
+	row := db.QueryRow(ctx, getWorkerById, id)
+	var i GetWorkerByIdRow
+	err := row.Scan(
+		&i.Worker.ID,
+		&i.Worker.CreatedAt,
+		&i.Worker.UpdatedAt,
+		&i.Worker.DeletedAt,
+		&i.Worker.TenantId,
+		&i.Worker.LastHeartbeatAt,
+		&i.Worker.Name,
+		&i.Worker.DispatcherId,
+		&i.Worker.MaxRuns,
+		&i.Worker.IsActive,
+		&i.Worker.LastListenerEstablished,
+		&i.Worker.IsPaused,
+		&i.Worker.Type,
+		&i.Worker.WebhookId,
+		&i.WebhookUrl,
+	)
+	return &i, err
+}
+
 const getWorkerByWebhookId = `-- name: GetWorkerByWebhookId :one
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
@@ -424,9 +464,12 @@ func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid pgtype
 const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId",
+    ww."url" AS "webhookUrl",
     (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
 FROM
     "Worker" workers
+LEFT JOIN
+    "WebhookWorker" ww ON workers."webhookId" = ww."id"
 WHERE
     workers."tenantId" = $1
     AND (
@@ -452,7 +495,7 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id"
+    workers."id", ww."url"
 `
 
 type ListWorkersWithStepCountParams struct {
@@ -463,8 +506,9 @@ type ListWorkersWithStepCountParams struct {
 }
 
 type ListWorkersWithStepCountRow struct {
-	Worker Worker `json:"worker"`
-	Slots  int64  `json:"slots"`
+	Worker     Worker      `json:"worker"`
+	WebhookUrl pgtype.Text `json:"webhookUrl"`
+	Slots      int64       `json:"slots"`
 }
 
 func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg ListWorkersWithStepCountParams) ([]*ListWorkersWithStepCountRow, error) {
@@ -496,6 +540,7 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 			&i.Worker.IsPaused,
 			&i.Worker.Type,
 			&i.Worker.WebhookId,
+			&i.WebhookUrl,
 			&i.Slots,
 		); err != nil {
 			return nil, err

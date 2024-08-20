@@ -75,7 +75,7 @@ type WorkerAPIRepository interface {
 	ListWorkerState(tenantId, workerId string, failed bool) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error)
 
 	// GetWorkerById returns a worker by its id.
-	GetWorkerById(workerId string) (*db.WorkerModel, error)
+	GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error)
 
 	// ListWorkerLabels returns a list of labels config for a worker
 	ListWorkerLabels(tenantId, workerId string) ([]*dbsqlc.ListWorkerLabelsRow, error)
