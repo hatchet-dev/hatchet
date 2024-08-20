@@ -471,6 +471,7 @@ export function WorkflowRunsTable({
         </Select>
       </div>
       <DataTable
+        emptyState={<>No workflow runs found with the given filters.</>}
         error={workflowKeysError}
         isLoading={workflowKeysIsLoading}
         columns={columns}
