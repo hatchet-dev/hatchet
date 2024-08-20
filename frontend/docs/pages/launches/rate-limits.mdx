@@ -1,4 +1,5 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs"
 
 # `v0.20` - Rate Limits, Better Streaming, and Improved Cancel In Progress
 
@@ -10,7 +11,7 @@ A simple feature to throttle the rate at which your workflow steps consume share
 
 We’ve designed this feature to help your system conform to external limitations (like pesky OpenAI token limits) that are normally very difficult to keep tabs on.
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 1) Define your rate limits in code:
 
@@ -88,7 +89,7 @@ err = w.RegisterWorkflow(
 ```
 
 </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 Rate limits are now supported in our Python, Go, and TypeScript SDKs. We can't wait to see how you use them to keep your workflows running as fast as possible!
 
 [Docs →](https://docs.hatchet.run/home/features/rate-limits)
@@ -101,7 +102,7 @@ Imagine your customer kicks off a long batch job, then stare at the "In Progress
 
 Keep them in the loop by streaming arbitrary data (text, intermediate image frames, etc) from within the step run execution!
 
-<Tabs items={['Python', 'Typescript']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 ```python
 @hatchet.step()
@@ -122,7 +123,7 @@ async function step1(ctx: Context) {
 }
 ```
 </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 [Docs →](https://docs.hatchet.run/home/features/streaming#streaming-from-a-step-context)
 
