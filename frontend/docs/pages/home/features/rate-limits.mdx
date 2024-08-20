@@ -1,4 +1,5 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs"
 
 # Rate Limiting Step Runs in Hatchet
 
@@ -19,7 +20,7 @@ For example, a rate limit key could represent an external service API endpoint, 
 
 It is recommended to specify multiple keys for different rate limits in your application to ensure that each key represents a unique resource or service that requires rate limiting. For example, you may specify `openai-inference` to set a global rate limit for OpenAI API inference requests.
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 hatchet.admin.put_rate_limit('example-limit', 10, RateLimitDuration.MINUTE)
@@ -38,7 +39,7 @@ err = c.Admin().PutRateLimit("example-limit", &types.RateLimitOpts{
 })
 ```
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 ## Consuming Rate Limits
 
@@ -46,7 +47,7 @@ With your rate limit key defined, you can specify the units of consumption for a
 
 The units is the number of units of the rate limit that the step consumes. For example a step may make two separate API calls, each consuming two units of the rate limit.
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 @hatchet.step(rate_limits=[RateLimit(key='example-limit', units=1)])
@@ -91,7 +92,7 @@ err = w.RegisterWorkflow(
 )
 ```
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 ### Limiting Workflow Runs
 

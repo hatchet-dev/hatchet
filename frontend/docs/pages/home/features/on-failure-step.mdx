@@ -1,4 +1,5 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs"
 
 # On Failure Step
 
@@ -8,7 +9,7 @@ The On Failure Step is a special step in Hatchet workflows that allows you to de
 
 You can define an On Failure Step on your Workflow using the Hatchet client libraries:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
 <Tabs.Tab>
 
 ```python
@@ -92,7 +93,7 @@ err = w.RegisterWorkflow(
 ```
 
 </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In the above examples, the `on_failure` step is defined separately from the main workflow steps. It will be executed only if any of the main workflow steps fail.
 

@@ -1,4 +1,5 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs"
 
 # Timeouts in Hatchet
 
@@ -31,7 +32,7 @@ If no unit is specified, seconds are assumed.
 
 To specify a timeout for an entire workflow, you can set the `Schedule Timeout` property in the workflow definition:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 @hatchet.workflow(schedule_timeout="2m")
@@ -64,7 +65,7 @@ cleanup, err := run(events, worker.WorkflowJob{
 })
 ```
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 This would set a timeout of 2 minutes for all steps in the workflow. If the workflow takes longer than 2 minutes for assignment of the step to a worker, it will be cancelled and will not be assigned to a worker.
 
@@ -72,7 +73,7 @@ This would set a timeout of 2 minutes for all steps in the workflow. If the work
 
 To specify a timeout for an individual step, you can set the `timeout` property in the step definition:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 @hatchet.step(timeout="30s")
@@ -112,7 +113,7 @@ worker.WorkflowJob{
 }
 ```
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 This would set a timeout of 30 seconds for this specific step. If the step takes longer than 30 seconds to complete, it will fail and the workflow will be cancelled.
 
@@ -128,7 +129,7 @@ In some cases, you may need to extend the timeout for a step while it is running
 
 For example:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 @hatchet.step(timeout="30s")
@@ -173,7 +174,7 @@ worker.WorkflowJob{
 }
 ```
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In this example, the step initially has a timeout of 30 seconds. After 19 seconds, the `refreshTimeout` function is called with an argument of `'15s'`, which extends the timeout by an additional 15 seconds. This allows the step to continue running for a total of 45 seconds (30 seconds initial timeout + 15 seconds refreshed timeout).
 

@@ -1,4 +1,5 @@
 import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs"
 
 # Child Workflows
 
@@ -10,7 +11,7 @@ Note that spawning child workflows is a **durable** operation, meaning that spaw
 
 To loop through a list and create a new workflow per element in the list, you can simply use `spawnWorkflow` in a loop. For example:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -81,7 +82,7 @@ w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 Note that calling `spawnWorkflow` will return immediately, and the child workflows will run in parallel. If you want to wait for child workflows, you can await the results of each workflow (see below).
 
@@ -89,7 +90,7 @@ Note that calling `spawnWorkflow` will return immediately, and the child workflo
 
 To run all child workflows in parallel, and then wait for all of them to complete, you can use the `result` method on the returned method.
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -212,14 +213,14 @@ w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 ## Error Handling
 
 If child workflows fail, an error will be raised to the parent, which can be caught and handled as needed.
 For example, to spawn a recovery workflow if a child workflow fails:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -309,4 +310,4 @@ w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
