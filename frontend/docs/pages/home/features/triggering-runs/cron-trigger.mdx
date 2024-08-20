@@ -1,4 +1,5 @@
 import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../../components/UniversalTabs"
 
 # Triggering Workflows with Cron in Hatchet
 
@@ -8,7 +9,7 @@ Hatchet provides a flexible and powerful way to trigger workflows based on a sch
 
 To trigger a workflow with a cron schedule, you need to configure the `on` property in the workflow definition. Here's an example of how to define a cron trigger:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 @hatchet.workflow(on_crons=["0 0 * * *"])
@@ -57,7 +58,7 @@ w.RegisterWorkflow(
 )
 ```
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In the examples above, we set the `on cron` property of the workflows. The property specifies the cron expression that determines when the workflow should be triggered.
 
