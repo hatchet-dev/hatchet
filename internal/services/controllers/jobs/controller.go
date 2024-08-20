@@ -840,7 +840,7 @@ func (jc *JobsControllerImpl) runStepRunTimeout(ctx context.Context) func() {
 func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenantId string) error {
 	// we want only one requeue running at a time for a tenant
 	if _, ok := ec.timeoutMutexes.Load(tenantId); !ok {
-		ec.reassignMutexes.Store(tenantId, &sync.Mutex{})
+		ec.timeoutMutexes.Store(tenantId, &sync.Mutex{})
 	}
 
 	muInt, _ := ec.timeoutMutexes.Load(tenantId)
