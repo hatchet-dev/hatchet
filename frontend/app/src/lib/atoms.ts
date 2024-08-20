@@ -4,11 +4,15 @@ import { useSearchParams } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-const getInitialValue = <T>(key: string): T | undefined => {
+const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   const item = localStorage.getItem(key);
 
   if (item !== null) {
     return JSON.parse(item) as T;
+  }
+
+  if (defaultValue !== undefined) {
+    return defaultValue;
   }
 
   return;
@@ -121,3 +125,17 @@ export function useTenantContext(): [
 
   return [currTenant || computedCurrTenant, setTenant];
 }
+
+const lastTimeRange = 'lastTimeRange';
+
+const lastTimeRangeAtomInit = atom(
+  getInitialValue<string>(lastTimeRange, '1d'),
+);
+
+export const lastTimeRangeAtom = atom(
+  (get) => get(lastTimeRangeAtomInit),
+  (_get, set, newVal: string) => {
+    set(lastTimeRangeAtomInit, newVal);
+    localStorage.setItem(lastTimeRange, JSON.stringify(newVal));
+  },
+);

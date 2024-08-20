@@ -34,8 +34,20 @@ import {
 import { WorkflowRunsMetricsView } from './workflow-runs-metrics';
 import queryClient from '@/query-client';
 import { useApiError } from '@/lib/hooks';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useAtom } from 'jotai';
+import { lastTimeRangeAtom } from '@/lib/atoms';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export interface WorkflowRunsTableProps {
+  createdAfter?: string;
+  createdBefore?: string;
   workflowId?: string;
   parentWorkflowRunId?: string;
   parentStepRunId?: string;
@@ -55,6 +67,11 @@ export function WorkflowRunsTable({
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
+
+  const [timeRange, setTimeRange] = useAtom(lastTimeRangeAtom);
+  const [createdAfter, setCreatedAfter] = useState<string | undefined>(
+    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  );
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -193,6 +210,7 @@ export function WorkflowRunsTable({
       orderByDirection,
       orderByField,
       additionalMetadata: AdditionalMetadataFilter,
+      createdAfter,
     }),
     refetchInterval,
   });
@@ -203,6 +221,7 @@ export function WorkflowRunsTable({
       parentWorkflowRunId,
       parentStepRunId,
       additionalMetadata: AdditionalMetadataFilter,
+      createdAfter,
     }),
     refetchInterval,
   });
@@ -378,8 +397,8 @@ export function WorkflowRunsTable({
 
   return (
     <>
-      {metricsQuery.data && (
-        <div className="mb-4">
+      <div className="flex flex-row justify-between items-center my-4">
+        {metricsQuery.data ? (
           <WorkflowRunsMetricsView
             metrics={metricsQuery.data}
             onClick={(status) => {
@@ -408,8 +427,49 @@ export function WorkflowRunsTable({
               });
             }}
           />
-        </div>
-      )}
+        ) : (
+          <Skeleton className="max-w-[800px] w-[40vw] h-8" />
+        )}
+        <Select
+          value={timeRange}
+          onValueChange={(value) => {
+            setTimeRange(value);
+
+            switch (value) {
+              case '1h':
+                setCreatedAfter(
+                  new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+                );
+                break;
+              case '6h':
+                setCreatedAfter(
+                  new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+                );
+                break;
+              case '1d':
+                setCreatedAfter(
+                  new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+                );
+                break;
+              case '7d':
+                setCreatedAfter(
+                  new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+                );
+                break;
+            }
+          }}
+        >
+          <SelectTrigger className="w-fit">
+            <SelectValue id="timerange" placeholder="Choose time range" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1h">1 hour</SelectItem>
+            <SelectItem value="6h">6 hours</SelectItem>
+            <SelectItem value="1d">1 day</SelectItem>
+            <SelectItem value="7d">7 days</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       <DataTable
         error={workflowKeysError}
         isLoading={workflowKeysIsLoading}

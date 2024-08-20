@@ -78,11 +78,15 @@ WITH runs AS (
         ) AND
         (
             $13::timestamp IS NULL OR
-            runs."finishedAt" > $13::timestamp
+            runs."createdAt" < $13::timestamp
+        ) AND
+        (
+            $14::timestamp IS NULL OR
+            runs."finishedAt" > $14::timestamp
         )
     ORDER BY
-        case when $14 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-        case when $14 = 'createdAt DESC' then runs."createdAt" END DESC,
+        case when $15 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+        case when $15 = 'createdAt DESC' then runs."createdAt" END DESC,
         runs."id" ASC
     LIMIT 10000
 )
@@ -105,6 +109,7 @@ type CountWorkflowRunsParams struct {
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
+	CreatedBefore      pgtype.Timestamp `json:"createdBefore"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
 	Orderby            interface{}      `json:"orderby"`
 }
@@ -123,6 +128,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.GroupKey,
 		arg.Statuses,
 		arg.CreatedAfter,
+		arg.CreatedBefore,
 		arg.FinishedAfter,
 		arg.Orderby,
 	)
@@ -1088,22 +1094,26 @@ WHERE
     ) AND
     (
         $13::timestamp IS NULL OR
-        runs."finishedAt" > $13::timestamp
+        runs."createdAt" < $13::timestamp
+    ) AND
+    (
+        $14::timestamp IS NULL OR
+        runs."finishedAt" > $14::timestamp
     )
 ORDER BY
-    case when $14 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when $14 = 'createdAt DESC' THEN runs."createdAt" END DESC,
-    case when $14 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
-    case when $14 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
-    case when $14 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
-    case when $14 = 'startedAt DESC' THEN runs."startedAt" END DESC,
-    case when $14 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
-    case when $14 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
+    case when $15 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+    case when $15 = 'createdAt DESC' THEN runs."createdAt" END DESC,
+    case when $15 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+    case when $15 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+    case when $15 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+    case when $15 = 'startedAt DESC' THEN runs."startedAt" END DESC,
+    case when $15 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+    case when $15 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
     runs."id" ASC
 OFFSET
-    COALESCE($15, 0)
+    COALESCE($16, 0)
 LIMIT
-    COALESCE($16, 50)
+    COALESCE($17, 50)
 `
 
 type ListWorkflowRunsParams struct {
@@ -1119,6 +1129,7 @@ type ListWorkflowRunsParams struct {
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
+	CreatedBefore      pgtype.Timestamp `json:"createdBefore"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
 	Orderby            interface{}      `json:"orderby"`
 	Offset             interface{}      `json:"offset"`
@@ -1150,6 +1161,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 		arg.GroupKey,
 		arg.Statuses,
 		arg.CreatedAfter,
+		arg.CreatedBefore,
 		arg.FinishedAfter,
 		arg.Orderby,
 		arg.Offset,
@@ -1812,38 +1824,48 @@ LEFT JOIN
 WHERE
     runs."tenantId" = $1::uuid AND
     runs."createdAt" > NOW() - INTERVAL '1 day' AND
+    (
+        $2::timestamp IS NULL OR
+        runs."createdAt" > $2::timestamp
+    ) AND
+    (
+        $3::timestamp IS NULL OR
+        runs."createdAt" < $3::timestamp
+    ) AND
     runs."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
     (
-        $2::uuid IS NULL OR
-        workflow."id" = $2::uuid
-    ) AND
-    (
-        $3::uuid IS NULL OR
-        runs."parentId" = $3::uuid
-    ) AND
-    (
         $4::uuid IS NULL OR
-        runs."parentStepRunId" = $4::uuid
+        workflow."id" = $4::uuid
     ) AND
     (
-        $5::jsonb IS NULL OR
-        runs."additionalMetadata" @> $5::jsonb
+        $5::uuid IS NULL OR
+        runs."parentId" = $5::uuid
     ) AND
     (
         $6::uuid IS NULL OR
-        events."id" = $6::uuid
+        runs."parentStepRunId" = $6::uuid
+    ) AND
+    (
+        $7::jsonb IS NULL OR
+        runs."additionalMetadata" @> $7::jsonb
+    ) AND
+    (
+        $8::uuid IS NULL OR
+        events."id" = $8::uuid
     )
 `
 
 type WorkflowRunsMetricsCountParams struct {
-	Tenantid           pgtype.UUID `json:"tenantid"`
-	WorkflowId         pgtype.UUID `json:"workflowId"`
-	ParentId           pgtype.UUID `json:"parentId"`
-	ParentStepRunId    pgtype.UUID `json:"parentStepRunId"`
-	AdditionalMetadata []byte      `json:"additionalMetadata"`
-	EventId            pgtype.UUID `json:"eventId"`
+	Tenantid           pgtype.UUID      `json:"tenantid"`
+	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
+	CreatedBefore      pgtype.Timestamp `json:"createdBefore"`
+	WorkflowId         pgtype.UUID      `json:"workflowId"`
+	ParentId           pgtype.UUID      `json:"parentId"`
+	ParentStepRunId    pgtype.UUID      `json:"parentStepRunId"`
+	AdditionalMetadata []byte           `json:"additionalMetadata"`
+	EventId            pgtype.UUID      `json:"eventId"`
 }
 
 type WorkflowRunsMetricsCountRow struct {
@@ -1857,6 +1879,8 @@ type WorkflowRunsMetricsCountRow struct {
 func (q *Queries) WorkflowRunsMetricsCount(ctx context.Context, db DBTX, arg WorkflowRunsMetricsCountParams) (*WorkflowRunsMetricsCountRow, error) {
 	row := db.QueryRow(ctx, workflowRunsMetricsCount,
 		arg.Tenantid,
+		arg.CreatedAfter,
+		arg.CreatedBefore,
 		arg.WorkflowId,
 		arg.ParentId,
 		arg.ParentStepRunId,

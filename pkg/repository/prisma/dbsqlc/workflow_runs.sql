@@ -64,6 +64,10 @@ WITH runs AS (
             runs."createdAt" > sqlc.narg('createdAfter')::timestamp
         ) AND
         (
+            sqlc.narg('createdBefore')::timestamp IS NULL OR
+            runs."createdAt" < sqlc.narg('createdBefore')::timestamp
+        ) AND
+        (
             sqlc.narg('finishedAfter')::timestamp IS NULL OR
             runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
         )
@@ -98,6 +102,14 @@ LEFT JOIN
 WHERE
     runs."tenantId" = @tenantId::uuid AND
     runs."createdAt" > NOW() - INTERVAL '1 day' AND
+    (
+        sqlc.narg('createdAfter')::timestamp IS NULL OR
+        runs."createdAt" > sqlc.narg('createdAfter')::timestamp
+    ) AND
+    (
+        sqlc.narg('createdBefore')::timestamp IS NULL OR
+        runs."createdAt" < sqlc.narg('createdBefore')::timestamp
+    ) AND
     runs."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
@@ -191,6 +203,10 @@ WHERE
     (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
         runs."createdAt" > sqlc.narg('createdAfter')::timestamp
+    ) AND
+    (
+        sqlc.narg('createdBefore')::timestamp IS NULL OR
+        runs."createdAt" < sqlc.narg('createdBefore')::timestamp
     ) AND
     (
         sqlc.narg('finishedAfter')::timestamp IS NULL OR
