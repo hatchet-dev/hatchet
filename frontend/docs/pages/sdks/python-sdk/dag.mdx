@@ -1,13 +1,21 @@
-# Worker Configuration
+import { Tabs, Callout } from "nextra/components";
 
-Workers can be created via the `hatchet.worker()` method, after [instantiating a `hatchet` instance](./client). The `hatchet.worker()` method takes the following arguments:
+# DAG Worker Configuration
+
+<Callout type="info">
+  To learn more about what a Directed Acyclic Graph (DAG) is, check out our docs
+  on them
+  [here](https://docs.hatchet.run/home/basics/workflows#declarative-workflow-design-dags).
+</Callout>
+
+DAG Workers can be created via the `hatchet.worker()` method, after [instantiating a `hatchet` instance](./client). The `hatchet.worker()` method takes the following arguments:
 
 - `name` (**required**): The name of the worker. This is used to identify the worker in the Hatchet UI.
 - `max_runs`: The maximum number of concurrent step runs that the worker can run. If not set, it defaults to `100`. Note that this value is different from the number of concurrent runs per workflow.
 
 ## Registering Workflows
 
-Workers can register workflows by calling `worker.register_workflow` with a workflow class instance. There is no limit to the number of workflows which can be registered for each worker. For example:
+DAG Workers can register workflows by calling `worker.register_workflow` with a workflow class instance. There is no limit to the number of workflows which can be registered for each worker. For example:
 
 ```py
 from hatchet_sdk import Context, Hatchet
@@ -32,9 +40,9 @@ worker.register_workflow(WorkflowTwo())
 worker.start()
 ```
 
-## Starting a Worker
+## Starting a DAG Worker
 
-Workers can be started by calling either `worker.start` or `worker.async_start`. We recommend that `worker.start` is the last call made when running a worker.
+DAG Workers can be started by calling either `worker.start` or `worker.async_start`. We recommend that `worker.start` is the last call made when running a worker.
 
 The `worker.start` method is blocking, while `worker.async_start` can be awaited or started via `asyncio.create_task`.
 

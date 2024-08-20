@@ -14,7 +14,6 @@
     "title": "Configuration"
   },
   "client": "Client",
-  "worker": "Worker",
   "workflow": "Workflow",
   "--- Running Workflows": {
     "type": "separator",
@@ -34,6 +33,7 @@
     "type": "separator",
     "title": "Advanced"
   },
+  "dag": "DAG Workers",
   "fairness": "Concurrency and Fairness",
   "logging": "Logging",
   "api": "REST API",
