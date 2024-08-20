@@ -263,30 +263,30 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			if err != nil {
 				return nil, nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
 			}
-		}
 
-		svcUUIDs := make([]pgtype.UUID, len(opts.Services))
+			svcUUIDs := make([]pgtype.UUID, len(opts.Services))
 
-		for i, svc := range opts.Services {
-			dbSvc, err := w.queries.UpsertService(ctx, tx, dbsqlc.UpsertServiceParams{
-				Name:     svc,
-				Tenantid: pgTenantId,
+			for i, svc := range opts.Services {
+				dbSvc, err := w.queries.UpsertService(ctx, tx, dbsqlc.UpsertServiceParams{
+					Name:     svc,
+					Tenantid: pgTenantId,
+				})
+
+				if err != nil {
+					return nil, nil, fmt.Errorf("could not upsert service: %w", err)
+				}
+
+				svcUUIDs[i] = dbSvc.ID
+			}
+
+			err = w.queries.LinkServicesToWorker(ctx, tx, dbsqlc.LinkServicesToWorkerParams{
+				Services: svcUUIDs,
+				Workerid: worker.ID,
 			})
 
 			if err != nil {
-				return nil, nil, fmt.Errorf("could not upsert service: %w", err)
+				return nil, nil, fmt.Errorf("could not link services to worker: %w", err)
 			}
-
-			svcUUIDs[i] = dbSvc.ID
-		}
-
-		err = w.queries.LinkServicesToWorker(ctx, tx, dbsqlc.LinkServicesToWorkerParams{
-			Services: svcUUIDs,
-			Workerid: worker.ID,
-		})
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not link services to worker: %w", err)
 		}
 
 		actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
