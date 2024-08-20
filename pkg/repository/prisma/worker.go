@@ -253,22 +253,22 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 
 		if worker == nil {
 			worker, err = w.queries.CreateWorker(ctx, tx, createParams)
-		}
 
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not create worker: %w", err)
-		}
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not create worker: %w", err)
+			}
 
-		err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
-			Workerid: worker.ID,
-			MaxRuns: pgtype.Int4{
-				Int32: worker.MaxRuns,
-				Valid: true,
-			},
-		})
+			err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
+				Workerid: worker.ID,
+				MaxRuns: pgtype.Int4{
+					Int32: worker.MaxRuns,
+					Valid: true,
+				},
+			})
 
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
+			}
 		}
 
 		svcUUIDs := make([]pgtype.UUID, len(opts.Services))
