@@ -83,6 +83,12 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
       to="/workers/all"
       name="All Workers"
     />,
+    <SidebarButtonSecondary
+      key={1}
+      onNavLinkClick={onNavLinkClick}
+      to="/workers/webhook"
+      name="Webhook Workers"
+    />,
   ];
 
   if (featureFlags?.data['managed-worker']) {
@@ -180,12 +186,6 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/github"
                     name="Github"
-                  />,
-                  <SidebarButtonSecondary
-                    key={4}
-                    onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/webhooks"
-                    name="Webhooks"
                   />,
                   <SidebarButtonSecondary
                     key={5}

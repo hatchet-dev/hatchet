@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button.tsx';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks.ts';
 import { Dialog } from '@/components/ui/dialog.tsx';
-import { CreateWebhookWorkerDialog } from '@/pages/main/tenant-settings/webhooks/components/create-webhook-worker-dialog.tsx';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +20,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu.tsx';
 import { BiDotsVertical } from 'react-icons/bi';
-import { DeleteWebhookWorkerDialog } from '@/pages/main/tenant-settings/webhooks/components/delete-webhook-worker-dialog.tsx';
+import { CreateWebhookWorkerDialog } from './components/create-webhook-worker-dialog';
+import { DeleteWebhookWorkerDialog } from './components/delete-webhook-worker-dialog';
 
 export default function Webhooks() {
   const { tenant } = useOutletContext<TenantContextType>();
