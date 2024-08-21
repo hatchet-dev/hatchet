@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -258,6 +259,7 @@ func TestGeneratePlan(t *testing.T) {
 			}
 
 			got, err := GeneratePlan(
+				context.Background(),
 				fixtureData.Slots,
 				fixtureData.UniqueActionsArr,
 				fixtureData.QueueItems,
@@ -284,6 +286,7 @@ func BenchmarkGeneratePlan(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		_, _ = GeneratePlan(
+			context.Background(),
 			fixtureData.Slots,
 			fixtureData.UniqueActionsArr,
 			fixtureData.QueueItems,

@@ -1,10 +1,12 @@
 package scheduling
 
 import (
+	"context"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
@@ -17,6 +19,7 @@ type QueueItemWithOrder struct {
 }
 
 func GeneratePlan(
+	ctx context.Context,
 	slots []*dbsqlc.ListSemaphoreSlotsToAssignRow,
 	uniqueActionsArr []string,
 	queueItems []*QueueItemWithOrder,
@@ -25,6 +28,8 @@ func GeneratePlan(
 	workerLabels map[string][]*dbsqlc.GetWorkerLabelsRow,
 	stepDesiredLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
 ) (SchedulePlan, error) {
+	_, span := telemetry.NewSpan(ctx, "generate-scheduling-plan")
+	defer span.End()
 
 	plan := SchedulePlan{
 		StepRunIds:             make([]pgtype.UUID, 0),

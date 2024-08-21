@@ -849,6 +849,9 @@ type debugInfo struct {
 }
 
 func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId string) (repository.QueueStepRunsResult, error) {
+	ctx, span := telemetry.NewSpan(ctx, "queue-step-runs-database")
+	defer span.End()
+
 	startedAt := time.Now().UTC()
 
 	emptyRes := repository.QueueStepRunsResult{
@@ -1092,6 +1095,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	}
 
 	plan, err := scheduling.GeneratePlan(
+		ctx,
 		slots,
 		uniqueActionsArr,
 		queueItems,
