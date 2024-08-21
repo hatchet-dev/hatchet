@@ -1,5 +1,6 @@
 import { Tabs } from "nextra/components";
 import UniversalTabs from "../../../../components/UniversalTabs"
+import CodeCell from "../../../../components/CodeCell"
 
 ## Concurrency Control in Hatchet Workflows
 
@@ -36,10 +37,11 @@ In addition to setting concurrency limits at the workflow level, you can also co
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-```python
-worker = hatchet.worker("my-worker", max_runs=5)
-```
+    <CodeCell language="Python" blockName="setting-concurrency"/>
   </Tabs.Tab>
+  ```python
+  test = "waffle"
+  ```
   <Tabs.Tab>
 ```typescript
 const worker = hatchet.worker("my-worker", {

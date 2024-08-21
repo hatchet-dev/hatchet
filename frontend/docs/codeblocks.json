@@ -1,0 +1,9 @@
+{
+  "Python": [
+    {
+      "blockName": "setting-concurrency",
+      "code": "worker = hatchet.worker(\"concurrency-demo-worker\", max_runs=10)",
+      "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/delimeters/examples/concurrency_limit/worker.py"
+    }
+  ]
+}
