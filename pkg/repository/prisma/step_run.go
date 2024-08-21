@@ -865,7 +865,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 
 	limit := 100
 
-	if limit > s.cf.SingleQueueLimit {
+	if s.cf.SingleQueueLimit != 0 {
 		limit = s.cf.SingleQueueLimit
 	}
 
