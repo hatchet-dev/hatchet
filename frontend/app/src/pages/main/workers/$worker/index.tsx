@@ -138,7 +138,7 @@ export default function ExpandedWorkflowRun() {
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               <Link to="/workers">Workers/</Link>
-              {worker.name}
+              {worker.webhookUrl || worker.name}
             </h2>
           </div>
           <div className="flex flex-row gap-2">

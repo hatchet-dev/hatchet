@@ -41,14 +41,8 @@ func NewWorkerAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v valid
 	}
 }
 
-func (w *workerAPIRepository) GetWorkerById(workerId string) (*db.WorkerModel, error) {
-	return w.client.Worker.FindUnique(
-		db.Worker.ID.Equals(workerId),
-	).With(
-		db.Worker.Dispatcher.Fetch(),
-		db.Worker.Actions.Fetch(),
-		db.Worker.Slots.Fetch(),
-	).Exec(context.Background())
+func (w *workerAPIRepository) GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error) {
+	return w.queries.GetWorkerById(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
 }
 
 func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, failed bool) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error) {
@@ -211,6 +205,20 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			Name:         opts.Name,
 		}
 
+		// Default to self hosted
+		createParams.Type = dbsqlc.NullWorkerType{
+			WorkerType: dbsqlc.WorkerTypeSELFHOSTED,
+			Valid:      true,
+		}
+
+		if opts.WebhookId != nil {
+			createParams.WebhookId = sqlchelpers.UUIDFromStr(*opts.WebhookId)
+			createParams.Type = dbsqlc.NullWorkerType{
+				WorkerType: dbsqlc.WorkerTypeWEBHOOK,
+				Valid:      true,
+			}
+		}
+
 		if opts.MaxRuns != nil {
 			createParams.MaxRuns = pgtype.Int4{
 				Int32: int32(*opts.MaxRuns),
@@ -223,22 +231,42 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			}
 		}
 
-		worker, err := w.queries.CreateWorker(ctx, tx, createParams)
+		var worker *dbsqlc.Worker
 
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not create worker: %w", err)
+		// HACK upsert webhook worker
+		if opts.WebhookId != nil {
+			worker, err = w.queries.GetWorkerByWebhookId(ctx, tx, dbsqlc.GetWorkerByWebhookIdParams{
+				Webhookid: createParams.WebhookId,
+				Tenantid:  pgTenantId,
+			})
+
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, nil, fmt.Errorf("could not get worker: %w", err)
+			}
+
+			if errors.Is(err, pgx.ErrNoRows) {
+				worker = nil
+			}
 		}
 
-		err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
-			Workerid: worker.ID,
-			MaxRuns: pgtype.Int4{
-				Int32: worker.MaxRuns,
-				Valid: true,
-			},
-		})
+		if worker == nil {
+			worker, err = w.queries.CreateWorker(ctx, tx, createParams)
 
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not create worker: %w", err)
+			}
+
+			err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
+				Workerid: worker.ID,
+				MaxRuns: pgtype.Int4{
+					Int32: worker.MaxRuns,
+					Valid: true,
+				},
+			})
+
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
+			}
 		}
 
 		svcUUIDs := make([]pgtype.UUID, len(opts.Services))
@@ -398,8 +426,8 @@ func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, wor
 	return err
 }
 
-func (w *workerEngineRepository) UpdateWorkersByName(ctx context.Context, params dbsqlc.UpdateWorkersByNameParams) error {
-	_, err := w.queries.UpdateWorkersByName(ctx, w.pool, params)
+func (w *workerEngineRepository) UpdateWorkersByWebhookId(ctx context.Context, params dbsqlc.UpdateWorkersByWebhookIdParams) error {
+	_, err := w.queries.UpdateWorkersByWebhookId(ctx, w.pool, params)
 	return err
 }
 

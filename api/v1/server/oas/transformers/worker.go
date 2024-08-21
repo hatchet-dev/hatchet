@@ -133,7 +133,7 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 	return res
 }
 
-func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int) *gen.Worker {
+func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int, webhookUrl *string) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
@@ -158,10 +158,12 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int) *gen.Worker {
 	res := &gen.Worker{
 		Metadata:      *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
 		Name:          worker.Name,
+		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,
 		DispatcherId:  &dispatcherId,
 		MaxRuns:       &maxRuns,
 		AvailableRuns: &availableRuns,
+		WebhookUrl:    webhookUrl,
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {

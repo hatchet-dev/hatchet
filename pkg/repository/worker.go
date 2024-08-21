@@ -25,6 +25,9 @@ type CreateWorkerOpts struct {
 
 	// A list of actions this worker can run
 	Actions []string `validate:"dive,actionId"`
+
+	// (optional) Webhook Id associated with the worker (if any)
+	WebhookId *string `validate:"omitempty,uuid"`
 }
 
 type UpdateWorkerOpts struct {
@@ -72,7 +75,7 @@ type WorkerAPIRepository interface {
 	ListWorkerState(tenantId, workerId string, failed bool) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error)
 
 	// GetWorkerById returns a worker by its id.
-	GetWorkerById(workerId string) (*db.WorkerModel, error)
+	GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error)
 
 	// ListWorkerLabels returns a list of labels config for a worker
 	ListWorkerLabels(tenantId, workerId string) ([]*dbsqlc.ListWorkerLabelsRow, error)
@@ -95,8 +98,8 @@ type WorkerEngineRepository interface {
 	// DeleteWorker removes the worker from the database
 	DeleteWorker(ctx context.Context, tenantId, workerId string) error
 
-	// UpdateWorkersByName removes the worker from the database
-	UpdateWorkersByName(ctx context.Context, opts dbsqlc.UpdateWorkersByNameParams) error
+	// UpdateWorkersByWebhookId removes the worker from the database
+	UpdateWorkersByWebhookId(ctx context.Context, opts dbsqlc.UpdateWorkersByWebhookIdParams) error
 
 	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
 

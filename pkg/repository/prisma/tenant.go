@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -302,6 +303,11 @@ func (r *tenantEngineRepository) GetTenantByID(ctx context.Context, tenantId str
 
 func (r *tenantEngineRepository) UpdatePartitionHeartbeat(ctx context.Context, partitionId string) error {
 	_, err := r.queries.ControllerPartitionHeartbeat(ctx, r.pool, partitionId)
+
+	if err == pgx.ErrNoRows {
+		return nil
+	}
+
 	return err
 }
 

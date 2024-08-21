@@ -164,6 +164,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		Name:         request.WorkerName,
 		Actions:      request.Actions,
 		Services:     svcs,
+		WebhookId:    request.WebhookId,
 	}
 
 	if request.MaxRuns != nil {

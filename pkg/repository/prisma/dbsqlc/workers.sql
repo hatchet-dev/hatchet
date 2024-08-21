@@ -1,9 +1,12 @@
 -- name: ListWorkersWithStepCount :many
 SELECT
     sqlc.embed(workers),
+    ww."url" AS "webhookUrl",
     (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
 FROM
     "Worker" workers
+LEFT JOIN
+    "WebhookWorker" ww ON workers."webhookId" = ww."id"
 WHERE
     workers."tenantId" = @tenantId
     AND (
@@ -29,7 +32,18 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id";
+    workers."id", ww."url";
+
+-- name: GetWorkerById :one
+SELECT
+    sqlc.embed(workers),
+    ww."url" AS "webhookUrl"
+FROM
+    "Worker" workers
+LEFT JOIN
+    "WebhookWorker" ww ON workers."webhookId" = ww."id"
+WHERE
+    workers."id" = @id::uuid;
 
 -- name: StubWorkerSemaphoreSlots :exec
 INSERT INTO "WorkerSemaphoreSlot" ("id", "workerId")
@@ -112,7 +126,9 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "maxRuns"
+    "maxRuns",
+    "webhookId",
+    "type"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -120,8 +136,19 @@ INSERT INTO "Worker" (
     @tenantId::uuid,
     @name::text,
     @dispatcherId::uuid,
-    sqlc.narg('maxRuns')::int
+    sqlc.narg('maxRuns')::int,
+    sqlc.narg('webhookId')::uuid,
+    sqlc.narg('type')::"WorkerType"
 ) RETURNING *;
+
+-- name: GetWorkerByWebhookId :one
+SELECT
+    *
+FROM
+    "Worker"
+WHERE
+    "webhookId" = @webhookId::uuid
+    AND "tenantId" = @tenantId::uuid;
 
 -- name: UpdateWorkerHeartbeat :one
 UPDATE
@@ -233,12 +260,12 @@ WHERE
   "id" = @id::uuid
 RETURNING *;
 
--- name: UpdateWorkersByName :many
+-- name: UpdateWorkersByWebhookId :many
 UPDATE "Worker"
 SET "isActive" = @isActive::boolean
 WHERE
   "tenantId" = @tenantId::uuid AND
-  "name" = @name::text
+  "webhookId" = @webhookId::uuid
 RETURNING *;
 
 -- name: UpdateWorkerActiveStatus :one
