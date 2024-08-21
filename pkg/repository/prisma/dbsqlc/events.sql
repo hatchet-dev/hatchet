@@ -140,7 +140,10 @@ LEFT JOIN
 LEFT JOIN
     "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
 GROUP BY
-    events."id", events."createdAt";
+    events."id", events."createdAt"
+ORDER BY
+    case when @orderBy = 'createdAt ASC' THEN events."createdAt" END ASC ,
+    case when @orderBy = 'createdAt DESC' then events."createdAt" END DESC;
 
 -- name: GetEventsForRange :many
 SELECT
