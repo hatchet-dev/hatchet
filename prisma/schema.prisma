@@ -731,7 +731,6 @@ model Action {
 
   // actions are unique per tenant
   @@unique([tenantId, actionId])
-  @@unique([actionId, tenantId])
 }
 
 model StepDesiredWorkerLabel {

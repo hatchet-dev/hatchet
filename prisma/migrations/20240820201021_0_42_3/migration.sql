@@ -13,9 +13,6 @@ ALTER TABLE "Worker" ADD COLUMN     "type" "WorkerType" NOT NULL DEFAULT 'SELFHO
 ADD COLUMN     "webhookId" UUID;
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Action_actionId_tenantId_key" ON "Action"("actionId", "tenantId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker"("webhookId");
 
 -- AddForeignKey

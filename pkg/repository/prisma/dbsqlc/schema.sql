@@ -862,9 +862,6 @@ CREATE TABLE "_WorkflowToWorkflowTag" (
 CREATE UNIQUE INDEX "APIToken_id_key" ON "APIToken"("id" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Action_actionId_tenantId_key" ON "Action"("actionId" ASC, "tenantId" ASC);
-
--- CreateIndex
 CREATE UNIQUE INDEX "Action_id_key" ON "Action"("id" ASC);
 
 -- CreateIndex
