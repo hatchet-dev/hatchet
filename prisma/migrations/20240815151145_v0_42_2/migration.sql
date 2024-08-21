@@ -18,4 +18,3 @@ DROP INDEX IF EXISTS "QueueItem_isQueued_priority_tenantId_queue_id_idx";
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "QueueItem_isQueued_priority_tenantId_queue_id_idx_2" ON "QueueItem" ("isQueued", "tenantId", "queue", "priority" DESC, "id");
 
-ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);

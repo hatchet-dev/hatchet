@@ -1551,3 +1551,9 @@ ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_A_fk
 
 -- AddForeignKey
 ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_B_fkey" FOREIGN KEY ("B") REFERENCES "WorkflowTag"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- NOTE: this is a SQL script file that contains the constraints for the database
+-- it is needed because prisma does not support constraints yet
+
+-- Modify "QueueItem" table
+ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);
