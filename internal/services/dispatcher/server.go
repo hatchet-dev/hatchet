@@ -496,10 +496,6 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
-
-	fmt.Println("SubscribeToWorkflowEvents")
-	fmt.Println(request)
-
 	if request.WorkflowRunId != nil {
 		return s.subscribeToWorkflowEventsByWorkflowRunId(*request.WorkflowRunId, stream)
 	} else if request.AdditionalMetaKey != nil && request.AdditionalMetaValue != nil {
@@ -513,8 +509,6 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, value string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	s.l.Error().Msgf("Received subscribe request for additional meta key-value: {%s: %s}", key, value)
 
 	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
 	if err != nil {
