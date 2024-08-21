@@ -1,26 +1,40 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { codeToHtml } from "shiki";
 import codeblocks from "../codeblocks.json";
 
 const CodeCell = ({ language, blockName, runnable = false }) => {
-  const getCode = () => {
-    console.log(codeblocks);
-    if (codeblocks[language]) {
-      const block = codeblocks[language].find((b) => b.blockName === blockName);
-      if (block) {
-        console.log(block.code);
-        return block.code;
-      }
-    }
-    return `Code block "${blockName}" not found for language ${language}`;
-  };
+  const [html, setHtml] = useState("");
 
-  const code = getCode();
+  useEffect(() => {
+    const fetchCode = async () => {
+      const getCode = () => {
+        if (codeblocks[language]) {
+          const block = codeblocks[language].find(
+            (b) => b.blockName === blockName,
+          );
+          if (block) {
+            return block.code;
+          }
+        }
+        return `Code block "${blockName}" not found for language ${language}`;
+      };
+
+      const code = getCode();
+      const highlightedHtml = await codeToHtml(code, {
+        lang: language.toLowerCase(),
+        theme: "github-dark",
+      });
+      setHtml(highlightedHtml);
+    };
+
+    fetchCode();
+  }, [language, blockName]);
 
   return (
     <pre>
       <code
-        className={`language-${language}`}
-        dangerouslySetInnerHTML={{ __html: code }}
+        className="p-4 rounded-lg overflow-x-auto"
+        dangerouslySetInnerHTML={{ __html: html }}
       />
     </pre>
   );
