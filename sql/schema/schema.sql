@@ -940,7 +940,7 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupDat
 CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);
 
 -- CreateIndex
-CREATE INDEX "QueueItem_isQueued_priority_tenantId_queue_id_idx" ON "QueueItem"("isQueued" ASC, "priority" ASC, "tenantId" ASC, "queue" ASC, "id" ASC);
+CREATE INDEX "QueueItem_isQueued_priority_tenantId_queue_id_idx_2" ON "QueueItem"("isQueued" ASC, "tenantId" ASC, "queue" ASC, "priority" DESC, "id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RateLimit_tenantId_key_key" ON "RateLimit"("tenantId" ASC, "key" ASC);
@@ -1565,3 +1565,9 @@ ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_A_fk
 
 -- AddForeignKey
 ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_B_fkey" FOREIGN KEY ("B") REFERENCES "WorkflowTag"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- NOTE: this is a SQL script file that contains the constraints for the database
+-- it is needed because prisma does not support constraints yet
+
+-- Modify "QueueItem" table
+ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);
