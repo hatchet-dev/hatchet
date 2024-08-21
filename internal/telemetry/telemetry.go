@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
@@ -89,6 +90,26 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 func NewSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	ctx, span := otel.Tracer("").Start(ctx, prefixSpanKey(name))
 	return ctx, span
+}
+
+func NewSpanWithCarrier(ctx context.Context, name string, carrier map[string]string) (context.Context, trace.Span) {
+	propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
+
+	otelCarrier := propagation.MapCarrier(carrier)
+	parentCtx := propagator.Extract(ctx, otelCarrier)
+
+	ctx, span := otel.Tracer("").Start(parentCtx, prefixSpanKey(name))
+	return ctx, span
+}
+
+func GetCarrier(ctx context.Context) map[string]string {
+	propgator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
+
+	// Serialize the context into carrier
+	carrier := propagation.MapCarrier{}
+	propgator.Inject(ctx, carrier)
+
+	return carrier
 }
 
 type AttributeKey string

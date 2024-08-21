@@ -209,7 +209,7 @@ func (p *Partition) handleTask(ctx context.Context, task *msgqueue.Message) (err
 }
 
 func (p *Partition) handleCheckQueue(ctx context.Context, task *msgqueue.Message) error {
-	_, span := telemetry.NewSpan(ctx, "handle-check-queue")
+	_, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", task.OtelCarrier)
 	defer span.End()
 
 	metadata := tasktypes.CheckTenantQueueMetadata{}
