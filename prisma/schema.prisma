@@ -1312,7 +1312,7 @@ model QueueItem {
   sticky          StickyStrategy?
   desiredWorkerId String?         @db.Uuid
 
-  @@index([isQueued, tenantId, queue, priority(sort: Desc), id], name:"QueueItem_isQueued_priority_tenantId_queue_id_idx_2")
+  @@index([isQueued, tenantId, queue, priority(sort: Desc), id], name: "QueueItem_isQueued_priority_tenantId_queue_id_idx_2")
 }
 
 enum StepRunEventReason {
