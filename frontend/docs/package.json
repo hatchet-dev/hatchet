@@ -5,7 +5,7 @@
   "packageManager": "pnpm@9.1.1",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node ./scripts/codeblocks-scraper.mjs && next build",
     "start": "next start",
     "lint:check": "npm run prettier:check",
     "lint:fix": "npm run prettier:fix",
@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/shuding/nextra-docs-template#readme",
   "dependencies": {
+    "@octokit/rest": "^21.0.2",
     "autoprefixer": "^10.4.17",
     "next": "^14.1.0",
     "nextra": "^2.13.2",
