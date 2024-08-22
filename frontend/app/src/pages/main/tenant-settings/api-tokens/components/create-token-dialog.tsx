@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/loading';
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import {
   Select,
   SelectContent,
@@ -19,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { SecretCopier } from '@/components/ui/secret-copier';
 
 export const EXPIRES_IN_OPTS = {
   '3 months': `${3 * 30 * 24 * 60 * 60}s`,
@@ -65,12 +65,10 @@ export function CreateTokenDialog({
           This is the only time we will show you this token. Make sure to copy
           it somewhere safe.
         </p>
-        <CodeHighlighter
-          language="typescript"
+        <SecretCopier
+          secrets={{ HATCHET_CLIENT_TOKEN: token }}
           className="text-sm"
-          wrapLines={false}
           maxWidth={'calc(700px - 4rem)'}
-          code={'HATCHET_CLIENT_TOKEN="' + token + '"'}
           copy
         />
       </DialogContent>

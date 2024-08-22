@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/loading';
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { SecretCopier } from '@/components/ui/secret-copier';
 
 const schema = z.object({
   name: z.string().min(1).max(255),
@@ -51,16 +51,22 @@ export function CreateWebhookWorkerDialog({
           <DialogTitle>Keep it secret, keep it safe</DialogTitle>
         </DialogHeader>
         <p className="text-sm">
-          Copy the webhook secret and add it in your application.
+          Set the following Hatchet configuration in your application
+          environment:
         </p>
-        <CodeHighlighter
-          language="typescript"
+        <SecretCopier
           className="text-sm"
-          wrapLines={false}
           maxWidth={'calc(700px - 4rem)'}
-          code={secret}
+          secrets={{
+            HATCHET_WEBHOOK_SECRET: secret,
+          }}
           copy
         />
+
+        <p className="text-sm text-gray-500">
+          These values should be kept secret and not shared with anyone and will
+          only be displayed once.
+        </p>
       </DialogContent>
     );
   }
@@ -68,7 +74,7 @@ export function CreateWebhookWorkerDialog({
   return (
     <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
       <DialogHeader>
-        <DialogTitle>Create a new Webhook Endpoint</DialogTitle>
+        <DialogTitle>Create a New Webhook Worker</DialogTitle>
       </DialogHeader>
       <div className={cn('grid gap-6', className)}>
         <form
@@ -78,22 +84,11 @@ export function CreateWebhookWorkerDialog({
         >
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                {...register('name')}
-                id="webhook-worker-name"
-                name="name"
-                placeholder="My Webhook Endpoint"
-                autoCapitalize="none"
-                autoCorrect="off"
-                disabled={props.isLoading}
-              />
-              {nameError && (
-                <div className="text-sm text-red-500">{nameError}</div>
-              )}
-            </div>
-            <div className="grid gap-2">
               <Label htmlFor="url">URL</Label>
+              <p className="text-sm dark:text-gray-500">
+                The URL with full path where the webhook worker will be
+                available.
+              </p>
               <Input
                 {...register('url')}
                 id="webhook-worker-url"
@@ -105,6 +100,24 @@ export function CreateWebhookWorkerDialog({
               />
               {urlError && (
                 <div className="text-sm text-red-500">{urlError}</div>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="name">Friendly Name</Label>
+              <p className="text-sm dark:text-gray-500">
+                An easy to remember name to identify worker.
+              </p>
+              <Input
+                {...register('name')}
+                id="webhook-worker-name"
+                name="name"
+                placeholder="My Webhook Endpoint"
+                autoCapitalize="none"
+                autoCorrect="off"
+                disabled={props.isLoading}
+              />
+              {nameError && (
+                <div className="text-sm text-red-500">{nameError}</div>
               )}
             </div>
 
