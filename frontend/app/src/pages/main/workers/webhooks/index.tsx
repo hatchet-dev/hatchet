@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card.tsx';
 import { Button } from '@/components/ui/button.tsx';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApiError } from '@/lib/hooks.ts';
 import { Dialog } from '@/components/ui/dialog.tsx';
 import {
@@ -203,6 +203,14 @@ function CreateWebhookWorker({
     onError: handleApiError,
   });
 
+  useEffect(() => {
+    if (showDialog) {
+      setGeneratedToken(undefined);
+      setWebhookId(undefined);
+      setFieldErrors({});
+    }
+  }, [showDialog]);
+
   return (
     <Dialog open={showDialog} onOpenChange={setShowDialog}>
       <CreateWebhookWorkerDialog
@@ -211,6 +219,7 @@ function CreateWebhookWorker({
         secret={generatedToken}
         webhookId={webhookId}
         fieldErrors={fieldErrors}
+        isOpen={showDialog}
       />
     </Dialog>
   );

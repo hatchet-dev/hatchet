@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/loading';
 import { SecretCopier } from '@/components/ui/secret-copier';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RecentWebhookRequests } from './recent-webhook-requests';
 
 const schema = z.object({
@@ -28,17 +28,20 @@ interface CreateWebhookWorkerDialogProps {
   onSubmit: (opts: z.infer<typeof schema> & { name: string }) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
+  isOpen: boolean;
 }
 
 export function CreateWebhookWorkerDialog({
   className,
   secret,
   webhookId,
+  isOpen,
   ...props
 }: CreateWebhookWorkerDialogProps) {
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -51,6 +54,15 @@ export function CreateWebhookWorkerDialog({
 
   const nameError = errors.name?.message?.toString() || props.fieldErrors?.name;
   const urlError = errors.url?.message?.toString() || props.fieldErrors?.url;
+
+  useEffect(() => {
+    if (!isOpen) {
+      setCanTestConnection(false);
+      setWaitingForConnection(false);
+      setIsComplete(false);
+      reset(); // Reset form fields
+    }
+  }, [isOpen, reset]);
 
   if (isComplete) {
     return (
