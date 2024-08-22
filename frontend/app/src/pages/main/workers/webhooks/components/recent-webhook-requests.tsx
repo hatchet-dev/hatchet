@@ -64,7 +64,7 @@ export const RecentWebhookRequests: React.FC<RecentRequestProps> = ({
     !webhookRequestQuery.data.requests ||
     webhookRequestQuery.data.requests.length === 0
   ) {
-    return <div>No requests</div>;
+    return <div>Attempting to connect...</div>;
   }
 
   const requestsToShow = showAll
