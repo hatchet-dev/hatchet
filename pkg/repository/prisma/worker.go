@@ -45,6 +45,13 @@ func (w *workerAPIRepository) GetWorkerById(workerId string) (*dbsqlc.GetWorkerB
 	return w.queries.GetWorkerById(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
 }
 
+func (w *workerAPIRepository) GetWorkerActionsByWorkerId(tenantid, workerId string) ([]pgtype.Text, error) {
+	return w.queries.GetWorkerActionsByWorkerId(context.Background(), w.pool, dbsqlc.GetWorkerActionsByWorkerIdParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantid),
+	})
+}
+
 func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, failed bool) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error) {
 	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, dbsqlc.ListSemaphoreSlotsWithStateForWorkerParams{
 		Workerid: sqlchelpers.UUIDFromStr(workerId),

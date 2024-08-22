@@ -27,6 +27,15 @@ func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequest
 		return nil, err
 	}
 
+	actions, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
+		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
+		sqlchelpers.UUIDToStr(worker.Worker.ID),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
 	respStepRuns := make([]gen.RecentStepRuns, len(recent))
 
 	for i := range recent {
@@ -39,7 +48,9 @@ func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequest
 		respStepRuns[i] = *genStepRun
 	}
 
-	workerResp := *transformers.ToWorkerSqlc(&worker.Worker, nil, &worker.WebhookUrl.String)
+	slots := int(worker.FilledSlots)
+
+	workerResp := *transformers.ToWorkerSqlc(&worker.Worker, &slots, &worker.WebhookUrl.String, actions)
 
 	workerResp.RecentStepRuns = &respStepRuns
 	workerResp.Slots = transformers.ToSlotState(slotState)

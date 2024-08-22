@@ -35,5 +35,5 @@ func (t *WorkerService) WorkerUpdate(ctx echo.Context, request gen.WorkerUpdateR
 		return nil, err
 	}
 
-	return gen.WorkerUpdate200JSONResponse(*transformers.ToWorkerSqlc(updatedWorker, nil, nil)), nil
+	return gen.WorkerUpdate200JSONResponse(*transformers.ToWorkerSqlc(updatedWorker, nil, nil, nil)), nil
 }

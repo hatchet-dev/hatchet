@@ -103,21 +103,63 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*W
 	return &i, err
 }
 
+const getWorkerActionsByWorkerId = `-- name: GetWorkerActionsByWorkerId :many
+SELECT
+    a."actionId" AS actionId
+FROM "Worker" w
+LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
+LEFT JOIN "Action" a ON aw."A" = a.id
+WHERE
+    a."tenantId" = $1::uuid AND
+    w."id" = $2::uuid
+`
+
+type GetWorkerActionsByWorkerIdParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Workerid pgtype.UUID `json:"workerid"`
+}
+
+func (q *Queries) GetWorkerActionsByWorkerId(ctx context.Context, db DBTX, arg GetWorkerActionsByWorkerIdParams) ([]pgtype.Text, error) {
+	rows, err := db.Query(ctx, getWorkerActionsByWorkerId, arg.Tenantid, arg.Workerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.Text
+	for rows.Next() {
+		var actionid pgtype.Text
+		if err := rows.Scan(&actionid); err != nil {
+			return nil, err
+		}
+		items = append(items, actionid)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkerById = `-- name: GetWorkerById :one
 SELECT
-    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId",
-    ww."url" AS "webhookUrl"
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId",
+    ww."url" AS "webhookUrl",
+    (
+        SELECT COUNT(*)
+        FROM "WorkerSemaphoreSlot"
+        WHERE "workerId" = w.id AND "stepRunId" IS NOT NULL
+    ) AS filled_slots
 FROM
-    "Worker" workers
+    "Worker" w
 LEFT JOIN
-    "WebhookWorker" ww ON workers."webhookId" = ww."id"
+    "WebhookWorker" ww ON w."webhookId" = ww."id"
 WHERE
-    workers."id" = $1::uuid
+    w."id" = $1::uuid
 `
 
 type GetWorkerByIdRow struct {
-	Worker     Worker      `json:"worker"`
-	WebhookUrl pgtype.Text `json:"webhookUrl"`
+	Worker      Worker      `json:"worker"`
+	WebhookUrl  pgtype.Text `json:"webhookUrl"`
+	FilledSlots int64       `json:"filled_slots"`
 }
 
 func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*GetWorkerByIdRow, error) {
@@ -139,6 +181,7 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*
 		&i.Worker.Type,
 		&i.Worker.WebhookId,
 		&i.WebhookUrl,
+		&i.FilledSlots,
 	)
 	return &i, err
 }

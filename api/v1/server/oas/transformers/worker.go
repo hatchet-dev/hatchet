@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
@@ -133,7 +134,7 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 	return res
 }
 
-func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int, webhookUrl *string) *gen.Worker {
+func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int, webhookUrl *string, actions []pgtype.Text) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
@@ -173,6 +174,16 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int, webhookUrl *string) *gen.Wo
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {
 		res.LastHeartbeatAt = &worker.LastHeartbeatAt.Time
+	}
+
+	if actions != nil {
+		apiActions := make([]string, len(actions))
+
+		for i := range actions {
+			apiActions[i] = actions[i].String
+		}
+
+		res.Actions = &apiActions
 	}
 
 	return res
