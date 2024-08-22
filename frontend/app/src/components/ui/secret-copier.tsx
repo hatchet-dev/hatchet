@@ -164,18 +164,18 @@ export function SecretCopier({
 
 function toDotEnv(s: Secrets) {
   return Object.entries(s)
-    .map(([key, value]) => `${key}=${value}`)
+    .map(([key, value]) => `${key}="${value}"`)
     .join('\n');
 }
 
 function toCliEnv(s: Secrets) {
   return Object.entries(s)
-    .map(([key, value]) => `export ${key}=${value}`)
+    .map(([key, value]) => `export ${key}="${value}"`)
     .join('\n');
 }
 
 function toYAML(s: Secrets) {
   return Object.entries(s)
-    .map(([key, value]) => `${key}: ${value}`)
+    .map(([key, value]) => `${key}:"${value}"`)
     .join('\n');
 }
