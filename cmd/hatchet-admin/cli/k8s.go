@@ -141,21 +141,25 @@ func runK8sQuickstart() error {
 
 		if err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("error getting secret: %w", err)
+		} else if err != nil {
+			exists = false
+			c = newFromSecret(nil, k8sQuickstartConfigName)
+		} else {
+			exists = secret != nil
+			c = newFromSecret(secret, k8sQuickstartConfigName)
 		}
-
-		exists = secret != nil
-
-		c = newFromSecret(secret, k8sQuickstartConfigName)
 	} else {
 		configMap, err := clientset.CoreV1().ConfigMaps(namespace).Get(context.Background(), k8sQuickstartConfigName, metav1.GetOptions{})
 
 		if err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("error getting configmap: %w", err)
+		} else if err != nil {
+			exists = false
+			c = newFromConfigMap(nil, k8sQuickstartConfigName)
+		} else {
+			exists = configMap != nil
+			c = newFromConfigMap(configMap, k8sQuickstartConfigName)
 		}
-
-		exists = configMap != nil
-
-		c = newFromConfigMap(configMap, k8sQuickstartConfigName)
 	}
 
 	res := generatedConfig{
@@ -262,21 +266,25 @@ func runCreateWorkerToken() error {
 
 		if err != nil && !errors.IsNotFound(err) {
 			return err
+		} else if err != nil {
+			exists = false
+			c = newFromSecret(nil, k8sClientConfigName)
+		} else {
+			exists = secret != nil
+			c = newFromSecret(secret, k8sClientConfigName)
 		}
-
-		exists = secret != nil
-
-		c = newFromSecret(secret, k8sClientConfigName)
 	} else {
 		configMap, err := clientset.CoreV1().ConfigMaps(namespace).Get(context.Background(), k8sClientConfigName, metav1.GetOptions{})
 
 		if err != nil && !errors.IsNotFound(err) {
 			return err
+		} else if err != nil {
+			exists = false
+			c = newFromConfigMap(nil, k8sClientConfigName)
+		} else {
+			exists = configMap != nil
+			c = newFromConfigMap(configMap, k8sClientConfigName)
 		}
-
-		exists = configMap != nil
-
-		c = newFromConfigMap(configMap, k8sClientConfigName)
 	}
 
 	c.set("HATCHET_CLIENT_TOKEN", defaultTok.Token)
