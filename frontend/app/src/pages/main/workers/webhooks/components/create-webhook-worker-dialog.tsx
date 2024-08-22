@@ -12,9 +12,10 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/loading';
 import { SecretCopier } from '@/components/ui/secret-copier';
+import { useState } from 'react';
 
 const schema = z.object({
-  name: z.string().min(1).max(255),
+  name: z.string().max(255).optional(),
   url: z.string().url().min(1).max(255),
   secret: z.string().min(1).max(255).optional(),
 });
@@ -22,7 +23,7 @@ const schema = z.object({
 interface CreateWebhookWorkerDialogProps {
   className?: string;
   secret?: string;
-  onSubmit: (opts: z.infer<typeof schema>) => void;
+  onSubmit: (opts: z.infer<typeof schema> & { name: string }) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
 }
@@ -64,8 +65,8 @@ export function CreateWebhookWorkerDialog({
         />
 
         <p className="text-sm text-gray-500">
-          These values should be kept secret and not shared with anyone and will
-          only be displayed once.
+          These values should be kept secret and not shared with anyone. They
+          will only be displayed once.
         </p>
       </DialogContent>
     );
@@ -79,13 +80,14 @@ export function CreateWebhookWorkerDialog({
       <div className={cn('grid gap-6', className)}>
         <form
           onSubmit={handleSubmit((d) => {
-            props.onSubmit(d);
+            const name = d.name || d.url || '';
+            props.onSubmit({ ...d, name });
           })}
         >
           <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="url">URL</Label>
-              <p className="text-sm dark:text-gray-500">
+              <p className="text-sm dark:text-gray-400 text-gray-800">
                 The URL with full path where the webhook worker will be
                 available.
               </p>
@@ -103,8 +105,8 @@ export function CreateWebhookWorkerDialog({
               )}
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="name">Friendly Name</Label>
-              <p className="text-sm dark:text-gray-500">
+              <Label htmlFor="name">Friendly Name (optional)</Label>
+              <p className="text-sm dark:text-gray-400 text-gray-800">
                 An easy to remember name to identify worker.
               </p>
               <Input
@@ -123,7 +125,7 @@ export function CreateWebhookWorkerDialog({
 
             <Button disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
-              Create
+              Continue
             </Button>
           </div>
         </form>
