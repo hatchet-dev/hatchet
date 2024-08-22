@@ -99,7 +99,15 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 }
 
 const bulkAssignStepRunsToWorkers = `-- name: BulkAssignStepRunsToWorkers :many
-WITH already_assigned_step_runs AS (
+WITH cancelled_step_runs AS (
+    SELECT
+        "id"
+    FROM
+        "StepRun"
+    WHERE
+        "id" = ANY($1::uuid[])
+        AND "status" != 'PENDING_ASSIGNMENT'
+), already_assigned_step_runs AS (
     SELECT
         input."id",
         wss."id" AS "slotId"
@@ -147,11 +155,12 @@ WITH already_assigned_step_runs AS (
             ) AS subquery
         WHERE
             "id" NOT IN (SELECT "id" FROM already_assigned_step_runs)
+            AND "id" NOT IN (SELECT "id" FROM cancelled_step_runs)
             AND "slotId" NOT IN (SELECT "id" FROM already_assigned_slots)
     ) AS input
     WHERE
         sr."id" = input."id"
-    RETURNING input."id", input."slotId"
+    RETURNING input."id", input."slotId", input."workerId"
 )
 UPDATE
     "WorkerSemaphoreSlot" wss
@@ -160,7 +169,7 @@ SET
 FROM updated_step_runs
 WHERE
     wss."id" = updated_step_runs."slotId"
-RETURNING wss."id"
+RETURNING updated_step_runs."id"::uuid, updated_step_runs."workerId"::uuid
 `
 
 type BulkAssignStepRunsToWorkersParams struct {
@@ -170,7 +179,12 @@ type BulkAssignStepRunsToWorkersParams struct {
 	Workerids       []pgtype.UUID `json:"workerids"`
 }
 
-func (q *Queries) BulkAssignStepRunsToWorkers(ctx context.Context, db DBTX, arg BulkAssignStepRunsToWorkersParams) ([]pgtype.UUID, error) {
+type BulkAssignStepRunsToWorkersRow struct {
+	UpdatedStepRunsID       pgtype.UUID `json:"updated_step_runs_id"`
+	UpdatedStepRunsWorkerId pgtype.UUID `json:"updated_step_runs_workerId"`
+}
+
+func (q *Queries) BulkAssignStepRunsToWorkers(ctx context.Context, db DBTX, arg BulkAssignStepRunsToWorkersParams) ([]*BulkAssignStepRunsToWorkersRow, error) {
 	rows, err := db.Query(ctx, bulkAssignStepRunsToWorkers,
 		arg.Steprunids,
 		arg.Slotids,
@@ -181,13 +195,13 @@ func (q *Queries) BulkAssignStepRunsToWorkers(ctx context.Context, db DBTX, arg 
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []*BulkAssignStepRunsToWorkersRow
 	for rows.Next() {
-		var id pgtype.UUID
-		if err := rows.Scan(&id); err != nil {
+		var i BulkAssignStepRunsToWorkersRow
+		if err := rows.Scan(&i.UpdatedStepRunsID, &i.UpdatedStepRunsWorkerId); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -507,6 +521,36 @@ func (q *Queries) CreateStepRunEvent(ctx context.Context, db DBTX, arg CreateSte
 		arg.Data,
 	)
 	return err
+}
+
+const getCancelledStepRuns = `-- name: GetCancelledStepRuns :many
+SELECT
+    "id"
+FROM
+    "StepRun"
+WHERE
+    "id" = ANY($1::uuid[])
+    AND "status" != 'PENDING_ASSIGNMENT'
+`
+
+func (q *Queries) GetCancelledStepRuns(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, getCancelledStepRuns, steprunids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getDesiredLabels = `-- name: GetDesiredLabels :many
