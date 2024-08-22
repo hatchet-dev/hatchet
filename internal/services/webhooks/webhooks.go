@@ -215,15 +215,21 @@ func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheck
 		return nil, err
 	}
 
-	resp, err := whrequest.Send(context.Background(), ww.Url, secret, struct {
+	resp, statusCode, err := whrequest.Send(context.Background(), ww.Url, secret, struct {
 		Time time.Time `json:"time"`
 	}{
 		Time: time.Now(),
 	}, func(req *http.Request) {
 		req.Method = "PUT"
 	})
-	if err != nil {
-		return nil, fmt.Errorf("healthcheck request: %w", err)
+
+	if statusCode != nil {
+		err = c.sc.EngineRepository.WebhookWorker().InsertWebhookWorkerRequest(context.Background(), sqlchelpers.UUIDToStr(ww.ID), "PUT", int32(*statusCode))
+		c.sc.Logger.Err(err).Msgf("could not insert webhook worker request")
+	}
+
+	if err != nil || *statusCode != http.StatusOK {
+		return nil, fmt.Errorf("health check request: %w", err)
 	}
 
 	var res HealthCheckResponse

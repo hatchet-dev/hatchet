@@ -3,6 +3,7 @@ package prisma
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -43,7 +44,23 @@ func (r *webhookWorkerEngineRepository) ListActiveWebhookWorkers(ctx context.Con
 	return r.queries.ListActiveWebhookWorkers(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 }
 
+func (r *webhookWorkerEngineRepository) ListWebhookWorkerRequests(ctx context.Context, webhookWorkerId string) ([]*dbsqlc.WebhookWorkerRequest, error) {
+	return r.queries.ListWebhookWorkerRequests(ctx, r.pool, sqlchelpers.UUIDFromStr(webhookWorkerId))
+}
+
+func (r *webhookWorkerEngineRepository) InsertWebhookWorkerRequest(ctx context.Context, webhookWorkerId string, method string, statusCode int32) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	return r.queries.InsertWebhookWorkerRequest(ctx, r.pool, dbsqlc.InsertWebhookWorkerRequestParams{
+		Webhookworkerid: sqlchelpers.UUIDFromStr(webhookWorkerId),
+		Method:          dbsqlc.WebhookWorkerRequestMethod(method),
+		Statuscode:      statusCode,
+	})
+}
+
 func (r *webhookWorkerEngineRepository) UpsertWebhookWorker(ctx context.Context, opts *repository.UpsertWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error) {
+	// TODO why are we upsert.......
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}

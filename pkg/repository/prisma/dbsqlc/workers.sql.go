@@ -465,6 +465,7 @@ const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId",
     ww."url" AS "webhookUrl",
+    ww."id" AS "webhookId",
     (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
 FROM
     "Worker" workers
@@ -495,7 +496,7 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id", ww."url"
+    workers."id", ww."url", ww."id"
 `
 
 type ListWorkersWithStepCountParams struct {
@@ -508,6 +509,7 @@ type ListWorkersWithStepCountParams struct {
 type ListWorkersWithStepCountRow struct {
 	Worker     Worker      `json:"worker"`
 	WebhookUrl pgtype.Text `json:"webhookUrl"`
+	WebhookId  pgtype.UUID `json:"webhookId"`
 	Slots      int64       `json:"slots"`
 }
 
@@ -541,6 +543,7 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 			&i.Worker.Type,
 			&i.Worker.WebhookId,
 			&i.WebhookUrl,
+			&i.WebhookId,
 			&i.Slots,
 		); err != nil {
 			return nil, err

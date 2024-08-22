@@ -166,6 +166,11 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int, webhookUrl *string) *gen.Wo
 		WebhookUrl:    webhookUrl,
 	}
 
+	if worker.WebhookId.Valid {
+		wid := uuid.MustParse(pgUUIDToStr(worker.WebhookId))
+		res.WebhookId = &wid
+	}
+
 	if !worker.LastHeartbeatAt.Time.IsZero() {
 		res.LastHeartbeatAt = &worker.LastHeartbeatAt.Time
 	}

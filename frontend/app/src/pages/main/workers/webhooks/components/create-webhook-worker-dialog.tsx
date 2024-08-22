@@ -24,6 +24,7 @@ const schema = z.object({
 interface CreateWebhookWorkerDialogProps {
   className?: string;
   secret?: string;
+  webhookId?: string;
   onSubmit: (opts: z.infer<typeof schema> & { name: string }) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
@@ -32,6 +33,7 @@ interface CreateWebhookWorkerDialogProps {
 export function CreateWebhookWorkerDialog({
   className,
   secret,
+  webhookId,
   ...props
 }: CreateWebhookWorkerDialogProps) {
   const {
@@ -97,8 +99,12 @@ export function CreateWebhookWorkerDialog({
           {waitingForConnection && <Spinner />}
           Test Connection
         </Button>
-        {waitingForConnection && (
-          <RecentWebhookRequests onConnected={() => setIsComplete(true)} />
+        {waitingForConnection && webhookId && (
+          <RecentWebhookRequests
+            webhookId={webhookId}
+            filterBeforeNow={true}
+            onConnected={() => setIsComplete(true)}
+          />
         )}
       </DialogContent>
     );

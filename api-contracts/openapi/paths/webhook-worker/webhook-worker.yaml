@@ -121,3 +121,45 @@ webhookworker:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+
+webhookworkerRequests:
+  get:
+    description: Lists all requests for a webhook
+    summary: List webhook requests
+    operationId: webhook:listRequests
+    x-resources: ["tenant", "webhook"]
+    parameters:
+      - description: The webhook id
+        in: path
+        name: webhook
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WebhookWorkerRequestListResponse"
+        description: The list of webhook requests
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed

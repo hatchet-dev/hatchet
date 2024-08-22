@@ -29,6 +29,39 @@ func (q *Queries) DeleteWebhookWorker(ctx context.Context, db DBTX, arg DeleteWe
 	return err
 }
 
+const insertWebhookWorkerRequest = `-- name: InsertWebhookWorkerRequest :exec
+WITH delete_old AS (
+    -- Delete old requests
+    DELETE FROM "WebhookWorkerRequest"
+    WHERE "webhookWorkerId" = $1::uuid
+    AND "createdAt" < NOW() - INTERVAL '15 minutes'
+)
+INSERT INTO "WebhookWorkerRequest" (
+    "id",
+    "createdAt",
+    "webhookWorkerId",
+    "method",
+    "statusCode"
+) VALUES (
+    gen_random_uuid(),
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    $2::"WebhookWorkerRequestMethod",
+    $3::integer
+)
+`
+
+type InsertWebhookWorkerRequestParams struct {
+	Webhookworkerid pgtype.UUID                `json:"webhookworkerid"`
+	Method          WebhookWorkerRequestMethod `json:"method"`
+	Statuscode      int32                      `json:"statuscode"`
+}
+
+func (q *Queries) InsertWebhookWorkerRequest(ctx context.Context, db DBTX, arg InsertWebhookWorkerRequestParams) error {
+	_, err := db.Exec(ctx, insertWebhookWorkerRequest, arg.Webhookworkerid, arg.Method, arg.Statuscode)
+	return err
+}
+
 const listActiveWebhookWorkers = `-- name: ListActiveWebhookWorkers :many
 SELECT id, "createdAt", "updatedAt", name, secret, url, "tokenValue", deleted, "tokenId", "tenantId"
 FROM "WebhookWorker"
@@ -55,6 +88,40 @@ func (q *Queries) ListActiveWebhookWorkers(ctx context.Context, db DBTX, tenanti
 			&i.Deleted,
 			&i.TokenId,
 			&i.TenantId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWebhookWorkerRequests = `-- name: ListWebhookWorkerRequests :many
+SELECT id, "createdAt", "webhookWorkerId", method, "statusCode"
+FROM "WebhookWorkerRequest"
+WHERE "webhookWorkerId" = $1::uuid
+ORDER BY "createdAt" DESC
+LIMIT 50
+`
+
+func (q *Queries) ListWebhookWorkerRequests(ctx context.Context, db DBTX, webhookworkerid pgtype.UUID) ([]*WebhookWorkerRequest, error) {
+	rows, err := db.Query(ctx, listWebhookWorkerRequests, webhookworkerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WebhookWorkerRequest
+	for rows.Next() {
+		var i WebhookWorkerRequest
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.WebhookWorkerId,
+			&i.Method,
+			&i.StatusCode,
 		); err != nil {
 			return nil, err
 		}

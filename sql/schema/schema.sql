@@ -38,6 +38,9 @@ CREATE TYPE "TenantResourceLimitAlertType" AS ENUM ('Alarm', 'Exhausted');
 CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
 
 -- CreateEnum
+CREATE TYPE "WebhookWorkerRequestMethod" AS ENUM ('GET', 'POST', 'PUT');
+
+-- CreateEnum
 CREATE TYPE "WorkerLabelComparator" AS ENUM ('EQUAL', 'NOT_EQUAL', 'GREATER_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN', 'LESS_THAN_OR_EQUAL');
 
 -- CreateEnum
@@ -609,6 +612,17 @@ CREATE TABLE "WebhookWorker" (
 );
 
 -- CreateTable
+CREATE TABLE "WebhookWorkerRequest" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "webhookWorkerId" UUID NOT NULL,
+    "method" "WebhookWorkerRequestMethod" NOT NULL,
+    "statusCode" INTEGER NOT NULL,
+
+    CONSTRAINT "WebhookWorkerRequest_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "WebhookWorkerWorkflow" (
     "id" UUID NOT NULL,
     "webhookWorkerId" UUID NOT NULL,
@@ -1099,6 +1113,9 @@ CREATE UNIQUE INDEX "WebhookWorker_id_key" ON "WebhookWorker"("id" ASC);
 CREATE UNIQUE INDEX "WebhookWorker_url_key" ON "WebhookWorker"("url" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WebhookWorkerRequest_id_key" ON "WebhookWorkerRequest"("id" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WebhookWorkerWorkflow_id_key" ON "WebhookWorkerWorkflow"("id" ASC);
 
 -- CreateIndex
@@ -1427,6 +1444,9 @@ ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tenantId_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tokenId_fkey" FOREIGN KEY ("tokenId") REFERENCES "APIToken"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WebhookWorkerRequest" ADD CONSTRAINT "WebhookWorkerRequest_webhookWorkerId_fkey" FOREIGN KEY ("webhookWorkerId") REFERENCES "WebhookWorker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WebhookWorkerWorkflow" ADD CONSTRAINT "WebhookWorkerWorkflow_webhookWorkerId_fkey" FOREIGN KEY ("webhookWorkerId") REFERENCES "WebhookWorker"("id") ON DELETE CASCADE ON UPDATE CASCADE;

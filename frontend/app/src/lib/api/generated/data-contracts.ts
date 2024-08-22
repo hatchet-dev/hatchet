@@ -946,6 +946,11 @@ export interface Worker {
   labels?: WorkerLabel[];
   /** The webhook URL for the worker. */
   webhookUrl?: string;
+  /**
+   * The webhook ID for the worker.
+   * @format uuid
+   */
+  webhookId?: string;
 }
 
 export interface WorkerLabel {
@@ -1133,6 +1138,30 @@ export interface WebhookWorker {
   name: string;
   /** The webhook url. */
   url: string;
+}
+
+export enum WebhookWorkerRequestMethod {
+  GET = 'GET',
+  POST = 'POST',
+  PUT = 'PUT',
+  DELETE = 'DELETE',
+}
+
+export interface WebhookWorkerRequest {
+  /**
+   * The date and time the request was created.
+   * @format date-time
+   */
+  created_at: string;
+  /** The HTTP method used for the request. */
+  method: WebhookWorkerRequestMethod;
+  /** The HTTP status code of the response. */
+  statusCode: number;
+}
+
+export interface WebhookWorkerRequestListResponse {
+  /** The list of webhook requests. */
+  requests?: WebhookWorkerRequest[];
 }
 
 export interface WebhookWorkerCreated {

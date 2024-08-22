@@ -24,6 +24,33 @@ SELECT *
 FROM "WebhookWorker"
 WHERE "tenantId" = @tenantId::uuid AND "deleted" = false;
 
+-- name: ListWebhookWorkerRequests :many
+SELECT *
+FROM "WebhookWorkerRequest"
+WHERE "webhookWorkerId" = @webhookWorkerId::uuid
+ORDER BY "createdAt" DESC
+LIMIT 50;
+
+-- name: InsertWebhookWorkerRequest :exec
+WITH delete_old AS (
+    -- Delete old requests
+    DELETE FROM "WebhookWorkerRequest"
+    WHERE "webhookWorkerId" = @webhookWorkerId::uuid
+    AND "createdAt" < NOW() - INTERVAL '15 minutes'
+)
+INSERT INTO "WebhookWorkerRequest" (
+    "id",
+    "createdAt",
+    "webhookWorkerId",
+    "method",
+    "statusCode"
+) VALUES (
+    gen_random_uuid(),
+    CURRENT_TIMESTAMP,
+    @webhookWorkerId::uuid,
+    @method::"WebhookWorkerRequestMethod",
+    @statusCode::integer
+);
 
 -- name: UpsertWebhookWorker :one
 INSERT INTO "WebhookWorker" (

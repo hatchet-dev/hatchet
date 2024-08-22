@@ -174,6 +174,7 @@ function CreateWebhookWorker({
   setShowDialog: (show: boolean) => void;
 }) {
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
+  const [webhookId, setWebhookId] = useState<string | undefined>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
@@ -187,6 +188,7 @@ function CreateWebhookWorker({
     },
     onSuccess: (data) => {
       setGeneratedToken(data.secret);
+      setWebhookId(data.metadata.id);
       onSuccess();
     },
     onError: handleApiError,
@@ -198,6 +200,7 @@ function CreateWebhookWorker({
         isLoading={createWebhookWorkerMutation.isPending}
         onSubmit={createWebhookWorkerMutation.mutate}
         secret={generatedToken}
+        webhookId={webhookId}
         fieldErrors={fieldErrors}
       />
     </Dialog>

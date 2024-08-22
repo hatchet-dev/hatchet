@@ -23,6 +23,12 @@ type WebhookWorkerEngineRepository interface {
 	// ListActiveWebhookWorkers returns the list of active webhook workers for the given tenant
 	ListActiveWebhookWorkers(ctx context.Context, tenantId string) ([]*dbsqlc.WebhookWorker, error)
 
+	// ListWebhookWorkerRequests returns the list of webhook worker requests for the given webhook worker id
+	ListWebhookWorkerRequests(ctx context.Context, webhookWorkerId string) ([]*dbsqlc.WebhookWorkerRequest, error)
+
+	// InsertWebhookWorkerRequest inserts a new webhook worker request with the given options
+	InsertWebhookWorkerRequest(ctx context.Context, webhookWorkerId string, method string, statusCode int32) error
+
 	// UpsertWebhookWorker creates a new webhook worker with the given options
 	UpsertWebhookWorker(ctx context.Context, opts *UpsertWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error)
 

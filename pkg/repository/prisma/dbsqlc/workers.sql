@@ -2,6 +2,7 @@
 SELECT
     sqlc.embed(workers),
     ww."url" AS "webhookUrl",
+    ww."id" AS "webhookId",
     (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
 FROM
     "Worker" workers
@@ -32,7 +33,7 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id", ww."url";
+    workers."id", ww."url", ww."id";
 
 -- name: GetWorkerById :one
 SELECT

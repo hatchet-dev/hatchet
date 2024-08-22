@@ -140,6 +140,10 @@ Worker:
     webhookUrl:
       type: string
       description: The webhook URL for the worker.
+    webhookId:
+      type: string
+      description: The webhook ID for the worker.
+      format: uuid
   required:
     - metadata
     - name
