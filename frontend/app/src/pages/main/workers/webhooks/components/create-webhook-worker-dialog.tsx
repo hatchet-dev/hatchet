@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/loading';
 import { SecretCopier } from '@/components/ui/secret-copier';
 import { useState } from 'react';
+import { RecentWebhookRequests } from './recent-webhook-requests';
 
 const schema = z.object({
   name: z.string().max(255).optional(),
@@ -42,8 +43,25 @@ export function CreateWebhookWorkerDialog({
     defaultValues: {},
   });
 
+  const [canTestConnection, setCanTestConnection] = useState(false);
+  const [waitingForConnection, setWaitingForConnection] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+
   const nameError = errors.name?.message?.toString() || props.fieldErrors?.name;
   const urlError = errors.url?.message?.toString() || props.fieldErrors?.url;
+
+  if (isComplete) {
+    return (
+      <DialogContent className="w-fit max-w-[700px]">
+        <DialogHeader>
+          <DialogTitle>Connected!</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm">
+          Your webhook worker is now connected and ready to receive runs.
+        </p>
+      </DialogContent>
+    );
+  }
 
   if (secret) {
     return (
@@ -62,12 +80,26 @@ export function CreateWebhookWorkerDialog({
             HATCHET_WEBHOOK_SECRET: secret,
           }}
           copy
+          onClick={() => setCanTestConnection(true)}
         />
 
         <p className="text-sm text-gray-500">
           These values should be kept secret and not shared with anyone. They
           will only be displayed once.
         </p>
+
+        <Button
+          onClick={() => {
+            setWaitingForConnection(true);
+          }}
+          disabled={!canTestConnection}
+        >
+          {waitingForConnection && <Spinner />}
+          Test Connection
+        </Button>
+        {waitingForConnection && (
+          <RecentWebhookRequests onConnected={() => setIsComplete(true)} />
+        )}
       </DialogContent>
     );
   }
@@ -95,7 +127,6 @@ export function CreateWebhookWorkerDialog({
                 {...register('url')}
                 id="webhook-worker-url"
                 name="url"
-                placeholder="The Webhook URL"
                 autoCapitalize="none"
                 autoCorrect="off"
                 disabled={props.isLoading}
@@ -113,7 +144,6 @@ export function CreateWebhookWorkerDialog({
                 {...register('name')}
                 id="webhook-worker-name"
                 name="name"
-                placeholder="My Webhook Endpoint"
                 autoCapitalize="none"
                 autoCorrect="off"
                 disabled={props.isLoading}

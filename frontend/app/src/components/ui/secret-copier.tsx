@@ -39,12 +39,14 @@ export function SecretCopier({
   maxHeight,
   maxWidth,
   copy,
+  onClick,
 }: {
   secrets: Secrets;
   className?: string;
   maxHeight?: string;
   maxWidth?: string;
   copy?: boolean;
+  onClick?: () => void;
 }) {
   const { theme } = useTheme();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -124,7 +126,11 @@ export function SecretCopier({
         role="button"
         tabIndex={0}
         onKeyDown={() => textareaRef.current?.focus()}
-        onClick={() => textareaRef.current?.focus()}
+        onClick={() => {
+          textareaRef.current?.focus();
+          // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+          onClick && onClick();
+        }}
         className="relative flex bg-muted rounded-lg"
       >
         {format === Formats.TABLE ? (
@@ -156,7 +162,11 @@ export function SecretCopier({
         )}
       </div>
       {copy && format !== Formats.TABLE && (
-        <CopyToClipboard text={renderSecrets() as string} withText />
+        <CopyToClipboard
+          text={renderSecrets() as string}
+          withText
+          onCopy={() => onClick && onClick()}
+        />
       )}
     </div>
   );
