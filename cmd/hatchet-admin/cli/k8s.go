@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -139,7 +140,7 @@ func runK8sQuickstart() error {
 		secret, err := clientset.CoreV1().Secrets(namespace).Get(context.Background(), k8sQuickstartConfigName, metav1.GetOptions{})
 
 		if err != nil && !errors.IsNotFound(err) {
-			return err
+			return fmt.Errorf("error getting secret: %w", err)
 		}
 
 		exists = secret != nil
@@ -149,7 +150,7 @@ func runK8sQuickstart() error {
 		configMap, err := clientset.CoreV1().ConfigMaps(namespace).Get(context.Background(), k8sQuickstartConfigName, metav1.GetOptions{})
 
 		if err != nil && !errors.IsNotFound(err) {
-			return err
+			return fmt.Errorf("error getting configmap: %w", err)
 		}
 
 		exists = configMap != nil
@@ -362,7 +363,7 @@ func (c *configModifier) createResource(clientset *kubernetes.Clientset) error {
 		_, err := clientset.CoreV1().Secrets(namespace).Create(context.Background(), c.Secret, metav1.CreateOptions{})
 
 		if err != nil {
-			return err
+			return fmt.Errorf("error creating secret: %w", err)
 		}
 	}
 
@@ -370,7 +371,7 @@ func (c *configModifier) createResource(clientset *kubernetes.Clientset) error {
 		_, err := clientset.CoreV1().ConfigMaps(namespace).Create(context.Background(), c.ConfigMap, metav1.CreateOptions{})
 
 		if err != nil {
-			return err
+			return fmt.Errorf("error creating configmap: %w", err)
 		}
 	}
 
@@ -382,7 +383,7 @@ func (c *configModifier) updateResource(clientset *kubernetes.Clientset) error {
 		_, err := clientset.CoreV1().Secrets(namespace).Update(context.Background(), c.Secret, metav1.UpdateOptions{})
 
 		if err != nil {
-			return err
+			return fmt.Errorf("error updating secret: %w", err)
 		}
 	}
 
@@ -390,7 +391,7 @@ func (c *configModifier) updateResource(clientset *kubernetes.Clientset) error {
 		_, err := clientset.CoreV1().ConfigMaps(namespace).Update(context.Background(), c.ConfigMap, metav1.UpdateOptions{})
 
 		if err != nil {
-			return err
+			return fmt.Errorf("error updating configmap: %w", err)
 		}
 	}
 
