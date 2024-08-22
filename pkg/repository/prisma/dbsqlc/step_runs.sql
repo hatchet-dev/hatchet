@@ -556,15 +556,7 @@ WHERE
 FOR UPDATE SKIP LOCKED;
 
 -- name: BulkAssignStepRunsToWorkers :many
-WITH cancelled_step_runs AS (
-    SELECT
-        "id"
-    FROM
-        "StepRun"
-    WHERE
-        "id" = ANY(@stepRunIds::uuid[])
-        AND "status" != 'PENDING_ASSIGNMENT'
-), already_assigned_step_runs AS (
+WITH already_assigned_step_runs AS (
     SELECT
         input."id",
         wss."id" AS "slotId"
@@ -612,7 +604,6 @@ WITH cancelled_step_runs AS (
             ) AS subquery
         WHERE
             "id" NOT IN (SELECT "id" FROM already_assigned_step_runs)
-            AND "id" NOT IN (SELECT "id" FROM cancelled_step_runs)
             AND "slotId" NOT IN (SELECT "id" FROM already_assigned_slots)
     ) AS input
     WHERE
