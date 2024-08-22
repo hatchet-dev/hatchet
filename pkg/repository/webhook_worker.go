@@ -2,11 +2,12 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
-type UpsertWebhookWorkerOpts struct {
+type CreateWebhookWorkerOpts struct {
 	Name       string
 	URL        string `validate:"required,url"`
 	Secret     string
@@ -15,6 +16,8 @@ type UpsertWebhookWorkerOpts struct {
 	TokenValue *string
 	TokenID    *string
 }
+
+var ErrDuplicateKey = fmt.Errorf("duplicate key error")
 
 type WebhookWorkerEngineRepository interface {
 	// ListWebhookWorkersByPartitionId returns the list of webhook workers for a worker partition
@@ -29,8 +32,8 @@ type WebhookWorkerEngineRepository interface {
 	// InsertWebhookWorkerRequest inserts a new webhook worker request with the given options
 	InsertWebhookWorkerRequest(ctx context.Context, webhookWorkerId string, method string, statusCode int32) error
 
-	// UpsertWebhookWorker creates a new webhook worker with the given options
-	UpsertWebhookWorker(ctx context.Context, opts *UpsertWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error)
+	// CreateWebhookWorker creates a new webhook worker with the given options
+	CreateWebhookWorker(ctx context.Context, opts *CreateWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error)
 
 	// DeleteWebhookWorker deletes a webhook worker with the given id and tenant id
 	DeleteWebhookWorker(ctx context.Context, id string, tenantId string) error

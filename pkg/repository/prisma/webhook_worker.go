@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -59,17 +60,17 @@ func (r *webhookWorkerEngineRepository) InsertWebhookWorkerRequest(ctx context.C
 	})
 }
 
-func (r *webhookWorkerEngineRepository) UpsertWebhookWorker(ctx context.Context, opts *repository.UpsertWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error) {
-	// TODO why are we upsert.......
+func (r *webhookWorkerEngineRepository) CreateWebhookWorker(ctx context.Context, opts *repository.CreateWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error) {
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	params := dbsqlc.UpsertWebhookWorkerParams{
+	params := dbsqlc.CreateWebhookWorkerParams{
 		Tenantid: sqlchelpers.UUIDFromStr(opts.TenantId),
-		Name:     sqlchelpers.TextFromStr(opts.Name),
-		Secret:   sqlchelpers.TextFromStr(opts.Secret),
-		Url:      sqlchelpers.TextFromStr(opts.URL),
+		Name:     opts.Name,
+		Secret:   opts.Secret,
+		Url:      opts.URL,
 	}
 
 	if opts.Deleted != nil {
@@ -84,7 +85,16 @@ func (r *webhookWorkerEngineRepository) UpsertWebhookWorker(ctx context.Context,
 		params.TokenValue = sqlchelpers.TextFromStr(*opts.TokenValue)
 	}
 
-	return r.queries.UpsertWebhookWorker(ctx, r.pool, params)
+	worker, err := r.queries.CreateWebhookWorker(ctx, r.pool, params)
+
+	if err != nil {
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+			return nil, repository.ErrDuplicateKey
+		}
+		return nil, err
+	}
+
+	return worker, nil
 }
 
 func (r *webhookWorkerEngineRepository) DeleteWebhookWorker(ctx context.Context, id string, tenantId string) error {

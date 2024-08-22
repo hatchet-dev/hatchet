@@ -52,7 +52,7 @@ INSERT INTO "WebhookWorkerRequest" (
     @statusCode::integer
 );
 
--- name: UpsertWebhookWorker :one
+-- name: CreateWebhookWorker :one
 INSERT INTO "WebhookWorker" (
     "id",
     "createdAt",
@@ -77,20 +77,10 @@ VALUES (
     sqlc.narg('tokenValue')::text,
     coalesce(sqlc.narg('deleted')::boolean, false)
 )
-ON CONFLICT ("url") DO
-UPDATE
-SET
-    "tokenId" = coalesce(sqlc.narg('tokenId')::uuid, excluded."tokenId"),
-    "tokenValue" = coalesce(sqlc.narg('tokenValue')::text, excluded."tokenValue"),
-    "name" = coalesce(sqlc.narg('name')::text, excluded."name"),
-    "secret" = coalesce(sqlc.narg('secret')::text, excluded."secret"),
-    "url" = coalesce(sqlc.narg('url')::text, excluded."url"),
-    "deleted" = coalesce(sqlc.narg('deleted')::boolean, excluded."deleted")
 RETURNING *;
 
 -- name: DeleteWebhookWorker :exec
-UPDATE "WebhookWorker"
-SET "deleted" = true
+DELETE FROM "WebhookWorker"
 WHERE
   "id" = @id::uuid
-  and "tenantId" = @tenantId::uuid;
+  AND "tenantId" = @tenantId::uuid;

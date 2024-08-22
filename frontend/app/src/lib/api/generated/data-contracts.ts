@@ -1144,7 +1144,6 @@ export enum WebhookWorkerRequestMethod {
   GET = 'GET',
   POST = 'POST',
   PUT = 'PUT',
-  DELETE = 'DELETE',
 }
 
 export interface WebhookWorkerRequest {

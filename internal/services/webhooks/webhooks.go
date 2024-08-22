@@ -190,7 +190,7 @@ func (c *WebhooksController) getOrCreateToken(ww *dbsqlc.WebhookWorker, tenantId
 
 	encTokStr := base64.StdEncoding.EncodeToString(encTok)
 
-	_, err = c.sc.EngineRepository.WebhookWorker().UpsertWebhookWorker(context.Background(), &repository.UpsertWebhookWorkerOpts{
+	_, err = c.sc.EngineRepository.WebhookWorker().CreateWebhookWorker(context.Background(), &repository.CreateWebhookWorkerOpts{
 		Name:       ww.Name,
 		URL:        ww.Url,
 		Secret:     ww.Secret,
