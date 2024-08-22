@@ -356,6 +356,31 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 		return nil, err
 	}
 
+	messages := make([]string, len(stepRuns))
+	reasons := make([]dbsqlc.StepRunEventReason, len(stepRuns))
+	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRuns))
+	data := make([]map[string]interface{}, len(stepRuns))
+
+	for i := range stepRuns {
+		workerId := sqlchelpers.UUIDToStr(stepRuns[i].SRWorkerId)
+		messages[i] = "Worker has become inactive"
+		reasons[i] = dbsqlc.StepRunEventReasonREASSIGNED
+		severities[i] = dbsqlc.StepRunEventSeverityCRITICAL
+		data[i] = map[string]interface{}{"worker_id": workerId}
+	}
+
+	deferredBulkStepRunEvents(
+		ctx,
+		s.l,
+		s.pool,
+		s.queries,
+		stepRunIds,
+		reasons,
+		severities,
+		messages,
+		data,
+	)
+
 	return stepRuns, nil
 }
 
