@@ -1,8 +1,6 @@
 package scheduling
 
 import (
-	"fmt"
-
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -44,7 +42,6 @@ func (w *WorkerState) CanAssign(action string, stepId *string) bool {
 	}
 
 	if weight, ok := w.stepWeights[*stepId]; ok {
-		fmt.Println("weight", weight)
 		return weight >= 0
 	}
 
