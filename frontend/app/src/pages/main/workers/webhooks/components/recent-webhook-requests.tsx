@@ -27,7 +27,6 @@ export const RecentWebhookRequests: React.FC<RecentRequestProps> = ({
   filterBeforeNow = false,
 }) => {
   const [timeAfter] = useState(filterBeforeNow ? Date.now() : undefined);
-  const [showAll, setShowAll] = useState(false);
 
   const webhookRequestQuery = useQuery({
     ...queries.webhookWorkers.listRequests(webhookId),
