@@ -491,6 +491,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		ScheduleTimeout:   req.Opts.ScheduleTimeout,
 		Sticky:            sticky,
 		Kind:              kind,
+		DefaultPriority:   req.Opts.DefaultPriority,
 	}, nil
 }
 

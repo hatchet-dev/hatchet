@@ -1466,4 +1466,5 @@ type WorkflowVersion struct {
 	OnFailureJobId  pgtype.UUID        `json:"onFailureJobId"`
 	Sticky          NullStickyStrategy `json:"sticky"`
 	Kind            WorkflowKind       `json:"kind"`
+	DefaultPriority pgtype.Int4        `json:"defaultPriority"`
 }

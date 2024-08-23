@@ -551,6 +551,9 @@ model WorkflowVersion {
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")
 
+  // default priority for the workflow
+  defaultPriority Int?
+
   @@index([deletedAt])
 }
 

@@ -838,6 +838,7 @@ CREATE TABLE "WorkflowVersion" (
     "onFailureJobId" UUID,
     "sticky" "StickyStrategy",
     "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
+    "defaultPriority" INTEGER,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
