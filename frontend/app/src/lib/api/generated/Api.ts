@@ -1645,12 +1645,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   /**
    * @description Lists all requests for a webhook
    *
-   * @name WebhookListRequests
+   * @name WebhookRequestsList
    * @summary List webhook requests
    * @request GET:/api/v1/webhook-workers/{webhook}/requests
    * @secure
    */
-  webhookListRequests = (webhook: string, params: RequestParams = {}) =>
+  webhookRequestsList = (webhook: string, params: RequestParams = {}) =>
     this.request<WebhookWorkerRequestListResponse, APIErrors>({
       path: `/api/v1/webhook-workers/${webhook}/requests`,
       method: 'GET',

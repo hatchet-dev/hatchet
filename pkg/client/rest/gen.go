@@ -1783,8 +1783,8 @@ type ClientInterface interface {
 	// WebhookDelete request
 	WebhookDelete(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// WebhookListRequests request
-	WebhookListRequests(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// WebhookRequestsList request
+	WebhookRequestsList(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkerGet request
 	WorkerGet(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2838,8 +2838,8 @@ func (c *Client) WebhookDelete(ctx context.Context, webhook openapi_types.UUID, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) WebhookListRequests(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWebhookListRequestsRequest(c.Server, webhook)
+func (c *Client) WebhookRequestsList(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWebhookRequestsListRequest(c.Server, webhook)
 	if err != nil {
 		return nil, err
 	}
@@ -6094,8 +6094,8 @@ func NewWebhookDeleteRequest(server string, webhook openapi_types.UUID) (*http.R
 	return req, nil
 }
 
-// NewWebhookListRequestsRequest generates requests for WebhookListRequests
-func NewWebhookListRequestsRequest(server string, webhook openapi_types.UUID) (*http.Request, error) {
+// NewWebhookRequestsListRequest generates requests for WebhookRequestsList
+func NewWebhookRequestsListRequest(server string, webhook openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6865,8 +6865,8 @@ type ClientWithResponsesInterface interface {
 	// WebhookDeleteWithResponse request
 	WebhookDeleteWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookDeleteResponse, error)
 
-	// WebhookListRequestsWithResponse request
-	WebhookListRequestsWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookListRequestsResponse, error)
+	// WebhookRequestsListWithResponse request
+	WebhookRequestsListWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookRequestsListResponse, error)
 
 	// WorkerGetWithResponse request
 	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
@@ -8472,7 +8472,7 @@ func (r WebhookDeleteResponse) StatusCode() int {
 	return 0
 }
 
-type WebhookListRequestsResponse struct {
+type WebhookRequestsListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *WebhookWorkerRequestListResponse
@@ -8482,7 +8482,7 @@ type WebhookListRequestsResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r WebhookListRequestsResponse) Status() string {
+func (r WebhookRequestsListResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -8490,7 +8490,7 @@ func (r WebhookListRequestsResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r WebhookListRequestsResponse) StatusCode() int {
+func (r WebhookRequestsListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -9465,13 +9465,13 @@ func (c *ClientWithResponses) WebhookDeleteWithResponse(ctx context.Context, web
 	return ParseWebhookDeleteResponse(rsp)
 }
 
-// WebhookListRequestsWithResponse request returning *WebhookListRequestsResponse
-func (c *ClientWithResponses) WebhookListRequestsWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookListRequestsResponse, error) {
-	rsp, err := c.WebhookListRequests(ctx, webhook, reqEditors...)
+// WebhookRequestsListWithResponse request returning *WebhookRequestsListResponse
+func (c *ClientWithResponses) WebhookRequestsListWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookRequestsListResponse, error) {
+	rsp, err := c.WebhookRequestsList(ctx, webhook, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseWebhookListRequestsResponse(rsp)
+	return ParseWebhookRequestsListResponse(rsp)
 }
 
 // WorkerGetWithResponse request returning *WorkerGetResponse
@@ -12091,15 +12091,15 @@ func ParseWebhookDeleteResponse(rsp *http.Response) (*WebhookDeleteResponse, err
 	return response, nil
 }
 
-// ParseWebhookListRequestsResponse parses an HTTP response from a WebhookListRequestsWithResponse call
-func ParseWebhookListRequestsResponse(rsp *http.Response) (*WebhookListRequestsResponse, error) {
+// ParseWebhookRequestsListResponse parses an HTTP response from a WebhookRequestsListWithResponse call
+func ParseWebhookRequestsListResponse(rsp *http.Response) (*WebhookRequestsListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &WebhookListRequestsResponse{
+	response := &WebhookRequestsListResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

@@ -10,7 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 )
 
-func (i *WebhookWorkersService) WebhookListRequests(ctx echo.Context, request gen.WebhookListRequestsRequestObject) (gen.WebhookListRequestsResponseObject, error) {
+func (i *WebhookWorkersService) WebhookRequestsList(ctx echo.Context, request gen.WebhookRequestsListRequestObject) (gen.WebhookRequestsListResponseObject, error) {
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
@@ -26,7 +26,7 @@ func (i *WebhookWorkersService) WebhookListRequests(ctx echo.Context, request ge
 		rows[i] = *transformers.ToWebhookWorkerRequest(requests[i])
 	}
 
-	return gen.WebhookListRequests200JSONResponse(
+	return gen.WebhookRequestsList200JSONResponse(
 		gen.WebhookWorkerRequestListResponse{
 			Requests: &rows,
 		},

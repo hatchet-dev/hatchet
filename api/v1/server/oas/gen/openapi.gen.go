@@ -1679,7 +1679,7 @@ type ServerInterface interface {
 	WebhookDelete(ctx echo.Context, webhook openapi_types.UUID) error
 	// List webhook requests
 	// (GET /api/v1/webhook-workers/{webhook}/requests)
-	WebhookListRequests(ctx echo.Context, webhook openapi_types.UUID) error
+	WebhookRequestsList(ctx echo.Context, webhook openapi_types.UUID) error
 	// Get worker
 	// (GET /api/v1/workers/{worker})
 	WorkerGet(ctx echo.Context, worker openapi_types.UUID, params WorkerGetParams) error
@@ -3209,8 +3209,8 @@ func (w *ServerInterfaceWrapper) WebhookDelete(ctx echo.Context) error {
 	return err
 }
 
-// WebhookListRequests converts echo context to params.
-func (w *ServerInterfaceWrapper) WebhookListRequests(ctx echo.Context) error {
+// WebhookRequestsList converts echo context to params.
+func (w *ServerInterfaceWrapper) WebhookRequestsList(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "webhook" -------------
 	var webhook openapi_types.UUID
@@ -3225,7 +3225,7 @@ func (w *ServerInterfaceWrapper) WebhookListRequests(ctx echo.Context) error {
 	ctx.Set(CookieAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.WebhookListRequests(ctx, webhook)
+	err = w.Handler.WebhookRequestsList(ctx, webhook)
 	return err
 }
 
@@ -3555,7 +3555,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.POST(baseURL+"/api/v1/users/register", wrapper.UserCreate)
 	router.GET(baseURL+"/api/v1/users/slack/callback", wrapper.UserUpdateSlackOauthCallback)
 	router.DELETE(baseURL+"/api/v1/webhook-workers/:webhook", wrapper.WebhookDelete)
-	router.GET(baseURL+"/api/v1/webhook-workers/:webhook/requests", wrapper.WebhookListRequests)
+	router.GET(baseURL+"/api/v1/webhook-workers/:webhook/requests", wrapper.WebhookRequestsList)
 	router.GET(baseURL+"/api/v1/workers/:worker", wrapper.WorkerGet)
 	router.PATCH(baseURL+"/api/v1/workers/:worker", wrapper.WorkerUpdate)
 	router.GET(baseURL+"/api/v1/workflow-runs/:workflow-run/input", wrapper.WorkflowRunGetInput)
@@ -5949,44 +5949,44 @@ func (response WebhookDelete405JSONResponse) VisitWebhookDeleteResponse(w http.R
 	return json.NewEncoder(w).Encode(response)
 }
 
-type WebhookListRequestsRequestObject struct {
+type WebhookRequestsListRequestObject struct {
 	Webhook openapi_types.UUID `json:"webhook"`
 }
 
-type WebhookListRequestsResponseObject interface {
-	VisitWebhookListRequestsResponse(w http.ResponseWriter) error
+type WebhookRequestsListResponseObject interface {
+	VisitWebhookRequestsListResponse(w http.ResponseWriter) error
 }
 
-type WebhookListRequests200JSONResponse WebhookWorkerRequestListResponse
+type WebhookRequestsList200JSONResponse WebhookWorkerRequestListResponse
 
-func (response WebhookListRequests200JSONResponse) VisitWebhookListRequestsResponse(w http.ResponseWriter) error {
+func (response WebhookRequestsList200JSONResponse) VisitWebhookRequestsListResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type WebhookListRequests400JSONResponse APIErrors
+type WebhookRequestsList400JSONResponse APIErrors
 
-func (response WebhookListRequests400JSONResponse) VisitWebhookListRequestsResponse(w http.ResponseWriter) error {
+func (response WebhookRequestsList400JSONResponse) VisitWebhookRequestsListResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type WebhookListRequests401JSONResponse APIErrors
+type WebhookRequestsList401JSONResponse APIErrors
 
-func (response WebhookListRequests401JSONResponse) VisitWebhookListRequestsResponse(w http.ResponseWriter) error {
+func (response WebhookRequestsList401JSONResponse) VisitWebhookRequestsListResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type WebhookListRequests405JSONResponse APIErrors
+type WebhookRequestsList405JSONResponse APIErrors
 
-func (response WebhookListRequests405JSONResponse) VisitWebhookListRequestsResponse(w http.ResponseWriter) error {
+func (response WebhookRequestsList405JSONResponse) VisitWebhookRequestsListResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(405)
 
@@ -6510,7 +6510,7 @@ type StrictServerInterface interface {
 
 	WebhookDelete(ctx echo.Context, request WebhookDeleteRequestObject) (WebhookDeleteResponseObject, error)
 
-	WebhookListRequests(ctx echo.Context, request WebhookListRequestsRequestObject) (WebhookListRequestsResponseObject, error)
+	WebhookRequestsList(ctx echo.Context, request WebhookRequestsListRequestObject) (WebhookRequestsListResponseObject, error)
 
 	WorkerGet(ctx echo.Context, request WorkerGetRequestObject) (WorkerGetResponseObject, error)
 
@@ -8282,25 +8282,25 @@ func (sh *strictHandler) WebhookDelete(ctx echo.Context, webhook openapi_types.U
 	return nil
 }
 
-// WebhookListRequests operation middleware
-func (sh *strictHandler) WebhookListRequests(ctx echo.Context, webhook openapi_types.UUID) error {
-	var request WebhookListRequestsRequestObject
+// WebhookRequestsList operation middleware
+func (sh *strictHandler) WebhookRequestsList(ctx echo.Context, webhook openapi_types.UUID) error {
+	var request WebhookRequestsListRequestObject
 
 	request.Webhook = webhook
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.WebhookListRequests(ctx, request.(WebhookListRequestsRequestObject))
+		return sh.ssi.WebhookRequestsList(ctx, request.(WebhookRequestsListRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WebhookListRequests")
+		handler = middleware(handler, "WebhookRequestsList")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(WebhookListRequestsResponseObject); ok {
-		return validResponse.VisitWebhookListRequestsResponse(ctx.Response())
+	} else if validResponse, ok := response.(WebhookRequestsListResponseObject); ok {
+		return validResponse.VisitWebhookRequestsListResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -8709,17 +8709,17 @@ var swaggerSpec = []string{
 	"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",
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
