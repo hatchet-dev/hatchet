@@ -97,18 +97,14 @@ func (r *webhookWorkerEngineRepository) CreateWebhookWorker(ctx context.Context,
 	return worker, nil
 }
 
-func (r *webhookWorkerEngineRepository) UpdateWebhookWorker(ctx context.Context, id string, tenantId string, opts *repository.UpdateWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error) {
+func (r *webhookWorkerEngineRepository) UpdateWebhookWorkerToken(ctx context.Context, id string, tenantId string, opts *repository.UpdateWebhookWorkerTokenOpts) (*dbsqlc.WebhookWorker, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	params := dbsqlc.UpdateWebhookWorkerParams{
+	params := dbsqlc.UpdateWebhookWorkerTokenParams{
 		ID:       sqlchelpers.UUIDFromStr(id),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-	}
-
-	if opts.Name != nil {
-		params.Name = *opts.Name
 	}
 
 	if opts.TokenID != nil {
@@ -119,7 +115,7 @@ func (r *webhookWorkerEngineRepository) UpdateWebhookWorker(ctx context.Context,
 		params.TokenValue = sqlchelpers.TextFromStr(*opts.TokenValue)
 	}
 
-	worker, err := r.queries.UpdateWebhookWorker(ctx, r.pool, params)
+	worker, err := r.queries.UpdateWebhookWorkerToken(ctx, r.pool, params)
 
 	if err != nil {
 		return nil, err

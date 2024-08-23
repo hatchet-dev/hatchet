@@ -249,30 +249,27 @@ func (q *Queries) ListWebhookWorkersByPartitionId(ctx context.Context, db DBTX, 
 	return items, nil
 }
 
-const updateWebhookWorker = `-- name: UpdateWebhookWorker :one
+const updateWebhookWorkerToken = `-- name: UpdateWebhookWorkerToken :one
 UPDATE "WebhookWorker"
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
-    "name" = COALESCE($1::text, "name"),
-    "tokenValue" = COALESCE($2::text, "tokenValue"),
-    "tokenId" = COALESCE($3::uuid, "tokenId")
+    "tokenValue" = COALESCE($1::text, "tokenValue"),
+    "tokenId" = COALESCE($2::uuid, "tokenId")
 WHERE
-    "id" = $4::uuid
-    AND "tenantId" = $5::uuid
+    "id" = $3::uuid
+    AND "tenantId" = $4::uuid
 RETURNING id, "createdAt", "updatedAt", name, secret, url, "tokenValue", deleted, "tokenId", "tenantId"
 `
 
-type UpdateWebhookWorkerParams struct {
-	Name       string      `json:"name"`
+type UpdateWebhookWorkerTokenParams struct {
 	TokenValue pgtype.Text `json:"tokenValue"`
 	TokenId    pgtype.UUID `json:"tokenId"`
 	ID         pgtype.UUID `json:"id"`
 	Tenantid   pgtype.UUID `json:"tenantid"`
 }
 
-func (q *Queries) UpdateWebhookWorker(ctx context.Context, db DBTX, arg UpdateWebhookWorkerParams) (*WebhookWorker, error) {
-	row := db.QueryRow(ctx, updateWebhookWorker,
-		arg.Name,
+func (q *Queries) UpdateWebhookWorkerToken(ctx context.Context, db DBTX, arg UpdateWebhookWorkerTokenParams) (*WebhookWorker, error) {
+	row := db.QueryRow(ctx, updateWebhookWorkerToken,
 		arg.TokenValue,
 		arg.TokenId,
 		arg.ID,

@@ -52,11 +52,10 @@ INSERT INTO "WebhookWorkerRequest" (
     @statusCode::integer
 );
 
--- name: UpdateWebhookWorker :one
+-- name: UpdateWebhookWorkerToken :one
 UPDATE "WebhookWorker"
 SET
     "updatedAt" = CURRENT_TIMESTAMP,
-    "name" = COALESCE(@name::text, "name"),
     "tokenValue" = COALESCE(sqlc.narg('tokenValue')::text, "tokenValue"),
     "tokenId" = COALESCE(sqlc.narg('tokenId')::uuid, "tokenId")
 WHERE
