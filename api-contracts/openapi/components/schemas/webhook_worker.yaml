@@ -14,6 +14,39 @@ WebhookWorker:
     - url
   type: object
 
+WebhookWorkerRequestMethod:
+  enum:
+    - GET
+    - POST
+    - PUT
+
+WebhookWorkerRequest:
+  properties:
+    created_at:
+      type: string
+      format: date-time
+      description: The date and time the request was created.
+    method:
+      $ref: "#/WebhookWorkerRequestMethod"
+      description: The HTTP method used for the request.
+    statusCode:
+      type: integer
+      description: The HTTP status code of the response.
+  required:
+    - created_at
+    - method
+    - statusCode
+  type: object
+
+WebhookWorkerRequestListResponse:
+  properties:
+    requests:
+      type: array
+      items:
+        $ref: "#/WebhookWorkerRequest"
+      description: The list of webhook requests.
+  type: object
+
 WebhookWorkerCreated:
   properties:
     metadata:

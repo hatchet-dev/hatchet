@@ -154,7 +154,7 @@ func (c *WebhooksController) cleanupDeletedWorker(id, tenantId string) {
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 	})
 	if err != nil {
-		c.sc.Logger.Err(err).Msgf("could not delete webhook worker")
+		c.sc.Logger.Err(err).Msgf("could not delete webhook worker worker")
 		return
 	}
 
@@ -162,6 +162,12 @@ func (c *WebhooksController) cleanupDeletedWorker(id, tenantId string) {
 	delete(c.registeredWorkerIds, id)
 	delete(c.cleanups, id)
 	c.mu.Unlock()
+
+	err = c.sc.EngineRepository.WebhookWorker().HardDeleteWebhookWorker(context.Background(), id, tenantId)
+
+	if err != nil {
+		c.sc.Logger.Err(err).Msgf("could not delete webhook worker")
+	}
 }
 
 func (c *WebhooksController) getOrCreateToken(ww *dbsqlc.WebhookWorker, tenantId string) (string, error) {
@@ -190,14 +196,15 @@ func (c *WebhooksController) getOrCreateToken(ww *dbsqlc.WebhookWorker, tenantId
 
 	encTokStr := base64.StdEncoding.EncodeToString(encTok)
 
-	_, err = c.sc.EngineRepository.WebhookWorker().UpsertWebhookWorker(context.Background(), &repository.UpsertWebhookWorkerOpts{
-		Name:       ww.Name,
-		URL:        ww.Url,
-		Secret:     ww.Secret,
-		TenantId:   tenantId,
-		TokenID:    &tok.TokenId,
-		TokenValue: &encTokStr,
-	})
+	_, err = c.sc.EngineRepository.WebhookWorker().UpdateWebhookWorkerToken(
+		context.Background(),
+		sqlchelpers.UUIDToStr(ww.ID),
+		tenantId,
+		&repository.UpdateWebhookWorkerTokenOpts{
+			TokenID:    &tok.TokenId,
+			TokenValue: &encTokStr,
+		})
+
 	if err != nil {
 		return "", fmt.Errorf("could not update webhook worker: %w", err)
 	}
@@ -215,15 +222,21 @@ func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheck
 		return nil, err
 	}
 
-	resp, err := whrequest.Send(context.Background(), ww.Url, secret, struct {
+	resp, statusCode, err := whrequest.Send(context.Background(), ww.Url, secret, struct {
 		Time time.Time `json:"time"`
 	}{
 		Time: time.Now(),
 	}, func(req *http.Request) {
 		req.Method = "PUT"
 	})
-	if err != nil {
-		return nil, fmt.Errorf("healthcheck request: %w", err)
+
+	if statusCode != nil {
+		err = c.sc.EngineRepository.WebhookWorker().InsertWebhookWorkerRequest(context.Background(), sqlchelpers.UUIDToStr(ww.ID), "PUT", int32(*statusCode))
+		c.sc.Logger.Err(err).Msgf("could not insert webhook worker request")
+	}
+
+	if err != nil || *statusCode != http.StatusOK {
+		return nil, fmt.Errorf("health check request: %w", err)
 	}
 
 	var res HealthCheckResponse

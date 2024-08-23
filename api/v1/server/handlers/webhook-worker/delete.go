@@ -11,7 +11,7 @@ func (i *WebhookWorkersService) WebhookDelete(ctx echo.Context, request gen.Webh
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 	webhook := ctx.Get("webhook").(*db.WebhookWorkerModel)
 
-	err := i.config.EngineRepository.WebhookWorker().DeleteWebhookWorker(ctx.Request().Context(), webhook.ID, tenant.ID)
+	err := i.config.EngineRepository.WebhookWorker().SoftDeleteWebhookWorker(ctx.Request().Context(), webhook.ID, tenant.ID)
 	if err != nil {
 		return nil, err
 	}

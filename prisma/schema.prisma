@@ -112,6 +112,29 @@ model WebhookWorker {
   webhookWorkerWorkflows WebhookWorkerWorkflow[]
 
   worker Worker?
+
+  requests WebhookWorkerRequest[]
+}
+
+enum WebhookWorkerRequestMethod {
+  GET
+  POST
+  PUT
+}
+
+model WebhookWorkerRequest {
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+
+  // the parent webhook worker
+  webhookWorker   WebhookWorker @relation(fields: [webhookWorkerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  webhookWorkerId String        @db.Uuid
+
+  // the request method
+  method WebhookWorkerRequestMethod
+
+  // the request status code
+  statusCode Int
 }
 
 model WebhookWorkerWorkflow {

@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card.tsx';
 import { Button } from '@/components/ui/button.tsx';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApiError } from '@/lib/hooks.ts';
 import { Dialog } from '@/components/ui/dialog.tsx';
 import {
@@ -22,6 +22,7 @@ import {
 import { BiDotsVertical } from 'react-icons/bi';
 import { CreateWebhookWorkerDialog } from './components/create-webhook-worker-dialog';
 import { DeleteWebhookWorkerDialog } from './components/delete-webhook-worker-dialog';
+import { Badge } from '@/components/ui/badge';
 
 export default function Webhooks() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -36,8 +37,8 @@ export default function Webhooks() {
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
-          <h2 className="text-2xl font-semibold leading-tight text-foreground">
-            Webhook Workers (BETA)
+          <h2 className="text-2xl font-semibold leading-tight text-foreground flex flex-row items-center gap-2">
+            Webhook Workers <Badge variant="inProgress">BETA</Badge>
           </h2>
 
           <Button
@@ -48,7 +49,15 @@ export default function Webhooks() {
           </Button>
         </div>
         <p className="text-gray-700 dark:text-gray-300 my-4">
-          Assign webhook workers to workflows.
+          Assign workflow runs to a HTTP endpoint.{' '}
+          <a
+            className="underline"
+            target="_blank"
+            href="https://docs.hatchet.run/home/features/webhooks"
+            rel="noreferrer"
+          >
+            Learn more.
+          </a>
         </p>
         <Separator className="my-4" />
 
@@ -174,6 +183,7 @@ function CreateWebhookWorker({
   setShowDialog: (show: boolean) => void;
 }) {
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
+  const [webhookId, setWebhookId] = useState<string | undefined>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
@@ -187,10 +197,19 @@ function CreateWebhookWorker({
     },
     onSuccess: (data) => {
       setGeneratedToken(data.secret);
+      setWebhookId(data.metadata.id);
       onSuccess();
     },
     onError: handleApiError,
   });
+
+  useEffect(() => {
+    if (showDialog) {
+      setGeneratedToken(undefined);
+      setWebhookId(undefined);
+      setFieldErrors({});
+    }
+  }, [showDialog]);
 
   return (
     <Dialog open={showDialog} onOpenChange={setShowDialog}>
@@ -198,7 +217,9 @@ function CreateWebhookWorker({
         isLoading={createWebhookWorkerMutation.isPending}
         onSubmit={createWebhookWorkerMutation.mutate}
         secret={generatedToken}
+        webhookId={webhookId}
         fieldErrors={fieldErrors}
+        isOpen={showDialog}
       />
     </Dialog>
   );
