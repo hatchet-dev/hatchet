@@ -1074,6 +1074,7 @@ type StepRun struct {
 	RetryCount        int32            `json:"retryCount"`
 	SemaphoreReleased bool             `json:"semaphoreReleased"`
 	Queue             string           `json:"queue"`
+	Priority          pgtype.Int4      `json:"priority"`
 }
 
 type StepRunEvent struct {

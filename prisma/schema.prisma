@@ -1224,6 +1224,7 @@ model StepRun {
   order BigInt @default(autoincrement()) @db.BigInt
 
   queue String @default("default")
+  priority Int?
 
   // the worker assigned to this job
   worker   Worker? @relation(fields: [workerId], references: [id])

@@ -1746,6 +1746,10 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 		updateParams.Status.StepRunStatus == dbsqlc.StepRunStatusPENDINGASSIGNMENT {
 		priority := 1
 
+		if innerStepRun.SRPriority.Valid {
+			priority = int(innerStepRun.SRPriority.Int32)
+		}
+
 		// if the step run is a retry, set the priority to 4
 		if innerStepRun.SRRetryCount > 0 || (updateParams.RetryCount.Valid && updateParams.RetryCount.Int32 > 0) {
 			priority = 4

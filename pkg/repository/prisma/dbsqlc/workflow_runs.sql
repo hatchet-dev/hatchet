@@ -673,7 +673,8 @@ INSERT INTO "StepRun" (
     "stepId",
     "status",
     "requeueAfter",
-    "queue"
+    "queue",
+    "priority"
 )
 SELECT
     gen_random_uuid(),
@@ -684,7 +685,8 @@ SELECT
     @stepId::uuid,
     'PENDING', -- default status
     CURRENT_TIMESTAMP + INTERVAL '5 seconds',
-    sqlc.narg('queue')::text;
+    sqlc.narg('queue')::text,
+    sqlc.narg('priority')::int;
 
 -- name: ListStepsForJob :many
 WITH job_id AS (

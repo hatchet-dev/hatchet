@@ -341,7 +341,8 @@ INSERT INTO "StepRun" (
     "stepId",
     "status",
     "requeueAfter",
-    "queue"
+    "queue",
+    "priority"
 )
 SELECT
     gen_random_uuid(),
@@ -352,7 +353,8 @@ SELECT
     $3::uuid,
     'PENDING', -- default status
     CURRENT_TIMESTAMP + INTERVAL '5 seconds',
-    $4::text
+    $4::text,
+    $5::int
 `
 
 type CreateStepRunParams struct {
@@ -360,6 +362,7 @@ type CreateStepRunParams struct {
 	Jobrunid pgtype.UUID `json:"jobrunid"`
 	Stepid   pgtype.UUID `json:"stepid"`
 	Queue    pgtype.Text `json:"queue"`
+	Priority pgtype.Int4 `json:"priority"`
 }
 
 func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunParams) error {
@@ -368,6 +371,7 @@ func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunP
 		arg.Jobrunid,
 		arg.Stepid,
 		arg.Queue,
+		arg.Priority,
 	)
 	return err
 }

@@ -360,6 +360,7 @@ CREATE TABLE "StepRun" (
     "retryCount" INTEGER NOT NULL DEFAULT 0,
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
     "queue" TEXT NOT NULL DEFAULT 'default',
+    "priority" INTEGER,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );

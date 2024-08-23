@@ -924,6 +924,7 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 						Jobrunid: jobRunId,
 						Stepid:   step.ID,
 						Queue:    sqlchelpers.TextFromStr(step.ActionId),
+						Priority: createParams.Priority,
 					},
 				)
 
