@@ -124,8 +124,15 @@ func (r *webhookWorkerEngineRepository) UpdateWebhookWorkerToken(ctx context.Con
 	return worker, nil
 }
 
-func (r *webhookWorkerEngineRepository) DeleteWebhookWorker(ctx context.Context, id string, tenantId string) error {
-	return r.queries.DeleteWebhookWorker(ctx, r.pool, dbsqlc.DeleteWebhookWorkerParams{
+func (r *webhookWorkerEngineRepository) SoftDeleteWebhookWorker(ctx context.Context, id string, tenantId string) error {
+	return r.queries.SoftDeleteWebhookWorker(ctx, r.pool, dbsqlc.SoftDeleteWebhookWorkerParams{
+		ID:       sqlchelpers.UUIDFromStr(id),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+}
+
+func (r *webhookWorkerEngineRepository) HardDeleteWebhookWorker(ctx context.Context, id string, tenantId string) error {
+	return r.queries.HardDeleteWebhookWorker(ctx, r.pool, dbsqlc.HardDeleteWebhookWorkerParams{
 		ID:       sqlchelpers.UUIDFromStr(id),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})

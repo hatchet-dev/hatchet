@@ -75,20 +75,20 @@ func (q *Queries) CreateWebhookWorker(ctx context.Context, db DBTX, arg CreateWe
 	return &i, err
 }
 
-const deleteWebhookWorker = `-- name: DeleteWebhookWorker :exec
+const hardDeleteWebhookWorker = `-- name: HardDeleteWebhookWorker :exec
 DELETE FROM "WebhookWorker"
 WHERE
   "id" = $1::uuid
   AND "tenantId" = $2::uuid
 `
 
-type DeleteWebhookWorkerParams struct {
+type HardDeleteWebhookWorkerParams struct {
 	ID       pgtype.UUID `json:"id"`
 	Tenantid pgtype.UUID `json:"tenantid"`
 }
 
-func (q *Queries) DeleteWebhookWorker(ctx context.Context, db DBTX, arg DeleteWebhookWorkerParams) error {
-	_, err := db.Exec(ctx, deleteWebhookWorker, arg.ID, arg.Tenantid)
+func (q *Queries) HardDeleteWebhookWorker(ctx context.Context, db DBTX, arg HardDeleteWebhookWorkerParams) error {
+	_, err := db.Exec(ctx, hardDeleteWebhookWorker, arg.ID, arg.Tenantid)
 	return err
 }
 
@@ -247,6 +247,26 @@ func (q *Queries) ListWebhookWorkersByPartitionId(ctx context.Context, db DBTX, 
 		return nil, err
 	}
 	return items, nil
+}
+
+const softDeleteWebhookWorker = `-- name: SoftDeleteWebhookWorker :exec
+UPDATE "WebhookWorker"
+SET
+  "deleted" = true,
+  "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+  "id" = $1::uuid
+  AND "tenantId" = $2::uuid
+`
+
+type SoftDeleteWebhookWorkerParams struct {
+	ID       pgtype.UUID `json:"id"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) SoftDeleteWebhookWorker(ctx context.Context, db DBTX, arg SoftDeleteWebhookWorkerParams) error {
+	_, err := db.Exec(ctx, softDeleteWebhookWorker, arg.ID, arg.Tenantid)
+	return err
 }
 
 const updateWebhookWorkerToken = `-- name: UpdateWebhookWorkerToken :one

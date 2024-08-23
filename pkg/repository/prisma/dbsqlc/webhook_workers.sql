@@ -90,7 +90,16 @@ VALUES (
 )
 RETURNING *;
 
--- name: DeleteWebhookWorker :exec
+-- name: SoftDeleteWebhookWorker :exec
+UPDATE "WebhookWorker"
+SET
+  "deleted" = true,
+  "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+  "id" = @id::uuid
+  AND "tenantId" = @tenantId::uuid;
+
+-- name: HardDeleteWebhookWorker :exec
 DELETE FROM "WebhookWorker"
 WHERE
   "id" = @id::uuid

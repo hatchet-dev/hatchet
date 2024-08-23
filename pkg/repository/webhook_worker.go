@@ -43,6 +43,9 @@ type WebhookWorkerEngineRepository interface {
 	// UpdateWebhookWorkerToken updates a webhook worker with the given id and tenant id
 	UpdateWebhookWorkerToken(ctx context.Context, id string, tenantId string, opts *UpdateWebhookWorkerTokenOpts) (*dbsqlc.WebhookWorker, error)
 
-	// DeleteWebhookWorker deletes a webhook worker with the given id and tenant id
-	DeleteWebhookWorker(ctx context.Context, id string, tenantId string) error
+	// SoftDeleteWebhookWorker flags a webhook worker for delete with the given id and tenant id
+	SoftDeleteWebhookWorker(ctx context.Context, id string, tenantId string) error
+
+	// HardDeleteWebhookWorker deletes a webhook worker with the given id and tenant id
+	HardDeleteWebhookWorker(ctx context.Context, id string, tenantId string) error
 }

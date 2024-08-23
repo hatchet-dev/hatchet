@@ -154,7 +154,7 @@ func (c *WebhooksController) cleanupDeletedWorker(id, tenantId string) {
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 	})
 	if err != nil {
-		c.sc.Logger.Err(err).Msgf("could not delete webhook worker")
+		c.sc.Logger.Err(err).Msgf("could not delete webhook worker worker")
 		return
 	}
 
@@ -162,6 +162,12 @@ func (c *WebhooksController) cleanupDeletedWorker(id, tenantId string) {
 	delete(c.registeredWorkerIds, id)
 	delete(c.cleanups, id)
 	c.mu.Unlock()
+
+	err = c.sc.EngineRepository.WebhookWorker().HardDeleteWebhookWorker(context.Background(), id, tenantId)
+
+	if err != nil {
+		c.sc.Logger.Err(err).Msgf("could not delete webhook worker")
+	}
 }
 
 func (c *WebhooksController) getOrCreateToken(ww *dbsqlc.WebhookWorker, tenantId string) (string, error) {
