@@ -289,7 +289,7 @@ export const queries = createQueryKeyStore({
     listRequests: (webhookWorkerId: string) => ({
       queryKey: ['webhook-worker:list:requests', webhookWorkerId],
       queryFn: async () =>
-        (await api.webhookListRequests(webhookWorkerId)).data,
+        (await api.webhookRequestsList(webhookWorkerId)).data,
     }),
   },
 });
