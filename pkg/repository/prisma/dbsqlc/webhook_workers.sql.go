@@ -248,3 +248,48 @@ func (q *Queries) ListWebhookWorkersByPartitionId(ctx context.Context, db DBTX, 
 	}
 	return items, nil
 }
+
+const updateWebhookWorker = `-- name: UpdateWebhookWorker :one
+UPDATE "WebhookWorker"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "name" = COALESCE($1::text, "name"),
+    "tokenValue" = COALESCE($2::text, "tokenValue"),
+    "tokenId" = COALESCE($3::uuid, "tokenId")
+WHERE
+    "id" = $4::uuid
+    AND "tenantId" = $5::uuid
+RETURNING id, "createdAt", "updatedAt", name, secret, url, "tokenValue", deleted, "tokenId", "tenantId"
+`
+
+type UpdateWebhookWorkerParams struct {
+	Name       string      `json:"name"`
+	TokenValue pgtype.Text `json:"tokenValue"`
+	TokenId    pgtype.UUID `json:"tokenId"`
+	ID         pgtype.UUID `json:"id"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) UpdateWebhookWorker(ctx context.Context, db DBTX, arg UpdateWebhookWorkerParams) (*WebhookWorker, error) {
+	row := db.QueryRow(ctx, updateWebhookWorker,
+		arg.Name,
+		arg.TokenValue,
+		arg.TokenId,
+		arg.ID,
+		arg.Tenantid,
+	)
+	var i WebhookWorker
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Secret,
+		&i.Url,
+		&i.TokenValue,
+		&i.Deleted,
+		&i.TokenId,
+		&i.TenantId,
+	)
+	return &i, err
+}

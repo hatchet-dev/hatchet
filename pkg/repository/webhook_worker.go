@@ -17,6 +17,12 @@ type CreateWebhookWorkerOpts struct {
 	TokenID    *string
 }
 
+type UpdateWebhookWorkerOpts struct {
+	Name       *string
+	TokenValue *string
+	TokenID    *string
+}
+
 var ErrDuplicateKey = fmt.Errorf("duplicate key error")
 
 type WebhookWorkerEngineRepository interface {
@@ -34,6 +40,9 @@ type WebhookWorkerEngineRepository interface {
 
 	// CreateWebhookWorker creates a new webhook worker with the given options
 	CreateWebhookWorker(ctx context.Context, opts *CreateWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error)
+
+	// UpdateWebhookWorker updates a webhook worker with the given id and tenant id
+	UpdateWebhookWorker(ctx context.Context, id string, tenantId string, opts *UpdateWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error)
 
 	// DeleteWebhookWorker deletes a webhook worker with the given id and tenant id
 	DeleteWebhookWorker(ctx context.Context, id string, tenantId string) error

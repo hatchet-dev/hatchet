@@ -97,6 +97,37 @@ func (r *webhookWorkerEngineRepository) CreateWebhookWorker(ctx context.Context,
 	return worker, nil
 }
 
+func (r *webhookWorkerEngineRepository) UpdateWebhookWorker(ctx context.Context, id string, tenantId string, opts *repository.UpdateWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	params := dbsqlc.UpdateWebhookWorkerParams{
+		ID:       sqlchelpers.UUIDFromStr(id),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	if opts.Name != nil {
+		params.Name = *opts.Name
+	}
+
+	if opts.TokenID != nil {
+		params.TokenId = sqlchelpers.UUIDFromStr(*opts.TokenID)
+	}
+
+	if opts.TokenValue != nil {
+		params.TokenValue = sqlchelpers.TextFromStr(*opts.TokenValue)
+	}
+
+	worker, err := r.queries.UpdateWebhookWorker(ctx, r.pool, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return worker, nil
+}
+
 func (r *webhookWorkerEngineRepository) DeleteWebhookWorker(ctx context.Context, id string, tenantId string) error {
 	return r.queries.DeleteWebhookWorker(ctx, r.pool, dbsqlc.DeleteWebhookWorkerParams{
 		ID:       sqlchelpers.UUIDFromStr(id),

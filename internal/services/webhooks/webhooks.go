@@ -190,14 +190,15 @@ func (c *WebhooksController) getOrCreateToken(ww *dbsqlc.WebhookWorker, tenantId
 
 	encTokStr := base64.StdEncoding.EncodeToString(encTok)
 
-	_, err = c.sc.EngineRepository.WebhookWorker().CreateWebhookWorker(context.Background(), &repository.CreateWebhookWorkerOpts{
-		Name:       ww.Name,
-		URL:        ww.Url,
-		Secret:     ww.Secret,
-		TenantId:   tenantId,
-		TokenID:    &tok.TokenId,
-		TokenValue: &encTokStr,
-	})
+	_, err = c.sc.EngineRepository.WebhookWorker().UpdateWebhookWorker(
+		context.Background(),
+		sqlchelpers.UUIDToStr(ww.ID),
+		tenantId,
+		&repository.UpdateWebhookWorkerOpts{
+			TokenID:    &tok.TokenId,
+			TokenValue: &encTokStr,
+		})
+
 	if err != nil {
 		return "", fmt.Errorf("could not update webhook worker: %w", err)
 	}
