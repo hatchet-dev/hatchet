@@ -1,14 +1,5 @@
-/*
-  Warnings:
-
-  - You are about to drop the `WebhookWorkerRequests` table. If the table is not empty, all the data it contains will be lost.
-
-*/
--- DropForeignKey
-ALTER TABLE "WebhookWorkerRequests" DROP CONSTRAINT "WebhookWorkerRequests_webhookWorkerId_fkey";
-
--- DropTable
-DROP TABLE "WebhookWorkerRequests";
+-- CreateEnum
+CREATE TYPE "WebhookWorkerRequestMethod" AS ENUM ('GET', 'POST', 'PUT');
 
 -- CreateTable
 CREATE TABLE "WebhookWorkerRequest" (
