@@ -1,7 +1,10 @@
+import LoggingComponent, {
+  ExtendedLogLine,
+} from '@/components/cloud/logging/logs';
 import { Badge } from '@/components/ui/badge';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 interface RecentRequestProps {
   webhookId: string;
@@ -14,7 +17,7 @@ const StatusCodeToMessage: Record<number, string> = {
   401: 'Unauthorized',
   403: 'Forbidden, Check if worker path is correct',
   404: 'Not Found, Check if worker path is correct',
-  500: 'Internal Server Error, See worker logs for more information',
+  500: 'Internal Server Error, See server worker logs',
   502: 'Bad Gateway, Check if domain is correct and the server is running',
 };
 
@@ -51,6 +54,29 @@ export const RecentWebhookRequests: React.FC<RecentRequestProps> = ({
     }
   }, [onConnected, filteredRequests]);
 
+  const logLines = useMemo(() => {
+    return (filteredRequests || []).map<ExtendedLogLine>((request) => {
+      return {
+        line: StatusCodeToMessage[request.statusCode],
+        timestamp: request.created_at,
+        instance: '',
+        badge: (
+          <Badge
+            className="mr-4"
+            variant={request.statusCode == 200 ? 'successful' : 'failed'}
+          >
+            {request.statusCode}
+          </Badge>
+        ),
+
+        // statusCode: request.statusCode,
+        // createdAt: request.created_at,
+        // message: StatusCodeToMessage[request.statusCode],
+        // metadata: {},
+      };
+    });
+  }, [filteredRequests]);
+
   if (webhookRequestQuery.isLoading) {
     return <div>Loading...</div>;
   }
@@ -67,31 +93,11 @@ export const RecentWebhookRequests: React.FC<RecentRequestProps> = ({
     return <div>Attempting to connect...</div>;
   }
 
-  const requestsToShow = showAll
-    ? filteredRequests
-    : filteredRequests?.slice(0, 5);
-
   return (
-    <>
-      <table className="w-full mb-4">
-        {requestsToShow?.map((request, i) => (
-          <tr key={i}>
-            <td className="font-mono text-gray-500">
-              <Badge
-                className="mr-4"
-                variant={request.statusCode == 200 ? 'successful' : 'failed'}
-              >
-                {request.statusCode}
-              </Badge>
-              {request.created_at}
-            </td>
-            <td>{StatusCodeToMessage[request.statusCode]}</td>
-          </tr>
-        ))}
-      </table>
-      {!showAll && webhookRequestQuery.data?.requests.length > 5 && (
-        <button onClick={() => setShowAll(true)}>Show More</button>
-      )}
-    </>
+    <LoggingComponent
+      logs={logLines}
+      onTopReached={function (): void {}}
+      onBottomReached={function (): void {}}
+    />
   );
 };
