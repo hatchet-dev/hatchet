@@ -126,7 +126,7 @@ webhookworkerRequests:
   get:
     description: Lists all requests for a webhook
     summary: List webhook requests
-    operationId: webhook:listRequests
+    operationId: webhook-requests:list
     x-resources: ["tenant", "webhook"]
     parameters:
       - description: The webhook id
