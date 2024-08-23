@@ -156,7 +156,7 @@ func TestGeneratePlan(t *testing.T) {
 			name: "GeneratePlan_Affinity_Soft",
 			args: args{
 				fixtureArgs:   "./fixtures/affinity_soft.json",
-				fixtureResult: "./fixtures/affinity_output.json",
+				fixtureResult: "./fixtures/affinity_soft_output.json",
 				noTimeout:     true,
 			},
 			want: func(s SchedulePlan, fixtureResult string) bool {
@@ -175,7 +175,7 @@ func TestGeneratePlan(t *testing.T) {
 			name: "GeneratePlan_Affinity_Hard",
 			args: args{
 				fixtureArgs:   "./fixtures/affinity_hard.json",
-				fixtureResult: "./fixtures/affinity_output.json",
+				fixtureResult: "./fixtures/affinity_hard_output.json",
 				noTimeout:     true,
 			},
 			want: func(s SchedulePlan, fixtureResult string) bool {
