@@ -3,7 +3,9 @@ package prisma
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -43,16 +45,32 @@ func (r *webhookWorkerEngineRepository) ListActiveWebhookWorkers(ctx context.Con
 	return r.queries.ListActiveWebhookWorkers(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 }
 
-func (r *webhookWorkerEngineRepository) UpsertWebhookWorker(ctx context.Context, opts *repository.UpsertWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error) {
+func (r *webhookWorkerEngineRepository) ListWebhookWorkerRequests(ctx context.Context, webhookWorkerId string) ([]*dbsqlc.WebhookWorkerRequest, error) {
+	return r.queries.ListWebhookWorkerRequests(ctx, r.pool, sqlchelpers.UUIDFromStr(webhookWorkerId))
+}
+
+func (r *webhookWorkerEngineRepository) InsertWebhookWorkerRequest(ctx context.Context, webhookWorkerId string, method string, statusCode int32) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	return r.queries.InsertWebhookWorkerRequest(ctx, r.pool, dbsqlc.InsertWebhookWorkerRequestParams{
+		Webhookworkerid: sqlchelpers.UUIDFromStr(webhookWorkerId),
+		Method:          dbsqlc.WebhookWorkerRequestMethod(method),
+		Statuscode:      statusCode,
+	})
+}
+
+func (r *webhookWorkerEngineRepository) CreateWebhookWorker(ctx context.Context, opts *repository.CreateWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error) {
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	params := dbsqlc.UpsertWebhookWorkerParams{
+	params := dbsqlc.CreateWebhookWorkerParams{
 		Tenantid: sqlchelpers.UUIDFromStr(opts.TenantId),
-		Name:     sqlchelpers.TextFromStr(opts.Name),
-		Secret:   sqlchelpers.TextFromStr(opts.Secret),
-		Url:      sqlchelpers.TextFromStr(opts.URL),
+		Name:     opts.Name,
+		Secret:   opts.Secret,
+		Url:      opts.URL,
 	}
 
 	if opts.Deleted != nil {
@@ -67,11 +85,54 @@ func (r *webhookWorkerEngineRepository) UpsertWebhookWorker(ctx context.Context,
 		params.TokenValue = sqlchelpers.TextFromStr(*opts.TokenValue)
 	}
 
-	return r.queries.UpsertWebhookWorker(ctx, r.pool, params)
+	worker, err := r.queries.CreateWebhookWorker(ctx, r.pool, params)
+
+	if err != nil {
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+			return nil, repository.ErrDuplicateKey
+		}
+		return nil, err
+	}
+
+	return worker, nil
 }
 
-func (r *webhookWorkerEngineRepository) DeleteWebhookWorker(ctx context.Context, id string, tenantId string) error {
-	return r.queries.DeleteWebhookWorker(ctx, r.pool, dbsqlc.DeleteWebhookWorkerParams{
+func (r *webhookWorkerEngineRepository) UpdateWebhookWorkerToken(ctx context.Context, id string, tenantId string, opts *repository.UpdateWebhookWorkerTokenOpts) (*dbsqlc.WebhookWorker, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	params := dbsqlc.UpdateWebhookWorkerTokenParams{
+		ID:       sqlchelpers.UUIDFromStr(id),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	if opts.TokenID != nil {
+		params.TokenId = sqlchelpers.UUIDFromStr(*opts.TokenID)
+	}
+
+	if opts.TokenValue != nil {
+		params.TokenValue = sqlchelpers.TextFromStr(*opts.TokenValue)
+	}
+
+	worker, err := r.queries.UpdateWebhookWorkerToken(ctx, r.pool, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return worker, nil
+}
+
+func (r *webhookWorkerEngineRepository) SoftDeleteWebhookWorker(ctx context.Context, id string, tenantId string) error {
+	return r.queries.SoftDeleteWebhookWorker(ctx, r.pool, dbsqlc.SoftDeleteWebhookWorkerParams{
+		ID:       sqlchelpers.UUIDFromStr(id),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+}
+
+func (r *webhookWorkerEngineRepository) HardDeleteWebhookWorker(ctx context.Context, id string, tenantId string) error {
+	return r.queries.HardDeleteWebhookWorker(ctx, r.pool, dbsqlc.HardDeleteWebhookWorkerParams{
 		ID:       sqlchelpers.UUIDFromStr(id),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})

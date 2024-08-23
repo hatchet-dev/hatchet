@@ -30,6 +30,7 @@ import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/step-runs-columns';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -136,6 +137,7 @@ export default function ExpandedWorkflowRun() {
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center justify-between">
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
+            <Badge>{worker.type}</Badge>
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               <Link to="/workers">Workers/</Link>
               {worker.webhookUrl || worker.name}
@@ -263,6 +265,18 @@ export default function ExpandedWorkflowRun() {
             );
           })}
         </div>
+        {worker.webhookId && (
+          <>
+            <Separator className="my-4" />
+            <div className="flex flex-row justify-between items-center mb-4">
+              <h3 className="text-xl font-bold leading-tight text-foreground">
+                Recent HTTP Health Checks
+              </h3>
+            </div>
+            <RecentWebhookRequests webhookId={worker.webhookId} />
+          </>
+        )}
+
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Worker Labels

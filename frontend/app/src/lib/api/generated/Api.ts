@@ -70,6 +70,7 @@ import {
   WebhookWorkerCreated,
   WebhookWorkerCreateRequest,
   WebhookWorkerListResponse,
+  WebhookWorkerRequestListResponse,
   Worker,
   WorkerList,
   Workflow,
@@ -1639,6 +1640,22 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/webhook-workers/${webhook}`,
       method: 'DELETE',
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Lists all requests for a webhook
+   *
+   * @name WebhookRequestsList
+   * @summary List webhook requests
+   * @request GET:/api/v1/webhook-workers/{webhook}/requests
+   * @secure
+   */
+  webhookRequestsList = (webhook: string, params: RequestParams = {}) =>
+    this.request<WebhookWorkerRequestListResponse, APIErrors>({
+      path: `/api/v1/webhook-workers/${webhook}/requests`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
       ...params,
     });
   /**

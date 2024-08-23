@@ -119,7 +119,13 @@ func (w *Worker) sendWebhook(ctx context.Context, action *client.Action, ww Webh
 		Action:        action,
 		ActionPayload: string(action.ActionPayload),
 	}
-	_, err := whrequest.Send(ctx, ww.URL, ww.Secret, actionWithPayload)
+
+	_, statusCode, err := whrequest.Send(ctx, ww.URL, ww.Secret, actionWithPayload)
+
+	if statusCode != nil && *statusCode != 200 {
+		w.l.Debug().Msgf("step run %s webhook sent with status code %d", action.StepRunId, *statusCode)
+	}
+
 	if err != nil {
 		w.l.Warn().Msgf("step run %s could not send webhook to %s: %s", action.StepRunId, ww.URL, err)
 		if err := w.markFailed(action, fmt.Errorf("could not send webhook: %w", err)); err != nil {

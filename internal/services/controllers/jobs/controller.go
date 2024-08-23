@@ -748,59 +748,13 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign")
 	defer span.End()
 
-	stepRuns, err := ec.repo.StepRun().ListStepRunsToReassign(ctx, tenantId)
+	_, err := ec.repo.StepRun().ListStepRunsToReassign(ctx, tenantId)
 
 	if err != nil {
 		return fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
 	}
 
-	if num := len(stepRuns); num > 0 {
-		ec.l.Info().Msgf("reassigning %d step runs", num)
-	}
-
-	return MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
-		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
-		defer cancel()
-
-		scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-reassign-step-run")
-		defer span.End()
-
-		for i := range group {
-			stepRunCp := stepRuns[i]
-			// wrap in func to get defer on the span to avoid leaking spans
-			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
-
-			// if the current time is after the scheduleTimeoutAt, then mark this as timed out
-			now := time.Now().UTC().UTC()
-			scheduleTimeoutAt := stepRunCp.SRScheduleTimeoutAt.Time
-
-			// timed out if there was no scheduleTimeoutAt set and the current time is after the step run created at time plus the default schedule timeout,
-			// or if the scheduleTimeoutAt is set and the current time is after the scheduleTimeoutAt
-			isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
-
-			if isTimedOut {
-				return ec.cancelStepRun(scheduleCtx, tenantId, stepRunId, "SCHEDULING_TIMED_OUT")
-			}
-
-			eventData := map[string]interface{}{
-				"worker_id": sqlchelpers.UUIDToStr(stepRunCp.SRWorkerId),
-			}
-
-			// TODO: batch this query to avoid n+1 issues
-			err = ec.repo.StepRun().CreateStepRunEvent(scheduleCtx, tenantId, stepRunId, repository.CreateStepRunEventOpts{
-				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
-				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
-				EventMessage:  repository.StringPtr("Worker has become inactive"),
-				EventData:     eventData,
-			})
-
-			if err != nil {
-				return fmt.Errorf("could not create step run event: %w", err)
-			}
-		}
-
-		return nil
-	})
+	return nil
 }
 
 func (jc *JobsControllerImpl) runStepRunTimeout(ctx context.Context) func() {

@@ -2,6 +2,7 @@
 SELECT
     sqlc.embed(workers),
     ww."url" AS "webhookUrl",
+    ww."id" AS "webhookId",
     (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
 FROM
     "Worker" workers
@@ -32,18 +33,34 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id", ww."url";
+    workers."id", ww."url", ww."id";
 
 -- name: GetWorkerById :one
 SELECT
-    sqlc.embed(workers),
-    ww."url" AS "webhookUrl"
+    sqlc.embed(w),
+    ww."url" AS "webhookUrl",
+    (
+        SELECT COUNT(*)
+        FROM "WorkerSemaphoreSlot"
+        WHERE "workerId" = w.id AND "stepRunId" IS NOT NULL
+    ) AS filled_slots
 FROM
-    "Worker" workers
+    "Worker" w
 LEFT JOIN
-    "WebhookWorker" ww ON workers."webhookId" = ww."id"
+    "WebhookWorker" ww ON w."webhookId" = ww."id"
 WHERE
-    workers."id" = @id::uuid;
+    w."id" = @id::uuid;
+
+-- name: GetWorkerActionsByWorkerId :many
+SELECT
+    a."actionId" AS actionId
+FROM "Worker" w
+LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
+LEFT JOIN "Action" a ON aw."A" = a.id
+WHERE
+    a."tenantId" = @tenantId::uuid AND
+    w."id" = @workerId::uuid;
+
 
 -- name: StubWorkerSemaphoreSlots :exec
 INSERT INTO "WorkerSemaphoreSlot" ("id", "workerId")
