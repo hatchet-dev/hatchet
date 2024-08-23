@@ -169,14 +169,6 @@ func runK8sQuickstart() error {
 		encryptionJwtPublicKeyset:  c.get("SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET"),
 	}
 
-	fmt.Printf(
-		"overwrite: %t, exists: %t, hasAuthCookieSecrets: %t, hasEncryptionKeys: %t\n",
-		k8sQuickstartOverwrite,
-		exists,
-		res.authCookieSecrets != "",
-		res.encryptionMasterKeyset != "" && res.encryptionJwtPrivateKeyset != "" && res.encryptionJwtPublicKeyset != "",
-	)
-
 	if k8sQuickstartOverwrite || res.authCookieSecrets == "" {
 		// generate the random strings for SERVER_AUTH_COOKIE_SECRETS
 		authCookieSecret1, err := random.Generate(16)
@@ -258,7 +250,7 @@ func runCreateWorkerToken() error {
 
 	defer serverConf.Disconnect() // nolint:errcheck
 
-	expiresAt := time.Now().UTC().Add(expiresIn)
+	expiresAt := time.Now().UTC().Add(100 * 365 * 24 * time.Hour)
 
 	tenantId := tokenTenantId
 
