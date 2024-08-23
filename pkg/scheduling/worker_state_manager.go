@@ -38,11 +38,6 @@ func NewWorkerStateManager(
 		for workerId, worker := range workers {
 			weight := ComputeWeight(desired, worker.labels)
 
-			// // skip workers that are not a match (i.e. required)
-			// if weight < 0 {
-			// 	continue
-			// }
-
 			// cache the weight on the worker
 			workers[workerId].AddStepWeight(stepId, weight)
 
