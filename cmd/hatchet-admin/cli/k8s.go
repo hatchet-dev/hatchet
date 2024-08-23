@@ -97,7 +97,7 @@ func init() {
 	k8sQuickstartCmd.PersistentFlags().BoolVar(
 		&k8sQuickstartOverwrite,
 		"overwrite",
-		true,
+		false,
 		"whether existing configmap should be overwritten, if it exists",
 	)
 
@@ -250,7 +250,7 @@ func runCreateWorkerToken() error {
 
 	defer serverConf.Disconnect() // nolint:errcheck
 
-	expiresAt := time.Now().UTC().Add(expiresIn)
+	expiresAt := time.Now().UTC().Add(100 * 365 * 24 * time.Hour)
 
 	tenantId := tokenTenantId
 
