@@ -52,6 +52,18 @@
       "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
       "queue": "child:process2",
       "Order": 0
+    },
+    {
+      "id": 152260,
+      "stepRunId": "064e787a-6cfd-4f82-8b6d-d8031459fdef",
+      "stepId": "e2c744b8-bebb-4b05-8292-d2ce36f27929",
+      "actionId": "child:process2",
+      "scheduleTimeoutAt": "2024-08-07T21:12:49.56Z",
+      "stepTimeout": "60s",
+      "isQueued": true,
+      "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+      "queue": "child:process2",
+      "Order": 0
     }
   ],
   "WorkerLabels": {
@@ -83,6 +95,15 @@
             "Key": "MODEL",
             "Comparator": "EQUAL",
             "StrValue": "B",
+            "Required": true,
+            "Weight": 1
+          }
+        ],
+      "e2c744b8-bebb-4b05-8292-d2ce36f27929": [
+          {
+            "Key": "MODEL",
+            "Comparator": "EQUAL",
+            "StrValue": "C",
             "Required": true,
             "Weight": 1
           }
