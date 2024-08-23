@@ -97,7 +97,7 @@ func init() {
 	k8sQuickstartCmd.PersistentFlags().BoolVar(
 		&k8sQuickstartOverwrite,
 		"overwrite",
-		true,
+		false,
 		"whether existing configmap should be overwritten, if it exists",
 	)
 
@@ -168,6 +168,14 @@ func runK8sQuickstart() error {
 		encryptionJwtPrivateKeyset: c.get("SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET"),
 		encryptionJwtPublicKeyset:  c.get("SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET"),
 	}
+
+	fmt.Printf(
+		"overwrite: %t, exists: %t, hasAuthCookieSecrets: %t, hasEncryptionKeys: %t\n",
+		k8sQuickstartOverwrite,
+		exists,
+		res.authCookieSecrets != "",
+		res.encryptionMasterKeyset != "" && res.encryptionJwtPrivateKeyset != "" && res.encryptionJwtPublicKeyset != "",
+	)
 
 	if k8sQuickstartOverwrite || res.authCookieSecrets == "" {
 		// generate the random strings for SERVER_AUTH_COOKIE_SECRETS
