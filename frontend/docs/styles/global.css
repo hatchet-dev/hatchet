@@ -141,6 +141,10 @@ nav {
   background-color: var(--background) !important;
 }
 
+div.nextra-nav-container {
+  z-index: 50;
+}
+
 .dark .nx-sticky {
   box-shadow: none !important;
 }
