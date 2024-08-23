@@ -1,13 +1,15 @@
 "use client";
 
 import Particles from "../particles";
-import StackPerspective from "../atoms/icons/stack-perspective";
-import Sparkle3 from "../atoms/icons/sparkle-3";
 import { HighlighterItem } from "../highlighter";
 import { cn } from "../../../../lib/utils";
 import Link from "next/link";
+import { SiGo, SiPython } from "react-icons/si";
+import { HiOutlineCloud } from "react-icons/hi";
+import { IoServer } from "react-icons/io5";
+import { BiLogoTypescript } from "react-icons/bi";
 
-// Main DocsNavigator Component
+
 export default function DocsNavigator() {
   return (
     <section>
@@ -17,14 +19,14 @@ export default function DocsNavigator() {
           description="Get up and running quickly with Hatchet quickstart tutorials"
           items={[
             {
-              icon: <Sparkle3 />,
+              icon: <HiOutlineCloud size={18}/>,
               title: "Hatchet Cloud Quickstart",
               description:
                 "Quickly set up Hatchet Cloud, register API keys, and deploy your first workflow.",
               link: "/hatchet-cloud-quickstart",
             },
             {
-              icon: <StackPerspective />,
+              icon: <IoServer size={18} />,
               title: "Hatchet Self-Hosted Quickstart",
               description:
                 "Learn to deploy and manage Hatchet on your own infrastructure for powerful workflow orchestration.",
@@ -38,21 +40,21 @@ export default function DocsNavigator() {
           description="Explore quickstart guides for various SDKs."
           items={[
             {
-              icon: <Sparkle3 />,
+              icon: <SiGo size={22}/>,
               title: "Go SDK Quickstart",
               description:
                 "Get started with the Go SDK and learn how to integrate Hatchet into your Go applications.",
               link: "/sdks/go-sdk",
             },
             {
-              icon: <StackPerspective />,
+              icon: <SiPython size={18}/>,
               title: "Python SDK Quickstart",
               description:
                 "Learn how to integrate Hatchet with your Python applications.",
               link: "/sdks/python-sdk",
             },
             {
-              icon: <StackPerspective />,
+              icon: <BiLogoTypescript size={22} />,
               title: "Typescript SDK Quickstart",
               description:
                 "Get started with the TypeScript SDK and leverage Hatchet in your JavaScript applications.",
@@ -81,7 +83,7 @@ function DocsNavSection({
   }>;
 }) {
   return (
-    <div className="max-md:text-center pt-4" data-aos="fade-down">
+    <div className="pt-4" data-aos="fade-down">
       <h3 className="h3 mb-4">{description}</h3>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {items.map((item, index) => (

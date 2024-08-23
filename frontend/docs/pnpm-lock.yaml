@@ -32,6 +32,9 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.2.0(react@18.2.0)
+      react-icons:
+        specifier: ^5.3.0
+        version: 5.3.0(react@18.2.0)
       react-lottie-player:
         specifier: ^2.0.0
         version: 2.0.0(react@18.2.0)
@@ -1502,6 +1505,11 @@ packages:
     resolution: {integrity: sha512-6IMTriUmvsjHUjNtEDudZfuDQUoWXVxKHhlEGSk81n4YFS+r/Kl99wXiwlVXtPBtJenozv2P+hxDsw9eA7Xo6g==}
     peerDependencies:
       react: ^18.2.0
+
+  react-icons@5.3.0:
+    resolution: {integrity: sha512-DnUk8aFbTyQPSkCfF8dbX6kQjXA9DktMeJqfjrg6cK9vwQVMxmcA3BfP4QoiztVmEHtwlTgLFsPuH2NskKT6eg==}
+    peerDependencies:
+      react: '*'
 
   react-lottie-player@2.0.0:
     resolution: {integrity: sha512-PF23dcQ4k+ULyi2L6b32ny2jfaDqY6+WdbfBF9kpunbtZ02QWS+j7Iz/91xbYe8C6YO8gN28+x0op4CYC/cPbA==}
@@ -3689,6 +3697,10 @@ snapshots:
       loose-envify: 1.4.0
       react: 18.2.0
       scheduler: 0.23.0
+
+  react-icons@5.3.0(react@18.2.0):
+    dependencies:
+      react: 18.2.0
 
   react-lottie-player@2.0.0(react@18.2.0):
     dependencies:
