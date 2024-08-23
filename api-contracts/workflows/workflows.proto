@@ -195,6 +195,9 @@ message TriggerWorkflowRequest {
     // (optional) desired worker id for the workflow run,
     // requires the workflow definition to have a sticky strategy
     optional string desired_worker_id = 8;
+
+    // (optional) override for the priority of the workflow steps, will set all steps to this priority
+    optional int32 priority = 9;
 }
 
 message TriggerWorkflowResponse {

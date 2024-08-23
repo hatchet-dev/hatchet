@@ -160,6 +160,14 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		createOpts.DesiredWorkerId = req.DesiredWorkerId
 	}
 
+	if workflowVersion.WorkflowVersion.DefaultPriority.Valid {
+		createOpts.Priority = &workflowVersion.WorkflowVersion.DefaultPriority.Int32
+	}
+
+	if req.Priority != nil {
+		createOpts.Priority = req.Priority
+	}
+
 	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(createContext, tenantId, createOpts)
 
 	dedupeTarget := repository.ErrDedupeValueExists{}

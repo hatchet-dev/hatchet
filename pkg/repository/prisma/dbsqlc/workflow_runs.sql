@@ -448,7 +448,8 @@ INSERT INTO "WorkflowRun" (
     "childKey",
     "parentId",
     "parentStepRunId",
-    "additionalMetadata"
+    "additionalMetadata",
+    "priority"
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -465,7 +466,8 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('childKey')::text,
     sqlc.narg('parentId')::uuid,
     sqlc.narg('parentStepRunId')::uuid,
-    @additionalMetadata::jsonb
+    @additionalMetadata::jsonb,
+    sqlc.narg('priority')::int
 ) RETURNING *;
 
 -- name: CreateWorkflowRunDedupe :one

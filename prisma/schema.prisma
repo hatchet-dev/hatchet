@@ -936,6 +936,9 @@ model WorkflowRun {
   // the duration of the run (ms)
   duration Int?
 
+  // priority of the workflow run
+  priority Int?
+
   // a list of dependents for this workflow run
   children          WorkflowRun[]                 @relation("WorkflowRunChild")
   scheduledChildren WorkflowTriggerScheduledRef[]
