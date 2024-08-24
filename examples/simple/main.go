@@ -24,6 +24,7 @@ type stepOneOutput struct {
 }
 
 func main() {
+	//START how-to-use-step-level-retries
 	err := godotenv.Load()
 	if err != nil {
 		panic(err)
@@ -42,6 +43,7 @@ func main() {
 	if err := cleanup(); err != nil {
 		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
+	//END how-to-use-step-level-retries
 }
 
 func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
