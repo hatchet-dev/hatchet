@@ -1,3 +1,4 @@
+//Golang
 package main
 
 import (
@@ -50,12 +51,13 @@ func run(ch <-chan interface{}, events chan<- string) error {
 	if err != nil {
 		return fmt.Errorf("error creating client: %w", err)
 	}
-
+	//START setting-concurrency-on-workers
 	w, err := worker.NewWorker(
 		worker.WithClient(
 			c,
 		),
 	)
+	//END setting-concurrency-on-workers
 	if err != nil {
 		return fmt.Errorf("error creating worker: %w", err)
 	}
