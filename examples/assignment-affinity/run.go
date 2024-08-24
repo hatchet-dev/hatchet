@@ -1,3 +1,4 @@
+//Golang
 package main
 
 import (
@@ -16,7 +17,7 @@ func run() (func() error, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
 	}
-
+	//START specifying-worker-labels
 	w, err := worker.NewWorker(
 		worker.WithClient(
 			c,
@@ -26,10 +27,11 @@ func run() (func() error, error) {
 			"memory": 512,
 		}),
 	)
+	//END specifying-worker-labels
 	if err != nil {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
-
+	//START specifying-step-desired-labels
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			On:          worker.Events("user:create:affinity"),
@@ -69,6 +71,7 @@ func run() (func() error, error) {
 			},
 		},
 	)
+	//END specifying-step-desired-labels
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
