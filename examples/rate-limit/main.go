@@ -1,3 +1,4 @@
+//Golang
 package main
 
 import (
@@ -48,11 +49,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
+	//START declaring-global-limits
 	err = c.Admin().PutRateLimit("api1", &types.RateLimitOpts{
 		Max:      3,
 		Duration: "day",
 	})
+	//END declaring-global-limits
 
 	if err != nil {
 		panic(err)
@@ -67,7 +69,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
+	//START consuming-rate-limits
 	err = w.On(
 		worker.NoTrigger(),
 		&worker.WorkflowJob{
@@ -83,7 +85,7 @@ func main() {
 			},
 		},
 	)
-
+	//END consuming-rate-limits
 	if err != nil {
 		panic(err)
 	}
