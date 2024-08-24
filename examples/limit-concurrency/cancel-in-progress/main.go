@@ -1,5 +1,7 @@
+//Golang
 package main
 
+//START concurrency_cancel_in_progress
 import (
 	"context"
 	"fmt"
@@ -139,3 +141,4 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		}
 	}
 }
+//END concurrency_cancel_in_progress
