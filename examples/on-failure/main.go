@@ -1,3 +1,4 @@
+//Golang
 package main
 
 import (
@@ -10,7 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
-
+//START defining-an-on-failure-step
 type stepOneOutput struct {
 	Message string `json:"message"`
 }
@@ -90,3 +91,4 @@ func main() {
 		}
 	}
 }
+//END defining-an-on-failure-step
