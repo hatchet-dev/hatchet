@@ -1,3 +1,4 @@
+//Golang
 package main
 
 import (
@@ -48,6 +49,7 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 }
 
 func run(events chan<- string) (func() error, error) {
+	//START registering_workflows_starting_workers
 	c, err := client.New()
 
 	if err != nil {
@@ -141,4 +143,5 @@ func run(events chan<- string) (func() error, error) {
 	}
 
 	return cleanup, nil
+	//END registering_workflows_starting_workers
 }
