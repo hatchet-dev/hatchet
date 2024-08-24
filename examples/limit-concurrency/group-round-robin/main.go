@@ -63,7 +63,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 	}
 
 	testSvc := w.NewService("test")
-
+	//START concurrency_group_red_robin
 	err = testSvc.On(
 		worker.Events("concurrency-test-event-rr"),
 		&worker.WorkflowJob{
@@ -92,6 +92,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 			},
 		},
 	)
+	//END concurrency_group_red_robin
 	if err != nil {
 		return fmt.Errorf("error registering workflow: %w", err)
 	}
